@@ -1,6 +1,8 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import http from 'http';
+import https from 'https';
 
 const PROXY_URLS = [
     "https://github.com.cnpmjs.org",
@@ -55,30 +57,57 @@ function ensureTrailingSlash(url) {
 }
 
 /**
- * Test download speed for a URL
+ * Test download speed for a URL using built-in HTTP/HTTPS
  * @param {string} url - URL to test
  * @returns {Promise<{speed: number, error: string|null}>}
  */
 async function testProxySpeed(url) {
     console.log(`Testing URL: ${url}`);
 
-    try {
-        const startTime = Date.now();
-        const result = execSync(
-            `curl -L --max-time ${TEST_DURATION} "${url}" -w "%{speed_download}" -o /dev/null -s`,
-            { encoding: 'utf8' }
-        );
-        const endTime = Date.now();
-        const duration = (endTime - startTime) / 1000;
-        const speed = parseFloat(result);
+    const startTime = Date.now();
+    let speed = 0;
+    let dataReceived = 0;
+    let error = null;
 
-        console.log(`Duration: ${duration.toFixed(2)}s`);
-        console.log(`Average speed: ${formatSpeed(speed)}`);
-        
-        return { speed, error: null };
-    } catch (error) {
-        console.error(`Error testing ${url}:`, error.message);
-        return { speed: 0, error: error.message };
+    // Choose HTTP or HTTPS based on the URL
+    const protocol = url.startsWith('https') ? https : http;
+
+    try {
+        return new Promise((resolve) => {
+            const req = protocol.get(url, (res) => {
+                if (res.statusCode === 404) {
+                    error = '404 Not Found';
+                    resolve({ speed: 0, error });
+                    return;
+                }
+
+                res.on('data', (chunk) => {
+                    dataReceived += chunk.length;
+                });
+
+                res.on('end', () => {
+                    const duration = (Date.now() - startTime) / 1000; // in seconds
+                    speed = dataReceived / duration; // bytes per second
+                    console.log(`Duration: ${duration.toFixed(2)}s`);
+                    console.log(`Average speed: ${formatSpeed(speed)}`);
+                    resolve({ speed, error });
+                });
+            });
+
+            req.on('error', (err) => {
+                error = err.message;
+                resolve({ speed: 0, error });
+            });
+
+            req.setTimeout(TEST_DURATION * 1000, () => {
+                error = 'Request timeout';
+                req.abort();
+                resolve({ speed: 0, error });
+            });
+        });
+    } catch (err) {
+        console.error(`Error testing ${url}:`, err.message);
+        return { speed: 0, error: err.message };
     }
 }
 
@@ -179,4 +208,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     });
 }
 
-export { testProxySpeed, formatSpeed, formatBytes }; 
+export { testProxySpeed, formatSpeed, formatBytes };
