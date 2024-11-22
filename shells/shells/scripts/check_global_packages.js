@@ -1,11 +1,66 @@
 import { execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
+
+const CACHE_DIR = path.resolve('../../.cache/.check');
+const CACHE_FILE = path.join(CACHE_DIR, '.npm_global_package.cache');
+const CACHE_EXPIRY = 30 * 1000; // 30 seconds
 
 /**
- * Get list of globally installed npm packages
+ * Ensure cache directory exists
+ */
+function ensureCacheDir() {
+    if (!fs.existsSync(CACHE_DIR)) {
+        fs.mkdirSync(CACHE_DIR, { recursive: true });
+    }
+}
+
+/**
+ * Read the cache file and check its validity
+ * @returns {Map<string, string>|null} Cached packages map if valid, otherwise null
+ */
+function readCache() {
+    try {
+        if (fs.existsSync(CACHE_FILE)) {
+            const stats = fs.statSync(CACHE_FILE);
+            const age = Date.now() - stats.mtimeMs;
+
+            if (age < CACHE_EXPIRY) {
+                const cachedData = fs.readFileSync(CACHE_FILE, 'utf8');
+                return new Map(JSON.parse(cachedData));
+            }
+        }
+    } catch (error) {
+        console.error('Error reading cache:', error.message);
+    }
+    return null;
+}
+
+/**
+ * Write the global packages data to the cache file
+ * @param {Map<string, string>} packagesMap - Map of package names and versions
+ */
+function writeCache(packagesMap) {
+    try {
+        ensureCacheDir();
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(Array.from(packagesMap.entries())), 'utf8');
+    } catch (error) {
+        console.error('Error writing cache:', error.message);
+    }
+}
+
+/**
+ * Get list of globally installed npm packages (with caching)
  * @returns {Map<string, string>} Map of package names and versions
  */
 function getGlobalPackages() {
+    // Try reading from the cache
+    const cachedPackages = readCache();
+    if (cachedPackages) {
+        return cachedPackages;
+    }
+
+    // If no valid cache, get fresh data
     try {
         const output = execSync('npm list -g --depth=0', { encoding: 'utf8' });
         const packagesMap = new Map();
@@ -23,6 +78,8 @@ function getGlobalPackages() {
             }
         });
 
+        // Write the fresh data to the cache
+        writeCache(packagesMap);
         return packagesMap;
     } catch (error) {
         console.error('Error getting global packages:', error.message);
