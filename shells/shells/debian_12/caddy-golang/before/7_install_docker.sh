@@ -2,76 +2,52 @@
 
 SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
 COMMON_SCRIPTS_DIR=$(cat "/usr/script_global_var/COMMON_SCRIPTS_DIR")
-TEST_PROXY_SCRIPT="$COMMON_SCRIPTS_DIR/test_github_proxy.js"
 CHECK_DOCKER_CONFIG_SCRIPT="$COMMON_SCRIPTS_DIR/check_docker_config.js"
 
 # Automatically determine the LSB release codename from the system
 LSB_RELEASE=$(lsb_release -c | awk '{print $2}')
 
-# Test GitHub proxy and get the fastest URL
-test_github_proxy() {
-    echo -e "\033[0;34mTesting GitHub proxy speeds...\033[0m"
-    
-    if [ ! -f "$TEST_PROXY_SCRIPT" ]; then
-        echo -e "\033[0;31mGitHub proxy test script not found at: $TEST_PROXY_SCRIPT\033[0m"
-        return 1
-    fi
-
-    # Run the proxy test
-    node "$TEST_PROXY_SCRIPT" "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64"
-    
-    if [ -f "/usr/script_global_var/GITHUB_PROXY_URL" ]; then
-        PROXY_URL=$(cat "/usr/script_global_var/GITHUB_PROXY_URL")
-        if [ -n "$PROXY_URL" ]; then
-            echo -e "\033[0;32mUsing GitHub proxy: $PROXY_URL\033[0m"
-        else
-            echo -e "\033[0;34mUsing direct GitHub connection\033[0m"
-        fi
-        return 0
-    else
-        echo -e "\033[0;31mFailed to get proxy test results\033[0m"
-        return 1
-    fi
-}
-
-# Get Docker Compose download URL based on proxy test
-get_compose_url() {
-    local base_url="https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64"
-    if [ -f "/usr/script_global_var/GITHUB_PROXY_URL" ]; then
-        PROXY_URL=$(cat "/usr/script_global_var/GITHUB_PROXY_URL")
-        if [ -n "$PROXY_URL" ]; then
-            echo "${PROXY_URL}${base_url}"
-            return 0
-        fi
-    fi
-    echo "$base_url"
-    return 0
-}
+# Define download URL list with fixed path
+URLS=(
+  "https://mirrors.tuna.tsinghua.edu.cn/github-release/docker/compose/releases/latest/download/docker-compose-linux-x86_64"
+  "https://registry.aliyuncs.com/docker-compose/releases/latest/download/docker-compose-linux-x86_64"
+  "https://ghproxy.com/https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64"
+)
 
 # Function to install Docker Compose
 install_docker_compose() {
     echo -e "\033[0;34mInstalling Docker Compose...\033[0m"
     
-    # Get the appropriate download URL
-    local download_url
-    download_url=$(get_compose_url)
-    echo -e "\033[0;34mDownloading from: $download_url\033[0m"
-
-    # Download and install Docker Compose
-    if curl -L "$download_url" -o /usr/local/bin/docker-compose; then
-        # Change the installation directory to /usr/local/bin and ensure proper permissions
-        chmod +x /usr/local/bin/docker-compose
-        # Create symlink to /usr/bin for compatibility
-        ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+    # Set timeout (300 seconds = 5 minutes)
+    TIMEOUT=300
+    
+    # Target file path
+    TARGET_FILE="/usr/local/bin/docker-compose"
+    
+    # Loop through each URL
+    for URL in "${URLS[@]}"; do
+        echo -e "\033[0;34mAttempting to download Docker Compose from ${URL}...\033[0m"
         
-        echo -e "\033[0;32mDocker Compose downloaded and installed successfully\033[0m"
-        # Test the installation with full path
-        /usr/local/bin/docker-compose --version
-        return 0
-    else
-        echo -e "\033[0;31mFailed to download Docker Compose\033[0m"
-        return 1
-    fi
+        # Use timeout to limit download duration
+        if timeout ${TIMEOUT}s curl -L "$URL" -o "$TARGET_FILE"; then
+            # Check if the file was downloaded successfully and is not empty
+            if [ -s "$TARGET_FILE" ]; then
+                echo -e "\033[0;32mDocker Compose downloaded successfully!\033[0m"
+                chmod +x "$TARGET_FILE"
+                ln -sf "$TARGET_FILE" /usr/bin/docker-compose
+                /usr/local/bin/docker-compose --version
+                return 0
+            fi
+        fi
+
+        # If download fails or times out, delete the incomplete file
+        echo -e "\033[0;31mDownload failed or timed out. Removing incomplete file...\033[0m"
+        rm -f "$TARGET_FILE"
+    done
+
+    # If all download attempts fail
+    echo -e "\033[0;31mAll download sources failed. Please check your network or download manually.\033[0m"
+    return 1
 }
 
 # Function to install Docker
@@ -132,10 +108,6 @@ main() {
         exit 1
     fi
 
-    # Test GitHub proxy first
-    echo -e "\033[0;34mTesting GitHub connectivity...\033[0m"
-    test_github_proxy || true  # Continue even if proxy test fails
-
     # Install Docker if not present
     if ! command -v docker > /dev/null 2>&1; then
         echo -e "\033[0;34mDocker is not installed\033[0m"
@@ -180,5 +152,4 @@ main() {
     }
 }
 
-# Execute main function
 main "$@"

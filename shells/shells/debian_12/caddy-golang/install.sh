@@ -6,6 +6,13 @@ if [ "$EUID" -ne 0 ]; then
     exit
 fi
 
+# Detect if sudo is available
+if command -v sudo >/dev/null 2>&1; then
+    USE_SUDO="sudo"
+else
+    USE_SUDO=""
+fi
+
 # Get Linux distribution and version
 if [ -f /etc/os-release ]; then
     . /etc/os-release
@@ -25,11 +32,11 @@ echo "Version: $VER"
 echo "This script supports all Linux distributions"
 
 CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+BASE_DIR="$CURRENT_DIR"
 DEPLOY_DIR=$(dirname "$( dirname "$( dirname "$BASE_DIR")")")
 SCRIPT_ROOT_DIR=$(dirname "$(dirname "$DEPLOY_DIR")")
 main_script="$SCRIPT_ROOT_DIR/main.py"
-python_interpreter=$(sudo cat "/usr/local/.pcore_local/deploy/.PY_VENV_DIR")
+python_interpreter=$(${USE_SUDO} cat "/usr/local/.pcore_local/deploy/.PY_VENV_DIR")
 
 execute_scripts() {
     local directory=$1
@@ -37,7 +44,7 @@ execute_scripts() {
         echo "Executing scripts in $directory..."
         for script in $(find "$directory" -maxdepth 1 -name '*.sh' | sort); do
             echo "Running $script..."
-            sudo bash "$script"
+            ${USE_SUDO} bash "$script"
         done
     else
         echo "Install bash Directory $directory not found."
@@ -50,7 +57,7 @@ execute_public_scripts() {
         echo "Executing scripts in public directory..."
         for script in $(find "$public_dir" -maxdepth 1 -name '*.sh' | sort); do
             echo "Running $script..."
-            sudo bash "$script"
+            ${USE_SUDO} bash "$script"
         done
     else
         echo "Public directory not found."
@@ -60,6 +67,5 @@ execute_public_scripts() {
 before_scripts="${BASE_DIR}/before"
 execute_scripts "$before_scripts"
 execute_public_scripts
-sudo "$python_interpreter" "$main_script" deploy init
 after_public_dir="${BASE_DIR}/after"
 execute_scripts "$after_public_dir"
