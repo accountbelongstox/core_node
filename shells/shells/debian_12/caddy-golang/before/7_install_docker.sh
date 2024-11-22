@@ -40,7 +40,7 @@ get_compose_url() {
     if [ -f "/usr/script_global_var/GITHUB_PROXY_URL" ]; then
         PROXY_URL=$(cat "/usr/script_global_var/GITHUB_PROXY_URL")
         if [ -n "$PROXY_URL" ]; then
-            echo "${PROXY_URL}docker/compose/releases/latest/download/docker-compose-linux-x86_64"
+            echo "${PROXY_URL}${base_url}"
             return 0
         fi
     fi
