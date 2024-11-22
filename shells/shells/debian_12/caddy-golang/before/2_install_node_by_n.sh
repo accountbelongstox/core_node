@@ -77,47 +77,11 @@ else
     echo "Node.js is already installed: $(node -v)"
 fi
 
-# Configure npm registry
-CURRENT_REGISTRY=$(npm config get registry)
-if [ "$CURRENT_REGISTRY" != "https://registry.npmmirror.com/" ]; then
-    npm config set registry https://registry.npmmirror.com/
-    echo "npm registry set to taobao mirror"
-fi
-
-# Function to install global package if not exists
-install_if_not_exists() {
-    local package=$1
-    if ! npm list -g "$package" &> /dev/null; then
-        echo "Installing $package globally..."
-        npm install -g "$package"
-        return 0
-    else
-        local version=$(npm list -g "$package" | grep "$package" | cut -d@ -f2)
-        echo "$package is already installed: $version"
-        return 1
-    fi
-}
-
-# Install global packages and store their paths
-packages=("n" "yarn" "cnpm" "npx" "electron" "express" "puppeteer" "inquirer" "pm2" "pnpm" "dotenv" "typescript" "ts-node" "strapi")
-for package in "${packages[@]}"; do
-    if install_if_not_exists "$package"; then
-        # Only store path if installation was needed
-        store_path "$package" "$(npm bin -g)/$package"
-    else
-        # Store path for existing installation
-        store_path "$package" "$(npm bin -g)/$package"
-    fi
-done
 
 # Store Node.js related paths
 store_path "node" "$(which node)"
 store_path "npm" "$(which npm)"
 
-# Additional npm configurations
-npm config set electron_mirror "https://npmmirror.com/mirrors/electron/"
-npm config set puppeteer_download_host "https://npmmirror.com/mirrors"
-set_var "npm_registry" "$(npm config get registry)"
 
 # After Node.js installation and configuration is complete
 if [ -f "$CHECK_NPMRC_SCRIPT" ]; then
@@ -125,6 +89,14 @@ if [ -f "$CHECK_NPMRC_SCRIPT" ]; then
     node "$CHECK_NPMRC_SCRIPT"
 else
     echo "Warning: check_npmrc.js not found at $CHECK_NPMRC_SCRIPT"
+fi
+
+if [ -f /etc/npmrc ]; then
+    echo -e "\nSystem-wide npmrc:"
+    echo "----------------------------------------"
+    cat /etc/npmrc
+else
+    echo -e "\nNo system-wide npmrc file found"
 fi
 
 echo "
