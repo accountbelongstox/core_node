@@ -8,7 +8,6 @@ fi
 
 SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
 COMMON_SCRIPTS_DIR=$(cat "/usr/script_global_var/COMMON_SCRIPTS_DIR")
-CHECK_NPMRC_SCRIPT="$COMMON_SCRIPTS_DIR/check_npmrc.js"
 
 # Node.js version and download URL
 NODE_VERSION="20.18.1"
@@ -82,22 +81,6 @@ fi
 store_path "node" "$(which node)"
 store_path "npm" "$(which npm)"
 
-
-# After Node.js installation and configuration is complete
-if [ -f "$CHECK_NPMRC_SCRIPT" ]; then
-    echo "Running npmrc check script..."
-    node "$CHECK_NPMRC_SCRIPT"
-else
-    echo "Warning: check_npmrc.js not found at $CHECK_NPMRC_SCRIPT"
-fi
-
-if [ -f /etc/npmrc ]; then
-    echo -e "\nSystem-wide npmrc:"
-    echo "----------------------------------------"
-    cat /etc/npmrc
-else
-    echo -e "\nNo system-wide npmrc file found"
-fi
 
 echo "
 Installation and Configuration Summary:
