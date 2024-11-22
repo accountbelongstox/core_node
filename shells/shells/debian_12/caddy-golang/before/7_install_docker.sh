@@ -58,10 +58,15 @@ install_docker_compose() {
     echo -e "\033[0;34mDownloading from: $download_url\033[0m"
 
     # Download and install Docker Compose
-    if curl -L "$download_url" -o /usr/bin/docker-compose; then
-        chmod +x /usr/bin/docker-compose
+    if curl -L "$download_url" -o /usr/local/bin/docker-compose; then
+        # Change the installation directory to /usr/local/bin and ensure proper permissions
+        chmod +x /usr/local/bin/docker-compose
+        # Create symlink to /usr/bin for compatibility
+        ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+        
         echo -e "\033[0;32mDocker Compose downloaded and installed successfully\033[0m"
-        docker-compose --version
+        # Test the installation with full path
+        /usr/local/bin/docker-compose --version
         return 0
     else
         echo -e "\033[0;31mFailed to download Docker Compose\033[0m"
@@ -152,9 +157,27 @@ main() {
 
     echo -e "\033[0;32mDocker installation and configuration completed successfully\033[0m"
     
+    # Ensure proper permissions for Docker Compose
+    echo -e "\033[0;34mEnsuring proper permissions for Docker Compose...\033[0m"
+    if [ -f "/usr/local/bin/docker-compose" ]; then
+        chmod +x /usr/local/bin/docker-compose
+    fi
+    if [ -f "/usr/bin/docker-compose" ]; then
+        chmod +x /usr/bin/docker-compose
+    fi
+    
     # Display versions
+    echo -e "\033[0;34mVerifying Docker installations...\033[0m"
     docker --version
-    docker-compose --version
+    docker-compose --version || {
+        echo -e "\033[0;31mWarning: docker-compose version check failed. Attempting to fix permissions...\033[0m"
+        # If version check fails, try to reinstall the symlink
+        ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
+        chmod +x /usr/bin/docker-compose
+        echo -e "\033[0;34mRetrying docker-compose version check...\033[0m"
+        docker-compose --version
+    }
 }
 
 # Execute main function
