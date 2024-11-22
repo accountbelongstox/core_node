@@ -1,5 +1,5 @@
-const fs = require('fs');
-const { execSync } = require('child_process');
+import fs from 'fs';
+import { execSync } from 'child_process';
 
 // Get memory limit from command line argument
 const memoryArg = process.argv[2];
@@ -38,10 +38,7 @@ function calculateMemorySettings(totalMemoryMB) {
 
 // Format memory value for config file
 function formatMemoryValue(value, isKB = false) {
-    if (isKB) {
-        return `${value}K`;
-    }
-    return `${value}M`;
+    return isKB ? `${value}K` : `${value}M`;
 }
 
 // Backup configuration file
@@ -73,7 +70,7 @@ function restoreConfig(backupPath, configPath) {
 function restartMariaDB() {
     try {
         execSync('systemctl restart mariadb');
-        // Wait a moment and check if service is running
+        // Wait a moment and check if the service is running
         setTimeout(() => {
             try {
                 execSync('systemctl is-active --quiet mariadb');
@@ -92,14 +89,14 @@ function restartMariaDB() {
 function updateMariaDBConfig(settings) {
     const configPath = '/etc/mysql/mysql.conf.d/mysqld.cnf';
     const backupPath = backupConfig(configPath);
-    
+
     try {
         // Read current config
         let config = fs.readFileSync(configPath, 'utf8');
         let lines = config.split('\n');
         let updatedConfig = [];
         let settingsFound = new Set();
-        
+
         // Process existing lines
         for (let line of lines) {
             let matched = false;
@@ -118,7 +115,7 @@ function updateMariaDBConfig(settings) {
                 updatedConfig.push(line);
             }
         }
-        
+
         // Add missing settings
         for (const [key, value] of Object.entries(settings)) {
             if (!settingsFound.has(key)) {
@@ -127,11 +124,11 @@ function updateMariaDBConfig(settings) {
                     value}`);
             }
         }
-        
+
         // Write updated config
         fs.writeFileSync(configPath, updatedConfig.join('\n'));
         console.log('Configuration updated successfully.');
-        
+
         // Attempt to restart MariaDB
         console.log('Restarting MariaDB service...');
         if (!restartMariaDB()) {
@@ -146,21 +143,13 @@ function updateMariaDBConfig(settings) {
             }
             process.exit(1);
         }
-        
+
         console.log('MariaDB restarted successfully with new configuration.');
         console.log('\nNew memory settings:');
         Object.entries(settings).forEach(([key, value]) => {
             console.log(`${key} = ${key.includes('size') ? formatMemoryValue(value) : value}`);
         });
-        
-        console.log('\nTotal memory allocation:', 
-            Math.floor(settings.innodb_buffer_pool_size + 
-            settings.key_buffer_size + 
-            (settings.max_connections * 2)) + 'MB');
-            
-        // Clean up old backup if everything is successful
-        fs.unlinkSync(backupPath);
-        
+
     } catch (error) {
         console.error('Error updating MariaDB configuration:', error.message);
         console.log('Attempting to restore previous configuration...');
@@ -178,4 +167,4 @@ function updateMariaDBConfig(settings) {
 
 // Execute the configuration update
 const settings = calculateMemorySettings(totalMemoryMB);
-updateMariaDBConfig(settings); 
+updateMariaDBConfig(settings);
