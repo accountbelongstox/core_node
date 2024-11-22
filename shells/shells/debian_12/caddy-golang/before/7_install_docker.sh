@@ -1,41 +1,19 @@
 #!/bin/bash
 
-# Get the script root directory and common scripts directory from global variables
-if [ ! -f "/usr/script_global_var/SCRIPT_ROOT_DIR" ] || [ ! -f "/usr/script_global_var/COMMON_SCRIPTS_DIR" ]; then
-    echo "Error: Required global variables not found"
-    exit 1
-fi
-
 SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
 COMMON_SCRIPTS_DIR=$(cat "/usr/script_global_var/COMMON_SCRIPTS_DIR")
 TEST_PROXY_SCRIPT="$COMMON_SCRIPTS_DIR/test_github_proxy.js"
+CHECK_DOCKER_CONFIG_SCRIPT="$COMMON_SCRIPTS_DIR/check_docker_config.js"
 
 # Automatically determine the LSB release codename from the system
 LSB_RELEASE=$(lsb_release -c | awk '{print $2}')
 
-# Print colored messages
-print_info() {
-    echo -e "\033[0;34m[INFO] $1\033[0m"
-}
-
-print_success() {
-    echo -e "\033[0;32m[SUCCESS] $1\033[0m"
-}
-
-print_error() {
-    echo -e "\033[0;31m[ERROR] $1\033[0m"
-}
-
-print_warning() {
-    echo -e "\033[0;33m[WARNING] $1\033[0m"
-}
-
 # Test GitHub proxy and get the fastest URL
 test_github_proxy() {
-    print_info "Testing GitHub proxy speeds..."
+    echo -e "\033[0;34mTesting GitHub proxy speeds...\033[0m"
     
     if [ ! -f "$TEST_PROXY_SCRIPT" ]; then
-        print_error "GitHub proxy test script not found at: $TEST_PROXY_SCRIPT"
+        echo -e "\033[0;31mGitHub proxy test script not found at: $TEST_PROXY_SCRIPT\033[0m"
         return 1
     fi
 
@@ -45,13 +23,13 @@ test_github_proxy() {
     if [ -f "/usr/script_global_var/GITHUB_PROXY_URL" ]; then
         PROXY_URL=$(cat "/usr/script_global_var/GITHUB_PROXY_URL")
         if [ -n "$PROXY_URL" ]; then
-            print_success "Using GitHub proxy: $PROXY_URL"
+            echo -e "\033[0;32mUsing GitHub proxy: $PROXY_URL\033[0m"
         else
-            print_info "Using direct GitHub connection"
+            echo -e "\033[0;34mUsing direct GitHub connection\033[0m"
         fi
         return 0
     else
-        print_error "Failed to get proxy test results"
+        echo -e "\033[0;31mFailed to get proxy test results\033[0m"
         return 1
     fi
 }
@@ -63,79 +41,81 @@ get_compose_url() {
         PROXY_URL=$(cat "/usr/script_global_var/GITHUB_PROXY_URL")
         if [ -n "$PROXY_URL" ]; then
             echo "${PROXY_URL}docker/compose/releases/latest/download/docker-compose-linux-x86_64"
-            return
+            return 0
         fi
     fi
     echo "$base_url"
+    return 0
 }
 
 # Function to install Docker Compose
 install_docker_compose() {
-    print_info "Installing Docker Compose..."
+    echo -e "\033[0;34mInstalling Docker Compose...\033[0m"
     
     # Get the appropriate download URL
-    local download_url=$(get_compose_url)
-    print_info "Downloading from: $download_url"
+    local download_url
+    download_url=$(get_compose_url)
+    echo -e "\033[0;34mDownloading from: $download_url\033[0m"
 
     # Download and install Docker Compose
     if curl -L "$download_url" -o /usr/bin/docker-compose; then
         chmod +x /usr/bin/docker-compose
-        print_success "Docker Compose downloaded and installed successfully"
+        echo -e "\033[0;32mDocker Compose downloaded and installed successfully\033[0m"
         docker-compose --version
+        return 0
     else
-        print_error "Failed to download Docker Compose"
+        echo -e "\033[0;31mFailed to download Docker Compose\033[0m"
         return 1
     fi
 }
 
 # Function to install Docker
 install_docker() {
-    print_info "Installing Docker..."
+    echo -e "\033[0;34mInstalling Docker...\033[0m"
     
-    sudo apt-get update
-    sudo apt-get install -y ca-certificates curl gnupg lsb-release
+    apt-get update
+    apt-get install -y ca-certificates curl gnupg lsb-release
 
-    sudo mkdir -p /etc/apt/keyrings
-    sudo curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
     
     echo \
         "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-        $LSB_RELEASE stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        $LSB_RELEASE stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-    sudo apt-get update
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
     # Verify installation
     if docker --version; then
-        print_success "Docker installed successfully"
+        echo -e "\033[0;32mDocker installed successfully\033[0m"
+        return 0
     else
-        print_error "Docker installation failed"
+        echo -e "\033[0;31mDocker installation failed\033[0m"
         return 1
     fi
 }
 
 # Configure Docker daemon
 configure_docker() {
-    print_info "Configuring Docker daemon..."
+    echo -e "\033[0;34mConfiguring Docker daemon...\033[0m"
     
-    local daemon_config="/etc/docker/daemon.json"
-    if [ ! -f "$daemon_config" ]; then
-        sudo mkdir -p /etc/docker
-        cat > "$daemon_config" <<EOF
-{
-    "registry-mirrors": [
-        "https://docker.mirrors.ustc.edu.cn",
-        "https://hub-mirror.c.163.com",
-        "https://mirror.baidubce.com"
-    ],
-    "log-driver": "json-file",
-    "log-opts": {
-        "max-size": "100m",
-        "max-file": "3"
-    }
-}
-EOF
-        print_success "Created Docker daemon configuration"
+    if [ ! -f "$CHECK_DOCKER_CONFIG_SCRIPT" ]; then
+        echo -e "\033[0;31mDocker config script not found at: $CHECK_DOCKER_CONFIG_SCRIPT\033[0m"
+        return 1
+    fi
+
+    # Run the Docker configuration script
+    node "$CHECK_DOCKER_CONFIG_SCRIPT"
+    local result=$?
+    
+    if [ $result -eq 0 ]; then
+        echo -e "\033[0;32mDocker configuration completed successfully\033[0m"
+        systemctl restart docker
+        return 0
+    else
+        echo -e "\033[0;31mFailed to configure Docker\033[0m"
+        return 1
     fi
 }
 
@@ -143,39 +123,39 @@ EOF
 main() {
     # Check if script is run as root
     if [ "$EUID" -ne 0 ]; then
-        print_error "Please run as root"
+        echo -e "\033[0;31mPlease run as root\033[0m"
         exit 1
-    }
+    fi
 
     # Test GitHub proxy first
-    print_info "Testing GitHub connectivity..."
-    test_github_proxy
+    echo -e "\033[0;34mTesting GitHub connectivity...\033[0m"
+    test_github_proxy || true  # Continue even if proxy test fails
 
     # Install Docker if not present
-    if ! command -v docker &> /dev/null; then
-        print_info "Docker is not installed"
+    if ! command -v docker > /dev/null 2>&1; then
+        echo -e "\033[0;34mDocker is not installed\033[0m"
         install_docker || exit 1
     else
-        print_info "Docker is already installed"
+        echo -e "\033[0;34mDocker is already installed\033[0m"
     fi
 
     # Install Docker Compose if not present
-    if ! command -v docker-compose &> /dev/null; then
-        print_info "Docker Compose is not installed"
+    if ! command -v docker-compose > /dev/null 2>&1; then
+        echo -e "\033[0;34mDocker Compose is not installed\033[0m"
         install_docker_compose || exit 1
     else
-        print_info "Docker Compose is already installed"
+        echo -e "\033[0;34mDocker Compose is already installed\033[0m"
     fi
 
     # Configure Docker
-    configure_docker
+    configure_docker || exit 1
 
-    print_success "Docker installation and configuration completed successfully"
+    echo -e "\033[0;32mDocker installation and configuration completed successfully\033[0m"
     
     # Display versions
     docker --version
     docker-compose --version
 }
 
-# Run main function
-main
+# Execute main function
+main "$@"
