@@ -8,13 +8,10 @@ CHECK_DOCKER_CONFIG_SCRIPT="$COMMON_SCRIPTS_DIR/check_docker_config.js"
 LSB_RELEASE=$(lsb_release -c | awk '{print $2}')
 
 # Define download URL list with fixed path
-DOCKER_COMPOSE_VERSION="2.27.0"
-# Define download URL list
 URLS=(
-  "https://mirrors.tuna.tsinghua.edu.cn/github-release/docker/compose/$(uname -s)-$(uname -m)/${DOCKER_COMPOSE_VERSION}/docker-compose"
-  "https://registry.aliyuncs.com/docker-compose/v${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)"
-  "https://ghproxy.com/https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)"
+  "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64"
 )
+
 # Function to install Docker Compose
 install_docker_compose() {
     echo -e "\033[0;34mInstalling Docker Compose...\033[0m"
