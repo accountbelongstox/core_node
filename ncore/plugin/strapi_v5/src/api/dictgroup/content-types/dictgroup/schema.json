@@ -1,0 +1,68 @@
+{
+  "kind": "collectionType",
+  "collectionName": "dictgroups",
+  "info": {
+    "singularName": "dictgroup",
+    "pluralName": "dictgroups",
+    "displayName": "dictgroup",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "namespace": {
+      "type": "string",
+      "default": "~public",
+      "required": true
+    },
+    "gtp": {
+      "type": "text"
+    },
+    "winclude": {
+      "type": "text"
+    },
+    "winclude_count": {
+      "type": "integer"
+    },
+    "origin_text": {
+      "type": "blocks"
+    },
+    "invalid_word_count": {
+      "type": "integer"
+    },
+    "wfrequency": {
+      "type": "json"
+    },
+    "wlink": {
+      "type": "text"
+    },
+    "valid_word": {
+      "type": "text"
+    },
+    "valid_word_count": {
+      "type": "integer"
+    },
+    "invalid_word": {
+      "type": "text"
+    },
+    "cover": {
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ],
+      "type": "media",
+      "multiple": false
+    },
+    "personal_style": {
+      "type": "text"
+    }
+  }
+}

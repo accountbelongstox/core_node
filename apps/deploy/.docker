@@ -1,0 +1,2 @@
+default=portainer samba lobe-chat mysql code-server registry registry-web node18 node20 node22 code-server
+developer=portainer mysql node18 node22 postgres

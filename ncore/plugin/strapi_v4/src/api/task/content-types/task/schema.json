@@ -1,0 +1,42 @@
+{
+  "kind": "collectionType",
+  "collectionName": "tasks",
+  "info": {
+    "singularName": "task",
+    "pluralName": "tasks",
+    "displayName": "Task"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "tid": {
+      "type": "uid"
+    },
+    "dec": {
+      "type": "string"
+    },
+    "promp": {
+      "type": "text"
+    },
+    "pdoc": {
+      "type": "text"
+    },
+    "pai": {
+      "type": "string"
+    },
+    "strict": {
+      "type": "string"
+    },
+    "tested": {
+      "type": "boolean"
+    },
+    "ttime": {
+      "type": "datetime"
+    },
+    "ppbulish": {
+      "type": "datetime"
+    }
+  }
+}

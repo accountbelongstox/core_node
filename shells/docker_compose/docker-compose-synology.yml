@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  mysql84:
+    container_name: mysql84
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD_EIGHTY}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD_EIGHTY}
+      MYSQL_USER: ${MYSQL_USER_EIGHTY}
+    image: mysql:latest
+    ports:
+      - "${MYSQL_EIGHTY_PORT}:3306"
+    restart: always
+    volumes:
+      - ${DOCKER_DATA}/mysql84:/var/lib/mysql
+      - ${DOCKER_DATA}/mysql84_conf:/etc/mysql/conf.d
+
+  mysql57:
+    container_name: mysql57
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD_FIVE}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD_FIVE}
+      MYSQL_USER: ${MYSQL_USER_FIVE}
+    image: mysql:5.7
+    ports:
+      - "${MYSQL_FIVE_PORT}:3306"
+    restart: always
+    volumes:
+      - ${DOCKER_DATA}/mysql57:/var/lib/mysql
+      - ${DOCKER_DATA}/mysql57_conf:/etc/mysql/conf.d
+
+  phpmyadmin84:
+    container_name: phpmyadmin84
+    image: phpmyadmin:latest
+    environment:
+      PMA_HOST: mysql84
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD_EIGHTY}
+      PMA_ARBITRARY: 1
+    ports:
+      - "${PHP_MYADMIN_EIGHTY_PORT}:80"
+    links:
+      - mysql84
+    restart: always
+
+  phpmyadmin57:
+    container_name: phpmyadmin57
+    image: phpmyadmin:latest
+    environment:
+      PMA_HOST: mysql57
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD_FIVE}
+      PMA_ARBITRARY: 1
+    ports:
+      - "${PHP_MYADMIN_FIVE_PORT}:80"
+    links:
+      - mysql57
+    restart: always
+
+  postgres:
+    container_name: postgres
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    image: postgres:latest
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    restart: always
+    volumes:
+      - ${DOCKER_DATA}/postgresql:/var/lib/postgresql/data
+
+  gitea:
+    container_name: gitea
+    image: gitea/gitea:latest
+    ports:
+      - "${GITEA_PORT_SSH}:22"
+      - "${GITEA_PORT_HTTP}:3000"
+    volumes:
+      - ${DOCKER_DATA}/gitea:/data
+    restart: always
+  registry:
+    image: registry:2
+    container_name: registry
+    restart: always
+    ports:
+      - "${REGISTRY_PORT}:5000"
+    volumes:
+      - ${DOCKER_DATA}/registry:/var/lib/registry
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: always
+    volumes:
+      - "${DOCKER_DATA}/nginx_proxy_manager_letsencrypt:/etc/letsencrypt"
+    ports:
+      - '${NPM_MANAGER_HTTP_PORT}:80'
+      - '${NPM_MANAGER_PORT}:81'
+      - '${NPM_MANAGER_HTTPS_PORT}:443'
+  baota:
+    build:
+      context: ./baota
+      dockerfile: Dockerfile
+    container_name: baota
+    restart: always
+    ports:
+      - "${BAOTA_HTTP_PORT}:8888"
+      - "${BAOTA_SSH_PORT}:22"
+      - "${BAOTA_HTTPS_PORT}:443"
+      - "${BAOTA_HTTP_ALT_PORT}:80"
+      - "${BAOTA_BACKUP_PORT}:888"
+    volumes:
+      - ${BT_WWWROOT_DIR}:/www/wwwroot
+      - ${BT_BASE_DIR}/mysql_data:/www/server/data
+      - ${BT_BASE_DIR}/vhost:/www/server/panel/vhost
+

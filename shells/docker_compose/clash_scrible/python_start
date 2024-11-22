@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# Function to print error messages in red
+print_error() {
+    echo -e "\033[31m$1\033[0m"  # Red color text
+}
+
+# Function to print warning messages in yellow
+print_warning() {
+    echo -e "\033[33m$1\033[0m"  # Yellow color text
+}
+
+# Function to install Python based on the system type
+install_python() {
+    echo "Attempting to install Python..."
+
+    # Detect the OS
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+    else
+        OS=$(uname -s)
+    fi
+
+    case "$OS" in
+        ubuntu|debian)
+            echo "Detected Ubuntu/Debian. Installing Python using apt..."
+            sudo apt update && sudo apt install -y python3
+            ;;
+        openwrt)
+            echo "Detected OpenWrt. Installing Python using opkg..."
+            opkg update && opkg install python3
+            ;;
+        synology)
+            echo "Detected Synology. Installing Python using Synology package manager..."
+            sudo synopkg install Python3
+            ;;
+        *)
+            print_error "Unsupported OS: $OS. Please install Python manually."
+            exit 1
+            ;;
+    esac
+
+    # Re-check if python3 was installed successfully
+    if command -v python3 &> /dev/null; then
+        echo "Python3 installed successfully."
+    else
+        print_error "Failed to install Python. Exiting."
+        exit 1
+    fi
+}
+
+# Function to check Python installation and version
+check_python() {
+    echo "Checking for Python installation..."
+
+    if command -v python &> /dev/null; then
+        echo "Python found at $(which python)"
+        python --version
+        PYTHON_CMD="python"
+    elif command -v python3 &> /dev/null; then
+        echo "Python3 found at $(which python3)"
+        python3 --version
+        PYTHON_CMD="python3"
+    else
+        print_warning "Python is not installed. Attempting to install Python..."
+        install_python
+        PYTHON_CMD="python3"  # After installation, we assume python3 is available
+    fi
+}
+
+# Check for .env file and issue a warning if it exists
+check_env_file() {
+    if [ -f ".env" ]; then
+        print_warning ".env file detected. Make sure the environment variables are correctly set."
+    fi
+}
+
+# Check if main.py exists and run it using Python
+run_main_py() {
+    echo "Executing main.py using $PYTHON_CMD..."
+    if ! $PYTHON_CMD main.py; then
+        print_error "Execution of main.py failed."
+        exit 1
+    fi
+}
+
+check_python
+check_env_file
+run_main_py
+
+echo "Script execution completed."

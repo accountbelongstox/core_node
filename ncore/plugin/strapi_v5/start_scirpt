@@ -1,0 +1,78 @@
+#!/bin/bash
+
+echo "Checking Node.js location and version..."
+NODE_PATH=$(which node)
+if [ -z "$NODE_PATH" ]; then
+  echo "Node.js is not installed."
+  exit 1
+else
+  echo "Node.js found at: $NODE_PATH"
+  node -v
+fi
+
+echo "Checking Yarn location and version..."
+YARN_PATH=$(which yarn)
+if [ -z "$YARN_PATH" ]; then
+  echo "Yarn is not installed. Installing Yarn globally using npm..."
+  npm install -g yarn
+  if [ $? -ne 0 ]; then
+    echo "Failed to install Yarn using npm."
+    exit 1
+  fi
+  YARN_PATH=$(which yarn)
+  if [ -z "$YARN_PATH" ]; then
+    echo "Yarn installation failed."
+    exit 1
+  fi
+  echo "Yarn successfully installed."
+fi
+
+echo "Yarn found at: $YARN_PATH"
+yarn -v
+
+echo "Checking node_modules directory..."
+if [ -d "node_modules" ]; then
+  if [ -d "node_modules/.bin" ] && [ "$(ls -A node_modules/.bin)" ]; then
+    echo "node_modules/.bin is not empty. Skipping yarn install."
+  else
+    echo "node_modules/.bin is empty or does not exist. Deleting node_modules..."
+    rm -rf node_modules
+    echo "node_modules deleted."
+
+    echo "Checking for yarn.lock..."
+    if [ -f "yarn.lock" ]; then
+      echo "yarn.lock found, deleting it..."
+      rm -f yarn.lock
+    fi
+
+    echo "Running yarn install..."
+    yarn install
+  fi
+else
+  echo "node_modules directory does not exist. Running yarn install..."
+  yarn install
+fi
+
+if [ ! -f ".env" ]; then
+  echo ".env file not found."
+  
+  if [ -f ".env-example" ]; then
+    echo "Found .env-example, copying it to .env..."
+    cp .env-example .env
+    echo "Copied .env-example to .env. Contents of the new .env file:"
+    cat .env
+  else
+    echo "No .env or .env-example file found. Please create a .env file."
+  fi
+fi
+
+if [ ! -f ".env" ]; then
+  echo ".env file is still not found. Cannot proceed with the build."
+  exit 1
+fi
+
+echo "Starting yarn develop..."
+yarn build
+yarn develop
+
+echo "Script execution completed."

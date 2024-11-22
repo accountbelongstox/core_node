@@ -1,0 +1,1 @@
+yarn add puppeteer-extra puppeteer-extra-plugin-stealth lodash puppeteer random-useragent serve-handler shortid user-agents uuid xmldom xpath cheerio body-parser express express-ws dotenv multer axios

@@ -1,0 +1,14 @@
+FROM python:3.7-alpine
+
+WORKDIR /usr/src/app
+
+COPY . .
+
+# 安装 Python 依赖（如果有 requirements.txt 文件的话）
+# RUN pip install --no-cache-dir -r requirements.txt
+
+# 安装 Node.js 依赖（如果有 package.json 文件的话）
+# RUN npm install
+
+# 指定运行 Python 脚本的命令
+CMD ["python", "./main.py"]

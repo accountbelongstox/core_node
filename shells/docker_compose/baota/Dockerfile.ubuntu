@@ -1,0 +1,50 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /usr/baota
+COPY . . 
+RUN find . -type f -name "*.sh" -exec chmod +x {} \;
+
+# Update apt source to 163 Ubuntu 22.04 mirror
+RUN rm -rf /etc/apt/sources.list && \
+    echo "deb http://mirrors.163.com/ubuntu/ jammy main restricted universe multiverse" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.163.com/ubuntu/ jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.163.com/ubuntu/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.163.com/ubuntu/ jammy-proposed main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.163.com/ubuntu/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb-src http://mirrors.163.com/ubuntu/ jammy main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb-src http://mirrors.163.com/ubuntu/ jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb-src http://mirrors.163.com/ubuntu/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb-src http://mirrors.163.com/ubuntu/ jammy-proposed main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb-src http://mirrors.163.com/ubuntu/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list
+
+# Install ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates
+
+# Part 1: Install basic packages
+RUN apt-get update && apt-get install -y \
+    bash \
+    curl \
+    wget \
+    vim \
+    iproute2 \
+    openssh-server \
+    nano \
+    procps \
+    locales
+
+RUN /usr/baota/shells/docker_build/set_locales.sh && \
+    /usr/baota/shells/docker_build/ssh.sh
+
+# Install aaPanel with automatic yes to prompts
+RUN URL=https://www.aapanel.com/script/install_7.0_en.sh && \
+    if [ -f /usr/bin/curl ];then curl -ksSO "$URL" ;else wget --no-check-certificate -O install_7.0_en.sh "$URL";fi && \
+    yes | bash install_7.0_en.sh aapanel
+
+RUN /usr/baota/shells/docker_build/backup.sh
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+EXPOSE 80 443 888 889 8888 22
+
+CMD ["/usr/baota/start.sh"]

@@ -1,0 +1,55 @@
+{
+  "kind": "collectionType",
+  "collectionName": "dictionaries",
+  "info": {
+    "singularName": "dictionary",
+    "pluralName": "dictionaries",
+    "displayName": "dictionary",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "word": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "is_delete": {
+      "type": "boolean",
+      "default": false
+    },
+    "word_sort": {
+      "type": "string"
+    },
+    "phonetic_us": {
+      "type": "string"
+    },
+    "phonetic_us_sort": {
+      "type": "string"
+    },
+    "phonetic_us_length": {
+      "type": "integer"
+    },
+    "phonetic_uk": {
+      "type": "string"
+    },
+    "phonetic_uk_sort": {
+      "type": "string"
+    },
+    "phonetic_uk_length": {
+      "type": "integer"
+    },
+    "word_length": {
+      "type": "integer"
+    },
+    "translation": {
+      "type": "text"
+    },
+    "link": {
+      "type": "text"
+    }
+  }
+}

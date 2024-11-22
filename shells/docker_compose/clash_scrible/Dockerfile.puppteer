@@ -1,0 +1,59 @@
+FROM ghcr.io/puppeteer/puppeteer:latest
+USER root
+# Set the working directory inside the container
+WORKDIR /usr/src/app
+
+# Set environment variables (if needed)
+ENV NODE_ENV=production
+ENV IS_DOCKER=true 
+# Configure npm to use Huawei source
+RUN npm config set registry https://repo.huaweicloud.com/repository/npm/
+
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN echo "deb https://mirrors.huaweicloud.com/debian/ bookworm main non-free non-free-firmware contrib" > /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian/ bookworm main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian-security/ bookworm-security main" >> /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian-security/ bookworm-security main" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian/ bookworm-updates main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian/ bookworm-updates main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian/ bookworm-backports main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian/ bookworm-backports main non-free non-free-firmware contrib" >> /etc/apt/sources.list
+
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    apt-transport-https \
+    vim \
+    ca-certificates
+
+RUN apt-get update
+
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list && \
+    apt-get update && \
+    apt-get install -y google-chrome-stable
+
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install yarn globally
+# RUN npm install -g yarn
+
+# Copy package.json and install Node.js dependencies using yarn
+COPY package*.json ./
+RUN yarn install
+
+# Copy all files from the current directory to the container's working directory, excluding .devenv
+COPY . .
+RUN rm -f .devenv
+
+# Indicate that /app/data is a volume that can be mounted externally
+VOLUME /app/data
+
+LABEL description="Clash Subscribe is a Docker container that connects to a service for managing proxy subscriptions."
+LABEL usage="To run the Docker container, use the command: docker run -d --name 'clash_subscribe' -u root -p 18100:18100 -v '/host/path/to/data:/app/data' games129/clash_subscribe"
+
+EXPOSE 18100 18200
+# Specify the command to run your Node.js application
+CMD ["node", "./main.js"]

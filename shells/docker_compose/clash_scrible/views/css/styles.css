@@ -1,0 +1,414 @@
+/* Global styling */
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    max-width: 1200px; /* Increased from 800px */
+    margin: 0 auto;
+    background-color: #f4f4f9;
+}
+
+/* Headings */
+h1 {
+    color: #333;
+}
+
+/* Button styling with gradient and hover effect */
+button {
+    background: linear-gradient(to right, #ff512f, #f09819);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 25px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+button:hover {
+    background: linear-gradient(to right, #f09819, #ff512f);
+}
+
+/* Input fields */
+input[type="text"], textarea {
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    width: 95%;
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+textarea {
+    height: 100px;
+}
+
+.group-management {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(to right, #6a11cb, #2575fc);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.group-section {
+    flex-basis: 33%;
+    max-width: 33%;
+    margin-right: 20px;
+}
+
+.group-display {
+    color: white;
+    font-weight: bold;
+    background-color: #e7e7e7;
+    border-radius: 5px;
+}
+
+.group-display strong {
+    display: block;  /* Ensure each strong element is on its own line */
+    margin: 5px 0;  /* Add spacing between the two strong elements */
+    word-wrap: break-word;  /* Break long words to avoid overflow */
+    overflow-wrap: break-word;  /* Break long words if necessary */
+}
+/* Subscription section */
+.subscription-url {
+    background-color: #e7f3ff;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    margin-bottom: 20px;
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+/* Code blocks */
+code {
+    background-color: #f9f9f9;
+    border: 1px solid #ccc;
+    padding: 5px;
+    display: inline-block;
+}
+
+/* Divider line */
+hr {
+    border: none;
+    height: 1px;
+    background-color: #ccc;
+}
+
+/* URL submission form section */
+.url-submission {
+    padding: 20px;
+    background: linear-gradient(to right, #e1eec3, #f05053);
+    border-radius: 10px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+/* Styling the JSON display */
+.json-display {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+select {
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 25px;
+    background: linear-gradient(45deg, #6a11cb, #2575fc);
+    color: white;
+    font-size: 1em;
+    width: 100%;
+    max-width: 300px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    appearance: none;
+    cursor: pointer;
+    text-align: center;
+}
+
+select:hover {
+    box-shadow: 0px 6px 10px rgba(0, 0, 0, 0.15);
+}
+
+select option {
+    background-color: #fff;
+    color: black;
+}
+.group-display {
+    background: linear-gradient(45deg, #ff9a9e, #fad0c4);
+    padding: 15px;
+    border-radius: 10px;
+    color: white;
+    font-weight: bold;
+    text-align: left;
+    font-size: 1.2em;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+    margin-bottom: 20px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Modal styling */
+.modal {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal-content h2 {
+    margin-top: 0;
+}
+
+.input-group {
+    margin-bottom: 15px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+#saveConfigBtn, #closeConfigModalBtn {
+    margin-top: 20px;
+    margin-right: 10px;
+}
+
+button {
+    padding: 10px;
+    margin: 10px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #ccc;
+}
+.nowrap {
+    white-space: nowrap;
+}
+/* Basic styling for the outermost container */
+.list-container {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 10px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    background-color: #f4f4f4;
+}
+
+/* Basic styling for the list */
+#json-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Each list item */
+#json-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 5px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #fff;
+}
+
+/* Flexbox ensures that elements in url-entry are displayed in a row */
+/* Flexbox ensures that elements in url-entry are displayed in a row */
+.url-entry {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+/* Individual elements inside url-entry */
+.url-entry span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* URL element takes 40% of the width */
+.url-entry .url {
+    width: 30%;
+}
+
+/* Submission Time takes 20% of the width */
+.url-entry .submission-time {
+    width: 25%;
+}
+
+/* Expiry Time takes 20% of the width */
+.url-entry .expiry-time {
+    width: 25%;
+}
+
+/* Buttons container takes 10% of the width */
+.url-entry .actions {
+    width: 20%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Style for the buttons */
+button.action-btn {
+    padding: 5px 10px;
+    margin-left: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+button.edit-btn {
+    background-color: #4CAF50; /* Green */
+    color: white;
+}
+
+button.delete-btn {
+    background-color: #f44336; /* Red */
+    color: white;
+}
+
+/* Ensure buttons appear side by side */
+button.edit-btn, button.delete-btn {
+    margin-right: 5px;
+}
+
+/* Ensure URL and other text content is constrained to not overflow */
+.url-text {
+    max-width: 70%; /* Adjust this as needed to control width */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+    .modal {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-content {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        width: 50%;
+        max-width: 500px;
+    }
+
+    .modal-content h2 {
+        margin-top: 0;
+    }
+
+    .modal-content form {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-content input {
+        margin-bottom: 10px;
+        padding: 5px;
+        font-size: 16px;
+    }
+
+    .modal-content button {
+        padding: 10px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+/* Alternating row colors for better readability */
+#json-list li.even {
+    background-color: #f0f8ff; /* AliceBlue */
+}
+
+#json-list li.odd {
+    background-color: #f5f5f5; /* LightGray */
+}
+
+.header-row {
+    font-weight: bold;
+    border-bottom: 2px solid #ccc;
+    margin-bottom: 10px;
+}
+/* Container for h3 and button */
+.header-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.header-row:last-child {
+    margin-bottom: 0;
+}
+
+.header-row .nowrap {
+    font-size: 1.17em;
+    font-weight: bold;
+    width: 100%;
+    text-align: center;
+}
+
+.header-row button {
+    flex: 1;
+    margin: 0 5px;
+}
+
+.header-row button:first-child {
+    margin-left: 0;
+}
+
+.header-row button:last-child {
+    margin-right: 0;
+}

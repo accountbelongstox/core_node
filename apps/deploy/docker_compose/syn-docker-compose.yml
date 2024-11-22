@@ -1,0 +1,136 @@
+networks:
+  1panel-network:
+    driver: bridge
+services:
+  lobe-chat:
+    container_name: lobe-chat
+    environment:
+      ACCESS_CODE: ${LOBE_CHAT_ACCESS_CODE}
+      OPENAI_API_KEY: ${LOBE_CHAT_OPENAI_API_KEY}
+      OPENAI_PROXY_URL: ${LOBE_CHAT_OPENAI_PROXY_URL}
+    image: lobehub/lobe-chat
+    ports:
+    - ${LOBE_CHAT_PORT}:3210
+    restart: unless-stopped
+  mongodb:
+    container_name: mongodb
+    image: mongo:latest
+    ports:
+    - 27019:27019
+    restart: unless-stopped
+    volumes:
+    - ${DOCKER_DATA}/mongodb:/etc/mongo
+    - ${DOCKER_DATA}/mongodb/data:/data/db
+  mysql:
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQ_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQ_USER: ${MYSQL_USER}
+    image: mysql:latest
+    ports:
+    - 3306:3306
+    restart: always
+    volumes:
+      - ${DOCKER_DATA}/mysql/data:/var/lib/mysql
+    nut-upsd:
+      command: sh -c 'if ! which python3 >/dev/null 2>&1; then apk add --no-cache python3;
+        fi && python3 /usr/local/bin/main.py'
+      container_name: nut-upsd
+      devices:
+        - ${UPS_DEVICES}
+      environment:
+        - UPS_NAME=${UPS_NAME}
+        - UPS_API_PORT=${UPS_API_PORT}
+        - UPS_DESC=USB to Serial
+        - UPS_DRIVER=nutdrv_qx
+        - UPS_PORT=auto
+        - API_USER=${UPS_API_USER}
+        - API_PASSWORD=${UPS_API_PASSWORD}
+        - ADMIN_PASSWORD=${UPS_ADMIN_PASSWORD}
+        - SHUTDOWN_CMD=echo 'Home has no current. Proceeding to shut down...'
+      image: upshift/nut-upsd
+      ports:
+        - ${UPS_PORT}:3493
+        - ${UPS_API_PORT}:${UPS_API_PORT}
+      restart: always
+      volumes:
+        - ./src/main.py:/usr/local/bin/main.py
+    portainer:
+      container_name: portainer
+      image: portainer/portainer-ce:latest
+      ports:
+        - ${PORTAINER_PORT}:9000
+      restart: always
+      volumes:
+        - ${DOCKER_SOCK}:/var/run/docker.sock
+        - ${DOCKER_DATA}/portainer:/data
+      postgres:
+        container_name: postgres
+        environment:
+          LANG: zh_CN.utf8
+          PGDATA: /var/lib/postgresql/data/pgdata
+          POSTGRES_INITDB_ARGS: --locale-provider=icu --icu-locale=zh-CN
+          POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        image: postgres:latest
+        ports:
+          - 5432:5432
+        restart: unless-stopped
+        volumes:
+          - ${DOCKER_DATA}/postgresql/data:/var/lib/postgresql/data
+      registry:
+        command:
+          - serve
+          - /etc/docker/registry/config.yml
+        container_name: registry
+        deploy:
+          mode: replicated
+          placement:
+            constraints:
+              - node.role == manager
+          replicas: 1
+        environment:
+          REGISTRY_PROXY_REMOTEURL: https://registry-1.docker.io
+        image: registry:2
+        ports:
+          - ${REGISTRY_PORT}:5000
+        volumes:
+          - ${DOCKER_DATA}/registry/data:/var/lib/registry
+          - ${DOCKER_DATA}/registry/conf/auth.cert:/etc/docker/registry/auth.cert:ro
+        registry-web:
+          container_name: registry-web
+          deploy:
+            mode: replicated
+            placement:
+              constraints:
+                - node.role == manager
+            replicas: 1
+          environment:
+            - REGISTRY_READONLY=false
+            - REGISTRY_TRUST_ANY_SSL=true
+            - REGISTRY_BASIC_AUTH="YWRtaW46Y2hhbmdlbWU="
+            - REGISTRY_TOKEN_ISSUER=my_issuer
+            - REGISTRY_URL=http://registry:5000/v2
+            - REGISTRY_NAME=localhost:5000
+          image: hyper/docker-registry-web
+          links:
+            - registry
+          ports:
+            - ${REGISTRY_WEB_PORT}:8080
+          volumes:
+            - ${DOCKER_DATA}/registry-web/conf/registry_web/auth.key:/conf/auth.key
+            - ${DOCKER_DATA}/registry-web/data:/data
+        webnut:
+          container_name: webnut
+          environment:
+            - UPS_HOST=${MAIN_IP}
+            - UPS_PORT=3493
+            - UPS_USER=${UPS_USER}
+            - UPS_PASSWORD=${UPS_PASSWORD}
+          hostname: webnut
+          image: edgd1er/webnut:latest
+          links:
+          - nut-upsd
+          ports:
+          - ${WEBNUT_PORT}:6543
+          restart: always

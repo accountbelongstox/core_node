@@ -1,0 +1,44 @@
+FROM debian:stable
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set working directory
+WORKDIR /home/build
+
+# Copy only specific files
+COPY shells/docker_build/set_locales.sh shells/docker_build/ssh.sh ./
+
+# Make sure the scripts are executable
+RUN chmod +x set_locales.sh ssh.sh
+
+# Update apt source to Huawei Cloud Debian Bookworm mirror
+RUN rm -rf /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian/ bookworm main non-free non-free-firmware contrib" > /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian/ bookworm main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian-security/ bookworm-security main" >> /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian-security/ bookworm-security main" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian/ bookworm-updates main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian/ bookworm-updates main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian/ bookworm-backports main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian/ bookworm-backports main non-free non-free-firmware contrib" >> /etc/apt/sources.list
+
+# Install ca-certificates and other packages
+RUN apt-get update && apt-get install -y ca-certificates \
+    bash \
+    curl \
+    wget \
+    vim \
+    iproute2 \
+    openssh-server \
+    nano \
+    procps
+
+# Run the scripts
+RUN ./set_locales.sh && \
+    ./ssh.sh
+
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+CMD ["bash"]
+

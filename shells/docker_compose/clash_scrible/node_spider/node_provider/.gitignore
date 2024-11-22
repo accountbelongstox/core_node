@@ -1,0 +1,15 @@
+out/
+logs/
+run/
+.idea/
+package-lock.json
+data/
+.vscode/launch.json
+public/electron/
+pnpm-lock.yaml
+.yalc/
+yalc.lock
+doc/
+frontend_vue/
+frontend/
+build/

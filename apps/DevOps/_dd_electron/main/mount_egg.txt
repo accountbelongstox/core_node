@@ -1,0 +1,15 @@
+	async onlyExecuteOnceAfterLoading() {
+		if (this.already_after_exec) {
+			return
+		}
+		this.already_after_exec = true
+		try {
+			lifeCycle.onlyExecuteOnceAfterLoading()
+			shortcutRegistrationWidget.shortcutKeyEffect()
+			eggPreload.autoExecAfterByLoaded()
+		}
+		catch (e) {
+			console.log(`onlyExecuteOnceAfterLoading`)
+			console.log(e)
+		}
+	}

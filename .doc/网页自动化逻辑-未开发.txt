@@ -1,0 +1,99 @@
+
+[参考API文档]：
+all.init(browser) - 初始化，传入浏览器实例并获取页面。
+browser.page.createPage(conf) - 使用给定的配置创建一个新页面。
+browser.page.open(url, options) - 打开给定URL，并使用指定选项配置页面。
+browser.page.setUserAgent(userAgent, index) - 设置指定页面的用户代理。
+browser.page.switch(urlOrIndex) - 切换到给定URL或索引的页面。
+browser.page.getCurrentPageIndex() - 获取当前页面的索引。
+browser.page.switchToPageByIndex(index) - 通过索引切换到指定页面。
+browser.page.switchToPageByUrl(url) - 通过URL切换到指定页面。
+browser.page.getPageByIndex(index) - 通过索引获取页面。
+browser.page.close(handle) - 关闭给定句柄的窗口。
+browser.page.closePage(url, safe) - 安全地关闭指定的URL页面。
+browser.page.getCurrentUrl(full) - 获取当前的URL，可选择是否完整。
+browser.page.getPagesLen() - 获取页面数量。
+browser.page.getPages() - 获取所有页面。
+browser.page.findPageIndexByUrl(url) - 通过URL查找页面索引。
+browser.page.findPageByUrl(url) - 通过URL查找页面。
+browser.page.closePageByIndex(index) - 通过索引关闭页面。
+browser.page.closePageByUrl(url) - 通过URL关闭页面。
+browser.page.closeBrowserWindow() - 关闭浏览器窗口。
+browser.page.quitBrowser() - 退出浏览器。
+browser.page.findBlankPageIndex() - 查找空白页的索引。
+browser.page.findNormalizedUrlIndex(url) - 查找规范化URL的索引。
+browser.page.switchOnly(url) - 切换到给定的URL，如果不存在则打开新页面。
+browser.page.getCookies()
+browser.page.getPageSize() - 获取浏览器的宽和高。
+browser.page.getLocalStorageData()
+browser.page.getSessionStorageData()
+browser.page.getIndexedDBData()
+browser.page.setCookies()
+browser.page.setLocalStorageData()
+browser.page.setSessionStorageData()
+browser.page.setIndexedDBData()
+
+browser.handle.getCurrentPage() - 获取当前页面。
+browser.handle.executeJsCode(jsCode) - 在当前页面执行JavaScript代码。
+browser.handle.triggerBySelector(selector, action) - 对指定选择器的元素执行操作。
+browser.handle.loadJsFileLocal(filePath) - 加载本地JavaScript文件。
+browser.handle.loadJsFileRemote(url) - 加载远程JavaScript文件。
+browser.handle.returnByJavascript(jsCode) - 执行JavaScript代码并返回结果。
+browser.handle.dragAndDropElement(selector, targetX, targetY) - 拖放元素到指定坐标。
+browser.handle.setInputBySelector(selector, value) - 设置输入框值。
+browser.handle.setSelectValueBySelector(selector, valueOrIndex) - 设置下拉框值。
+browser.handle.setCheckboxValueBySelector(selector, valueOrIndex) - 设置复选框值。
+browser.handle.setRadioValueBySelector(selector, valueOrIndex) - 设置单选框值。
+browser.handle.setElementValueBySelector(selector, valueOrIndex) - 设置元素的值。
+browser.handle.getSelectValueBySelector(selector) - 获取下拉框选中值。
+browser.handle.getCheckboxValueBySelector(selector) - 获取复选框的值。
+browser.handle.getRadioValueBySelector(selector) - 获取单选框的值。
+browser.handle.getElementValueBySelector(selector) - 获取元素的值。
+browser.handle.getCoordinatesBySelector(selector) - 获取元素的坐标。
+browser.handle.executeJsIfElementExists(selector, jsCode) - 如果元素存在，则执行JavaScript代码。
+browser.handle.setFocusBySelector(selector) - 将焦点设置到元素。
+browser.handle.clickElementBySelector(selector) - 点击元素。
+browser.handle.clickElementByInnerText(text) - 根据文字来点击元素
+browser.handle.clickElementByXpath(selector) - 点击元素。
+browser.handle.removeElementBySelector(selector) - 删除元素。
+browser.handle.setInnerHtmlBySelector(selector, html) - 设置元素内部HTML。
+browser.handle.insertHtmlBeforeElementBySelector(selector, html) - 在元素之前插入HTML。
+browser.handle.insertHtmlAfterElementBySelector(selector, html) - 在元素之后插入HTML。
+browser.handle.insertHtmlInsideElementBySelector(selector, html) - 在元素内部插入HTML。
+browser.handle.insertHtmlInsideEndOfElementBySelector(selector, html) - 在元素内部的末尾插入HTML。
+browser.handle.createAndInsertHtmlElement(htmlString, targetSelector, position, jsToExecute) - 创建并插入HTML元素。
+browser.handle.getScrollHeightBySelector(selector) - 获取元素的滚动高度。
+browser.handle.scrollToPositionBySelector(selector, position) - 滚动到元素的指定位置。
+browser.handle.scrollToBottomBySelector(selector) - 滚动到元素的底部。
+browser.handle.horizontalSwipeBySelector(selector, length, direction) - 水平滑动元素。
+browser.handle.verticalSwipeBySelector(selector, length, direction) - 垂直滑动元素。
+
+browser.util.platform.isWindows() - 判断当前操作系统是否是Windows。
+browser.util.url.isDynamicUrl(url) - 判断给定的URL是否是动态的。
+browser.util.platform.killChromeCommand() - 获取杀掉Chrome进程的命令。
+browser.util.json.deepUpdate(target, source) - 深度更新目标对象`target`的属性，使用源对象`source`的属性。
+browser.util.json.printKeys(obj, depth = 0, maxDepth = 10) - 打印对象的键值，可指定深度。
+browser.util.json.containsAnyKey(obj, targetKeys) - 判断对象中是否包含任何目标键。
+browser.util.url.normalizeUrl(url) - 标准化URL，删除协议和末尾斜杠。
+browser.util.url.equalDomain(url1, url2) - 对比两个url,忽略最后的/和 queryString。
+browser.util.url.equalDomainFull(url1, url2) - 对比两个url,忽略最后的/，但不忽略 queryString。。
+browser.util.date.randomMillisecond(x = 0, y = 1500) - 返回在x到y之间的随机毫秒数。
+
+基于以上的API文档,将以下流程写为一个功能:
+"
+ 自动化登录
+ 自动化注册
+ 自动化购买商品
+ 自动化下单
+ 自动化支付
+ 自动化收货
+ 自动化评价
+ 自动化评论
+ 自动化搜索
+ 自动化添加到购物车
+ 自动化删除购物车
+"
+将以上功能写在以下的函数里:
+     performShipping(product) {
+         const {browser} = product
+		//接着这里写

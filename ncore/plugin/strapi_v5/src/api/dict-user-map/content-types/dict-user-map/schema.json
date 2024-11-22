@@ -1,0 +1,32 @@
+{
+  "kind": "collectionType",
+  "collectionName": "dict_user_maps",
+  "info": {
+    "singularName": "dict-user-map",
+    "pluralName": "dict-user-maps",
+    "displayName": "dictUserMap",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "uid": {
+      "type": "integer"
+    },
+    "link": {
+      "type": "json"
+    },
+    "conver": {
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ],
+      "type": "media",
+      "multiple": false
+    }
+  }
+}

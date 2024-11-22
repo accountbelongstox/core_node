@@ -1,0 +1,17 @@
+{
+    "ignored_extensions": [
+        ".log", ".woff2", ".txt", ".md", ".gz", ".gitkeep", ".map", ".vue", ".html", ".mmdb", ".ico",
+        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp",
+        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm",
+        ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a",
+        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+        ".zip", ".rar", ".7z", ".tar", ".bz2",
+        ".exe", ".dll", ".iso", ".bin",
+        ".eot", ".ttf", ".woff",
+        ".toml", ".conf", ".sh", ".bat", ".css", ".yaml", ".dockerfile",
+        ".cache"
+    ],
+    "ignored_directories": ["node_modules", "build", ".git", ".vscode", "dist", "coverage", "logs"],
+    "exclude_patterns": ["node_modules/**", "**/node_modules/**","**/dist/**","**/build/**","**/assets/**","**/stylesheet/**", "**/node_modules/**","**/.git/**","**/.**/**", "*.yaml"],
+    "monitored_extensions": [".py", ".js", ".ts", ".java", ".cpp", ".c", ".cs", ".go", ".rb", ".php"]
+}

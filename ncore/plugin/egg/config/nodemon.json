@@ -1,0 +1,13 @@
+{
+  "watch": [
+    "apps/",
+    "ncore/"
+  ],
+  "ignore": [],
+  "ext": "js,json",
+  "verbose": true,
+  "exec": "npm run dev",
+  "restartable": "hr",
+  "colours": true,
+  "events": {}
+}

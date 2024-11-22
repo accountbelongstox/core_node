@@ -1,0 +1,24 @@
+class AuthenticatorClass {
+	(.. 需求)
+	// 建新凭据，用于注册新账号或将新的非对称密钥凭据与已有账号关联
+	// 使用一组现有凭据进行身份验证服务，用于用户登录或双因素验证中的一步
+	// 用于登录服务的凭据，使用不易受钓鱼攻击和数据泄露的非对称密钥对替代密码
+	// PublicKeyCredential的一部分，包含来自浏览器的信息（如挑战和来源）以及来自认证器的信息（AuthenticatorAttestationResponse用于新凭据，AuthenticatorAssertionResponse用于验证现有凭据）
+	// 当使用create()时，包含认证器为新密钥对提供的加密根信任的方式
+	// 当使用get()时，包含认证器用于证明其拥有密钥对并且认证请求是有效且已批准的方式
+	// 用于通过navigator.credentials.create()创建凭据的选项
+	// 用于通过navigator.credentials.get()使用凭据的选项
+	// 获取客户端扩展的结果
+	// (静态方法) 检查是否支持有条件中介
+	// (静态方法) 检查是否支持用户验证的平台认证器
+	// (实验性的) 解析JSON字符串以获取创建选项
+	// (实验性的) 解析JSON字符串以获取请求选项
+	// 凭据的全局唯一证书ID
+	// 凭据的响应数据
+	// (实验性的) 将对象转换为JSON格式
+    }
+module.exports = {
+    AuthenticatorClass,
+}
+
+根据上面的注释补全上面的代码，并将函数功能以/*注释*/的形式放到函数体内

@@ -1,0 +1,20 @@
+{
+    "common": {
+      "intranetIPAddress": "http://192.168.100.5/",
+      "localStaticHttpsApiUrl": "https://static.local.12gm.com:905/",
+      "localStaticHttpApiUrl": "http://static.local.12gm.com:805/"
+    },
+    "win32": {
+      "NCORE_DIR": "C:\\Users\\<USERNAME>\\.ncore",
+      "DEV_LANG_DIR": "D:\\lang_compiler",
+      "APP_INSTALL_DIR": "D:\\applications",
+      "PROJECT_DIR": "D:\\programing"
+    },
+    "linux": {
+      "NCORE_DIR": "/usr/local/.ncore",
+      "DEV_LANG_DIR": "/usr/lang_compiler",
+      "APP_INSTALL_DIR": "/www/applications",
+      "PROJECT_DIR": "/www/programing"
+    }
+  }
+  

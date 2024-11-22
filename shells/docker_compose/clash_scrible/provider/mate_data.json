@@ -1,0 +1,19 @@
+{
+  "lastUpdateTime": 1728654533618,
+  "recommendedAirports": [
+    "https://ygpy.net/"
+  ],
+  "routerUsername": "root",
+  "routerPassword": "",
+  "routerUrl": "http://192.168.100.1/",
+  "remoteGitUrl": "http://git.local.12gm.com:5021/adminroot/script.git",
+  "remoteLocalGitUrl": "http://192.168.100.5:5021/adminroot/script.git",
+  "clashNodeNameFilter": "\"[]",
+  "clashNodeKeywordFilter": "官网|telegram",
+  "sub2ClashLocalUrl": "http://127.0.0.1:8011",
+  "subRemoteUrl1": "https://url.v1.mk/sub?target=clash&url=",
+  "subRemoteUrl2": "http://192.168.100.1:25500/sub?url=",
+  "subRemoteGitConfigUrl": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_NoAuto.ini",
+  "subRemoteGitTemplateUrl": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full_NoAuto.ini"
+
+}

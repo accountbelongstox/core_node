@@ -1,0 +1,58 @@
+FROM node:20-alpine
+
+RUN yarn config set registry https://registry.npmmirror.com/
+
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ttf-freefont \
+    font-noto \
+    libx11 \
+    libxcomposite \
+    libxcursor \
+    libxdamage \
+    libxi \
+    libxtst \
+    libc6-compat \
+    dbus \
+    ttf-opensans \
+    bash \
+    git \
+    vim  \
+    go
+
+ENV CHROME_BIN=/usr/bin/chromium-browser
+
+ENV GOPATH=/go
+ENV PATH=$GOPATH/bin:/usr/local/go/bin:$PATH
+
+WORKDIR /app
+
+RUN yarn global add \
+    puppeteer \
+    puppeteer-extra \
+    puppeteer-extra-plugin-stealth \
+    nodemon \
+    electron \
+    axios \
+    body-parser \
+    cheerio \
+    dotenv \
+    express \
+    express-ws \
+    lodash \
+    multer \
+    random-useragent \
+    serve-handler \
+    shortid \
+    user-agents \
+    uuid \
+    winston \
+    xmldom \
+    xpath
+
+EXPOSE 3000
+
+CMD ["tail", "-f", "/dev/null"]

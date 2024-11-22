@@ -1,0 +1,90 @@
+{
+  "name": "egg-mock",
+  "version": "4.2.1",
+  "eggPlugin": {
+    "name": "egg-mock"
+  },
+  "description": "mock server for egg",
+  "main": "index.js",
+  "files": [
+    "app.js",
+    "index.js",
+    "index.d.ts",
+    "bootstrap.js",
+    "bootstrap.d.ts",
+    "app",
+    "lib"
+  ],
+  "scripts": {
+    "lint": "eslint lib app index.js test/*.test.js",
+    "test": "npm run lint && npm run test-local",
+    "test-local": "egg-bin test",
+    "cov": "egg-bin cov",
+    "ci": "npm run lint && npm run cov",
+    "autod": "autod",
+    "contributors": "git-contributor"
+  },
+  "dependencies": {
+    "@types/power-assert": "^1.5.0",
+    "@types/supertest": "^2.0.7",
+    "await-event": "^2.1.0",
+    "co": "^4.6.0",
+    "coffee": "^5.2.1",
+    "debug": "^4.1.1",
+    "detect-port": "^1.3.0",
+    "egg-logger": "^2.4.1",
+    "egg-utils": "^2.4.1",
+    "extend2": "^1.0.0",
+    "get-ready": "^2.0.1",
+    "globby": "^9.2.0",
+    "is-type-of": "^1.2.1",
+    "ko-sleep": "^1.0.3",
+    "merge-descriptors": "^1.0.1",
+    "methods": "^1.1.2",
+    "mm": "^3.0.2",
+    "mz-modules": "^2.1.0",
+    "power-assert": "^1.6.1",
+    "supertest": "^4.0.2",
+    "urllib": "^2.33.3"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.18",
+    "autod": "^3.1.0",
+    "coffee": "^5.2.1",
+    "egg": "^2",
+    "egg-bin": "^4.13.0",
+    "egg-ci": "^1.15.0",
+    "egg-errors": "^2.2.1",
+    "eslint": "^5.16.0",
+    "eslint-config-egg": "^7.4.1",
+    "git-contributor": "^1.1.0",
+    "mkdirp": "^0.5.1",
+    "pedding": "^1.1.0",
+    "sdk-base": "^3.0.1",
+    "tsd": "^0.19.0"
+  },
+  "ci": {
+    "type": "github",
+    "os": {
+      "github": "linux, macOS"
+    },
+    "version": "8, 10, 12, 14, 16",
+    "license": true
+  },
+  "homepage": "https://github.com/eggjs/egg-mock",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:eggjs/egg-mock.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eggjs/egg/issues"
+  },
+  "keywords": [
+    "egg",
+    "mock"
+  ],
+  "engines": {
+    "node": ">= 8.0.0"
+  },
+  "author": "popomore <sakura9515@gmail.com>"
+}

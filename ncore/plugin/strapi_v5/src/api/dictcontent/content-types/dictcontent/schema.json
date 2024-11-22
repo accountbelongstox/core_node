@@ -1,0 +1,30 @@
+{
+  "kind": "collectionType",
+  "collectionName": "dictcontents",
+  "info": {
+    "singularName": "dictcontent",
+    "pluralName": "dictcontents",
+    "displayName": "dictcontent"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "belongsto": {
+      "type": "string"
+    },
+    "content": {
+      "type": "blocks"
+    },
+    "valid_words": {
+      "type": "text"
+    },
+    "word_frequency": {
+      "type": "text"
+    },
+    "invalid_words": {
+      "type": "text"
+    }
+  }
+}

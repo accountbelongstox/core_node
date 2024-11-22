@@ -1,0 +1,11 @@
+class ScreenInterface {
+    
+    toString = () => '[class Content]';
+}
+
+
+
+module.exports =  {
+    ScreenInterface,
+}
+

@@ -1,0 +1,16 @@
+# This file indicates a development environment
+# It should not be copied to the Docker image or deployed to production
+
+DEVELOPMENT_MODE=true
+DEVELOPER_NAME=YourName
+LAST_MODIFIED=2023-05-10
+
+# Add any development-specific environment variables or notes below
+# Example:
+# DEBUG_LEVEL=verbose
+# TEST_DATABASE_URL=mongodb://localhost:27017/test_db
+
+# Notes:
+# - This file is for local development use only
+# - Do not include sensitive information here
+# - Make sure this file is listed in .gitignore if you don't want it in version control

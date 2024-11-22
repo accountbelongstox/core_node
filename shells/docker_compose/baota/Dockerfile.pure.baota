@@ -1,0 +1,14 @@
+FROM cy00000000x/debian:12
+
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /usr/baota
+COPY . . 
+RUN find . -type f -name "*.sh" -exec chmod +x {} \;
+
+RUN /usr/baota/shells/docker_build/install_baota.sh
+
+RUN /usr/baota/shells/docker_build/backup.sh
+
+EXPOSE 80 443 888 889 8888 22
+
+CMD ["/usr/baota/start.sh"]

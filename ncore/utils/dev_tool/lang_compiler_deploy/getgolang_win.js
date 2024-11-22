@@ -1,0 +1,170 @@
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
+import Base from '#@base';
+import { gdir, com_bin } from '#@globalvars';  // Import com_bin
+
+const tar = com_bin.getTarExecutable(); // Get the tar executable path
+const curl = com_bin.getCurlExecutable(); // Get the curl executable path
+const langdir = gdir.getDevLangPath();
+
+class GetGolang extends Base {
+    constructor() {
+        super();
+        this.golangVersions = {
+            1.22: "go1.22.5.windows-amd64.zip"  // Latest version added
+        };
+        this.defaultVersionKey = 1.22;
+        this.installDir = path.join(langdir);
+        this.tempDir = path.join(this.installDir, 'tmp');
+        this.prepareDirectories();
+    }
+
+    getDefaultVersion() {
+        const details = this.getVersionDetails(this.defaultVersionKey);
+        const baseDir = new Set();
+
+        if (details?.golangPath) {
+            const golangBaseDir = path.dirname(details.golangPath);
+            baseDir.add(golangBaseDir);
+        }
+
+        return {
+            versionKey: details?.golangVersionKey || null,
+            version: details?.golangVersion || null,
+            dir: details?.golangDir || null,
+            url: details?.golangUrl || null,
+            installDir: details?.golangInstallDir || null,
+            path: details?.golangPath || null,
+            baseDir: Array.from(baseDir)
+        };
+    }
+
+    getVersionDetails(versionKey) {
+        if (!this.cachedVersionDetails) {
+            this.cachedVersionDetails = {};
+        }
+        if (this.cachedVersionDetails[versionKey]) {
+            return this.cachedVersionDetails[versionKey];
+        }
+
+        if (this.golangVersions[versionKey]) {
+            const golangFileName = this.golangVersions[versionKey];
+            const golangDir = golangFileName.replace(/\.(zip|tar\.gz)$/, '');  // Remove file extension to get the directory name
+            const golangUrl = `https://go.dev/dl/${golangFileName}`;
+            const golangInstallDir = path.join(this.installDir, golangDir);
+            const golangPath = path.join(golangInstallDir, 'bin', os.platform() === 'win32' ? 'go.exe' : 'go');
+            this.cachedVersionDetails[versionKey] = {
+                golangVersionKey: versionKey,
+                golangVersion: golangFileName,
+                golangDir,
+                golangUrl,
+                golangInstallDir,
+                golangPath
+            };
+            return this.cachedVersionDetails[versionKey];
+        } else {
+            console.error(`Golang version key ${versionKey} is not supported.`);
+            return null;
+        }
+    }
+
+    setGolangVersion(versionKey) {
+        const versionDetails = this.getVersionDetails(versionKey);
+        if (versionDetails) {
+            this.golangVersionKey = versionDetails.golangVersionKey;
+            this.golangVersion = versionDetails.golangVersion;
+            this.golangDir = versionDetails.golangDir;
+            this.golangUrl = versionDetails.golangUrl;
+            this.golangInstallDir = versionDetails.golangInstallDir;
+            this.golangPath = versionDetails.golangPath;
+        }
+    }
+
+    start(versionKey = null) {
+        if (versionKey !== null) {
+            this.setGolangVersion(versionKey);
+            this.installGolang();
+        } else {
+            for (const key of Object.keys(this.golangVersions)) {
+                this.setGolangVersion(key);
+                this.installGolang();
+            }
+        }
+    }
+
+    installGolang() {
+        if (this.checkGolangInstalled()) {
+            console.log(`Golang ${this.golangVersion} is already installed.`);
+        } else {
+            this.downloadAndExtractGolang();
+        }
+        this.verifyInstallation();
+        this.configureGolang();
+    }
+
+    checkGolangInstalled() {
+        return fs.existsSync(this.golangPath);
+    }
+
+    prepareDirectories() {
+        if (!fs.existsSync(this.installDir)) {
+            fs.mkdirSync(this.installDir, { recursive: true });
+        }
+
+        if (!fs.existsSync(this.tempDir)) {
+            fs.mkdirSync(this.tempDir, { recursive: true });
+        }
+    }
+
+    downloadAndExtractGolang() {
+        console.log(`Downloading Golang ${this.golangVersion} from ${this.golangUrl}...`);
+        const tempGolangArchive = path.join(this.tempDir, this.golangVersions[this.golangVersionKey]);
+        
+        // Use curl with -L and -k parameters
+        this.execCmd(`${curl} -L -k -o "${tempGolangArchive}" "${this.golangUrl}"`);
+
+        console.log(`Extracting Golang ${this.golangVersion}...`);
+        if (os.platform() === 'win32') {
+            this.execCmd(`${tar} -xf "${tempGolangArchive}" -C "${this.installDir}"`);
+        } else {
+            this.execCmd(`sudo ${tar} -C "${this.installDir}" -xzf "${tempGolangArchive}"`);
+        }
+
+        // Rename the extracted 'go' directory to golangInstallDir
+        const extractedDir = path.join(this.installDir, 'go');
+        if (fs.existsSync(extractedDir)) {
+            fs.renameSync(extractedDir, this.golangInstallDir);
+        }
+    }
+
+    verifyInstallation() {
+        if (fs.existsSync(this.golangPath)) {
+            console.log(`Golang ${this.golangVersion} installed successfully.`);
+            const version = this.execCmd(`"${this.golangPath}" version`);
+            console.log(`Golang version: ${version}`);
+        } else {
+            console.error(`Golang ${this.golangVersion} installation failed.`);
+        }
+    }
+
+    configureGolang() {
+        const goBin = path.join(this.golangInstallDir, 'bin');
+        if (!process.env.PATH.includes(goBin)) {
+            process.env.PATH = `${goBin}${path.delimiter}${process.env.PATH}`;
+        }
+
+        const proxyUrl = "https://goproxy.cn,direct";
+        const goProxy = this.execCmd(`"${this.golangPath}" env GOPROXY`).trim();
+        if (!goProxy.includes("goproxy.cn")) {
+            console.log("Setting Go proxy settings...");
+            this.execCmd(`"${this.golangPath}" env -w GO111MODULE=on`);
+            this.execCmd(`"${this.golangPath}" env -w GOPROXY=${proxyUrl}`);
+        } else {
+            console.log(`GOPROXY is already set to ${proxyUrl}`);
+        }
+    }
+}
+
+const getGolang = new GetGolang();
+export default getGolang;
