@@ -57,6 +57,27 @@ function ensureTrailingSlash(url) {
 }
 
 /**
+ * Check if the file is a valid binary file (not an HTML page)
+ * @param {Buffer} fileData - The data to check
+ * @returns {boolean} - True if binary, false if HTML or 404
+ */
+function isValidBinaryFile(fileData) {
+    const fileSize = fileData.length;
+    
+    // If file size is smaller than 1MB, likely a 404 page or similar
+    if (fileSize < 1024 * 1024) {
+        const content = fileData.toString('utf8', 0, 500); // Read first 500 bytes for analysis
+        if (content.includes('<html') || content.includes('<!DOCTYPE html')) {
+            console.log('Test failed: Downloaded file is an HTML page or error page');
+            return false;
+        }
+    }
+
+    // Return true if it's likely a binary file
+    return true;
+}
+
+/**
  * Test download speed for a URL using built-in HTTP/HTTPS
  * @param {string} url - URL to test
  * @returns {Promise<{speed: number, error: string|null}>}
@@ -68,6 +89,7 @@ async function testProxySpeed(url) {
     let speed = 0;
     let dataReceived = 0;
     let error = null;
+    let fileData = null;
 
     // Choose HTTP or HTTPS based on the URL
     const protocol = url.startsWith('https') ? https : http;
@@ -83,6 +105,8 @@ async function testProxySpeed(url) {
 
                 res.on('data', (chunk) => {
                     dataReceived += chunk.length;
+                    if (!fileData) fileData = chunk;
+                    else fileData = Buffer.concat([fileData, chunk]);
                 });
 
                 res.on('end', () => {
@@ -90,7 +114,14 @@ async function testProxySpeed(url) {
                     speed = dataReceived / duration; // bytes per second
                     console.log(`Duration: ${duration.toFixed(2)}s`);
                     console.log(`Average speed: ${formatSpeed(speed)}`);
-                    resolve({ speed, error });
+
+                    // Check if the file is valid (not HTML and sufficiently large)
+                    if (fileData && isValidBinaryFile(fileData)) {
+                        resolve({ speed, error: null });
+                    } else {
+                        error = 'Invalid or HTML file detected';
+                        resolve({ speed: 0, error });
+                    }
                 });
             });
 
