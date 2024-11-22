@@ -140,7 +140,7 @@ async function main(targetUrl) {
     // Test proxy URLs if direct connection wasn't fast enough
     for (const proxyUrl of PROXY_URLS) {
         console.log('\n-------------------');
-        const proxyTargetUrl = targetUrl.replace('https://github.com/', `${proxyUrl}/`);
+        const proxyTargetUrl = `${proxyUrl}/` + targetUrl;
         const result = await testProxySpeed(proxyTargetUrl);
         
         if (!result.error && result.speed > fastestProxy.speed) {
