@@ -146,7 +146,14 @@ main() {
         chmod +x /usr/local/bin/docker-compose
         chmod +x /usr/bin/docker-compose
         echo -e "\033[0;34mRetrying docker-compose version check...\033[0m"
-        docker-compose --version
+        
+        # Retry version check
+        if ! docker-compose --version; then
+            echo -e "\033[0;31mdocker-compose version check failed again. Removing docker-compose...\033[0m"
+            rm -f /usr/local/bin/docker-compose
+            rm -f /usr/bin/docker-compose
+            return 1
+        fi
     }
 }
 
