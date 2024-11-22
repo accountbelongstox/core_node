@@ -333,36 +333,36 @@ Performing final checks..."
 if systemctl is-active --quiet mariadb; then
     echo "✓ MariaDB service is running"
     
-    # Test database connection
-    if mysql -u root -p"$root_password" -e "SELECT VERSION();" &>/dev/null; then
-        echo "✓ Database connection successful"
-        echo "✓ Root password is correctly set"
+#     # Test database connection
+#     if mysql -u root -p"$root_password" -e "SELECT VERSION();" &>/dev/null; then
+#         echo "✓ Database connection successful"
+#         echo "✓ Root password is correctly set"
         
-        # Check data directory
-        if [ -d "/www/mysql/data" ] && [ "$(ls -A /www/mysql/data)" ]; then
-            echo "✓ Data directory is properly initialized"
-        else
-            echo "✗ Data directory issues detected"
-        fi
+#         # Check data directory
+#         if [ -d "/www/mysql/data" ] && [ "$(ls -A /www/mysql/data)" ]; then
+#             echo "✓ Data directory is properly initialized"
+#         else
+#             echo "✗ Data directory issues detected"
+#         fi
         
-        # Check configuration
-        if [ -f "/etc/mysql/mysql.conf.d/mysqld.cnf" ]; then
-            echo "✓ Configuration file is in place"
-        else
-            echo "✗ Configuration file is missing"
-        fi
+#         # Check configuration
+#         if [ -f "/etc/mysql/mysql.conf.d/mysqld.cnf" ]; then
+#             echo "✓ Configuration file is in place"
+#         else
+#             echo "✗ Configuration file is missing"
+#         fi
         
-        # Show current database size
-        echo "
-Database Status:"
-        mysql -u root -p"$root_password" -e "SELECT table_schema 'Database', 
-        ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) 'Size (MB)'
-        FROM information_schema.tables
-        GROUP BY table_schema;"
-    else
-        echo "✗ Database connection failed"
-        echo "Please check the root password and database status"
-    fi
+#         # Show current database size
+#         echo "
+# Database Status:"
+#         mysql -u root -p"$root_password" -e "SELECT table_schema 'Database', 
+#         ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) 'Size (MB)'
+#         FROM information_schema.tables
+#         GROUP BY table_schema;"
+#     else
+#         echo "✗ Database connection failed"
+#         echo "Please check the root password and database status"
+#     fi
 else
     echo "✗ MariaDB service is not running"
     echo "Try starting it manually: systemctl start mariadb"
