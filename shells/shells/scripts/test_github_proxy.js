@@ -66,11 +66,7 @@ function isValidBinaryFile(fileData) {
     
     // If file size is smaller than 1MB, likely a 404 page or similar
     if (fileSize < 1024 * 1024) {
-        const content = fileData.toString('utf8', 0, 500); // Read first 500 bytes for analysis
-        if (content.includes('<html') || content.includes('<!DOCTYPE html')) {
-            console.log('Test failed: Downloaded file is an HTML page or error page');
-            return false;
-        }
+        return false;
     }
 
     // Return true if it's likely a binary file
