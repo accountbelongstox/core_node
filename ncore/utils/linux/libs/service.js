@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 
 const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
@@ -135,6 +136,118 @@ WantedBy=multi-user.target
             console.error('Error:', error.message);
             process.exit(1);
         }
+    }
+}
+
+/**
+ * Update service CPU limits and restart the service
+ * @param {string} serviceName - Name of the systemd service
+ * @param {number} cpuQuota - CPU quota percentage (e.g., 200 for 200%)
+ * @returns {boolean} - Success status
+ */
+function updateServiceCPU(serviceName, cpuQuota) {
+    try {
+        // Create override directory if it doesn't exist
+        execSync('mkdir -p /etc/systemd/system/${serviceName}.service.d/');
+        
+        // Create or update the CPU limit override file
+        const cpuOverride = `[Service]
+CPUQuota=${cpuQuota}%
+`;
+        fs.writeFileSync(`/etc/systemd/system/${serviceName}.service.d/cpu-limit.conf`, cpuOverride);
+
+        // Reload systemd and restart service
+        execSync('systemctl daemon-reload');
+        execSync(`systemctl restart ${serviceName}`);
+
+        console.log(`Successfully updated CPU quota for ${serviceName} to ${cpuQuota}%`);
+        return true;
+    } catch (error) {
+        console.error(`Failed to update CPU quota for ${serviceName}:`, error.message);
+        return false;
+    }
+}
+
+/**
+ * Update service binary file and restart the service
+ * @param {string} serviceName - Name of the systemd service
+ * @param {string} newBinaryPath - Path to the new binary file
+ * @param {string} targetPath - Target path where binary should be installed
+ * @returns {boolean} - Success status
+ */
+function updateServiceBinary(serviceName, newBinaryPath, targetPath) {
+    try {
+        // Verify new binary exists
+        if (!fs.existsSync(newBinaryPath)) {
+            throw new Error('New binary file not found');
+        }
+
+        // Stop the service
+        execSync(`systemctl stop ${serviceName}`);
+
+        // Backup existing binary if it exists
+        if (fs.existsSync(targetPath)) {
+            const backupPath = `${targetPath}.backup`;
+            fs.copyFileSync(targetPath, backupPath);
+        }
+
+        // Copy new binary
+        fs.copyFileSync(newBinaryPath, targetPath);
+        
+        // Set proper permissions
+        execSync(`chmod +x ${targetPath}`);
+
+        // Reload systemd and restart service
+        execSync('systemctl daemon-reload');
+        execSync(`systemctl restart ${serviceName}`);
+
+        console.log(`Successfully updated binary for ${serviceName}`);
+        return true;
+    } catch (error) {
+        console.error(`Failed to update binary for ${serviceName}:`, error.message);
+        
+        // Attempt to restore from backup if update failed
+        const backupPath = `${targetPath}.backup`;
+        if (fs.existsSync(backupPath)) {
+            try {
+                fs.copyFileSync(backupPath, targetPath);
+                execSync(`chmod +x ${targetPath}`);
+                execSync(`systemctl restart ${serviceName}`);
+                console.log('Restored service from backup');
+            } catch (restoreError) {
+                console.error('Failed to restore from backup:', restoreError.message);
+            }
+        }
+        
+        return false;
+    }
+}
+
+/**
+ * Check service status
+ * @param {string} serviceName - Name of the systemd service
+ * @returns {Object} Service status information
+ */
+function checkServiceStatus(serviceName) {
+    try {
+        const status = execSync(`systemctl status ${serviceName}`, { encoding: 'utf8' });
+        const activeState = status.match(/Active: (\w+)/)?.[1] || 'unknown';
+        const cpuUsage = execSync(`ps -p $(systemctl show -p MainPID ${serviceName} | cut -d'=' -f2) -o %cpu=`).toString().trim();
+        
+        return {
+            name: serviceName,
+            status: activeState,
+            cpuUsage: parseFloat(cpuUsage) || 0,
+            running: activeState === 'active'
+        };
+    } catch (error) {
+        return {
+            name: serviceName,
+            status: 'error',
+            cpuUsage: 0,
+            running: false,
+            error: error.message
+        };
     }
 }
 

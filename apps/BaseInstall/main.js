@@ -1,6 +1,12 @@
+import path from 'path';
 import { sysarg, run } from '#@utils_native';
-import { appentry_es, } from './ncore/globalvars.js';
+import { appentry, appentry_es, basedir } from './ncore/globalvars.js';
+import BaseInstall from './ncore/base/base_install/main.js';
+import autoInstall from '#@ncore/base/base_install/auto_install/main.js';
 import printer from '#@/ncore/base/printer.js';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const role = sysarg.getArg('role');
 const action = sysarg.getArg('action');
 console.log(`role ${role}`)
@@ -19,11 +25,11 @@ class ClientMain {
     // const entryModule = `${this.NCORE_DIR}${appentry}`;
     printer.success('entryModule/appentry_es:' + appentry_es);
     const appMain = await import(appentry_es);
-
+    
     if (!appMain.default || typeof appMain.default.start !== 'function') {
       throw new Error('Imported module does not have a start method');
     }
-
+    
     await appMain.default.start();
   }
 }
@@ -33,3 +39,20 @@ if (!run.isAdmin()) {
 }
 
 
+if (action === 'auto_install') {
+  const projectPath = __dirname;
+  autoInstall.start(projectPath);
+} else {
+  if (role === 'client' && action === 'init') {
+    const baseInstall = new BaseInstall();
+    baseInstall.start()
+  } else {
+    if (action === 'server') {
+      //
+    } else {
+      //
+    }
+    const clientMain = new ClientMain();
+    clientMain.start();
+  }
+}

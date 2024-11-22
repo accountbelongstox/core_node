@@ -1,7 +1,6 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import Base from '#@base';
 import { gdir, com_bin } from '#@globalvars';
 import { flink } from '#@utils_native';
 
@@ -9,9 +8,8 @@ const tar = com_bin.getTarExecutable(); // Get the tar executable path
 const curl = com_bin.getCurlExecutable(); // Get the curl executable path
 const langdir = gdir.getDevLangPath();
 
-class GetNodeWin extends Base {
+class GetNodeWin {
     constructor() {
-        super();
         this.nodeVersions = {
             18: "v18.20.4",
             20: "v20.16.0",

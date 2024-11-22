@@ -198,7 +198,7 @@ export async function spawnAsync(command, info = true, cwd = null, logname = nul
             const handleYesNo = (data) => {
                 const output = data.toString();
                 if (output.match(/(y\/n|yes\/no)/i)) {
-                    childProcess.stdin.write('Yes\n');
+                    childProcess.stdin?.write('Yes\n');
                 }
             };
 
