@@ -106,6 +106,12 @@ main() {
         exit 1
     fi
 
+    # Update GitHub hosts first
+    echo -e "\033[0;34mUpdating GitHub hosts...\033[0m"
+    node "$COMMON_SCRIPTS_DIR/check-github-hosts.js" || {
+        echo -e "\033[0;31mWarning: Failed to update GitHub hosts. Continuing with Docker installation...\033[0m"
+    }
+
     # Install Docker if not present
     if ! command -v docker > /dev/null 2>&1; then
         echo -e "\033[0;34mDocker is not installed\033[0m"
