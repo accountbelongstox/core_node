@@ -164,7 +164,7 @@ class HostsManager {
                 await this.executeCommand('ipconfig /flushdns');
                 this.print('Windows DNS cache has been flushed', 'success');
             } else if (process.platform === 'linux') {
-                // 检测 Linux 发行版
+                // Detect Linux distribution
                 const checkDistro = async () => {
                     try {
                         const { stdout } = await this.executeCommand('cat /etc/os-release');
@@ -177,7 +177,7 @@ class HostsManager {
                 const distroInfo = await checkDistro();
                 const commands = [];
 
-                // 通用命令（适用于大多数发行版）
+                // Common commands (works for most distributions)
                 commands.push(
                     'systemctl restart systemd-resolved',
                     'service systemd-resolved restart',
@@ -186,7 +186,7 @@ class HostsManager {
                     'resolvectl flush-caches'
                 );
 
-                // Debian/Ubuntu 特定命令
+                // Debian/Ubuntu specific commands
                 if (distroInfo.includes('debian') || distroInfo.includes('ubuntu')) {
                     commands.push(
                         'service networking restart',
@@ -196,7 +196,7 @@ class HostsManager {
                     );
                 }
 
-                // CentOS/RHEL 特定命令
+                // CentOS/RHEL specific commands
                 if (distroInfo.includes('centos') || distroInfo.includes('rhel')) {
                     commands.push(
                         'systemctl restart named',
@@ -216,13 +216,13 @@ class HostsManager {
                         success = true;
                         break;
                     } catch (err) {
-                        // 如果命令失败，继续尝试下一个
+                        // If command fails, try next one
                         continue;
                     }
                 }
 
                 if (!success) {
-                    // 如果所有命令都失败，尝试清除 nscd 缓存（如果存在）
+                    // If all commands fail, try to clear nscd cache (if exists)
                     try {
                         await this.executeCommand('which nscd');
                         await this.executeCommand('nscd -i hosts');
@@ -262,7 +262,7 @@ class HostsManager {
             await this.writeHostsFile(updatedContent);
             this.print('Hosts file has been updated successfully.', 'success');
             
-            // 添加刷新 DNS 缓存的调用
+            // Add call to flush DNS cache
             await this.flushDNSCache();
         } catch (error) {
             this.handleError(error, 'Updating hosts file');
