@@ -158,6 +158,102 @@ class HostsManager {
         ].join(EOL);
     }
 
+    async flushDNSCache() {
+        try {
+            if (process.platform === 'win32') {
+                await this.executeCommand('ipconfig /flushdns');
+                this.print('Windows DNS cache has been flushed', 'success');
+            } else if (process.platform === 'linux') {
+                // 检测 Linux 发行版
+                const checkDistro = async () => {
+                    try {
+                        const { stdout } = await this.executeCommand('cat /etc/os-release');
+                        return stdout.toLowerCase();
+                    } catch (err) {
+                        return '';
+                    }
+                };
+
+                const distroInfo = await checkDistro();
+                const commands = [];
+
+                // 通用命令（适用于大多数发行版）
+                commands.push(
+                    'systemctl restart systemd-resolved',
+                    'service systemd-resolved restart',
+                    'systemctl restart NetworkManager',
+                    'service network-manager restart',
+                    'resolvectl flush-caches'
+                );
+
+                // Debian/Ubuntu 特定命令
+                if (distroInfo.includes('debian') || distroInfo.includes('ubuntu')) {
+                    commands.push(
+                        'service networking restart',
+                        'nscd -K && nscd',
+                        '/etc/init.d/networking restart',
+                        'systemctl restart networking'
+                    );
+                }
+
+                // CentOS/RHEL 特定命令
+                if (distroInfo.includes('centos') || distroInfo.includes('rhel')) {
+                    commands.push(
+                        'systemctl restart named',
+                        'service named restart',
+                        'systemctl restart network',
+                        'service network restart',
+                        'systemctl restart dnsmasq',
+                        'service dnsmasq restart'
+                    );
+                }
+
+                let success = false;
+                for (const cmd of commands) {
+                    try {
+                        await this.executeCommand(cmd);
+                        this.print(`DNS cache has been flushed using: ${cmd}`, 'success');
+                        success = true;
+                        break;
+                    } catch (err) {
+                        // 如果命令失败，继续尝试下一个
+                        continue;
+                    }
+                }
+
+                if (!success) {
+                    // 如果所有命令都失败，尝试清除 nscd 缓存（如果存在）
+                    try {
+                        await this.executeCommand('which nscd');
+                        await this.executeCommand('nscd -i hosts');
+                        this.print('DNS cache has been flushed using nscd', 'success');
+                    } catch (err) {
+                        this.print('Unable to flush DNS cache automatically. System might not require DNS cache flush.', 'info');
+                    }
+                }
+
+            } else if (process.platform === 'darwin') {
+                await this.executeCommand('killall -HUP mDNSResponder');
+                this.print('macOS DNS cache has been flushed', 'success');
+            }
+        } catch (error) {
+            this.handleError(error, 'Flushing DNS cache');
+        }
+    }
+
+    async executeCommand(command) {
+        const { exec } = require('child_process');
+        return new Promise((resolve, reject) => {
+            exec(command, (error, stdout, stderr) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+                resolve(stdout);
+            });
+        });
+    }
+
     async updateHosts() {
         try {
             const content = await this.readHostsFile();
@@ -165,6 +261,9 @@ class HostsManager {
             const updatedContent = this.generateUpdatedContent(lines, githubStartIndex, githubEndIndex);
             await this.writeHostsFile(updatedContent);
             this.print('Hosts file has been updated successfully.', 'success');
+            
+            // 添加刷新 DNS 缓存的调用
+            await this.flushDNSCache();
         } catch (error) {
             this.handleError(error, 'Updating hosts file');
         }
