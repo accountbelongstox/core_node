@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/Pacerino/CaddyProxyManager/internal/config"
@@ -16,86 +15,54 @@ var (
 	publicKey  *rsa.PublicKey
 )
 
-func openKey(path string) ([]byte, error) {
-	f, err := os.Open(path)
+// LoadKeys loads the RSA keys from the configured paths
+func LoadKeys() error {
+	privateBytes, err := os.ReadFile(config.Configuration.PrivateKey)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to read private key: %v", err)
 	}
-	defer f.Close()
-	fileKey, err := io.ReadAll(f)
+
+	privatePEM, _ := pem.Decode(privateBytes)
+	if privatePEM == nil {
+		return fmt.Errorf("failed to parse private key PEM")
+	}
+
+	var parsePrivateKeyErr error
+	privateKey, parsePrivateKeyErr = x509.ParsePKCS1PrivateKey(privatePEM.Bytes)
+	if parsePrivateKeyErr != nil {
+		return fmt.Errorf("failed to parse private key: %v", parsePrivateKeyErr)
+	}
+
+	publicBytes, err := os.ReadFile(config.Configuration.PublicKey)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to read public key: %v", err)
 	}
-	return fileKey, nil
+
+	publicPEM, _ := pem.Decode(publicBytes)
+	if publicPEM == nil {
+		return fmt.Errorf("failed to parse public key PEM")
+	}
+
+	parsedPublicKey, err := x509.ParsePKIXPublicKey(publicPEM.Bytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse public key: %v", err)
+	}
+
+	var ok bool
+	publicKey, ok = parsedPublicKey.(*rsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("not an RSA public key")
+	}
+
+	return nil
 }
 
-// GetPrivateKey will load the key from config package and return a usable object
-// It should only load from file once per program execution
-func GetPrivateKey() (*rsa.PrivateKey, error) {
-	if privateKey == nil {
-		var blankKey *rsa.PrivateKey
-
-		var err error
-		key, err := openKey(fmt.Sprintf("%s/jwtkey.pem", config.Configuration.DataFolder))
-		if err != nil {
-			return blankKey, err
-		}
-		privateKey, err = LoadPemPrivateKey(key)
-		if err != nil {
-			return blankKey, err
-		}
-	}
-
-	/* pub, pubErr := GetPublicKey()
-	if pubErr != nil {
-		return privateKey, pubErr
-	}
-
-	privateKey.PublicKey = *pub */
-
-	return privateKey, nil
+// GetPrivateKey returns the loaded private key
+func GetPrivateKey() *rsa.PrivateKey {
+	return privateKey
 }
 
-// LoadPemPrivateKey reads a key from a PEM encoded string and returns a private key
-func LoadPemPrivateKey(content []byte) (*rsa.PrivateKey, error) {
-	var key *rsa.PrivateKey
-	data, _ := pem.Decode(content)
-	var err error
-	key, err = x509.ParsePKCS1PrivateKey(data.Bytes)
-	if err != nil {
-		return key, err
-	}
-	return key, nil
-}
-
-// GetPublicKey will load the key from config package and return a usable object
-// It should only load once per program execution
-func GetPublicKey() (*rsa.PublicKey, error) {
-	if publicKey == nil {
-		var blankKey *rsa.PublicKey
-
-		var err error
-		key, err := openKey(fmt.Sprintf("%s/jwtkey.pem", config.Configuration.DataFolder))
-		if err != nil {
-			return blankKey, err
-		}
-		publicKey, err = LoadPemPublicKey(key)
-		if err != nil {
-			return blankKey, err
-		}
-	}
-
-	return publicKey, nil
-}
-
-// LoadPemPublicKey reads a key from a PEM encoded string and returns a public key
-func LoadPemPublicKey(content []byte) (*rsa.PublicKey, error) {
-	var key *rsa.PublicKey
-	data, _ := pem.Decode(content)
-	publicKeyFileImported, err := x509.ParsePKCS1PublicKey(data.Bytes)
-	if err != nil {
-		return key, err
-	}
-
-	return publicKeyFileImported, nil
+// GetPublicKey returns the loaded public key
+func GetPublicKey() *rsa.PublicKey {
+	return publicKey
 }

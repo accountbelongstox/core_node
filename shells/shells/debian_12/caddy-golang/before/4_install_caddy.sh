@@ -143,7 +143,7 @@ if [ ! -f "$KEY_FILE" ]; then
     echo "Key file not found. Creating jwtkey.pem..."
 
     # Generate a new RSA private key
-    openssl genrsa -out "$KEY_FILE" 2048
+    openssl genrsa -out "/etc/caddy/jwtkey.pem" 2048
 
     # Set permissions to secure the key file
     chmod 600 "$KEY_FILE"
@@ -166,3 +166,5 @@ if ! systemctl is-active --quiet caddy; then
 Warning: Caddy service is not running
 You can start it with: sudo systemctl start caddy"
 fi 
+
+

@@ -17,5 +17,7 @@ var Configuration struct {
 	DataFolder string `json:"data_folder" envconfig:"optional,default=/etc/caddy/"`
 	LogFolder  string `json:"log_folder" envconfig:"optional,default=/var/log/caddy"`
 	CaddyFile  string `json:"caddy_file" envconfig:"optional,default=/etc/caddy/Caddyfile"`
+	PrivateKey string `json:"private_key" envconfig:"optional,default=/usr/caddy/jwt/private.pem"`
+	PublicKey  string `json:"public_key" envconfig:"optional,default=/usr/caddy/jwt/public.pem"`
 	Log        log    `json:"log"`
 }
