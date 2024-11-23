@@ -1,11 +1,10 @@
 package auth
 
 import (
-	"crypto/rsa"
+	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/pem"
-
-	// "fmt"
+	"errors"
 	"io"
 	"os"
 
@@ -13,8 +12,8 @@ import (
 )
 
 var (
-	privateKey *rsa.PrivateKey
-	publicKey  *rsa.PublicKey
+	privateKey interface{}
+	publicKey  interface{}
 )
 
 func openKey(path string) ([]byte, error) {
@@ -30,12 +29,11 @@ func openKey(path string) ([]byte, error) {
 	return fileKey, nil
 }
 
-// GetPrivateKey will load the key from config package and return a usable object
+// GetPrivateKey will load the private key from the config package and return a usable object
 // It should only load from file once per program execution
-func GetPrivateKey() (*rsa.PrivateKey, error) {
+func GetPrivateKey() (interface{}, error) {
 	if privateKey == nil {
-		var blankKey *rsa.PrivateKey
-
+		var blankKey interface{}
 		var err error
 		key, err := openKey(config.Configuration.PrivateKey)
 		if err != nil {
@@ -46,35 +44,41 @@ func GetPrivateKey() (*rsa.PrivateKey, error) {
 			return blankKey, err
 		}
 	}
-
-	/* pub, pubErr := GetPublicKey()
-	if pubErr != nil {
-		return privateKey, pubErr
-	}
-
-	privateKey.PublicKey = *pub */
-
 	return privateKey, nil
 }
 
 // LoadPemPrivateKey reads a key from a PEM encoded string and returns a private key
-func LoadPemPrivateKey(content []byte) (*rsa.PrivateKey, error) {
-	var key *rsa.PrivateKey
+func LoadPemPrivateKey(content []byte) (interface{}, error) {
+	// Decode the PEM block
 	data, _ := pem.Decode(content)
-	var err error
-	key, err = x509.ParsePKCS1PrivateKey(data.Bytes)
-	if err != nil {
-		return key, err
+	if data == nil {
+		return nil, errors.New("failed to parse PEM data")
 	}
-	return key, nil
+
+	// Attempt to parse different key types
+	if key, err := x509.ParsePKCS1PrivateKey(data.Bytes); err == nil {
+		return key, nil // RSA private key
+	}
+
+	if key, err := x509.ParseECPrivateKey(data.Bytes); err == nil {
+		return key, nil // ECDSA private key
+	}
+
+	if key, err := x509.ParsePKCS8PrivateKey(data.Bytes); err == nil {
+		switch k := key.(type) {
+		case ed25519.PrivateKey:
+			return k, nil // ED25519 private key
+		}
+	}
+
+	return nil, errors.New("unsupported private key format")
 }
 
-// GetPublicKey will load the key from config package and return a usable object
+// GetPublicKey will load the public key from the config package and return a usable object
 // It should only load once per program execution
-func GetPublicKey() (*rsa.PublicKey, error) {
+func GetPublicKey() (interface{}, error) {
 	if publicKey == nil {
-		var blankKey *rsa.PublicKey
-
+		var blankKey interface{}
 		var err error
 		key, err := openKey(config.Configuration.PublicKey)
 		if err != nil {
@@ -85,18 +89,28 @@ func GetPublicKey() (*rsa.PublicKey, error) {
 			return blankKey, err
 		}
 	}
-
 	return publicKey, nil
 }
 
 // LoadPemPublicKey reads a key from a PEM encoded string and returns a public key
-func LoadPemPublicKey(content []byte) (*rsa.PublicKey, error) {
-	var key *rsa.PublicKey
+func LoadPemPublicKey(content []byte) (interface{}, error) {
+	// Decode the PEM block
 	data, _ := pem.Decode(content)
-	publicKeyFileImported, err := x509.ParsePKCS1PublicKey(data.Bytes)
-	if err != nil {
-		return key, err
+	if data == nil {
+		return nil, errors.New("failed to parse PEM data")
 	}
 
-	return publicKeyFileImported, nil
+	// Attempt to parse different key types
+	if key, err := x509.ParsePKCS1PublicKey(data.Bytes); err == nil {
+		return key, nil // RSA public key
+	}
+
+	if key, err := x509.ParsePKIXPublicKey(data.Bytes); err == nil {
+		switch k := key.(type) {
+		case ed25519.PublicKey:
+			return k, nil // ED25519 public key
+		}
+	}
+
+	return nil, errors.New("unsupported public key format")
 }
