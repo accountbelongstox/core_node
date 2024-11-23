@@ -8,6 +8,17 @@ BACKEND_DIR="$CADDY_APP_DIR/backend"
 ASSETS_DIR="$BACKEND_DIR/embed/assets"
 BUILD_DIR="$FRONTEND_DIR/build"
 
+# Function to display current working directory
+show_current_dir() {
+    local current_dir=$(pwd)
+    echo -e "\033[0;33m"
+    echo "----------------------------------------"
+    echo "Current working directory:"
+    echo "$current_dir"
+    echo "----------------------------------------"
+    echo -e "\033[0m"
+}
+
 # Check if CaddyProxyManager directory exists
 if [ ! -d "$CADDY_APP_DIR" ]; then
     echo -e "\033[0;31mError: CaddyProxyManager directory not found at: $CADDY_APP_DIR\033[0m"
@@ -33,8 +44,9 @@ build_frontend() {
         exit 1
     fi
 
-    # Navigate to frontend directory
-    cd "$FRONTEND_DIR" || exit 1
+    # Navigate to frontend directory and show current directory
+    cd "$FRONTEND_DIR"
+    show_current_dir
 
     # Install dependencies
     echo -e "\033[0;34mInstalling frontend dependencies...\033[0m"
@@ -54,6 +66,7 @@ build_frontend() {
 # Function to copy build files to assets
 copy_to_assets() {
     echo -e "\033[0;34mCopying build files to assets directory...\033[0m"
+    show_current_dir
     
     # Create assets directory if it doesn't exist
     mkdir -p "$ASSETS_DIR" || {
@@ -78,8 +91,9 @@ build_backend() {
         exit 1
     fi
 
-    # Navigate to backend directory
-    cd "$BACKEND_DIR" || exit 1
+    # Navigate to backend directory and show current directory
+    cd "$BACKEND_DIR"
+    show_current_dir
 
     # Build backend
     echo -e "\033[0;34mCompiling Go backend...\033[0m"
@@ -92,6 +106,7 @@ build_backend() {
 # Main process
 main() {
     echo -e "\033[0;34mStarting Caddy Management compilation process...\033[0m"
+    show_current_dir
 
     # Only build frontend and copy assets if they don't exist
     if ! check_assets; then
@@ -103,6 +118,7 @@ main() {
     build_backend
 
     echo -e "\033[0;32mCaddy Management compilation completed successfully!\033[0m"
+    show_current_dir
 }
 
 # Run main process
