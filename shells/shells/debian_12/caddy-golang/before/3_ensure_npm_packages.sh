@@ -107,7 +107,7 @@ handle_node_binaries() {
     if [ -z "$NODE_PATH" ]; then
         echo -e "\033[0;31mNode.js not found in PATH\033[0m"
         return 1
-    }
+    fi
 
     # Get real path if it's a symlink
     REAL_NODE_DIR=$(readlink -f "$NODE_PATH")
