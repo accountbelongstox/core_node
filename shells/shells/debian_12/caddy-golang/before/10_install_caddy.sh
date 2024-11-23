@@ -137,6 +137,29 @@ for var in CADDY_*; do
     fi
 done
 
+KEY_FILE="/etc/caddy/jwtkey.pem"
+
+if [ ! -f "$KEY_FILE" ]; then
+    echo "Key file not found. Creating jwtkey.pem..."
+
+    # Generate a new RSA private key
+    openssl genrsa -out "$KEY_FILE" 2048
+
+    # Set permissions to secure the key file
+    chmod 600 "$KEY_FILE"
+
+    echo "Key file created successfully."
+else
+    echo "Key file already exists. No action taken."
+fi
+
+# Restart the Caddy service
+echo "Restarting Caddy..."
+systemctl restart caddy
+
+echo "Caddy restarted successfully."
+
+
 # Check if service is running
 if ! systemctl is-active --quiet caddy; then
     echo "
