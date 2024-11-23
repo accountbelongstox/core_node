@@ -97,3 +97,52 @@ echo -e "\nNPM Configuration:"
 npm config list
 
 echo -e "\nPackage installation completed successfully"
+
+# Function to handle Node.js binary links
+handle_node_binaries() {
+    echo -e "\033[0;34mHandling Node.js binary links...\033[0m"
+
+    # Get actual Node.js path
+    NODE_PATH=$(which node)
+    if [ -z "$NODE_PATH" ]; then
+        echo -e "\033[0;31mNode.js not found in PATH\033[0m"
+        return 1
+    }
+
+    # Get real path if it's a symlink
+    REAL_NODE_DIR=$(readlink -f "$NODE_PATH")
+    BINARY_DIR=$(dirname "$REAL_NODE_DIR")
+
+    echo -e "\033[0;34mNode.js binary directory: $BINARY_DIR\033[0m"
+
+    # Create links for all binaries in the directory
+    for binary in "$BINARY_DIR"/*; do
+        binary_name=$(basename "$binary")
+        target_link="/usr/local/bin/$binary_name"
+
+        # Skip if it's the node binary itself
+        if [ "$binary_name" = "node" ]; then
+            continue
+        fi
+
+        # Remove existing link if it exists
+        if [ -e "$target_link" ]; then
+            echo -e "\033[0;34mRemoving existing link: $target_link\033[0m"
+            rm -f "$target_link"
+        fi
+
+        # Create new link
+        echo -e "\033[0;34mCreating link for $binary_name\033[0m"
+        ln -sf "$binary" "$target_link"
+        chmod 777 "$target_link"
+    done
+
+    echo -e "\033[0;32mNode.js binary links have been updated successfully\033[0m"
+}
+
+# Add this to the end of your script
+echo -e "\033[0;34mVerifying Node.js installation...\033[0m"
+handle_node_binaries || {
+    echo -e "\033[0;31mFailed to handle Node.js binary links\033[0m"
+    exit 1
+}
