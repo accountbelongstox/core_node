@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"crypto/rsa"
 	"net/http"
 
 	c "github.com/Pacerino/CaddyProxyManager/internal/api/context"
@@ -19,12 +20,8 @@ func DecodeAuth() func(http.Handler) http.Handler {
 		logger.Error("PrivateKeyParseError", privateKeyParseErr)
 	}
 
-	/* publicKey, publicKeyParseErr := auth.GetPublicKey()
-	if publicKeyParseErr != nil && publicKey == nil {
-		logger.Error("PublicKeyParseError", publicKeyParseErr)
-	} */
-
-	tokenAuth := jwtauth.New("RS256", privateKey, privateKey.PublicKey)
+	rsaPrivateKey := privateKey.(*rsa.PrivateKey)
+	tokenAuth := jwtauth.New("RS256", rsaPrivateKey, rsaPrivateKey.PublicKey)
 	return jwtauth.Verifier(tokenAuth)
 }
 
