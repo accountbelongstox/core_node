@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"io"
 	"os"
 
 	"github.com/Pacerino/CaddyProxyManager/internal/config"
@@ -16,26 +15,13 @@ var (
 	publicKey  interface{}
 )
 
-func openKey(path string) ([]byte, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	fileKey, err := io.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-	return fileKey, nil
-}
-
 // GetPrivateKey will load the private key from the config package and return a usable object
 // It should only load from file once per program execution
 func GetPrivateKey() (interface{}, error) {
 	if privateKey == nil {
 		var blankKey interface{}
-		var err error
-		key, err := openKey(config.Configuration.PrivateKey)
+		// Directly open and read the private key file
+		key, err := os.ReadFile(config.Configuration.PrivateKey)
 		if err != nil {
 			return blankKey, err
 		}
@@ -79,8 +65,8 @@ func LoadPemPrivateKey(content []byte) (interface{}, error) {
 func GetPublicKey() (interface{}, error) {
 	if publicKey == nil {
 		var blankKey interface{}
-		var err error
-		key, err := openKey(config.Configuration.PublicKey)
+		// Directly open and read the public key file
+		key, err := os.ReadFile(config.Configuration.PublicKey)
 		if err != nil {
 			return blankKey, err
 		}
