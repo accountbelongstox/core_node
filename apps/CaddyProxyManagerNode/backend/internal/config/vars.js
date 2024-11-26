@@ -1,0 +1,1 @@
+export { Configuration, getIsSetup, setIsSetup } from '../../config/index.js';

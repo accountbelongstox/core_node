@@ -1,0 +1,2 @@
+<!-- This file documents the functionality and API of the corresponding errors.js file -->
+

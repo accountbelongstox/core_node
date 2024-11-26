@@ -1,7 +1,7 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
-// 忽略的文件扩展名和目录
+// Ignored file extensions and directories
 const ignoredExtensions = [
   '.log', '.woff2', '.txt', '.md', '.gz', '.gitkeep', '.map', '.vue', '.html', '.mmdb', '.ico',
   '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp',
@@ -17,11 +17,11 @@ const ignoredExtensions = [
 
 const ignoredDirectories = ['node_modules', 'build', '.git', '.vscode', 'dist', 'coverage', 'logs'];
 
-// 忽略的模式
+// Excluded patterns
 const excludePatterns = [
-  "node_modules",
-  ".yaml",
-  "__pycache__"
+  'node_modules',
+  '.yaml',
+  '__pycache__'
 ];
 
 /**
@@ -29,14 +29,12 @@ const excludePatterns = [
  * @param {string} filePath - Path to check
  * @returns {boolean} - True if the path should be excluded
  */
-function shouldExclude(filePath) {
-  return excludePatterns.some(pattern => {
-    return filePath.includes(pattern);
-  });
-}
+const shouldExclude = (filePath) => {
+  return excludePatterns.some(pattern => filePath.includes(pattern));
+};
 
-// 递归扫描目录并生成目录树字符串
-function scanDirectory(dir, prefix = '', includeFiles = false) {
+// Recursively scan a directory and generate a directory tree string
+const scanDirectory = (dir, prefix = '', includeFiles = false) => {
   let output = '';
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
@@ -48,12 +46,12 @@ function scanDirectory(dir, prefix = '', includeFiles = false) {
     const fullPath = path.join(dir, entry.name);
 
     if (entry.isDirectory() && (entry.name.startsWith('.') || ignoredDirectories.includes(entry.name))) {
-      console.log(`过滤掉目录: ${fullPath}`);
+      console.log(`Filtered directory: ${fullPath}`);
       continue;
     }
 
     if (shouldExclude(fullPath)) {
-      console.log(`过滤掉文件: ${fullPath}`);
+      console.log(`Filtered file: ${fullPath}`);
       continue;
     }
 
@@ -71,9 +69,9 @@ function scanDirectory(dir, prefix = '', includeFiles = false) {
     } else if (includeFiles) {
       const extname = path.extname(entry.name);
       if (ignoredExtensions.includes(extname)) {
-        console.log(`过滤掉文件: ${fullPath}`);
+        console.log(`Filtered file: ${fullPath}`);
       } else if (extname === '') {
-        console.log(`文件没有扩展名: ${fullPath}`);
+        console.log(`File without extension: ${fullPath}`);
         hasVisibleEntries = true;
         output += `${prefix}${isLast ? '└──' : '├──'} ${entry.name}\n`;
       } else {
@@ -84,24 +82,24 @@ function scanDirectory(dir, prefix = '', includeFiles = false) {
   }
 
   return hasVisibleEntries ? output : '';
+};
+
+// Project path
+const projectPath = path.resolve(path.dirname(''), '../');
+const outputPath = path.resolve(path.dirname(''), './');
+
+// Create output directory if it doesn't exist
+if (!fs.existsSync(outputPath)) {
+  fs.mkdirSync(outputPath, { recursive: true });
 }
 
-// 项目路径
-const projectPath = path.resolve(__dirname, '../');
-const outPath = path.resolve(__dirname, './');
+// Output file paths
+const outputFilePath = path.join(outputPath, 'project_file_tree.txt');
+const outputDirPath = path.join(outputPath, 'project_dir_tree.txt');
 
-// 创建目录（如果不存在）
-if (!fs.existsSync(outPath)) {
-  fs.mkdirSync(outPath, { recursive: true });
-}
-
-// 输出文件路径
-const outputFilePath = path.join(outPath, 'project_file_tree.txt');
-const outputDirPath = path.join(outPath, 'project_dir_tree.txt');
-
-// 写入目录树到文件
+// Write directory tree to files
 fs.writeFileSync(outputDirPath, scanDirectory(projectPath));
 fs.writeFileSync(outputFilePath, scanDirectory(projectPath, '', true));
 
-console.log(`目录树已保存到文件：${outputFilePath}`);
-console.log(`目录树已保存到文件：${outputDirPath}`);
+console.log(`Directory tree saved to: ${outputDirPath}`);
+console.log(`File tree saved to: ${outputFilePath}`);
