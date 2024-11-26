@@ -1,2 +1,0 @@
-<!-- This file documents the functionality and API of the corresponding auth.js file -->
-
