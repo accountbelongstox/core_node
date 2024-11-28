@@ -41,16 +41,15 @@ fi
 
 env_python_path="${FULL_PYENV_PATH}/bin/python"
 env_pip_path="${FULL_PYENV_PATH}/bin/pip"
-
 # Print detailed Python information
 echo "Python Details:"
-echo "Version: $(env_python_path --version)"
+env_python_path --version
 echo "Location: ${env_python_path}"
 echo "Absolute Path: ${env_python_path}"
 
 # Print detailed pip information
 echo -e "\nPip Details:"
-echo "Version: $(env_pip_path --version)"
+env_pip_path --version
 echo "Location: ${env_pip_path}"
 echo "Absolute Path: ${env_pip_path}"
 

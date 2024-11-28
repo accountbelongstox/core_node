@@ -81,20 +81,4 @@ fi
 store_path "node" "$(which node)"
 store_path "npm" "$(which npm)"
 
-
-echo "
-Installation and Configuration Summary:
--------------------------------------
-Node.js version: $(node -v)
-npm version: $(npm -v)
-npm registry: $(npm config get registry)
-
-Installed global packages:
-$(npm list -g --depth=0)
-
-Global variables have been stored for:
-$(list_vars)
-
-You can use 'npx n' to install other Node.js versions.
-Example: 'npx n lts' or 'npx n latest'
-"
+echo "Installation and Configuration Summary:\n-------------------------------------\nNode.js version: $(node -v)\nnpm version: $(npm -v)\nnpm registry: $(npm config get registry)\n\nInstalled global packages:\n$(npm list -g --depth=0)\n\nGlobal variables have been stored for:\n$(list_vars)\n\nYou can use 'npx n' to install other Node.js versions.\nExample: 'npx n lts' or 'npx n latest'"
