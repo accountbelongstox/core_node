@@ -39,22 +39,24 @@ else
     echo "Python virtual environment already exists at: $FULL_PYENV_PATH"
 fi
 
-# Activate virtual environment
-source "${FULL_PYENV_PATH}/bin/activate"
+env_python_path="${FULL_PYENV_PATH}/bin/python"
+env_pip_path="${FULL_PYENV_PATH}/bin/pip"
 
 # Print detailed Python information
 echo "Python Details:"
-echo "Version: $(python --version)"
-echo "Location: $(which python)"
-echo "Absolute Path: $(readlink -f $(which python))"
+echo "Version: $(env_python_path --version)"
+echo "Location: ${env_python_path}"
+echo "Absolute Path: ${env_python_path}"
 
 # Print detailed pip information
 echo -e "\nPip Details:"
-echo "Version: $(pip --version)"
-echo "Location: $(which pip)"
-echo "Absolute Path: $(readlink -f $(which pip))"
+echo "Version: $(env_pip_path --version)"
+echo "Location: ${env_pip_path}"
+echo "Absolute Path: ${env_pip_path}"
 
 # Show activation instructions
 echo -e "\nTo activate this environment, use the following command:"
 echo "source ${FULL_PYENV_PATH}/bin/activate"
 
+AUTO_INSTALL_REQUIRE_SCRIPT="${SCRIPT_ROOT_DIR}/pycore/auto_installrequire/main.py"
+"${env_python_path}" "${AUTO_INSTALL_REQUIRE_SCRIPT}"
