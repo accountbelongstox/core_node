@@ -530,7 +530,7 @@ class AutoInstallRequire:
         python_paths = []
         
         for item in os.listdir(self.root_dir):
-            if item.startswith('penv'):
+            if item.startswith('pyenv'):
                 penv_dir = os.path.join(self.root_dir, item)
                 if sys.platform == 'win32':
                     python_path = os.path.join(penv_dir, 'Scripts', 'python.exe')
