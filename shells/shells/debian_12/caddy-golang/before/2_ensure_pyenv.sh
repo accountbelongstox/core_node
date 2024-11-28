@@ -58,5 +58,5 @@ echo "Absolute Path: ${env_pip_path}"
 echo -e "\nTo activate this environment, use the following command:"
 echo "source ${FULL_PYENV_PATH}/bin/activate"
 
-AUTO_INSTALL_REQUIRE_SCRIPT="${SCRIPT_ROOT_DIR}/pycore/auto_installrequire/main.py"
+AUTO_INSTALL_REQUIRE_SCRIPT="${SCRIPT_ROOT_DIR}/pycore/auto_installrequire/auto_install_main.py"
 "${env_python_path}" "${AUTO_INSTALL_REQUIRE_SCRIPT}"
