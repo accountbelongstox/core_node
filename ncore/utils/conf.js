@@ -1,21 +1,24 @@
 import fs from 'fs';
 import path from 'path';
-import Base from '#@base';
 import { gdir, appConfDir } from '#@globalvars';
+import bdir from '#@/ncore/gvar/bdir.js';
+import gconfig from '#@/ncore/gvar/gconfig.js';
 
-const localDir = gdir.getLocalDir();
+const localDir = gconfig.localDir;
 const publicConfigFile = path.join(localDir, 'config.json');
 const appConfigFile = path.join(appConfDir, 'config.json');
 const publicConfigDir = path.join(localDir, '.info');
 const appConfigDir = path.join(appConfDir, '.info');
+function mkdir(path) {
+    return fs.mkdirSync(path, { recursive: true });
+}
 
-class Conf extends Base {
+class Conf{
     prefix = '';
 
     constructor() {
-        super();
-        this.mkdir(localDir);
-        this.mkdir(appConfDir);
+        mkdir(localDir);
+        mkdir(appConfDir);
         this.ensureFileExists(publicConfigFile);
         this.ensureFileExists(appConfigFile);
     }

@@ -19,7 +19,7 @@ class ClientMain {
     // const entryModule = `${this.NCORE_DIR}${appentry}`;
     printer.success('entryModule/appentry_es:' + appentry_es);
     const appMain = await import(appentry_es);
-
+    console.log(appMain)
     if (!appMain.default || typeof appMain.default.start !== 'function') {
       throw new Error('Imported module does not have a start method');
     }
@@ -32,4 +32,5 @@ if (!run.isAdmin()) {
   console.error('\x1b[31m%s\x1b[0m', 'To run as administrator, right-click the script and select "Run as administrator".');
 }
 
-
+const client = new ClientMain()
+client.start()

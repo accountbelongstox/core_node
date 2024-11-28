@@ -1,10 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import Base from '#@base';
 
-class Flink extends Base {
+class Flink {
     constructor() {
-        super();
     }
     symlink(src, target, force = false) {
         if (force) {

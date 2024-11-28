@@ -1,4 +1,4 @@
-import Base from '#@base';
+import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';

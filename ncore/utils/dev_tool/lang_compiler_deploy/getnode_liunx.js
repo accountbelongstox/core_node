@@ -1,9 +1,12 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import Base from '#@base';
+import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import {gdir} from '#@globalvars';
-const langdir = gdir.getDevLangPath()
+
+import bdir from '#@/ncore/gvar/bdir.js';
+import gconfig from '#@/ncore/gvar/gconfig.js';
+const langdir = gconfig.getBaseConfig().DEV_LANG_DIR
 
 class GetNodeLinux extends Base {
   constructor() {
@@ -27,7 +30,6 @@ class GetNodeLinux extends Base {
     this.sysBinBase = "/usr/bin";
     this.skipPrintBins = ["npx", "pnpx", "electron"];
 
-    this.prepareDirectories();
   }
 
   prepareDirectories() {
@@ -227,6 +229,7 @@ class GetNodeLinux extends Base {
   }
 
   start() {
+    this.prepareDirectories();
     for (const [nodeItem, nodeVersion] of Object.entries(this.nodeVersions)) {
       const nodeVersionFull = `node-${nodeVersion}-linux-x64`;
       const nodeVersionMainDir = path.join(this.nodeDirBase, nodeVersionFull);

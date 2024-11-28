@@ -4,6 +4,9 @@ import process from 'process';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import printer from '../base/printer.js';
+import findBin from './libs/find_bin.js';
+import {getAppName} from './libs/appname.js';
+let appname = getAppName()
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,16 +16,20 @@ function getCwd() {
     return path.join(__dirname, '..', '..');
 }
 
-const basedir = getCwd();
-const cwd = basedir;
-const cacheDir = path.join(basedir, '.cache');
-const logDir = path.join(cacheDir, '.logs');
-const localDir = path.join(process.env.HOME || process.env.USERPROFILE, '.local');
+const BASEDIR = getCwd();
+const CWD = BASEDIR;
+const CACHE_DIR = path.join(BASEDIR, '.cache');
+const LOG_DIR = path.join(CACHE_DIR, '.logs');
+const LOCAL_DIR = path.join(process.env.HOME || process.env.USERPROFILE, '.local');
+const PUBLIC_DIR = path.join(BASEDIR, 'public');
+const APP_PUBLIC_DIR = appname ? path.join(PUBLIC_DIR, appname) : PUBLIC_DIR;
 
 // Create essential directories
-mkdir(cacheDir);
-mkdir(logDir);
-mkdir(localDir);
+mkdir(CACHE_DIR);
+mkdir(LOG_DIR);
+mkdir(LOCAL_DIR);
+mkdir(PUBLIC_DIR);
+mkdir(APP_PUBLIC_DIR);
 
 // Directory creation
 function mkdir(path) {
@@ -123,11 +130,11 @@ function getSystemPaths() {
         temp: os.tmpdir(),
         maxDrive: maxDrive?.path || os.homedir(),
         drives: drives.map(drive => drive.path),
-        cwd,
-        basedir,
-        cacheDir,
-        logDir,
-        localDir
+        cwd: CWD,
+        basedir: BASEDIR,
+        cacheDir: CACHE_DIR,
+        logDir: LOG_DIR,
+        localDir: LOCAL_DIR
     };
 }
 
@@ -139,11 +146,11 @@ function getMaxDrivePath() {
 function main() {
     printer.title('Directory and Drive Information')
         .section('Basic Directories')
-        .info('CWD:', cwd)
-        .info('Base Dir:', basedir)
-        .info('Cache Dir:', cacheDir)
-        .info('Log Dir:', logDir)
-        .info('Local Dir:', localDir)
+        .info('CWD:', CWD)
+        .info('Base Dir:', BASEDIR)
+        .info('Cache Dir:', CACHE_DIR)
+        .info('Log Dir:', LOG_DIR)
+        .info('Local Dir:', LOCAL_DIR)
         
         .section('System Paths')
         .json(getSystemPaths())
@@ -175,11 +182,13 @@ export {
     mkdir,
     
     // Directory constants
-    basedir,
-    cwd,
-    cacheDir,
-    logDir,
-    localDir,
+    BASEDIR,
+    CWD,
+    CACHE_DIR,
+    LOG_DIR,
+    LOCAL_DIR,
+    PUBLIC_DIR,
+    APP_PUBLIC_DIR,
     
     // Drive management functions
     getSystemDrives,
@@ -191,5 +200,6 @@ export {
     
     // Drive data
     drives,
-    maxDrive
+    maxDrive,
+    findBin
 };

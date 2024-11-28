@@ -1,7 +1,8 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import Base from '#@base';
+import Base from '#@/ncore/utils/win_tool/base_utils/base.js';
+import { execPowerShell } from '#@/ncore/utils/win_tool/libs/commander.js';
 
 class WinPath extends Base {
     constructor() {
@@ -21,14 +22,11 @@ class WinPath extends Base {
         ];
 
         // Ensure default paths exist in the PATH
-        this.ensureDefaultPathsExist();
     }
 
-    // Method to ensure default paths are present in the PATH
     ensureDefaultPathsExist() {
         const currentPath = this.getCurrentPath();
         const missingPaths = this.defaultPaths.filter(defaultPath => !currentPath.includes(defaultPath));
-
         if (missingPaths.length > 0) {
             this.info('Adding missing default paths to PATH:', missingPaths);
             this.updatePathRegistry([...missingPaths, ...currentPath]);
@@ -45,6 +43,10 @@ class WinPath extends Base {
         }
         const command = `${this.regCommandPath} query "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" /v Path`;
         const result = this.execCmd(command);
+        if (!result) {
+            console.log(`result`, result)
+            return { PathType: ``, CurrentPath: '' };
+        }
         // this.info('CurrentPath:', result);
         const match = result.match(/\s{1,}Path\s{1,}(.+)/);
         // console.log(match);
@@ -164,7 +166,7 @@ class WinPath extends Base {
 
     refreshEnvironmentVariable() {
         const refreshCommand = `$env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')`;
-        this.execPowerShell(refreshCommand, true);
+        execPowerShell(refreshCommand, true);
         this.success('Environment variable PATH refreshed.');
     }
 
@@ -189,6 +191,10 @@ class WinPath extends Base {
             default:
                 this.error('Invalid command usage.');
         }
+    }
+
+    start(){
+        this.ensureDefaultPathsExist();
     }
 }
 

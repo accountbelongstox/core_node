@@ -1,13 +1,72 @@
-const { execSync, spawn, exec, spawnSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const Base = require('#@base');
-const readline = require('readline');
+import { execSync, spawn, exec, spawnSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import readline from 'readline';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const cwd = path.join(__dirname, '../../../../')
 
-class CommandExecutor extends Base {
+class CommandExecutor {
     constructor() {
-        super();
-        this.initialWorkingDirectory = this.getCwd();
+        this.initialWorkingDirectory = cwd;
+        this.colors = {
+            reset: '\x1b[0m',
+            bright: '\x1b[1m',
+            dim: '\x1b[2m',
+            underscore: '\x1b[4m',
+            blink: '\x1b[5m',
+            reverse: '\x1b[7m',
+            hidden: '\x1b[8m',
+            // Foreground (text) colors
+            fg: {
+                black: '\x1b[30m',
+                red: '\x1b[31m',
+                green: '\x1b[32m',
+                yellow: '\x1b[33m',
+                blue: '\x1b[34m',
+                magenta: '\x1b[35m',
+                cyan: '\x1b[36m',
+                white: '\x1b[37m'
+            }
+        };
+    }
+
+    // Get current working directory
+    getCwd() {
+        return process.cwd();
+    }
+
+    // Convert bytes to string with error handling
+    byteToStr(astr) {
+        try {
+            return astr.toString('utf-8');
+        } catch (e) {
+            astr = String(astr);
+            if (/^b\'{0,1}/.test(astr)) {
+                astr = astr.replace(/^b\'{0,1}/, '').replace(/\'{0,1}$/, '');
+            }
+            return astr;
+        }
+    }
+
+    // Check if running on Linux
+    isLinux() {
+        return process.platform === 'linux';
+    }
+
+    // Write log to file
+    easyLog(content, logname) {
+        try {
+            const logDir = path.join(process.cwd(), 'logs');
+            if (!fs.existsSync(logDir)) {
+                fs.mkdirSync(logDir, { recursive: true });
+            }
+            const logPath = path.join(logDir, `${logname}.log`);
+            fs.appendFileSync(logPath, content + '\n');
+        } catch (error) {
+            console.error('Failed to write log:', error);
+        }
     }
 
     async execCommand(command, info = true, cwd = null, logname = null) {
@@ -343,27 +402,51 @@ class CommandExecutor extends Base {
         });
     }
 
-    byteToStr(astr) {
-        try {
-            astr = astr.toString('utf-8');
-            return astr;
-        } catch (e) {
-            astr = String(astr);
-            const isByte = /^b\'{0,1}/;
-            if (isByte.test(astr)) {
-                astr = astr.replace(/^b\'{0,1}/, '').replace(/\'{0,1}$/, '');
-            }
-            return astr;
+    // Add logging methods
+    info(message) {
+        const timestamp = new Date().toISOString();
+        console.log(`${this.colors.fg.cyan}[INFO] ${timestamp} - ${message}${this.colors.reset}`);
+    }
+
+    warn(message) {
+        const timestamp = new Date().toISOString();
+        console.warn(`${this.colors.fg.yellow}[WARN] ${timestamp} - ${message}${this.colors.reset}`);
+    }
+
+    error(message) {
+        const timestamp = new Date().toISOString();
+        console.error(`${this.colors.fg.red}[ERROR] ${timestamp} - ${message}${this.colors.reset}`);
+    }
+
+    success(message) {
+        const timestamp = new Date().toISOString();
+        console.log(`${this.colors.fg.green}[SUCCESS] ${timestamp} - ${message}${this.colors.reset}`);
+    }
+
+    debug(message) {
+        if (process.env.DEBUG) {
+            const timestamp = new Date().toISOString();
+            console.log(`${this.colors.fg.magenta}[DEBUG] ${timestamp} - ${message}${this.colors.reset}`);
         }
     }
 
-}
+    // Add a method to format command output
+    formatOutput(output) {
+        if (!output) return '';
+        return output.toString().trim();
+    }
 
+    // Add a method to handle command errors
+    handleError(error, command) {
+        this.error(`Command failed: ${command}`);
+        this.error(`Error message: ${error.message}`);
+        if (error.stderr) {
+            this.error(`stderr: ${this.formatOutput(error.stderr)}`);
+        }
+        return error;
+    }
+}
 
 CommandExecutor.toString = () => '[class CommandExecutor]';
 
-
-
-Plattools.toString = () => '[class Plattools]';
-
-module.exports = { Plattools: new Plattools(), CommandExecutor: new CommandExecutor() };
+export const commandExecutor = new CommandExecutor();

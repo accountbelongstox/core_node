@@ -1,12 +1,14 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import Base from '#@base';
-import { gdir, com_bin } from '#@globalvars';  // Import com_bin
+import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
+import { gdir } from '#@globalvars';  // Import com_bin
+import bdir from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
+import gconfig from '#@/ncore/gvar/gconfig.js';
+const langdir = gconfig.DEV_LANG_DIR;
 
-const tar = com_bin.getTarExecutable(); // Get the tar executable path
-const curl = com_bin.getCurlExecutable(); // Get the curl executable path
-const langdir = gdir.getDevLangPath();
+const tar = bdir.getTarExecutable(); // Get the tar executable path
+const curl = bdir.getCurlExecutable(); // Get the curl executable path
 
 class GetGolang extends Base {
     constructor() {
@@ -17,7 +19,6 @@ class GetGolang extends Base {
         this.defaultVersionKey = 1.22;
         this.installDir = path.join(langdir);
         this.tempDir = path.join(this.installDir, 'tmp');
-        this.prepareDirectories();
     }
 
     getDefaultVersion() {
@@ -82,6 +83,7 @@ class GetGolang extends Base {
     }
 
     start(versionKey = null) {
+        this.prepareDirectories();
         if (versionKey !== null) {
             this.setGolangVersion(versionKey);
             this.installGolang();

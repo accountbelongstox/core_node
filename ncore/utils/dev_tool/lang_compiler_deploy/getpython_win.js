@@ -1,17 +1,19 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import Base from '#@base';
-import { gdir, com_bin } from '#@globalvars'; // Import com_bin
+import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
+import bdir from '#@/ncore/gvar/bdir.js';
+import gconfig from '#@/ncore/gvar/gconfig.js';
+const langdir = gconfig.DEV_LANG_DIR;
+import { gdir } from '#@globalvars'; // Import com_bin
 
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Retrieve tar and curl executables
-const tar = com_bin.getTarExecutable();
-const curl = com_bin.getCurlExecutable();
-const langdir = gdir.getDevLangPath();
+const tar = bdir.getTarExecutable();
+const curl = bdir.getCurlExecutable();
 
 class GetPythonWin extends Base {
     constructor() {
@@ -29,7 +31,6 @@ class GetPythonWin extends Base {
         this.defaultVersionKey = 'Python39';
         this.installDir = path.join(langdir);
         this.tempDir = path.join(this.installDir, 'tmp');
-        this.prepareDirectories();
     }
 
     getDefaultVersion() {
@@ -111,6 +112,7 @@ class GetPythonWin extends Base {
     }
 
     start(versionKey = null) {
+        this.prepareDirectories();
         if (versionKey !== null) {
             this.setPythonVersion(versionKey);
             this.installPython();

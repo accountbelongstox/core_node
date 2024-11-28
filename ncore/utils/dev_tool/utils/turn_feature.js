@@ -1,4 +1,4 @@
-import Base from '#@base';
+import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import { execSync, exec } from 'child_process';
 
 class TurnFeature extends Base {

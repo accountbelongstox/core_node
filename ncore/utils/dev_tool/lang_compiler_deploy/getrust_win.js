@@ -1,16 +1,15 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import Base from '#@base';
-import { gdir, com_bin } from '#@globalvars'; // Added com_bin for tar and curl
+import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import { execSync } from 'child_process';
+import { gdir } from '#@globalvars';  // Import com_bin
+import bdir from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
+import gconfig from '#@/ncore/gvar/gconfig.js';
+const langdir = gconfig.DEV_LANG_DIR;
 
-// Get tar and curl executables
-const tar = com_bin.getTarExecutable();
-const curl = com_bin.getCurlExecutable();
-
-const langdir = gdir.getDevLangPath();
-
+const tar = bdir.getTarExecutable(); // Get the tar executable path
+const curl = bdir.getCurlExecutable(); // Ge
 class GetRustWin extends Base {
     constructor() {
         super();
@@ -20,7 +19,7 @@ class GetRustWin extends Base {
         this.tempDir = path.join(langdir, 'tmp');
         this.cargoDir = path.join(this.installDir, '.cargo'); // Custom cargo directory
         this.rustPath = path.join(this.cargoDir, 'bin', 'rustc.exe'); // Path to the Rust compiler
-        this.prepareDirectories();
+
     }
 
     getDefaultVersion() {
@@ -39,6 +38,7 @@ class GetRustWin extends Base {
     }
 
     start() {
+        this.prepareDirectories();
         if (this.checkRustInstalled()) {
             console.log(`Rust is already installed.`);
         } else {

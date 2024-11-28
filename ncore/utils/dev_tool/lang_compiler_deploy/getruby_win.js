@@ -1,16 +1,15 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import Base from '#@base';
-import { execSync } from 'child_process';
-import { gdir, com_bin } from '#@globalvars'; // Added com_bin for tar and curl
+import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
+// import { execSync } from 'child_process';
+// import { gdir } from '#@globalvars';  // Import com_bin
+// import bdir from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
+import gconfig from '#@/ncore/gvar/gconfig.js';
+const langdir = gconfig.DEV_LANG_DIR;
 
-// Get tar and curl executables
-const tar = com_bin.getTarExecutable();
-const curl = com_bin.getCurlExecutable();
-
-const langdir = gdir.getDevLangPath(); // Assuming this returns the desired base path
-
+// const tar = bdir.getTarExecutable(); // Get the tar executable path
+// const curl = bdir.getCurlExecutable(); // Ge
 class GetRubyWin extends Base {
     constructor() {
         super();
@@ -18,7 +17,6 @@ class GetRubyWin extends Base {
         this.rbenvInstallScriptUrl = "https://gitee.com/ccmywish/rbenv-for-windows/raw/main/tools/install.ps1";
         this.rbenvRootVariable = "RBENV_ROOT";
         this.useMirrorVariable = "RBENV_USE_MIRROR";
-        this.prepareDirectories();
     }
 
     // Prepare directories for installation
@@ -128,6 +126,7 @@ $env:${this.useMirrorVariable} = "CN"
     }
 
     start() {
+        this.prepareDirectories();
         this.info('Starting Ruby environment setup...');
 
         // Install rbenv for Windows

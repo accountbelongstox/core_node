@@ -1,6 +1,7 @@
 // import mysqlClass from './util/db_tool/libs/mysql.js';
 // import sqliteClass from './util/db_tool/libs/sqlite.js';
-import {appname,env,appenv} from './globalvars.js';
+import {appname,env} from './globalvars.js';
+
 import strapi_v4_net from './util/net/libs/strapi_v4_net.js';
 import json from './util/tool/libs/json.js';
 import strtool from './util/tool/libs/strtool.js';
@@ -34,6 +35,5 @@ export {
   porttool,
   httptool,
   env,
-  appname,
-  appenv
+  appname
 };

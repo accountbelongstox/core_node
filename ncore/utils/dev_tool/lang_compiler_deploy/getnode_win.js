@@ -1,12 +1,14 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import { gdir, com_bin } from '#@globalvars';
+import { gdir } from '#@globalvars';
 import { flink } from '#@utils_native';
+import bdir from '#@/ncore/gvar/bdir.js';
 
-const tar = com_bin.getTarExecutable(); // Get the tar executable path
-const curl = com_bin.getCurlExecutable(); // Get the curl executable path
-const langdir = gdir.getDevLangPath();
+const tar = bdir.getTarExecutable(); // Get the tar executable path
+const curl = bdir.getCurlExecutable(); // Get the curl executable path
+import gconfig from '#@/ncore/gvar/gconfig.js';
+const langdir = gconfig.DEV_LANG_DIR;
 
 class GetNodeWin {
     constructor() {
@@ -20,7 +22,6 @@ class GetNodeWin {
         this.installDir = path.join(langdir);
         this.tempDir = path.join(this.installDir, 'tmp');
 
-        this.prepareDirectories();
     }
 
     getDefaultVersion() {
@@ -94,6 +95,7 @@ class GetNodeWin {
     }
 
     start(versionKey = null) {
+        this.prepareDirectories();
         if (versionKey !== null) {
             this.setNodeVersion(versionKey);
             this.installNode();
