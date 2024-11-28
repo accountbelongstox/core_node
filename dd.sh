@@ -45,7 +45,6 @@ make_sh_executable() {
         return 1
     fi
     find "$SCRIPT_DIR" -maxdepth 1 -type f -name "*.sh" -exec chmod +x {} \;
-    DEPLOY_DIR="$SCRIPT_DIR/conf"
     if [ -d "$DEPLOY_DIR" ]; then
         find "$DEPLOY_DIR" -type f -name "*.sh" -exec chmod +x {} \;
     else
