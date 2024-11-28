@@ -1,0 +1,9 @@
+python-dotenv
+edge-tts
+watchdog
+Flask
+requests
+waitress 
+PyPDF2 
+pysrt
+websockets
