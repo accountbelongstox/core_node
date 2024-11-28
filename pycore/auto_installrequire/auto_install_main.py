@@ -738,4 +738,4 @@ class AutoInstallRequire:
             cp.error(f"Error during package installation: {str(e)}")
 # Check and install requirements, then run the application
 if __name__ == "__main__":
-    AutoInstallRequire()
+    AutoInstallRequire("aliyun")
