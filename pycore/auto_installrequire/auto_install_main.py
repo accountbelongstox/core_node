@@ -10,7 +10,6 @@ from pathlib import Path
 from pprint import pprint
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
-import pysrt  # For subtitle reading
 
 class Printer:
     """Utility class for colored and formatted printing"""
