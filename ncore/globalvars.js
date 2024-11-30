@@ -17,13 +17,13 @@ const rootdir = path.resolve(gfilename, '..');
 
 const appsdir = path.join(rootdir, 'apps');
 
-const basedir = gdir.cwd;
+const basedir = gdir.CWD;
 const appdir = path.join(appsdir, appname);
 env.addRootDir(appdir);
 const appentry = path.join(appdir, 'main.js');
 const appentry_es = `./apps/${appname}/main.js`
 const pluginsdir = path.join(__dirname, 'plugins');
-const localDir = gdir.localDir
+const localDir = gdir.LOCAL_DIR
 const appConfDir = path.join(localDir, '.config');
 
 const app = {

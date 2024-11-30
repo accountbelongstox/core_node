@@ -10,6 +10,8 @@ const DEFAULT_ROOT_DIR = grandparentRootDir
 
 export class EnvManager {
     static MAX_QUEUE_SIZE = 100;
+    #envObjects = [];
+    #currentIndex = 0;
 
     constructor(rootDir = null, envName = ".env", delimiter = "=") {
         rootDir = rootDir || DEFAULT_ROOT_DIR
@@ -68,7 +70,7 @@ export class EnvManager {
     }
 
     addRootDir(rootDir = null, envName = ".env") {
-        console.log("addRootDir " +rootDir)
+        console.log("addRootDir " + rootDir);
         rootDir = rootDir || DEFAULT_ROOT_DIR;
         const localEnvFile = path.join(rootDir, envName);
         console.log('EnvManager rootDir:', rootDir);
@@ -82,13 +84,15 @@ export class EnvManager {
         }
 
         if (fs.existsSync(envPath)) {
-            const entries = this.parseEnvFile(envPath);
-            const envObject = {};
-            entries.forEach(([key, value]) => {
-                envObject[key] = value;
-            });
+            const envObject = this.parseEnvToObject(envPath);
             this.envObjects.set(envPath, envObject);
         }
+
+        this.#envObjects.push({
+            index: this.#currentIndex++,
+            envPath,
+            env: this.parseEnvToObject(envPath)
+        });
     }
 
     scanForEnvFile(searchPath) {
@@ -132,14 +136,6 @@ export class EnvManager {
 
         console.log(`No suitable .env file found in ${searchPath}`);
         return null;
-    }
-
-    parseEnvFile(filePath) {
-        if (!fs.existsSync(filePath)) return [];
-        const content = fs.readFileSync(filePath, 'utf8');
-        return content.split('\n')
-            .map(line => line.split(this.delimiter).map(v => v.trim()))
-            .filter(pair => pair.length === 2 && pair[0]);
     }
 
     addFile(filename) {
@@ -242,6 +238,65 @@ export class EnvManager {
         console.log('===============================');
 
         console.log(allEnvs);
+    }
+
+    async setEnvValue(key, value) {
+        if (this.#envObjects.length === 0) {
+            return;
+        }
+
+        // Get the last env file object
+        const lastEnvObj = this.#envObjects[this.#envObjects.length - 1];
+        
+        // Remove # from key if it exists
+        const normalizedKey = key.startsWith('#') ? key.substring(1) : key;
+        
+        // Update value in memory
+        lastEnvObj.env[normalizedKey] = value;
+
+        // Build file content, preserving existing comments
+        const envContent = Object.entries(lastEnvObj.env)
+            .map(([k, v]) => `${k}=${v}`)
+            .join('\n');
+
+        // Write to file
+        try {
+            await fs.promises.writeFile(lastEnvObj.envPath, envContent, 'utf8');
+            return true;
+        } catch (error) {
+            console.error(`Failed to write to env file: ${error.message}`);
+            return false;
+        }
+    }
+
+    parseEnvToObject(envPath) {
+        if (!fs.existsSync(envPath)) {
+            return {};
+        }
+
+        try {
+            const content = fs.readFileSync(envPath, 'utf8');
+            const envObject = {};
+
+            content.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('##')) // Keep lines with single #
+                .forEach(line => {
+                    const [key, ...valueParts] = line.split('=');
+                    if (key && valueParts.length > 0) {
+                        const trimmedKey = key.trim();
+                        const value = valueParts.join('=').trim();
+                        if (trimmedKey) {
+                            envObject[trimmedKey] = value;
+                        }
+                    }
+                });
+
+            return envObject;
+        } catch (error) {
+            console.error(`Error parsing env file ${envPath}: ${error.message}`);
+            return {};
+        }
     }
 
 }
