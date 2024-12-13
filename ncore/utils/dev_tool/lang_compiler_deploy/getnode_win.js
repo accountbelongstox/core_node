@@ -3,7 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import { gdir } from '#@globalvars';
 import { flink } from '#@utils_native';
-import bdir from '#@/ncore/gvar/bdir.js';
+import {bdir} from '#@/ncore/gvar/bdir.js';
+import {execCmd} from './libs/commander.js';
 
 const tar = bdir.getTarExecutable(); // Get the tar executable path
 const curl = bdir.getCurlExecutable(); // Get the curl executable path
@@ -94,7 +95,7 @@ class GetNodeWin {
         }
     }
 
-    start(versionKey = null) {
+    async start(versionKey = null) {
         this.prepareDirectories();
         if (versionKey !== null) {
             this.setNodeVersion(versionKey);
@@ -135,17 +136,17 @@ class GetNodeWin {
         console.log(`Downloading Node.js ${this.nodeVersion}...`);
         const tempNodeZip = path.join(this.tempDir, `${this.nodeDir}.zip`);
         // Use the curl executable with -L -k parameters
-        this.execCmd(`${curl} -L -k -o "${tempNodeZip}" "${this.nodeUrl}"`);
+        execCmd(`${curl} -L -k -o "${tempNodeZip}" "${this.nodeUrl}"`);
 
         console.log(`Extracting Node.js ${this.nodeVersion}...`);
         // Use the tar executable path for extraction
-        this.execCmd(`${tar} -xf "${tempNodeZip}" -C "${this.installDir}"`);
+        execCmd(`${tar} -xf "${tempNodeZip}" -C "${this.installDir}"`);
     }
 
     verifyInstallation() {
         if (fs.existsSync(this.nodePath)) {
             console.log(`Node.js ${this.nodeVersion} version:`);
-            this.execCmd(`"${this.nodePath}" -v`);
+            execCmd(`"${this.nodePath}" -v`);
         } else {
             console.error(`Node.js ${this.nodeVersion} installation failed.`);
         }
@@ -161,18 +162,18 @@ class GetNodeWin {
 
         if (!installedConfig.npmConfigured) {
 
-            this.execCmd(`"${this.npmPath}" config delete proxy`);
-            this.execCmd(`"${this.npmPath}" config delete https-proxy`);
+            execCmd(`"${this.npmPath}" config delete proxy`);
+            execCmd(`"${this.npmPath}" config delete https-proxy`);
 
-            this.execCmd(`"${this.npmPath}" config set registry https://mirrors.huaweicloud.com/repository/npm/`);
-            this.execCmd(`"${this.npmPath}" config set prefix "${this.nodeInstallDir}"`);
+            execCmd(`"${this.npmPath}" config set registry https://mirrors.huaweicloud.com/repository/npm/`);
+            execCmd(`"${this.npmPath}" config set prefix "${this.nodeInstallDir}"`);
             installedConfig.npmConfigured = true;
         }
 
         const globalPackages = ['yarn', 'pnpm', 'cnpm', 'pm2'];
         globalPackages.forEach(pkg => {
             if (!installedConfig[pkg]) {
-                this.execCmd(`"${this.npmPath}" install -g ${pkg}`);
+                execCmd(`"${this.npmPath}" install -g ${pkg}`);
                 installedConfig[pkg] = true;
             }
         });

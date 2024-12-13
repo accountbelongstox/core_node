@@ -4,7 +4,7 @@ import fs from 'fs';
 import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import { execSync } from 'child_process';
 import { gdir } from '#@globalvars';  // Import com_bin
-import bdir from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
+import {bdir} from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
 import gconfig from '#@/ncore/gvar/gconfig.js';
 const langdir = gconfig.DEV_LANG_DIR;
 
@@ -90,7 +90,7 @@ class GetJavaWin extends Base {
         }
     }
 
-    start(versionKey = null) {
+    async start(versionKey = null) {
         if (versionKey !== null) {
             this.setJavaVersion(versionKey);
             this.installJava();

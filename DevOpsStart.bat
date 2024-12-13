@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 set "restart=%~1"
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 if '%errorlevel%' NEQ '0' (
@@ -43,10 +43,22 @@ set NODE_URL=https://nodejs.org/dist/%NODE_VERSION%/%NODE_DIR%.zip
 set NODE_PATH=%INSTALL_DIR%\%NODE_DIR%\node.exe
 set NPM_PATH=%INSTALL_DIR%\%NODE_DIR%\npm.cmd
 set USER_DIR=%USERPROFILE%\.DevOps
+set USER_CACHE_DIR=%USER_DIR%\.cache
 set WINGET_FLAG_FILE=%USER_DIR%\.winget_set
 set GIT_EXE=C:\Program Files\Git\bin\git.exe
 set BASE_DIR=D:\programing
 set PROJECT_DIR=%BASE_DIR%\core_node
+set "REG_KEY=HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+set "REG_TYPE=REG_SZ"
+for /f "tokens=2 delims==" %%a in ('"wmic os get localdatetime /value"') do set datetime=%%a
+set datetime=%datetime:~0,4%-%datetime:~4,2%-%datetime:~6,2%_%datetime:~8,2%-%datetime:~10,2%-%datetime:~12,2%
+set BACKUP_FILE=%USER_CACHE_DIR%\env_backup_%datetime%.txt
+set "VAR_7Z_TEMP_DIR=%TEMP_DIR%"
+set "VAR_7Z_INSTALL_DIR=%INSTALL_DIR%\7z"
+set "VAR_7Z_DOWNLOAD_URL=https://www.7-zip.org/a/7z2408-x64.exe"
+set "VAR_7Z_EXE_PATH=%VAR_7Z_INSTALL_DIR%\7z.exe"
+set "VAR_7Z_TMP_NAME=7z2408-x64.exe"
+set "VAR_7Z_TMP_PATH=%VAR_7Z_TEMP_DIR%\%VAR_7Z_TMP_NAME%"
 
 if not exist %USER_DIR% (
     mkdir %USER_DIR%
@@ -61,6 +73,10 @@ if exist %NODE_PATH% (
 :: Ensure the install directory exists
 if not exist %INSTALL_DIR% (
     mkdir %INSTALL_DIR%
+)
+
+if not exist %USER_CACHE_DIR% (
+    mkdir %USER_CACHE_DIR%
 )
 
 :: Ensure the temporary directory exists
@@ -90,6 +106,74 @@ if exist %NODE_PATH% (
     goto :end
 )
 
+:SHOW_ENV_PATH
+for /f "tokens=2,*" %%a in ('reg query "%REG_KEY%" /v Path 2^>nul') do (
+    set "currentPath=%%b"
+)
+
+for %%p in (%currentPath%) do (
+    echo %%p
+)
+exit /b
+
+
+:ADD_ENV_PATH
+set "NEW_PATH=%1"
+if "%NEW_PATH%"=="" (
+    echo No path provided. Please specify a path to add.
+    exit /b
+)
+
+for /f "tokens=2,*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do (
+    set "CURRENT_PATH=%%b"
+)
+
+echo Backing up current Path environment to "%BACKUP_FILE%"...
+echo !CURRENT_PATH! > "%BACKUP_FILE%"
+
+echo Backup successful. The backup file is saved at: %BACKUP_FILE%
+
+echo !CURRENT_PATH! | findstr /i "%NEW_PATH%" >nul
+if !errorlevel! equ 0 (
+    echo The path "%NEW_PATH%" already exists in the environment.
+    exit /b
+)
+
+set "NEW_PATH=!CURRENT_PATH!;%NEW_PATH%"
+
+echo Adding new path to the environment...
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path /t REG_SZ /d "!NEW_PATH!" /f
+
+echo Path updated successfully.
+exit /b
+
+:InstallV7
+if not exist "%VAR_7Z_TEMP_DIR%" (
+    mkdir "%VAR_7Z_TEMP_DIR%"
+)
+if exist "%VAR_7Z_EXE_PATH%" (
+    echo 7-Zip installer already exists. Skipping installation.
+    exit /b
+)
+if exist "%VAR_7Z_TMP_PATH%" (
+    del /f /q "%VAR_7Z_TMP_PATH%"
+    echo Deleted old 7-Zip installer.
+)
+echo Downloading 7-Zip installer...
+curl -L "%VAR_7Z_DOWNLOAD_URL%" -o "%VAR_7Z_TMP_PATH%"
+if not exist "%VAR_7Z_TMP_PATH%" (
+    echo Failed to download 7-Zip installer. Exiting...
+    exit /b
+)
+echo Installing 7-Zip to %VAR_7Z_INSTALL_DIR%...
+"%VAR_7Z_TMP_PATH%" /S /D=%VAR_7Z_INSTALL_DIR%
+if exist "%VAR_7Z_EXE_PATH%" (
+    echo 7-Zip installed successfully.
+) else (
+    echo Installation failed. Please check the logs for errors.
+)
+exit /b
+
 :check_winget
 @REM :: Check if winget has been set up
 if not exist %WINGET_FLAG_FILE% (
@@ -111,6 +195,27 @@ if not exist "%USER_DIR%\.vscode_installed_marker_file" (
     @REM )
 ) else (
     echo VSCode is already installed.
+)
+
+if not exist "%USER_DIR%\.cursor_installed_marker_file" (
+    echo Installing Cursor...
+    winget install --id Anysphere.Cursor --silent --accept-package-agreements --accept-source-agreements
+    if %ERRORLEVEL% == 0 (
+        echo Cursor installation successful. > "%USER_DIR%\.cursor_installed_marker_file"
+    ) else (
+        echo Cursor installation failed. Please check the installation process.
+    )
+) else (
+    echo Cursor is already installed.
+)
+
+:: Check for Bandizip
+if not exist "%USER_DIR%\.bandizip_installed_marker_file" (
+    echo Installing Bandizip...
+    winget install --id Bandisoft.Bandizip --silent --accept-package-agreements --accept-source-agreements
+    echo Bandizip installation successful. > "%USER_DIR%\.bandizip_installed_marker_file"
+) else (
+    echo Bandizip is already installed.
 )
 
 :: Check for Chrome
@@ -159,6 +264,14 @@ if not exist "%USER_DIR%\.bandizip_installed_marker_file" (
 
 
 :run_script
+if exist "%VAR_7Z_EXE_PATH%" (
+    echo 7-Zip is already installed. Skipping installation.
+    echo 7-Zip version:
+    "%VAR_7Z_EXE_PATH%" | findstr /i "7-Zip"
+)
+if not exist "%VAR_7Z_EXE_PATH%" (
+    call :InstallV7
+)
 :: Check if in project directory, if not, ensure the base directory exists and switch to it
 if not "%CD%"=="%PROJECT_DIR%" (
     if not exist %BASE_DIR% (
@@ -170,8 +283,8 @@ if not "%CD%"=="%PROJECT_DIR%" (
         echo Cloning the repository...
         @REM "%GIT_EXE%" clone ssh://git@git.local.12gm.com:5022/adminroot/core_node.git
         "%GIT_EXE%" config --global --unset http.proxy
-        echo "%GIT_EXE%" clone http://git.local.12gm.com:5021/adminroot/core_node.git
-        "%GIT_EXE%" clone http://git.local.12gm.com:5021/adminroot/core_node.git
+        echo "%GIT_EXE%" clone https://gitee.com/accountbelongstox/core_node.git
+        "%GIT_EXE%" clone https://gitee.com/accountbelongstox/core_node.git
         
     )
     cd /d %PROJECT_DIR%
@@ -179,7 +292,9 @@ if not "%CD%"=="%PROJECT_DIR%" (
 
 :: Execute the main.js script with the specified parameters
 echo Running main.js with parameters...
-%NODE_PATH% %PROJECT_DIR%\main.js role=client action=init
+echo %NODE_PATH% %PROJECT_DIR%\main.js app=DevOps
+%NODE_PATH% %PROJECT_DIR%\main.js app=DevOps
+exit /b
 
 REM Execute the PowerShell command to update PATH
 "%PowerShellPath%" -command "$env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')"

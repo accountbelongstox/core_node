@@ -2,7 +2,7 @@ import sysarg from './utils/systool/libs/sysarg.js';
 import getnode_liunx from './utils/dev_tool/lang_compiler_deploy/getnode_liunx.js';
 import getnode_win from './utils/dev_tool/lang_compiler_deploy/getnode_win.js';
 import getpython_win from './utils/dev_tool/lang_compiler_deploy/getpython_win.js';
-import getbaselibs_win from './utils/dev_tool/lang_compiler_deploy/getbaselibs_win.js';
+import getenvironments_win from './utils/dev_tool/lang_compiler_deploy/getenvironments_win.js';
 import getgolang_win from './utils/dev_tool/lang_compiler_deploy/getgolang_win.js';
 import getjava_win from './utils/dev_tool/lang_compiler_deploy/getjava_win.js';
 import turn_feature from './utils/dev_tool/utils/turn_feature.js';
@@ -31,7 +31,7 @@ export {
     getnode_win,
     getgolang_win,
     getpython_win,
-    getbaselibs_win,
+    getenvironments_win,
     flink,
     conf,
 };

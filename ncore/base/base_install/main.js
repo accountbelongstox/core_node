@@ -15,11 +15,11 @@ class BaseInstall extends Base {
   async start() {
     console.log('Starting installation...');
     //.1
-    get_langs.start()
+    await get_langs.start()
     //.2
-    basic_settings.start()
+    await basic_settings.start()
     //.3
-    function_activation.start()
+    await function_activation.start()
     
   }
 }

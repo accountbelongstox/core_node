@@ -1,12 +1,12 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import Base from '#@/ncore/utils/win_tool/base_utils/base.js';
 import { execPowerShell } from '#@/ncore/utils/win_tool/libs/commander.js';
+import logger from '#@utils_logger';
+import {execCmd} from "#@utils_commander"
 
-class WinPath extends Base {
+class WinPath {
     constructor() {
-        super();
         this.regType = os.platform() === 'win32' ? 'REG_SZ' : ''; // Windows registry type
         this.supportedCommands = ['add', 'remove', 'is', 'show'];
         this.regCommandPath = os.platform() === 'win32' ? 'C:\\Windows\\System32\\reg.exe' : null; // Absolute path to reg
@@ -28,21 +28,21 @@ class WinPath extends Base {
         const currentPath = this.getCurrentPath();
         const missingPaths = this.defaultPaths.filter(defaultPath => !currentPath.includes(defaultPath));
         if (missingPaths.length > 0) {
-            this.info('Adding missing default paths to PATH:', missingPaths);
+            logger.info('Adding missing default paths to PATH:', missingPaths);
             this.updatePathRegistry([...missingPaths, ...currentPath]);
             this.refreshEnvironmentVariable();
         } else {
-            this.success('All default paths are already present in PATH.');
+            logger.success('All default paths are already present in PATH.');
         }
     }
 
     queryEnvironmentVariable() {
         if (os.platform() !== 'win32') {
-            this.error('This function is designed for Windows only.');
+            logger.error('This function is designed for Windows only.');
             return null;
         }
         const command = `${this.regCommandPath} query "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" /v Path`;
-        const result = this.execCmd(command);
+        const result = execCmd(command);
         if (!result) {
             console.log(`result`, result)
             return { PathType: ``, CurrentPath: '' };
@@ -62,7 +62,7 @@ class WinPath extends Base {
             // console.log(queryresult);
             return queryresult
         } else {
-            this.error('Failed to parse Path variable from registry output.');
+            logger.error('Failed to parse Path variable from registry output.');
             return {
                 PathType: this.regType,
                 CurrentPath: ''
@@ -99,9 +99,9 @@ class WinPath extends Base {
         const backupFilePath = path.join(backupDir, `$SetPath_bak_${currentTime}.bak`);
         fs.writeFileSync(backupFilePath, currentPath.join(';'));
 
-        this.success(`Backup file saved to: ${backupFilePath}`);
+        logger.success(`Backup file saved to: ${backupFilePath}`);
         if (backupFiles.length > 30) {
-            this.info(`Cleaned up ${backupFiles.length - 30} outdated backup files.`);
+            logger.info(`Cleaned up ${backupFiles.length - 30} outdated backup files.`);
         }
     }
 
@@ -116,9 +116,9 @@ class WinPath extends Base {
             this.backupEnvPath(updatedPath);
             this.updatePathRegistry(updatedPath);
             this.refreshEnvironmentVariable();
-            this.success(`The path '${newPath}' has been added to the environment.`);
+            logger.success(`The path '${newPath}' has been added to the environment.`);
         } else {
-            this.error(`The path '${newPath}' already exists in the environment.`);
+            logger.error(`The path '${newPath}' already exists in the environment.`);
         }
     }
 
@@ -133,8 +133,8 @@ class WinPath extends Base {
         const regType = this.getPathType();
         const addPath = updatedPath.join(';');
         const command = `${this.regCommandPath} add "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" /v Path /t ${regType} /d "${addPath}" /f`;
-        this.execCmd(command);
-        this.success('Path updated successfully.');
+        execCmd(command);
+        logger.success('Path updated successfully.');
     }
 
     removePath(pathToRemove) {
@@ -148,9 +148,9 @@ class WinPath extends Base {
             this.backupEnvPath(updatedPath);
             this.updatePathRegistry(updatedPath);
             this.refreshEnvironmentVariable();
-            this.success(`The path '${pathToRemove}' has been removed from the environment.`);
+            logger.success(`The path '${pathToRemove}' has been removed from the environment.`);
         } else {
-            this.error(`The path '${pathToRemove}' does not exist in the environment.`);
+            logger.error(`The path '${pathToRemove}' does not exist in the environment.`);
         }
     }
 
@@ -160,19 +160,19 @@ class WinPath extends Base {
         }
         pathToCheck = path.resolve(pathToCheck);
         const exists = this.getCurrentPath().includes(pathToCheck);
-        this.info(`Path '${pathToCheck}' exists: ${exists}`);
+        logger.info(`Path '${pathToCheck}' exists: ${exists}`);
         return exists;
     }
 
     refreshEnvironmentVariable() {
         const refreshCommand = `$env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')`;
         execPowerShell(refreshCommand, true);
-        this.success('Environment variable PATH refreshed.');
+        logger.success('Environment variable PATH refreshed.');
     }
 
     executeCommand(command, arg) {
         if (!this.supportedCommands.includes(command)) {
-            this.error(`Unsupported command. Supported commands are: ${this.supportedCommands.join(', ')}`);
+            logger.error(`Unsupported command. Supported commands are: ${this.supportedCommands.join(', ')}`);
             return;
         }
         switch (command) {
@@ -186,10 +186,10 @@ class WinPath extends Base {
                 this.isPath(arg);
                 break;
             case 'show':
-                this.info('Current PATH:', this.getCurrentPath());
+                logger.info('Current PATH:', this.getCurrentPath());
                 break;
             default:
-                this.error('Invalid command usage.');
+                logger.error('Invalid command usage.');
         }
     }
 

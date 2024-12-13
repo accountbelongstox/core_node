@@ -1,9 +1,8 @@
-import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import { execSync, exec } from 'child_process';
+import { pipeExecCmd,execPowerShell,execCmd } from '#@utils_commander';
 
-class TurnFeature extends Base {
+class TurnFeature {
     constructor() {
-        super();
         this.dismPath = 'C:\\Windows\\System32\\dism.exe';
     }
 
@@ -27,14 +26,14 @@ class TurnFeature extends Base {
 
     runAsAdmin() {
         const scriptPath = process.argv[1];
-        this.execPowerShell(`Start-Process 'node' -ArgumentList '${scriptPath}' -Verb RunAs`);
+        execPowerShell(`Start-Process 'node' -ArgumentList '${scriptPath}' -Verb RunAs`);
         process.exit();
     }
 
     getHyperFeatures(feature_name = 'Hyper') {
         try {
             console.log('Running dism command to retrieve features...');
-            const output = this.execCmd(`${this.dismPath} /online /get-features /format:table`);
+            const output = execCmd(`${this.dismPath} /online /get-features /format:table`);
             console.log('dism command output:', output);
 
             const lines = output.split('\n');
@@ -56,7 +55,7 @@ class TurnFeature extends Base {
             console.log(`Enabling feature: ${featureName}`);
             const enableCmd = `${this.dismPath} /online /enable-feature /featurename:${featureName} /norestart`;
             console.log(`Executing command: ${enableCmd}`);
-            this.pipeExecCmd(enableCmd);
+            pipeExecCmd(enableCmd);
             console.log(`Feature ${featureName} successfully enabled.`);
         } catch (error) {
             console.error(`Failed to enable feature ${featureName}:`, error);
@@ -125,7 +124,7 @@ class TurnFeature extends Base {
     disableFeature(featureName) {
         try {
             console.log(`Disabling feature: ${featureName}`);
-            this.pipeExecCmd(`${this.dismPath} /online /disable-feature /featurename:${featureName} /norestart`);
+            pipeExecCmd(`${this.dismPath} /online /disable-feature /featurename:${featureName} /norestart`);
             console.log(`Feature ${featureName} successfully disabled.`);
         } catch (error) {
             console.error(`Failed to disable feature ${featureName}:`, error);

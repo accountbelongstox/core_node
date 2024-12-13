@@ -1,34 +1,39 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import { gdir } from '#@globalvars';  // Import com_bin
-import bdir from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
+import {bdir} from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
 import gconfig from '#@/ncore/gvar/gconfig.js';
 const langdir = gconfig.DEV_LANG_DIR;
+import {execCmd} from '#@utils_commander';
+import logger from '#@utils_logger';
+import phpReleasesFetcher from './php_libs/get_releases.js';
 
 const tar = bdir.getTarExecutable(); // Get the tar executable path
+const v7zexe = bdir.get7zExecutable(); // Get the v7z executable path
 const curl = bdir.getCurlExecutable(); // Ge
-class GetPHPWin extends Base {
+
+class GetPHPWin {
     constructor() {
-        super();
-        this.phpVersions = {
-            '7.4': 'php-7.4.33-nts-Win32-vc15-x64.zip',
-            '8.3': 'php-8.3.10-nts-Win32-vs16-x64.zip'
-        };
-        this.defaultVersionKey = '8.3'; // Set PHP 8.3 as the default version
+        this.defaultVersionKey = "8.3"; // Set PHP 8.3 as the default version
+        this.releases = null;
+        this.excludeVersionKeys = ['8.4'];
         this.installDir = path.join(langdir);
         this.tempDir = path.join(this.installDir, 'tmp');
     }
 
+    mkdir(dir) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+
     getDefaultVersion() {
-        const details = this.getVersionDetails(this.defaultVersionKey);
+        const php_release = this.releases.find(php_release => php_release.majorVersion === this.defaultVersionKey);
+        const details = this.getVersionDetails(php_release);
         const baseDir = new Set();
 
-        if (details?.phpPath) {
-            const phpBaseDir = path.dirname(details.phpPath);
-            baseDir.add(phpBaseDir);
-        }
+        console.log(`details`, details)
+        const phpBaseDir = path.dirname(details.phpPath);
+        baseDir.add(phpBaseDir);
 
         return {
             versionKey: details?.phpVersionKey || null,
@@ -41,46 +46,51 @@ class GetPHPWin extends Base {
         };
     }
 
-    getVersionDetails(versionKey) {
+    getVersionDetails(php_release) {
+        const versionKey = php_release.majorVersion;
+        const fullVersion = php_release.fullVersion;
         if (!this.cachedVersionDetails) {
             this.cachedVersionDetails = {};
         }
         if (this.cachedVersionDetails[versionKey]) {
             return this.cachedVersionDetails[versionKey];
         }
-        if (this.phpVersions[versionKey]) {
-            this.phpVersionKey = versionKey;
-            this.phpFileName = this.phpVersions[versionKey];
-            this.phpUrl = this.getPHPDownloadUrl(versionKey);
-            this.phpInstallDir = path.join(this.installDir, `php-${versionKey}`);
-            this.mkdir(this.phpInstallDir);
-            this.phpPath = path.join(this.phpInstallDir, 'php.exe');
-            this.cachedVersionDetails[versionKey] = {
-                phpVersionKey: this.phpVersionKey,
-                phpVersion: this.phpVersions[versionKey],
-                phpFileName: this.phpFileName,
-                phpUrl: this.phpUrl,
-                phpInstallDir: this.phpInstallDir,
-                phpPath: this.phpPath
-            };
-            return this.cachedVersionDetails[versionKey];
-        } else {
-            this.error(`PHP version key ${versionKey} is not supported.`);
-            return null;
-        }
+        
+        this.phpVersionKey = versionKey;
+        this.phpFileName = this.findDevelopmentVersion(php_release.fileNames);
+        this.phpUrl = this.getPHPDownloadUrl(this.phpFileName);
+        let phpFolderName = this.phpFileName.substring(0, this.phpFileName.lastIndexOf('.'));
+        this.phpInstallDir = path.join(this.installDir, phpFolderName);
+        this.mkdir(this.phpInstallDir);
+        this.phpPath = path.join(this.phpInstallDir, 'php.exe');
+        this.cachedVersionDetails[versionKey] = {
+            phpVersionKey: this.phpVersionKey,
+            phpVersion: versionKey,
+            phpFileName: this.phpFileName,
+            phpUrl: this.phpUrl,
+            phpInstallDir: this.phpInstallDir,
+            phpPath: this.phpPath
+        };
+        console.log(this.cachedVersionDetails[versionKey])
+        return this.cachedVersionDetails[versionKey];
     }
 
-    getPHPDownloadUrl(versionKey) {
-        if (versionKey === '8.3') {
-            return 'https://windows.php.net/downloads/releases/php-8.3.10-nts-Win32-vs16-x64.zip';
-        } else if (versionKey === '7.4') {
-            return 'https://windows.php.net/downloads/releases/php-7.4.33-nts-Win32-vc15-x64.zip';
+    findDevelopmentVersion(fileNames) {
+        
+        let developmentVersion = fileNames.find(fileName =>  !fileName.includes('nts') && !fileName.includes('dev') && !fileName.includes('debug') && !fileName.includes('test') && fileName.includes('x64') && fileName.includes('Win32'));
+        if(developmentVersion.startsWith('/downloads/releases/')){
+            developmentVersion = developmentVersion.substring('/downloads/releases/'.length);
         }
-        return null;
+        console.log(`developmentVersion`, developmentVersion)
+        return developmentVersion;
     }
 
-    setPHPVersion(versionKey) {
-        const versionDetails = this.getVersionDetails(versionKey);
+    getPHPDownloadUrl(phpFileName) {
+        return `https://windows.php.net/downloads/releases/${phpFileName}`;
+    }
+
+    setPHPVersion(php_release) {
+        const versionDetails = this.getVersionDetails(php_release);
         if (versionDetails) {
             this.phpVersionKey = versionDetails.phpVersionKey;
             this.phpFileName = versionDetails.phpFileName;
@@ -89,27 +99,35 @@ class GetPHPWin extends Base {
         }
     }
 
-    start(versionKey = null) {
+    async start(versionKey = null) {
         this.prepareDirectories();
+        let releases = await phpReleasesFetcher.fetchReleases();
+        this.excludeVersionKeys.forEach(versionKey => {
+            releases = releases.filter(php_release => php_release.majorVersion !== versionKey);
+        });
+        if(!this.releases){
+            this.releases = releases
+        }
         if (versionKey !== null) {
-            this.setPHPVersion(versionKey);
+            const php_release = await phpReleasesFetcher.getVersionByMajor(versionKey);
+            this.setPHPVersion(php_release);
             this.installPHP();
         } else {
-            for (const key of Object.keys(this.phpVersions)) {
-                this.setPHPVersion(key);
+            releases.forEach(php_release => {
+                this.setPHPVersion(php_release);
                 this.installPHP();
-            }
+            });
         }
     }
 
     installPHP() {
         if (this.checkPHPInstalled()) {
-            this.info(`PHP ${this.phpVersionKey} is already installed.`);
+            logger.info(`PHP ${this.phpVersionKey} is already installed.`);
         } else {
             this.downloadAndExtractPHP();
         }
-        this.verifyInstallation();
         this.configurePHP();
+        this.verifyInstallation();
     }
 
     checkPHPInstalled() {
@@ -127,33 +145,36 @@ class GetPHPWin extends Base {
     }
 
     downloadAndExtractPHP() {
-        this.info(`Downloading PHP ${this.phpVersionKey} from ${this.phpUrl}...`);
+        logger.info(`Downloading PHP ${this.phpVersionKey} from ${this.phpUrl}...`);
         const tempPHPZip = path.join(this.tempDir, this.phpFileName);
-
-        // Disable SSL verification with the -k option
-        const command = `${curl} -k -L -o "${tempPHPZip}" "${this.phpUrl}"`;
-        try {
-            this.execCmd(command);
-        } catch (error) {
-            this.error(`Error downloading PHP: ${error}`);
+        if(fs.existsSync(tempPHPZip)){
+            fs.unlinkSync(tempPHPZip);
         }
 
-        this.info(`Extracting PHP ${this.phpVersionKey}...`);
+        const command = `${curl} -k -L -o "${tempPHPZip}" "${this.phpUrl}"`;
+        logger.info( command)
         try {
-            this.execCmd([tar, '-xf', tempPHPZip, '-C', this.phpInstallDir]);
+            execCmd(command);
         } catch (error) {
-            this.error(`Error extracting PHP: ${error}`);
+            logger.error(`Error downloading PHP: ${error}`);
+        }
+
+        logger.info(`Extracting PHP ${this.phpVersionKey} ${tempPHPZip} ...`);
+        try {
+            execCmd([tar, '-xf', tempPHPZip, '-C', this.phpInstallDir]);
+        } catch (error) {
+            logger.error(`Error extracting PHP: ${error}`);
         }
     }
 
     verifyInstallation() {
         const phpExePath = path.join(this.phpInstallDir, 'php.exe');
         if (fs.existsSync(phpExePath)) {
-            this.success(`PHP ${this.phpVersionKey} installed successfully.`);
-            const version = this.execCmd([phpExePath, '--version']);
-            this.info(`PHP version: ${version}`);
+            logger.success(`PHP ${this.phpVersionKey} installed successfully.`);
+            const version = execCmd([phpExePath, '--version']);
+            logger.info(`PHP version: ${version}`);
         } else {
-            this.error(`PHP ${this.phpVersionKey} installation failed.`);
+            logger.error(`PHP ${this.phpVersionKey} installation failed.`);
         }
     }
 
@@ -161,9 +182,9 @@ class GetPHPWin extends Base {
         const phpIniPath = path.join(this.phpInstallDir, 'php.ini');
         if (!fs.existsSync(phpIniPath)) {
             fs.copyFileSync(path.join(this.phpInstallDir, 'php.ini-development'), phpIniPath);
-            this.info(`Default php.ini configuration copied.`);
+            logger.info(`Default php.ini configuration copied.`);
         } else {
-            this.info(`php.ini configuration already exists.`);
+            logger.info(`php.ini configuration already exists.`);
         }
 
         // Update php.ini with necessary configurations
@@ -184,9 +205,9 @@ class GetPHPWin extends Base {
 
             // Write the updated configuration back to php.ini
             fs.writeFileSync(phpIniPath, phpIniContent, 'utf8');
-            this.success(`PHP configuration updated successfully.`);
+            logger.success(`PHP configuration updated successfully.`);
         } catch (error) {
-            this.error(`Failed to update php.ini: ${error}`);
+            logger.error(`Failed to update php.ini: ${error}`);
         }
     }
 }

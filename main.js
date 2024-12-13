@@ -1,10 +1,10 @@
 import { sysarg, run } from '#@utils_native';
 import { appentry_es, } from './ncore/globalvars.js';
 import printer from '#@/ncore/base/printer.js';
-const role = sysarg.getArg('role');
-const action = sysarg.getArg('action');
-console.log(`role ${role}`)
-console.log(`action ${action}`)
+// const role = sysarg.getArg('role');
+// const action = sysarg.getArg('action');
+// console.log(`role ${role}`)
+// console.log(`action ${action}`)
 try {
   if (typeof ReadableStream === 'undefined') {
     const { ReadableStream } = await import('web-streams-polyfill');

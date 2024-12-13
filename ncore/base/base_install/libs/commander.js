@@ -6,13 +6,6 @@ import readline from 'readline';
 
 const initialWorkingDirectory = process.cwd();
 
-// Platform detection
-export function getPlatformShell() {
-    return process.platform === 'win32' ? 
-        { shell: true, command: 'cmd.exe', args: ['/c'] } : 
-        { shell: '/bin/sh', command: '/bin/sh', args: ['-c'] };
-}
-
 export function isLinux() {
     return process.platform === 'linux';
 }
@@ -49,33 +42,27 @@ export function execCmd(command, info = false, cwd = null, logname = null) {
         command = command.join(" ");
     }
     if (info) {
-        console.log(`Command: ${command}`);
-        console.log(`Working directory: ${cwd}`);
+        console.log(`command\t: ${command}`);
+        console.log(`cwd\t: ${cwd}`);
     }
-
-    const platformShell = getPlatformShell();
-    const options = { 
-        shell: typeof platformShell.shell === 'boolean' ? 'cmd.exe' : platformShell.shell,
-        encoding: 'utf-8' 
-    };
-
-    let hasChangedDir = false;
+    const options = { stdio: 'inherit' };
+    let is_changed_dir = false;
     if (cwd) {
-        hasChangedDir = true;
+        is_changed_dir = true;
         options.cwd = cwd;
         process.chdir(cwd);
     }
-
-    const result = execSync(command, options);
-    const resultText = result.toString();
-
+    const result = isLinux()
+        ? execSync(command, { shell: '/bin/bash', ...options })
+        : execSync(command, options);
+    const resultText = byteToStr(result);
     if (logname) {
         fs.appendFileSync(path.join(process.cwd(), 'logs', `${logname}.log`), resultText + '\n');
     }
     if (info) {
         console.log(resultText);
     }
-    if (hasChangedDir) {
+    if (is_changed_dir) {
         process.chdir(initialWorkingDirectory);
     }
     return resultText;
@@ -86,27 +73,20 @@ export async function execCommand(command, info = true, cwd = null, logname = nu
         command = command.join(" ");
     }
     if (info) {
-        console.log(`Executing command: ${command}`);
+        console.log(command);
     }
-
     return new Promise((resolve, reject) => {
-        const platformShell = getPlatformShell();
         const options = { stdio: 'pipe' };
-        
         if (cwd) {
             options.cwd = cwd;
             process.chdir(cwd);
         }
-
-        const childProcess = spawnSync(
-            platformShell.command,
-            [...platformShell.args, command],
-            options
-        );
+        const childProcess = isLinux()
+            ? spawnSync('/bin/bash', ['-c', command], options)
+            : spawnSync(command, options);
 
         let stdoutData = '';
         let stderrData = '';
-
         childProcess.stdout.on('data', (data) => {
             const output = byteToStr(data);
             if (info) {
@@ -142,16 +122,15 @@ export async function execCommand(command, info = true, cwd = null, logname = nu
 export async function spawnAsync(command, info = true, cwd = null, logname = null, callback, timeout = 5000, progressCallback = null) {
     let cmd = '';
     let args = [];
-
     if (typeof command === 'string') {
-        const platformShell = getPlatformShell();
-        cmd = platformShell.command;
-        args = [...platformShell.args, command];
-    } else if (Array.isArray(command)) {
+        command = command.split(/\s+/);
+    }
+    if (Array.isArray(command)) {
         cmd = command[0];
         args = command.slice(1);
+    } else {
+        cmd = command;
     }
-
     if (info) {
         console.log(command);
     }
@@ -223,10 +202,6 @@ export async function spawnAsync(command, info = true, cwd = null, logname = nul
 }
 
 export function findPowerShellPath() {
-    if (process.platform !== 'win32') {
-        return null;
-    }
-
     const standardPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
     const corePath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
 
@@ -234,17 +209,13 @@ export function findPowerShellPath() {
         return corePath;
     } else if (fs.existsSync(standardPath)) {
         return standardPath;
+    } else {
+        console.error('PowerShell not found. Please ensure PowerShell is installed.');
+        return null;
     }
-    console.error('PowerShell not found. Please ensure PowerShell is installed.');
-    return null;
 }
 
 export function execPowerShell(command, info = false, cwd = null, no_std = false, env = null) {
-    if (process.platform !== 'win32') {
-        console.error('PowerShell commands are only supported on Windows');
-        return null;
-    }
-
     const powershellPath = findPowerShellPath();
     if (!powershellPath) {
         console.error('PowerShell path is not set.');
@@ -257,30 +228,4 @@ export function execPowerShell(command, info = false, cwd = null, no_std = false
     command = command.trim();
     const fullCommand = `${powershellPath} -Command "${command}"`;
     return execCmd(fullCommand, info, cwd, no_std, env);
-}
-
-export function pipeExecCmd(command, useShell = true, cwd = null, inheritIO = true, env = process.env) {
-    try {
-        const platformShell = getPlatformShell();
-        const options = {
-            shell: useShell ? platformShell.shell : false,
-            cwd: cwd || process.cwd(),
-            stdio: inheritIO ? 'inherit' : 'pipe',
-            env: env
-        };
-
-        if (Array.isArray(command)) {
-            command = command.join(' ');
-        }
-
-        return execSync(command, options);
-    } catch (error) {
-        console.error(`Command execution failed: ${command}`);
-        console.error(error);
-        throw error;
-    }
-}
-
-export function pipeExecCmdAsync(command, useShell = true, cwd = null, inheritIO = true, env = process.env) {
-    return spawnAsync(command, useShell, cwd, inheritIO, env);
 }

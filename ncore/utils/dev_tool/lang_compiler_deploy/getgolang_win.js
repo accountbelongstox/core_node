@@ -1,18 +1,17 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import { gdir } from '#@globalvars';  // Import com_bin
-import bdir from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
+import {bdir} from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
 import gconfig from '#@/ncore/gvar/gconfig.js';
 const langdir = gconfig.DEV_LANG_DIR;
+import {execCmd} from '#@utils_commander';
 
 const tar = bdir.getTarExecutable(); // Get the tar executable path
 const curl = bdir.getCurlExecutable(); // Get the curl executable path
 
-class GetGolang extends Base {
+class GetGolang {
     constructor() {
-        super();
         this.golangVersions = {
             1.22: "go1.22.5.windows-amd64.zip"  // Latest version added
         };
@@ -82,7 +81,7 @@ class GetGolang extends Base {
         }
     }
 
-    start(versionKey = null) {
+    async start(versionKey = null) {
         this.prepareDirectories();
         if (versionKey !== null) {
             this.setGolangVersion(versionKey);
@@ -124,13 +123,13 @@ class GetGolang extends Base {
         const tempGolangArchive = path.join(this.tempDir, this.golangVersions[this.golangVersionKey]);
         
         // Use curl with -L and -k parameters
-        this.execCmd(`${curl} -L -k -o "${tempGolangArchive}" "${this.golangUrl}"`);
+        execCmd(`${curl} -L -k -o "${tempGolangArchive}" "${this.golangUrl}"`);
 
         console.log(`Extracting Golang ${this.golangVersion}...`);
         if (os.platform() === 'win32') {
-            this.execCmd(`${tar} -xf "${tempGolangArchive}" -C "${this.installDir}"`);
+            execCmd(`${tar} -xf "${tempGolangArchive}" -C "${this.installDir}"`);
         } else {
-            this.execCmd(`sudo ${tar} -C "${this.installDir}" -xzf "${tempGolangArchive}"`);
+            execCmd(`sudo ${tar} -C "${this.installDir}" -xzf "${tempGolangArchive}"`);
         }
 
         // Rename the extracted 'go' directory to golangInstallDir
@@ -143,7 +142,7 @@ class GetGolang extends Base {
     verifyInstallation() {
         if (fs.existsSync(this.golangPath)) {
             console.log(`Golang ${this.golangVersion} installed successfully.`);
-            const version = this.execCmd(`"${this.golangPath}" version`);
+            const version = execCmd(`"${this.golangPath}" version`);
             console.log(`Golang version: ${version}`);
         } else {
             console.error(`Golang ${this.golangVersion} installation failed.`);
@@ -157,11 +156,11 @@ class GetGolang extends Base {
         }
 
         const proxyUrl = "https://goproxy.cn,direct";
-        const goProxy = this.execCmd(`"${this.golangPath}" env GOPROXY`).trim();
+        const goProxy = execCmd(`"${this.golangPath}" env GOPROXY`).trim();
         if (!goProxy.includes("goproxy.cn")) {
             console.log("Setting Go proxy settings...");
-            this.execCmd(`"${this.golangPath}" env -w GO111MODULE=on`);
-            this.execCmd(`"${this.golangPath}" env -w GOPROXY=${proxyUrl}`);
+            execCmd(`"${this.golangPath}" env -w GO111MODULE=on`);
+            execCmd(`"${this.golangPath}" env -w GOPROXY=${proxyUrl}`);
         } else {
             console.log(`GOPROXY is already set to ${proxyUrl}`);
         }

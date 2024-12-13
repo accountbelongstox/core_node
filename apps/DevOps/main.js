@@ -1,15 +1,17 @@
-// import { ElectronEgg } from '#@egg/ee-core/index.js';
-import Base from '#@base';
-import abc from '#@practicals';
 
-class Main extends Base {
-    // constructor() {
-    //     super();
-    // }
+import BaseInstall from '#@ncore/base/base_install/main.js';
 
-    start() {
-        // new ElectronEgg("framework");
-    }
+class appMain  {
+
+  // constructor() {
+  //   super();
+  //   // this === eeApp;
+  // }
+  async start() {
+    
+    const baseInstall = new BaseInstall();
+    baseInstall.start()
+  }
 }
 
-export default new Main();
+export default new appMain();

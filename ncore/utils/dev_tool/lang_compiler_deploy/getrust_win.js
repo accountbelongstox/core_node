@@ -1,18 +1,19 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
-import { execSync } from 'child_process';
-import { gdir } from '#@globalvars';  // Import com_bin
-import bdir from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
+import { gdir } from '#@globalvars'; 
+import { bdir } from '#@bdir';
 import gconfig from '#@/ncore/gvar/gconfig.js';
+import { execCmd, pipeExecCmd } from '#@utils_commander';
+import logger from '#@utils_logger';
+
 const langdir = gconfig.DEV_LANG_DIR;
 
-const tar = bdir.getTarExecutable(); // Get the tar executable path
-const curl = bdir.getCurlExecutable(); // Ge
-class GetRustWin extends Base {
+const tar = bdir.getTarExecutable(); 
+const v7zexe = bdir.get7zExecutable();
+const curl = bdir.getCurlExecutable(); 
+class GetRustWin {
     constructor() {
-        super();
         this.rustupFileName = "rustup-init.exe";
         this.rustupUrl = "https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe";
         this.installDir = path.join(langdir, 'rust');
@@ -24,12 +25,10 @@ class GetRustWin extends Base {
 
     getDefaultVersion() {
         const baseDir = new Set();
-
         if (fs.existsSync(this.rustPath)) {
             const rustBaseDir = path.dirname(this.rustPath);
             baseDir.add(rustBaseDir);
         }
-
         return {
             installDir: this.installDir,
             rustPath: this.rustPath,
@@ -37,7 +36,7 @@ class GetRustWin extends Base {
         };
     }
 
-    start() {
+    async start() {
         this.prepareDirectories();
         if (this.checkRustInstalled()) {
             console.log(`Rust is already installed.`);
@@ -65,28 +64,43 @@ class GetRustWin extends Base {
     downloadAndInstallRust() {
         console.log(`Downloading Rustup installer from ${this.rustupUrl}...`);
         const tempRustupFile = path.join(this.tempDir, this.rustupFileName);
-
-        // Use curl with -L -k options to download
-        this.pipeExecCmd(`${curl} -L -k -o "${tempRustupFile}" "${this.rustupUrl}"`);
-
+        pipeExecCmd(`${curl} -L -k -o "${tempRustupFile}" "${this.rustupUrl}"`);
         console.log(`Running Rustup installer...`);
+        this.initEnv();
+        const cmd = `"${tempRustupFile}" -y --default-toolchain stable --profile default --no-modify-path`;
+        logger.info(cmd);
+        pipeExecCmd(cmd, true, null, false, this.env);
+        this.initRustup();
+    }
 
-        // Set environment variables to install to the custom directory
-        const env = Object.assign({}, process.env, {
-            CARGO_HOME: this.cargoDir,
-            RUSTUP_HOME: this.installDir
-        });
+    initEnv() {
+        if(!this.env) {
+            this.env = Object.assign({}, process.env, {
+                CARGO_HOME: this.cargoDir,
+                RUSTUP_HOME: this.installDir
+            });
+        }
+    }
 
-        // Run the Rustup installer with the custom environment
-        this.pipeExecCmd(`"${tempRustupFile}" -y --default-toolchain stable --profile minimal --no-modify-path`, true, null, false, env);
+    initRustup() {
+        this.initEnv();
+        const rustupExe = path.join(this.cargoDir, 'bin', 'rustup.exe');
+        const setDefaultToolchain = `"${rustupExe}" default stable`;
+        logger.info(setDefaultToolchain);
+        pipeExecCmd(setDefaultToolchain, true, null, false, this.env);
     }
 
     verifyInstallation() {
         console.log(`Verifying installation of Rust at ${this.rustPath}...`);
         if (fs.existsSync(this.rustPath)) {
             console.log(`Rust installed successfully.`);
-            const version = this.execCmd(`"${this.rustPath}" --version`);
-            console.log(`Rust version: ${version}`);
+            try {
+                const version = execCmd(`"${this.rustPath}" --version`);
+                console.log(`Rust version: ${version}`);
+            } catch (error) {
+                this.initRustup();
+                console.error(`Error getting Rust version: ${error}`);
+            }
         } else {
             console.error(`Rust installation failed.`);
         }

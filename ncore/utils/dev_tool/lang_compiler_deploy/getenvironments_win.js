@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import { gdir } from '#@globalvars'; 
-import bdir from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
+import {bdir} from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
 import gconfig from '#@/ncore/gvar/gconfig.js';
 const langdir = gconfig.DEV_LANG_DIR;
 
@@ -85,7 +85,7 @@ class GetBaseLibs extends Base {
         }
     }
 
-    start(versionKey = null) {
+    async start(versionKey = null) {
         this.prepareDirectories();
         if (versionKey !== null) {
             this.setVersion(versionKey);
@@ -147,13 +147,11 @@ class GetBaseLibs extends Base {
     configureLib() {
         const installedConfigPath = path.join(this.installDir, '.installed.json');
         let installedConfig = {};
-
         if (fs.existsSync(installedConfigPath)) {
             installedConfig = JSON.parse(fs.readFileSync(installedConfigPath, 'utf8'));
         } else {
             fs.writeFileSync(installedConfigPath, JSON.stringify(installedConfig, null, 2), 'utf8');
         }
-
         fs.writeFileSync(installedConfigPath, JSON.stringify(installedConfig, null, 2), 'utf8');
     }
 }

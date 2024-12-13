@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { gdir, appConfDir } from '#@globalvars';
-import bdir from '#@/ncore/gvar/bdir.js';
+import {bdir} from '#@/ncore/gvar/bdir.js';
 import gconfig from '#@/ncore/gvar/gconfig.js';
 
 const localDir = gconfig.localDir;

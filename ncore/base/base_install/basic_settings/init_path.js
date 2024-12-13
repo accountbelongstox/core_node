@@ -1,6 +1,7 @@
 import Base from '#@base';
-import { gdir, com_bin } from '#@globalvars';
+import { gdir, bdir } from '#@globalvars';
 import { winpath } from '#@utils_native';
+import logger from '#@utils_logger';
 
 class InitPath extends Base {
     constructor() {
@@ -10,15 +11,15 @@ class InitPath extends Base {
     start() {
         // Initialize executables
         const executables = [
-            com_bin.getGitExecutable(),
-            com_bin.get7zExecutable(),
-            com_bin.getDDwinExecutable()
+            bdir.getGitExecutable(),
+            bdir.get7zExecutable(),
+            bdir.getDDwinExecutable()
         ];
 
         // Add paths to environment
         executables.forEach(executable => {
             if (executable) {
-                this.success(`Setting path for: ${executable}`);
+                logger.success(`Setting path for: ${executable}`);
                 if (!winpath.isPath(executable)) {
                     winpath.addPath(executable);
                     console.log(`Path added: ${executable}`);

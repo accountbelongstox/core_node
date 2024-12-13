@@ -4,7 +4,7 @@ import fs from 'fs';
 import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import {gdir} from '#@globalvars';
 
-import bdir from '#@/ncore/gvar/bdir.js';
+import {bdir} from '#@/ncore/gvar/bdir.js';
 import gconfig from '#@/ncore/gvar/gconfig.js';
 const langdir = gconfig.getBaseConfig().DEV_LANG_DIR
 
@@ -228,7 +228,7 @@ class GetNodeLinux extends Base {
     }
   }
 
-  start() {
+  async start() {
     this.prepareDirectories();
     for (const [nodeItem, nodeVersion] of Object.entries(this.nodeVersions)) {
       const nodeVersionFull = `node-${nodeVersion}-linux-x64`;
