@@ -1,0 +1,74 @@
+- DOMAIN-SUFFIX,1e100.net,🍎 苹果服务
+- DOMAIN-SUFFIX,ai.com,🍎 苹果服务
+- DOMAIN-SUFFIX,akamaized.net,🍎 苹果服务
+- DOMAIN-SUFFIX,akamaitechnologies.com,🍎 苹果服务
+- DOMAIN-SUFFIX,auth0.com,🍎 苹果服务
+- DOMAIN-SUFFIX,a-msedge.net,🍎 苹果服务
+- DOMAIN-SUFFIX,cloudflare.com,🍎 苹果服务
+- DOMAIN-SUFFIX,cloudfront.net,🍎 苹果服务
+- DOMAIN-SUFFIX,cloudflareinsights.com,🍎 苹果服务
+- DOMAIN-SUFFIX,compute-pipe.com,🍎 苹果服务
+- DOMAIN-SUFFIX,doubleclick.net,🍎 苹果服务
+- DOMAIN-SUFFIX,edgecompute.app,🍎 苹果服务
+- DOMAIN-SUFFIX,epsiloncdn.net,🍎 苹果服务
+- DOMAIN-SUFFIX,f7tk.com,🍎 苹果服务
+- DOMAIN-SUFFIX,featuregates.org,🍎 苹果服务
+- DOMAIN-SUFFIX,gstatic.com,🍎 苹果服务
+- DOMAIN-SUFFIX,hcaptcha.com,🍎 苹果服务
+- DOMAIN-SUFFIX,identrust.com,🍎 苹果服务
+- DOMAIN-SUFFIX,intercomcdn.com,🍎 苹果服务
+- DOMAIN-SUFFIX,intercom.io,🍎 苹果服务
+- DOMAIN-SUFFIX,javascript.info,🍎 苹果服务
+- DOMAIN-SUFFIX,licdn.com,🍎 苹果服务
+- DOMAIN-SUFFIX,openai.com,🍎 苹果服务
+- DOMAIN-SUFFIX,pki.goog,🍎 苹果服务
+- DOMAIN-SUFFIX,sentry.io,🍎 苹果服务
+- DOMAIN-SUFFIX,statsigapi.net,🍎 苹果服务
+- DOMAIN-SUFFIX,stripe.com,🍎 苹果服务
+- DOMAIN-SUFFIX,stripe.network,🍎 苹果服务
+- DOMAIN-SUFFIX,vimeocdn.com,🍎 苹果服务
+- DOMAIN-SUFFIX,vimeo.com,🍎 苹果服务
+- DOMAIN-SUFFIX,browser-intake-datadoghq.com,🍎 苹果服务
+- DOMAIN-SUFFIX,oaistatic.com,🍎 苹果服务
+- DOMAIN-SUFFIX,chatgpt.com,🍎 苹果服务
+- DOMAIN-SUFFIX,chat.com,🍎 苹果服务
+- DOMAIN-SUFFIX,launchdarkly.com,🍎 苹果服务
+- DOMAIN-SUFFIX,gravatar.com,🍎 苹果服务
+- DOMAIN-SUFFIX,textcortex.com,🍎 苹果服务
+- DOMAIN-SUFFIX,googleapis.com,🍎 苹果服务
+- DOMAIN-SUFFIX,wp.com,🍎 苹果服务
+- DOMAIN-SUFFIX,expo.dev,🍎 苹果服务
+- DOMAIN-SUFFIX,coze.com,🍎 苹果服务
+- DOMAIN-SUFFIX,coze.cn,DIRECT
+- DOMAIN-SUFFIX,aliyun.com,DIRECT
+- DOMAIN-SUFFIX,12gm.com,DIRECT
+- DOMAIN-SUFFIX,ip138.com,DIRECT
+- DOMAIN-SUFFIX,ipip.net,DIRECT
+- DOMAIN-SUFFIX,microsoft.com,DIRECT
+- IP-CIDR,47.242.164.51/24,DIRECT
+- DOMAIN-SUFFIX,heygen.com,📲 电报消息
+- DOMAIN-SUFFIX,byted-static.com,🇭🇰 香港节点
+- DOMAIN-SUFFIX,byteacctimg.com,🇭🇰 香港节点
+- DOMAIN-SUFFIX,ibytedapm.com,🇭🇰 香港节点
+- DOMAIN-SUFFIX,zijieapi.com,🇭🇰 香港节点
+- DOMAIN-SUFFIX,feelgood.cn,🇭🇰 香港节点
+- DOMAIN-SUFFIX,bytedance.com,🇭🇰 香港节点
+- DOMAIN-SUFFIX,oceancloudapi.com,🇭🇰 香港节点
+- DOMAIN-SUFFIX,bytetos.com,🇭🇰 香港节点
+- DOMAIN-SUFFIX,bytegoofy.com,🇭🇰 香港节点
+- DOMAIN-SUFFIX,github.com,🚀 手动切换
+- DOMAIN-SUFFIX,gist.github.com,🚀 手动切换
+- DOMAIN-SUFFIX,github.io,🚀 手动切换
+- DOMAIN-SUFFIX,api.github.com,🚀 手动切换
+- DOMAIN-SUFFIX,developer.github.com,🚀 手动切换
+- DOMAIN-SUFFIX,docs.github.com,🚀 手动切换
+- DOMAIN-SUFFIX,codeload.github.com,🚀 手动切换
+- DOMAIN-SUFFIX,githubusercontent.com,🚀 手动切换
+- DOMAIN-SUFFIX,githubapp.com,🚀 手动切换
+- DOMAIN-SUFFIX,github.dev,🚀 手动切换
+- DOMAIN-SUFFIX,npm.pkg.github.com,🚀 手动切换
+- DOMAIN-SUFFIX,docker.pkg.github.com,🚀 手动切换
+- DOMAIN-SUFFIX,lab.github.com,🚀 手动切换
+- DOMAIN-SUFFIX,github.community,🚀 手动切换
+- DOMAIN-SUFFIX,githubassets.com,🚀 手动切换
+- DOMAIN-SUFFIX,github.marketplace.visualstudio.com,🚀 手动切换

@@ -1,72 +1,64 @@
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { PUBLIC_DIR,APP_PUBLIC_DIR,CWD } from '../../../ncore/gvar/gdir.js';
+import { PUBLIC_DIR, APP_PUBLIC_DIR, CWD, APP_DIR, APP_DATA_DIR, APP_STATIC_DIR, APP_DATA_CACHE_DIR } from '../../../ncore/gvar/gdir.js';
+import { updateConfig, getConfig } from '#@/ncore/utils/http-express/config/index.js';
+const DB_DIR = path.join(APP_PUBLIC_DIR, 'db');
 
-// Get current file directory
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Voice Static Server specific configuration
+const voiceServerConfig = {
+    // Base Directories
+    BASE_DIR: CWD,
+    PUBLIC_DIR: APP_PUBLIC_DIR,
 
-let printedAllPaths = false;
+    // Database Directories
+    DB_DIR: APP_DATA_DIR,
+    WORD_INDEX_FILE: path.join(DB_DIR, 'word_index.json'),
 
-class TTSProvider {
-    static BASE_DIR = CWD;
-    static APP_DIR = path.join(this.BASE_DIR, 'app');
-    static STATIC_DIR = path.join(APP_PUBLIC_DIR, 'static');
-    static PUBLIC_DIR = PUBLIC_DIR;
-    
-    static DB_DIR = path.join(this.APP_DIR, 'db');
-    static STATIC_DB_DIR = this.STATIC_DIR;
-    static WORD_INDEX_FILE = path.join(this.DB_DIR, 'word_index.json');
+    // Content Directories
+    VOCABULARY_DIR: path.join(DB_DIR, 'vocabulary'),
+    SENTENCE_DIR: path.join(DB_DIR, 'sentences'),
+    DICTIONARY_DIR: path.join(DB_DIR, 'dictionary'),
+    LEMMAS_DIR: path.join(DB_DIR, 'lemmas'),
 
-    static VOCABULARY_DIR = path.join(this.DB_DIR, 'vocabulary');
-    static SENTENCE_DIR = path.join(this.DB_DIR, 'sentences');
-    static DICTIONARY_DIR = path.join(this.DB_DIR, 'dictionary');
-    static LEMMAS_DIR = path.join(this.DB_DIR, 'lemmas');
-    
-    // Voice directories with URL prefixes
-    static VOICE_DIR = path.join(this.PUBLIC_DIR, 'words');
-    static VOICE_URL_PREFIX = '/voices';
-    
-    static SENTENCE_VOICE_DIR = path.join(this.PUBLIC_DIR, 'sentence_voices');
-    static SENTENCE_VOICE_URL_PREFIX = '/sentence_voices';
+    // Voice Directories and URLs
+    VOICE_DIR: path.join(APP_DATA_CACHE_DIR, 'words'),
+    VOICE_URL_PREFIX: '/voices',
+    SENTENCE_VOICE_DIR: path.join(APP_DATA_CACHE_DIR, 'sentence_voices'),
+    SENTENCE_VOICE_URL_PREFIX: '/sentence_voices',
+};
 
-    static printAllPaths() {
-        if (!printedAllPaths) {
-            console.info("All paths:");
-            console.info(`BASE_DIR: ${this.BASE_DIR}`);
-            console.info(`APP_DIR: ${this.APP_DIR}`);
-            console.info(`STATIC_DIR: ${this.STATIC_DIR}`);
-            console.info(`DB_DIR: ${this.DB_DIR}`);
-            console.info(`STATIC_DB_DIR: ${this.STATIC_DB_DIR}`);
-            printedAllPaths = true;
+// Function to ensure required directories exist
+function ensureDirectories() {
+    const dirsToCreate = [
+        voiceServerConfig.PUBLIC_DIR,
+        voiceServerConfig.VOICE_DIR,
+        voiceServerConfig.DB_DIR,
+        voiceServerConfig.SENTENCE_VOICE_DIR,
+        voiceServerConfig.VOCABULARY_DIR,
+        voiceServerConfig.SENTENCE_DIR,
+        voiceServerConfig.DICTIONARY_DIR,
+        voiceServerConfig.LEMMAS_DIR
+    ];
+
+    dirsToCreate.forEach(dir => {
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+            console.info(`Created directory: ${dir}`);
         }
-    }
-
-    static ensureDirectories() {
-        [
-            this.STATIC_DIR,
-            this.VOICE_DIR,
-            this.DB_DIR,
-            this.SENTENCE_VOICE_DIR
-        ].forEach(dir => {
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
-            }
-        });
-    }
-    
-    static getVoicePath(filename) {
-        return path.join(this.VOICE_DIR, filename);
-    }
-    
-    static getSentenceVoicePath(filename) {
-        return path.join(this.SENTENCE_VOICE_DIR, filename);
-    }
-    
-    static getVocabularyPath(filename) {
-        return path.join(this.VOCABULARY_DIR, filename);
-    }
+    });
 }
 
-export default TTSProvider;
+// Helper functions for path operations
+export const pathUtils = {
+    getVoicePath: (filename) => path.join(voiceServerConfig.VOICE_DIR, filename),
+    getSentenceVoicePath: (filename) => path.join(voiceServerConfig.SENTENCE_VOICE_DIR, filename),
+    getVocabularyPath: (filename) => path.join(voiceServerConfig.VOCABULARY_DIR, filename)
+};
+
+// Initialize directories
+ensureDirectories();
+
+// Update the base configuration
+updateConfig(voiceServerConfig);
+
+export { getConfig };

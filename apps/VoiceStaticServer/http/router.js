@@ -1,22 +1,10 @@
-import { RouterBase } from '#@ncore/utils/http/libs/RouterBase.js';
-import { logger } from '#@utils';
+import { RouterManager } from '#@/ncore/utils/http-express/libs/ExpressManager.js';
 
-class VoiceRouter extends RouterBase {
+class VoiceRouter {
     initializeRoutes() {
-        // Service status endpoint
-        this.addGet('/status', async () => ({
-            status: 'ok',
-            service: 'voice'
-        }));
-
-        // Voice processing endpoint
-        this.addPost('/process', async (req) => {
-            logger.info('Processing voice request');
-            return { processed: true };
+        RouterManager.addRouteHandler(`/`, (req, res) => {
+            res.send('Hello World');
         });
-
-        // Mount router to application
-        this.mount('/api/voice');
     }
 }
 

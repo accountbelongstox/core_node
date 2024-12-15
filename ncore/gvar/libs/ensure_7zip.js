@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
 import systemInfo from './system_info.js';
 import findBin from './find_bin.js';
 import logger from '#@utils_logger';
+import {pipeExecCmd} from '#@utils_commander';
 
 class Ensure7Zip {
     constructor() {
@@ -26,10 +26,11 @@ class Ensure7Zip {
             ];;
             // Check if 7zip already exists in system
             const existing7z = findBin.findBin('7z', additionalDirs);
+            const existing7zz = findBin.findBin('7zz', additionalDirs);
 
-            if (existing7z) {
-                console.log('Found existing 7-Zip installation at:', existing7z);
-                return existing7z;
+            if (existing7z || existing7zz   ) {
+                console.log('Found existing 7-Zip installation at:', existing7z || existing7zz);
+                return existing7z || existing7zz;
             }
 
             // Create destination directory if not exists
@@ -41,14 +42,13 @@ class Ensure7Zip {
             const fileName = path.basename(downloadUrl);
             const filePath = path.join(destDir, fileName);
 
-            console.log('Initiating 7-Zip download from:', downloadUrl);
+            console.log(`Initiating 7-Zip download from ${downloadUrl} to ${filePath}`);
 
             // Attempt download with curl, fallback to wget
             try {
-                execSync(`curl -L "${downloadUrl}" -o "${filePath}"`);
+                pipeExecCmd(`curl -L "${downloadUrl}" -o "${filePath}"`);
             } catch (curlError) {
-                // Fallback to wget if curl fails
-                execSync(`wget "${downloadUrl}" -O "${filePath}"`);
+                pipeExecCmd(`wget "${downloadUrl}" -O "${filePath}"`);
             }
 
             // Process downloaded file based on platform
@@ -58,10 +58,11 @@ class Ensure7Zip {
                 fs.renameSync(filePath, targetPath);
                 return targetPath;
             } else {
-                // On Linux, extract tar.xz and cleanup
-                execSync(`tar -xf "${filePath}" -C "${destDir}"`);
+                const cmd = `tar -xJf "${filePath}" -C "${destDir}"`;
+                console.log(`Executing command: ${cmd}`);
+                pipeExecCmd(cmd);
                 fs.unlinkSync(filePath); // Remove archive after extraction
-                return path.join(destDir, '7z');
+                return path.join(destDir, '7zz');
             }
         } catch (error) {
             console.error('7-Zip installation process failed:', error);
@@ -71,8 +72,14 @@ class Ensure7Zip {
 
     verify = (executablePath) => {
         try {
-            const version = execSync(`"${executablePath}" | findstr /i "7-Zip"`, { stdio: 'ignore', encoding: 'utf8' });
-            logger.info(`7-Zip version: ${version}`);
+            let cmd = ``;
+            if(systemInfo.isWindows()){
+                cmd = `"${executablePath}" | findstr /i "7-Zip"`;
+            }else{
+                cmd = `"${executablePath}" | grep -i "7-Zip"`;
+            }
+            console.log(`Executing command: ${cmd}`);
+            const version = pipeExecCmd(cmd);
             return true;
         } catch (error) {
             console.error('7-Zip executable verification failed:', error);
@@ -112,7 +119,7 @@ class Ensure7Zip {
             // Download installer
             logger.info('Downloading 7-Zip installer...');
             const command = `curl -L "${downloadUrl}" -o "${installerPath}"`;
-            execSync(command);
+            pipeExecCmd(command);
 
             if (!fs.existsSync(installerPath)) {
                 throw new Error('Failed to download 7-Zip installer');
@@ -120,7 +127,7 @@ class Ensure7Zip {
 
             // Install silently
             logger.info(`Installing 7-Zip to ${installDir}...`);
-            execSync(`"${installerPath}" /S /D=${installDir}`);
+            pipeExecCmd(`"${installerPath}" /S /D=${installDir}`);
 
             // Verify installation
             if (fs.existsSync(exePath)) {

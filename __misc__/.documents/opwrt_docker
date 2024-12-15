@@ -1,0 +1,104 @@
+
+vi /etc/config/uhttpd
+/mnt/sda1
+config uhttpd 'web'
+        list listen_http '0.0.0.0:880'
+        list listen_http '[::]:880'
+        option home '/mnt/sda1/programing'
+
+      - /www/docker_data/gitea/data:/var/lib/gitea
+      - /www/docker_data/gitea/config:/etc/gitea
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+-      - "8300:3000"
+-      - "8222:2222"
++      - "6080:3000"
++      - "6081:2222"
+
+docker run -d -p 9000:9000 -v /var/run/docker.sock:/var/run/docker.sock -v /www/docker_data/portainer:/data portainer/portainer-ce
+
+
+DDNS-GO
+docker run -d --name ddns-go --restart=always -p 9876:9876 jeessy/ddns-go
+docker run -d -p 8680:80 -v /www/:/var/www/html kodcloud/kodbox
+docker run  -p 8680:80 --name OpenMediaVault -d -ti -h openmediavault.example.test -v /www/docker_data/OpenMediaVault:/data:Z -P ikogan/openmediavault
+
+sudo docker run --detach \
+--hostname gitlab.example.com \
+--publish 443:443 --publish 80:80 --publish 22:22 \
+--name gitlab \
+--restart always \
+--volume /www/docker_data/gitlab/config:/etc/gitlab \
+--volume /www/docker_data/gitlab/logs:/var/log/gitlab \
+--volume /www/docker_data/gitlab/data:/var/opt/gitlab \
+--shm-size 256m \
+gitlab/gitlab-ee:latest
+sudo docker exec -it gitlab grep 'Password:' /etc/gitlab/initial_root_password
+
+sudo docker run -d \
+  -v /mnt/f/VirtualMachines/Hyper/ttnode:/mnt/data/ttnode \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --name ttnode \
+  --hostname ttnode \
+  --net=host \
+  --restart=always \
+  --memory=2g \
+  --cpus=1.5 \
+  -p 1024:1024 \
+  tiptime/ttnode:latest
+
+  sudo docker run -d \
+  -v /mnt/f/VirtualMachines/Hyper/ttnode:/data/kscl \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --name ttnode \
+  --hostname ttnode \
+  --net=host \
+  --restart=always \
+  --memory=2g \
+  --cpus=1.5 \
+  -p 1024:1024 \
+  jinshanyun/jinshan-arm64:latest
+
+docker run -d  -v /www/docker_cache/data_ttnode:/mnt/data/ttnode  -v /var/run/docker.sock:/var/run/docker.sock  -v /proc:/host/proc:ro   --name ttnode  --hostname ttnode  --privileged  --net=host  --restart=always -e container_name=ttnode  registry.cn-hangzhou.aliyuncs.com/tiptime/ttnode:latest
+docker run -d \
+    --name gitrce-devops-t2307100 \
+    --network host \
+    --privileged \
+    --security-opt apparmor:unconfined \
+    -e GIT_REMOTE_REPO=registry.cn-hangzhou.aliyuncs.com/lwmacct/gitrce:devops-t2307100 \
+    -e APPS_DATA=/ext_overlay/gitrce \
+    -v "/proc/:/host/proc" \
+    -v "/sys/:/host/sys" \
+    -v "/etc/:/host/etc" \
+    -v "/run/:/host/run" \
+    -v "/ext_overlay/gitrce/data/:/data/" \
+    -v /root/.ssh:/root/.ssh \
+    -v "/ext_overlay/gitrce:/apps/data" \
+    registry.cn-hangzhou.aliyuncs.com/lwmacct/gitrce:devops-t2307100
+sudo docker run --name adguardhome_google\
+    --restart unless-stopped\
+    -v /mnt/f/VirtualMachines/docker/adguardhome_2/workdir:/opt/adguardhome/work\
+    -v /mnt/f/VirtualMachines/docker/adguardhome_2/confdir:/opt/adguardhome/conf\
+    -p 10000:53/tcp -p 10000:53/udp\
+    -p 10001:67/udp -p 10002:68/udp\
+    -p 10003:80/tcp -p 10004:443/tcp -p 10004:443/udp -p 10005:6060/tcp -p 10005:6060/udp -p 10006:3000/tcp\
+    -p 18030:853/tcp\
+    -p 10007:784/udp -p 10008:853/udp -p 10009:8853/udp\
+    -p 10010:5443/tcp -p 10010:5443/udp\
+    -d adguard/adguardhome
+
+sudo docker run --name adguardhome_google\
+    --restart unless-stopped\
+    -v /mnt/f/VirtualMachines/docker/adguardhome_2/workdir:/opt/adguardhome/work\
+    -v /mnt/f/VirtualMachines/docker/adguardhome_2/confdir:/opt/adguardhome/conf\
+    -p 10100:53/tcp -p 10100:53/udp\
+    -p 10101:67/udp -p 10102:68/udp\
+    -p 10103:80/tcp -p 10104:443/tcp -p 10104:443/udp -p 10105:6060/tcp -p 10105:6060/udp -p 10106:3000/tcp\
+    -p 18130:853/tcp\
+    -p 10107:784/udp -p 10108:853/udp -p 10109:8853/udp\
+    -p 10110:5443/tcp -p 10110:5443/udp\
+    -d adguard/adguardhome
+
+
+sudo docker run --restart=unless-stopped -d     --privileged     --network=host     --dns=192.168.100.1     --tmpfs /run     --tmpfs /tmp     -v "/www/docker_cache/js:/data/ksc1"     -v "/www/docker_cache/js/containerd:/var/lib/containerd"     -e ksc_supplier_code="92101"     -e ksc_datadir="/data/ksc1"     -e ksc_machine_code="lsyK17032_00155d6464111y8nomiq"     -e ksc_refer="ruiyun_node" -e TZ=Asia/Shanghai --name bmtedge "jinshanyun/jinshan-x86_64"

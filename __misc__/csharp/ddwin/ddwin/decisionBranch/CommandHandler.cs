@@ -1,4 +1,4 @@
-﻿using ddwin.coreTools;
+using ddwin.coreTools;
 using System;
 using System.Linq;
 

@@ -2,7 +2,6 @@ import { execSync, spawn, spawnSync } from 'child_process';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import readline from 'readline';
 
 const initialWorkingDirectory = process.cwd();
 
@@ -65,9 +64,15 @@ export function execCmd(command, info = false, cwd = null, logname = null) {
         options.cwd = cwd;
         process.chdir(cwd);
     }
-
-    const result = execSync(command, options);
-    const resultText = result.toString();
+    let resultText = "";
+    try{                        
+        const result = execSync(command, options);
+        resultText = byteToStr(result);
+    }catch(e){
+        console.log(command);
+        console.error(`${e}`);
+        resultText= ""
+    }
 
     if (logname) {
         fs.appendFileSync(path.join(process.cwd(), 'logs', `${logname}.log`), resultText + '\n');
@@ -239,7 +244,7 @@ export function findPowerShellPath() {
     return null;
 }
 
-export function execPowerShell(command, info = false, cwd = null, no_std = false, env = null) {
+export function execPowerShell(command, info = false, cwd = null, no_std = false, cmdEnv = null) {
     if (process.platform !== 'win32') {
         console.error('PowerShell commands are only supported on Windows');
         return null;
@@ -255,8 +260,24 @@ export function execPowerShell(command, info = false, cwd = null, no_std = false
         command = command.join(" ");
     }
     command = command.trim();
+    const options = {
+        encoding: 'utf-8'
+    };
     const fullCommand = `${powershellPath} -Command "${command}"`;
-    return execCmd(fullCommand, info, cwd, no_std, env);
+    if(cmdEnv){
+        try{
+            return execCmd(fullCommand, info, cwd, no_std, cmdEnv);
+        }catch(e){
+            console.error(e);
+            return null;
+        }
+    }
+    try{
+        return execCmd(fullCommand, info, cwd, no_std);
+    }catch(e){
+        console.error(e);
+        return null;
+    }
 }
 
 export function pipeExecCmd(command, useShell = true, cwd = null, inheritIO = true, env = process.env) {

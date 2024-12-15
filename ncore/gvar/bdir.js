@@ -71,7 +71,14 @@ const get7zExecutable = () => {
         'C:\\Program Files\\7-Zip',
         'C:\\Program Files (x86)\\7-Zip'
     ]);
-    if (!executable) {
+    let executable7zz = findBin.findBin('7zz', [
+        downloadDir,
+        '/usr/bin',
+        '/usr/local/bin',
+        'C:\\Program Files\\7-Zip',
+        'C:\\Program Files (x86)\\7-Zip'
+    ]);
+    if (!executable && !executable7zz) {
         try {
             const executablePath = ensure7zip.downloadAndInstall(downloadDir);
             if (ensure7zip.verify(executablePath)) {
@@ -82,7 +89,7 @@ const get7zExecutable = () => {
             return '';
         }
     }
-    return executable;
+    return executable || executable7zz;
 };
 
 const bdir = {

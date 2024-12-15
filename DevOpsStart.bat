@@ -66,8 +66,7 @@ if not exist %USER_DIR% (
 :: Check if node is installed
 if exist %NODE_PATH% (
     echo Node.js is already installed.
-    node -v
-    goto check_winget
+    %NODE_PATH% -v
 )
 
 :: Ensure the install directory exists
@@ -105,6 +104,7 @@ if exist %NODE_PATH% (
     echo Node.js installation failed.
     goto :end
 )
+goto check_winget
 
 :SHOW_ENV_PATH
 for /f "tokens=2,*" %%a in ('reg query "%REG_KEY%" /v Path 2^>nul') do (

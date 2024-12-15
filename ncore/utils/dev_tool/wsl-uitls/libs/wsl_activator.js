@@ -1,18 +1,17 @@
-import Base from '#@/ncore/utils/dev_tool/lang_compiler_deploy/libs/base_utils.js';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { pipeExecCmd,execPowerShell,execCmd } from '#@utils_commander';
 
-class WSLActivator extends Base {
+class WSLActivator {
     constructor() {
-        super();
         // Define absolute paths for all executables used
         this.dismPath = 'C:\\Windows\\System32\\dism.exe'; 
         this.msiexecPath = 'C:\\Windows\\System32\\msiexec.exe'; 
         this.curlPath = 'C:\\Windows\\System32\\curl.exe'; 
         this.powershellPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
-        this.virtualSwitchName = 'WSL External Switch';
+        this.virtualSwitchName = 'LAN';
         this.targetRepoUrl = 'http://git.local.12gm.com:5021/adminroot/core_node.git';
     }
 
@@ -38,7 +37,7 @@ class WSLActivator extends Base {
 
     checkHyperVAvailability() {
         try {
-            const output = this.execCmd(`${this.dismPath} /online /get-features /format:table`);
+            const output = execCmd(`${this.dismPath} /online /get-features /format:table`);
             return output.includes('Microsoft-Hyper-V');
         } catch (error) {
             console.error('Error checking Hyper-V availability:', error);
@@ -48,7 +47,7 @@ class WSLActivator extends Base {
 
     isWSL2Installed() {
         try {
-            const output = this.execCmd('wsl --list --verbose');
+            const output = execCmd('wsl --list --verbose');
             return output.includes('2');
         } catch (error) {
             console.error('Error checking WSL2 installation status:', error);
@@ -58,7 +57,7 @@ class WSLActivator extends Base {
 
     isUbuntuInstalled() {
         try {
-            const output = this.execCmd('wsl -l --quiet');
+            const output = execCmd('wsl -l --quiet');
             return output.includes('Ubuntu');
         } catch (error) {
             console.error('Error checking Ubuntu installation status:', error);
@@ -69,8 +68,8 @@ class WSLActivator extends Base {
     enableWSL2() {
         try {
             console.log('Enabling WSL2...');
-            this.execCmd(`${this.dismPath} /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart`);
-            this.execCmd(`${this.dismPath} /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart`);
+            execCmd(`${this.dismPath} /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart`);
+            execCmd(`${this.dismPath} /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart`);
             console.log('WSL2 enabled.');
         } catch (error) {
             console.error('Error enabling WSL2:', error);
@@ -80,7 +79,7 @@ class WSLActivator extends Base {
     enableHyperV() {
         try {
             console.log('Enabling Hyper-V...');
-            this.execCmd(`${this.dismPath} /online /enable-feature /featurename:Microsoft-Hyper-V-All /all /norestart`);
+            execCmd(`${this.dismPath} /online /enable-feature /featurename:Microsoft-Hyper-V-All /all /norestart`);
             console.log('Hyper-V enabled.');
         } catch (error) {
             console.error('Error enabling Hyper-V:', error);
@@ -94,11 +93,11 @@ class WSLActivator extends Base {
         try {
             if (!fs.existsSync(downloadPath)) {
                 console.log('Downloading WSL2 update package...');
-                this.execCmd(`${this.curlPath} -L -o "${downloadPath}" "${wslUpdateUrl}"`);
+                execCmd(`${this.curlPath} -L -o "${downloadPath}" "${wslUpdateUrl}"`);
             }
 
             console.log('Installing WSL2 update package...');
-            this.execCmd(`${this.msiexecPath} /i "${downloadPath}" /quiet /norestart`);
+            execCmd(`${this.msiexecPath} /i "${downloadPath}" /quiet /norestart`);
             console.log('WSL2 update package installed.');
         } catch (error) {
             console.error('Error installing WSL2 update package:', error);
@@ -116,7 +115,7 @@ class WSLActivator extends Base {
             const script = `
                 Start-Process winget -ArgumentList "winget install --Id '9NZ3KLHXDJP5' --source msstore --accept-package-agreements --accept-source-agreements" -Wait -NoNewWindow
             `;
-            this.execPowerShell(script);
+            execPowerShell(script);
             console.log('Ubuntu installation initiated.');
         } catch (error) {
             console.error('Error installing Ubuntu:', error);
@@ -126,7 +125,7 @@ class WSLActivator extends Base {
     setDefaultWSL2() {
         try {
             console.log('Setting WSL2 as default version...');
-            this.execCmd('wsl --set-default-version 2');
+            execCmd('wsl --set-default-version 2');
             console.log('WSL2 set as default version.');
         } catch (error) {
             console.error('Error setting WSL2 as default version:', error);
@@ -137,7 +136,7 @@ class WSLActivator extends Base {
         try {
             console.log('Getting network adapters...');
             const script = `Get-NetAdapter | Where-Object { $_.Status -eq 'Up' } | Select-Object -ExpandProperty Name`;
-            const output = this.execPowerShell(script,true);
+            const output = execPowerShell(script,true);
             console.log('Raw adapter output:', output);
             const adapters = output.trim().split('\n').map(name => name.trim()).filter(name => name.length > 0);
             console.log('Available network adapters:', adapters);
@@ -157,7 +156,7 @@ class WSLActivator extends Base {
                     Write-Output "Existing virtual switch '${this.virtualSwitchName}' deleted."
                 }
             `;
-            this.execPowerShell(script);
+            execPowerShell(script);
         } catch (error) {
             console.error(`Error deleting existing virtual switch "${this.virtualSwitchName}":`, error);
         }
@@ -178,7 +177,7 @@ class WSLActivator extends Base {
             const script = `
                 New-VMSwitch -Name '${this.virtualSwitchName}' -NetAdapterName '${adapterName}' -AllowManagementOS $true -SwitchType External
             `;
-            this.execPowerShell(script);
+            execPowerShell(script);
             console.log(`Virtual switch "${this.virtualSwitchName}" created.`);
         } catch (error) {
             console.error(`Error creating virtual switch "${this.virtualSwitchName}":`, error);
@@ -188,7 +187,7 @@ class WSLActivator extends Base {
     verifyVirtualSwitch() {
         try {
             const script = `Get-VMSwitch -Name '${this.virtualSwitchName}'`;
-            const output = this.execPowerShell(script);
+            const output = execPowerShell(script);
             return output.includes(this.virtualSwitchName);
         } catch (error) {
             console.error(`Error verifying virtual switch "${this.virtualSwitchName}":`, error);
@@ -219,10 +218,10 @@ localhostForwarding=true
             console.log('Starting WSL and setting up the project...');
 
             const script = `
-                wsl -u root -e sh -c "
+                wsl -u root -e sh -c '
                 cd /mnt/c
-                mkdir -p www/programming
-                cd www/programming
+                mkdir -p /www/programming
+                cd /www/programming
                 if [ ! -d \\"script\\" ]; then
                     apt-get update
                     apt-get install -y git unzip
@@ -230,9 +229,9 @@ localhostForwarding=true
                 else
                     echo \\"Directory 'script' already exists.\\"
                 fi
-                "
+                '
             `;
-            this.execPowerShell(script);
+            execPowerShell(script);
 
             console.log('WSL started and project setup completed.');
         } catch (error) {
@@ -266,6 +265,7 @@ localhostForwarding=true
         } else {
             this.enableHyperV();
             this.enableWSL2();
+            this.setDefaultWSL2();
             console.log('Please restart your computer and run this script again to complete the WSL2 installation.');
             return;
         }

@@ -2,7 +2,6 @@
 // import sqliteClass from './util/db_tool/libs/sqlite.js';
 import {appname,env} from './globalvars.js';
 import * as http from './utils/http/index.js';
-import logger from './utils/logger/logger.js';
 
 // import strapi_v4_net from './util/net/libs/strapi_v4_net.js';
 // import json from './util/tool/libs/json.js';
@@ -28,5 +27,4 @@ import sysarg from './utils/systool/libs/sysarg.js';
 export {
   http,
   sysarg,
-  logger,
 };

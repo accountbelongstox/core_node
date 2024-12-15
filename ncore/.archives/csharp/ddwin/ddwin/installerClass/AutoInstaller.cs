@@ -1,4 +1,4 @@
-﻿using Masuit.Tools;
+using Masuit.Tools;
 using System;
 using IWshRuntimeLibrary;
 using System.IO;

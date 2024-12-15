@@ -1,0 +1,11 @@
+{
+  "pg": {
+    "database": "x-admin-examples",
+    "user": "postgres",
+    "password": "x-admin",
+    "port": 8234
+  },
+  "admin": {
+    "settings": "/home/s/git/express-admin-examples/config/pg/settings.json"
+  }
+}

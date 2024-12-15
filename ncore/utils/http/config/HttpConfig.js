@@ -1,4 +1,5 @@
-import logger from '../libs/logger.js';
+
+import logger from '#@utils_logger';
 
 const DEFAULT_CONFIG = {
     HTTP_PORT: 3000,

@@ -1,0 +1,50 @@
+apt-get install net-tools xrdp xfce4 tigervnc-standalone-server
+#!/bin/bash
+
+# 更新软件包列表
+echo "Updating package list..."
+sudo apt update
+
+# 安装XRDP
+echo "Installing XRDP..."
+sudo apt install -y xrdp
+
+# 启动并启用XRDP服务
+echo "Starting and enabling XRDP service..."
+sudo systemctl enable --now xrdp
+
+# 检查XRDP服务状态
+echo "Checking XRDP service status..."
+systemctl status xrdp --no-pager -l
+
+# 将XRDP用户添加到SSL-cert组
+echo "Adding XRDP user to SSL-cert group..."
+sudo adduser xrdp ssl-cert
+
+# 重启XRDP服务
+echo "Restarting XRDP service..."
+sudo systemctl restart xrdp
+
+# 在防火墙中允许端口3389
+echo "Allowing port 3389 through the firewall..."
+sudo ufw allow 3389
+
+# 获取并显示系统IP地址
+echo "Getting system IP address..."
+ip a | grep inet
+
+echo "XRDP setup is complete. You can now connect to this Debian 12 machine using RDP."
+
+sudo nano /etc/X11/xrdp/xorg.conf
+#添加到，启动键盘鼠标
+Section "InputDevice"
+    Identifier "xrdpKeyboard"
+    Driver "xrdpkeyb"
+    Option "CoreKeyboard"
+EndSection
+
+Section "InputDevice"
+    Identifier "xrdpMouse"
+    Driver "xrdpmouse"
+    Option "CorePointer"
+EndSection

@@ -147,3 +147,5 @@ exports
 dist
 .strapi-updater.json
 .strapi-cloud.json
+
+pyenv_*/

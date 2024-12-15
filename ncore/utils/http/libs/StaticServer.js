@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
-import logger from './logger.js';
+
+import logger from '#@utils_logger';
 
 export class StaticServer {
     #app = null;

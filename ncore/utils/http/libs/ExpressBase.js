@@ -1,5 +1,5 @@
 import express from 'express';
-import logger from './logger.js';
+import logger from '#@utils_logger';
 
 export class ExpressBase {
     static #instance = null;

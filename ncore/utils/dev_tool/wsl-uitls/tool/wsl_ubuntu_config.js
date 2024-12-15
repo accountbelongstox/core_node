@@ -91,10 +91,10 @@ class WSLUbuntuConfig extends Base {
             console.log('Starting WSL and setting up the project...');
 
             const script = `
-                wsl -u root -e sh -c "
+                wsl -u root -e sh -c '
                 cd /mnt/c
-                mkdir -p www/programming
-                cd www/programming
+                mkdir -p /www/programming
+                cd /www/programming
                 if [ ! -d \\"script\\" ]; then
                     apt-get update
                     apt-get install -y git unzip
@@ -102,7 +102,7 @@ class WSLUbuntuConfig extends Base {
                 else
                     echo \\"Directory 'script' already exists.\\"
                 fi
-                "
+                '
             `;
             this.execPowerShell(script);
 

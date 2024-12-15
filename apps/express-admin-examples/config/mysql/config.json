@@ -1,0 +1,11 @@
+{
+  "mysql": {
+    "database": "x-admin-examples",
+    "user": "root",
+    "password": "x-admin",
+    "port": 8123
+  },
+  "admin": {
+    "settings": "/home/s/git/express-admin-examples/config/mysql/settings.json"
+  }
+}

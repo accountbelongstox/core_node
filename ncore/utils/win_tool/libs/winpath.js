@@ -203,3 +203,41 @@ if (os.platform() === 'win32') {
     instance = new WinPath();
 }
 export default instance;
+
+// Add direct execution logic
+const normalizeFilePath = (filepath) => {
+    return filepath.replace(/\\/g, '/');
+};
+
+const currentFileUrl = import.meta.url;
+const scriptPath = `file:///${normalizeFilePath(process.argv[1])}`;
+
+// Add direct execution logic
+if (currentFileUrl === scriptPath) {
+    const args = process.argv.slice(2); // Remove 'node' and script path from args
+    const command = args[0];
+    const targetPath = args[1];
+
+    if (!command) {
+        logger.error('Please provide a command: add/remove/is/show');
+        process.exit(1);
+    }
+
+    if (['add', 'remove', 'is'].includes(command) && !targetPath) {
+        logger.error(`The ${command} command requires a path argument`);
+        process.exit(1);
+    }
+
+    if (os.platform() !== 'win32') {
+        logger.error('This script can only run on Windows');
+        process.exit(1);
+    }
+
+    try {
+        instance.executeCommand(command, targetPath);
+    } catch (error) {
+        logger.error('Error executing command:', error.message);
+        process.exit(1);
+    }
+}
+

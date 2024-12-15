@@ -7,6 +7,18 @@ const __dirname = path.dirname(__filename);
 const grandparentDir = path.dirname(path.dirname(__dirname));
 const grandparentRootDir = grandparentDir;
 const DEFAULT_ROOT_DIR = grandparentRootDir
+const DEBUG_PRINT = false;
+const infoByDebug = (msg) => {
+    if (DEBUG_PRINT) {
+        console.log(msg);
+    }
+}
+
+const errorByDebug = (msg) => {
+    if (DEBUG_PRINT) {
+        console.error(msg);
+    }
+}   
 
 export class EnvManager {
     static MAX_QUEUE_SIZE = 100;
@@ -70,10 +82,10 @@ export class EnvManager {
     }
 
     addRootDir(rootDir = null, envName = ".env") {
-        console.log("addRootDir " + rootDir);
+        infoByDebug("addRootDir " + rootDir);
         rootDir = rootDir || DEFAULT_ROOT_DIR;
         const localEnvFile = path.join(rootDir, envName);
-        console.log('EnvManager rootDir:', rootDir);
+        infoByDebug(`EnvManager rootDir:${rootDir}`);
 
         let envPath = localEnvFile;
         if (!fs.existsSync(localEnvFile)) {
@@ -98,7 +110,7 @@ export class EnvManager {
     scanForEnvFile(searchPath) {
         const envPath = path.join(searchPath, '.env');
         if (fs.existsSync(envPath)) {
-            console.log('Found existing .env file');
+            infoByDebug('Found existing .env file');
             return envPath;
         }
 
@@ -108,10 +120,10 @@ export class EnvManager {
             if (fs.existsSync(devPath)) {
                 try {
                     fs.copyFileSync(devPath, envPath);
-                    console.log(`Created .env from ${devFile}`);
+                    infoByDebug(`Created .env from ${devFile}`);
                     return envPath;
                 } catch (error) {
-                    console.log(`Failed to copy ${devFile}: ${error.message}`);
+                    errorByDebug(`Failed to copy ${devFile}: ${error.message}`);
                 }
             }
         }
@@ -124,17 +136,17 @@ export class EnvManager {
                 const sourcePath = path.join(searchPath, envFile);
                 try {
                     fs.copyFileSync(sourcePath, envPath);
-                    console.log(`Created .env from ${envFile}`);
+                    infoByDebug(`Created .env from ${envFile}`);
                     return envPath;
                 } catch (error) {
-                    console.log(`Failed to copy ${envFile}: ${error.message}`);
+                    errorByDebug(`Failed to copy ${envFile}: ${error.message}`);
                 }
             }
         } catch (error) {
-            console.log(`Error scanning directory: ${error.message}`);
+            errorByDebug(`Error scanning directory: ${error.message}`);
         }
 
-        console.log(`No suitable .env file found in ${searchPath}`);
+        errorByDebug(`No suitable .env file found in ${searchPath}`);
         return null;
     }
 
@@ -213,31 +225,28 @@ export class EnvManager {
                 .join('\n');
                 
             fs.writeFileSync(lastEnvPath, content, 'utf8');
-            console.log(`Updated env file: ${lastEnvPath}`);
+            infoByDebug(`Updated env file: ${lastEnvPath}`);
             
         } catch (error) {
-            console.error(`Failed to write to env file ${lastEnvPath}: ${error.message}`);
+            errorByDebug(`Failed to write to env file ${lastEnvPath}: ${error.message}`);
             throw error; // Re-throw to allow error handling by caller
         }
     }
 
     // Get multiple environment values at once
-    getEnvValues(keys, defaultValue = '') {
-        const result = {};
-        for (const key of keys) {
-            result[key] = this.getEnvValue(key, defaultValue);
-        }
-        return result;
+    getEnvValues() {
+        const allEnvs = this.getAllEnvValues();
+        return allEnvs;
     }
 
 
     printAllEnvs() {
         const allEnvs = this.getAllEnvValues();
         
-        console.log('\nEnvironment Files and Variables:');
-        console.log('===============================');
+        infoByDebug('\nEnvironment Files and Variables:');
+        infoByDebug('===============================');
 
-        console.log(allEnvs);
+        infoByDebug(allEnvs);
     }
 
     async setEnvValue(key, value) {
@@ -264,7 +273,7 @@ export class EnvManager {
             await fs.promises.writeFile(lastEnvObj.envPath, envContent, 'utf8');
             return true;
         } catch (error) {
-            console.error(`Failed to write to env file: ${error.message}`);
+            errorByDebug(`Failed to write to env file: ${error.message}`);
             return false;
         }
     }
@@ -294,7 +303,7 @@ export class EnvManager {
 
             return envObject;
         } catch (error) {
-            console.error(`Error parsing env file ${envPath}: ${error.message}`);
+            errorByDebug(`Error parsing env file ${envPath}: ${error.message}`);
             return {};
         }
     }
@@ -309,9 +318,6 @@ const defaultInstance = new EnvManager();
 
 const mateUrlNormal = normalizePath(import.meta.url).replace('file://', '').replace(/^\/+/, '')
 const processUrlNormal = normalizePath(process.argv[1]).replace('file://', '')
-console.log(`mateUrlNormal:${mateUrlNormal}`)
-console.log(`processUrlNormal:${processUrlNormal}`)
-console.log(`mateUrlNormal == processUrlNormal:${mateUrlNormal == processUrlNormal}`)
 // Run tests if this file is executed directly
 if (mateUrlNormal == processUrlNormal) {
     console.log(`mergedEnvValues`);

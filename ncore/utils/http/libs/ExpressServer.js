@@ -1,6 +1,6 @@
 import expressWs from 'express-ws';
 import bodyParser from 'body-parser';
-import logger from './logger.js';
+import logger from '#@utils_logger';
 import { WebSocketManager } from './WebSocketManager.js';
 import { StaticServer } from './StaticServer.js';
 import { ExpressBase } from './ExpressBase.js';

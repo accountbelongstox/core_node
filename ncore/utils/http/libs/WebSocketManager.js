@@ -1,4 +1,5 @@
-import logger from './logger.js';
+
+import logger from '#@utils_logger';
 
 export class WebSocketManager {
     #clients = new Map();

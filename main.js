@@ -1,6 +1,13 @@
 import { sysarg, run } from '#@utils_native';
 import { appentry_es, } from './ncore/globalvars.js';
 import printer from '#@/ncore/base/printer.js';
+const DEBUG_PRINT = false;
+const infoByDebug = (msg) => {
+    if (DEBUG_PRINT) {
+        console.log(msg);
+    }
+} 
+
 // const role = sysarg.getArg('role');
 // const action = sysarg.getArg('action');
 // console.log(`role ${role}`)
@@ -17,9 +24,9 @@ class ClientMain {
   // NCORE_DIR = './';
   async start() {
     // const entryModule = `${this.NCORE_DIR}${appentry}`;
-    printer.success('entryModule/appentry_es:' + appentry_es);
+    infoByDebug('entryModule/appentry_es:' + appentry_es);
     const appMain = await import(appentry_es);
-    console.log(appMain)
+    infoByDebug(appMain)
     if (!appMain.default || typeof appMain.default.start !== 'function') {
       throw new Error('Imported module does not have a start method');
     }

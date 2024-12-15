@@ -18,11 +18,17 @@ function getCwd() {
 
 const BASEDIR = getCwd();
 const CWD = BASEDIR;
+const APPS_DIR = path.join(BASEDIR, 'apps');
+const APP_DIR = path.join(BASEDIR, 'apps', appname);
 const CACHE_DIR = path.join(BASEDIR, '.cache');
 const LOG_DIR = path.join(CACHE_DIR, '.logs');
 const LOCAL_DIR = path.join(process.env.HOME || process.env.USERPROFILE, '.local');
 const PUBLIC_DIR = path.join(BASEDIR, 'public');
 const APP_PUBLIC_DIR = appname ? path.join(PUBLIC_DIR, appname) : PUBLIC_DIR;
+const APP_DATA_DIR = appname ? path.join(APP_PUBLIC_DIR, 'data') : PUBLIC_DIR;
+const APP_DATA_CACHE_DIR = appname ? path.join(APP_PUBLIC_DIR, '.cache') : PUBLIC_DIR;
+const APP_STATIC_DIR = appname ? path.join(APP_PUBLIC_DIR, 'static') : PUBLIC_DIR;
+
 
 // Create essential directories
 mkdir(CACHE_DIR);
@@ -30,6 +36,9 @@ mkdir(LOG_DIR);
 mkdir(LOCAL_DIR);
 mkdir(PUBLIC_DIR);
 mkdir(APP_PUBLIC_DIR);
+mkdir(APP_DATA_DIR);
+mkdir(APP_DATA_CACHE_DIR);
+mkdir(APP_STATIC_DIR);
 
 // Directory creation
 function mkdir(path) {
@@ -184,11 +193,16 @@ export {
     // Directory constants
     BASEDIR,
     CWD,
+    APP_DIR,
+    APPS_DIR,
     CACHE_DIR,
     LOG_DIR,
     LOCAL_DIR,
     PUBLIC_DIR,
     APP_PUBLIC_DIR,
+    APP_DATA_DIR,
+    APP_DATA_CACHE_DIR,
+    APP_STATIC_DIR,
     
     // Drive management functions
     getSystemDrives,
