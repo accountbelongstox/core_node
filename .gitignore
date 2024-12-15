@@ -149,3 +149,4 @@ dist
 .strapi-cloud.json
 
 pyenv_*/
+yarn.lock
