@@ -1,11 +1,12 @@
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
-import { gdir } from '#@globalvars';  // Import com_bin
-import {bdir} from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
-import gconfig from '#@/ncore/gvar/gconfig.js';
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
+const { gdir } = require('#@globalvars'); // Import com_bin
+const { bdir } = require('#@/ncore/gvar/bdir.js'); // Import com_bin from #@globalvars
+const gconfig = require('#@/ncore/gvar/gconfig.js');
+const { execCmd } = require('#@utils_commander');
+
 const langdir = gconfig.DEV_LANG_DIR;
-import {execCmd} from '#@utils_commander';
 
 const tar = bdir.getTarExecutable(); // Get the tar executable path
 const curl = bdir.getCurlExecutable(); // Get the curl executable path
@@ -13,7 +14,7 @@ const curl = bdir.getCurlExecutable(); // Get the curl executable path
 class GetGolang {
     constructor() {
         this.golangVersions = {
-            1.22: "go1.22.5.windows-amd64.zip"  // Latest version added
+            1.22: "go1.22.5.windows-amd64.zip" // Latest version added
         };
         this.defaultVersionKey = 1.22;
         this.installDir = path.join(langdir);
@@ -50,7 +51,7 @@ class GetGolang {
 
         if (this.golangVersions[versionKey]) {
             const golangFileName = this.golangVersions[versionKey];
-            const golangDir = golangFileName.replace(/\.(zip|tar\.gz)$/, '');  // Remove file extension to get the directory name
+            const golangDir = golangFileName.replace(/\.(zip|tar\.gz)$/, ''); // Remove file extension to get the directory name
             const golangUrl = `https://go.dev/dl/${golangFileName}`;
             const golangInstallDir = path.join(this.installDir, golangDir);
             const golangPath = path.join(golangInstallDir, 'bin', os.platform() === 'win32' ? 'go.exe' : 'go');
@@ -168,4 +169,4 @@ class GetGolang {
 }
 
 const getGolang = new GetGolang();
-export default getGolang;
+module.exports = getGolang;

@@ -1,22 +1,42 @@
 
 vi /etc/config/uhttpd
-/mnt/sda1
-config uhttpd 'web'
-        list listen_http '0.0.0.0:880'
-        list listen_http '[::]:880'
-        option home '/mnt/sda1/programing'
 
-      - /www/docker_data/gitea/data:/var/lib/gitea
-      - /www/docker_data/gitea/config:/etc/gitea
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-    ports:
--      - "8300:3000"
--      - "8222:2222"
-+      - "6080:3000"
-+      - "6081:2222"
+=================================================================
+设置防火墙  DockerToLan
+=================================================================
+
 
 docker run -d -p 9000:9000 -v /var/run/docker.sock:/var/run/docker.sock -v /www/docker_data/portainer:/data portainer/portainer-ce
+
+docker run -d --restart unless-stopped --name baota -p 18888:8888 -p 18022:22 -p 18443:443 -p 18080:80 -p 18088:888 -v /mnt/sdb/www/wwwroot:/www/wwwroot -v /mnt/sdb/www/server/data:/www/server/data -v /mnt/sdb/www/server/panel/vhost:/www/server/panel/vhost btpanel/baota:lnmp
+docker run -d \
+  --name nginx-proxy-manager \
+  --restart unless-stopped \
+  -p 17001:80 \
+  -p 17000:81 \
+  -p 17002:443 \
+  -v /mnt/sdb/www/docker/nginx-proxy-manager/data:/data \
+  -v /mnt/sdb/www/docker/nginx-proxy-manager/letsencrypt:/etc/letsencrypt \
+  jc21/nginx-proxy-manager:latest
+
+docker run -d \
+  --name gitea \
+  --restart always \
+  --cpu-shares 1024 \
+  -p 17003:22 \
+  -p 17004:3000 \
+  -v /volume1/docker/data/gitea:/data \
+  gitea/gitea:latest
+
+docker run -d \
+  -p 17005:5000 \
+  --name registry \
+  --restart=always \
+  -v /mnt/sdb/data/registry/data:/var/lib/registry \
+  -e REGISTRY_STORAGE_DELETE_ENABLED=true \
+  registry:2
+docker run -d -p 17006:80 --name registry-ui -e REGISTRY_URL=http://192.168.100.1:17005 jc21/registry-ui
+
 
 
 DDNS-GO

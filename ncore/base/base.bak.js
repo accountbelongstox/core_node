@@ -1,6 +1,6 @@
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
+const path = require('path');
+const fs = require('fs');
+const { fileURLToPath } = require('url');
 import crypto from 'crypto';
 import os from 'os';
 import { execSync, spawn } from 'child_process';
@@ -548,4 +548,4 @@ class Base {
     }
 }
 
-export default Base;
+module.exports = Base;

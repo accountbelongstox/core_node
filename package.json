@@ -1,6 +1,7 @@
 {
   "name": "ncore",
   "version": "1.0.0",
+  "type": "commonjs",
   "imports": {
     "#@/*": "./*",
     "#@ncore/*": "./ncore/*",
@@ -11,6 +12,7 @@
     "#@baseTool": "./ncore/base/utils/base_tools.js",
     "#@globalvars": "./ncore/globalvars.js",
     "#@bdir": "./ncore/gvar/bdir.js",
+    "#@gconfig": "./ncore/gvar/gconfig.js",
     "#@db": "./ncore/db.js",
     "#@utils": "./ncore/utils.js",
     "#@utils_linux": "./ncore/utils_linux.js",

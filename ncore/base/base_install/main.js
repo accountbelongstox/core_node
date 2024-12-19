@@ -1,27 +1,26 @@
-// import os from 'os';
-// import path from 'path';
-// import fs from 'fs';
-import Base from '#@base'; 
-
-import get_langs from './environment_deployment/get_langs.js';
-import basic_settings from './basic_settings/main.js';
-import function_activation from './function_activation/function_activation.js';
+const path = require('path');
+const fs = require('fs');
+const Base = require('#@base');
+const basicSettings = require('./basic_settings/main.js');
+const autoInstall = require('./auto_install/main.js');
+const functionActivation = require('./function_activation/function_activation.js');
+const getLangs = require('./environment_deployment/get_langs.js');
 
 class BaseInstall extends Base {
+    constructor() {
+        super();
+        this.basicSettings = basicSettings;
+        this.autoInstall = autoInstall;
+        this.functionActivation = functionActivation;
+        this.getLangs = getLangs;
+    }
 
-  constructor() {
-    super();
-  }
-  async start() {
-    console.log('Starting installation...');
-    //.1
-    await get_langs.start()
-    //.2
-    await basic_settings.start()
-    //.3
-    await function_activation.start()
-    
-  }
+    async start() {
+        await this.basicSettings.start();
+        await this.autoInstall.start();
+        await this.functionActivation.start();
+        await this.getLangs.start();
+    }
 }
 
-export default BaseInstall;
+module.exports = new BaseInstall();

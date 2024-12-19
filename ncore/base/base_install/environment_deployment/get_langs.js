@@ -1,10 +1,12 @@
-import Base from '#@base';
-import { getnode_win, getpython_win, getgolang_win, getjava_win, getrust_win, getruby_win, getphp_win, winpath } from '#@utils_native';
-import logger from '#@utils_logger';
+const path = require('path');
+const fs = require('fs');
+const { execSync } = require('child_process');
 
-class GetNode extends Base {
+const { getnode_win, getpython_win, getgolang_win, getjava_win, getrust_win, getruby_win, getphp_win, winpath } = require('#@utils_native');
+const logger = require('#@utils_logger');
+
+class GetNode {
   constructor() {
-    super();
   }
 
   async start() {
@@ -43,4 +45,4 @@ class GetNode extends Base {
   }
 }
 
-export default new GetNode();
+module.exports = new GetNode();

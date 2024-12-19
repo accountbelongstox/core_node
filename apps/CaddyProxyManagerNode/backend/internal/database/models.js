@@ -1,76 +1,76 @@
-import { Model, DataTypes } from 'sequelize';
-import { sequelize } from './sqlite.js';
+const { Model, DataTypes } = require('sequelize');
+    const { sequelize } = require('./sqlite.js');
 
-class Host extends Model {}
-class Upstream extends Model {}
-class User extends Model {}
+    class Host extends Model {}
+    class Upstream extends Model {}
+    class User extends Model {}
 
-Host.init({
-    domains: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        validate: {
-            isValidDomain: (value) => {
-                const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
-                if (!domainRegex.test(value)) {
-                    throw new Error('Invalid domain format');
+    Host.init({
+        domains: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                isValidDomain: (value) => {
+                    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+                    if (!domainRegex.test(value)) {
+                        throw new Error('Invalid domain format');
+                    }
+                }
+            }
+        },
+        matcher: {
+            type: DataTypes.STRING
+        }
+    }, {
+        sequelize,
+        modelName: 'Host'
+    });
+
+    Upstream.init({
+        hostId: {
+            type: DataTypes.INTEGER,
+            allowNull: false
+        },
+        backend: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            validate: {
+                isValidBackend: (value) => {
+                    const backendRegex = /^[a-zA-Z0-9-_.]+:\d+$/;
+                    if (!backendRegex.test(value)) {
+                        throw new Error('Invalid backend format');
+                    }
                 }
             }
         }
-    },
-    matcher: {
-        type: DataTypes.STRING
-    }
-}, {
-    sequelize,
-    modelName: 'Host'
-});
+    }, {
+        sequelize,
+        modelName: 'Upstream'
+    });
 
-Upstream.init({
-    hostId: {
-        type: DataTypes.INTEGER,
-        allowNull: false
-    },
-    backend: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        validate: {
-            isValidBackend: (value) => {
-                const backendRegex = /^[a-zA-Z0-9-_.]+:\d+$/;
-                if (!backendRegex.test(value)) {
-                    throw new Error('Invalid backend format');
-                }
+    User.init({
+        name: {
+            type: DataTypes.STRING,
+            allowNull: false
+        },
+        email: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            unique: true,
+            validate: {
+                isEmail: true
             }
+        },
+        secret: {
+            type: DataTypes.STRING
         }
-    }
-}, {
-    sequelize,
-    modelName: 'Upstream'
-});
+    }, {
+        sequelize,
+        modelName: 'User'
+    });
 
-User.init({
-    name: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    email: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        unique: true,
-        validate: {
-            isEmail: true
-        }
-    },
-    secret: {
-        type: DataTypes.STRING
-    }
-}, {
-    sequelize,
-    modelName: 'User'
-});
+    // Define relationships
+    Host.hasMany(Upstream, { foreignKey: 'hostId' });
+    Upstream.belongsTo(Host, { foreignKey: 'hostId' });
 
-// Define relationships
-Host.hasMany(Upstream, { foreignKey: 'hostId' });
-Upstream.belongsTo(Host, { foreignKey: 'hostId' });
-
-export { Host, Upstream, User }; 
+    module.exports = { Host, Upstream, User };

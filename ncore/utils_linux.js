@@ -1,58 +1,62 @@
-import strapi_v4_net_class from './util/net/libs/strapi_v4_net.js';
-import { appname, env, appenv } from './globalvars.js';
-let strapi_v4_net = null;
-const isEnvVarValid = (key) => {
-  const value = env.getEnv(key);
-  return value && value.trim() !== '';
-};
-const strapiEnvVars = [
-  'STRAPI_URL'
-];
-const allStrapiEnvVarsValid = strapiEnvVars.every(isEnvVarValid);
-if (allStrapiEnvVarsValid) {
-  strapi_v4_net = new strapi_v4_net_class(env);
-}
+const strapi_v4_net_class = require('./util/net/libs/strapi_v4_net.js');
+    const { appname, env, appenv } = require('./globalvars.js');
+    let strapi_v4_net = null;
 
-// import json from './util/json.js';
-// import strtool from './util/strtool.js';
-// import tool from './util/tool.js';
-// import url from './util/urltool.js';
-// import arr from './util/arr.js';
-// import file from './util/file.js';
-// import fpath from './util/fpath.js';
-// import platform from './util/platform.js';
-// import htmlparse from './util/htmlparse.js';
-// import math_ from './util/math.js';
-// import conf from './util/conf.js';
-// import log from './util/log.js';
-// import plattool from './util/plattool.js';
-// import sysarg from './util/sysarg.js';
-// import getnode from './util/getnode.js';
-// import zip from './util/ziptask.js';
-// import porttool from './util/porttool.js';
-// import httptool from './util/httptool.js';
+    const isEnvVarValid = (key) => {
+      const value = env.getEnv(key);
+      return value && value.trim() !== '';
+    };
 
-// const math=math_;
+    const strapiEnvVars = [
+      'STRAPI_URL'
+    ];
 
-export {
-  strapi_v4_net_class,
-  strapi_v4_net,
-  // json,
-  // strtool,
-  // arr,
-  // tool,
-  // url,
-  // file,
-  // fpath,
-  // platform,
-  // htmlparse,
-  // math,
-  // conf,
-  // plattool,
-  // log,
-  // sysarg,
-  // zip,
-  // getnode,
-  // porttool,
-  // httptool,
-}
+    const allStrapiEnvVarsValid = strapiEnvVars.every(isEnvVarValid);
+
+    if (allStrapiEnvVarsValid) {
+      strapi_v4_net = new strapi_v4_net_class(env);
+    }
+
+    // const json = require('./util/json.js');
+    // const strtool = require('./util/strtool.js');
+    // const tool = require('./util/tool.js');
+    // const url = require('./util/urltool.js');
+    // const arr = require('./util/arr.js');
+    // const file = require('./util/file.js');
+    // const fpath = require('./util/fpath.js');
+    // const platform = require('./util/platform.js');
+    // const htmlparse = require('./util/htmlparse.js');
+    // const math_ = require('./util/math.js');
+    // const conf = require('./util/conf.js');
+    // const log = require('./util/log.js');
+    // const plattool = require('./util/plattool.js');
+    // const sysarg = require('./util/sysarg.js');
+    // const getnode = require('./util/getnode.js');
+    // const zip = require('./util/ziptask.js');
+    // const porttool = require('./util/porttool.js');
+    // const httptool = require('./util/httptool.js');
+
+    // const math = math_;
+
+    module.exports = {
+      strapi_v4_net_class,
+      strapi_v4_net,
+      // json,
+      // strtool,
+      // arr,
+      // tool,
+      // url,
+      // file,
+      // fpath,
+      // platform,
+      // htmlparse,
+      // math,
+      // conf,
+      // plattool,
+      // log,
+      // sysarg,
+      // zip,
+      // getnode,
+      // porttool,
+      // httptool,
+    };

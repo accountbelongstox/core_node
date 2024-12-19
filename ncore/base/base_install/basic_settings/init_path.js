@@ -1,11 +1,12 @@
-import Base from '#@base';
-import { gdir, bdir } from '#@globalvars';
-import { winpath } from '#@utils_native';
-import logger from '#@utils_logger';
+const path = require('path');
+const fs = require('fs');
+const someModule = require('../some_module.js');
 
-class InitPath extends Base {
+class InitPath {
     constructor() {
-        super();
+        this.path = path;
+        this.fs = fs;
+        this.someModule = someModule;
     }
 
     start() {
@@ -36,4 +37,4 @@ class InitPath extends Base {
 }
 
 const initPathInstance = new InitPath();
-export default initPathInstance;
+module.exports = initPathInstance;

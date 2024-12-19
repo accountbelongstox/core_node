@@ -1,5 +1,5 @@
-import Base from '#@base'; 
-import { wsl_activator,turn_feature } from '#@utils_native';
+const Base = require('#@base');
+const { wsl_activator, turn_feature } = require('#@utils_native');
 
 class GetNode extends Base {
   constructor() {
@@ -12,4 +12,4 @@ class GetNode extends Base {
   }
 }
 
-export default new GetNode();
+module.exports = new GetNode();

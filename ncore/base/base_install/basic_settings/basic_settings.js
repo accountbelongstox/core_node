@@ -1,6 +1,6 @@
-import os from 'os';
-import fs from 'fs';
-import {execPowerShell} from '#@utils_commander';
+const path = require('path');
+const fs = require('fs');
+const {execPowerShell} = require('#@utils_commander');
 
 class BasicSettings  {
     constructor() {
@@ -64,4 +64,4 @@ class BasicSettings  {
     }
 }
 
-export default new BasicSettings();
+module.exports = new BasicSettings();

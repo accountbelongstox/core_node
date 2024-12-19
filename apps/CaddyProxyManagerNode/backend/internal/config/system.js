@@ -1,60 +1,62 @@
-import os from 'os';
-import config from '../../config/index.js';
-import logger from '../logger/logger.js';
+const os = require('os');
+    const config = require('../../config/index.js');
+    const logger = require('../logger/logger.js');
 
-export class SystemConfig {
-    static #instance;
-    #config;
+    class SystemConfig {
+        static #instance;
+        #config;
 
-    constructor() {
-        if (SystemConfig.#instance) {
-            return SystemConfig.#instance;
+        constructor() {
+            if (SystemConfig.#instance) {
+                return SystemConfig.#instance;
+            }
+
+            this.#config = {
+                hostname: os.hostname(),
+                platform: process.platform,
+                arch: process.arch,
+                cpus: os.cpus().length,
+                memory: {
+                    total: os.totalmem(),
+                    free: os.freemem()
+                },
+                network: this.#getNetworkInterfaces(),
+                env: process.env.NODE_ENV || 'development'
+            };
+
+            SystemConfig.#instance = this;
         }
 
-        this.#config = {
-            hostname: os.hostname(),
-            platform: process.platform,
-            arch: process.arch,
-            cpus: os.cpus().length,
-            memory: {
-                total: os.totalmem(),
-                free: os.freemem()
-            },
-            network: this.#getNetworkInterfaces(),
-            env: process.env.NODE_ENV || 'development'
-        };
+        #getNetworkInterfaces() {
+            const interfaces = os.networkInterfaces();
+            const result = {};
 
-        SystemConfig.#instance = this;
-    }
+            for (const [name, addrs] of Object.entries(interfaces)) {
+                result[name] = addrs.filter(addr => !addr.internal);
+            }
 
-    #getNetworkInterfaces() {
-        const interfaces = os.networkInterfaces();
-        const result = {};
-
-        for (const [name, addrs] of Object.entries(interfaces)) {
-            result[name] = addrs.filter(addr => !addr.internal);
+            return result;
         }
 
-        return result;
-    }
+        getConfig() {
+            return {
+                ...this.#config,
+                appConfig: config
+            };
+        }
 
-    getConfig() {
-        return {
-            ...this.#config,
-            appConfig: config
-        };
-    }
-
-    async updateSystemInfo() {
-        try {
-            this.#config.memory.free = os.freemem();
-            this.#config.network = this.#getNetworkInterfaces();
-            logger.debug('System information updated');
-        } catch (error) {
-            logger.error('SystemUpdateError', error);
-            throw error;
+        async updateSystemInfo() {
+            try {
+                this.#config.memory.free = os.freemem();
+                this.#config.network = this.#getNetworkInterfaces();
+                logger.debug('System information updated');
+            } catch (error) {
+                logger.error('SystemUpdateError', error);
+                throw error;
+            }
         }
     }
-}
 
-export const systemConfig = new SystemConfig(); 
+    const systemConfig = new SystemConfig();
+
+    module.exports = { systemConfig };

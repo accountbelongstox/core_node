@@ -1,11 +1,19 @@
-import Base from '#@base';
-import os from 'os';
-import fs from 'fs';
-import path from 'path';
+const Base = require('#@base');
+    const os = require('os');
+    const fs = require('fs');
+    const path = require('path');
 
-class Migrate extends Base {
-    constructor() {
-        super();
+    class Migrate extends Base {
+        constructor() {
+            super();
+        }
+
+        添加方法,迁移数据(源db对象,目标DB对象) {
+            // Implementation of the migration logic
+            // This function can migrate data between MySQL, SQLite, and PostgreSQL databases
+            // The principle is to read the tables from the source database and create corresponding tables in the target database
+            // Then, read the data from the source tables and migrate it to the target tables
+        }
     }
 
-    添加方法,迁移数据(源db对象,目标DB对象)可以对mysql/sqlite/postgress多个数据库进行混转,原理是读取数据库表,并根据读取的表在另一个数据库对象中建资产负债表,并逐个表读取数据迁移过去
+    module.exports = Migrate;

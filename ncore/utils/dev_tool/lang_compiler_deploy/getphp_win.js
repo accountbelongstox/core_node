@@ -1,17 +1,18 @@
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
-import { gdir } from '#@globalvars';  // Import com_bin
-import {bdir} from '#@/ncore/gvar/bdir.js';// Import com_bin from #@globalvars
-import gconfig from '#@/ncore/gvar/gconfig.js';
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
+const { gdir } = require('#@globalvars'); // Import com_bin
+const { bdir } = require('#@/ncore/gvar/bdir.js'); // Import com_bin from #@globalvars
+const gconfig = require('#@/ncore/gvar/gconfig.js');
+const { execCmd } = require('#@utils_commander');
+const logger = require('#@utils_logger');
+const phpReleasesFetcher = require('./php_libs/get_releases.js');
+
 const langdir = gconfig.DEV_LANG_DIR;
-import {execCmd} from '#@utils_commander';
-import logger from '#@utils_logger';
-import phpReleasesFetcher from './php_libs/get_releases.js';
 
 const tar = bdir.getTarExecutable(); // Get the tar executable path
 const v7zexe = bdir.get7zExecutable(); // Get the v7z executable path
-const curl = bdir.getCurlExecutable(); // Ge
+const curl = bdir.getCurlExecutable(); // Get the curl executable path
 
 class GetPHPWin {
     constructor() {
@@ -31,7 +32,7 @@ class GetPHPWin {
         const details = this.getVersionDetails(php_release);
         const baseDir = new Set();
 
-        console.log(`details`, details)
+        console.log(`details`, details);
         const phpBaseDir = path.dirname(details.phpPath);
         baseDir.add(phpBaseDir);
 
@@ -42,7 +43,7 @@ class GetPHPWin {
             url: details?.phpUrl || null,
             installDir: details?.phpInstallDir || null,
             path: details?.phpPath || null,
-            baseDir: Array.from(baseDir)
+            baseDir: Array.from(baseDir),
         };
     }
 
@@ -55,7 +56,7 @@ class GetPHPWin {
         if (this.cachedVersionDetails[versionKey]) {
             return this.cachedVersionDetails[versionKey];
         }
-        
+
         this.phpVersionKey = versionKey;
         this.phpFileName = this.findDevelopmentVersion(php_release.fileNames);
         this.phpUrl = this.getPHPDownloadUrl(this.phpFileName);
@@ -69,19 +70,26 @@ class GetPHPWin {
             phpFileName: this.phpFileName,
             phpUrl: this.phpUrl,
             phpInstallDir: this.phpInstallDir,
-            phpPath: this.phpPath
+            phpPath: this.phpPath,
         };
-        console.log(this.cachedVersionDetails[versionKey])
+        console.log(this.cachedVersionDetails[versionKey]);
         return this.cachedVersionDetails[versionKey];
     }
 
     findDevelopmentVersion(fileNames) {
-        
-        let developmentVersion = fileNames.find(fileName =>  !fileName.includes('nts') && !fileName.includes('dev') && !fileName.includes('debug') && !fileName.includes('test') && fileName.includes('x64') && fileName.includes('Win32'));
-        if(developmentVersion.startsWith('/downloads/releases/')){
+        let developmentVersion = fileNames.find(
+            fileName =>
+                !fileName.includes('nts') &&
+                !fileName.includes('dev') &&
+                !fileName.includes('debug') &&
+                !fileName.includes('test') &&
+                fileName.includes('x64') &&
+                fileName.includes('Win32')
+        );
+        if (developmentVersion.startsWith('/downloads/releases/')) {
             developmentVersion = developmentVersion.substring('/downloads/releases/'.length);
         }
-        console.log(`developmentVersion`, developmentVersion)
+        console.log(`developmentVersion`, developmentVersion);
         return developmentVersion;
     }
 
@@ -105,8 +113,8 @@ class GetPHPWin {
         this.excludeVersionKeys.forEach(versionKey => {
             releases = releases.filter(php_release => php_release.majorVersion !== versionKey);
         });
-        if(!this.releases){
-            this.releases = releases
+        if (!this.releases) {
+            this.releases = releases;
         }
         if (versionKey !== null) {
             const php_release = await phpReleasesFetcher.getVersionByMajor(versionKey);
@@ -147,12 +155,12 @@ class GetPHPWin {
     downloadAndExtractPHP() {
         logger.info(`Downloading PHP ${this.phpVersionKey} from ${this.phpUrl}...`);
         const tempPHPZip = path.join(this.tempDir, this.phpFileName);
-        if(fs.existsSync(tempPHPZip)){
+        if (fs.existsSync(tempPHPZip)) {
             fs.unlinkSync(tempPHPZip);
         }
 
         const command = `${curl} -k -L -o "${tempPHPZip}" "${this.phpUrl}"`;
-        logger.info( command)
+        logger.info(command);
         try {
             execCmd(command);
         } catch (error) {
@@ -161,7 +169,7 @@ class GetPHPWin {
 
         logger.info(`Extracting PHP ${this.phpVersionKey} ${tempPHPZip} ...`);
         try {
-            execCmd([tar, '-xf', tempPHPZip, '-C', this.phpInstallDir]);
+            execCmd(`${tar} -xf "${tempPHPZip}" -C "${this.phpInstallDir}"`);
         } catch (error) {
             logger.error(`Error extracting PHP: ${error}`);
         }
@@ -171,7 +179,7 @@ class GetPHPWin {
         const phpExePath = path.join(this.phpInstallDir, 'php.exe');
         if (fs.existsSync(phpExePath)) {
             logger.success(`PHP ${this.phpVersionKey} installed successfully.`);
-            const version = execCmd([phpExePath, '--version']);
+            const version = execCmd(`"${phpExePath}" --version`);
             logger.info(`PHP version: ${version}`);
         } else {
             logger.error(`PHP ${this.phpVersionKey} installation failed.`);
@@ -190,7 +198,7 @@ class GetPHPWin {
         // Update php.ini with necessary configurations
         try {
             let phpIniContent = fs.readFileSync(phpIniPath, 'utf8');
-            
+
             // Update configurations
             phpIniContent = phpIniContent.replace(/upload_max_filesize\s*=\s*\d+M/g, 'upload_max_filesize = 10240M'); // 10GB
             phpIniContent = phpIniContent.replace(/post_max_size\s*=\s*\d+M/g, 'post_max_size = 10240M'); // 10GB
@@ -212,4 +220,4 @@ class GetPHPWin {
     }
 }
 
-export default new GetPHPWin();
+module.exports = new GetPHPWin();

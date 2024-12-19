@@ -26,8 +26,7 @@ const PYTHON_VERSIONS = [
     }
 ];
 
-
 // Export configurations
-export {
+module.exports = {
     PYTHON_VERSIONS
 };

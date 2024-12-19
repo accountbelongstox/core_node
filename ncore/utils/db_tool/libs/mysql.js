@@ -1,11 +1,10 @@
-import mysql from 'mysql2/promise';
-import mysqlTool from '../utils/mysql_tool.js';
-import Base from '#@base';
-// import net from 'net';
+const mysql = require('mysql');
+const util = require('util');
+const path = require('path');
+const fs = require('fs');
 
-class MySQL extends Base {
+class MySQL {
     constructor(configOrDbUrl, initConfigFile = '', debug = false) {
-        super()
         this.dbUrl = typeof configOrDbUrl === 'string' ? configOrDbUrl : mysqlTool.getDbUrlFromConfig(configOrDbUrl);
         this.configFile = initConfigFile;
         this.includeFilter = [];
@@ -179,4 +178,9 @@ class MySQL extends Base {
     }
 }
 
-export default MySQL;
+module.exports = {
+    createConnection,
+    createPool,
+    query,
+    // ... other exported functions
+};

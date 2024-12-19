@@ -1,9 +1,8 @@
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
-import { execPowerShell } from '#@/ncore/utils/win_tool/libs/commander.js';
-import logger from '#@utils_logger';
-import {execCmd} from "#@utils_commander"
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const logger = require('#@utils_logger');
+const { execCmd,execPowerShell } = require("#@utils_commander");
 
 class WinPath {
     constructor() {
@@ -47,33 +46,21 @@ class WinPath {
             console.log(`result`, result)
             return { PathType: ``, CurrentPath: '' };
         }
-        // this.info('CurrentPath:', result);
         const match = result.match(/\s{1,}Path\s{1,}(.+)/);
-        // console.log(match);
         if (match && match[1]) {
             const pathFullValue = match[1].trim();
-            // console.log(`pathFullValue`);
-            // console.log(pathFullValue);
-            // console.log(pathFullValue.split(/\s+/));
             const [PathType, ...rest] = pathFullValue.split(/\s+/);
             const CurrentPath = rest.join(' ');
-            const queryresult = { PathType, CurrentPath: CurrentPath || '' };
-            // console.log(`--result--`);
-            // console.log(queryresult);
-            return queryresult
+            return { PathType, CurrentPath: CurrentPath || '' };
         } else {
             logger.error('Failed to parse Path variable from registry output.');
-            return {
-                PathType: this.regType,
-                CurrentPath: ''
-            };
+            return { PathType: this.regType, CurrentPath: '' };
         }
     }
 
     getCurrentPath() {
         const { CurrentPath } = this.queryEnvironmentVariable();
-        const cleanedPaths = CurrentPath.split(';').map(p => p.trim()).filter(Boolean);
-        return cleanedPaths;
+        return CurrentPath.split(';').map(p => p.trim()).filter(Boolean);
     }
 
     getPathType() {
@@ -123,7 +110,6 @@ class WinPath {
     }
 
     updatePathRegistry(updatedPath) {
-        // Ensure default paths are present at the beginning
         this.defaultPaths.forEach((defaultPath) => {
             if (!updatedPath.includes(defaultPath)) {
                 updatedPath.unshift(defaultPath);
@@ -193,7 +179,7 @@ class WinPath {
         }
     }
 
-    start(){
+    start() {
         this.ensureDefaultPathsExist();
     }
 }
@@ -202,19 +188,13 @@ let instance = {};
 if (os.platform() === 'win32') {
     instance = new WinPath();
 }
-export default instance;
+module.exports = instance;
 
-// Add direct execution logic
-const normalizeFilePath = (filepath) => {
-    return filepath.replace(/\\/g, '/');
-};
+// Direct execution logic
+const normalizeFilePath = (filepath) => filepath.replace(/\\/g, '/');
 
-const currentFileUrl = import.meta.url;
-const scriptPath = `file:///${normalizeFilePath(process.argv[1])}`;
-
-// Add direct execution logic
-if (currentFileUrl === scriptPath) {
-    const args = process.argv.slice(2); // Remove 'node' and script path from args
+if (require.main === module) {
+    const args = process.argv.slice(2);
     const command = args[0];
     const targetPath = args[1];
 
@@ -240,4 +220,3 @@ if (currentFileUrl === scriptPath) {
         process.exit(1);
     }
 }
-

@@ -1,17 +1,16 @@
+const BaseInstall = require('#@ncore/base/base_install/main.js');
 
-import BaseInstall from '#@ncore/base/base_install/main.js';
+    class appMain  {
 
-class appMain  {
+      // constructor() {
+      //   super();
+      //   // this === eeApp;
+      // }
+      async start() {
+        
+        const baseInstall = new BaseInstall();
+        baseInstall.start()
+      }
+    }
 
-  // constructor() {
-  //   super();
-  //   // this === eeApp;
-  // }
-  async start() {
-    
-    const baseInstall = new BaseInstall();
-    baseInstall.start()
-  }
-}
-
-export default new appMain();
+    module.exports = new appMain();

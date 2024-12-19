@@ -1,131 +1,131 @@
-import { BaseHandler } from './handler.js';
-import { Host, Upstream } from '../../database/models.js';
-import { CreateHostRequest } from '../http/requests.js';
-import { HostResponse } from '../http/responses.js';
-import { findHostById } from './helpers.js';
-import jobQueue from '../../jobqueue/main.js';
-import { sequelize } from '../../database/sqlite.js';
-import config from '../../../config/index.js';
+const { BaseHandler } = require('./handler.js');
+    const { Host, Upstream } = require('../../database/models.js');
+    const { CreateHostRequest } = require('../http/requests.js');
+    const { HostResponse } = require('../http/responses.js');
+    const { findHostById } = require('./helpers.js');
+    const jobQueue = require('../../jobqueue/main.js');
+    const { sequelize } = require('../../database/sqlite.js');
+    const config = require('../../../config/index.js');
 
-class HostHandler extends BaseHandler {
-    async list(ctx) {
-        const { offset, limit } = ctx.getPaginationParams();
-        
-        const hosts = await Host.findAll({
-            include: ['Upstreams'],
-            offset,
-            limit
-        });
+    class HostHandler extends BaseHandler {
+        async list(ctx) {
+            const { offset, limit } = ctx.getPaginationParams();
+            
+            const hosts = await Host.findAll({
+                include: ['Upstreams'],
+                offset,
+                limit
+            });
 
-        ctx.json(hosts.map(host => new HostResponse(host)));
-    }
+            ctx.json(hosts.map(host => new HostResponse(host)));
+        }
 
-    async create(ctx) {
-        const request = new CreateHostRequest(ctx.getBodyParam());
-        this.validateRequest(request);
+        async create(ctx) {
+            const request = new CreateHostRequest(ctx.getBodyParam());
+            this.validateRequest(request);
 
-        const result = await sequelize.transaction(async (t) => {
-            const host = await Host.create({
-                domains: request.domains,
-                matcher: request.matcher
-            }, { transaction: t });
+            const result = await sequelize.transaction(async (t) => {
+                const host = await Host.create({
+                    domains: request.domains,
+                    matcher: request.matcher
+                }, { transaction: t });
 
-            if (request.upstreams?.length) {
-                await Upstream.bulkCreate(
-                    request.upstreams.map(u => ({
-                        hostId: host.id,
-                        backend: u.backend
-                    })),
-                    { transaction: t }
-                );
-            }
+                if (request.upstreams?.length) {
+                    await Upstream.bulkCreate(
+                        request.upstreams.map(u => ({
+                            hostId: host.id,
+                            backend: u.backend
+                        })),
+                        { transaction: t }
+                    );
+                }
 
-            return host;
-        });
+                return host;
+            });
 
-        const host = await Host.findByPk(result.id, {
-            include: ['Upstreams']
-        });
+            const host = await Host.findByPk(result.id, {
+                include: ['Upstreams']
+            });
 
-        await jobQueue.addJob({
-            type: 'UPDATE_CONFIG',
-            data: { hostId: host.id }
-        });
+            await jobQueue.addJob({
+                type: 'UPDATE_CONFIG',
+                data: { hostId: host.id }
+            });
 
-        ctx.json(new HostResponse(host), 201);
-    }
+            ctx.json(new HostResponse(host), 201);
+        }
 
-    async get(ctx) {
-        const id = ctx.getUrlParam('id', true);
-        const host = await findHostById(id);
-        ctx.json(host);
-    }
+        async get(ctx) {
+            const id = ctx.getUrlParam('id', true);
+            const host = await findHostById(id);
+            ctx.json(host);
+        }
 
-    async update(ctx) {
-        const id = ctx.getUrlParam('id', true);
-        const request = new CreateHostRequest(ctx.getBodyParam());
-        this.validateRequest(request);
+        async update(ctx) {
+            const id = ctx.getUrlParam('id', true);
+            const request = new CreateHostRequest(ctx.getBodyParam());
+            this.validateRequest(request);
 
-        await sequelize.transaction(async (t) => {
-            const host = await Host.findByPk(id, { transaction: t });
+            await sequelize.transaction(async (t) => {
+                const host = await Host.findByPk(id, { transaction: t });
+                if (!host) {
+                    throw new AppError('host-not-found', 'NOT_FOUND');
+                }
+
+                await host.update({
+                    domains: request.domains,
+                    matcher: request.matcher
+                }, { transaction: t });
+
+                await Upstream.destroy({
+                    where: { hostId: id },
+                    transaction: t
+                });
+
+                if (request.upstreams?.length) {
+                    await Upstream.bulkCreate(
+                        request.upstreams.map(u => ({
+                            hostId: id,
+                            backend: u.backend
+                        })),
+                        { transaction: t }
+                    );
+                }
+            });
+
+            const updatedHost = await findHostById(id);
+            
+            await jobQueue.addJob({
+                type: 'UPDATE_CONFIG',
+                data: { hostId: id }
+            });
+
+            ctx.json(updatedHost);
+        }
+
+        async remove(ctx) {
+            const id = ctx.getUrlParam('id', true);
+            const host = await Host.findByPk(id);
+            
             if (!host) {
                 throw new AppError('host-not-found', 'NOT_FOUND');
             }
 
-            await host.update({
-                domains: request.domains,
-                matcher: request.matcher
-            }, { transaction: t });
-
-            await Upstream.destroy({
-                where: { hostId: id },
-                transaction: t
+            await host.destroy();
+            
+            await jobQueue.addJob({
+                type: 'UPDATE_CONFIG',
+                data: { hostId: id }
             });
 
-            if (request.upstreams?.length) {
-                await Upstream.bulkCreate(
-                    request.upstreams.map(u => ({
-                        hostId: id,
-                        backend: u.backend
-                    })),
-                    { transaction: t }
-                );
-            }
-        });
-
-        const updatedHost = await findHostById(id);
-        
-        await jobQueue.addJob({
-            type: 'UPDATE_CONFIG',
-            data: { hostId: id }
-        });
-
-        ctx.json(updatedHost);
-    }
-
-    async remove(ctx) {
-        const id = ctx.getUrlParam('id', true);
-        const host = await Host.findByPk(id);
-        
-        if (!host) {
-            throw new AppError('host-not-found', 'NOT_FOUND');
+            ctx.json({ success: true });
         }
-
-        await host.destroy();
-        
-        await jobQueue.addJob({
-            type: 'UPDATE_CONFIG',
-            data: { hostId: id }
-        });
-
-        ctx.json({ success: true });
     }
-}
 
-const handler = new HostHandler();
+    const handler = new HostHandler();
 
-export const list = (ctx) => handler.handle(ctx, 'list');
-export const create = (ctx) => handler.handle(ctx, 'create');
-export const get = (ctx) => handler.handle(ctx, 'get');
-export const update = (ctx) => handler.handle(ctx, 'update');
-export const remove = (ctx) => handler.handle(ctx, 'remove'); 
+    exports.list = (ctx) => handler.handle(ctx, 'list');
+    exports.create = (ctx) => handler.handle(ctx, 'create');
+    exports.get = (ctx) => handler.handle(ctx, 'get');
+    exports.update = (ctx) => handler.handle(ctx, 'update');
+    exports.remove = (ctx) => handler.handle(ctx, 'remove');

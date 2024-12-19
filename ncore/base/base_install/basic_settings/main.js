@@ -1,21 +1,21 @@
+const path = require('path');
+const fs = require('fs');
+const basicSettings = require('./basic_settings.js');
+const initPath = require('./init_path.js');
 
-import Base from '#@base';
-import basic_settings from './basic_settings.js';
-import init_path from './init_path.js';
-
-class BasicSettings extends Base {
+class BasicSettingsMain {
     constructor() {
-        super();
+        this.basicSettings = basicSettings;
+        this.initPath = initPath;
     }
 
     start() {
-        basic_settings.start()
-        init_path.start()
+        basicSettings.start()
+        initPath.start()
     }
 }
 
-const basicSettingsInstance = new BasicSettings();
-export default basicSettingsInstance;
+module.exports = new BasicSettingsMain();
 
 
 

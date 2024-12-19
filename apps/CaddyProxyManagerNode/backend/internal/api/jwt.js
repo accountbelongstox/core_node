@@ -1,6 +1,6 @@
-import config from '../../config/index.js';
+const config = require('../../config/index.js');
 
-const jwtOptions = {
-    algorithm: config.jwt.algorithm,
-    expiresIn: config.jwt.expiresIn
-}; 
+    const jwtOptions = {
+        algorithm: config.jwt.algorithm,
+        expiresIn: config.jwt.expiresIn
+    };

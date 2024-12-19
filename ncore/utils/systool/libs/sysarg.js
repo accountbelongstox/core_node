@@ -26,7 +26,7 @@ class SysArg {
         }
 
         for (let i = 0; i < process.argv.length; i++) {
-            const arg = process.argv[i].toLowerCase();  // Convert argument to lowercase
+            const arg = process.argv[i].toLowerCase(); // Convert argument to lowercase
             const regex = new RegExp(`^[-]*${lowerCaseName}(\$|=|-|:)`);
 
             if (regex.test(arg)) {
@@ -69,4 +69,4 @@ class SysArg {
 
 SysArg.toString = () => '[class SysArg]';
 
-export default new SysArg();
+module.exports = new SysArg();

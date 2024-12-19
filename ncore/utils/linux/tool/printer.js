@@ -1,4 +1,4 @@
-import util from 'util';
+const util = require('util');
 
 // ANSI color codes
 const colors = {
@@ -35,59 +35,59 @@ const colors = {
  * @param {string} color - Color to apply
  * @returns {string} - Formatted text
  */
-export function colorize(text, color) {
+exports.colorize = function(text, color) {
     const colorCode = colors[color] || '';
     return `${colorCode}${text}${colors.reset}`;
-}
+};
 
 /**
  * Print text with color
  * @param {string} text - Text to print
  * @param {string} [color='white'] - Color to use
  */
-export function print(text, color = 'white') {
-    console.log(colorize(text, color));
-}
+exports.print = function(text, color = 'white') {
+    console.log(exports.colorize(text, color));
+};
 
 /**
  * Print success message
  * @param {string} text - Message to print
  */
-export function success(text) {
-    print(text, 'green');
-}
+exports.success = function(text) {
+    exports.print(text, 'green');
+};
 
 /**
  * Print error message
  * @param {string} text - Message to print
  */
-export function error(text) {
-    print(text, 'red');
-}
+exports.error = function(text) {
+    exports.print(text, 'red');
+};
 
 /**
  * Print warning message
  * @param {string} text - Message to print
  */
-export function warn(text) {
-    print(text, 'yellow');
-}
+exports.warn = function(text) {
+    exports.print(text, 'yellow');
+};
 
 /**
  * Print info message
  * @param {string} text - Message to print
  */
-export function info(text) {
-    print(text, 'blue');
-}
+exports.info = function(text) {
+    exports.print(text, 'blue');
+};
 
 /**
  * Print debug message
  * @param {string} text - Message to print
  */
-export function debug(text) {
-    print(text, 'magenta');
-}
+exports.debug = function(text) {
+    exports.print(text, 'magenta');
+};
 
 /**
  * Print object with formatting
@@ -95,23 +95,23 @@ export function debug(text) {
  * @param {number} [depth=2] - Depth for object inspection
  * @param {boolean} [colors=true] - Whether to use colors
  */
-export function printObject(obj, depth = 2, colors = true) {
+exports.printObject = function(obj, depth = 2, colors = true) {
     console.log(util.inspect(obj, {
         depth,
         colors,
         maxArrayLength: null,
         maxStringLength: null
     }));
-}
+};
 
 /**
  * Print table from array of objects
  * @param {Array<object>} data - Array of objects to print as table
  * @param {Array<string>} [columns] - Columns to include
  */
-export function printTable(data, columns) {
+exports.printTable = function(data, columns) {
     if (!Array.isArray(data) || data.length === 0) {
-        warn('No data to display');
+        exports.warn('No data to display');
         return;
     }
 
@@ -139,24 +139,24 @@ export function printTable(data, columns) {
         '-'.repeat(widths[col])
     ).join('-+-');
 
-    print(header, 'cyan');
-    print(separator, 'dim');
+    exports.print(header, 'cyan');
+    exports.print(separator, 'dim');
 
     // Print rows
     data.forEach(row => {
         const rowStr = columns.map(col => 
             String(row[col] || '').padEnd(widths[col])
         ).join(' | ');
-        print(rowStr);
+        exports.print(rowStr);
     });
-}
+};
 
 /**
  * Clear console
  */
-export function clear() {
+exports.clear = function() {
     process.stdout.write('\x1Bc');
-}
+};
 
 /**
  * Print progress bar
@@ -165,13 +165,13 @@ export function clear() {
  * @param {number} [width=50] - Width of progress bar
  * @param {string} [color='green'] - Color of progress bar
  */
-export function progressBar(current, total, width = 50, color = 'green') {
+exports.progressBar = function(current, total, width = 50, color = 'green') {
     const percentage = Math.round((current / total) * 100);
     const filled = Math.round((width * current) / total);
     const empty = width - filled;
 
     const bar = '█'.repeat(filled) + '░'.repeat(empty);
-    const text = `Progress: [${colorize(bar, color)}] ${percentage}%`;
+    const text = `Progress: [${exports.colorize(bar, color)}] ${percentage}%`;
     
     process.stdout.clearLine();
     process.stdout.cursorTo(0);
@@ -180,19 +180,19 @@ export function progressBar(current, total, width = 50, color = 'green') {
     if (current === total) {
         process.stdout.write('\n');
     }
-}
+};
 
-export default {
-    print,
-    success,
-    error,
-    warn,
-    info,
-    debug,
-    printObject,
-    printTable,
-    clear,
-    progressBar,
-    colorize,
+module.exports = {
+    print: exports.print,
+    success: exports.success,
+    error: exports.error,
+    warn: exports.warn,
+    info: exports.info,
+    debug: exports.debug,
+    printObject: exports.printObject,
+    printTable: exports.printTable,
+    clear: exports.clear,
+    progressBar: exports.progressBar,
+    colorize: exports.colorize,
     colors
-}; 
+};

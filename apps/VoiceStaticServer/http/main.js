@@ -1,16 +1,13 @@
-import ExpressManager, { RouterManager } from '#@/ncore/utils/http-express/libs/ExpressManager.js';
-import router from './router.js';
+const ExpressManager = require('#@/ncore/utils/http-express/libs/ExpressManager.js');
+    const router = require('./router.js');
 
+    class Main {
+        constructor() {
+        }
 
-
-class Main   {
-    constructor() {
+        async start() {
+            router.initializeRoutes();
+        }
     }
 
-    async start() {
-        router.initializeRoutes()
-    }
-}
-
-export default new Main();
-
+    module.exports = new Main();

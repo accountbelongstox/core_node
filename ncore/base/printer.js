@@ -1,5 +1,5 @@
-import util from 'util';
-import process from 'process';
+const util = require('util');
+const process = require('process');
 
 // ANSI color codes
 const colors = {
@@ -284,67 +284,4 @@ class Printer {
 // Create default instance
 const printer = new Printer();
 
-// Main test function
-function main() {
-    printer.clear()
-        .title('Printer Test')
-        .section('Basic Printing')
-        .log('Normal log message')
-        .success('Success message')
-        .error('Error message')
-        .warn('Warning message')
-        .info('Info message')
-        .debug('Debug message')
-        .blank()
-        
-        .section('Color and Format')
-        .primary('Primary text')
-        .secondary('Secondary text')
-        .highlight('Highlighted text')
-        .bold('Bold text')
-        .dim('Dimmed text')
-        .underline('Underlined text')
-        .blank()
-        
-        .section('Data Structures')
-        .json({ name: 'Test', value: 123 })
-        .blank()
-        
-        .list(['Item 1', 'Item 2', 'Item 3'])
-        .blank()
-        
-        .tree({
-            root: {
-                branch1: {
-                    leaf1: 'value1',
-                    leaf2: 'value2'
-                },
-                branch2: 'value3'
-            }
-        })
-        .blank()
-        
-        .section('Progress Indicators')
-        .info('Progress bar test:');
-
-    // Test progress bar
-    for (let i = 0; i <= 100; i += 10) {
-        printer.progress(i, 100);
-        // Simulate work
-        for (let j = 0; j < 1000000; j++) {}
-    }
-
-    // Test spinner
-    const spinnerInterval = printer.spinner('Processing...');
-    setTimeout(() => {
-        printer.stopSpinner(spinnerInterval)
-            .success('Done!');
-    }, 3000);
-}
-
-// Run main if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-    main();
-}
-
-export { Printer, printer as default }; 
+ module.exports = new Printer;

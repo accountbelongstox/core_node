@@ -1,114 +1,165 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const util = require('util');
 
-// Get directory paths
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const LOG_DIR = path.join(__dirname, '..', '..', '..', 'logs');
-
-// Create directory if not exists
-function mkdir(path) {
-    return fs.mkdirSync(path, { recursive: true });
-}
-
-mkdir(LOG_DIR);
-
-// ANSI Color codes
-const COLORS = {
-    red: '\x1b[91m',
-    green: '\x1b[92m',
-    yellow: '\x1b[93m',
-    blue: '\x1b[94m',
-    purple: '\x1b[95m',
-    cyan: '\x1b[96m',
-    white: '\x1b[97m',
-    end: '\x1b[0m'
+// ANSI color codes
+const colors = {
+    reset: '\x1b[0m',
+    green: '\x1b[32m',
+    red: '\x1b[31m',
+    yellow: '\x1b[33m',
+    blue: '\x1b[34m',
+    gray: '\x1b[90m',
+    cyan: '\x1b[36m'
 };
 
-// Log file configuration
-const MAX_LOG_SIZE = 100 * 1024 * 1024; // 100MB
-const LOG_FILES = {
-    info: 'info.log',
-    error: 'error.log',
-    warning: 'warning.log',
-    debug: 'debug.log'
+// Color wrapper functions
+const colorize = {
+    green: (text) => `${colors.green}${text}${colors.reset}`,
+    red: (text) => `${colors.red}${text}${colors.reset}`,
+    yellow: (text) => `${colors.yellow}${text}${colors.reset}`,
+    blue: (text) => `${colors.blue}${text}${colors.reset}`,
+    gray: (text) => `${colors.gray}${text}${colors.reset}`,
+    cyan: (text) => `${colors.cyan}${text}${colors.reset}`
 };
 
-// Format timestamp
-function getTimestamp() {
-    return new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
-}
+class Logger {
+    constructor() {
+        this.debugMode = process.env.DEBUG || false;
+        this.logLevel = process.env.LOG_LEVEL || 'info';
+        this.logLevels = {
+            error: 0,
+            warn: 1,
+            info: 2,
+            debug: 3
+        };
+    }
 
-// Format message for logging
-function formatMessage(...args) {
-    return args.map(arg => {
-        if (typeof arg === 'object') {
-            return JSON.stringify(arg, null, 2);
+    formatMessage(message, ...args) {
+        if (args.length > 0) {
+            return util.format(message, ...args);
         }
-        return String(arg);
-    }).join(' ');
-}
+        return message;
+    }
 
-// File rotation logic
-function rotateLogFile(filePath) {
-    if (!fs.existsSync(filePath)) return;
+    getTimestamp() {
+        return new Date().toISOString();
+    }
 
-    const stats = fs.statSync(filePath);
-    if (stats.size >= MAX_LOG_SIZE) {
-        const backupPath = `${filePath}.1`;
-        if (fs.existsSync(backupPath)) {
-            fs.unlinkSync(backupPath);
+    shouldLog(level) {
+        return this.logLevels[level] <= this.logLevels[this.logLevel];
+    }
+
+    success(message, ...args) {
+        if (this.shouldLog('info')) {
+            const formattedMessage = this.formatMessage(message, ...args);
+            console.log(colorize.green(`[${this.getTimestamp()}] SUCCESS: ${formattedMessage}`));
         }
-        fs.renameSync(filePath, backupPath);
+    }
+
+    error(message, ...args) {
+        if (this.shouldLog('error')) {
+            const formattedMessage = this.formatMessage(message, ...args);
+            console.error(colorize.red(`[${this.getTimestamp()}] ERROR: ${formattedMessage}`));
+        }
+    }
+
+    warning(message, ...args) {
+        if (this.shouldLog('warn')) {
+            const formattedMessage = this.formatMessage(message, ...args);
+            console.warn(colorize.yellow(`[${this.getTimestamp()}] WARNING: ${formattedMessage}`));
+        }
+    }
+
+    info(message, ...args) {
+        if (this.shouldLog('info')) {
+            const formattedMessage = this.formatMessage(message, ...args);
+            console.info(colorize.blue(`[${this.getTimestamp()}] INFO: ${formattedMessage}`));
+        }
+    }
+
+    debug(message, ...args) {
+        if (this.debugMode && this.shouldLog('debug')) {
+            const formattedMessage = this.formatMessage(message, ...args);
+            console.debug(colorize.gray(`[${this.getTimestamp()}] DEBUG: ${formattedMessage}`));
+        }
+    }
+
+    logObject(obj, label = 'Object') {
+        if (this.shouldLog('info')) {
+            console.log(colorize.blue(`[${this.getTimestamp()}] ${label}:`));
+            console.log(util.inspect(obj, { colors: true, depth: null }));
+        }
+    }
+
+    async logExecutionTime(func, label = 'Execution') {
+        if (this.shouldLog('info')) {
+            const start = process.hrtime();
+            const result = await func();
+            const [seconds, nanoseconds] = process.hrtime(start);
+            const duration = seconds * 1000 + nanoseconds / 1000000;
+            
+            console.log(colorize.cyan(`[${this.getTimestamp()}] ${label} Time: ${duration.toFixed(2)}ms`));
+            return result;
+        }
+        return await func();
+    }
+
+    createScopedLogger(scope) {
+        const scopedLogger = {};
+        const methods = ['success', 'error', 'warning', 'info', 'debug'];
+
+        methods.forEach(method => {
+            scopedLogger[method] = (message, ...args) => {
+                this[method](`[${scope}] ${message}`, ...args);
+            };
+        });
+
+        return scopedLogger;
+    }
+
+    setLogLevel(level) {
+        if (this.logLevels.hasOwnProperty(level)) {
+            this.logLevel = level;
+            this.info(`Log level set to: ${level}`);
+        } else {
+            this.error(`Invalid log level: ${level}`);
+        }
+    }
+
+    setDebugMode(enabled) {
+        this.debugMode = enabled;
+        this.info(`Debug mode ${enabled ? 'enabled' : 'disabled'}`);
+    }
+
+    group(label) {
+        if (this.shouldLog('info')) {
+            console.group(colorize.cyan(`[${this.getTimestamp()}] ${label}`));
+        }
+    }
+
+    groupEnd() {
+        if (this.shouldLog('info')) {
+            console.groupEnd();
+        }
+    }
+
+    custom(message, color, ...args) {
+        if (this.shouldLog('info') && colors[color]) {
+            const formattedMessage = this.formatMessage(message, ...args);
+            console.log(`${colors[color]}[${this.getTimestamp()}] ${formattedMessage}${colors.reset}`);
+        }
     }
 }
 
-// Write to log file
-function writeToFile(level, message) {
-    const filePath = path.join(LOG_DIR, LOG_FILES[level]);
-    const formattedMessage = `[${getTimestamp()}] ${level.toUpperCase().padEnd(8)} ${message}\n`;
+// Create singleton instance
+const logger = new Logger();
 
-    rotateLogFile(filePath);
-    
-    try {
-        fs.appendFileSync(filePath, formattedMessage);
-    } catch (error) {
-        console.error('Error writing to log file:', error);
-    }
-}
+// Export the logger instance
+module.exports = logger;
 
-// Log with color to console and file
-function logWithColor(level, color, ...args) {
-    const message = formatMessage(...args);
-    const coloredMessage = `${COLORS[color]}${message}${COLORS.end}`;
-    
-    // Console output
-    console.log(coloredMessage);
-    
-    // File output
-    writeToFile(level, message);
-}
+// Also export the Logger class for extensibility
+module.exports.Logger = Logger;
 
-// Export logging functions
-export default {
-    info(...args) {
-        logWithColor('info', 'cyan', ...args);
-    },
-
-    error(...args) {
-        logWithColor('error', 'red', ...args);
-    },
-
-    warning(...args) {
-        logWithColor('warning', 'yellow', ...args);
-    },
-
-    debug(...args) {
-        logWithColor('debug', 'white', ...args);
-    },
-
-    success(...args) {
-        logWithColor('info', 'green', ...args);
-    }
-}; 
+// Export utility functions
+module.exports.createScopedLogger = (scope) => logger.createScopedLogger(scope);
+module.exports.setLogLevel = (level) => logger.setLogLevel(level);
+module.exports.setDebugMode = (enabled) => logger.setDebugMode(enabled); 

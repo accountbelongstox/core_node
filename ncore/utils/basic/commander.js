@@ -1,22 +1,22 @@
-import { execSync, spawn, spawnSync } from 'child_process';
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
+const { execSync, spawn, spawnSync } = require('child_process');
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
 
 const initialWorkingDirectory = process.cwd();
 
 // Platform detection
-export function getPlatformShell() {
+function getPlatformShell() {
     return process.platform === 'win32' ? 
         { shell: true, command: 'cmd.exe', args: ['/c'] } : 
         { shell: '/bin/sh', command: '/bin/sh', args: ['-c'] };
 }
 
-export function isLinux() {
+function isLinux() {
     return process.platform === 'linux';
 }
 
-export function byteToStr(astr) {
+function byteToStr(astr) {
     try {
         return astr.toString('utf-8');
     } catch (e) {
@@ -28,7 +28,7 @@ export function byteToStr(astr) {
     }
 }
 
-export function wrapEmdResult(success = true, stdout = '', error = null, code = 0, info = true) {
+function wrapEmdResult(success = true, stdout = '', error = null, code = 0, info = true) {
     stdout = byteToStr(stdout);
     error = byteToStr(stdout);
     if (info) {
@@ -43,7 +43,7 @@ export function wrapEmdResult(success = true, stdout = '', error = null, code = 
     };
 }
 
-export function execCmd(command, info = false, cwd = null, logname = null) {
+function execCmd(command, info = false, cwd = null, logname = null) {
     if (Array.isArray(command)) {
         command = command.join(" ");
     }
@@ -86,7 +86,7 @@ export function execCmd(command, info = false, cwd = null, logname = null) {
     return resultText;
 }
 
-export async function execCommand(command, info = true, cwd = null, logname = null) {
+async function execCommand(command, info = true, cwd = null, logname = null) {
     if (Array.isArray(command)) {
         command = command.join(" ");
     }
@@ -144,7 +144,7 @@ export async function execCommand(command, info = true, cwd = null, logname = nu
     });
 }
 
-export async function spawnAsync(command, info = true, cwd = null, logname = null, callback, timeout = 5000, progressCallback = null) {
+async function spawnAsync(command, info = true, cwd = null, logname = null, callback, timeout = 5000, progressCallback = null) {
     let cmd = '';
     let args = [];
 
@@ -227,7 +227,7 @@ export async function spawnAsync(command, info = true, cwd = null, logname = nul
     });
 }
 
-export function findPowerShellPath() {
+function findPowerShellPath() {
     if (process.platform !== 'win32') {
         return null;
     }
@@ -244,7 +244,7 @@ export function findPowerShellPath() {
     return null;
 }
 
-export function execPowerShell(command, info = false, cwd = null, no_std = false, cmdEnv = null) {
+function execPowerShell(command, info = false, cwd = null, no_std = false, cmdEnv = null) {
     if (process.platform !== 'win32') {
         console.error('PowerShell commands are only supported on Windows');
         return null;
@@ -280,7 +280,7 @@ export function execPowerShell(command, info = false, cwd = null, no_std = false
     }
 }
 
-export function pipeExecCmd(command, useShell = true, cwd = null, inheritIO = true, env = process.env) {
+function pipeExecCmd(command, useShell = true, cwd = null, inheritIO = true, env = process.env) {
     try {
         const platformShell = getPlatformShell();
         const options = {
@@ -302,6 +302,20 @@ export function pipeExecCmd(command, useShell = true, cwd = null, inheritIO = tr
     }
 }
 
-export function pipeExecCmdAsync(command, useShell = true, cwd = null, inheritIO = true, env = process.env) {
+function pipeExecCmdAsync(command, useShell = true, cwd = null, inheritIO = true, env = process.env) {
     return spawnAsync(command, useShell, cwd, inheritIO, env);
 }
+
+module.exports = {
+    getPlatformShell,
+    isLinux,
+    byteToStr,
+    wrapEmdResult,
+    execCmd,
+    execCommand,
+    spawnAsync,
+    findPowerShellPath,
+    execPowerShell,
+    pipeExecCmd,
+    pipeExecCmdAsync
+};

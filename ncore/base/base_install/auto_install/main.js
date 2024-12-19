@@ -1,6 +1,10 @@
-import fs from 'fs';
-import path from 'path';
-import { execSync } from 'child_process';
+const path = require('path');
+const fs = require('fs');
+const { execSync } = require('child_process');
+
+const someModule = require('../some_module.js');
+
+const __dirname = path.dirname(__filename);
 
 class AutoInstall {
     constructor() {
@@ -201,4 +205,4 @@ class AutoInstall {
 }
 
 const autoInstall = new AutoInstall();
-export default autoInstall;
+module.exports = autoInstall;

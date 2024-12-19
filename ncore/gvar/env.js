@@ -1,13 +1,12 @@
-import fs from 'fs';
-import path from 'path';
-import process from 'process';
-import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const fs = require('fs');
+const path = require('path');
+const process = require('process');
+
 const grandparentDir = path.dirname(path.dirname(__dirname));
 const grandparentRootDir = grandparentDir;
 const DEFAULT_ROOT_DIR = grandparentRootDir
 const DEBUG_PRINT = false;
+
 const infoByDebug = (msg) => {
     if (DEBUG_PRINT) {
         console.log(msg);
@@ -20,7 +19,7 @@ const errorByDebug = (msg) => {
     }
 }   
 
-export class EnvManager {
+class EnvManager {
     static MAX_QUEUE_SIZE = 100;
     #envObjects = [];
     #currentIndex = 0;
@@ -313,18 +312,21 @@ export class EnvManager {
 function normalizePath(path) {
     return path.replace(/\\/g, '/');
 }
+
 // Create default instance
 const defaultInstance = new EnvManager();
 
-const mateUrlNormal = normalizePath(import.meta.url).replace('file://', '').replace(/^\/+/, '')
+const mateUrlNormal = normalizePath(__filename).replace('file://', '').replace(/^\/+/, '')
 const processUrlNormal = normalizePath(process.argv[1]).replace('file://', '')
+
 // Run tests if this file is executed directly
 if (mateUrlNormal == processUrlNormal) {
     console.log(`mergedEnvValues`);
     defaultInstance.addRootDir("./");
-    const mergedEnvValues = defaultInstance.getMergedEnvValues();
+    const mergedEnvValues = defaultInstance.getEnvValues();
     console.log(`mergedEnvValues`);
     console.log(mergedEnvValues);
 }
 
-export default defaultInstance;
+module.exports = defaultInstance;
+exports.EnvManager = EnvManager;

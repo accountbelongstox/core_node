@@ -1,61 +1,64 @@
-import { EventEmitter } from 'events';
-import { Worker } from './worker.js';
-import logger from '../logger/logger.js';
-import config from '../../config/index.js';
+const EventEmitter = require('events').EventEmitter;
+    const { Worker } = require('./worker.js');
+    const logger = require('../logger/logger.js');
+    const config = require('../../config/index.js');
 
-class JobQueue extends EventEmitter {
-    #jobs = [];
-    #worker = null;
-    #isRunning = false;
-
-    start = () => {
-        if (this.#isRunning) {
-            return;
+    class JobQueue extends EventEmitter {
+        constructor() {
+            super();
+            this.#jobs = [];
+            this.#worker = null;
+            this.#isRunning = false;
         }
 
-        this.#isRunning = true;
-        this.#worker = new Worker(this);
-        this.#worker.start();
-        logger.info('Job queue started');
-    }
+        start() {
+            if (this.#isRunning) {
+                return;
+            }
 
-    shutdown = () => {
-        if (!this.#isRunning) {
-            return Promise.reject(new Error('Job queue is not running'));
+            this.#isRunning = true;
+            this.#worker = new Worker(this);
+            this.#worker.start();
+            logger.info('Job queue started');
         }
 
-        this.#isRunning = false;
-        if (this.#worker) {
-            this.#worker.stop();
+        shutdown() {
+            if (!this.#isRunning) {
+                return Promise.reject(new Error('Job queue is not running'));
+            }
+
+            this.#isRunning = false;
+            if (this.#worker) {
+                this.#worker.stop();
+            }
+            logger.info('Job queue stopped');
+            return Promise.resolve();
         }
-        logger.info('Job queue stopped');
-        return Promise.resolve();
-    }
 
-    addJob = (job) => {
-        if (!this.#isRunning) {
-            return Promise.reject(new Error('Job queue is not running'));
+        addJob(job) {
+            if (!this.#isRunning) {
+                return Promise.reject(new Error('Job queue is not running'));
+            }
+
+            this.#jobs.push(job);
+            this.emit('jobAdded', job);
+            return Promise.resolve();
         }
-        
-        this.#jobs.push(job);
-        this.emit('jobAdded', job);
-        return Promise.resolve();
+
+        hasJobs() {
+            return this.#jobs.length > 0;
+        }
+
+        getNextJob() {
+            return this.#jobs.shift();
+        }
     }
 
-    hasJobs = () => {
-        return this.#jobs.length > 0;
-    }
+    const queue = new JobQueue();
 
-    getNextJob = () => {
-        return this.#jobs.shift();
-    }
-}
-
-const queue = new JobQueue();
-
-export default {
-    start: () => queue.start(),
-    shutdown: () => queue.shutdown(),
-    addJob: (job) => queue.addJob(job),
-    JobQueue
-}; 
+    module.exports = {
+        start: () => queue.start(),
+        shutdown: () => queue.shutdown(),
+        addJob: (job) => queue.addJob(job),
+        JobQueue
+    };

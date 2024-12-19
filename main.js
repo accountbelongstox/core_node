@@ -1,43 +1,84 @@
-import { sysarg, run } from '#@utils_native';
-import { appentry_es, } from './ncore/globalvars.js';
-import printer from '#@/ncore/base/printer.js';
-const DEBUG_PRINT = false;
-const infoByDebug = (msg) => {
-    if (DEBUG_PRINT) {
-        console.log(msg);
-    }
-} 
+const { sysarg } = require('#@utils_native');
+const logger = require('#@utils_logger');
+const path = require('path');
+const fs = require('fs');
 
-// const role = sysarg.getArg('role');
-// const action = sysarg.getArg('action');
-// console.log(`role ${role}`)
-// console.log(`action ${action}`)
-try {
-  if (typeof ReadableStream === 'undefined') {
-    const { ReadableStream } = await import('web-streams-polyfill');
-    global.ReadableStream = ReadableStream;
-  }
-} catch (error) {
-  console.log(error)
-}
-class ClientMain {
-  // NCORE_DIR = './';
-  async start() {
-    // const entryModule = `${this.NCORE_DIR}${appentry}`;
-    infoByDebug('entryModule/appentry_es:' + appentry_es);
-    const appMain = await import(appentry_es);
-    infoByDebug(appMain)
-    if (!appMain.default || typeof appMain.default.start !== 'function') {
-      throw new Error('Imported module does not have a start method');
+// Constants
+const APP_DIR = path.join(__dirname, 'apps');
+const APP_NAME = sysarg.getArg('app');
+
+class Main {
+    constructor() {
+        this.app = null;
     }
 
-    await appMain.default.start();
-  }
-}
-if (!run.isAdmin()) {
-  console.error('\x1b[31m%s\x1b[0m', 'Please run as administrator to avoid potential issues: Unable to write to the registry, unable to enable system features, etc.');
-  console.error('\x1b[31m%s\x1b[0m', 'To run as administrator, right-click the script and select "Run as administrator".');
+    async start() {
+        try {
+            if (!APP_NAME) {
+                logger.error('Please specify app name using --app=<appname>');
+                process.exit(1);
+            }
+
+            const appPath = path.join(APP_DIR, APP_NAME);
+            if (!fs.existsSync(appPath)) {
+                logger.error(`App ${APP_NAME} not found in ${APP_DIR}`);
+                process.exit(1);
+            }
+
+            // Dynamically load app's main.js
+            const appMain = require(path.join(appPath, 'main.js'));
+            if (appMain.default) {
+                // Handle ES6 module conversion case
+                this.app = appMain.default;
+            } else {
+                this.app = appMain;
+            }
+
+            // Start the application
+            if (typeof this.app.start === 'function') {
+                await this.app.start();
+                logger.success(`App ${APP_NAME} started successfully`);
+            } else {
+                logger.error(`App ${APP_NAME} does not have a start method`);
+            }
+        } catch (error) {
+            logger.error('Failed to start app:', error);
+            process.exit(1);
+        }
+    }
+
+    async stop() {
+        if (this.app && typeof this.app.stop === 'function') {
+            await this.app.stop();
+            logger.info(`App ${APP_NAME} stopped`);
+        }
+    }
 }
 
-const client = new ClientMain()
-client.start()
+// Create instance
+const main = new Main();
+
+// Handle process signals
+process.on('SIGINT', async () => {
+    logger.info('Received SIGINT. Graceful shutdown...');
+    await main.stop();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    logger.info('Received SIGTERM. Graceful shutdown...');
+    await main.stop();
+    process.exit(0);
+});
+
+// Export class and instance
+module.exports = main;
+module.exports.Main = Main;
+
+// Execute if run directly
+if (require.main === module) {
+    main.start().catch(error => {
+        logger.error('Failed to start:', error);
+        process.exit(1);
+    });
+}

@@ -1,16 +1,16 @@
-import { execSync, spawn, spawnSync } from 'child_process';
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
-import readline from 'readline';
+const { execSync, spawn, spawnSync } = require('child_process');
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
+const readline = require('readline');
 
 const initialWorkingDirectory = process.cwd();
 
-export function isLinux() {
+exports.isLinux = function() {
     return process.platform === 'linux';
 }
 
-export function byteToStr(astr) {
+exports.byteToStr = function(astr) {
     try {
         return astr.toString('utf-8');
     } catch (e) {
@@ -22,9 +22,9 @@ export function byteToStr(astr) {
     }
 }
 
-export function wrapEmdResult(success = true, stdout = '', error = null, code = 0, info = true) {
-    stdout = byteToStr(stdout);
-    error = byteToStr(stdout);
+exports.wrapEmdResult = function(success = true, stdout = '', error = null, code = 0, info = true) {
+    stdout = exports.byteToStr(stdout);
+    error = exports.byteToStr(stdout);
     if (info) {
         console.info(stdout);
         console.warn(error);
@@ -37,7 +37,7 @@ export function wrapEmdResult(success = true, stdout = '', error = null, code = 
     };
 }
 
-export function execCmd(command, info = false, cwd = null, logname = null) {
+exports.execCmd = function(command, info = false, cwd = null, logname = null) {
     if (Array.isArray(command)) {
         command = command.join(" ");
     }
@@ -52,10 +52,10 @@ export function execCmd(command, info = false, cwd = null, logname = null) {
         options.cwd = cwd;
         process.chdir(cwd);
     }
-    const result = isLinux()
+    const result = exports.isLinux()
         ? execSync(command, { shell: '/bin/bash', ...options })
         : execSync(command, options);
-    const resultText = byteToStr(result);
+    const resultText = exports.byteToStr(result);
     if (logname) {
         fs.appendFileSync(path.join(process.cwd(), 'logs', `${logname}.log`), resultText + '\n');
     }
@@ -68,7 +68,7 @@ export function execCmd(command, info = false, cwd = null, logname = null) {
     return resultText;
 }
 
-export async function execCommand(command, info = true, cwd = null, logname = null) {
+exports.execCommand = async function(command, info = true, cwd = null, logname = null) {
     if (Array.isArray(command)) {
         command = command.join(" ");
     }
@@ -81,21 +81,21 @@ export async function execCommand(command, info = true, cwd = null, logname = nu
             options.cwd = cwd;
             process.chdir(cwd);
         }
-        const childProcess = isLinux()
+        const childProcess = exports.isLinux()
             ? spawnSync('/bin/bash', ['-c', command], options)
             : spawnSync(command, options);
 
         let stdoutData = '';
         let stderrData = '';
         childProcess.stdout.on('data', (data) => {
-            const output = byteToStr(data);
+            const output = exports.byteToStr(data);
             if (info) {
                 console.log(output);
             }
             stdoutData += output;
         });
         childProcess.stderr.on('data', (data) => {
-            const error = byteToStr(data);
+            const error = exports.byteToStr(data);
             if (info) {
                 console.warn(error);
             }
@@ -107,19 +107,19 @@ export async function execCommand(command, info = true, cwd = null, logname = nu
                 fs.appendFileSync(path.join(process.cwd(), 'logs', `${logname}.log`), stdoutData + '\n');
             }
             if (code === 0) {
-                resolve(wrapEmdResult(true, stdoutData, null, 0, info));
+                resolve(exports.wrapEmdResult(true, stdoutData, null, 0, info));
             } else {
-                resolve(wrapEmdResult(false, stdoutData, stderrData, code, info));
+                resolve(exports.wrapEmdResult(false, stdoutData, stderrData, code, info));
             }
         });
         childProcess.on('error', (err) => {
             process.chdir(initialWorkingDirectory);
-            resolve(wrapEmdResult(false, stdoutData, err, -1, info));
+            resolve(exports.wrapEmdResult(false, stdoutData, err, -1, info));
         });
     });
 }
 
-export async function spawnAsync(command, info = true, cwd = null, logname = null, callback, timeout = 5000, progressCallback = null) {
+exports.spawnAsync = async function(command, info = true, cwd = null, logname = null, callback, timeout = 5000, progressCallback = null) {
     let cmd = '';
     let args = [];
     if (typeof command === 'string') {
@@ -154,7 +154,7 @@ export async function spawnAsync(command, info = true, cwd = null, logname = nul
             }
             timer = setTimeout(() => {
                 if (!callbackExecuted) {
-                    if (callback) callback(wrapEmdResult(true, stdoutData, null, 0, info));
+                    if (callback) callback(exports.wrapEmdResult(true, stdoutData, null, 0, info));
                     callbackExecuted = true;
                 }
             }, timeout);
@@ -188,20 +188,20 @@ export async function spawnAsync(command, info = true, cwd = null, logname = nul
         childProcess.on('close', (code) => {
             process.chdir(initialWorkingDirectory);
             if (code === 0) {
-                resolve(wrapEmdResult(true, stdoutData, null, 0, info));
+                resolve(exports.wrapEmdResult(true, stdoutData, null, 0, info));
             } else {
-                resolve(wrapEmdResult(false, stdoutData, stderrData, code, info));
+                resolve(exports.wrapEmdResult(false, stdoutData, stderrData, code, info));
             }
         });
 
         childProcess.on('error', (err) => {
             process.chdir(initialWorkingDirectory);
-            resolve(wrapEmdResult(false, stdoutData, err, -1, info));
+            resolve(exports.wrapEmdResult(false, stdoutData, err, -1, info));
         });
     });
 }
 
-export function findPowerShellPath() {
+exports.findPowerShellPath = function() {
     const standardPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
     const corePath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
 
@@ -215,8 +215,8 @@ export function findPowerShellPath() {
     }
 }
 
-export function execPowerShell(command, info = false, cwd = null, no_std = false, env = null) {
-    const powershellPath = findPowerShellPath();
+exports.execPowerShell = function(command, info = false, cwd = null, no_std = false, env = null) {
+    const powershellPath = exports.findPowerShellPath();
     if (!powershellPath) {
         console.error('PowerShell path is not set.');
         return null;
@@ -227,5 +227,5 @@ export function execPowerShell(command, info = false, cwd = null, no_std = false
     }
     command = command.trim();
     const fullCommand = `${powershellPath} -Command "${command}"`;
-    return execCmd(fullCommand, info, cwd, no_std, env);
+    return exports.execCmd(fullCommand, info, cwd, no_std, env);
 }
