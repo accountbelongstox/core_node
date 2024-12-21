@@ -156,7 +156,7 @@ class RepoManager:
     def _get_repos(self):
         """Get repository URLs based on system type"""
         base_repos = [
-            'https://git.local.12gm.com:901/adminroot/core_node.git',
+            'http://git.local.12gm.com:801/adminroot/core_node.git',
             'https://gitee.com/accountbelongstox/core_node.git'
         ]
 
@@ -168,7 +168,7 @@ class RepoManager:
                 if 'git.local.12gm.com' in repo:
                     # Replace domain and port with OpenWRT-specific address
                     repo = repo.replace(
-                        'git.local.12gm.com:901', 
+                        'git.local.12gm.com:801', 
                         '192.168.100.1:17003'
                     )
                 repos.append(repo)
