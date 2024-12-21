@@ -66,52 +66,80 @@ class GitInstaller:
         self.package_manager = self.system_checker.get_package_manager()
 
     async def is_git_installed(self):
-        try:
-            process = await asyncio.create_subprocess_shell(
-                'git --version',
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, _ = await process.communicate()
-            return process.returncode == 0
-        except:
-            return False
+        success, output, _ = await execute_shell_command(
+            'git --version', 
+            show_output=False
+        )
+        return success
 
     async def get_git_version(self):
-        process = await asyncio.create_subprocess_shell(
+        success, output, _ = await execute_shell_command(
             'git --version',
-            stdout=asyncio.subprocess.PIPE
+            show_output=False
         )
-        stdout, _ = await process.communicate()
-        return stdout.decode().strip()
+        return output if success else ''
 
     async def install_git(self):
         if not self.package_manager:
             raise Exception("Unsupported system")
 
+        if self.system_checker.get_system_info() == 'openwrt':
+            # Special handling for OpenWRT
+            commands = [
+                'opkg update',
+                'opkg install git git-http',  # Install both git and git-http
+                'opkg install ca-certificates', # Required for HTTPS
+                'opkg install libustream-openssl' # SSL support
+            ]
+            
+            for cmd in commands:
+                success, output, error = await execute_shell_command(cmd)
+                if not success:
+                    raise Exception(f"Failed to execute {cmd}: {error}")
+                print(output)
+            
+            return
+
+        # For other systems
         commands = {
             'apt-get': 'apt-get update && apt-get install -y git',
             'yum': 'yum install -y git',
-            'opkg': 'opkg update && opkg install git',
             'winget': 'winget install --id Git.Git -e --source winget'
         }
 
         command = commands.get(self.package_manager)
-        process = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        await process.communicate()
+        success, output, error = await execute_shell_command(command)
+        if not success:
+            raise Exception(f"Failed to install git: {error}")
 
 class RepoManager:
     def __init__(self):
         self.config = Config()
         self.system_checker = SystemChecker()
-        self.repos = [
+        self.repos = self._get_repos()
+
+    def _get_repos(self):
+        """Get repository URLs based on system type"""
+        base_repos = [
             'https://git.local.12gm.com:901/adminroot/core_node.git',
-            'git@gitee.com:accountbelongstox/core_node.git'
+            'https://gitee.com/accountbelongstox/core_node.git'
         ]
+
+        # Special handling for OpenWRT
+        if self.system_checker.get_system_info() == 'openwrt':
+            # Replace git.local.12gm.com with direct IP for OpenWRT
+            repos = []
+            for repo in base_repos:
+                if 'git.local.12gm.com' in repo:
+                    # Replace domain and port with OpenWRT-specific address
+                    repo = repo.replace(
+                        'git.local.12gm.com:901', 
+                        '192.168.100.1:17003'
+                    )
+                repos.append(repo)
+            return repos
+
+        return base_repos
 
     def check_repo_exists(self, path):
         if not os.path.exists(path):
@@ -194,6 +222,65 @@ class InitialManager:
         except Exception as e:
             print(f"Error during initialization: {e}")
             raise
+
+async def execute_shell_command(command, cwd=None, show_output=True):
+    """
+    Execute shell command and return result
+    Args:
+        command: Command to execute
+        cwd: Working directory
+        show_output: Whether to print output in real time
+    Returns:
+        tuple: (success, output_str, error_str)
+    """
+    try:
+        process = await asyncio.create_subprocess_shell(
+            command,
+            cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            shell=True
+        )
+
+        # Store complete output
+        output_lines = []
+        error_lines = []
+
+        # Read stdout and stderr concurrently
+        while True:
+            # Read one line from stdout and stderr
+            stdout_line = await process.stdout.readline()
+            stderr_line = await process.stderr.readline()
+
+            if not stdout_line and not stderr_line and process.returncode is not None:
+                break
+
+            # Handle stdout
+            if stdout_line:
+                line = stdout_line.decode('utf-8').rstrip()
+                if show_output:
+                    print(line)
+                output_lines.append(line)
+
+            # Handle stderr
+            if stderr_line:
+                line = stderr_line.decode('utf-8').rstrip()
+                if show_output:
+                    print(f"ERROR: {line}", file=sys.stderr)
+                error_lines.append(line)
+
+        # Wait for process to complete
+        await process.wait()
+
+        # Join all lines with newlines
+        output_str = '\n'.join(output_lines)
+        error_str = '\n'.join(error_lines)
+
+        success = process.returncode == 0
+        return success, output_str, error_str
+
+    except Exception as e:
+        return False, '', str(e)
 
 if __name__ == "__main__":
     initializer = InitialManager()
