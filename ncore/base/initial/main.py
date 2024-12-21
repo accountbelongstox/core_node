@@ -7,7 +7,6 @@ from pathlib import Path
 
 class SystemChecker:
     def check_command_exists(self, command):
-        """Check if a command exists in system PATH"""
         try:
             subprocess.run([command, '--version'], 
                          stdout=subprocess.PIPE, 
@@ -18,18 +17,21 @@ class SystemChecker:
             return False
 
     def get_system_info(self):
-        """Detect system type by checking package managers"""
         system = platform.system().lower()
+        ColorPrinter.info(f"Detecting system type...")
         
         if system == 'linux':
-            # Check package managers directly
             if self.check_command_exists('opkg'):
+                ColorPrinter.success("Detected OpenWRT system")
                 return 'openwrt'
             elif self.check_command_exists('apt-get'):
+                ColorPrinter.success("Detected Debian/Ubuntu system")
                 return 'debian'
             elif self.check_command_exists('yum'):
+                ColorPrinter.success("Detected CentOS/RHEL system")
                 return 'rhel'
         
+        ColorPrinter.success(f"Detected {system} system")
         return system
 
     def get_package_manager(self):
@@ -81,23 +83,26 @@ class GitInstaller:
 
     async def install_git(self):
         if not self.package_manager:
+            ColorPrinter.error("No supported package manager found")
             raise Exception("Unsupported system")
 
         if self.system_checker.get_system_info() == 'openwrt':
-            # Special handling for OpenWRT
+            ColorPrinter.info("Installing Git and dependencies for OpenWRT...")
             commands = [
                 'opkg update',
-                'opkg install git git-http',  # Install both git and git-http
-                'opkg install ca-certificates', # Required for HTTPS
-                'opkg install libustream-openssl' # SSL support
+                'opkg install git git-http',
+                'opkg install ca-certificates',
+                'opkg install libustream-openssl'
             ]
             
             for cmd in commands:
+                ColorPrinter.info(f"Running: {cmd}")
                 success, output, error = await execute_shell_command(cmd)
                 if not success:
+                    ColorPrinter.error(f"Command failed: {cmd}")
+                    ColorPrinter.error(f"Error: {error}")
                     raise Exception(f"Failed to execute {cmd}: {error}")
-                print(output)
-            
+                ColorPrinter.success(f"Successfully executed: {cmd}")
             return
 
         # For other systems
@@ -152,25 +157,27 @@ class RepoManager:
 
     async def clone_repo(self):
         path = self.config.get_core_node_path()
+        ColorPrinter.info(f"Preparing to clone repository to: {path}")
         os.makedirs(path, exist_ok=True)
 
         for repo in self.repos:
+            ColorPrinter.info(f"Attempting to clone from: {repo}")
             try:
-                process = await asyncio.create_subprocess_shell(
+                success, output, error = await execute_shell_command(
                     f'git clone {repo} {path}',
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    show_output=True
                 )
-                _, stderr = await process.communicate()
                 
-                if process.returncode == 0:
-                    print(f"Successfully cloned from {repo}")
+                if success:
+                    ColorPrinter.success(f"Successfully cloned repository from {repo}")
                     return True
                 else:
-                    print(f"Failed to clone from {repo}: {stderr.decode()}")
+                    ColorPrinter.warn(f"Failed to clone from {repo}")
+                    ColorPrinter.error(f"Error: {error}")
             except Exception as e:
-                print(f"Error cloning from {repo}: {e}")
+                ColorPrinter.error(f"Exception while cloning: {str(e)}")
 
+        ColorPrinter.error("Failed to clone from all available repositories")
         raise Exception("Failed to clone from all repositories")
 
     async def initialize_repo(self):
@@ -178,20 +185,20 @@ class RepoManager:
         path = self.config.get_core_node_path()
         
         if system == 'windows':
-            print("Windows system detected, skipping dd.sh execution")
+            ColorPrinter.info("Windows system detected, skipping dd.sh execution")
             return
 
         dd_script = os.path.join(path, 'dd.sh')
         if os.path.exists(dd_script):
-            process = await asyncio.create_subprocess_shell(
+            ColorPrinter.info("Found dd.sh script, executing...")
+            success, output, error = await execute_shell_command(
                 f'bash {dd_script}',
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                show_output=True
             )
-            stdout, stderr = await process.communicate()
-            print(stdout.decode())
-            if stderr:
-                print(f"Errors during initialization: {stderr.decode()}")
+            if success:
+                ColorPrinter.success("Successfully executed dd.sh")
+            else:
+                ColorPrinter.error(f"Errors during dd.sh execution: {error}")
 
 class InitialManager:
     def __init__(self):
@@ -202,25 +209,38 @@ class InitialManager:
 
     async def start(self):
         try:
-            # 1. Check and install git
+            ColorPrinter.info("=== Starting Core Node Initialization ===")
+            
+            # 1. Git Installation Check
+            ColorPrinter.info("Step 1: Checking Git installation...")
             if not await self.git_installer.is_git_installed():
-                print("Git not found, installing...")
+                ColorPrinter.warn("Git not found in system")
+                ColorPrinter.info("Installing Git...")
                 await self.git_installer.install_git()
+                ColorPrinter.success("Git installation completed")
             else:
                 version = await self.git_installer.get_git_version()
-                print(f"Git is already installed: {version}")
+                ColorPrinter.success(f"Git is already installed (version: {version})")
 
-            # 2. Check and clone repository
+            # 2. Repository Check
+            ColorPrinter.info("\nStep 2: Checking Core Node repository...")
             core_node_path = self.config.get_core_node_path()
             if not self.repo_manager.check_repo_exists(core_node_path):
-                print(f"Core node repository not found at {core_node_path}")
+                ColorPrinter.warn(f"Repository not found at: {core_node_path}")
+                ColorPrinter.info("Cloning repository...")
                 await self.repo_manager.clone_repo()
+            else:
+                ColorPrinter.success(f"Repository exists at: {core_node_path}")
             
-            # 3. Initialize repository
+            # 3. Repository Initialization
+            ColorPrinter.info("\nStep 3: Initializing repository...")
             await self.repo_manager.initialize_repo()
+            ColorPrinter.success("Repository initialization completed")
+
+            ColorPrinter.success("\n=== Core Node Initialization Completed Successfully ===")
 
         except Exception as e:
-            print(f"Error during initialization: {e}")
+            ColorPrinter.error(f"\nInitialization failed: {str(e)}")
             raise
 
 async def execute_shell_command(command, cwd=None, show_output=True):
@@ -281,6 +301,34 @@ async def execute_shell_command(command, cwd=None, show_output=True):
 
     except Exception as e:
         return False, '', str(e)
+
+class ColorPrinter:
+    """Utility class for colored console output"""
+    COLORS = {
+        'HEADER': '\033[95m',
+        'INFO': '\033[94m',
+        'SUCCESS': '\033[92m',
+        'WARNING': '\033[93m',
+        'ERROR': '\033[91m',
+        'ENDC': '\033[0m',
+        'BOLD': '\033[1m'
+    }
+
+    @staticmethod
+    def info(message):
+        print(f"{ColorPrinter.COLORS['INFO']}[INFO] {message}{ColorPrinter.COLORS['ENDC']}")
+
+    @staticmethod
+    def warn(message):
+        print(f"{ColorPrinter.COLORS['WARNING']}[WARNING] {message}{ColorPrinter.COLORS['ENDC']}")
+
+    @staticmethod
+    def error(message):
+        print(f"{ColorPrinter.COLORS['ERROR']}[ERROR] {message}{ColorPrinter.COLORS['ENDC']}")
+
+    @staticmethod
+    def success(message):
+        print(f"{ColorPrinter.COLORS['SUCCESS']}[SUCCESS] {message}{ColorPrinter.COLORS['ENDC']}")
 
 if __name__ == "__main__":
     initializer = InitialManager()
