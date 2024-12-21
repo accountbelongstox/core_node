@@ -18,7 +18,8 @@ docker run -d \
   -v /mnt/sdb/www/docker/nginx-proxy-manager/data:/data \
   -v /mnt/sdb/www/docker/nginx-proxy-manager/letsencrypt:/etc/letsencrypt \
   jc21/nginx-proxy-manager:latest
-
+  
+vi data/gitea/gitea/conf/app.ini  中 SSH_PORT = 17004 / SSH_LISTEN_PORT = 22 前面为显示端口，后面为监听端口.
 docker run -d --name gitea --restart always -p 17003:3000 -p 17004:22 -v /mnt/sdb/data/gitea:/data gitea/gitea:latest
 
 docker run -d \
