@@ -22,7 +22,7 @@ docker run -d \
 docker run -d \
   --name gitea \
   --restart always \
-  -p 17003:22 \
+  -p 17003:17003 \
   -p 17004:3000 \
   -v /mnt/sdb/data/gitea:/data \
   gitea/gitea:latest
@@ -40,7 +40,6 @@ docker run -d --name registry-ui -p 17006:80 --restart=on-failure \
   -e REGISTRY_DOMAIN=192.168.100.1:17005 \
   -e REGISTRY_STORAGE_DELETE_ENABLED=true \
   jc21/registry-ui
-
 
 
 
