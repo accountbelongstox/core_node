@@ -1,6 +1,6 @@
 @echo off
 SETLOCAL EnableDelayedExpansion
-set new_remote=ssh://git@git.local.12gm.com:5022/adminroot/core_node.git
+set new_remote=ssh://git@git.local.12gm.com:17003/adminroot/core_node.git
 
 REM Function to get the current timestamp
 for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1) do rem"') do (
