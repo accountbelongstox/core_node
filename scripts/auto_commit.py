@@ -173,7 +173,7 @@ def commit_and_push(remote_name='origin', branch='main'):
 def setup_multiple_remotes():
     """Setup multiple git remote repositories and commit changes"""
     remote_urls = {
-        'local': 'ssh://git@git.local.12gm.com:5022/adminroot/node_spider.git',
+        'local': 'ssh://git@git.local.12gm.com:5022/adminroot/core_node.git',
         'gitee': 'git@gitee.com:accountbelongstox/core_node.git'
     }
 
