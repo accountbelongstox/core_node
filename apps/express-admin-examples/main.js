@@ -5,7 +5,7 @@ const config = require('./config/sqlite/config.js');
 const custom = require('./config/custom.js');
 const logger = require('#@/ncore/utils/logger/index.js');
 const path = require('path');
-const staticPaths = require('./config/sqlite/static_paths');
+const staticPaths = require('../VoiceStaticServer/config/static_paths.js');
 
 var name = `sqlite`;
 if (!name) {
