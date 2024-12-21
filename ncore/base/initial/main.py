@@ -61,6 +61,20 @@ class GitInstaller:
     def __init__(self):
         self.system_checker = SystemChecker()
         self.package_manager = self.system_checker.get_package_manager()
+        self.openwrt_packages = {
+            'git': 'Basic git functionality',
+            'git-http': 'Git HTTP/HTTPS support',
+            'ca-certificates': 'SSL certificates',
+            'libustream-openssl': 'SSL library'
+        }
+
+    def check_openwrt_package(self, package):
+        """Check if a package is installed on OpenWRT"""
+        success, output, _ = execute_shell_command(
+            f'opkg list-installed | grep "^{package} "',
+            show_output=False
+        )
+        return success
 
     def is_git_installed(self):
         success, output, _ = execute_shell_command(
@@ -76,30 +90,52 @@ class GitInstaller:
         )
         return output if success else ''
 
+    def check_openwrt_dependencies(self):
+        """Check all OpenWRT dependencies regardless of git status"""
+        ColorPrinter.info("Checking OpenWRT dependencies...")
+        missing_packages = []
+        
+        for package, description in self.openwrt_packages.items():
+            ColorPrinter.info(f"Checking {package} ({description})...")
+            if not self.check_openwrt_package(package):
+                ColorPrinter.warn(f"{package} not found")
+                missing_packages.append(package)
+            else:
+                ColorPrinter.success(f"{package} is already installed")
+        
+        return missing_packages
+
+    def install_missing_packages(self, packages):
+        """Install specified missing packages"""
+        if packages:
+            ColorPrinter.info("Updating package lists...")
+            success, _, error = execute_shell_command('opkg update')
+            if not success:
+                ColorPrinter.error("Failed to update package lists")
+                raise Exception(f"opkg update failed: {error}")
+            
+            for package in packages:
+                ColorPrinter.info(f"Installing {package}...")
+                success, output, error = execute_shell_command(f'opkg install {package}')
+                if not success:
+                    ColorPrinter.error(f"Failed to install {package}")
+                    raise Exception(f"Failed to install {package}: {error}")
+                ColorPrinter.success(f"Successfully installed {package}")
+        else:
+            ColorPrinter.success("All required packages are already installed")
+
     def install_git(self):
         if not self.package_manager:
             ColorPrinter.error("No supported package manager found")
             raise Exception("Unsupported system")
 
         if self.system_checker.get_system_info() == 'openwrt':
-            ColorPrinter.info("Installing Git and dependencies for OpenWRT...")
-            commands = [
-                'opkg update',
-                'opkg install git git-http',
-                'opkg install ca-certificates',
-                'opkg install libustream-openssl'
-            ]
-            
-            for cmd in commands:
-                ColorPrinter.info(f"Running: {cmd}")
-                success, output, error = execute_shell_command(cmd)
-                if not success:
-                    ColorPrinter.error(f"Command failed: {cmd}")
-                    ColorPrinter.error(f"Error: {error}")
-                    raise Exception(f"Failed to execute {cmd}: {error}")
-                ColorPrinter.success(f"Successfully executed: {cmd}")
+            # Always check all dependencies
+            missing_packages = self.check_openwrt_dependencies()
+            self.install_missing_packages(missing_packages)
             return
 
+        # For other systems...
         commands = {
             'apt-get': 'apt-get update && apt-get install -y git',
             'yum': 'yum install -y git',
