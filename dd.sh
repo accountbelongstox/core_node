@@ -37,7 +37,7 @@ if [ ! -d "$GLOBAL_VAR_DIR" ]; then
 fi
 
 # Store script directory path in global variables
-echo "$SCRIPT_DIR" | sudo tee "$GLOBAL_VAR_DIR/SCRIPT_ROOT_DIR" > /dev/null
+echo "$SCRIPT_DIR" | $sudo tee "$GLOBAL_VAR_DIR/SCRIPT_ROOT_DIR" > /dev/null
 echo "Stored script root directory path in global variables"
 
 # Store common script directories
@@ -46,7 +46,7 @@ COMMON_SCRIPTS_DIR="$CONF_DIR/shells/scripts"
 
 # Store common shells directory path
 if [ -d "$COMMON_SHELLS_DIR" ]; then
-    echo "$COMMON_SHELLS_DIR" | sudo tee "$GLOBAL_VAR_DIR/COMMON_SHELLS_DIR" > /dev/null
+    echo "$COMMON_SHELLS_DIR" | $sudo tee "$GLOBAL_VAR_DIR/COMMON_SHELLS_DIR" > /dev/null
     echo "Stored common shells directory path in global variables"
 else
     echo "Warning: Common shells directory not found at $COMMON_SHELLS_DIR"
@@ -54,7 +54,7 @@ fi
 
 # Store common scripts directory path
 if [ -d "$COMMON_SCRIPTS_DIR" ]; then
-    echo "$COMMON_SCRIPTS_DIR" | sudo tee "$GLOBAL_VAR_DIR/COMMON_SCRIPTS_DIR" > /dev/null
+    echo "$COMMON_SCRIPTS_DIR" | $sudo tee "$GLOBAL_VAR_DIR/COMMON_SCRIPTS_DIR" > /dev/null
     echo "Stored common scripts directory path in global variables"
 else
     echo "Warning: Common scripts directory not found at $COMMON_SCRIPTS_DIR"
