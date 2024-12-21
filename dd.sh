@@ -6,10 +6,33 @@ SHELLS_DIR="$DEPLOY_DIR/shells"
 script_symlink_path="/usr/bin/dd.sh"
 script_path="$(readlink -f "$0")"
 
+check_and_install_sudo() {
+    if ! command -v sudo > /dev/null 2>&1; then
+        echo "sudo not found. Attempting to install..."
+        if install_package "sudo"; then
+            echo "sudo installed successfully."
+        else
+            echo "Failed to install sudo. Commands will be run without sudo."
+            sudo=""
+            return
+        fi
+    fi
+
+    if command -v sudo > /dev/null 2>&1; then
+        sudo="sudo"
+        echo "sudo is available and will be used."
+    else
+        sudo=""
+        echo "sudo is not available. Commands will be run without sudo."
+    fi
+}
+
+check_and_install_sudo
+
 # Create global variable directory and store script directory path
 GLOBAL_VAR_DIR="/usr/script_global_var"
 if [ ! -d "$GLOBAL_VAR_DIR" ]; then
-    sudo mkdir -p "$GLOBAL_VAR_DIR"
+    $sudo mkdir -p "$GLOBAL_VAR_DIR"
     echo "Created global variable directory: $GLOBAL_VAR_DIR"
 fi
 
@@ -37,52 +60,6 @@ else
     echo "Warning: Common scripts directory not found at $COMMON_SCRIPTS_DIR"
 fi
 
-install_git() {
-    if command -v git &>/dev/null; then
-        echo "Git is already installed."
-        return 0
-    fi
-
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        OS=$ID
-    elif [ -f /etc/centos-release ]; then
-        OS="centos"
-    elif [ -f /etc/openwrt_release ]; then
-        OS="openwrt"
-    else
-        echo "Unsupported operating system."
-        return 1
-    fi
-
-    case $OS in
-    debian | ubuntu)
-        echo "Installing git on Debian/Ubuntu..."
-        apt-get update -y && apt-get install -y git
-        ;;
-    centos | rocky | almalinux)
-        echo "Installing git on CentOS/RHEL..."
-        yum install -y git
-        ;;
-    openwrt)
-        echo "Installing git on OpenWRT..."
-        opkg update && opkg install git
-        ;;
-    *)
-        echo "Unsupported OS: $OS"
-        return 1
-        ;;
-    esac
-    if command -v git &>/dev/null; then
-        echo "Git installation successful."
-        return 0
-    else
-        echo "Git installation failed."
-        return 1
-    fi
-}
-
-install_git
 
 make_sh_executable() {
     if [ -z "$SCRIPT_DIR" ]; then
@@ -121,28 +98,6 @@ install_package() {
     fi
     return 0
 }
-
-check_and_install_sudo() {
-    if ! command -v sudo > /dev/null 2>&1; then
-        echo "sudo not found. Attempting to install..."
-        if install_package "sudo"; then
-            echo "sudo installed successfully."
-        else
-            echo "Failed to install sudo. Commands will be run without sudo."
-            sudo=""
-            return
-        fi
-    fi
-
-    if command -v sudo > /dev/null 2>&1; then
-        sudo="sudo"
-        echo "sudo is available and will be used."
-    else
-        sudo=""
-        echo "sudo is not available. Commands will be run without sudo."
-    fi
-}
-
 check_and_install_dos2unix() {
     if ! command -v dos2unix &> /dev/null; then
         echo "dos2unix is not installed, attempting to install..."
@@ -168,7 +123,7 @@ fi
 if [ -e "$script_symlink_path" ]; then
   if [ ! -L "$script_symlink_path" ] || [ "$(readlink -f "$script_symlink_path")" != "$script_path" ]; then
     echo "Removing existing $script_symlink_path as it is not a symlink to the current script."
-    sudo rm -f "$script_symlink_path"
+    $sudo rm -f "$script_symlink_path"
   fi
 fi
 
