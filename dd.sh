@@ -233,13 +233,13 @@ run_install_script() {
         . /etc/os-release
 
         case "$ID" in
-            centos|fedora|debian|ubuntu)
+            centos|fedora|debian|ubuntu|openwrt)
                 # Keep only the major version number
                 VERSION=$(echo "$VERSION_ID" | cut -d. -f1)
                 SCRIPT_VERSION="${ID}_${VERSION}"
                 ;;
             *)
-                echo "Unknown Linux Distribution"
+                echo "Unknown Linux Distribution $ID"
                 return
                 ;;
         esac
