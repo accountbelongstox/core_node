@@ -233,7 +233,7 @@ run_install_script() {
         . /etc/os-release
 
         case "$ID" in
-            centos|fedora|debian|ubuntu|openwrt)
+            centos|fedora|debian|ubuntu|ezopwrt)
                 # Keep only the major version number
                 VERSION=$(echo "$VERSION_ID" | cut -d. -f1)
                 SCRIPT_VERSION="${ID}_${VERSION}"
