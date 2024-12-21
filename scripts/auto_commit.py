@@ -108,9 +108,9 @@ def commit_and_push(remote_name='origin', branch='main'):
             # Create and setup branch
             commands = [
                 f'git checkout -b {branch}',
-                f'git push --set-upstream {remote_name} {branch}',
-                f'git branch --set-upstream-to={remote_name}/{branch} {branch}',
-                f'git pull {remote_name} {branch}'
+                f'git push --set-upstream origin {branch}',
+                f'git branch --set-upstream-to=origin/{branch} {branch}',
+                f'git pull origin {branch}'
             ]
             
             for cmd in commands:
@@ -134,7 +134,7 @@ def commit_and_push(remote_name='origin', branch='main'):
         'git pull',
         'git add .',
         f'git commit -m "{timestamp}"',
-        f'git push --set-upstream {remote_name} {branch}'
+        f'git push --set-upstream origin {branch}'
     ]
 
     ColorPrinter.info("\nExecuting git commands...")
