@@ -6,34 +6,44 @@ import subprocess
 from pathlib import Path
 
 class SystemChecker:
+    def check_command_exists(self, command):
+        """Check if a command exists in system PATH"""
+        try:
+            subprocess.run([command, '--version'], 
+                         stdout=subprocess.PIPE, 
+                         stderr=subprocess.PIPE,
+                         check=False)
+            return True
+        except FileNotFoundError:
+            return False
+
     def get_system_info(self):
+        """Detect system type by checking package managers"""
         system = platform.system().lower()
+        
         if system == 'linux':
-            try:
-                with open('/etc/os-release') as f:
-                    lines = f.readlines()
-                    info = dict(line.strip().split('=', 1) for line in lines if '=' in line)
-                    id = info.get('ID', '').strip('"').lower()
-                    if id in ['ubuntu', 'debian']:
-                        return 'debian'
-                    elif id in ['centos', 'rhel']:
-                        return 'rhel'
-                    elif id == 'openwrt':
-                        return 'openwrt'
-            except:
-                pass
+            # Check package managers directly
+            if self.check_command_exists('opkg'):
+                return 'openwrt'
+            elif self.check_command_exists('apt-get'):
+                return 'debian'
+            elif self.check_command_exists('yum'):
+                return 'rhel'
+        
         return system
 
     def get_package_manager(self):
         system = self.get_system_info()
-        print(f"System: {system}")
+        print(f"System detected by package manager: {system}")
         package_managers = {
             'debian': 'apt-get',
             'rhel': 'yum',
             'openwrt': 'opkg',
             'windows': 'winget'
         }
-        return package_managers.get(system)
+        manager = package_managers.get(system)
+        print(f"Using package manager: {manager}")
+        return manager
 
 class Config:
     def get_core_node_path(self):
