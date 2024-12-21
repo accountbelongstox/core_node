@@ -174,7 +174,8 @@ def setup_multiple_remotes():
     """Setup multiple git remote repositories and commit changes"""
     remote_urls = {
         'local': 'ssh://git@git.local.12gm.com:17003/adminroot/core_node.git',
-        'gitee': 'git@gitee.com:accountbelongstox/core_node.git'
+        'gitee': 'git@gitee.com:accountbelongstox/core_node.git',
+        'github': 'git@github.com:accountbelongstox/core_node.git'
     }
 
     success_count = 0
