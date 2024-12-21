@@ -1,7 +1,6 @@
 import os
 import sys
 import platform
-import asyncio
 import subprocess
 from pathlib import Path
 
@@ -54,11 +53,7 @@ class Config:
         if system == 'windows':
             return r'D:\programing\core_node'
         
-        # For Linux-based systems
-        if os.getuid() == 0:  # Root user
-            base_path = '/root'
-        else:
-            base_path = os.path.expanduser('~')
+        base_path = '/home'
             
         return os.path.join(base_path, 'scripts', 'core_node')
 
@@ -67,21 +62,21 @@ class GitInstaller:
         self.system_checker = SystemChecker()
         self.package_manager = self.system_checker.get_package_manager()
 
-    async def is_git_installed(self):
-        success, output, _ = await execute_shell_command(
+    def is_git_installed(self):
+        success, output, _ = execute_shell_command(
             'git --version', 
             show_output=False
         )
         return success
 
-    async def get_git_version(self):
-        success, output, _ = await execute_shell_command(
+    def get_git_version(self):
+        success, output, _ = execute_shell_command(
             'git --version',
             show_output=False
         )
         return output if success else ''
 
-    async def install_git(self):
+    def install_git(self):
         if not self.package_manager:
             ColorPrinter.error("No supported package manager found")
             raise Exception("Unsupported system")
@@ -97,7 +92,7 @@ class GitInstaller:
             
             for cmd in commands:
                 ColorPrinter.info(f"Running: {cmd}")
-                success, output, error = await execute_shell_command(cmd)
+                success, output, error = execute_shell_command(cmd)
                 if not success:
                     ColorPrinter.error(f"Command failed: {cmd}")
                     ColorPrinter.error(f"Error: {error}")
@@ -105,7 +100,6 @@ class GitInstaller:
                 ColorPrinter.success(f"Successfully executed: {cmd}")
             return
 
-        # For other systems
         commands = {
             'apt-get': 'apt-get update && apt-get install -y git',
             'yum': 'yum install -y git',
@@ -113,7 +107,7 @@ class GitInstaller:
         }
 
         command = commands.get(self.package_manager)
-        success, output, error = await execute_shell_command(command)
+        success, output, error = execute_shell_command(command)
         if not success:
             raise Exception(f"Failed to install git: {error}")
 
@@ -155,7 +149,7 @@ class RepoManager:
             return False
         return True
 
-    async def clone_repo(self):
+    def clone_repo(self):
         path = self.config.get_core_node_path()
         ColorPrinter.info(f"Preparing to clone repository to: {path}")
         os.makedirs(path, exist_ok=True)
@@ -163,7 +157,7 @@ class RepoManager:
         for repo in self.repos:
             ColorPrinter.info(f"Attempting to clone from: {repo}")
             try:
-                success, output, error = await execute_shell_command(
+                success, output, error = execute_shell_command(
                     f'git clone {repo} {path}',
                     show_output=True
                 )
@@ -180,7 +174,7 @@ class RepoManager:
         ColorPrinter.error("Failed to clone from all available repositories")
         raise Exception("Failed to clone from all repositories")
 
-    async def initialize_repo(self):
+    def initialize_repo(self):
         system = self.system_checker.get_system_info()
         path = self.config.get_core_node_path()
         
@@ -191,7 +185,7 @@ class RepoManager:
         dd_script = os.path.join(path, 'dd.sh')
         if os.path.exists(dd_script):
             ColorPrinter.info("Found dd.sh script, executing...")
-            success, output, error = await execute_shell_command(
+            success, output, error = execute_shell_command(
                 f'bash {dd_script}',
                 show_output=True
             )
@@ -207,19 +201,19 @@ class InitialManager:
         self.repo_manager = RepoManager()
         self.config = Config()
 
-    async def start(self):
+    def start(self):
         try:
             ColorPrinter.info("=== Starting Core Node Initialization ===")
             
             # 1. Git Installation Check
             ColorPrinter.info("Step 1: Checking Git installation...")
-            if not await self.git_installer.is_git_installed():
+            if not self.git_installer.is_git_installed():
                 ColorPrinter.warn("Git not found in system")
                 ColorPrinter.info("Installing Git...")
-                await self.git_installer.install_git()
+                self.git_installer.install_git()
                 ColorPrinter.success("Git installation completed")
             else:
-                version = await self.git_installer.get_git_version()
+                version = self.git_installer.get_git_version()
                 ColorPrinter.success(f"Git is already installed (version: {version})")
 
             # 2. Repository Check
@@ -228,13 +222,13 @@ class InitialManager:
             if not self.repo_manager.check_repo_exists(core_node_path):
                 ColorPrinter.warn(f"Repository not found at: {core_node_path}")
                 ColorPrinter.info("Cloning repository...")
-                await self.repo_manager.clone_repo()
+                self.repo_manager.clone_repo()
             else:
                 ColorPrinter.success(f"Repository exists at: {core_node_path}")
             
             # 3. Repository Initialization
             ColorPrinter.info("\nStep 3: Initializing repository...")
-            await self.repo_manager.initialize_repo()
+            self.repo_manager.initialize_repo()
             ColorPrinter.success("Repository initialization completed")
 
             ColorPrinter.success("\n=== Core Node Initialization Completed Successfully ===")
@@ -243,7 +237,7 @@ class InitialManager:
             ColorPrinter.error(f"\nInitialization failed: {str(e)}")
             raise
 
-async def execute_shell_command(command, cwd=None, show_output=True):
+def execute_shell_command(command, cwd=None, show_output=True):
     """
     Execute shell command and return result
     Args:
@@ -254,48 +248,43 @@ async def execute_shell_command(command, cwd=None, show_output=True):
         tuple: (success, output_str, error_str)
     """
     try:
-        process = await asyncio.create_subprocess_shell(
+        process = subprocess.Popen(
             command,
             cwd=cwd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            shell=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
+            universal_newlines=True,
+            bufsize=1
         )
 
-        # Store complete output
         output_lines = []
         error_lines = []
 
-        # Read stdout and stderr concurrently
+        # Read output in real-time
         while True:
-            # Read one line from stdout and stderr
-            stdout_line = await process.stdout.readline()
-            stderr_line = await process.stderr.readline()
-
-            if not stdout_line and not stderr_line and process.returncode is not None:
+            output = process.stdout.readline()
+            error = process.stderr.readline()
+            
+            if output == '' and error == '' and process.poll() is not None:
                 break
 
-            # Handle stdout
-            if stdout_line:
-                line = stdout_line.decode('utf-8').rstrip()
+            if output:
+                line = output.strip()
                 if show_output:
                     print(line)
                 output_lines.append(line)
 
-            # Handle stderr
-            if stderr_line:
-                line = stderr_line.decode('utf-8').rstrip()
+            if error:
+                line = error.strip()
                 if show_output:
                     print(f"ERROR: {line}", file=sys.stderr)
                 error_lines.append(line)
 
-        # Wait for process to complete
-        await process.wait()
-
-        # Join all lines with newlines
+        process.wait()
+        
         output_str = '\n'.join(output_lines)
         error_str = '\n'.join(error_lines)
-
         success = process.returncode == 0
         return success, output_str, error_str
 
@@ -332,4 +321,4 @@ class ColorPrinter:
 
 if __name__ == "__main__":
     initializer = InitialManager()
-    asyncio.run(initializer.start())
+    initializer.start()
