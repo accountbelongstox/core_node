@@ -37,6 +37,53 @@ else
     echo "Warning: Common scripts directory not found at $COMMON_SCRIPTS_DIR"
 fi
 
+install_git() {
+    if command -v git &>/dev/null; then
+        echo "Git is already installed."
+        return 0
+    fi
+
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+    elif [ -f /etc/centos-release ]; then
+        OS="centos"
+    elif [ -f /etc/openwrt_release ]; then
+        OS="openwrt"
+    else
+        echo "Unsupported operating system."
+        return 1
+    fi
+
+    case $OS in
+    debian | ubuntu)
+        echo "Installing git on Debian/Ubuntu..."
+        apt-get update -y && apt-get install -y git
+        ;;
+    centos | rocky | almalinux)
+        echo "Installing git on CentOS/RHEL..."
+        yum install -y git
+        ;;
+    openwrt)
+        echo "Installing git on OpenWRT..."
+        opkg update && opkg install git
+        ;;
+    *)
+        echo "Unsupported OS: $OS"
+        return 1
+        ;;
+    esac
+    if command -v git &>/dev/null; then
+        echo "Git installation successful."
+        return 0
+    else
+        echo "Git installation failed."
+        return 1
+    fi
+}
+
+install_git
+
 make_sh_executable() {
     if [ -z "$SCRIPT_DIR" ]; then
         echo "SCRIPT_DIR is not specified."
