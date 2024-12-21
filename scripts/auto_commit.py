@@ -95,14 +95,14 @@ def set_git_remote_url(url, remote_name='origin'):
     if remote_name in existing_remotes:
         # Update existing remote
         ColorPrinter.info(f"Updating remote '{remote_name}' URL to: {url}")
-        if run_git_command(f'git remote set-url {remote_name} {url}') is not None:
-            ColorPrinter.success(f"Successfully updated {remote_name} remote URL")
+        if run_git_command(f'git remote set-url origin {url}') is not None:
+            ColorPrinter.success(f"Successfully updated origin remote by {url}")
             return True
     else:
         # Add new remote
-        ColorPrinter.info(f"Adding new remote '{remote_name}' with URL: {url}")
-        if run_git_command(f'git remote add {remote_name} {url}') is not None:
-            ColorPrinter.success(f"Successfully added {remote_name} remote")
+        ColorPrinter.info(f"Adding new remote 'origin' with URL: {url}")
+        if run_git_command(f'git remote add origin {url}') is not None:
+            ColorPrinter.success(f"Successfully added {remote_name} remote by {url}")
             return True
     
     return False
