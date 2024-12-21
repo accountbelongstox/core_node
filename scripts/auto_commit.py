@@ -56,7 +56,7 @@ def run_git_command(command, cwd=None):
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         ColorPrinter.error(f"Command failed: '{command}'")
-        ColorPrinter.error(f"Error: {e.stderr}")
+        ColorPrinter.error(f"Error: {e}")
         return None
 
 def set_git_remote_url(url, remote_name='origin'):
