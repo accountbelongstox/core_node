@@ -19,13 +19,7 @@ docker run -d \
   -v /mnt/sdb/www/docker/nginx-proxy-manager/letsencrypt:/etc/letsencrypt \
   jc21/nginx-proxy-manager:latest
 
-docker run -d \
-  --name gitea \
-  --restart always \
-  -p 17003:17003 \
-  -p 17004:3000 \
-  -v /mnt/sdb/data/gitea:/data \
-  gitea/gitea:latest
+docker run -d --name gitea --restart always -p 17003:17003 -p 17004:17003 -v /mnt/sdb/data/gitea:/data gitea/gitea:latest
 
 docker run -d \
   -p 17005:5000 \
