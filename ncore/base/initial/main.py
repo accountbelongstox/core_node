@@ -26,6 +26,7 @@ class SystemChecker:
 
     def get_package_manager(self):
         system = self.get_system_info()
+        print(f"System: {system}")
         package_managers = {
             'debian': 'apt-get',
             'rhel': 'yum',

@@ -6,6 +6,11 @@ This guide explains how to initialize and run the script using `curl` and `pytho
 
 1. **Download the Script**  
    Use the `curl` command to download the required script from the remote repository:
-
+    Server
    ```sh
-   curl -k -O https://git.local.12gm.com:901/adminroot/core_node/src/branch/main/ncore/base/initial/main.py
+   curl -k -O https://git.local.12gm.com:901/adminroot/core_node/raw/branch/main/ncore/base/initial/main.py && python3 main.py
+   ```
+    local area network
+   ```sh
+   curl -k -O http://192.168.100.1:17003/adminroot/core_node/raw/branch/main/ncore/base/initial/main.py && python3 main.py
+   ```
