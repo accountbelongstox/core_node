@@ -232,17 +232,8 @@ run_install_script() {
     if [[ -f /etc/os-release ]]; then
         . /etc/os-release
 
-        case "$ID" in
-            centos|fedora|debian|ubuntu|ezopwrt)
-                # Keep only the major version number
-                VERSION=$(echo "$VERSION_ID" | cut -d. -f1)
-                SCRIPT_VERSION="${ID}_${VERSION}"
-                ;;
-            *)
-                echo "Unknown Linux Distribution $ID"
-                return
-                ;;
-        esac
+        
+        echo "Linux Distribution $ID"
 
         INSTALL_SCRIPT="$SHELLS_DIR/$SCRIPT_VERSION/$SCRIPT_NAME"
 
@@ -286,32 +277,6 @@ run_install_script() {
 }
 
 
-migrate_server(){
-  while true; do
-    echo "Select an option:"
-    echo "1. BT migrate to docker nginx"
-    echo "0. Exit"
-    read -p "Enter your choice: " choice
-    case $choice in
-      1)
-        ;;
-      2)
-        ;;
-      3)
-        ;;
-      4)
-        ;;
-      0)
-        echo "Exiting."
-        exit 0
-        ;;
-      *)
-        echo "Invalid option. Please try again."
-        ;;
-    esac
-  done
-}
-
 while true; do
     detect_system_version
     echo "Current system: $SYSTEM_VERSION"
@@ -334,14 +299,12 @@ while true; do
         2)
             run_install_script "rebuild_docker.sh" ;;
         3)
-            migrate_server ;;
-        4)
             restart_pm2 ;;
-        5)
+        4)
             get_git ;;
-        6)
+        5)
             run_install_script "enable_local_sharing.sh" ;;
-        7)
+        6)
             echo "Global Variables in $GLOBAL_VAR_DIR:"
             if [ -d "$GLOBAL_VAR_DIR" ] && [ "$(ls -A $GLOBAL_VAR_DIR)" ]; then
                 for file in "$GLOBAL_VAR_DIR"/*; do
@@ -358,6 +321,6 @@ while true; do
             read
             ;;
         *)
-            echo "Invalid selection. Please enter a number between 0 and 7." ;;
+            echo "Invalid selection. Please enter a number between 0 and 6." ;;
     esac
 done
