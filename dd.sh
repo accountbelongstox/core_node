@@ -157,15 +157,6 @@ detect_system_version() {
     fi
 }
 
-check_sudo() {
-    if ! command -v sudo > /dev/null 2>&1; then
-        if [ -f /.dockerenv ]; then
-            echo "Warning: sudo is not available. This appears to be a Docker container."
-        else
-            echo "Warning: sudo is not available on this system."
-        fi
-    fi
-}
 
 get_git(){
   cd "$SCRIPT_DIR" || exit
@@ -323,7 +314,6 @@ migrate_server(){
 
 while true; do
     detect_system_version
-    check_sudo
     echo "Current system: $SYSTEM_VERSION"
     echo "Select a function:"
     echo "1. Install the server"
