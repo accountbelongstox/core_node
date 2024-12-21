@@ -1,9 +1,6 @@
 const fs = require('fs');
     const path = require('path');
 
-    // Get directory paths
-    const __filename = __filename;
-    const __dirname = path.dirname(__filename);
     const LOG_DIR = path.join(__dirname, '..', '..', '..', '..', 'logs');
 
     // Create directory if not exists

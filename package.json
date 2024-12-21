@@ -5,6 +5,7 @@
   "imports": {
     "#@/*": "./*",
     "#@ncore/*": "./ncore/*",
+    "#@utils_refer": "./ncore/utils/*",
     "#@plugins/*": "./ncore/plugin/*",
     "#@apps/*": "./apps/*",
     "#@egg/*": "./ncore/plugin/egg/*",

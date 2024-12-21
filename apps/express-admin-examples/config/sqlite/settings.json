@@ -1,100 +1,20 @@
 {
-  "purchase": {
-    "slug": "purchase",
+  "recipe": {
+    "slug": "recipe",
     "table": {
-      "name": "purchase",
+      "name": "recipe",
       "pk": "",
-      "verbose": "purchase"
+      "verbose": "recipe"
     },
     "columns": [
       {
-        "name": "item_id",
-        "verbose": "item_id",
+        "name": "name",
+        "verbose": "name",
         "control": {
           "text": true
         },
-        "type": "INT",
+        "type": "VARCHAR(45)",
         "allowNull": false,
-        "defaultValue": null,
-        "listview": {
-          "show": true
-        },
-        "editview": {
-          "show": true
-        }
-      },
-      {
-        "name": "user_id",
-        "verbose": "user_id",
-        "control": {
-          "text": true
-        },
-        "type": "INT",
-        "allowNull": true,
-        "defaultValue": null,
-        "listview": {
-          "show": true
-        },
-        "editview": {
-          "show": true
-        }
-      },
-      {
-        "name": "cache",
-        "verbose": "cache",
-        "control": {
-          "text": true
-        },
-        "type": "DECIMAL(6,2)",
-        "allowNull": false,
-        "defaultValue": null,
-        "listview": {
-          "show": true
-        },
-        "editview": {
-          "show": true
-        }
-      },
-      {
-        "name": "date",
-        "verbose": "date",
-        "control": {
-          "text": true
-        },
-        "type": "DATE",
-        "allowNull": true,
-        "defaultValue": null,
-        "listview": {
-          "show": true
-        },
-        "editview": {
-          "show": true
-        }
-      },
-      {
-        "name": "deleted",
-        "verbose": "deleted",
-        "control": {
-          "text": true
-        },
-        "type": "TINYINT(1)",
-        "allowNull": true,
-        "defaultValue": null,
-        "listview": {
-          "show": true
-        },
-        "editview": {
-          "show": true
-        }
-      },
-      {
-        "name": "deleted_at",
-        "verbose": "deleted_at",
-        "control": {
-          "text": true
-        },
-        "type": "DATETIME",
-        "allowNull": true,
         "defaultValue": null,
         "listview": {
           "show": true
@@ -115,21 +35,37 @@
       "readonly": false
     }
   },
-  "recipe": {
-    "slug": "recipe",
+  "recipe_has_recipe_types": {
+    "slug": "recipe_has_recipe_types",
     "table": {
-      "name": "recipe",
+      "name": "recipe_has_recipe_types",
       "pk": "",
-      "verbose": "recipe"
+      "verbose": "recipe_has_recipe_types"
     },
     "columns": [
       {
-        "name": "name",
-        "verbose": "name",
+        "name": "recipe_id",
+        "verbose": "recipe_id",
         "control": {
           "text": true
         },
-        "type": "VARCHAR(45)",
+        "type": "INT",
+        "allowNull": false,
+        "defaultValue": null,
+        "listview": {
+          "show": true
+        },
+        "editview": {
+          "show": true
+        }
+      },
+      {
+        "name": "recipe_type_id",
+        "verbose": "recipe_type_id",
+        "control": {
+          "text": true
+        },
+        "type": "INT",
         "allowNull": false,
         "defaultValue": null,
         "listview": {
@@ -1511,74 +1447,6 @@
       "readonly": false
     }
   },
-  "item": {
-    "slug": "item",
-    "table": {
-      "name": "item",
-      "pk": "",
-      "verbose": "item"
-    },
-    "columns": [
-      {
-        "name": "name",
-        "verbose": "name",
-        "control": {
-          "text": true
-        },
-        "type": "VARCHAR(45)",
-        "allowNull": false,
-        "defaultValue": null,
-        "listview": {
-          "show": true
-        },
-        "editview": {
-          "show": true
-        }
-      },
-      {
-        "name": "description",
-        "verbose": "description",
-        "control": {
-          "text": true
-        },
-        "type": "TEXT",
-        "allowNull": true,
-        "defaultValue": null,
-        "listview": {
-          "show": true
-        },
-        "editview": {
-          "show": true
-        }
-      },
-      {
-        "name": "image",
-        "verbose": "image",
-        "control": {
-          "text": true
-        },
-        "type": "VARCHAR(255)",
-        "allowNull": true,
-        "defaultValue": null,
-        "listview": {
-          "show": true
-        },
-        "editview": {
-          "show": true
-        }
-      }
-    ],
-    "mainview": {
-      "show": true
-    },
-    "listview": {
-      "order": {},
-      "page": 25
-    },
-    "editview": {
-      "readonly": false
-    }
-  },
   "user": {
     "slug": "user",
     "table": {
@@ -1747,22 +1615,54 @@
       "readonly": false
     }
   },
-  "recipe_type": {
-    "slug": "recipe_type",
+  "item": {
+    "slug": "item",
     "table": {
-      "name": "recipe_type",
+      "name": "item",
       "pk": "",
-      "verbose": "recipe_type"
+      "verbose": "item"
     },
     "columns": [
       {
-        "name": "title",
-        "verbose": "title",
+        "name": "name",
+        "verbose": "name",
         "control": {
           "text": true
         },
         "type": "VARCHAR(45)",
         "allowNull": false,
+        "defaultValue": null,
+        "listview": {
+          "show": true
+        },
+        "editview": {
+          "show": true
+        }
+      },
+      {
+        "name": "description",
+        "verbose": "description",
+        "control": {
+          "text": true
+        },
+        "type": "TEXT",
+        "allowNull": true,
+        "defaultValue": null,
+        "listview": {
+          "show": true
+        },
+        "editview": {
+          "show": true
+        }
+      },
+      {
+        "name": "image",
+        "verbose": "image",
+        "control": {
+          "text": true
+        },
+        "type": "VARCHAR(255)",
+        "allowNull": true,
         "defaultValue": null,
         "listview": {
           "show": true
@@ -1819,17 +1719,17 @@
       "readonly": false
     }
   },
-  "recipe_has_recipe_types": {
-    "slug": "recipe_has_recipe_types",
+  "purchase": {
+    "slug": "purchase",
     "table": {
-      "name": "recipe_has_recipe_types",
+      "name": "purchase",
       "pk": "",
-      "verbose": "recipe_has_recipe_types"
+      "verbose": "purchase"
     },
     "columns": [
       {
-        "name": "recipe_id",
-        "verbose": "recipe_id",
+        "name": "item_id",
+        "verbose": "item_id",
         "control": {
           "text": true
         },
@@ -1844,12 +1744,112 @@
         }
       },
       {
-        "name": "recipe_type_id",
-        "verbose": "recipe_type_id",
+        "name": "user_id",
+        "verbose": "user_id",
         "control": {
           "text": true
         },
         "type": "INT",
+        "allowNull": true,
+        "defaultValue": null,
+        "listview": {
+          "show": true
+        },
+        "editview": {
+          "show": true
+        }
+      },
+      {
+        "name": "cache",
+        "verbose": "cache",
+        "control": {
+          "text": true
+        },
+        "type": "DECIMAL(6,2)",
+        "allowNull": false,
+        "defaultValue": null,
+        "listview": {
+          "show": true
+        },
+        "editview": {
+          "show": true
+        }
+      },
+      {
+        "name": "date",
+        "verbose": "date",
+        "control": {
+          "text": true
+        },
+        "type": "DATE",
+        "allowNull": true,
+        "defaultValue": null,
+        "listview": {
+          "show": true
+        },
+        "editview": {
+          "show": true
+        }
+      },
+      {
+        "name": "deleted",
+        "verbose": "deleted",
+        "control": {
+          "text": true
+        },
+        "type": "TINYINT(1)",
+        "allowNull": true,
+        "defaultValue": null,
+        "listview": {
+          "show": true
+        },
+        "editview": {
+          "show": true
+        }
+      },
+      {
+        "name": "deleted_at",
+        "verbose": "deleted_at",
+        "control": {
+          "text": true
+        },
+        "type": "DATETIME",
+        "allowNull": true,
+        "defaultValue": null,
+        "listview": {
+          "show": true
+        },
+        "editview": {
+          "show": true
+        }
+      }
+    ],
+    "mainview": {
+      "show": true
+    },
+    "listview": {
+      "order": {},
+      "page": 25
+    },
+    "editview": {
+      "readonly": false
+    }
+  },
+  "recipe_type": {
+    "slug": "recipe_type",
+    "table": {
+      "name": "recipe_type",
+      "pk": "",
+      "verbose": "recipe_type"
+    },
+    "columns": [
+      {
+        "name": "title",
+        "verbose": "title",
+        "control": {
+          "text": true
+        },
+        "type": "VARCHAR(45)",
         "allowNull": false,
         "defaultValue": null,
         "listview": {

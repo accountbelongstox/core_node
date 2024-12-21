@@ -22,10 +22,9 @@ docker run -d \
 docker run -d \
   --name gitea \
   --restart always \
-  --cpu-shares 1024 \
   -p 17003:22 \
   -p 17004:3000 \
-  -v /volume1/docker/data/gitea:/data \
+  -v /mnt/sdb/data/gitea:/data \
   gitea/gitea:latest
 
 docker run -d \
@@ -35,7 +34,13 @@ docker run -d \
   -v /mnt/sdb/data/registry/data:/var/lib/registry \
   -e REGISTRY_STORAGE_DELETE_ENABLED=true \
   registry:2
-docker run -d -p 17006:80 --name registry-ui -e REGISTRY_URL=http://192.168.100.1:17005 jc21/registry-ui
+docker run -d --name registry-ui -p 17006:80 --restart=on-failure \
+  -e REGISTRY_HOST=192.168.100.1:17005 \
+  -e REGISTRY_SSL=true \
+  -e REGISTRY_DOMAIN=192.168.100.1:17005 \
+  -e REGISTRY_STORAGE_DELETE_ENABLED=true \
+  jc21/registry-ui
+
 
 
 

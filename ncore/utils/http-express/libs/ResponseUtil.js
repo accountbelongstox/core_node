@@ -1,12 +1,3 @@
-/**
- * 创建统一的响应格式
- * @param {*} data - 响应数据
- * @param {Object} options - 响应选项
- * @param {number} [options.code=200] - 状态码
- * @param {string} [options.message='success'] - 响应消息
- * @param {string} [options.path] - 请求路径
- * @returns {Object} 统一格式的响应对象
- */
 function createResponse(data = null, options = {}) {
     const {
         code = 200,
@@ -24,7 +15,7 @@ function createResponse(data = null, options = {}) {
     };
 }
 
-export const ResponseUtil = {
+const ResponseUtil = {
     success: (data = null, message = 'success') => {
         return createResponse(data, { message });
     },
@@ -50,4 +41,4 @@ export const ResponseUtil = {
     }
 };
 
-export default ResponseUtil; 
+module.exports = ResponseUtil;

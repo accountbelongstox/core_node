@@ -3,8 +3,6 @@
     const path = require('path');
     const { APPS_DIR, APP_DIR } = require('#@/ncore/gvar/gdir.js');
 
-    const __filename = __filename;
-    const __dirname = path.dirname(__filename);
 
     const DefultConfig = {
         "sqlite": {

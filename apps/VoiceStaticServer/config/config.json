@@ -1,8 +1,0 @@
-{
-    "sqlite": {
-      "database": "/home/git/express-admin-examples/fixtures/sqlite/x-admin-examples.sqlite"
-    },
-    "admin": {
-      "settings": "/home/s/git/express-admin-examples/config/sqlite/settings.json"
-    }
-  }

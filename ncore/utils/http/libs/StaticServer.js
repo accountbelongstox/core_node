@@ -1,109 +1,115 @@
-const express = require('express');
-    const path = require('path');
-    
-    const logger = require('#@utils_logger');
-    
-    class StaticServer {
-        #app = null;
-        #staticPaths = new Map(); // Map<prefix, path>
-    
-        constructor(expressApp) {
-            this.#app = expressApp;
-        }
-    
-        /**
-         * Add static paths to server
-         * @param {string|string[]|Object|Object[]} paths - Path or paths to serve
-         * @param {string} [basePrefix='/'] - Base URL prefix for all paths
-         * @returns {boolean} Success status
-         */
-        addStatic(paths, basePrefix = '/') {
-            if (!Array.isArray(paths)) {
-                paths = [paths];
+const path = require('path');
+const Base = require('#@/ncore/base/base.js');
+const defaultConfig = require('../config/static_config.js');
+const expressProvider = require('../common/express_provider');
+
+class StaticServer extends Base {
+    constructor() {
+        super();
+        this.app = expressProvider.getApp();
+        this.server = expressProvider.getServer();
+        this.config = { ...defaultConfig };
+    }
+
+    /**
+     * Merge custom config with default config
+     */
+    mergeConfig(customConfig) {
+        if (!customConfig) return;
+
+        Object.keys(customConfig).forEach(key => {
+            if (typeof customConfig[key] === 'object' && !Array.isArray(customConfig[key])) {
+                this.config[key] = {
+                    ...(this.config[key] || {}),
+                    ...customConfig[key]
+                };
+            } else {
+                this.config[key] = customConfig[key];
             }
-            try {
-                // Normalize paths to array of objects
-                const normalizedPaths = this.#normalizePaths(paths, basePrefix);
-                
-                // Add each path to express
-                normalizedPaths.forEach(({ path: staticPath, prefix }) => {
-                    if (this.#staticPaths.has(prefix)) {
-                        logger.warning(`Static path with prefix "${prefix}" already exists, skipping`);
-                        return;
+        });
+    }
+
+    /**
+     * Configure static paths for Express
+     */
+    setupStaticPaths() {
+        const { staticPaths } = this.config;
+
+        if (!staticPaths) {
+            console.warn('No static paths configured');
+            return;
+        }
+
+        Object.entries(staticPaths).forEach(([prefix, paths]) => {
+            if (Array.isArray(paths)) {
+                paths.forEach(staticPath => {
+                    if (typeof staticPath === 'string') {
+                        this.app.use(prefix, express.static(staticPath));
+                        console.log(`Static path configured: ${prefix} -> ${staticPath}`);
                     }
-    
-                    // Ensure prefix starts with / and doesn't end with /
-                    const normalizedPrefix = this.#normalizePrefix(prefix);
-                    
-                    // Add to express
-                    this.#app.use(normalizedPrefix, express.static(staticPath));
-                    this.#staticPaths.set(normalizedPrefix, staticPath);
-                    
-                    logger.info(`Added static path: ${staticPath} at ${normalizedPrefix}`);
                 });
-    
-                return true;
-            } catch (error) {
-                logger.error('Failed to add static paths:', error);
-                return false;
+            } else if (typeof paths === 'string') {
+                this.app.use(prefix, express.static(paths));
+                console.log(`Static path configured: ${prefix} -> ${paths}`);
             }
-        }
-    
-        /**
-         * Remove static path by prefix
-         * @param {string} prefix 
-         * @returns {boolean}
-         */
-        removeStatic(prefix) {
-            const normalizedPrefix = this.#normalizePrefix(prefix);
-            if (this.#staticPaths.has(normalizedPrefix)) {
-                this.#staticPaths.delete(normalizedPrefix);
-                // Note: Express doesn't provide a direct way to remove middleware
-                // We would need to recreate the app to truly remove it
-                logger.info(`Removed static path at ${normalizedPrefix}`);
-                return true;
-            }
-            return false;
-        }
-    
-        /**
-         * Get all registered static paths
-         * @returns {Object[]} Array of {prefix, path} objects
-         */
-        getStaticPaths() {
-            return Array.from(this.#staticPaths.entries()).map(([prefix, path]) => ({
-                prefix,
-                path
-            }));
-        }
-    
-        #normalizePaths(paths, basePrefix) {
-            if (!Array.isArray(paths)) {
-                paths = [paths];
-            }
-    
-            return paths.map(item => {
-                if (typeof item === 'string') {
-                    return {
-                        path: path.resolve(item),
-                        prefix: basePrefix
-                    };
-                }
-                if (typeof item === 'object') {
-                    return {
-                        path: path.resolve(item.path),
-                        prefix: item.prefix || basePrefix
-                    };
-                }
-                throw new Error('Invalid path format');
+        });
+    }
+
+    /**
+     * Configure CORS if enabled
+     */
+    setupCORS() {
+        const { cors } = this.config;
+        if (cors && cors.enabled && cors.customConfig) {
+            this.app.use((req, res, next) => {
+                res.header('Access-Control-Allow-Origin', cors.origin || '*');
+                res.header('Access-Control-Allow-Methods', cors.methods || 'GET,HEAD,PUT,PATCH,POST,DELETE');
+                res.header('Access-Control-Allow-Headers', cors.headers || 'Content-Type, Authorization');
+                next();
             });
         }
-    
-        #normalizePrefix(prefix) {
-            prefix = prefix.startsWith('/') ? prefix : `/${prefix}`;
-            prefix = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
-            return prefix || '/';
+    }
+
+    /**
+     * Configure caching if enabled
+     */
+    setupCaching() {
+        const { cache } = this.config;
+        if (cache && cache.enabled) {
+            this.app.use((req, res, next) => {
+                if (cache.maxAge) {
+                    res.setHeader('Cache-Control', `public, max-age=${cache.maxAge}`);
+                }
+                next();
+            });
         }
     }
-    
-    module.exports = StaticServer;
+
+    async start(customConfig = null, port = 3000) {
+        try {
+            this.mergeConfig(customConfig);
+            this.setupCORS();
+            this.setupCaching();
+            this.setupStaticPaths();
+
+            this.server = expressProvider.getServer();
+            
+            return new Promise((resolve, reject) => {
+                this.server.listen(port, () => {
+                    console.log(`Static server running on port ${port}`);
+                    resolve(this.server);
+                });
+
+                this.server.on('error', (error) => {
+                    console.error('Failed to start static server:', error);
+                    reject(error);
+                });
+            });
+        } catch (error) {
+            console.error('Error starting static server:', error);
+            throw error;
+        }
+    }
+}
+
+module.exports = new StaticServer();
