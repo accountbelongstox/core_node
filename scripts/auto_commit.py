@@ -45,16 +45,39 @@ def run_git_command(command, cwd=None):
     info = f"cwd: {cwd}"
     ColorPrinter.info(info)
     try:
-        result = subprocess.run(
+        # Use Popen for real-time output
+        process = subprocess.Popen(
             command,
             cwd=cwd,
             shell=True,
-            check=True,
-            capture_output=True,
-            text=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            bufsize=1
         )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
+
+        # Store complete output for return value
+        full_output = []
+        
+        # Read stdout and stderr in real-time
+        while True:
+            output = process.stdout.readline()
+            error = process.stderr.readline()
+            
+            if output:
+                print(output.strip())
+                full_output.append(output.strip())
+            if error:
+                ColorPrinter.error(error.strip())
+            
+            # Check if process has finished
+            if output == '' and error == '' and process.poll() is not None:
+                break
+        
+        return_code = process.poll()
+        return '\n'.join(full_output)
+            
+    except Exception as e:
         ColorPrinter.error(f"Command failed: '{command}'")
         ColorPrinter.error(f"Error: {e}")
         return None
