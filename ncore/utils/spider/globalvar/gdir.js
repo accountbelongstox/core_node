@@ -7,7 +7,6 @@ class Gdir {
     localStaticApiUrl = `https://static.local.12gm.com:905/`
     testAccessibleApi = null
     constructor() {
-        super()
          
     }
     getCustomTempDir(subDir) {

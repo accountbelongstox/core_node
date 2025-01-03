@@ -163,6 +163,7 @@ get_git(){
   $sudo git stash && $sudo git fetch --all && $sudo git reset --hard origin/main && $sudo git pull --force
   make_sh_executable
 }
+
 restart_pm2() {
   $sudo docker exec -it pm2_nginx pm2_nginx list
   while true; do
@@ -232,7 +233,6 @@ run_install_script() {
     if [[ -f /etc/os-release ]]; then
         . /etc/os-release
 
-        
         echo "Linux Distribution $ID"
 
         INSTALL_SCRIPT="$SHELLS_DIR/$SCRIPT_VERSION/$SCRIPT_NAME"

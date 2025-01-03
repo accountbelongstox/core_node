@@ -80,6 +80,10 @@ class EnvManager {
         return values[key] !== undefined ? values[key] : defaultValue;
     }
 
+    getEnv(key, defaultValue = '') {
+        return this.getEnvValue(key, defaultValue);
+    }
+
     addRootDir(rootDir = null, envName = ".env") {
         infoByDebug("addRootDir " + rootDir);
         rootDir = rootDir || DEFAULT_ROOT_DIR;

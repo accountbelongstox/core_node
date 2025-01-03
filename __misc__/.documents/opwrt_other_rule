@@ -39,6 +39,10 @@
 - DOMAIN-SUFFIX,wp.com,🍎 苹果服务
 - DOMAIN-SUFFIX,expo.dev,🍎 苹果服务
 - DOMAIN-SUFFIX,coze.com,🍎 苹果服务
+- DOMAIN-SUFFIX,workos.com,🍎 苹果服务
+- DOMAIN-SUFFIX,cursor.com,🍎 苹果服务
+- DOMAIN-SUFFIX,cursor.sh,🍎 苹果服务
+- DOMAIN-SUFFIX,heygen.com,🍎 苹果服务
 - DOMAIN-SUFFIX,coze.cn,DIRECT
 - DOMAIN-SUFFIX,aliyun.com,DIRECT
 - DOMAIN-SUFFIX,12gm.com,DIRECT
@@ -46,7 +50,6 @@
 - DOMAIN-SUFFIX,ipip.net,DIRECT
 - DOMAIN-SUFFIX,microsoft.com,DIRECT
 - IP-CIDR,47.242.164.51/24,DIRECT
-- DOMAIN-SUFFIX,heygen.com,🍎 苹果服务
 
 - DOMAIN-SUFFIX,byted-static.com,🇭🇰 香港节点
 - DOMAIN-SUFFIX,byteacctimg.com,🇭🇰 香港节点

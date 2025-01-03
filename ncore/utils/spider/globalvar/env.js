@@ -4,14 +4,12 @@ const { promisify } = require('util');
 const readFileAsync = promisify(fs.readFile);
 const writeFileAsync = promisify(fs.writeFile);
 
-const Base = require('../base/base.js');
 
-class Env extends Base {
+class Env {
 
     mainEnvFile = null;
     annotationSymbol = "#";
     constructor(rootDir = null, envName = ".env", delimiter = "=") {
-        super()
         if(!rootDir)rootDir = this.getCwd();
         this.setRootDir(rootDir, envName, delimiter);
     }

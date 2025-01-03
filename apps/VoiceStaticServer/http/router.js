@@ -1,4 +1,4 @@
-const { RouterManager } = require('#@/ncore/utils/http-express/libs/ExpressManager.js');
+const { RouterManager } = require('#@/ncore/utils/express/libs/ExpressManager.js');
 
     class VoiceRouter {
         initializeRoutes() {

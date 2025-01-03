@@ -1,6 +1,8 @@
+const { appname } = require('#@/ncore/globalvars.js');
+const config = require('./config/index.js');
 const sysarg = require('#@utils_native');
 // const httpMain = require('./http/main.js');
-const { startStaticServer } = require('#@ncore/utils/http/index.js');
+const { startExpressServer } = require('#@/ncore/utils/express/index.js');
 
 // const adminConfig = require('./config/admin_config.js');
 
@@ -9,9 +11,9 @@ class Main {
     }
 
     async start() {
-        startStaticServer()
+        await startExpressServer(config)
         // const config = await getConfig();
-        // console.log(config);
+        console.log(`appname ${appname}`);
         // const httpServer = await httpMain.start()
         // console.log(`start ...`)
         // console.log(httpServer);

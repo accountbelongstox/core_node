@@ -24,8 +24,9 @@ const fs = require('fs');
         // Find parameter that starts with either 'appname=' or 'app='
         const appNameParam = args.find(arg => 
             arg.startsWith('appname=') || arg.startsWith('app=')
+            || arg.startsWith('--appname=') || arg.startsWith('--app=')
+            || arg.startsWith('-appname=') || arg.startsWith('-app=')
         );
-
         if (appNameParam) {
             const appName = appNameParam.split('=')[1];
             // Check if the value after '=' is empty
@@ -35,6 +36,10 @@ const fs = require('fs');
                 console.error('Usage:');
                 console.error('  node get_appname.js appname=myapp');
                 console.error('  node get_appname.js app=myapp');
+                console.error('  node get_appname.js --appname=myapp');
+                console.error('  node get_appname.js --app=myapp');
+                console.error('  node get_appname.js -appname=myapp');
+                console.error('  node get_appname.js -app=myapp');
                 process.exit(1);
             }
 

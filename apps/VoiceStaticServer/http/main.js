@@ -1,4 +1,4 @@
-const ExpressManager = require('#@/ncore/utils/http-express/libs/ExpressManager.js');
+const ExpressManager = require('#@/ncore/utils/express/libs/ExpressManager.js');
     const router = require('./router.js');
 
     class Main {
