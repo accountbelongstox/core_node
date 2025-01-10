@@ -235,7 +235,7 @@ run_install_script() {
 
         echo "Linux Distribution $ID"
 
-        INSTALL_SCRIPT="$SHELLS_DIR/$SCRIPT_VERSION/$SCRIPT_NAME"
+        INSTALL_SCRIPT="$SHELLS_DIR/$SYSTEM_VERSION/$SCRIPT_NAME"
 
         if [[ -f "$INSTALL_SCRIPT" ]]; then
             echo "Running install script: $INSTALL_SCRIPT"
@@ -249,7 +249,7 @@ run_install_script() {
             VERSION=$(awk '{print $3}' /etc/redhat-release | cut -d. -f1)
             SCRIPT_VERSION="centos_$VERSION"
             SCRIPT_DIR="$PWD/apps/deploy/shells"
-            INSTALL_SCRIPT="$SCRIPT_DIR/$SCRIPT_VERSION/$SCRIPT_NAME"
+            INSTALL_SCRIPT="$SCRIPT_DIR/$SYSTEM_VERSION/$SCRIPT_NAME"
 
             if [[ -f "$INSTALL_SCRIPT" ]]; then
                 echo "Running install script: $INSTALL_SCRIPT"
@@ -263,7 +263,7 @@ run_install_script() {
         VERSION=$(echo "$DISTRIB_RELEASE" | cut -d. -f1)
         SCRIPT_VERSION="ubuntu_$VERSION"
         SCRIPT_DIR="$PWD/apps/deploy/shells"
-        INSTALL_SCRIPT="$SCRIPT_DIR/$SCRIPT_VERSION/$SCRIPT_NAME"
+        INSTALL_SCRIPT="$SCRIPT_DIR/$SYSTEM_VERSION/$SCRIPT_NAME"
 
         if [[ -f "$INSTALL_SCRIPT" ]]; then
             echo "Running install script: $INSTALL_SCRIPT"
