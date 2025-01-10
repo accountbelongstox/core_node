@@ -4,7 +4,7 @@
 set_var() {
     local key="$1"
     local val="$2"
-    local var_dir="/usr/script_global_var"
+    local var_dir="/usr/core_node/global_var"
     
     # Convert key to uppercase
     key=$(echo "$key" | tr '[:lower:]' '[:upper:]')
@@ -132,8 +132,8 @@ Binary Path: $(which caddy)
 Stored Global Variables:
 ----------------------"
 for var in CADDY_*; do
-    if [ -f "/usr/script_global_var/$var" ]; then
-        echo "$var = $(cat "/usr/script_global_var/$var")"
+    if [ -f "/usr/core_node/global_var/$var" ]; then
+        echo "$var = $(cat "/usr/core_node/global_var/$var")"
     fi
 done
 

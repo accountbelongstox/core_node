@@ -14,3 +14,6 @@ This guide explains how to initialize and run the script using `curl` and `pytho
    ```sh
    curl -k -O http://192.168.100.1:17003/adminroot/core_node/raw/branch/main/ncore/base/initial/main.py && python3 main.py
    ```
+   
+## Couser Reference
+PowerShell irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/master/scripts/install.ps1 | iex

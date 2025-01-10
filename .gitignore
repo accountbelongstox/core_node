@@ -41,6 +41,8 @@ Icon
 .Spotlight-V100
 .Trashes
 ._*
+output/
+**/output/
 
 
 ############################

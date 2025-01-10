@@ -6,6 +6,7 @@ const printer = require('../base/printer.js');
 const findBin = require('./libs/find_bin.js');
 const { getAppName } = require('./libs/appname.js');
 let appname = getAppName();
+const homeDir = os.homedir();
 
 
 // Basic directory functions
@@ -19,12 +20,20 @@ const APPS_DIR = path.join(BASEDIR, 'apps');
 const APP_DIR = path.join(BASEDIR, 'apps', appname);
 const CACHE_DIR = path.join(BASEDIR, '.cache');
 const LOG_DIR = path.join(CACHE_DIR, '.logs');
-const LOCAL_DIR = path.join(process.env.HOME || process.env.USERPROFILE, '.local');
+const SCRIPT_NAME = `core_node`
+const LOCAL_DIR = os.platform() === 'win32'
+    ? path.join(homeDir, `.${SCRIPT_NAME}`)
+    : `/usr/${SCRIPT_NAME}`;   
+const GLOBAL_VAR_DIR = os.platform() === 'win32'
+    ? path.join(homeDir, `.${SCRIPT_NAME}/global_var`)
+    : path.join(LOCAL_DIR, 'global_var');
+
 const PUBLIC_DIR = path.join(BASEDIR, 'public');
 const APP_PUBLIC_DIR = appname ? path.join(PUBLIC_DIR, appname) : PUBLIC_DIR;
 const APP_DATA_DIR = appname ? path.join(APP_PUBLIC_DIR, 'data') : PUBLIC_DIR;
 const APP_DATA_CACHE_DIR = appname ? path.join(APP_PUBLIC_DIR, '.cache') : PUBLIC_DIR;
 const APP_STATIC_DIR = appname ? path.join(APP_PUBLIC_DIR, 'static') : PUBLIC_DIR;
+const APP_OUTPUT_DIR = appname ? path.join(APP_PUBLIC_DIR, 'output') : PUBLIC_DIR;
 const APP_TEMPLATE_DIR = path.join(APP_DIR, `template`);
 
 
@@ -32,11 +41,13 @@ const APP_TEMPLATE_DIR = path.join(APP_DIR, `template`);
 mkdir(CACHE_DIR);
 mkdir(LOG_DIR);
 mkdir(LOCAL_DIR);
+mkdir(GLOBAL_VAR_DIR);
 mkdir(PUBLIC_DIR);
 mkdir(APP_PUBLIC_DIR);
 mkdir(APP_DATA_DIR);
 mkdir(APP_DATA_CACHE_DIR);
 mkdir(APP_STATIC_DIR);
+mkdir(APP_OUTPUT_DIR);
 
 // Directory creation
 function mkdir(path) {
@@ -195,12 +206,14 @@ module.exports = {
     CACHE_DIR,
     LOG_DIR,
     LOCAL_DIR,
+    GLOBAL_VAR_DIR,
     PUBLIC_DIR,
     APP_PUBLIC_DIR,
     APP_DATA_DIR,
     APP_DATA_CACHE_DIR,
     APP_STATIC_DIR,
     APP_TEMPLATE_DIR,
+    APP_OUTPUT_DIR,
 
     // Drive management functions
     getSystemDrives,

@@ -9,6 +9,7 @@ PYTHON_BIN="$BIN_DIR/python3.9"
 TMP_INFO_DIR="/usr/local/.pcore_local/deploy"
 PY_VENV_FILE="$TMP_INFO_DIR/.PY_VENV_DIR"
 
+
 if [ ! -d "$TMP_INFO_DIR" ]; then
   sudo mkdir -p "$TMP_INFO_DIR"
   echo "Directory $TMP_INFO_DIR created."
@@ -151,4 +152,10 @@ fi
 
 if ! command -v pip3.9 &>/dev/null; then
     echo -e "\e[91mError: pip3.9 is not installed or not found in PATH.\e[0m"
+fi
+
+GLOBAL_VAR_DIR="/usr/core_node/global_var"
+PY_VENV_FILE="$GLOBAL_VAR_DIR/PY_VENV_DIR"
+if [ ! -f "$PY_VENV_FILE" ]; then
+    echo "$VENV_FULL_DIR" | sudo tee "$PY_VENV_FILE" > /dev/null
 fi

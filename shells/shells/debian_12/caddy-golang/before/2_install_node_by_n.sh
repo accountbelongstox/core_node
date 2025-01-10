@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Get the script root directory and common scripts directory from global variables
-if [ ! -f "/usr/script_global_var/SCRIPT_ROOT_DIR" ] || [ ! -f "/usr/script_global_var/COMMON_SCRIPTS_DIR" ]; then
+if [ ! -f "/usr/core_node/global_var/SCRIPT_ROOT_DIR" ] || [ ! -f "/usr/core_node/global_var/COMMON_SCRIPTS_DIR" ]; then
     echo "Error: Required global variables not found"
     exit 1
 fi
 
-SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
-COMMON_SCRIPTS_DIR=$(cat "/usr/script_global_var/COMMON_SCRIPTS_DIR")
+SCRIPT_ROOT_DIR=$(cat "/usr/core_node/global_var/SCRIPT_ROOT_DIR")
+COMMON_SCRIPTS_DIR=$(cat "/usr/core_node/global_var/COMMON_SCRIPTS_DIR")
 
 # Node.js version and download URL
 NODE_VERSION="20.18.1"
@@ -19,7 +19,7 @@ DOWNLOAD_PATH="/tmp/node-v${NODE_VERSION}-linux-x64.tar.xz"
 set_var() {
     local key="$1"
     local val="$2"
-    local var_dir="/usr/script_global_var"
+    local var_dir="/usr/core_node/global_var"
     
     # Convert key to uppercase
     key=$(echo "$key" | tr '[:lower:]' '[:upper:]')

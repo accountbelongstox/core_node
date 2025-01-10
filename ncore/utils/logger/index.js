@@ -1,24 +1,29 @@
 const util = require('util');
+const readline = require('readline');
 
 // ANSI color codes
 const colors = {
     reset: '\x1b[0m',
     green: '\x1b[32m',
+    white: '\x1b[37m',
     red: '\x1b[31m',
     yellow: '\x1b[33m',
     blue: '\x1b[34m',
     gray: '\x1b[90m',
-    cyan: '\x1b[36m'
+    cyan: '\x1b[36m',
+    command: '\x1b[35m'
 };
 
 // Color wrapper functions
 const colorize = {
     green: (text) => `${colors.green}${text}${colors.reset}`,
+    white: (text) => `${colors.white}${text}${colors.reset}`,
     red: (text) => `${colors.red}${text}${colors.reset}`,
     yellow: (text) => `${colors.yellow}${text}${colors.reset}`,
     blue: (text) => `${colors.blue}${text}${colors.reset}`,
     gray: (text) => `${colors.gray}${text}${colors.reset}`,
-    cyan: (text) => `${colors.cyan}${text}${colors.reset}`
+    cyan: (text) => `${colors.cyan}${text}${colors.reset}`,
+    command: (text) => `${colors.command}${text}${colors.reset}`
 };
 
 class Logger {
@@ -31,6 +36,8 @@ class Logger {
             info: 2,
             debug: 3
         };
+        this.lastLineCount = 0;
+        this.progressBarWidth = 40; // Default progress bar width
     }
 
     formatMessage(message, ...args) {
@@ -55,10 +62,24 @@ class Logger {
         }
     }
 
+    command(message, ...args) {
+        if (this.shouldLog('info')) {
+            const formattedMessage = this.formatMessage(message, ...args);
+            console.log(colorize.command(`[${this.getTimestamp()}] COMMAND: ${formattedMessage}`));
+        }
+    }
+
     error(message, ...args) {
         if (this.shouldLog('error')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.error(colorize.red(`[${this.getTimestamp()}] ERROR: ${formattedMessage}`));
+        }
+    }
+
+    warn(message, ...args) {
+        if (this.shouldLog('warn')) {
+            const formattedMessage = this.formatMessage(message, ...args);
+            console.warn(colorize.yellow(`[${this.getTimestamp()}] WARNING: ${formattedMessage}`));
         }
     }
 
@@ -72,7 +93,7 @@ class Logger {
     info(message, ...args) {
         if (this.shouldLog('info')) {
             const formattedMessage = this.formatMessage(message, ...args);
-            console.info(colorize.blue(`[${this.getTimestamp()}] INFO: ${formattedMessage}`));
+            console.info(colorize.white(`[${this.getTimestamp()}] INFO: ${formattedMessage}`));
         }
     }
 
@@ -147,6 +168,92 @@ class Logger {
             const formattedMessage = this.formatMessage(message, ...args);
             console.log(`${colors[color]}[${this.getTimestamp()}] ${formattedMessage}${colors.reset}`);
         }
+    }
+
+    /**
+     * Clear previous lines and print new content
+     * @param {string|string[]} content - Content to print
+     */
+    refresh(content) {
+        if (!this.shouldLog('info')) return;
+
+        const lines = Array.isArray(content) ? content : [content];
+        
+        // Clear previous lines
+        if (this.lastLineCount > 0) {
+            readline.moveCursor(process.stdout, 0, -this.lastLineCount);
+            readline.clearScreenDown(process.stdout);
+        }
+
+        // Print new lines with timestamp
+        lines.forEach(line => {
+            process.stdout.write(colorize.white(`[${this.getTimestamp()}] ${line}\n`));
+        });
+
+        this.lastLineCount = lines.length;
+    }
+
+    /**
+     * Clear the refresh area
+     */
+    clearRefresh() {
+        if (this.lastLineCount > 0) {
+            readline.moveCursor(process.stdout, 0, -this.lastLineCount);
+            readline.clearScreenDown(process.stdout);
+            this.lastLineCount = 0;
+        }
+    }
+
+    /**
+     * Draw a progress bar
+     * @param {number} current - Current value
+     * @param {number} total - Total value
+     * @param {Object} options - Progress bar options
+     */
+    progressBar(current, total, options = {}) {
+        if (!this.shouldLog('info')) return;
+
+        const opts = {
+            width: options.width || this.progressBarWidth,
+            complete: options.complete || '█',
+            incomplete: options.incomplete || '░',
+            format: options.format || 'Progress: [{bar}] {percentage}% | {current}/{total}'
+        };
+
+        const percentage = Math.min(100, Math.round((current / total) * 100));
+        const completeLength = Math.round((percentage / 100) * opts.width);
+        const incompleteLength = opts.width - completeLength;
+
+        const bar = opts.complete.repeat(completeLength) + 
+                   opts.incomplete.repeat(incompleteLength);
+
+        const output = opts.format
+            .replace('{bar}', bar)
+            .replace('{percentage}', percentage.toString())
+            .replace('{current}', current.toString())
+            .replace('{total}', total.toString());
+
+        this.refresh(output);
+    }
+
+    /**
+     * Create a multi-line progress display
+     * @param {Object[]} items - Array of progress items
+     * @param {Object} options - Display options
+     */
+    multiProgress(items, options = {}) {
+        if (!this.shouldLog('info')) return;
+
+        const lines = items.map(item => {
+            const percentage = Math.min(100, Math.round((item.current / item.total) * 100));
+            const width = options.width || 30;
+            const completeLength = Math.round((percentage / 100) * width);
+            const bar = '█'.repeat(completeLength) + '░'.repeat(width - completeLength);
+            
+            return `${item.label}: [${bar}] ${percentage}% (${item.current}/${item.total})`;
+        });
+
+        this.refresh(lines);
     }
 }
 

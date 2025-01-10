@@ -15,8 +15,8 @@ else
 fi
 
 
-SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
-COMMON_SCRIPTS_DIR=$(cat "/usr/script_global_var/COMMON_SCRIPTS_DIR")
+SCRIPT_ROOT_DIR=$(cat "/usr/core_node/global_var/SCRIPT_ROOT_DIR")
+COMMON_SCRIPTS_DIR=$(cat "/usr/core_node/global_var/COMMON_SCRIPTS_DIR")
 CHECK_SSH_SCRIPT="$COMMON_SCRIPTS_DIR/check_ssh_config.js"
 
 # Check if Node.js is installed

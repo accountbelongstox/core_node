@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Read global variables
-SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
+SCRIPT_ROOT_DIR=$(cat "/usr/core_node/global_var/SCRIPT_ROOT_DIR")
 CADDY_APP_DIR="$SCRIPT_ROOT_DIR/apps/CaddyProxyManager"
 FRONTEND_DIR="$CADDY_APP_DIR/frontend"
 BACKEND_DIR="$CADDY_APP_DIR/backend"

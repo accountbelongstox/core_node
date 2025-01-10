@@ -1,6 +1,6 @@
 #!/bin/bash
 
-GLOBAL_VAR_DIR="/usr/script_global_var"
+GLOBAL_VAR_DIR="/usr/core_node/global_var"
 
 # Ensure the global variable directory exists
 ensure_dir() {

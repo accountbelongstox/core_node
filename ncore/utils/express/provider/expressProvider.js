@@ -8,6 +8,7 @@ const fs = require('fs');
 class ExpressProvider {
     constructor() {
         this.app = expressOrigin();
+        this.server = null
         this.configureMiddleware();
         this.wsToken = false
     }
@@ -76,6 +77,16 @@ class ExpressProvider {
     setWsToken(wsToken){
         this.wsToken = wsToken
     }
+
+    getServerApp() {
+        return this.server;
+    }
+
+    setServerApp(server){
+        this.server = server
+    }
+
+    
 }
 
 const expressProvider = new ExpressProvider();

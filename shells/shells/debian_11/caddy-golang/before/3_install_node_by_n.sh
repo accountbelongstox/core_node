@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Get the script root directory from global variables
-if [ ! -f "/usr/script_global_var/SCRIPT_ROOT_DIR" ]; then
+if [ ! -f "/usr/core_node/global_var/SCRIPT_ROOT_DIR" ]; then
     echo "Error: SCRIPT_ROOT_DIR not found in global variables"
 fi
 
-SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
+SCRIPT_ROOT_DIR=$(cat "/usr/core_node/global_var/SCRIPT_ROOT_DIR")
 GLOBAL_VAR_MANAGER="$SCRIPT_ROOT_DIR/conf/shells/common/global_var_manager.sh"
 
 # Source the global variable manager if it exists

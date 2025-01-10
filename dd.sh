@@ -30,7 +30,7 @@ check_and_install_sudo() {
 check_and_install_sudo
 
 # Create global variable directory and store script directory path
-GLOBAL_VAR_DIR="/usr/script_global_var"
+GLOBAL_VAR_DIR="/usr/core_node/global_var"
 if [ ! -d "$GLOBAL_VAR_DIR" ]; then
     $sudo mkdir -p "$GLOBAL_VAR_DIR"
     echo "Created global variable directory: $GLOBAL_VAR_DIR"

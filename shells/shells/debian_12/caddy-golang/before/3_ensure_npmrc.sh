@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Get the script root directory and common scripts directory from global variables
-if [ ! -f "/usr/script_global_var/SCRIPT_ROOT_DIR" ] || [ ! -f "/usr/script_global_var/COMMON_SCRIPTS_DIR" ]; then
+if [ ! -f "/usr/core_node/global_var/SCRIPT_ROOT_DIR" ] || [ ! -f "/usr/core_node/global_var/COMMON_SCRIPTS_DIR" ]; then
     echo "Error: Required global variables not found"
     exit 1
 fi
 
-SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
-COMMON_SCRIPTS_DIR=$(cat "/usr/script_global_var/COMMON_SCRIPTS_DIR")
+SCRIPT_ROOT_DIR=$(cat "/usr/core_node/global_var/SCRIPT_ROOT_DIR")
+COMMON_SCRIPTS_DIR=$(cat "/usr/core_node/global_var/COMMON_SCRIPTS_DIR")
 CHECK_NPMRC_SCRIPT="$COMMON_SCRIPTS_DIR/check_npmrc.js"
 
 # Print section header

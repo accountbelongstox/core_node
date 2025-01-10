@@ -17,7 +17,7 @@ const PROXY_URLS = [
 
 const SPEED_THRESHOLD = 200 * 1024; // 200KB/s
 const TEST_DURATION = 5; // 5 seconds
-const GLOBAL_VAR_DIR = '/usr/script_global_var';
+const GLOBAL_VAR_DIR = '/usr/core_node/global_var';
 
 /**
  * Format bytes to human readable format

@@ -61,7 +61,7 @@ if check_edge_version; then
     if command -v microsoft-edge &> /dev/null; then
         edge_path=$(which microsoft-edge)
         if [ -n "$edge_path" ]; then
-            echo "$edge_path" | sudo tee "/usr/script_global_var/EDGE_BIN" > /dev/null
+            echo "$edge_path" | sudo tee "/usr/core_node/global_var/EDGE_BIN" > /dev/null
             echo "Edge binary path stored in global variables"
         fi
     fi

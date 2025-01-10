@@ -67,7 +67,8 @@ class WsManager {
         });
 
         expressProvider.setWsToken(true)
-        expressProvider.setExpressApp(this.server)
+        expressProvider.setServerApp(this.server)
+        expressProvider.setExpressApp(app)
     }
 
     /**

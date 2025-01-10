@@ -109,6 +109,7 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "@andresaya/edge-tts": "^1.2.4",
     "@babel/cli": "^7.24.8",
     "@babel/core": "^7.24.9",
     "@babel/node": "^7.24.8",

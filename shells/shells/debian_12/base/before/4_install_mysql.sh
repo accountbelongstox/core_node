@@ -16,7 +16,7 @@ check_sudo
 set_var() {
     local key="$1"
     local val="$2"
-    local var_dir="/usr/script_global_var"
+    local var_dir="/usr/core_node/global_var"
     
     # Convert key to uppercase
     key=$(echo "$key" | tr '[:lower:]' '[:upper:]')
@@ -32,7 +32,7 @@ set_var() {
 # Function to get global variable
 get_var() {
     local key="$1"
-    local var_dir="/usr/script_global_var"
+    local var_dir="/usr/core_node/global_var"
     
     # Convert key to uppercase
     key=$(echo "$key" | tr '[:lower:]' '[:upper:]')
@@ -310,11 +310,11 @@ echo "
 Stored Global Variables:
 ----------------------"
 for var in MYSQL_*; do
-    if [ -f "/usr/script_global_var/$var" ]; then
+    if [ -f "/usr/core_node/global_var/$var" ]; then
         if [ "$var" = "MYSQL_ROOT_PASSWORD" ]; then
             echo "$var = ********"
         else
-            echo "$var = $(cat "/usr/script_global_var/$var")"
+            echo "$var = $(cat "/usr/core_node/global_var/$var")"
         fi
     fi
 done

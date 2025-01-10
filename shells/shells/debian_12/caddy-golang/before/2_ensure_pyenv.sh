@@ -12,7 +12,7 @@ SYSTEM_VERSION=$(cat /etc/debian_version | tr '/' '_')
 
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')
 
-SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
+SCRIPT_ROOT_DIR=$(cat "/usr/core_node/global_var/SCRIPT_ROOT_DIR")
 
 PYENV_DIR="pyenv_${SYSTEM_NAME}_${SYSTEM_VERSION}_python${PYTHON_VERSION}"
 FULL_PYENV_PATH="${SCRIPT_ROOT_DIR}/${PYENV_DIR}"
@@ -59,3 +59,9 @@ echo "source ${FULL_PYENV_PATH}/bin/activate"
 
 AUTO_INSTALL_REQUIRE_SCRIPT="${SCRIPT_ROOT_DIR}/pycore/auto_installrequire/auto_install_main.py"
 "${env_python_path}" "${AUTO_INSTALL_REQUIRE_SCRIPT}"
+
+GLOBAL_VAR_DIR="/usr/core_node/global_var"
+PY_VENV_FILE="$GLOBAL_VAR_DIR/PY_VENV_DIR"
+if [ ! -f "$PY_VENV_FILE" ]; then
+    echo "$VENV_FULL_DIR" | sudo tee "$PY_VENV_FILE" > /dev/null
+fi

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-SCRIPT_ROOT_DIR=$(cat "/usr/script_global_var/SCRIPT_ROOT_DIR")
-COMMON_SCRIPTS_DIR=$(cat "/usr/script_global_var/COMMON_SCRIPTS_DIR")
+SCRIPT_ROOT_DIR=$(cat "/usr/core_node/global_var/SCRIPT_ROOT_DIR")
+COMMON_SCRIPTS_DIR=$(cat "/usr/core_node/global_var/COMMON_SCRIPTS_DIR")
 CHECK_DOCKER_CONFIG_SCRIPT="$COMMON_SCRIPTS_DIR/check_docker_config.js"
 
 # Automatically determine the LSB release codename from the system
