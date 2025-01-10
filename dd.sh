@@ -283,11 +283,10 @@ while true; do
     echo "Select a function:"
     echo "1. Install the server"
     echo "2. Rebuild docker-compose"
-    echo "3. Migrate server"
-    echo "4. Restart/Print pm2 service"
-    echo "5. Get the latest git version"
-    echo "6. Enable local sharing on LAN"
-    echo "7. Display global variables"
+    echo "3. Restart/Print pm2 service"
+    echo "4. Get the latest git version"
+    echo "5. Enable local sharing on LAN"
+    echo "6. Display global variables"
     echo "0. Exit"
     read -p "Please enter your choice: " choice
     case $choice in
