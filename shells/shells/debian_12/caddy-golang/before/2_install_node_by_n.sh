@@ -12,6 +12,7 @@ COMMON_SCRIPTS_DIR=$(cat "/usr/core_node/global_var/COMMON_SCRIPTS_DIR")
 # Node.js version and download URL
 NODE_VERSION="20.18.1"
 NODE_DOWNLOAD_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz"
+LANG_COMPILER_PREFIX="/usr/lang_compiler"
 N_PREFIX="/usr/local"
 DOWNLOAD_PATH="/tmp/node-v${NODE_VERSION}-linux-x64.tar.xz"
 

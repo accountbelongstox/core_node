@@ -1,6 +1,6 @@
-import { execSync } from 'child_process';
-import path from 'path';
-import fs from 'fs';
+const { execSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 
 const CACHE_DIR = path.resolve('../../.cache/.check');
 const CACHE_FILE = path.join(CACHE_DIR, '.npm_global_package.cache');
@@ -188,17 +188,18 @@ Examples:
     }
 }
 
-// Run the script if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run if called directly
+if (require.main === module) {
     main().catch(error => {
         console.error('Error:', error);
         process.exit(1);
     });
 }
 
-export {
+module.exports = {
     getGlobalPackages,
     isPackageInstalled,
     ensurePackageInstalled,
-    listGlobalPackages
+    listGlobalPackages,
+    main
 }; 

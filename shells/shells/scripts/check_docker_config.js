@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+const fs = require('fs');
+const path = require('path');
 
 const DOCKER_CONFIG = {
     'registry-mirrors': [
@@ -177,16 +177,17 @@ async function main() {
     console.log(JSON.stringify(finalConfig, null, 2));
 }
 
-// Run the script if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run if called directly
+if (require.main === module) {
     main().catch(error => {
         console.error('Error:', error);
         process.exit(1);
     });
 }
 
-export {
+module.exports = {
     DOCKER_CONFIG,
     updateDockerConfig,
-    readDockerConfig
+    readDockerConfig,
+    main
 }; 

@@ -1,134 +1,126 @@
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
-import { execSync } from 'child_process';
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { execSync } = require('child_process');
 
-// Standard npmrc configuration map
-const NPMRC_CONFIG_MAP = new Map([
-    ['registry', 'http://registry.npmmirror.com/'],
-    ['disturl', 'https://registry.npmmirror.com/-/binary/node/'],
-    ['sass_binary_site', 'https://registry.npmmirror.com/-/binary/node-sass'],
-    ['sharp_libvips_binary_host', 'https://registry.npmmirror.com/-/binary/sharp-libvips'],
-    ['python_mirror', 'https://registry.npmmirror.com/-/binary/python/'],
-    ['electron_mirror', 'https://registry.npmmirror.com/-/binary/electron/'],
-    ['electron_builder_binaries_mirror', 'https://registry.npmmirror.com/-/binary/electron-builder-binaries/'],
-    ['canvas_binary_host_mirror', 'https://registry.npmmirror.com/-/binary/canvas'],
-    ['node_sqlite3_binary_host_mirror', 'https://registry.npmmirror.com/-/binary/sqlite3'],
-    ['better_sqlite3_binary_host_mirror', 'https://registry.npmmirror.com/-/binary/better-sqlite3']
-]);
+const NPMRC_PATH = path.join(os.homedir(), '.npmrc');
+const REQUIRED_SETTINGS = {
+    'registry': 'https://registry.npmmirror.com',
+    'electron_mirror': 'https://npmmirror.com/mirrors/electron/',
+    'electron_builder_binaries_mirror': 'https://npmmirror.com/mirrors/electron-builder-binaries/',
+    'sass_binary_site': 'https://npmmirror.com/mirrors/node-sass',
+    'phantomjs_cdnurl': 'https://npmmirror.com/mirrors/phantomjs',
+    'puppeteer_download_host': 'https://npmmirror.com/mirrors',
+    'chromedriver_cdnurl': 'https://npmmirror.com/mirrors/chromedriver',
+    'operadriver_cdnurl': 'https://npmmirror.com/mirrors/operadriver',
+    'selenium_cdnurl': 'https://npmmirror.com/mirrors/selenium',
+    'node_inspector_cdnurl': 'https://npmmirror.com/mirrors/node-inspector'
+};
 
 /**
- * Ensure npmrc configuration
- * @param {string} configPath - Path to npmrc file
+ * Read current .npmrc file
+ * @returns {Object} Current settings
  */
-function ensureNpmrcConfig(configPath) {
-    let content = '';
-    let existingConfig = new Map();
+function readNpmrc() {
+    try {
+        if (!fs.existsSync(NPMRC_PATH)) {
+            return {};
+        }
 
-    // Read existing config if file exists
-    if (fs.existsSync(configPath)) {
-        content = fs.readFileSync(configPath, 'utf8');
-        
-        // Parse existing configuration
+        const content = fs.readFileSync(NPMRC_PATH, 'utf8');
+        const settings = {};
+
         content.split('\n').forEach(line => {
             line = line.trim();
             if (line && !line.startsWith('#')) {
-                const [key, ...valueParts] = line.split('=');
-                if (key) {
-                    existingConfig.set(key.trim(), valueParts.join('=').trim());
+                const [key, value] = line.split('=').map(s => s.trim());
+                if (key && value) {
+                    settings[key] = value;
                 }
             }
         });
-    }
 
-    let configUpdated = false;
-    let newContent = [];
-
-    // Add or update configurations
-    for (const [key, value] of NPMRC_CONFIG_MAP) {
-        const existingValue = existingConfig.get(key);
-        if (!existingValue) {
-            // Add new configuration
-            newContent.push(`${key}=${value}`);
-            configUpdated = true;
-            console.log(`Adding new config: ${key}=${value}`);
-        } else if (existingValue !== value) {
-            // Update existing configuration
-            newContent.push(`${key}=${value}`);
-            configUpdated = true;
-            console.log(`Updating config: ${key}=${value} (was: ${existingValue})`);
-        } else {
-            // Keep existing configuration
-            newContent.push(`${key}=${existingValue}`);
-        }
-    }
-
-    // Keep other existing configurations that are not in our map
-    existingConfig.forEach((value, key) => {
-        if (!NPMRC_CONFIG_MAP.has(key)) {
-            newContent.push(`${key}=${value}`);
-        }
-    });
-
-    // Write updated configuration if changes were made
-    if (configUpdated || !fs.existsSync(configPath)) {
-        const configDir = path.dirname(configPath);
-        if (!fs.existsSync(configDir)) {
-            fs.mkdirSync(configDir, { recursive: true });
-        }
-        fs.writeFileSync(configPath, newContent.join('\n') + '\n');
-        console.log(`Updated npmrc configuration at: ${configPath}`);
-    } else {
-        console.log(`No updates needed for: ${configPath}`);
-    }
-}
-
-/**
- * Get npm configuration paths
- */
-function getNpmConfigPaths() {
-    const homeDir = os.homedir();
-    return {
-        userConfig: path.join(homeDir, '.npmrc'),
-        projectConfig: path.join(process.cwd(), '.npmrc'),
-        globalConfig: execSync('npm config get globalconfig', { encoding: 'utf8' }).trim()
-    };
-}
-
-/**
- * Main function to check and update npm configuration
- */
-async function main() {
-    try {
-        const configPaths = getNpmConfigPaths();
-
-        // Check and update each configuration file
-        console.log('\nChecking npmrc configurations...');
-        Object.entries(configPaths).forEach(([type, configPath]) => {
-            console.log(`\nChecking ${type}:`);
-            ensureNpmrcConfig(configPath);
-        });
-
-        // Verify npm configuration
-        console.log('\nVerifying npm configuration:');
-        for (const [key] of NPMRC_CONFIG_MAP) {
-            const value = execSync(`npm config get ${key}`, { encoding: 'utf8' }).trim();
-            console.log(`${key}: ${value}`);
-        }
-
+        return settings;
     } catch (error) {
-        console.error('Error checking npm configuration:', error.message);
+        console.error('Error reading .npmrc:', error.message);
+        return {};
+    }
+}
+
+/**
+ * Write settings to .npmrc file
+ * @param {Object} settings - Settings to write
+ */
+function writeNpmrc(settings) {
+    try {
+        const content = Object.entries(settings)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('\n');
+
+        fs.writeFileSync(NPMRC_PATH, content + '\n');
+        console.log('.npmrc file updated successfully');
+    } catch (error) {
+        console.error('Error writing .npmrc:', error.message);
         process.exit(1);
     }
 }
 
-// Run the script if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+/**
+ * Check and update npm configuration
+ */
+function checkNpmConfig() {
+    console.log('Checking npm configuration...');
+    
+    const currentSettings = readNpmrc();
+    let needsUpdate = false;
+    const updatedSettings = { ...currentSettings };
+
+    // Check each required setting
+    for (const [key, value] of Object.entries(REQUIRED_SETTINGS)) {
+        if (currentSettings[key] !== value) {
+            console.log(`Setting ${key}=${value}`);
+            updatedSettings[key] = value;
+            needsUpdate = true;
+        }
+    }
+
+    // Update if needed
+    if (needsUpdate) {
+        console.log('Updating .npmrc file...');
+        writeNpmrc(updatedSettings);
+        
+        // Verify npm registry setting
+        try {
+            execSync('npm config get registry', { stdio: 'inherit' });
+        } catch (error) {
+            console.error('Error verifying npm registry:', error.message);
+        }
+    } else {
+        console.log('npm configuration is already correct');
+    }
+}
+
+/**
+ * Main function
+ */
+function main() {
+    try {
+        checkNpmConfig();
+    } catch (error) {
+        console.error('Error:', error.message);
+        process.exit(1);
+    }
+}
+
+// Run if called directly
+if (require.main === module) {
     main();
 }
 
-export {
-    NPMRC_CONFIG_MAP,
-    ensureNpmrcConfig,
-    getNpmConfigPaths
+module.exports = {
+    REQUIRED_SETTINGS,
+    readNpmrc,
+    writeNpmrc,
+    checkNpmConfig,
+    main
 }; 

@@ -1,8 +1,8 @@
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import http from 'http';
-import https from 'https';
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const http = require('http');
+const https = require('https');
 
 const PROXY_URLS = [
     "https://github.com.cnpmjs.org",
@@ -227,7 +227,7 @@ async function main(targetUrl) {
 }
 
 // Run the script if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
     const targetUrl = process.argv[2] || 'https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64';
     main(targetUrl).catch(error => {
         console.error('Error:', error);
@@ -235,4 +235,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     });
 }
 
-export { testProxySpeed, formatSpeed, formatBytes };
+module.exports = {
+    testProxySpeed,
+    formatSpeed,
+    formatBytes,
+    main
+};

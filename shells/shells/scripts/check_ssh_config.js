@@ -1,7 +1,7 @@
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
-import { execSync } from 'child_process';
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { execSync } = require('child_process');
 
 /**
  * Get SSH configuration paths
@@ -232,15 +232,16 @@ async function main() {
     }
 }
 
-// Run the script
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run if called directly
+if (require.main === module) {
     main();
 }
 
-export {
+module.exports = {
     getSSHConfigPaths,
     parseSSHConfig,
     readSSHConfig,
     checkSSHKeys,
-    checkSSHAgent
+    checkSSHAgent,
+    main
 }; 
