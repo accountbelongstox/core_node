@@ -1,4 +1,3 @@
-const { APP_DATA_DIR } = require('#@/ncore/gvar/gdir.js');
 const logger = require('#@/ncore/utils/logger/index.js');
 const { getSubDirectories } = require('../tool/folder');
 const { getUniqueContentLines } = require('./tools/content.js');
@@ -12,7 +11,6 @@ const { getArg } = require('#@/ncore/utils/systool/libs/sysarg.js');
 
 class DictInitController {
     constructor() {
-        this.dataDir = APP_DATA_DIR;
         this.isProcessing = false;
     }
 

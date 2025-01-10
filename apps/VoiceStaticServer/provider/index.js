@@ -39,11 +39,11 @@ const GET_TTS_NODE_VOICES = async (MS_TTS) => {
     log.info(`\n--------------------------------------------------------------------------------`)
     return TTS_NODE_VOICES;
 };
-const { APP_DATA_DIR, APP_OUTPUT_DIR } = require('#@/ncore/gvar/gdir.js');
-const DICTIONARY_DIR = path.join(APP_DATA_DIR, 'dictionary');
-const LEMMAS_DIR = path.join(APP_DATA_DIR, 'lemmas');
-const SENTENCES_DIR = path.join(APP_DATA_DIR, 'sentences');
-const VOCABULARY_DIR = path.join(APP_DATA_DIR, 'vocabulary');
+const { APP_DATA_DIR, APP_OUTPUT_DIR, APP_METADATA_DIR } = require('#@/ncore/gvar/gdir.js');
+const DICTIONARY_DIR = path.join(APP_METADATA_DIR, 'dictionary');
+const LEMMAS_DIR = path.join(APP_METADATA_DIR, 'lemmas');
+const SENTENCES_DIR = path.join(APP_METADATA_DIR, 'sentences');
+const VOCABULARY_DIR = path.join(APP_METADATA_DIR, 'vocabulary');
 const DICT_SOUND_DIR = path.join(APP_OUTPUT_DIR, 'dictSoundLib');
 const DICT_SOUND_SUBTITLE_DIR = path.join(APP_OUTPUT_DIR, 'dictSoundSubtitle');
 const SENTENCES_SOUND_DIR = path.join(APP_OUTPUT_DIR, 'sentenceSoundLib');

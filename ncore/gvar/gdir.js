@@ -31,6 +31,7 @@ const GLOBAL_VAR_DIR = os.platform() === 'win32'
 const PUBLIC_DIR = path.join(BASEDIR, 'public');
 const APP_PUBLIC_DIR = appname ? path.join(PUBLIC_DIR, appname) : PUBLIC_DIR;
 const APP_DATA_DIR = appname ? path.join(APP_PUBLIC_DIR, 'data') : PUBLIC_DIR;
+const APP_METADATA_DIR = appname ? path.join(APP_PUBLIC_DIR, 'metadata') : PUBLIC_DIR;
 const APP_DATA_CACHE_DIR = appname ? path.join(APP_PUBLIC_DIR, '.cache') : PUBLIC_DIR;
 const APP_STATIC_DIR = appname ? path.join(APP_PUBLIC_DIR, 'static') : PUBLIC_DIR;
 const APP_OUTPUT_DIR = appname ? path.join(APP_PUBLIC_DIR, 'output') : PUBLIC_DIR;
@@ -48,7 +49,7 @@ mkdir(APP_DATA_DIR);
 mkdir(APP_DATA_CACHE_DIR);
 mkdir(APP_STATIC_DIR);
 mkdir(APP_OUTPUT_DIR);
-
+mkdir(APP_METADATA_DIR);
 // Directory creation
 function mkdir(path) {
     return fs.mkdirSync(path, { recursive: true });
@@ -211,6 +212,7 @@ module.exports = {
     APP_PUBLIC_DIR,
     APP_DATA_DIR,
     APP_DATA_CACHE_DIR,
+    APP_METADATA_DIR,
     APP_STATIC_DIR,
     APP_TEMPLATE_DIR,
     APP_OUTPUT_DIR,
