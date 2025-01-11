@@ -1,4 +1,3 @@
-const data = require('#@/apps/express-admin/lib/data/index.js');
 const { execCmdResultText, pipeExecCmd } = require('#@utils_commander');
 let log;
 try {
