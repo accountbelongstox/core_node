@@ -39,9 +39,9 @@ class SymlinkInfo(NamedTuple):
 class ValidationResult(NamedTuple):
     """Result of symlink group validation"""
     is_valid: bool
-    reason: Optional[str] = None
-    details: List[SymlinkInfo] = []
-    expected_base_dir: Optional[Path] = None
+    reason: Optional[str]
+    details: List[SymlinkInfo]
+    expected_base_dir: Optional[Path]
 
 def get_all_paths() -> List[Path]:
     """Get all paths to check"""
@@ -93,7 +93,12 @@ def is_valid_group(group: List[SymlinkInfo]) -> ValidationResult:
         log.warning("Found broken symlinks in group:")
         for info in broken_links:
             log.warning(f"  {info.path} -> {info.target} (target missing)")
-        return ValidationResult(False, "broken_links", broken_links)
+        return ValidationResult(
+            is_valid=False,
+            reason="broken_links",
+            details=broken_links,
+            expected_base_dir=None
+        )
 
     # Check if all symlinks point to the same base directory
     base_dir = group[0].base_dir
@@ -104,12 +109,22 @@ def is_valid_group(group: List[SymlinkInfo]) -> ValidationResult:
             log.warning(f"  {info.path} -> {info.target}")
             log.warning(f"    Base directory: {info.base_dir}")
         log.warning(f"Expected base directory: {base_dir}")
-        return ValidationResult(False, "inconsistent_targets", inconsistent_links, base_dir)
+        return ValidationResult(
+            is_valid=False,
+            reason="inconsistent_targets",
+            details=inconsistent_links,
+            expected_base_dir=base_dir
+        )
 
     log.info("All symlinks in group are valid:")
     for info in group:
         log.info(f"  {info.path} -> {info.target}")
-    return ValidationResult(True, base_dir=base_dir)
+    return ValidationResult(
+        is_valid=True,
+        reason=None,
+        details=[],
+        expected_base_dir=base_dir
+    )
 
 def remove_group(group: List[SymlinkInfo], reason: str) -> bool:
     """Remove a group of symlinks"""

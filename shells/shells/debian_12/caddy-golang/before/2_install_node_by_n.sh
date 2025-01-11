@@ -10,6 +10,7 @@ SCRIPT_ROOT_DIR=$(cat "/usr/core_node/global_var/SCRIPT_ROOT_DIR")
 COMMON_SCRIPTS_DIR=$(cat "/usr/core_node/global_var/COMMON_SCRIPTS_DIR")
 
 clean_invalid_node_links=$COMMON_SCRIPTS_DIR/clean_invalid_node_links.py
+echo python3 $clean_invalid_node_links
 python3 $clean_invalid_node_links
 
 # Node.js version and download URL
