@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const os = require('os');
+const { getAppName } = require('#@/ncore/gvar/libs/appname.js');
 
 let log;
 try {
@@ -21,10 +22,82 @@ try {
     };
 }
 
-/**
- * Get system resource limits
- * @returns {Object} System resource information
- */
+function getArgs() {
+    const args = [];
+    let isKeyReg = /^-+/;
+    for (let i = 0; i < process.argv.length; i++) {
+        const item = process.argv[i];
+        if (item.includes('=')) {
+            const [rawKey, ...valueParts] = item.split('=');
+            const rawValue = valueParts.join('=');
+            const key = rawKey.replace(/^-+/, '').toLowerCase();
+            const value = rawValue.replace(/^["']|["']$/g, '');
+            const itemObject = {}
+            itemObject[key] = value;
+            args.push(itemObject);
+        }
+        else if (item.includes(':')) {
+            const [rawKey, ...valueParts] = item.split(':');
+            const rawValue = valueParts.join(':');
+            const key = rawKey.replace(/^-+/, '').toLowerCase();
+            const value = rawValue.replace(/^["']|["']$/g, '');
+            const itemObject = {}
+            itemObject[key] = value;
+            args.push(itemObject);
+        }
+        else {
+            if (isKeyReg.test(item)) {
+                const itemObject = {}
+                const key = item.replace(/^-+/, '').toLowerCase();
+                itemObject[key] = true;
+                args.push(itemObject);
+            } else {
+                if (i == 0) {
+                    const key = `exec`
+                    const itemObject = {}
+                    itemObject[key] = item;
+                    args.push(itemObject);
+                }
+                else if (i == 1) {
+                    const key = `entry`
+                    const itemObject = {}
+                    itemObject[key] = item;
+                    args.push(itemObject);
+                }
+                else {
+
+                    const keyAlias = item
+                    const itemObjectAlias = {}
+                    itemObjectAlias[keyAlias] = item;
+                    args.push(itemObjectAlias);
+                }
+                const key = `${i}`
+                const itemObject = {}
+                itemObject[key] = item;
+                args.push(itemObject);
+
+            }
+        }
+    }
+    return args;
+}
+
+function getArg(name, defaultValue = null) {
+    const args = getArgs();
+    const arg = args.find(arg => arg[name] !== undefined);
+    if (arg) {
+        return arg[name];
+    }
+    return defaultValue;
+}
+
+function removePersonalizedArgs(args) {
+    delete args[`exec`]
+    delete args[`entry`]
+    delete args[`service`]
+    return args
+}
+
 function getSystemResources() {
     const totalMemory = os.totalmem();
     const availableMemory = os.freemem();
@@ -39,54 +112,59 @@ function getSystemResources() {
     };
 }
 
-/**
- * Generate service name from path
- * @param {string} execPath - Path to executable
- * @returns {string} Generated service name
- */
-function generateServiceName(execPath) {
-    // Extract filename without extension
+function generateServiceName(config) {
+    const execPath = config.execPath
+    const appname = getServiceAppName(config)
     const baseName = path.basename(execPath, path.extname(execPath))
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with dash
         .replace(/^-+|-+$/g, '');     // Remove leading/trailing dashes
-    
-    return `node-${baseName}`;
+
+    return `${appname}-${baseName}`;
 }
 
-/**
- * Generate service description from path and args
- * @param {string} execPath - Path to executable
- * @param {string[]} args - Command arguments
- * @returns {string} Generated description
- */
-function generateDescription(execPath, args) {
-    const baseName = path.basename(execPath);
-    const argsStr = args.length > 0 ? ` with args: ${args.join(' ')}` : '';
-    return `Node.js service for ${baseName}${argsStr}`;
+function generateServiceDescription(config) {
+    const { outputLog, outputErrorLog } = getServiceLogPath(config)
+    const execPath = config.execPath
+    const appname = getServiceAppName(config)
+    const baseName = path.basename(execPath, path.extname(execPath))
+    const arguments = argsObjectExpand(config.args)
+    return `${appname}-${baseName}-service,args: ${arguments},outputLog: ${outputLog},outputErrorLog: ${outputErrorLog}`
 }
 
-/**
- * Determine best working directory
- * @param {string} execPath - Path to executable
- * @returns {string} Working directory path
- */
-function determineWorkingDir(execPath) {
+function determineWorkingDir(config) {
+    const execPath = config.entry ? config.entry : config.execPath
     const dir = path.dirname(execPath);
-    
-    // Check for common project indicators
+
     const indicators = ['package.json', 'node_modules', '.git'];
     let currentDir = dir;
-    
+
     while (currentDir !== '/' && currentDir !== '.') {
         if (indicators.some(indicator => fs.existsSync(path.join(currentDir, indicator)))) {
             return currentDir;
         }
         currentDir = path.dirname(currentDir);
     }
-    
+
     // Fallback to script directory
     return dir;
+}
+
+function argsObjectExpand(argsObject) {
+    const args = {};
+    let argsString = '';
+    for (const key in argsObject) {
+        args[key] = argsObject[key];
+        argsString += `${key}="${argsObject[key]}" `;
+    }
+    return argsString;
+}
+
+function getServiceLogPath(config) {
+    const appname = getServiceAppName(config)
+    const outputLog = path.join('/var/log', `${appname}.log`)
+    const outputErrorLog = path.join('/var/log', `${appname}.error.log`)
+    return { outputLog, outputErrorLog }
 }
 
 /**
@@ -108,33 +186,35 @@ function createServiceContent(config) {
         name,
         description,
         execPath,
-        args = [],
-        workingDir,
+        entry = '',
+        args = {},
         resources: {
             cpuShares = resources.defaultCpuShare,
             memoryLimit = resources.defaultMemoryLimit
         } = {}
     } = config;
 
-    // Auto-generate missing fields
+    args = removePersonalizedArgs(args)
+
     if (!name) {
-        name = generateServiceName(execPath);
+        name = generateServiceName(config);
         log.info(`Auto-generated service name: ${name}`);
     }
 
+    const { outputLog, outputErrorLog } = getServiceLogPath(config)
+    log.info(`outputLog: ${outputLog}`)
+    log.info(`outputErrorLog: ${outputErrorLog}`)
+
     if (!description) {
-        description = generateDescription(execPath, args);
+        description = generateServiceDescription(config);
         log.info(`Auto-generated description: ${description}`);
     }
 
-    if (!workingDir) {
-        workingDir = determineWorkingDir(execPath);
-        log.info(`Auto-detected working directory: ${workingDir}`);
-    }
+    
+    const workingDir = determineWorkingDir(config);
 
-    const arguments = args.map(arg => `"${arg}"`).join(' ');
+    const arguments = argsObjectExpand(args)
     const memoryLimitMB = Math.floor(memoryLimit / 1024 / 1024);
-
     // Create service content with environment setup
     return `[Unit]
 Description=${description}
@@ -146,7 +226,7 @@ User=root
 WorkingDirectory=${workingDir}
 Environment=NODE_ENV=production
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=${execPath} ${arguments}
+ExecStart=${execPath} ${entry} ${arguments}
 Restart=always
 RestartSec=10
 
@@ -157,33 +237,36 @@ MemoryLimit=${memoryLimitMB}M
 MemoryAccounting=true
 
 # Logging
-StandardOutput=append:/var/log/${name}.log
-StandardError=append:/var/log/${name}.error.log
+StandardOutput=append:${outputLog}
+StandardError=append:${outputErrorLog}
 
 # Security
-NoNewPrivileges=true
-ProtectSystem=full
-ProtectHome=true
-PrivateTmp=true
+NoNewPrivileges=false
+ProtectSystem=false
+ProtectHome=false
+PrivateTmp=false
 
 [Install]
 WantedBy=multi-user.target`;
 }
 
-/**
- * Install or update a service
- * @param {Object} config - Service configuration
- * @returns {Promise<void>}
- */
+function getServiceAppName(config) {
+    const appname = config.appname ? config.appname : getAppName()
+    return appname
+}
+
 async function installService(config) {
     const {
-        name,
         execPath,
+        entry = '',
         serviceDir = '/etc/systemd/system'
     } = config;
-
+    let name = config.name
+    if (!name) {
+        name = generateServiceName(config)
+    }
     if (!name || !execPath) {
-        throw new Error('Service name and execPath are required');
+        log.error('Service name and execPath are required');
     }
 
     const servicePath = path.join(serviceDir, `${name}.service`);
@@ -192,7 +275,7 @@ async function installService(config) {
     try {
         // Ensure executable exists
         if (!fs.existsSync(execPath)) {
-            throw new Error(`Executable not found: ${execPath}`);
+            log.error(`Executable not found: ${execPath}`);
         }
 
         // Write service file
@@ -215,7 +298,7 @@ async function installService(config) {
         log.info(`- Memory: ${Math.floor((config.resources?.memoryLimit || resources.defaultMemoryLimit) / 1024 / 1024)}MB`);
 
     } catch (error) {
-        throw new Error(`Failed to install service: ${error.message}`);
+        log.error(`Failed to install service: ${error.message} ${error.stack}`);
     }
 }
 
@@ -246,7 +329,7 @@ async function getServiceStatus(name) {
     try {
         const servicePath = path.join('/etc/systemd/system', `${name}.service`);
         const exists = fs.existsSync(servicePath);
-        
+
         if (!exists) {
             return { installed: false };
         }

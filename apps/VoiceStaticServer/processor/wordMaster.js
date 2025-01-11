@@ -1,4 +1,5 @@
 const logger = require('#@/ncore/utils/logger/index.js');
+const { sysarg } = require('#@utils_native');
 const { getSubDirectories } = require('../tool/folder');
 const { getUniqueContentLines } = require('./tools/content.js');
 const { VOCABULARY_DIR, setWordCount, updateWordWaitingCount, addWordCount } = require('../provider/index');
@@ -6,7 +7,6 @@ const { addWordBack, getWordCount, getWordFront } = require('../provider/QueueMa
 const { getOrGenerateAudioPy } = require('./tools/edge_tts_py');
 const { getOrGenerateAudioNode } = require('./tools/edge-tts-node');
 const { getMd5, ensureQueueItem, checkVoice, generateAudioMapName, generateAudioMa3RawName, ITEM_TYPE, updateWordCount } = require('./tools/libs/check_voice');
-const { getArg } = require('#@/ncore/utils/systool/libs/sysarg.js');
 
 
 class DictInitController {
@@ -15,7 +15,7 @@ class DictInitController {
     }
 
     async initialize() {
-        let word_segmentation = getArg('word_segmentation');
+        let word_segmentation = sysarg.getArg('word_segmentation');
         let vocabulary = getUniqueContentLines(VOCABULARY_DIR);
 
         let vocabulary_start = 0;

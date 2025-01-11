@@ -97,6 +97,7 @@ class StaticServer {
     }
 
     async start(config) {
+        console.log(`config`,config)
         const STATIC_PATHS = mergeConfigs(config.STATIC_PATHS, defaultStaticConfig)
         if (STATIC_PATHS) {
             this.configureStaticRoutes(STATIC_PATHS);

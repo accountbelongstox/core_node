@@ -6,6 +6,7 @@ const RouterManager = require('./libs/RouterManager.js');
 
 const startExpressServer = async (config) => {
     updateConfig(config);
+    console.log(`config-startExpressServer`,config)
     await RouterManager.start(config)
     await StaticServer.start(config)
     await WsManager.start(config)

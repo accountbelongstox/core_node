@@ -1,3 +1,21 @@
+let log;
+try {
+    const logger = require('#@/ncore/utils/logger/index.js');
+    log = {
+        info: (...args) => logger.info(...args),
+        warn: (...args) => logger.warn(...args),
+        error: (...args) => logger.error(...args),
+        success: (...args) => logger.success(...args)
+    };
+} catch (error) {
+    log = {
+        info: (...args) => console.log('[INFO]', ...args),
+        warn: (...args) => console.warn('[WARN]', ...args),
+        error: (...args) => console.error('[ERROR]', ...args),
+        success: (...args) => console.log('[SUCCESS]', ...args)
+    };
+}
+
 class SysArg {
     constructor() {
         this.pythonVersion = process.version;
@@ -13,35 +31,15 @@ class SysArg {
         return this.platform;
     }
 
-    getArg(name, defaultValue = null, info = false) {
+    getArg(name, defaultValue = null) {
         if (typeof name === 'number') {
             return this.getArgByIndex(name, defaultValue);
         }
-
-        const lowerCaseName = name.toLowerCase();
-
-        if (info) {
-            console.log('getArg');
-            console.log(process.argv);
+        const args = this.getArgs();
+        const arg = args[name];
+        if (arg) {
+            return arg;
         }
-
-        for (let i = 0; i < process.argv.length; i++) {
-            const arg = process.argv[i].toLowerCase(); // Convert argument to lowercase
-            const regex = new RegExp(`^[-]*${lowerCaseName}(\$|=|-|:)`);
-
-            if (regex.test(arg)) {
-                if (arg.includes(`${lowerCaseName}:`)) {
-                    return process.argv[i].split(':')[1];
-                } else if (arg.includes(`${lowerCaseName}=`)) {
-                    return process.argv[i].split('=')[1];
-                } else if (arg === `--${lowerCaseName}` || arg === `-${lowerCaseName}` || arg.match(`^-{0,1}\\*{1}${lowerCaseName}`)) {
-                    return i + 1 < process.argv.length ? process.argv[i + 1] : defaultValue;
-                } else if (arg === lowerCaseName) {
-                    return i + 1 < process.argv.length && !process.argv[i + 1].startsWith('-') ? process.argv[i + 1] : '';
-                }
-            }
-        }
-
         return defaultValue;
     }
 
@@ -58,8 +56,78 @@ class SysArg {
         return this.getArgByIndex(index) !== null;
     }
 
+    getArgsNotAlias() {
+        const args = this.getArgs();
+        const argsNotAlias = {};
+        let isNumberKeyReg = /^\d$/;
+        for (const key in args) {
+            if (!isNumberKeyReg.test(key)) {
+                argsNotAlias[key] = args[key];
+            }
+        }
+        return argsNotAlias;
+    }
+
     getArgs() {
-        return this.commandLineArgs;
+        const args = {};
+        let isKeyReg = /^-+/;
+        // Skip first two elements (node executable and script path)
+        for (let i = 0; i < this.commandLineArgs.length; i++) {
+            const item = this.commandLineArgs[i];
+            if (item.includes('=')) {
+                const [rawKey, ...valueParts] = item.split('=');
+                const rawValue = valueParts.join('=');
+                const key = rawKey.replace(/^-+/, '').toLowerCase();
+                const value = rawValue.replace(/^["']|["']$/g, '');
+                const itemObject = {}
+                itemObject[key] = value;
+                args[key] = value;
+            }
+            else if(item.includes(':')){
+                const [rawKey, ...valueParts] = item.split(':');
+                const rawValue = valueParts.join(':');
+                const key = rawKey.replace(/^-+/, '').toLowerCase();
+                const value = rawValue.replace(/^["']|["']$/g, '');
+                const itemObject = {}
+                itemObject[key] = value;
+                args[key] = value;
+            }
+            else{
+                if(isKeyReg.test(item)){
+                    const itemObject = {}
+                    const key = item.replace(/^-+/, '').toLowerCase();
+                    itemObject[key] = true;
+                    args[key] = true;
+                }else{
+                    if(i==0){
+                        const key = `exec`
+                        const itemObject = {}
+                        itemObject[key] = item;
+                        args[key] = item;
+                    }
+                    else if(i==1){
+                        const key = `entry`
+                        const itemObject = {}
+                        itemObject[key] = item;
+                        args[key] = item;
+                    }
+                    else{
+
+                        const keyAlias = item
+                        const itemObjectAlias = {}
+                        itemObjectAlias[keyAlias] = item;
+                        args[keyAlias] = item;
+                    }
+                    const key = `${i}`
+                    const itemObject = {}
+                    itemObject[key] = item;
+                    args[key] = item;
+
+                }
+            }
+        }
+        
+        return args;
     }
 
     getArgsLength() {
@@ -67,6 +135,5 @@ class SysArg {
     }
 }
 
-SysArg.toString = () => '[class SysArg]';
 
 module.exports = new SysArg();
