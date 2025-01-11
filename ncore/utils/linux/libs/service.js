@@ -106,7 +106,7 @@ function getSystemResources() {
         totalMemory,
         availableMemory,
         cpuCount,
-        defaultMemoryLimit: Math.floor(availableMemory / 4),
+        defaultMemoryLimit: Math.floor(availableMemory / 2),
         defaultCpuShare: Math.max(Math.floor(cpuCount * 0.25 * 1024), 256) // 25% of CPU in shares
     };
 }
@@ -236,6 +236,12 @@ MemoryAccounting=true
 # Logging
 StandardOutput=append:${outputLog}
 StandardError=append:${outputErrorLog}
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=1000
+LogsDirectoryMode=0755
+LogsMaxSize=100M
+MaxRetentionSec=7day
+MaxFileSec=1day
 
 # Security
 NoNewPrivileges=false
