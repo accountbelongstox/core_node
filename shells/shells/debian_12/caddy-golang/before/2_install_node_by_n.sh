@@ -9,6 +9,9 @@ fi
 SCRIPT_ROOT_DIR=$(cat "/usr/core_node/global_var/SCRIPT_ROOT_DIR")
 COMMON_SCRIPTS_DIR=$(cat "/usr/core_node/global_var/COMMON_SCRIPTS_DIR")
 
+clean_invalid_node_links=$SCRIPT_ROOT_DIR/clean_invalid_node_links.py
+python3 $clean_invalid_node_links
+
 # Node.js version and download URL
 NODE_VERSION="20.18.1"
 NODE_DOWNLOAD_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz"
