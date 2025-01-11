@@ -127,7 +127,7 @@ function generateServiceDescription(config) {
     const execPath = config.execPath
     const appname = getServiceAppName(config)
     const baseName = path.basename(execPath, path.extname(execPath))
-    const arguments = argsObjectExpand(config.args)
+    const arguments = argsObjectExpand(config.args,``)
     return `${appname}-${baseName}-service,args: ${arguments},outputLog: ${outputLog},outputErrorLog: ${outputErrorLog}`
 }
 
@@ -144,17 +144,15 @@ function determineWorkingDir(config) {
         }
         currentDir = path.dirname(currentDir);
     }
-
-    // Fallback to script directory
     return dir;
 }
 
-function argsObjectExpand(argsObject) {
+function argsObjectExpand(argsObject,symbol=`"`) {
     const args = {};
     let argsString = '';
     for (const key in argsObject) {
         args[key] = argsObject[key];
-        argsString += `${key}="${argsObject[key]}" `;
+        argsString += `${key}=${symbol}${argsObject[key]}${symbol} `;
     }
     return argsString;
 }
