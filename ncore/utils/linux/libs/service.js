@@ -1,258 +1,289 @@
-const { exec } = require('child_process');
-    const { promisify } = require('util');
-    const fs = require('fs');
-    const path = require('path');
-    const execSync = require('child_process').execSync;
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const os = require('os');
 
-    const execAsync = promisify(exec);
-    const __filename = __filename;
-    const __dirname = path.dirname(__filename);
+let log;
+try {
+    const logger = require('#@/ncore/utils/logger/index.js');
+    log = {
+        info: (...args) => logger.info(...args),
+        warn: (...args) => logger.warn(...args),
+        error: (...args) => logger.error(...args),
+        success: (...args) => logger.success(...args)
+    };
+} catch (error) {
+    log = {
+        info: (...args) => console.log('[INFO]', ...args),
+        warn: (...args) => console.warn('[WARN]', ...args),
+        error: (...args) => console.error('[ERROR]', ...args),
+        success: (...args) => console.log('[SUCCESS]', ...args)
+    };
+}
 
-    class ServiceManager {
-        constructor() {
-            this.defaultCpuLimit = 20;
+/**
+ * Get system resource limits
+ * @returns {Object} System resource information
+ */
+function getSystemResources() {
+    const totalMemory = os.totalmem();
+    const availableMemory = os.freemem();
+    const cpuCount = os.cpus().length;
+
+    return {
+        totalMemory,
+        availableMemory,
+        cpuCount,
+        defaultMemoryLimit: Math.floor(availableMemory / 4),
+        defaultCpuShare: Math.max(Math.floor(cpuCount * 0.25 * 1024), 256) // 25% of CPU in shares
+    };
+}
+
+/**
+ * Generate service name from path
+ * @param {string} execPath - Path to executable
+ * @returns {string} Generated service name
+ */
+function generateServiceName(execPath) {
+    // Extract filename without extension
+    const baseName = path.basename(execPath, path.extname(execPath))
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with dash
+        .replace(/^-+|-+$/g, '');     // Remove leading/trailing dashes
+    
+    return `node-${baseName}`;
+}
+
+/**
+ * Generate service description from path and args
+ * @param {string} execPath - Path to executable
+ * @param {string[]} args - Command arguments
+ * @returns {string} Generated description
+ */
+function generateDescription(execPath, args) {
+    const baseName = path.basename(execPath);
+    const argsStr = args.length > 0 ? ` with args: ${args.join(' ')}` : '';
+    return `Node.js service for ${baseName}${argsStr}`;
+}
+
+/**
+ * Determine best working directory
+ * @param {string} execPath - Path to executable
+ * @returns {string} Working directory path
+ */
+function determineWorkingDir(execPath) {
+    const dir = path.dirname(execPath);
+    
+    // Check for common project indicators
+    const indicators = ['package.json', 'node_modules', '.git'];
+    let currentDir = dir;
+    
+    while (currentDir !== '/' && currentDir !== '.') {
+        if (indicators.some(indicator => fs.existsSync(path.join(currentDir, indicator)))) {
+            return currentDir;
+        }
+        currentDir = path.dirname(currentDir);
+    }
+    
+    // Fallback to script directory
+    return dir;
+}
+
+/**
+ * Create systemd service file content with resource limits
+ * @param {Object} config - Service configuration
+ * @param {string} [config.name] - Service name (optional)
+ * @param {string} [config.description] - Service description (optional)
+ * @param {string} config.execPath - Path to executable
+ * @param {string[]} [config.args=[]] - Command arguments
+ * @param {string} [config.workingDir] - Working directory (optional)
+ * @param {Object} [config.resources] - Resource limits
+ * @param {number} [config.resources.cpuShares] - CPU shares (1024 = 100%)
+ * @param {number} [config.resources.memoryLimit] - Memory limit in bytes
+ * @returns {string} Service file content
+ */
+function createServiceContent(config) {
+    const resources = getSystemResources();
+    let {
+        name,
+        description,
+        execPath,
+        args = [],
+        workingDir,
+        resources: {
+            cpuShares = resources.defaultCpuShare,
+            memoryLimit = resources.defaultMemoryLimit
+        } = {}
+    } = config;
+
+    // Auto-generate missing fields
+    if (!name) {
+        name = generateServiceName(execPath);
+        log.info(`Auto-generated service name: ${name}`);
+    }
+
+    if (!description) {
+        description = generateDescription(execPath, args);
+        log.info(`Auto-generated description: ${description}`);
+    }
+
+    if (!workingDir) {
+        workingDir = determineWorkingDir(execPath);
+        log.info(`Auto-detected working directory: ${workingDir}`);
+    }
+
+    const arguments = args.map(arg => `"${arg}"`).join(' ');
+    const memoryLimitMB = Math.floor(memoryLimit / 1024 / 1024);
+
+    // Create service content with environment setup
+    return `[Unit]
+Description=${description}
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${workingDir}
+Environment=NODE_ENV=production
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=${execPath} ${arguments}
+Restart=always
+RestartSec=10
+
+# Resource Limits
+CPUShares=${cpuShares}
+CPUQuota=${Math.floor((cpuShares / 1024) * 100)}%
+MemoryLimit=${memoryLimitMB}M
+MemoryAccounting=true
+
+# Logging
+StandardOutput=append:/var/log/${name}.log
+StandardError=append:/var/log/${name}.error.log
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target`;
+}
+
+/**
+ * Install or update a service
+ * @param {Object} config - Service configuration
+ * @returns {Promise<void>}
+ */
+async function installService(config) {
+    const {
+        name,
+        execPath,
+        serviceDir = '/etc/systemd/system'
+    } = config;
+
+    if (!name || !execPath) {
+        throw new Error('Service name and execPath are required');
+    }
+
+    const servicePath = path.join(serviceDir, `${name}.service`);
+    const serviceContent = createServiceContent(config);
+
+    try {
+        // Ensure executable exists
+        if (!fs.existsSync(execPath)) {
+            throw new Error(`Executable not found: ${execPath}`);
         }
 
-        /**
-         * Create or update a system service
-         * @param {string} filePath - Path to the binary or sh file
-         * @param {string} [serviceName] - Optional service name
-         * @param {number} [cpuLimit] - Optional CPU limit percentage
-         * @returns {Promise<boolean>} - Whether the operation was successful
-         */
-        async createService(filePath, serviceName, cpuLimit = this.defaultCpuLimit) {
+        // Write service file
+        fs.writeFileSync(servicePath, serviceContent);
+        log.success(`Service file created: ${servicePath}`);
+
+        // Reload systemd and enable service
+        execSync('systemctl daemon-reload');
+        execSync(`systemctl enable ${name}.service`);
+        log.success('Service enabled successfully');
+
+        // Show service status
+        const status = execSync(`systemctl status ${name}.service`).toString();
+        log.info('Service status:', status);
+
+        // Show resource limits
+        const resources = getSystemResources();
+        log.info('Resource limits:');
+        log.info(`- CPU: ${Math.floor((config.resources?.cpuShares || resources.defaultCpuShare) / 1024 * 100)}% (${config.resources?.cpuShares || resources.defaultCpuShare} shares)`);
+        log.info(`- Memory: ${Math.floor((config.resources?.memoryLimit || resources.defaultMemoryLimit) / 1024 / 1024)}MB`);
+
+    } catch (error) {
+        throw new Error(`Failed to install service: ${error.message}`);
+    }
+}
+
+/**
+ * Remove a service
+ * @param {string} name - Service name
+ * @returns {Promise<void>}
+ */
+async function removeService(name) {
+    try {
+        execSync(`systemctl stop ${name}.service`);
+        execSync(`systemctl disable ${name}.service`);
+        const servicePath = path.join('/etc/systemd/system', `${name}.service`);
+        fs.unlinkSync(servicePath);
+        execSync('systemctl daemon-reload');
+        log.success(`Service ${name} removed successfully`);
+    } catch (error) {
+        throw new Error(`Failed to remove service: ${error.message}`);
+    }
+}
+
+/**
+ * Get service status
+ * @param {string} name - Service name
+ * @returns {Promise<Object>} Service status
+ */
+async function getServiceStatus(name) {
+    try {
+        const servicePath = path.join('/etc/systemd/system', `${name}.service`);
+        const exists = fs.existsSync(servicePath);
+        
+        if (!exists) {
+            return { installed: false };
+        }
+
+        const config = fs.readFileSync(servicePath, 'utf8');
+        const status = execSync(`systemctl status ${name}.service`).toString();
+        const isActive = status.includes('Active: active');
+        const pid = status.match(/Main PID: (\d+)/)?.[1];
+
+        let resources = {};
+        if (pid) {
             try {
-                // Validate file path
-                if (!filePath) {
-                    throw new Error('File path cannot be empty');
-                }
-
-                const absolutePath = path.resolve(filePath);
-                await this.checkFileAccess(absolutePath);
-
-                // Use file name as default service name
-                const finalServiceName = serviceName || path.basename(filePath, path.extname(filePath));
-
-                // Generate service configuration
-                const serviceConfig = this.#generateServiceConfig(absolutePath, finalServiceName, cpuLimit);
-
-                // Write service file
-                const servicePath = `/etc/systemd/system/${finalServiceName}.service`;
-                await this.writeFile(servicePath, serviceConfig);
-
-                // Reload systemd and start service
-                await execAsync('systemctl daemon-reload');
-                await execAsync(`systemctl enable ${finalServiceName}`);
-                await execAsync(`systemctl restart ${finalServiceName}`);
-
-                console.log(`Service ${finalServiceName} has been successfully ${serviceName ? 'created' : 'updated'} and started`);
-                
-                // Check service status
-                const { stdout } = await execAsync(`systemctl status ${finalServiceName}`);
-                console.log('Service status:', stdout);
-
-                return true;
-            } catch (error) {
-                console.error('Error creating/updating service:', error.message);
-                throw error;
+                const cpuUsage = execSync(`ps -p ${pid} -o %cpu`).toString().split('\n')[1].trim();
+                const memUsage = execSync(`ps -p ${pid} -o %mem`).toString().split('\n')[1].trim();
+                resources = { cpuUsage, memUsage };
+            } catch (e) {
+                log.warn('Could not get resource usage:', e.message);
             }
         }
 
-        #generateServiceConfig(filePath, serviceName, cpuLimit) {
-            return `[Unit]
-    Description=${serviceName} service
-    After=network.target
-
-    [Service]
-    ExecStart=${filePath}
-    Restart=always
-    RestartSec=10
-    User=root
-    CPUQuota=${cpuLimit}%
-    StandardOutput=append:/var/log/${serviceName}.log
-    StandardError=append:/var/log/${serviceName}.error.log
-
-    [Install]
-    WantedBy=multi-user.target
-    `;
-        }
-
-        /**
-         * Check file access
-         * @param {string} filePath
-         * @returns {Promise<void>}
-         */
-        checkFileAccess(filePath) {
-            return new Promise((resolve, reject) => {
-                fs.access(filePath, fs.constants.F_OK, (err) => {
-                    if (err) {
-                        reject(new Error('File does not exist or is not accessible'));
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-        }
-
-        /**
-         * Write file
-         * @param {string} filePath
-         * @param {string} data
-         * @returns {Promise<void>}
-         */
-        writeFile(filePath, data) {
-            return new Promise((resolve, reject) => {
-                fs.writeFile(filePath, data, (err) => {
-                    if (err) {
-                        reject(new Error('Failed to write service file'));
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-        }
-
-        /**
-         * Command line handler
-         */
-        static async handleCLI() {
-            const args = process.argv.slice(2);
-            const [filePath, serviceName, cpuLimit] = args;
-
-            if (!filePath) {
-                console.error('Usage: node service.js <file path> [service name] [CPU limit]');
-                process.exit(1);
-            }
-
-            try {
-                const manager = new ServiceManager();
-                await manager.createService(
-                    filePath,
-                    serviceName,
-                    cpuLimit ? parseInt(cpuLimit) : undefined
-                );
-            } catch (error) {
-                console.error('Error:', error.message);
-                process.exit(1);
-            }
-        }
+        return {
+            installed: true,
+            active: isActive,
+            pid,
+            config,
+            status,
+            resources
+        };
+    } catch (error) {
+        throw new Error(`Failed to get service status: ${error.message}`);
     }
+}
 
-    /**
-     * Update service CPU limits and restart the service
-     * @param {string} serviceName - Name of the systemd service
-     * @param {number} cpuQuota - CPU quota percentage (e.g., 200 for 200%)
-     * @returns {boolean} - Success status
-     */
-    function updateServiceCPU(serviceName, cpuQuota) {
-        try {
-            // Create override directory if it doesn't exist
-            execSync('mkdir -p /etc/systemd/system/${serviceName}.service.d/');
-            
-            // Create or update the CPU limit override file
-            const cpuOverride = `[Service]
-    CPUQuota=${cpuQuota}%
-    `;
-            fs.writeFileSync(`/etc/systemd/system/${serviceName}.service.d/cpu-limit.conf`, cpuOverride);
-
-            // Reload systemd and restart service
-            execSync('systemctl daemon-reload');
-            execSync(`systemctl restart ${serviceName}`);
-
-            console.log(`Successfully updated CPU quota for ${serviceName} to ${cpuQuota}%`);
-            return true;
-        } catch (error) {
-            console.error(`Failed to update CPU quota for ${serviceName}:`, error.message);
-            return false;
-        }
-    }
-
-    /**
-     * Update service binary file and restart the service
-     * @param {string} serviceName - Name of the systemd service
-     * @param {string} newBinaryPath - Path to the new binary file
-     * @param {string} targetPath - Target path where binary should be installed
-     * @returns {boolean} - Success status
-     */
-    function updateServiceBinary(serviceName, newBinaryPath, targetPath) {
-        try {
-            // Verify new binary exists
-            if (!fs.existsSync(newBinaryPath)) {
-                throw new Error('New binary file not found');
-            }
-
-            // Stop the service
-            execSync(`systemctl stop ${serviceName}`);
-
-            // Backup existing binary if it exists
-            if (fs.existsSync(targetPath)) {
-                const backupPath = `${targetPath}.backup`;
-                fs.copyFileSync(targetPath, backupPath);
-            }
-
-            // Copy new binary
-            fs.copyFileSync(newBinaryPath, targetPath);
-            
-            // Set proper permissions
-            execSync(`chmod +x ${targetPath}`);
-
-            // Reload systemd and restart service
-            execSync('systemctl daemon-reload');
-            execSync(`systemctl restart ${serviceName}`);
-
-            console.log(`Successfully updated binary for ${serviceName}`);
-            return true;
-        } catch (error) {
-            console.error(`Failed to update binary for ${serviceName}:`, error.message);
-            
-            // Attempt to restore from backup if update failed
-            const backupPath = `${targetPath}.backup`;
-            if (fs.existsSync(backupPath)) {
-                try {
-                    fs.copyFileSync(backupPath, targetPath);
-                    execSync(`chmod +x ${targetPath}`);
-                    execSync(`systemctl restart ${serviceName}`);
-                    console.log('Restored service from backup');
-                } catch (restoreError) {
-                    console.error('Failed to restore from backup:', restoreError.message);
-                }
-            }
-            
-            return false;
-        }
-    }
-
-    /**
-     * Check service status
-     * @param {string} serviceName - Name of the systemd service
-     * @returns {Object} Service status information
-     */
-    function checkServiceStatus(serviceName) {
-        try {
-            const status = execSync(`systemctl status ${serviceName}`, { encoding: 'utf8' });
-            const activeState = status.match(/Active: (\w+)/)?.[1] || 'unknown';
-            const cpuUsage = execSync(`ps -p $(systemctl show -p MainPID ${serviceName} | cut -d'=' -f2) -o %cpu=`).toString().trim();
-            
-            return {
-                name: serviceName,
-                status: activeState,
-                cpuUsage: parseFloat(cpuUsage) || 0,
-                running: activeState === 'active'
-            };
-        } catch (error) {
-            return {
-                name: serviceName,
-                status: 'error',
-                cpuUsage: 0,
-                running: false,
-                error: error.message
-            };
-        }
-    }
-
-    // If run directly via command line
-    if (__filename === `file://${__filename}`) {
-        ServiceManager.handleCLI();
-    }
-
-    module.exports = ServiceManager;
+module.exports = {
+    installService,
+    removeService,
+    getServiceStatus,
+    getSystemResources,
+    createServiceContent
+}; 
