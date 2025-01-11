@@ -1,7 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const { exec } = require('child_process');
 const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, DICT_SOUND_SUBTITLE_DIR } = require('../../provider/index');
 const { findEdgeTTSBinary } = require('./libs/edgeTTSFinder');
 const { getAmericanVoice, getEnglishVoice } = require('./libs/soundQuality');
@@ -34,7 +32,6 @@ function processVoiceTextToVoiceList(voicesText) {
     for (const line of voicesText) {
         if (line.includes('Female') || line.includes('Male')) {
             const voiceName = line.trim().split(/\s+/)[0];
-            console.log(`voiceName ${voiceName}`);
             if (voiceName) {
                 voices.push(voiceName);
             }

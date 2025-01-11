@@ -40,6 +40,13 @@ function getAppNameFromNamedParam() {
             console.error('  node get_appname.js --app=myapp');
             console.error('  node get_appname.js -appname=myapp');
             console.error('  node get_appname.js -app=myapp');
+            const apps = getAppDirectories()
+            console.error('  ---------------------------------------------');
+            console.error('  Current Apps:');
+            apps.forEach((app) =>{
+                console.log(`  ${app}`)
+            })
+            console.error('  ---------------------------------------------');
             process.exit(1);
         }
 
