@@ -284,8 +284,10 @@ async function installService(config) {
         pipeExecCmd(`systemctl enable ${name}.service`);
         log.success('Service enabled successfully');
 
+        pipeExecCmd(`systemctl restart ${name}.service`);
         // Show service status
-        pipeExecCmd(`systemctl status ${name}.service`);
+        let status = execCmdResultText(`systemctl status ${name}.service`);
+        log.info(status)
 
         // Show resource limits
         const resources = getSystemResources();
