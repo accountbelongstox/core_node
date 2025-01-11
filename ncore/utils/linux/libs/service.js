@@ -1,9 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 const os = require('os');
 const { getAppName } = require('#@/ncore/gvar/libs/appname.js');
-
+const { pipeExecCmd,execCmdResultText } = require('#@utils_commander');
 let log;
 try {
     const logger = require('#@/ncore/utils/logger/index.js');
@@ -283,13 +282,12 @@ async function installService(config) {
         log.success(`Service file created: ${servicePath}`);
 
         // Reload systemd and enable service
-        execSync('systemctl daemon-reload');
-        execSync(`systemctl enable ${name}.service`);
+        pipeExecCmd('systemctl daemon-reload');
+        pipeExecCmd(`systemctl enable ${name}.service`);
         log.success('Service enabled successfully');
 
         // Show service status
-        const status = execSync(`systemctl status ${name}.service`).toString();
-        log.info('Service status:', status);
+        pipeExecCmd(`systemctl status ${name}.service`);
 
         // Show resource limits
         const resources = getSystemResources();
@@ -309,11 +307,11 @@ async function installService(config) {
  */
 async function removeService(name) {
     try {
-        execSync(`systemctl stop ${name}.service`);
-        execSync(`systemctl disable ${name}.service`);
+        pipeExecCmd(`systemctl stop ${name}.service`);
+        pipeExecCmd(`systemctl disable ${name}.service`);
         const servicePath = path.join('/etc/systemd/system', `${name}.service`);
         fs.unlinkSync(servicePath);
-        execSync('systemctl daemon-reload');
+        pipeExecCmd('systemctl daemon-reload');
         log.success(`Service ${name} removed successfully`);
     } catch (error) {
         throw new Error(`Failed to remove service: ${error.message}`);
@@ -335,15 +333,17 @@ async function getServiceStatus(name) {
         }
 
         const config = fs.readFileSync(servicePath, 'utf8');
-        const status = execSync(`systemctl status ${name}.service`).toString();
+        const status = execCmdResultText(`systemctl status ${name}.service`);
         const isActive = status.includes('Active: active');
         const pid = status.match(/Main PID: (\d+)/)?.[1];
 
         let resources = {};
         if (pid) {
             try {
-                const cpuUsage = execSync(`ps -p ${pid} -o %cpu`).toString().split('\n')[1].trim();
-                const memUsage = execSync(`ps -p ${pid} -o %mem`).toString().split('\n')[1].trim();
+                let result = execCmdResultText(`ps -p ${pid} -o %cpu`);
+                const cpuUsage = result.split('\n')[1].trim()
+                result = execCmdResultText(`ps -p ${pid} -o %mem`)
+                const memUsage = result.split('\n')[1].trim()
                 resources = { cpuUsage, memUsage };
             } catch (e) {
                 log.warn('Could not get resource usage:', e.message);
