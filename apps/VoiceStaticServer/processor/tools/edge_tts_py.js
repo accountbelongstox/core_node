@@ -50,16 +50,18 @@ const GET_TTS_PY_VOICES = async (edgeTTSBinary) => {
     const command = `${edgeTTSBinary} --list-voices`;
     const voicesText = await execCmdResultText(command);
     TTS_PY_VOICES = processVoiceTextToVoiceList(voicesText);
-    log.info(`\n--------------------------------------------------------------------------------`)
-    log.info(`support voices: `);
+    log.success(`\n--------------------------------------------------------------------------------`)
+    log.success(`support voices: ${TTS_PY_VOICES.length}`);
+    let voiceList = [];
     for(const voice of TTS_PY_VOICES){
-        log.success(`\t- ${voice}`);
+        voiceList.push(`${voice}`);
     }
-    log.info(`\n--------------------------------------------------------------------------------`)
+    log.success(voiceList.join(' / '));
+    log.success(`\n--------------------------------------------------------------------------------`)
     return TTS_PY_VOICES;
 };
 
-const getOrGenerateAudioPy = async (input) => {
+const getOrGenerateAudioPy = async (input,callback) => {
     try {
         const edgeTTSBinary = await findEdgeTTSBinary();
         const voices = await GET_TTS_PY_VOICES(edgeTTSBinary);
@@ -113,6 +115,8 @@ const getOrGenerateAudioPy = async (input) => {
     } catch (e) {
         log.error(`Error generating audio: ${e.message}`);
         return [];
+    }finally{
+        if(callback)callback();
     }
 };
 

@@ -2,7 +2,7 @@ const logger = require('#@/ncore/utils/logger/index.js');
 const { sysarg } = require('#@utils_native');
 const { getSubDirectories } = require('../tool/folder');
 const { getUniqueContentLines } = require('./tools/content.js');
-const { VOCABULARY_DIR, setWordCount, updateWordWaitingCount, addWordCount } = require('../provider/index');
+const { VOCABULARY_DIR, setWordIndex, updateWordWaitingCount, setWordTotalCount, addWordCount } = require('../provider/index');
 const { addWordBack, getWordCount, getWordFront } = require('../provider/QueueManager.js');
 const { getOrGenerateAudioPy } = require('./tools/edge_tts_py');
 const { getOrGenerateAudioNode } = require('./tools/edge-tts-node');
@@ -24,13 +24,16 @@ class DictInitController {
             word_segmentation = word_segmentation.split('-');
             vocabulary_start = parseInt(word_segmentation[0]);
             vocabulary_end = parseInt(word_segmentation[1]);
+            setWordIndex(vocabulary_start, vocabulary_end);
+        }else{
+            setWordIndex(0, vocabulary.length);
         }
 
-        vocabulary = vocabulary.slice(vocabulary_start, vocabulary_end);
+        const vocabulary_slice = vocabulary.slice(vocabulary_start, vocabulary_end);
 
         const generatedWords = []
         const notGeneratedWords = []
-        for (const item of vocabulary) {
+        for (const item of vocabulary_slice) {
             const validFile = await checkVoice(item);
             if (!validFile) {
                 addWordBack(item);
@@ -38,42 +41,46 @@ class DictInitController {
                 updateWordWaitingCount('add');
             } else {
                 generatedWords.push(item);
+                addWordCount(1);
             }
         }
         for (const word of generatedWords) {
             logger.success(`${word} is already generated`);
         }
-        for (const word of notGeneratedWords) {
-            logger.warn(`"${word}" is not generated, adding to queue`);
-        }
+        const trimedNotGeneratedWords = notGeneratedWords.slice(0, 100);
+        logger.warn(`"${trimedNotGeneratedWords.join(',')}" is not generated, adding to queue`);
+        logger.warn(`-------------------------------------------------------------------------------`);
         logger.success(`Total words: ${vocabulary.length}`);
         logger.success(`Generated words: ${generatedWords.length}`);
         logger.warn(`Not generated words: ${notGeneratedWords.length}`);
         console.log(`word_segmentation: ${word_segmentation}`);
-        addWordCount(notGeneratedWords.length);
+        setWordTotalCount(vocabulary.length);
     }
 
     startWordProcessing() {
-        setInterval(() => {
+        const wordCount = getWordCount();
+        if (wordCount > 0) {
             this.processNextWord();
-        }, 1000);
+        }else{
+            logger.success('All words are processed,waiting for new words');
+            setTimeout(() => {
+                this.startWordProcessing();
+            }, 500);
+        }
     }
 
     async processNextWord() {
-        if (this.isProcessing) {
-            return;
-        }
         try {
-            this.isProcessing = true;
-            const wordCount = getWordCount();
-            if (wordCount > 0) {
-                const nextWord = getWordFront();
-                await getOrGenerateAudioPy(nextWord);
-            }
+            const nextWord = getWordFront();
+            await getOrGenerateAudioPy(nextWord,()=>{
+
+            });
         } catch (error) {
             logger.error('Error processing word:', error);
-        } finally {
-            this.isProcessing = false;
+        }finally{
+            setTimeout(() => {
+                this.startWordProcessing();
+            }, 500);
         }
     }
 

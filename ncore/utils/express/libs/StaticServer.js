@@ -4,11 +4,14 @@ const app = expressProvider.getExpressApp()
 const express = expressProvider.getExpress()
 const path = require('path');
 const fs = require('fs');
-const { APP_STATIC_DIR,APP_TEMPLATE_DIR } = require('#@/ncore/gvar/gdir.js');
-const logger = require('../logger/index.js');
+const { APP_STATIC_DIR, APP_TEMPLATE_DIR, APP_TEMPLATE_STATIC_DIR } = require('#@/ncore/gvar/gdir.js');
+const logger = require('#@/ncore/utils/logger/index.js');
+const DEFULAT_TEMPLATE_DIR = path.join(__dirname, '..', 'template'); 
+const DEFULAT_STATIC_DIR = path.join(DEFULAT_TEMPLATE_DIR, 'static');
+
 
 const defaultStaticConfig = {
-    "/static": [APP_STATIC_DIR,APP_TEMPLATE_DIR],
+    "/static": [APP_STATIC_DIR, APP_TEMPLATE_STATIC_DIR, DEFULAT_STATIC_DIR],
 
 }
 
@@ -38,13 +41,8 @@ function mergeConfigs(config1, config2) {
 
 class StaticServer {
     constructor() {
-        this.express = express;
     }
 
-    /**
-     * Configure static routes for express app
-     * @param {Object} staticPaths - Static paths configuration
-     */
     configureStaticRoutes(staticPaths) {
         if (!staticPaths || typeof staticPaths !== 'object') {
             logger.warn('No static paths configuration provided');
@@ -53,32 +51,26 @@ class StaticServer {
 
         logger.log('Configuring static routes...');
 
-        // Iterate through all static path entries
-        Object.entries(staticPaths).forEach(([route, paths]) => {
-            logger.log(`\nConfiguring route: ${route}`);
+        Object.entries(staticPaths).forEach(([urlPath, paths]) => {
+            let express_router = express.Router();
+            logger.log(`\nConfiguring route: ${urlPath}`);
 
             if (Array.isArray(paths)) {
-                // Handle array of paths
                 paths.forEach(staticPath => {
-                    this._addStaticRoute(route, staticPath);
+                    express_router = this._addStaticRoute(urlPath, staticPath,express_router);
                 });
             } else if (typeof paths === 'string') {
-                // Handle single path
-                this._addStaticRoute(route, paths);
+                express_router = this._addStaticRoute(urlPath, paths,express_router  );
             } else {
-                logger.warn(`Invalid path configuration for route ${route}`);
+                logger.warn(`Invalid path configuration for route ${urlPath}`);
             }
+            this.applyStaticRoutes(urlPath,express_router);
         });
 
         logger.log('\nStatic routes configuration completed');
     }
 
-    /**
-     * Add a single static route
-     * @param {string} route - Route path
-     * @param {string} staticPath - Static files path
-     */
-    _addStaticRoute(route, staticPath) {
+    _addStaticRoute(urlPath, staticPath,express_router) {
         try {
             // Check if path exists
             if (!fs.existsSync(staticPath)) {
@@ -86,18 +78,24 @@ class StaticServer {
                 fs.mkdirSync(staticPath, { recursive: true });
                 logger.log(`Created directory: ${staticPath}`);
             }
-
+            express_router.use(express.static(staticPath, {
+                fallthrough: true,
+                lastModified: true
+            }));
             // Configure static route
-            app.use(route, this.express.static(staticPath));
-            logger.log(`✓ Added static route: ${route} -> ${staticPath}`);
+            logger.log(`✓ Added static urlPath: ${urlPath} -> ${staticPath}`);
 
         } catch (error) {
-            logger.error(`Error configuring static route ${route} -> ${staticPath}:`, error);
+            logger.error(`Error configuring static route ${urlPath} -> ${staticPath}:`, error);
         }
+        return express_router;
     }
 
-    async start(config) {
-        console.log(`config`,config)
+    applyStaticRoutes(urlPath,express_router){
+        app.use(urlPath, express_router);
+    }
+
+    async start(config,) {
         const STATIC_PATHS = mergeConfigs(config.STATIC_PATHS, defaultStaticConfig)
         if (STATIC_PATHS) {
             this.configureStaticRoutes(STATIC_PATHS);

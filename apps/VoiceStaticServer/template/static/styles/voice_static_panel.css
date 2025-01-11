@@ -1,0 +1,168 @@
+.VoiceStaticPanel {
+    position: fixed;
+    top: 20px;
+    left: 0;
+    width: 480px;
+    background-color: #fff;
+    border-radius: 0 12px 12px 0;
+    box-shadow: 2px 0 15px rgba(0, 0, 0, 0.1);
+    transition: left 0.3s ease;
+    z-index: 1000;
+    color: #333;
+    cursor: pointer;
+}
+
+.VoiceStaticPanel.collapsed {
+    left: -480px;
+}
+
+/* Header Styling */
+.VoiceStaticPanel .card-header {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    border-radius: 0 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.VoiceStaticPanel .card-header h5 {
+    margin: 0;
+    color: white;
+    font-size: 1.2em;
+    font-weight: 500;
+}
+
+.VoiceStaticPanel .badge {
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #27ae60;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+/* Card Body */
+.VoiceStaticPanel .card-body {
+    padding: 20px;
+}
+
+/* Monitor Cards */
+.VoiceStaticPanel .monitor-card {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+}
+
+.VoiceStaticPanel .card-title {
+    color: #27ae60;
+    font-weight: 600;
+    margin-bottom: 16px;
+    font-size: 1em;
+}
+
+/* Progress Bar */
+.VoiceStaticPanel .progress-section {
+    margin-bottom: 15px;
+}
+
+.VoiceStaticPanel .progress {
+    height: 10px;
+    background-color: #eee;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.VoiceStaticPanel .progress-bar {
+    background: linear-gradient(90deg, #2ecc71, #27ae60);
+    transition: width 0.3s ease;
+}
+
+/* Stats Grid */
+.VoiceStaticPanel .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.VoiceStaticPanel .stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 6px;
+    font-size: 0.9em;
+}
+
+.VoiceStaticPanel .label {
+    color: #666;
+    font-weight: 500;
+}
+
+.VoiceStaticPanel .value {
+    color: #2c3e50;
+    font-family: 'Consolas', monospace;
+    font-weight: 600;
+    min-width: 60px;
+    text-align: right;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .VoiceStaticPanel {
+        width: 360px;
+    }
+    
+    .VoiceStaticPanel.collapsed {
+        left: -360px;
+    }
+}
+
+/* Collapse Indicator */
+.VoiceStaticPanel::after {
+    content: '◄';
+    position: absolute;
+    right: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #2ecc71;
+    color: white;
+    padding: 10px;
+    border-radius: 0 5px 5px 0;
+    opacity: 0.8;
+    transition: all 0.3s ease;
+}
+
+.VoiceStaticPanel.collapsed::after {
+    transform: translateY(-50%) rotate(180deg);
+}
+
+/* Card Layout Adjustments */
+.VoiceStaticPanel .monitor-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+/* Value Display Optimization */
+.VoiceStaticPanel .value {
+    color: #2c3e50;
+    font-family: 'Consolas', monospace;
+    font-weight: 600;
+    min-width: 60px;
+    text-align: right;
+}
+
+/* Progress Bar Gradient */
+.VoiceStaticPanel .progress-bar {
+    background: linear-gradient(90deg, #2ecc71, #27ae60);
+}
+
+/* Hover Effects */
+.VoiceStaticPanel .stat-item:hover {
+    background: #f8f9fa;
+    transition: background-color 0.2s ease;
+} 

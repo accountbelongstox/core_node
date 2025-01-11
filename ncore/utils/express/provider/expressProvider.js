@@ -1,10 +1,7 @@
 const expressOrigin = require('express');
 const fs = require('fs');
 
-/**
- * Express provider class
- * Provides configured express instance with common middleware and settings
- */
+
 class ExpressProvider {
     constructor() {
         this.app = expressOrigin();

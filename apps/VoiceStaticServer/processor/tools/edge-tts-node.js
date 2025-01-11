@@ -21,7 +21,7 @@ try {
     };
 }
 
-const getOrGenerateAudioNode = async (input) => {
+const getOrGenerateAudioNode = async (input,callback) => {
     try {
         const MS_TTS = new EdgeTTS();
         const voices = await GET_TTS_NODE_VOICES(MS_TTS);
@@ -88,6 +88,8 @@ const getOrGenerateAudioNode = async (input) => {
     } catch (e) {
         log.error(`Error generating audio: ${e.message} at ${e.stack}`);
         return [];
+    }finally{
+        if(callback)callback();
     }
 };
 

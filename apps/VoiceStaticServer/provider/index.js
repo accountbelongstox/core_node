@@ -53,12 +53,16 @@ const DICT_SOUND_WATCHER = new FWatcher(DICT_SOUND_DIR);
 const SENTENCES_SOUND_WATCHER = new FWatcher(SENTENCES_SOUND_DIR);
 
 const START_TIME = Date.now();
+let WORD_TOTAL_COUNT = 0;
 let WORD_COUNT = 0;
+let WORD_COUNT_UPDATED = false;
 let WORD_TIME = 0;
 let WORD_SUCCESS_COUNT = 0;
 let WORD_FAILED_COUNT = 0;
 let WORD_AVERAGE_TIME = 0;
 let WORD_WAITING_COUNT = 0;
+let WORD_START_INDEX = 0;
+let WORD_END_INDEX = 0;
 
 let SENTENCE_COUNT = 0;
 let SENTENCE_TIME = 0;
@@ -86,8 +90,15 @@ mkdir(SENTENCES_SOUND_SUBTITLE_DIR)
 
 let TOTAL_TIME = START_TIME;
 
+const setWordIndex = (start, end) => {
+    WORD_START_INDEX = start;
+    WORD_END_INDEX = end;
+}
 const updateTotalTime = () => {
     TOTAL_TIME = Date.now() - START_TIME;
+}
+const setWordTotalCount = (count) => {
+    WORD_TOTAL_COUNT = count;
 }
 const setWordCount = (count) => {
     WORD_COUNT = count;
@@ -104,6 +115,7 @@ const updateWordWaitingCount = (operation) => {
     } else {
         if (WORD_WAITING_COUNT > 0) {
             WORD_WAITING_COUNT--;
+            WORD_COUNT++;
         }
     }
 }
@@ -117,6 +129,35 @@ const printWordStatus = () => {
     log.success(`Total time: ${TOTAL_TIME}ms`);
     log.success(`Word average time: ${WORD_AVERAGE_TIME}ms`);
     log.progressBar(WORD_SUCCESS_COUNT, WORD_COUNT, { width: 40 });
+}
+
+const updateWordCount = async () => {
+    if (WORD_COUNT_UPDATED) {
+        return;
+    }
+    WORD_COUNT_UPDATED = true;
+    const dictSoundWatcher = await DICT_SOUND_WATCHER.getWatcherStatus();
+    WORD_COUNT += dictSoundWatcher.fileNameSet;
+}
+
+const getWordStatus = async () => {
+    await updateWordCount();
+    return {
+        success: true,
+        data: {
+            wordTotalCount: WORD_TOTAL_COUNT,
+            wordCount: WORD_COUNT,
+            wordSuccessCount: WORD_SUCCESS_COUNT,
+            wordFailedCount: WORD_FAILED_COUNT,
+            wordWaitingCount: WORD_WAITING_COUNT,
+            totalTime: TOTAL_TIME,
+            wordAverageTime: WORD_AVERAGE_TIME,
+            wordStartIndex: WORD_START_INDEX,
+            wordEndIndex: WORD_END_INDEX,
+            dictSoundWatcher: await DICT_SOUND_WATCHER.getWatcherStatus(),
+            sentencesSoundWatcher: await SENTENCES_SOUND_WATCHER.getWatcherStatus(),
+        }
+    }
 }
 
 
@@ -136,7 +177,9 @@ module.exports = {
     updateWordFailedCount,
     setWordCount,
     addWordCount,
+    setWordTotalCount,
     updateWordWaitingCount,
+    setWordIndex,
     WORD_COUNT,
     WORD_TIME,
     TOTAL_TIME,
@@ -146,5 +189,6 @@ module.exports = {
     DICT_SOUND_WATCHER,
     SENTENCES_SOUND_WATCHER,
     // MS_TTS_BINARY,
+    getWordStatus,
     GET_TTS_NODE_VOICES,
 };

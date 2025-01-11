@@ -8,8 +8,7 @@ const edgeTTSFinder = require('./processor/tools/libs/edgeTTSFinder.js');
 const pythonVenv = require('#@/ncore/utils/dev_tool/lang_compiler_deploy/pythonVenv.js');
 
 class Main {
-    constructor() {
-    }
+    constructor() {}
 
     async start() {
         await pythonSetup.ensurePythonEnvironment()
@@ -46,7 +45,7 @@ class Main {
             logger.info('EdgeTTS binary found successfully! Path: ', edgeTTSPath);
         }
         logger.info(`usage:  --app=${appname} --word_segmentation=0-30000`);
-        await wordMaster.start()
+        wordMaster.start()
         http.start(config)
     }
 }

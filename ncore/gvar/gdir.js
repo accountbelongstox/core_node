@@ -36,6 +36,7 @@ const APP_DATA_CACHE_DIR = appname ? path.join(APP_PUBLIC_DIR, '.cache') : PUBLI
 const APP_STATIC_DIR = appname ? path.join(APP_PUBLIC_DIR, 'static') : PUBLIC_DIR;
 const APP_OUTPUT_DIR = appname ? path.join(APP_PUBLIC_DIR, 'output') : PUBLIC_DIR;
 const APP_TEMPLATE_DIR = path.join(APP_DIR, `template`);
+const APP_TEMPLATE_STATIC_DIR = path.join(APP_TEMPLATE_DIR, `static`);
 
 
 // Create essential directories
@@ -50,6 +51,8 @@ mkdir(APP_DATA_CACHE_DIR);
 mkdir(APP_STATIC_DIR);
 mkdir(APP_OUTPUT_DIR);
 mkdir(APP_METADATA_DIR);
+mkdir(APP_TEMPLATE_STATIC_DIR);
+
 // Directory creation
 function mkdir(path) {
     return fs.mkdirSync(path, { recursive: true });
@@ -215,6 +218,7 @@ module.exports = {
     APP_METADATA_DIR,
     APP_STATIC_DIR,
     APP_TEMPLATE_DIR,
+    APP_TEMPLATE_STATIC_DIR,
     APP_OUTPUT_DIR,
 
     // Drive management functions

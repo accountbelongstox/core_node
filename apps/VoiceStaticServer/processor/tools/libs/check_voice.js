@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const file = require('#@/ncore/utils/ftool/libs/file.js');
 const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, updateTotalTime,
     printWordStatus,
     WORD_COUNT,
@@ -182,12 +183,23 @@ const showGenerateInfo = (queueItem,SoundQuality,mediaFilename,command) => {
 
 const checkValidFile = async (filePath, type) => {
     const watcher = type === ITEM_TYPE.WORD ? DICT_SOUND_WATCHER : SENTENCES_SOUND_WATCHER;
-    const validFile = await watcher.findValidFile(filePath);
+    const absoluteFilePath = file.isAbsulutePath(filePath) ? filePath : path.join(getVoiceDir(type), filePath);
+    const validFile = await watcher.findValidFile(absoluteFilePath);
     if(validFile){
         return validFile;
     }
     return null;
 }
+
+// const checkValidFile = async (filePath, type) => {
+//     const LIB_DIR = type === ITEM_TYPE.WORD ? DICT_SOUND_DIR : SENTENCES_SOUND_DIR;
+//     const absoluteFilePath = file.isAbsulutePath(filePath) ? filePath : path.join(LIB_DIR, filePath);
+//     const validFile = file.isValideFile(absoluteFilePath);
+//     if(validFile){
+//         return validFile;
+//     }
+//     return null;
+// }
 
 module.exports = {
     checkVoice,

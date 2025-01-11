@@ -1,4 +1,4 @@
-const logger = require('../logger/index.js');
+const logger = require('#@/ncore/utils/logger/index.js');
 const expressProvider = require('../provider/expressProvider');
 const { processResponse } = require('../tool/response.js');
 const { getConfig } = require('../config');
@@ -28,21 +28,21 @@ function truncateUserAgent(userAgent) {
     return userAgent;  // Return the full User-Agent if no ')' is found
 }
 function logRequest(req, res, next) {
-    const startTime = Date.now(); 
+    const startTime = Date.now();
     const method = req.method;
     const path = req.originalUrl;
     const ip = req.ip;
     const userAgent = req.get('User-Agent');
-    const methodMarker = getMethodMarker(method); 
+    const methodMarker = getMethodMarker(method);
     const truncateUserAgentString = truncateUserAgent(userAgent);
 
     logger.success(`${methodMarker} ${path} - IP: ${ip} - ${truncateUserAgentString}`);
 
     res.on('finish', () => {
-        const responseTime = Date.now() - startTime; 
-        if (responseTime > 3000) { 
+        const responseTime = Date.now() - startTime;
+        if (responseTime > 3000) {
             logger.info(`${methodMarker} ${path} - ${responseTime}ms - IP: ${ip} - ${truncateUserAgentString}`);
-        } else if(responseTime > 5000) { 
+        } else if (responseTime > 5000) {
             logger.warning(`${methodMarker} ${path} - ${responseTime}ms - IP: ${ip} - ${truncateUserAgentString}`);
         }
     });
@@ -66,7 +66,6 @@ function getMethodMarker(method) {
     }
 }
 
-
 const defaultRouter = {
     "/": findFirstAvailableFile([
         path.join(APP_TEMPLATE_DIR, 'index.html'),
@@ -77,24 +76,6 @@ const defaultRouter = {
 class RouterManager {
     constructor() {
         this.routes = new Map();
-    }
-
-    afterSetDefaultPath() {
-        const notFoundPage = findFirstAvailableFile([
-            path.join(APP_TEMPLATE_DIR, '404.html'),
-            path.join(__dirname, '../template/404.html')
-        ])
-        const forbiddenPage = findFirstAvailableFile([
-            path.join(APP_TEMPLATE_DIR, '403.html'),
-            path.join(__dirname, '../template/403.html')
-        ])
-        app.use((req, res, next) => {
-            res.status(404).sendFile(fs.existsSync(notFoundPage) ? notFoundPage : path.join(APP_TEMPLATE_DIR, '404.html'));
-        });
-        app.use((req, res, next) => {
-            res.status(403).sendFile(fs.existsSync(forbiddenPage) ? forbiddenPage : path.join(APP_TEMPLATE_DIR, '403.html'));
-        });
-        logger.success('404 and 403 pages setup.');
     }
 
     addDynamicRoutes() {
@@ -192,6 +173,10 @@ class RouterManager {
         }, method);
     }
 
+    getExpressRouter() {
+        return router;
+    }
+
     getRoutes() {
         return Array.from(this.routes.keys());
     }
@@ -209,9 +194,9 @@ class RouterManager {
 
     async start(config) {
         this.addDynamicRoutes()
-        this.afterSetDefaultPath()
         this.printRoutes()
     }
+
 }
 
 module.exports = new RouterManager();

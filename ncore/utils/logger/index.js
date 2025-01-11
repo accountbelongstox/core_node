@@ -11,7 +11,9 @@ const colors = {
     blue: '\x1b[34m',
     gray: '\x1b[90m',
     cyan: '\x1b[36m',
-    command: '\x1b[35m'
+    command: '\x1b[35m',
+    log: '\x1b[32m',
+    debug: '\x1b[32m'
 };
 
 // Color wrapper functions
@@ -21,6 +23,7 @@ const colorize = {
     red: (text) => `${colors.red}${text}${colors.reset}`,
     yellow: (text) => `${colors.yellow}${text}${colors.reset}`,
     blue: (text) => `${colors.blue}${text}${colors.reset}`,
+    log: (text) => `${colors.log}${text}${colors.reset}`,
     gray: (text) => `${colors.gray}${text}${colors.reset}`,
     cyan: (text) => `${colors.cyan}${text}${colors.reset}`,
     command: (text) => `${colors.command}${text}${colors.reset}`
@@ -34,7 +37,8 @@ class Logger {
             error: 0,
             warn: 1,
             info: 2,
-            debug: 3
+            log: 3,
+            debug: 4
         };
         this.lastLineCount = 0;
         this.progressBarWidth = 40; // Default progress bar width
@@ -59,6 +63,13 @@ class Logger {
         if (this.shouldLog('info')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.log(colorize.green(`[${this.getTimestamp()}] SUCCESS: ${formattedMessage}`));
+        }
+    }
+
+    log(message, ...args) {
+        if (this.shouldLog('log')) {
+            const formattedMessage = this.formatMessage(message, ...args);
+            console.log(colorize.log(`[${this.getTimestamp()}] LOG: ${formattedMessage}`));
         }
     }
 

@@ -1,0 +1,173 @@
+/* System Monitor Panel styling */
+.SystemMonitorPanel {
+    position: fixed;
+    top: 20px;
+    right: 0;
+    width: 580px;
+    background-color: #fff;
+    border-radius: 12px 0 0 12px;
+    box-shadow: -2px 0 15px rgba(0, 0, 0, 0.1);
+    transition: right 0.3s ease;
+    z-index: 1000;
+    color: #333;
+    cursor: pointer;
+}
+
+.SystemMonitorPanel.collapsed {
+    right: -580px;
+}
+
+/* Header Styling */
+.SystemMonitorPanel .card-header {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #2980b9, #3498db);
+    border-radius: 12px 0 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.SystemMonitorPanel .card-header h5 {
+    margin: 0;
+    color: white;
+    font-size: 1.2em;
+    font-weight: 500;
+}
+
+.SystemMonitorPanel .badge {
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #2980b9;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+/* Card Body */
+.SystemMonitorPanel .card-body {
+    padding: 20px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+}
+
+/* Grid Layout */
+.SystemMonitorPanel .monitor-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+/* Monitor Cards */
+.SystemMonitorPanel .monitor-card {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.SystemMonitorPanel .card-title {
+    color: #2980b9;
+    font-weight: 600;
+    margin-bottom: 16px;
+    font-size: 1em;
+}
+
+/* Progress Bars */
+.SystemMonitorPanel .progress-section {
+    margin-bottom: 15px;
+}
+
+.SystemMonitorPanel .progress {
+    height: 10px;
+    background-color: #4CAF50;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.SystemMonitorPanel .progress-bar {
+    background-color: rgba(255, 255, 255, 0.9);
+    transition: width 0.3s ease;
+}
+
+/* Stats Grid */
+.SystemMonitorPanel .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.SystemMonitorPanel .stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 6px;
+    font-size: 0.9em;
+}
+
+.SystemMonitorPanel .label {
+    color: #666;
+    font-weight: 500;
+}
+
+.SystemMonitorPanel .value {
+    color: #2c3e50;
+    font-family: 'Consolas', monospace;
+    font-weight: 600;
+}
+
+/* Info Grid */
+.SystemMonitorPanel .info-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.SystemMonitorPanel .info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 6px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .SystemMonitorPanel {
+        width: 360px;
+    }
+    
+    .SystemMonitorPanel.collapsed {
+        right: -360px;
+    }
+    
+    .SystemMonitorPanel .monitor-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Collapse Indicator */
+.SystemMonitorPanel::before {
+    content: '►';
+    position: absolute;
+    left: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #2980b9;
+    color: white;
+    padding: 10px;
+    border-radius: 5px 0 0 5px;
+    opacity: 0.8;
+    transition: all 0.3s ease;
+}
+
+.SystemMonitorPanel.collapsed::before {
+    transform: translateY(-50%) rotate(180deg);
+}
+
+/* Utility classes */
+.SystemMonitorPanel .mb-1 { margin-bottom: 0.5rem; }
+.SystemMonitorPanel .mb-2 { margin-bottom: 1rem; }
+.SystemMonitorPanel .mb-3 { margin-bottom: 1.5rem; }
+.SystemMonitorPanel .ms-2 { margin-left: 1rem; }

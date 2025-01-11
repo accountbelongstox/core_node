@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Express Server Running</title>
   <link rel="stylesheet" href="/static/styles/index.css">
   <link rel="stylesheet" href="/static/styles/system_monitor_panel.css">
+  <link rel="stylesheet" href="/static/styles/voice_static_panel.css">
 </head>
+
 <body>
 
   <div>
@@ -122,9 +125,82 @@
     <pre id="commandWindowContent"></pre>
   </div>
 
+  <div class="VoiceStaticPanel" id="voiceStaticPanel">
+    <div class="card-header">
+      <h5 class="mb-0">Voice Generation Status</h5>
+      <span id="voiceUpdateTime" class="badge">Last update: Never</span>
+    </div>
+    <div class="card-body">
+      <div class="monitor-grid">
+        <!-- Progress Overview -->
+        <div class="monitor-card">
+          <h6 class="card-title">Progress Overview</h6>
+          <div class="progress-section">
+            <div class="progress">
+              <div id="wordProgressBar" class="progress-bar" role="progressbar"></div>
+            </div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="label">Total Words:</span>
+              <span id="wordTotalCount" class="value">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">Valid Words:</span>
+              <span id="wordCount" class="value">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">Completed:</span>
+              <span id="wordSuccessCount" class="value">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">Failed:</span>
+              <span id="wordFailedCount" class="value">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">Waiting:</span>
+              <span id="wordWaitingCount" class="value">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Time Statistics -->
+        <div class="monitor-card">
+          <h6 class="card-title">Time Statistics</h6>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="label">Total Time:</span> 
+              <span id="totalTime" class="value">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">Average Time:</span>
+              <span id="wordAverageTime" class="value">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- File Statistics -->
+        <div class="monitor-card">
+          <h6 class="card-title">File Statistics</h6>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="label">Existing Files:</span>
+              <span id="existingFiles" class="value">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">Index Range:</span>
+              <span id="indexRange" class="value">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/scripts/index.js"></script>
   <script src="/static/scripts/system_monitor.js"></script>
+  <script src="/static/scripts/voice_status.js"></script>
 
 </body>
+
 </html>

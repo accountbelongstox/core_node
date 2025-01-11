@@ -2,7 +2,7 @@ const expressProvider = require('../provider/expressProvider');
 const app = expressProvider.getExpressApp();
 const WebSocket = require('ws');
 const http = require('http');
-const logger = require('../logger/index.js');
+const logger = require('#@/ncore/utils/logger/index.js');
 
 
 function ensureParsedObject(message,) {
@@ -37,7 +37,6 @@ class WsManager {
     async start(portOrConfig) {
         let port = portOrConfig.HTTP_PORT;
         this.server = http.createServer(app);
-        logger.success(`Express server with WebSocket started on port ${port}.`);
         this.wss = new WebSocket.Server({ server: this.server });
 
         this.wss.on('connection', (ws) => {
@@ -77,10 +76,12 @@ class WsManager {
      * @param {Object} data - Message data
      */
     handleMessage(ws, data) {
-        const { type, payload } = data;
-        logger.info(`Received message type: ${type}`);
+        const { type = "message", payload } = data;
 
         switch (type) {
+            case 'message':
+                this.sendToWsClient(ws, { type: 'pong', payload: Date.now() });
+                break;
             case 'ping':
                 this.sendToWsClient(ws, { type: 'pong', payload: Date.now() });
                 break;
@@ -88,7 +89,7 @@ class WsManager {
                 this.broadcastWs(payload);
                 break;
             default:
-                logger.warn(`Unknown message type: ${type}`);
+                logger.warn(`Unknown message(handleMessage) type: ${type}`);
         }
     }
 

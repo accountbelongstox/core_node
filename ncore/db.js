@@ -13,8 +13,7 @@ const mysqlClass = require('./util/db_tool/libs/mysql.js');
       const value = env.getEnv(key);
       return value && value.trim() !== '';
     };
-
-    // Check if all required MySQL environment variables are valid
+ 
     const mysqlEnvVars = [
       'MYSQL_HOST',
       'MYSQL_PORT',
