@@ -31,7 +31,7 @@ install_nohup() {
     if [ "$(id -u)" != "0" ]; then
         echo "This installation needs root privileges. Please run with sudo."
         exit 1
-    }
+    fi
 
     case $OS in
         *Ubuntu*|*Debian*)
