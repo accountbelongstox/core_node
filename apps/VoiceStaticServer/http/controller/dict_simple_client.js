@@ -16,6 +16,21 @@ function loadSubmissionsCache() {
         ensureSimpleSubmissionLog();
         submissionsCache = JSON.parse(fs.readFileSync(SIMPLE_SUBMISSION_LOG_FILE, 'utf8'));
         log.info('Submissions cache loaded from file');
+
+        // Remove entries with "success": false
+        let removed = false;
+        for (const [key, value] of Object.entries(submissionsCache)) {
+            if (value.success === false) {
+                delete submissionsCache[key];
+                removed = true;
+            }
+        }
+
+        // Save updated cache if any entries were removed
+        if (removed) {
+            fs.writeFileSync(SIMPLE_SUBMISSION_LOG_FILE, JSON.stringify(submissionsCache, null, 2));
+            log.info('Removed unsuccessful entries and updated cache file');
+        }
     } catch (error) {
         log.error('Error loading submissions cache:', error);
         submissionsCache = {};
@@ -199,7 +214,9 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
         
         if (!shouldReturn) {
             for (const audioFile of audioFiles) {
-                await recordSimpleSubmission(audioFile, success, duration);
+                if (success) {
+                    await recordSimpleSubmission(audioFile, success, duration);
+                }
             }
         }
         if (typeof callback === 'function') {

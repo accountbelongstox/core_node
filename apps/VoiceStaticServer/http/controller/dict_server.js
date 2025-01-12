@@ -185,12 +185,16 @@ async function submitAudioSimple(req, res, next) {
         const watcher = fields.type == ITEM_TYPE.WORD ? DICT_SOUND_WATCHER : SENTENCES_SOUND_WATCHER;
         const watcher_name = fields.type == ITEM_TYPE.WORD ? 'DICT_SOUND_WATCHER' : 'SENTENCES_SOUND_WATCHER';
         let copy_success_count = 0;
+        let added_watcher_count = 0;
         fileDetails.forEach(file => {
             if (file.size > 0) {
                 let is_copy_success = copyFileToDir(file.path, voiceDir, false, true);
                 if (is_copy_success) {
                     copy_success_count++;
-                    watcher.addToIndex(file.path);
+                    let is_added = watcher.addToIndex(file.path);
+                    if(is_added){
+                        added_watcher_count++;
+                    }
                     logger.info(`File submitted ${file.path} added to ${watcher_name}`);
                 }
             }
@@ -202,7 +206,8 @@ async function submitAudioSimple(req, res, next) {
             data: {
                 fields,
                 copiedFilesCount: copy_success_count,
-                watcher_name
+                watcher_name,
+                added_watcher_count
             }
         });
     } catch (error) {

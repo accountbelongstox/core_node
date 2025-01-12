@@ -51,7 +51,6 @@ async function submitSimpleAudioToServer() {
 
         logger.info(`\nProcessing batch ${currentBatch}-${currentBatch + files.length - 1}/${totalFiles} (${progressPercent}%)`);
         logger.info(`Current batch size: ${files.length} files`);
-        logger.info('Files in current batch:', files.map(f => path.basename(f)).join(', '));
 
         try {
             await submitSimpleAudio(files, ITEM_TYPE.WORD, (result) => {

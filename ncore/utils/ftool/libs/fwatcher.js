@@ -88,6 +88,11 @@ class FileWatcher {
         //     this.extensionMap.set(ext, new Set());
         // }
         // this.extensionMap.get(ext).add(filePath);
+        let added = false;
+        if(this.fileNameSet.has(fileName)){
+            added = true;
+        }
+        return added;
     }
 
     _removeFromIndex(filePath) {
