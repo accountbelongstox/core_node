@@ -26,7 +26,6 @@ function loadSubmissionsCache() {
             }
         }
 
-        // Save updated cache if any entries were removed
         if (removed) {
             fs.writeFileSync(SIMPLE_SUBMISSION_LOG_FILE, JSON.stringify(submissionsCache, null, 2));
             log.info('Removed unsuccessful entries and updated cache file');

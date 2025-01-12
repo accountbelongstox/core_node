@@ -27,9 +27,6 @@ try {
     };
 }
 
-/**
- * Ensure submission log file exists
- */
 function ensureSubmissionLog() {
     if (!fs.existsSync(APP_DATA_CACHE_DIR)) {
         fs.mkdirSync(APP_DATA_CACHE_DIR, { recursive: true });
@@ -39,11 +36,6 @@ function ensureSubmissionLog() {
     }
 }
 
-/**
- * Check if content has been submitted before
- * @param {string} content - Content to check
- * @returns {Promise<Object|null>} Submission record if exists, null otherwise
- */
 async function checkSubmissionClient(content) {
     try {
         ensureSubmissionLog();
@@ -55,10 +47,6 @@ async function checkSubmissionClient(content) {
     }
 }
 
-/**
- * Get submission statistics
- * @returns {Promise<Object>} Statistics about submissions including count and content list
- */
 async function getSubmissionClientList() {
     try {
         ensureSubmissionLog();
@@ -86,7 +74,6 @@ async function getSubmissionClientList() {
             submittedAt: entry.submittedAt,
             duration: entry.duration
         }));
-
         return stats;
     } catch (error) {
         log.error('Error getting submission stats:', error);
@@ -94,11 +81,6 @@ async function getSubmissionClientList() {
     }
 }
 
-/**
- * Get total number of submissions
- * @param {boolean} [successOnly=false] - If true, count only successful submissions
- * @returns {Promise<number>} Number of submissions
- */
 async function getSubmissionClientCount(successOnly = false) {
     try {
         ensureSubmissionLog();
@@ -114,12 +96,6 @@ async function getSubmissionClientCount(successOnly = false) {
     }
 }
 
-/**
- * Record submission result
- * @param {string} content - Submitted content
- * @param {boolean} success - Whether submission was successful
- * @param {number} duration - Time taken in milliseconds
- */
 async function recordSubmission(content, success, duration) {
     try {
         ensureSubmissionLog();
@@ -188,23 +164,17 @@ async function submitAudio(content, audioFiles, content_type, callback) {
         form.append('type', content_type);
 
         log.info('\n=== Preparing Files ===');
+        
         audioFiles.forEach((filePath, index) => {
             const fileName = path.basename(filePath);
             form.append(`audio_${index}`, fs.createReadStream(filePath));
-            log.info(`[${index + 1}/${audioFiles.length}] Adding:`, {
-                file: fileName,
-                index: `audio_${index}`
-            });
+            log.info(`[${index + 1}/${audioFiles.length}] Adding: file ${fileName},index: audio_${index}`);
         });
 
         // Submit request
         log.info('\n=== Submitting Request ===');
         log.info(`Endpoint: ${SUBMIT_AUDIO_URL}`);
-        log.info('Payload:', {
-            content,
-            type: content_type,
-            filesCount: audioFiles.length
-        });
+        log.info('Payload:',`content: ${content}, type: ${content_type}, filesCount: ${audioFiles.length}`);
 
         const response = await axios.post(SUBMIT_AUDIO_URL, form, {
             headers: {

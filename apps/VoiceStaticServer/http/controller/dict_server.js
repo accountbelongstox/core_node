@@ -7,6 +7,7 @@ const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, IS_SERVER, initializeWatcher } = re
 const fs = require('fs');
 const path = require('path');
 const SUBMISSION_LOG_FILE = path.join(APP_DATA_CACHE_DIR, 'server_submissions.json');
+let submissionsCache = null;
 
 
 function ensureSubmissionLog() {
@@ -21,19 +22,35 @@ function ensureSubmissionLog() {
     }
 }
 
+function loadSubmissionsCache() {
+    try {
+        ensureSubmissionLog();
+        if (!submissionsCache) {
+            const data = JSON.parse(fs.readFileSync(SUBMISSION_LOG_FILE, 'utf8'));
+            submissionsCache = data;
+            logger.info('Submissions cache loaded with', data.count, 'items');
+        }
+        return submissionsCache;
+    } catch (error) {
+        logger.error('Error loading submissions cache:', error);
+        return {
+            submissions: [],
+            count: 0
+        };
+    }
+}
+
 /**
  * Record successful submission
  * @param {string} content - Submitted content
  */
 async function recordSubmission(content) {
     try {
-        ensureSubmissionLog();
-        const data = JSON.parse(fs.readFileSync(SUBMISSION_LOG_FILE, 'utf8'));
-
-        if (!data.submissions.includes(content)) {
-            data.submissions.push(content);
-            data.count = data.submissions.length;
-            fs.writeFileSync(SUBMISSION_LOG_FILE, JSON.stringify(data, null, 2));
+        const cache = loadSubmissionsCache();
+        if (!cache.submissions.includes(content)) {
+            cache.submissions.push(content);
+            cache.count = cache.submissions.length;
+            fs.writeFileSync(SUBMISSION_LOG_FILE, JSON.stringify(cache, null, 2));
         }
     } catch (error) {
         logger.error('Error recording submission:', error);
@@ -46,11 +63,10 @@ async function recordSubmission(content) {
  */
 async function getSubmissionServerList() {
     try {
-        ensureSubmissionLog();
-        const data = JSON.parse(fs.readFileSync(SUBMISSION_LOG_FILE, 'utf8'));
+        const cache = loadSubmissionsCache();
         return {
-            count: data.count,
-            submissions: data.submissions
+            count: cache.count,
+            submissions: cache.submissions
         };
     } catch (error) {
         logger.error('Error getting submission stats:', error);
@@ -66,12 +82,13 @@ async function getSubmissionServerCount() {
     return stats.count;
 }
 
-async function getRowWord() {
+async function getRowWordByServer() {
     if (!IS_SERVER) {
         return {
             success: false,
             message: 'This is a client, not a server',
-            word: null
+            word: null,
+            remainCount: 0
         };
     }
     const wordCount = getWordCount();
@@ -81,13 +98,15 @@ async function getRowWord() {
         return {
             success: true,
             message: 'Get word',
-            word: word
+            word: word,
+            remainCount: wordCount
         };
     } else {
         return {
             success: false,
             message: 'No words are processed',
-            word: null
+            word: null,
+            remainCount: 0
         };
     }
 }
@@ -147,7 +166,7 @@ async function submitAudio(req, res, next) {
             await recordSubmission(fields.content);
         }
 
-        const finished = removeByWord(fields.content);
+        const finishedAndRemoved = removeByWord(fields.content);
         const count = await getSubmissionServerCount();
 
         res.json({
@@ -155,7 +174,7 @@ async function submitAudio(req, res, next) {
             message: 'Files uploaded successfully',
             data: {
                 fields,
-                finished,
+                finishedAndRemoved,
                 submissionCount: count
             }
         });
@@ -221,10 +240,11 @@ async function submitAudioSimple(req, res, next) {
 
 
 module.exports = {
-    getRowWord,
+    getRowWordByServer,
     submitAudio,
     getSubmissionServerList,
     submitAudioSimple,
-    getSubmissionServerCount
+    getSubmissionServerCount,
+    loadSubmissionsCache
 };
 

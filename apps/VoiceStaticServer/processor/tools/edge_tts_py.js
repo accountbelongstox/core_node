@@ -63,6 +63,7 @@ const GET_TTS_PY_VOICES = async (edgeTTSBinary) => {
 };
 
 const getOrGenerateAudioPy = async (input,callback) => {
+    let generatedWordFiles = [];
     try {
         const edgeTTSBinary = await findEdgeTTSBinary();
         const voices = await GET_TTS_PY_VOICES(edgeTTSBinary);
@@ -79,7 +80,6 @@ const getOrGenerateAudioPy = async (input,callback) => {
 
         const voiceDir = getVoiceDir(queueItem);
         const subtitleDir = getSubtitleDir(queueItem);
-        const generatedWordFiles = [];
         const accents = [
             {
                 accent: 'us',
@@ -112,12 +112,13 @@ const getOrGenerateAudioPy = async (input,callback) => {
             showGenerateInfo(queueItem, SoundQuality, mediaFilename, command);
             await execCommand(command);
             updateWordCount(mediaFilename, queueItem.type);
+            generatedWordFiles.push(mediaFilename);
         }
     } catch (e) {
         log.error(`Error generating audio: ${e.message}`);
         return [];
     }finally{
-        if(callback)callback();
+        if(callback)callback(generatedWordFiles);
     }
 };
 

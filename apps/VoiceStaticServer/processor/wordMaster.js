@@ -3,7 +3,7 @@ const { IS_SERVER, IS_CLIENT, initializeWatcher, ROLE, } = require('../provider/
 const { addWordBack, getWordCount, getWordFront } = require('../provider/QueueManager.js');
 const { initialize_server, startWordProcessingByServer,} = require('./tools/server');
 const { initialize_not_client } = require('./tools/not_client');
-const { initialize_client } = require('./tools/client');
+const { initialize_client, startWordProcessingByClient } = require('./tools/client');
 class DictInitController {
     constructor() {
         this.isProcessing = false;
@@ -23,7 +23,7 @@ class DictInitController {
                 logger.success(`Role:${ROLE} initialize client..`);
                 await initialize_client();
                 logger.success(`Role:${ROLE} initialize client success`);
-                // startWordProcessingByClient();
+                startWordProcessingByClient();
             } else {
                 logger.success(`Role:${ROLE} initialize not_client..`);
                 await initialize_not_client();

@@ -1,9 +1,10 @@
-const axios = require('axios');
-const { initializeWatcher, GET_ROW_WORD_URL } = require('../../provider/index');
+const { getJsonFromUrl } = require('#@/ncore/utils/net/libs/axios_tool.js');
+const { initializeWatcher, GET_ROW_WORD_URL,updateWordSuccessCount, setWordIndex, setWordTotalCount, addWordCount } = require('../../provider/index');
 const logger = require('#@/ncore/utils/logger/index.js');
-const { getWordFront, getWordCount,ITEM_TYPE } = require('../../provider/QueueManager.js');
+const { getWordFront, getWordCount, ITEM_TYPE } = require('../../provider/QueueManager.js');
 const { getOrGenerateAudioPy } = require('./edge_tts_py');
 const CLIENT_SUBMIT_TO_SERVER_FILES_MAP = new Map();
+const { submitAudio } = require('../../http/controller/dict_client.js');
 const { submitSimpleAudio, checkSimpleSubmission, recordSimpleSubmission } = require('../../http/controller/dict_simple_client.js');
 const path = require('path');
 
@@ -31,7 +32,7 @@ async function initialize_client() {
 }
 
 async function submitSimpleAudioToServer() {
-    const BATCH_SIZE = 500; 
+    const BATCH_SIZE = 500;
 
     async function processNextBatch() {
         if (CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size === 0) {
@@ -90,52 +91,39 @@ async function submitSimpleAudioToServer() {
 
 
 async function startWordProcessingByClient() {
-    const wordCount = getWordCount();
-    if (wordCount > 0) {
-        processNextWordByClient();
-    } else {
-        logger.success('All words are processed,waiting for new words');
-        setTimeout(() => {
-            startWordProcessingByClient();
-        }, 500);
+    const result = await getJsonFromUrl(GET_ROW_WORD_URL);
+    if (result.success) {
+        try {
+            const nextWord = result.word;
+            if (nextWord) {
+                const remainCount = nextWord.remainCount;
+                setWordIndex(0, remainCount);
+                setWordTotalCount(remainCount);
+
+                await getOrGenerateAudioPy(nextWord, (generatedWordFiles) => {
+                    const contentType = nextWord.content.includes(' ') ? ITEM_TYPE.SENTENCE : ITEM_TYPE.WORD;
+                    submitAudio(nextWord.content, generatedWordFiles, contentType, (status) => {
+                        if (status.success) {
+                            updateWordSuccessCount();
+                            logger.success(`Successfully processed word: ${nextWord.content}`);
+                        } else {
+                            logger.error(`Failed to process word: ${nextWord.content}`);
+                        }
+                    });
+                });
+            }
+        } catch (error) {
+            logger.error('Error processing word:', error);
+        } finally {
+            setTimeout(() => {
+                startWordProcessingByClient();
+            }, 500);
+        }
     }
 }
 
-async function processNextWordByClient() {
-    try {
-        const nextWord = getWordFront();
-        await getOrGenerateAudioPy(nextWord, () => {
-            submitAudioByClient(nextWord);
-        });
-    } catch (error) {
-        logger.error('Error processing word:', error);
-    } finally {
-        setTimeout(() => {
-            startWordProcessingByClient();
-        }, 500);
-    }
-}
-
-
-async function getWordByClient() {
-    const result = await axios.get(GET_ROW_WORD_URL);
-    return result;
-}
-
-async function submitAudioByClient(audio) {
-    const {
-        DICT_SOUND_WATCHER,
-        SENTENCES_SOUND_WATCHER
-    } = await initializeWatcher();
-    const { file, index, loopCount } = await DICT_SOUND_WATCHER.getNextFileAndIndex();
-    // const result = await axios.post(SUBMIT_AUDIO_URL, { audio: file, index, loopCount });
-    // return result;
-}
 
 module.exports = {
     startWordProcessingByClient,
-    processNextWordByClient,
-    getWordByClient,
-    submitAudioByClient,
     initialize_client
 };

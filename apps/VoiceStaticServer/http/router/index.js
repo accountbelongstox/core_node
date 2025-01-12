@@ -1,7 +1,7 @@
 const RouterManager = require('#@/ncore/utils/express/libs/RouterManager.js');
 const { getSystemLoad, parseTopOutput } = require('../controller/system.js');
 const { getVoiceStatus } = require('../controller/voice_status.js');
-const { getRowWord, submitAudio, submitAudioSimple } = require('../controller/dict_server.js');
+const { getRowWordByServer, submitAudio, submitAudioSimple } = require('../controller/dict_server.js');
 
 const log = require('#@/ncore/utils/logger/index.js');
 
@@ -17,9 +17,8 @@ class RouteInitializer {
             return result;
         });
 
-        
         RouterManager.api('/get_row_word', async (req, res) => {
-            const result = await getRowWord();
+            const result = await getRowWordByServer();
             return result;
         });
 
