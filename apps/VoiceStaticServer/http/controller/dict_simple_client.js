@@ -181,8 +181,8 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
             },
             maxContentLength: Infinity,
             maxBodyLength: Infinity,
-            timeout: 120000,
-            timeoutErrorMessage: 'Request timed out after 120 seconds'
+            timeout: 600000,
+            timeoutErrorMessage: 'Request timed out after 600 seconds'
         });
 
         const result = response.data;
