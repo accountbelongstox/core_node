@@ -183,6 +183,7 @@ async function submitAudioSimple(req, res, next) {
         const fileDetails = filePaths.fileDetails;
         const voiceDir = getVoiceDir(fields.type);
         const watcher = fields.type == ITEM_TYPE.WORD ? DICT_SOUND_WATCHER : SENTENCES_SOUND_WATCHER;
+        const watcher_name = fields.type == ITEM_TYPE.WORD ? 'DICT_SOUND_WATCHER' : 'SENTENCES_SOUND_WATCHER';
         let copy_success_count = 0;
         fileDetails.forEach(file => {
             if (file.size > 0) {
@@ -190,7 +191,7 @@ async function submitAudioSimple(req, res, next) {
                 if (is_copy_success) {
                     copy_success_count++;
                     watcher.addToIndex(file.path);
-                    logger.info(`File submitted ${file.path} added to watcher`);
+                    logger.info(`File submitted ${file.path} added to ${watcher_name}`);
                 }
             }
             deleteFile(file.path);
@@ -200,7 +201,8 @@ async function submitAudioSimple(req, res, next) {
             message: 'Files uploaded successfully',
             data: {
                 fields,
-                copy_success_count
+                copiedFilesCount: copy_success_count,
+                watcher_name
             }
         });
     } catch (error) {

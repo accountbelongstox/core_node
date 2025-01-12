@@ -6,7 +6,7 @@ const axios = require('axios');
 const { SUBMIT_AUDIO_SIMPLE_URL } = require('../../provider/index.js');
 
 const SIMPLE_SUBMISSION_LOG_FILE = path.join(APP_DATA_CACHE_DIR, 'audio_simple_submissions.json');
-const logSimple = require('#@/ncore/utils/logger/index.js');
+const log = require('#@/ncore/utils/logger/index.js');
 
 let submissionsCache = null;
 
@@ -15,9 +15,9 @@ function loadSubmissionsCache() {
     try {
         ensureSimpleSubmissionLog();
         submissionsCache = JSON.parse(fs.readFileSync(SIMPLE_SUBMISSION_LOG_FILE, 'utf8'));
-        logSimple.info('Submissions cache loaded from file');
+        log.info('Submissions cache loaded from file');
     } catch (error) {
-        logSimple.error('Error loading submissions cache:', error);
+        log.error('Error loading submissions cache:', error);
         submissionsCache = {};
     }
 }
@@ -37,7 +37,7 @@ async function checkSimpleSubmission(audioFile) {
         const fileName = path.basename(audioFile);
         return submissionsCache[fileName] || null;
     } catch (error) {
-        logSimple.error('Error checking submission:', error);
+        log.error('Error checking submission:', error);
         return null;
     }
 }
@@ -69,7 +69,7 @@ async function getSimpleSubmissionList() {
 
         return simpleStats;
     } catch (error) {
-        logSimple.error('Error getting submission stats:', error);
+        log.error('Error getting submission stats:', error);
         return null;
     }
 }
@@ -83,7 +83,7 @@ async function getSimpleSubmissionCount(successOnly = false) {
         }
         return Object.keys(submissionsCache).length;
     } catch (error) {
-        logSimple.error('Error getting submission count:', error);
+        log.error('Error getting submission count:', error);
         return 0;
     }
 }
@@ -106,10 +106,10 @@ async function recordSimpleSubmission(audioFile, success, duration) {
         try {
             fs.writeFileSync(SIMPLE_SUBMISSION_LOG_FILE, JSON.stringify(submissionsCache, null, 2));
         } catch (fileError) {
-            logSimple.error('Error writing to submission log file:', fileError);
+            log.error('Error writing to submission log file:', fileError);
         }
     } catch (error) {
-        logSimple.error('Error recording submission:', error);
+        log.error('Error recording submission:', error);
     }
 }
 
@@ -122,7 +122,7 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
 
     try {
         if (!audioFiles || audioFiles.length === 0) {
-            logSimple.error('No audio files provided');
+            log.error('No audio files provided');
             shouldReturn = true;
             return;
         }
@@ -131,7 +131,7 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
         for (const audioFile of audioFiles) {
             const existingSubmission = await checkSimpleSubmission(audioFile);
             if (existingSubmission && existingSubmission.success) {
-                logSimple.warn(`File "${path.basename(audioFile)}" was already submitted successfully on ${existingSubmission.submittedAt} (took ${existingSubmission.duration})`);
+                log.warn(`File "${path.basename(audioFile)}" was already submitted successfully on ${existingSubmission.submittedAt} (took ${existingSubmission.duration})`);
                 success = true;
                 shouldReturn = true;
                 return;
@@ -140,28 +140,24 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
 
         if (shouldReturn) return;
 
-        logSimple.info('\n=== Starting Audio Submission ===');
-        logSimple.info('Total Files:', audioFiles.length);
+        log.info('\n=== Starting Audio Submission ===');
+        log.info('Total Files:', audioFiles.length);
 
         if (shouldReturn) return;
 
         const simpleForm = new FormData();
         simpleForm.append('type', content_type);
 
-        logSimple.info('\n=== Preparing Files ===');
+        log.info('\n=== Preparing Files ===');
         audioFiles.forEach((filePath, index) => {
             const fileName = path.basename(filePath);
             simpleForm.append(`audio_${index}`, fs.createReadStream(filePath));
         });
 
         const audioString = `[Adding / ${audioFiles.length}]` + audioFiles.map(file => path.basename(file)).join(', '); 
-        logSimple.info(audioString);
-        logSimple.info('=== Submitting Request ===');
-        logSimple.info(`Endpoint: ${SUBMIT_AUDIO_SIMPLE_URL}`);
-        logSimple.info('Payload:', {
-            type: content_type,
-            filesCount: audioFiles.length
-        });
+        log.info(audioString);
+        log.info('=== Submitting Request ===');
+        log.info(`Endpoint: ${SUBMIT_AUDIO_SIMPLE_URL}`);
 
         const response = await axios.post(SUBMIT_AUDIO_SIMPLE_URL, simpleForm, {
             headers: {
@@ -177,27 +173,26 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
         success = result.success;
 
         if (success) {
-            logSimple.success('\n=== Submission Successful ===');
-            logSimple.success(`Files processed: ${audioFiles.length}`);
-            logSimple.info('Server Response:', result);
+            log.success('\n=== Submission Successful ===');
+            log.success('Server Response:', result);
         } else {
-            logSimple.error('\n=== Submission Failed ===');
-            logSimple.error(`Error: ${result.message}`);
+            log.error('\n=== Submission Failed ===');
+            log.error(`Error: ${result.message}`);
         }
 
     } catch (error) {
-        logSimple.error('\n=== Submission Error ===');
+        log.error('=== Submission Error ===');
         if (error.code === 'ECONNABORTED') {
-            logSimple.error('Request timeout: Operation took too long to complete');
+            log.error('Request timeout: Operation took too long to complete');
         } else if (error.response) {
-            logSimple.error('Server Error:', {
+            log.error('Server Error:', {
                 status: error.response.status,
                 data: error.response.data
             });
         } else if (error.request) {
-            logSimple.error('Network Error: No response from server');
+            log.error('Network Error: No response from server');
         } else {
-            logSimple.error('Client Error:', error.message);
+            log.error('Client Error:', error.message);
         }
     } finally {
         const duration = Date.now() - startTime;
@@ -207,7 +202,6 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
                 await recordSimpleSubmission(audioFile, success, duration);
             }
         }
-
         if (typeof callback === 'function') {
             callback({
                 success,
@@ -223,8 +217,8 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
 async function mainSimple() {
     const args = process.argv.slice(2);
     if (args.length < 1) {
-        logSimple.error('Please provide at least one audio file path');
-        logSimple.info('Usage: node submit_audio.js <file_path1> [file_path2] ...');
+        log.error('Please provide at least one audio file path');
+        log.info('Usage: node submit_audio.js <file_path1> [file_path2] ...');
         return;
     }
 
