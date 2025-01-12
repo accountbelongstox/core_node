@@ -107,7 +107,7 @@ async function startWordProcessingByClient() {
                         logger.info(`wordWaitingCount: ${wordWaitingCount}`);
                         logger.info(`wordStartIndex: ${wordStartIndex}`);
                         logger.info(`wordEndIndex: ${wordEndIndex}`);
-                        console.log(nextWord);
+                        console.log(result);
                         logger.info(`--------------------------------------------------------------------------------`);
                         await initWordTotalCount(wordTotalCount, wordWaitingCount, wordStartIndex, wordEndIndex);
                     }

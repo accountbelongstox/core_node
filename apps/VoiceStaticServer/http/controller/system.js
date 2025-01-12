@@ -34,11 +34,7 @@ function parseTopOutput(topOutput) {
 
         if (separatorIndex === -1) {
             log.error('Invalid top output format: separator line not found');
-            return {
-                summary: {},
-                processes: [],
-                message: 'Invalid top output format: separator line not found'
-            };
+            return {};
         }
 
         const rawHeaderLines = lines.slice(0, separatorIndex);
@@ -84,19 +80,10 @@ function parseTopOutput(topOutput) {
             .filter(line => line.trim())
             .map(line => line.trim());
 
-        return {
-            summary: summaryInfo,
-            // processes: processes,
-            processes: [],
-            message: 'Success'
-        };
+        return summaryInfo;
     } catch (error) {
         log.error('Error parsing top output:', error);
-        return {
-            summary: {},
-            processes: [],
-            message: error.message
-        };
+        return {};
     }
 }
 
