@@ -48,7 +48,6 @@ async function initialize_server() {
             generatedWords.push(item);
             addWordCount(1);
         }
-        // addOrGetMd5(item,ITEM_TYPE.WORD)
     }
     const trimedNotGeneratedWords = notGeneratedWords.slice(0, 100);
     const trimedGeneratedWords = generatedWords.slice(0, 100);
@@ -58,8 +57,8 @@ async function initialize_server() {
     logger.warn(`"${trimedNotGeneratedWords.join(',')}" is not generated, adding to queue`);
     logger.warn(`-------------------------------------------------------------------------------`);
     logger.success(`Total words: ${vocabulary.length}`);
-    logger.success(`Generated words: ${trimedGeneratedWords.length}`);
-    logger.warn(`Not generated words: ${trimedNotGeneratedWords.length}`);
+    logger.success(`Generated words: ${generatedWords.length}`);
+    logger.warn(`Not generated words: ${notGeneratedWords.length}`);
     setWordTotalCount(vocabulary.length);
 }
 

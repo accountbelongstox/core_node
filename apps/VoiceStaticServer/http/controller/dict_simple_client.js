@@ -8,7 +8,6 @@ const { SUBMIT_AUDIO_URL } = require('../../provider/index.js');
 const SIMPLE_SUBMISSION_LOG_FILE = path.join(APP_DATA_CACHE_DIR, 'audio_simple_submissions.json');
 const logSimple = require('#@/ncore/utils/logger/index.js');
 
-// In-memory cache
 let submissionsCache = null;
 
 function loadSubmissionsCache() {
@@ -103,22 +102,18 @@ async function recordSimpleSubmission(audioFile, success, duration) {
             timestamp: Date.now()
         };
 
-        // Update cache
         submissionsCache[fileName] = submissionData;
 
-        // Update file
         try {
             fs.writeFileSync(SIMPLE_SUBMISSION_LOG_FILE, JSON.stringify(submissionsCache, null, 2));
         } catch (fileError) {
             logSimple.error('Error writing to submission log file:', fileError);
-            // Even if file write fails, we keep the cache updated
         }
     } catch (error) {
         logSimple.error('Error recording submission:', error);
     }
 }
 
-// Initialize cache when module loads
 loadSubmissionsCache();
 
 async function submitSimpleAudio(audioFiles, content_type, callback) {
@@ -210,15 +205,12 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
     } finally {
         const duration = Date.now() - startTime;
         
-        // Only record submissions if we actually tried to submit
         if (!shouldReturn) {
-            // Record submission for each file
             for (const audioFile of audioFiles) {
                 await recordSimpleSubmission(audioFile, success, duration);
             }
         }
 
-        // Always execute callback if provided
         if (typeof callback === 'function') {
             callback({
                 success,

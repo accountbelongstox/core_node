@@ -6,23 +6,7 @@ const {
     generateAudioMa3UsGbName,
 } = require('../mate_libs/voice_tool');
 
-let log;
-try {
-    const logger = require('#@/ncore/utils/logger/index.js');
-    log = {
-        info: (...args) => logger.info(...args),
-        warn: (...args) => logger.warn(...args),
-        error: (...args) => logger.error(...args),
-        success: (...args) => logger.success(...args)
-    };
-} catch (error) {
-    log = {
-        info: (...args) => console.log('[INFO]', ...args),
-        warn: (...args) => console.warn('[WARN]', ...args),
-        error: (...args) => console.error('[ERROR]', ...args),
-        success: (...args) => console.log('[SUCCESS]', ...args)
-    };
-}
+const log = require('#@/ncore/utils/logger/index.js');
 
 const searchVoiceByContent = async (content) => {
     content = content.trim();

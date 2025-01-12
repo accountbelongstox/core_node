@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, EdgeTTS, GET_TTS_NODE_VOICES } = require('../../provider/index');
+const { EdgeTTS, GET_TTS_NODE_VOICES } = require('../../provider/index');
 const { getAmericanVoices, getBritishVoices } = require('./mate_data/soundQuality');
-const { getMd5, ensureQueueItem, checkVoice, generateAudioMa3Name, generateAudioMa3RawName, ITEM_TYPE, updateWordCount, getVoiceDir, showGenerateInfo } = require('./libs/check_voice');
+const { checkVoice,updateWordCount} = require('./libs/check_voice');
+const { ensureQueueItem, generateAudioMa3Name, generateAudioMa3RawName, getVoiceDir, showGenerateInfo } = require('./mate_libs/voice_tool');
 let log;
 try {
     const logger = require('#@/ncore/utils/logger/index.js');
