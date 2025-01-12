@@ -117,22 +117,39 @@ async function installHtop() {
     }
 }
 
-async function getSystemLoad() {
+async function getSystemLoadRaw() {
     try {
         // Check if running on Linux
         if (process.platform !== 'linux') {
-            return {
-                success: false,
-                message: 'This feature is only supported on Linux systems'
-            };
+            return {};
         }
 
         const topOutput = await execCmdResultText('top -b -n 1');
         const parsedTop = parseTopOutput(topOutput);
 
+        return parsedTop
+
+    } catch (error) {
+        log.error('Error getting system load:', error);
+        return {};
+    }
+}
+
+async function getSystemLoad() {
+    try {
+        const data = await getSystemLoadRaw();
+        // Check if running on Linux
+        if (process.platform !== 'linux') {
+            return {
+                success: false,
+                message: 'This feature is only supported on Linux systems',
+                data
+            };
+        }
+
         return {
             success: true,
-            data: parsedTop
+            data
         };
 
     } catch (error) {
@@ -147,5 +164,6 @@ async function getSystemLoad() {
 
 module.exports = {
     getSystemLoad,
-    parseTopOutput
+    parseTopOutput,
+    getSystemLoadRaw
 };

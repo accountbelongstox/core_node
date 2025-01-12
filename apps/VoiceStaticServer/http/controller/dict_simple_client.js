@@ -137,8 +137,7 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
             shouldReturn = true;
             return;
         }
-
-        // Check if any files were already submitted successfully
+        
         for (const audioFile of audioFiles) {
             const existingSubmission = await checkSimpleSubmission(audioFile);
             if (existingSubmission && existingSubmission.success) {

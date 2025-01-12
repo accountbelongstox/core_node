@@ -210,6 +210,51 @@ function replaceSpaceToDash(text) {
 
 const generateMd5 = getMd5
 
+// Check if all items are numbers
+function isAllNumbers(...inputs) {
+    // Flatten all inputs into a single array
+    const items = inputs.reduce((acc, input) => {
+        if (Array.isArray(input)) {
+            return acc.concat(input);
+        }
+        return acc.concat([input]);
+    }, []);
+
+    return items.length > 0 && items.every(item => 
+        typeof item === 'number' && !isNaN(item)
+    );
+}
+
+// Check if all items are strings
+function isAllStrings(...inputs) {
+    // Flatten all inputs into a single array
+    const items = inputs.reduce((acc, input) => {
+        if (Array.isArray(input)) {
+            return acc.concat(input);
+        }
+        return acc.concat([input]);
+    }, []);
+
+    return items.length > 0 && items.every(item => 
+        typeof item === 'string'
+    );
+}
+
+// Check if no items are undefined
+function hasNoUndefined(...inputs) {
+    // Flatten all inputs into a single array
+    const items = inputs.reduce((acc, input) => {
+        if (Array.isArray(input)) {
+            return acc.concat(input);
+        }
+        return acc.concat([input]);
+    }, []);
+
+    return items.length > 0 && items.every(item => 
+        item !== undefined
+    );
+}
+
 module.exports = {
     trimString,
     getMd5,
@@ -220,5 +265,8 @@ module.exports = {
     cleanSentence,
     trimPunctuation,
     toFileName,
-    replaceSpaceToDash
+    replaceSpaceToDash,
+    isAllNumbers,
+    isAllStrings,
+    hasNoUndefined
 }; 

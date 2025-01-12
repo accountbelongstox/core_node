@@ -6,6 +6,7 @@ const { getOrGenerateAudioPy } = require('./edge_tts_py');
 const CLIENT_SUBMIT_TO_SERVER_FILES_MAP = new Map();
 const { submitAudio } = require('../../http/controller/dict_client.js');
 const { submitSimpleAudio, checkSimpleSubmission, recordSimpleSubmission } = require('../../http/controller/dict_simple_client.js');
+const { hasNoUndefined, isAllNumbers } = require('./mate_libs/string.js');
 
 async function initialize_client() {
     const {
@@ -93,15 +94,26 @@ async function startWordProcessingByClient() {
         if (result.success) {
             const nextWord = result.word;
             if (nextWord) {
-                const remainCount = nextWord.remainCount;
-                console.log(`---------------------------`);
-                console.log(result);
-                console.log(`---------------------------`);
-                // const totalCount = vocabulary.length;
-                // const waitingCount = notGeneratedWords.length;
-                // const startIndex = 0;
-                // const endIndes = vocabulary.length;
-                // await initWordTotalCount(totalCount, waitingCount, startIndex, endIndes);
+                try {
+                    const remainCount = result.remainCount;
+                    const wordTotalCount = result.wordTotalCount;
+                    const wordWaitingCount = result.wordWaitingCount;
+                    const wordStartIndex = result.wordStartIndex;
+                    const wordEndIndex = result.wordEndIndex;
+                    const isAllNotUndefined = hasNoUndefined(wordTotalCount,wordWaitingCount,wordStartIndex,wordEndIndex); 
+                    logger.info(`-------------------------Update Word Total Count :${isAllNotUndefined}------------------------------`);
+                    if (isAllNotUndefined) {
+                        logger.info(`wordTotalCount: ${wordTotalCount}`);
+                        logger.info(`wordWaitingCount: ${wordWaitingCount}`);
+                        logger.info(`wordStartIndex: ${wordStartIndex}`);
+                        logger.info(`wordEndIndex: ${wordEndIndex}`);
+                        console.log(nextWord);
+                        logger.info(`--------------------------------------------------------------------------------`);
+                        await initWordTotalCount(wordTotalCount, wordWaitingCount, wordStartIndex, wordEndIndex);
+                    }
+                } catch (error) {
+                    logger.error('Error processing word:', error);
+                }
 
                 await getOrGenerateAudioPy(nextWord, (generatedWordFiles) => {
                     const contentType = nextWord.content.includes(' ') ? ITEM_TYPE.SENTENCE : ITEM_TYPE.WORD;

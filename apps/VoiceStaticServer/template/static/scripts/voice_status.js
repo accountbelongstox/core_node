@@ -52,7 +52,7 @@ const voiceMonitor = {
 
         // Update time statistics
         document.getElementById('totalTime').textContent = 
-            this.formatDuration(data.totalTime || 0);
+            this.formatDuration(data.wordUsedTime || 0);
         document.getElementById('wordAverageTime').textContent = 
             `${(data.wordAverageTime / 1000).toFixed(2)}s`;
     },
@@ -77,7 +77,7 @@ const voiceMonitor = {
     // Start monitoring
     start() {
         this.fetchVoiceStatus(); // Execute immediately
-        this.updateInterval = setInterval(() => this.fetchVoiceStatus(), 10000);
+        this.updateInterval = setInterval(() => this.fetchVoiceStatus(), 20000);
     },
 
     // Stop monitoring
