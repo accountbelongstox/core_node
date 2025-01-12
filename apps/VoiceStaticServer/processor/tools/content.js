@@ -1,7 +1,7 @@
 const path = require('path');
 const folderTool = require('../../tool/folder.js');
 const reader = require('../../tool/reader.js');
-const { cleanWord, cleanSentence } = require('./libs/string.js');
+const { cleanWord, cleanSentence } = require('./mate_libs/string.js');
 
 let log;
 try {
@@ -20,8 +20,6 @@ try {
         success: (...args) => console.log('[SUCCESS]', ...args)
     };
 }
-
-
 
 function getUniqueContentLines(dirPath, extensions = null) {
     try {

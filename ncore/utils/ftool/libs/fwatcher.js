@@ -6,28 +6,21 @@ const log = require('#@/ncore/utils/logger/index.js');
 class FileWatcher {
     constructor(watchPath) {
         this.watchPath = watchPath;
-        // Use Map as main index for O(1) lookup performance
         this.fileMap = new Map();
-        // Use Set for fast filename lookups
         this.fileNameSet = new Set();
-        // Use Map for file extension indexing
         this.extensionMap = new Map();
-
         this.watcher = null;
         this.isInitialized = false;
+        this.currentIndex = 0;
+        this.loopCount = 0;
     }
 
-    /**
-     * Initialize file monitoring
-     */
     async initialize() {
         if (this.isInitialized) return;
 
         try {
-            // Initial scan of all files
             await this._scanDirectory(this.watchPath);
 
-            // Setup file monitoring
             this.watcher = chokidar.watch(this.watchPath, {
                 persistent: true,
                 ignoreInitial: true,
@@ -40,7 +33,6 @@ class FileWatcher {
                 }
             });
 
-            // Setup file change listeners
             this._setupWatchers();
 
             this.isInitialized = true;
@@ -51,9 +43,6 @@ class FileWatcher {
         }
     }
 
-    /**
-     * Scan directory and build indexes
-     */
     async _scanDirectory(dirPath) {
         const files = await fs.promises.readdir(dirPath, { withFileTypes: true });
 
@@ -99,9 +88,6 @@ class FileWatcher {
         }
     }
 
-    /**
-     * Add file to indexes
-     */
     _addToIndex(filePath) {
         const fileName = path.basename(filePath);
         // const ext = path.extname(filePath).toLowerCase();
@@ -115,7 +101,6 @@ class FileWatcher {
         // });
 
         this.fileNameSet.add(fileName);
-
         // if (!this.extensionMap.has(ext)) {
         //     this.extensionMap.set(ext, new Set());
         // }
@@ -173,6 +158,17 @@ class FileWatcher {
         return fileFullPath;
     }
 
+    async findAbsolutePathByName(fileFullPath) {
+        await this.initialize();
+        const fileName = path.basename(fileFullPath);
+        if (!this.fileNameSet.has(fileName)) return null;
+        if( path.isAbsolute(fileFullPath)){
+            return fileFullPath;
+        }
+        fileFullPath = path.join(this.watchPath, fileFullPath);
+        return fileFullPath;
+    }
+
     async findValidFile(fileFullPath) {
         await this.initialize();
         const filePath = await this.findByName(fileFullPath);
@@ -184,6 +180,10 @@ class FileWatcher {
                 log.warn(`Removed empty file: ${fileFullPath}`);
             }
             return null;
+        }
+        const fileName = path.basename(filePath);
+        if (!this.fileNameSet.has(fileName)) {
+            this._addToIndex(filePath)
         }
         return filePath;
     }
@@ -201,6 +201,57 @@ class FileWatcher {
         this.fileNameSet.clear();
         this.extensionMap.clear();
         this.isInitialized = false;
+    }
+
+    /**
+     * Get all watched files as array
+     * @returns {string[]} Array of file paths
+     */
+    getWatchedFiles() {
+        return Array.from(this.fileNameSet);
+    }
+
+    /**
+     * Get next file in rotation
+     * @returns {string|null} Next file path or null if no files
+     */
+    getNextFile() {
+        const files = this.getWatchedFiles();
+        if (files.length === 0) {
+            return null;
+        }
+
+        // If currentIndex exceeds or equals files length, increment loop count
+        if (this.currentIndex >= files.length) {
+            this.loopCount++;
+            this.currentIndex = 0;
+        }
+
+        const file = files[this.currentIndex];
+        this.currentIndex++;
+        return file;
+    }
+
+    /**
+     * Get next file and index with loop count
+     * @returns {Object} Object containing next file, index and loop count
+     */
+    getNextFileAndIndex() {
+        const file = this.getNextFile();
+        const index = this.currentIndex;
+        return {
+            file:path.join(this.watchPath,file),
+            index,
+            size:this.fileNameSet.size,
+            loopCount: this.loopCount
+        };
+    }
+
+    /**
+     * Reset rotation index
+     */
+    resetRotation() {
+        this.currentIndex = 0;
     }
 }
 

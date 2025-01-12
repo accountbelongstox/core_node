@@ -1,11 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, DICT_SOUND_SUBTITLE_DIR } = require('../../provider/index');
-const { findEdgeTTSBinary } = require('./libs/edgeTTSFinder');
-const { getAmericanVoice, getEnglishVoice } = require('./libs/soundQuality');
+const { findEdgeTTSBinary } = require('./mate_libs/edgeTTSFinder');
+const { getAmericanVoice, getEnglishVoice } = require('./mate_data/soundQuality');
 const { execCommand, execCmdResultText } = require('#@utils_commander');
-const { findVoiceByLocale } = require('./libs/soundQuality');
-const { getMd5, ensureQueueItem, checkVoice, generateAudioMapName, generateAudioMa3RawName, ITEM_TYPE, updateWordCount, getVoiceDir, generateAudioSubtitleName, getSubtitleDir, showGenerateInfo } = require('./libs/check_voice');
+const { findVoiceByLocale } = require('./mate_data/soundQuality');
+const { getMd5, ensureQueueItem, checkVoice, generateAudioMa3Name, generateAudioMa3RawName, ITEM_TYPE, updateWordCount, getVoiceDir, generateAudioSubtitleName, getSubtitleDir, showGenerateInfo } = require('./libs/check_voice');
 let log;
 try {
     const logger = require('#@/ncore/utils/logger/index.js');
@@ -91,7 +91,7 @@ const getOrGenerateAudioPy = async (input,callback) => {
         ];
 
         for (const { accent, SoundQuality } of accents) {
-            const audioMapName = await generateAudioMapName(queueItem, accent);
+            const audioMapName = await generateAudioMa3Name(queueItem, accent);
             const mediaFilename = path.join(voiceDir, audioMapName);
 
             const ma3RawName = await generateAudioMa3RawName(queueItem, accent);

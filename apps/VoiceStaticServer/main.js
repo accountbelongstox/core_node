@@ -4,7 +4,7 @@ const http = require('./http/index.js');
 const logger = require('#@/ncore/utils/logger/index.js');
 const wordMaster = require('./processor/wordMaster.js');
 const pythonSetup = require('#@/ncore/utils/dev_tool/lang_compiler_deploy/pythonSetup.js');
-const edgeTTSFinder = require('./processor/tools/libs/edgeTTSFinder.js');
+const edgeTTSFinder = require('./processor/tools/mate_libs/edgeTTSFinder.js');
 const pythonVenv = require('#@/ncore/utils/dev_tool/lang_compiler_deploy/pythonVenv.js');
 
 class Main {

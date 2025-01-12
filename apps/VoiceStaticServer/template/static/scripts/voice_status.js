@@ -42,9 +42,10 @@ const voiceMonitor = {
         progressBar.style.width = `${progressPercent}%`;
 
         document.getElementById('existingFiles').textContent = existingFiles + completedWords;
+        document.getElementById('role').textContent = data.role;
         // Update count displays
         document.getElementById('wordTotalCount').textContent = data.wordTotalCount;
-        document.getElementById('wordCount').textContent = totalWords;
+        document.getElementById('validCount').textContent = (totalWords / 2).toFixed(0);
         document.getElementById('wordSuccessCount').textContent = completedWords;
         document.getElementById('wordFailedCount').textContent = data.wordFailedCount || 0;
         document.getElementById('wordWaitingCount').textContent = data.wordWaitingCount || 0;

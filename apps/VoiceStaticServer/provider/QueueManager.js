@@ -126,6 +126,19 @@ function addSentenceBack(sentence) {
     return true;
 }
 
+function removeByWord(word) {
+    if (hasWord(word)) {
+        const item = wordMap.get(word);
+        let removeBeforeLength = wordQueue.length;
+        wordQueue.splice(wordQueue.indexOf(item), 1);
+        wordMap.delete(word);
+        let removeAfterLength = wordQueue.length;
+        let removed = removeBeforeLength - removeAfterLength == 1;
+        return removed;
+    }
+    return false;
+}
+
 function removeWordFront() {
     if (wordQueue.length === 0) return null;
     const item = wordQueue.shift();
@@ -190,5 +203,6 @@ module.exports = {
     getWordFront,
     getWordBack,
     getSentenceFront,
-    getSentenceBack
+    getSentenceBack,
+    removeByWord
 };

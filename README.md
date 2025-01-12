@@ -18,3 +18,8 @@ This guide explains how to initialize and run the script using `curl` and `pytho
 ## Couser Reference
 PowerShell 
 irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/master/scripts/install.ps1 | iex
+
+## Debug Command
+```sh
+systemctl stop VoiceStaticServer-node.service && node /mnt/d/programing/core_node/main.js --app=VoiceStaticServer --server
+```

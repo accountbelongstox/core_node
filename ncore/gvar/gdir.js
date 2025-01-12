@@ -32,7 +32,9 @@ const PUBLIC_DIR = path.join(BASEDIR, 'public');
 const APP_PUBLIC_DIR = appname ? path.join(PUBLIC_DIR, appname) : PUBLIC_DIR;
 const APP_DATA_DIR = appname ? path.join(APP_PUBLIC_DIR, 'data') : PUBLIC_DIR;
 const APP_METADATA_DIR = appname ? path.join(APP_PUBLIC_DIR, 'metadata') : PUBLIC_DIR;
+const APP_METADATA_SQLITE_DIR = appname ? path.join(APP_PUBLIC_DIR, 'sqlitemate') : PUBLIC_DIR;
 const APP_DATA_CACHE_DIR = appname ? path.join(APP_PUBLIC_DIR, '.cache') : PUBLIC_DIR;
+const APP_TMP_DIR = appname ? path.join(APP_PUBLIC_DIR, '.tmp') : PUBLIC_DIR;
 const APP_STATIC_DIR = appname ? path.join(APP_PUBLIC_DIR, 'static') : PUBLIC_DIR;
 const APP_OUTPUT_DIR = appname ? path.join(APP_PUBLIC_DIR, 'output') : PUBLIC_DIR;
 const APP_TEMPLATE_DIR = path.join(APP_DIR, `template`);
@@ -52,7 +54,8 @@ mkdir(APP_STATIC_DIR);
 mkdir(APP_OUTPUT_DIR);
 mkdir(APP_METADATA_DIR);
 mkdir(APP_TEMPLATE_STATIC_DIR);
-
+mkdir(APP_TMP_DIR);
+mkdir(APP_METADATA_SQLITE_DIR)
 // Directory creation
 function mkdir(path) {
     return fs.mkdirSync(path, { recursive: true });
@@ -216,10 +219,12 @@ module.exports = {
     APP_DATA_DIR,
     APP_DATA_CACHE_DIR,
     APP_METADATA_DIR,
+    APP_TMP_DIR,
     APP_STATIC_DIR,
     APP_TEMPLATE_DIR,
     APP_TEMPLATE_STATIC_DIR,
     APP_OUTPUT_DIR,
+    APP_METADATA_SQLITE_DIR,
 
     // Drive management functions
     getSystemDrives,

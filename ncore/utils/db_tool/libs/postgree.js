@@ -1,5 +1,5 @@
 const { Client } = require('pg');
-    const pgTool = require('../utils/pg_tool.js');
+    const pgTool = require('../tools/pg_tool.js');
 
     class PostgreSQL {
         constructor(configOrDbUrl, initConfigFile = '', debug = false) {

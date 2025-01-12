@@ -1,93 +1,35 @@
 const logger = require('#@/ncore/utils/logger/index.js');
-const { sysarg } = require('#@utils_native');
-const { getSubDirectories } = require('../tool/folder');
-const { getUniqueContentLines } = require('./tools/content.js');
-const { VOCABULARY_DIR, setWordIndex, updateWordWaitingCount, setWordTotalCount, addWordCount } = require('../provider/index');
+const { IS_SERVER, IS_CLIENT, initializeWatcher, ROLE, } = require('../provider/index');
 const { addWordBack, getWordCount, getWordFront } = require('../provider/QueueManager.js');
-const { getOrGenerateAudioPy } = require('./tools/edge_tts_py');
-const { getOrGenerateAudioNode } = require('./tools/edge-tts-node');
-const { getMd5, ensureQueueItem, checkVoice, generateAudioMapName, generateAudioMa3RawName, ITEM_TYPE, updateWordCount } = require('./tools/libs/check_voice');
-
-
+const { initialize_server,} = require('./tools/server');
+const { initialize_not_client } = require('./tools/not_client');
+const { initialize_client } = require('./tools/client');
 class DictInitController {
     constructor() {
         this.isProcessing = false;
     }
 
-    async initialize() {
-        let word_segmentation = sysarg.getArg('word_segmentation');
-        let vocabulary = getUniqueContentLines(VOCABULARY_DIR);
-
-        let vocabulary_start = 0;
-        let vocabulary_end = vocabulary.length;
-        if (word_segmentation) {
-            word_segmentation = word_segmentation.split('-');
-            vocabulary_start = parseInt(word_segmentation[0]);
-            vocabulary_end = parseInt(word_segmentation[1]);
-            setWordIndex(vocabulary_start, vocabulary_end);
-        }else{
-            setWordIndex(0, vocabulary.length);
-        }
-
-        const vocabulary_slice = vocabulary.slice(vocabulary_start, vocabulary_end);
-
-        const generatedWords = []
-        const notGeneratedWords = []
-        for (const item of vocabulary_slice) {
-            const validFile = await checkVoice(item);
-            if (!validFile) {
-                addWordBack(item);
-                notGeneratedWords.push(item);
-                updateWordWaitingCount('add');
-            } else {
-                generatedWords.push(item);
-                addWordCount(1);
-            }
-        }
-        for (const word of generatedWords) {
-            logger.success(`${word} is already generated`);
-        }
-        const trimedNotGeneratedWords = notGeneratedWords.slice(0, 100);
-        logger.warn(`"${trimedNotGeneratedWords.join(',')}" is not generated, adding to queue`);
-        logger.warn(`-------------------------------------------------------------------------------`);
-        logger.success(`Total words: ${vocabulary.length}`);
-        logger.success(`Generated words: ${generatedWords.length}`);
-        logger.warn(`Not generated words: ${notGeneratedWords.length}`);
-        console.log(`word_segmentation: ${word_segmentation}`);
-        setWordTotalCount(vocabulary.length);
-    }
-
-    startWordProcessing() {
-        const wordCount = getWordCount();
-        if (wordCount > 0) {
-            this.processNextWord();
-        }else{
-            logger.success('All words are processed,waiting for new words');
-            setTimeout(() => {
-                this.startWordProcessing();
-            }, 500);
-        }
-    }
-
-    async processNextWord() {
-        try {
-            const nextWord = getWordFront();
-            await getOrGenerateAudioPy(nextWord,()=>{
-
-            });
-        } catch (error) {
-            logger.error('Error processing word:', error);
-        }finally{
-            setTimeout(() => {
-                this.startWordProcessing();
-            }, 500);
-        }
-    }
-
     async start() {
+        logger.success(`Role:${ROLE} initialize watcher..`);
+        await initializeWatcher();
+        logger.success(`Role:${ROLE} initialize watcher success`);
         try {
-            await this.initialize();
-            this.startWordProcessing();
+            if (IS_SERVER) {
+                logger.success(`Role:${ROLE} initialize server..`);
+                await initialize_server();
+                logger.success(`Role:${ROLE} initialize server success`);
+                //     startWordProcessingByServer();
+            } else if (IS_CLIENT) {
+                logger.success(`Role:${ROLE} initialize client..`);
+                await initialize_client();
+                logger.success(`Role:${ROLE} initialize client success`);
+                //     startWordProcessingByClient();
+            } else {
+                logger.success(`Role:${ROLE} initialize not_client..`);
+                await initialize_not_client();
+                logger.success(`Role:${ROLE} initialize not_client success`);
+                //     startWordProcessingByNotClient();
+            }
         } catch (error) {
             logger.error('Error initializing dictionary:', error);
             return {
