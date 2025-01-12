@@ -71,7 +71,7 @@ const getOrGenerateAudioNode = async (input,callback) => {
             MS_TTS.toBase64();
             await MS_TTS.toFile(ma3RawFilename);
             // await MS_TTS.toRaw();
-            const result = updateWordCount(mediaFilename, queueItem.type);
+            const result = await updateWordCount(mediaFilename, queueItem.type);
             if (result) {
                 generatedFiles.push([SoundQuality, queueItem.content, mediaFilename]);
             }

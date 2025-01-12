@@ -111,7 +111,7 @@ const getOrGenerateAudioPy = async (input,callback) => {
             let command = `${edgeTTSBinary} --voice ${SoundQuality} --text "${queueItem.content}" --write-media "${mediaFilename}" --write-subtitles "${subtitlesFilename}"`;
             showGenerateInfo(queueItem, SoundQuality, mediaFilename, command);
             await execCommand(command);
-            updateWordCount(mediaFilename, queueItem.type);
+            await updateWordCount(mediaFilename, queueItem.type);
             generatedWordFiles.push(mediaFilename);
         }
     } catch (e) {

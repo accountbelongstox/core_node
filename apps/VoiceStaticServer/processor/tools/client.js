@@ -1,12 +1,11 @@
 const { getJsonFromUrl } = require('#@/ncore/utils/net/libs/axios_tool.js');
-const { initializeWatcher, GET_ROW_WORD_URL,updateWordSuccessCount, setWordIndex, setWordTotalCount, addWordCount } = require('../../provider/index');
+const { initializeWatcher, GET_ROW_WORD_URL, updateWordTatolCount, initWordTotalCount } = require('../../provider/index');
 const logger = require('#@/ncore/utils/logger/index.js');
-const { getWordFront, getWordCount, ITEM_TYPE } = require('../../provider/QueueManager.js');
+const { ITEM_TYPE } = require('../../provider/QueueManager.js');
 const { getOrGenerateAudioPy } = require('./edge_tts_py');
 const CLIENT_SUBMIT_TO_SERVER_FILES_MAP = new Map();
 const { submitAudio } = require('../../http/controller/dict_client.js');
 const { submitSimpleAudio, checkSimpleSubmission, recordSimpleSubmission } = require('../../http/controller/dict_simple_client.js');
-const path = require('path');
 
 async function initialize_client() {
     const {
@@ -24,7 +23,6 @@ async function initialize_client() {
         once_loopCount = loopCount;
         count_size = size;
     }
-
     if (CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size > 0) {
         logger.info(`Submit ${CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size} files to server`);
         submitSimpleAudioToServer()
@@ -33,7 +31,6 @@ async function initialize_client() {
 
 async function submitSimpleAudioToServer() {
     const BATCH_SIZE = 500;
-
     async function processNextBatch() {
         if (CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size === 0) {
             logger.success('All files have been processed');
@@ -92,19 +89,25 @@ async function submitSimpleAudioToServer() {
 
 async function startWordProcessingByClient() {
     const result = await getJsonFromUrl(GET_ROW_WORD_URL);
-    if (result.success) {
-        try {
+    try {
+        if (result.success) {
             const nextWord = result.word;
             if (nextWord) {
                 const remainCount = nextWord.remainCount;
-                setWordIndex(0, remainCount);
-                setWordTotalCount(remainCount);
+                console.log(`---------------------------`);
+                console.log(result);
+                console.log(`---------------------------`);
+                // const totalCount = vocabulary.length;
+                // const waitingCount = notGeneratedWords.length;
+                // const startIndex = 0;
+                // const endIndes = vocabulary.length;
+                // await initWordTotalCount(totalCount, waitingCount, startIndex, endIndes);
 
                 await getOrGenerateAudioPy(nextWord, (generatedWordFiles) => {
                     const contentType = nextWord.content.includes(' ') ? ITEM_TYPE.SENTENCE : ITEM_TYPE.WORD;
-                    submitAudio(nextWord.content, generatedWordFiles, contentType, (status) => {
+                    submitAudio(nextWord.content, generatedWordFiles, contentType, async (status) => {
+                        await updateWordTatolCount(status.success);
                         if (status.success) {
-                            updateWordSuccessCount();
                             logger.success(`Successfully processed word: ${nextWord.content}`);
                         } else {
                             logger.error(`Failed to process word: ${nextWord.content}`);
@@ -112,13 +115,13 @@ async function startWordProcessingByClient() {
                     });
                 });
             }
-        } catch (error) {
-            logger.error('Error processing word:', error);
-        } finally {
-            setTimeout(() => {
-                startWordProcessingByClient();
-            }, 500);
         }
+    } catch (error) {
+        logger.error('Error processing word:', error);
+    } finally {
+        setTimeout(() => {
+            startWordProcessingByClient();
+        }, 500);
     }
 }
 

@@ -20,7 +20,6 @@ try {
     };
 }
 
-// Basic GET request
 async function getUrl(url) {
     try {
         const response = await axios.get(url);
@@ -31,27 +30,26 @@ async function getUrl(url) {
     }
 }
 
-// GET request and convert to JSON
 async function getJsonFromUrl(url) {
     try {
         const response = await axios.get(url);
         const data = response.data;
-        
+
         if (typeof data === 'object') {
             return data === null ? {
                 success: false,
                 __originalText: null
             } : data;
         }
-        
+
         try {
             return JSON.parse(data);
         } catch (parseError) {
             if (data) {
-                return { 
+                return {
                     success: false,
                     __originalText: data
-                 };
+                };
             }
             return {
                 success: false,
@@ -59,8 +57,11 @@ async function getJsonFromUrl(url) {
             };
         }
     } catch (error) {
-        log.error('Error fetching JSON from URL:', error);
-        return {};
+        log.error('Error fetching JSON from URL:', error.message);
+        return {
+            success: false,
+            __originalText: error.message
+        };
     }
 }
 
@@ -78,7 +79,6 @@ async function getTextFromUrl(url) {
     }
 }
 
-// POST request without timeout
 async function postWithoutTimeout(url, data) {
     try {
         const response = await axios.post(url, data, {
@@ -94,18 +94,15 @@ async function postWithoutTimeout(url, data) {
     }
 }
 
-// Download file from URL to specified directory
 async function downloadFile(url, savePath, forceReplace = false) {
     try {
-        // Create directory if it doesn't exist
         const dir = path.dirname(savePath);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
 
-        // Check if file exists and its size
-        const shouldDownload = forceReplace || 
-            !fs.existsSync(savePath) || 
+        const shouldDownload = forceReplace ||
+            !fs.existsSync(savePath) ||
             fs.statSync(savePath).size === 0;
 
         if (!shouldDownload) {

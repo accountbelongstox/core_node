@@ -81,9 +81,8 @@ function addWordBack(word) {
         return success;
     }
     if (!hasString(word)) return false;
-    const trimmedWord = word.trim();
+    const trimmedWord = word.trim().replace(/\s+/g, '-');
     if (hasWord(trimmedWord)) return false;
-
     const item = createQueueItem(trimmedWord, ITEM_TYPE.WORD);
     wordQueue.push(item);
     wordMap.set(trimmedWord, item);

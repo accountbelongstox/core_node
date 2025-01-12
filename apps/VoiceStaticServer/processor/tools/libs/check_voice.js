@@ -1,7 +1,6 @@
 const {
     printWordStatus,
-    updateWordSuccessCount,
-    updateWordFailedCount, } = require('../../../provider/index');
+    updateWordTatolCount } = require('../../../provider/index');
 
 const log = require('#@/ncore/utils/logger/index.js');
 
@@ -11,17 +10,16 @@ const {
     checkValidFile,
 } = require('../mate_libs/voice_tool');
 
-const updateWordCount = (ma3Path, type) => {
+const updateWordCount = async (ma3Path, type) => {
     const validFile = checkValidFile(ma3Path, type);
     let isSuccess = false;
     if (validFile) {
         log.success(`Generated and checked file: ${ma3Path}`);
-        updateWordSuccessCount();
         isSuccess = true;
     } else {
         log.error(`Failed to generate valid audio file for '${ma3Path}'`);
-        updateWordFailedCount();
     }
+    await updateWordTatolCount(isSuccess);
     printWordStatus();
     return isSuccess;
 }

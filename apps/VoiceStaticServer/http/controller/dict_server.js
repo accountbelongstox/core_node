@@ -3,12 +3,11 @@ const logger = require('#@/ncore/utils/logger/index.js');
 const { addWordBack, getWordCount, getWordFront, ITEM_TYPE, removeByWord, hasWord, hasSentence } = require('../../provider/QueueManager.js');
 const { uploadAndKeepOriginName, wrapFileDetails } = require('#@/ncore/utils/express/libs/UploadTools.js');
 const { copyFileToDir } = require('#@/ncore/utils/ftool/libs/fcopy.js');
-const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, IS_SERVER, initializeWatcher } = require('../../provider/index.js');
+const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, IS_SERVER, initializeWatcher, getWordStatus } = require('../../provider/index.js');
 const fs = require('fs');
 const path = require('path');
 const SUBMISSION_LOG_FILE = path.join(APP_DATA_CACHE_DIR, 'server_submissions.json');
 let submissionsCache = null;
-
 
 function ensureSubmissionLog() {
     if (!fs.existsSync(APP_DATA_CACHE_DIR)) {
@@ -40,10 +39,6 @@ function loadSubmissionsCache() {
     }
 }
 
-/**
- * Record successful submission
- * @param {string} content - Submitted content
- */
 async function recordSubmission(content) {
     try {
         const cache = loadSubmissionsCache();
@@ -57,10 +52,6 @@ async function recordSubmission(content) {
     }
 }
 
-/**
- * Get submission statistics
- * @returns {Promise<{count: number, submissions: string[]}>}
- */
 async function getSubmissionServerList() {
     try {
         const cache = loadSubmissionsCache();
@@ -83,30 +74,29 @@ async function getSubmissionServerCount() {
 }
 
 async function getRowWordByServer() {
+    const { DICT_SOUND_WATCHER, SENTENCES_SOUND_WATCHER } = await initializeWatcher();
     if (!IS_SERVER) {
         return {
             success: false,
             message: 'This is a client, not a server',
-            word: null,
-            remainCount: 0
         };
     }
     const wordCount = getWordCount();
+    const status = await getWordStatus();  
     if (wordCount > 0) {
         const word = getWordFront();
-        addWordBack(word.content);
+        addWordBack(word.content); 
         return {
             success: true,
             message: 'Get word',
             word: word,
-            remainCount: wordCount
+            remainCount: wordCount,
+            ...status
         };
     } else {
         return {
             success: false,
-            message: 'No words are processed',
-            word: null,
-            remainCount: 0
+            message: 'No words are processed'
         };
     }
 }
@@ -127,29 +117,24 @@ const deleteFile = async (filePath) => {
 async function submitAudio(req, res, next) {
     try {
         logger.info('\n=== Audio Submission Request ===');
-
         const { fields, files, filePaths } = await uploadAndKeepOriginName(req, APP_TMP_DIR);
-
         if (!fields.content || !fields.type) {
             return res.status(400).json({
                 success: false,
                 message: 'Missing required fields: content and type'
             });
         }
-
-        const hasItem = fields.type == ITEM_TYPE.SENTENCE ? hasSentence(fields.content) : hasWord(fields.content);
+        // const hasItem = fields.type == ITEM_TYPE.SENTENCE ? hasSentence(fields.content) : hasWord(fields.content);
         const fileDetails = filePaths.fileDetails;
-
-        if (!hasItem) {
-            fileDetails.forEach(file => {
-                deleteFile(file.path);
-            });
-            return res.status(400).json({
-                success: false,
-                message: fields.type == ITEM_TYPE.SENTENCE ? 'Sentence' : 'Word' + ' "' + fields.content + '" not exists to current queue'
-            });
-        }
-
+        // if (!hasItem) {
+        //     fileDetails.forEach(file => {
+        //         deleteFile(file.path);
+        //     });
+        //     return res.status(400).json({
+        //         success: false,
+        //         message: (fields.type == ITEM_TYPE.SENTENCE ? 'Sentence' : 'Word') + ' "' + fields.content + '" not exists to current queue'
+        //     });
+        // }
         let is_copy_success = null;
         let all_copy_success = [];
         const voiceDir = getVoiceDir(fields.type);
@@ -159,16 +144,12 @@ async function submitAudio(req, res, next) {
             }
             deleteFile(file.path);
         });
-
         is_copy_success = all_copy_success.every(item => item != null);
-
         if (is_copy_success) {
             await recordSubmission(fields.content);
         }
-
         const finishedAndRemoved = removeByWord(fields.content);
         const count = await getSubmissionServerCount();
-
         res.json({
             success: true,
             message: 'Files uploaded successfully',
@@ -178,7 +159,6 @@ async function submitAudio(req, res, next) {
                 submissionCount: count
             }
         });
-
     } catch (error) {
         logger.error('Upload Error:', error);
         res.status(500).json({

@@ -1,6 +1,6 @@
 const { getUniqueContentLines } = require('../tools/content.js');
 const { addWordBack, getWordFront, getWordCount,ITEM_TYPE } = require('../../provider/QueueManager.js');
-const { VOCABULARY_DIR, setWordIndex, updateWordWaitingCount, setWordTotalCount, addWordCount, META_DIR } = require('../../provider/index');
+const { VOCABULARY_DIR, META_DIR, initWordTotalCount } = require('../../provider/index');
 const { checkVoice } = require('./libs/check_voice');
 const { getOrGenerateAudioPy } = require('./edge_tts_py');
 const logger = require('#@/ncore/utils/logger/index.js');
@@ -35,7 +35,6 @@ async function processNextWordByServer() {
 
 async function initialize_server() {
     let vocabulary = getUniqueContentLines(VOCABULARY_DIR);
-    setWordIndex(0, vocabulary.length);
     const generatedWords = []
     const notGeneratedWords = []
     for (const item of vocabulary) {
@@ -43,12 +42,16 @@ async function initialize_server() {
         if (!validFile) {
             addWordBack(item);
             notGeneratedWords.push(item);
-            updateWordWaitingCount('add');
         } else {
             generatedWords.push(item);
-            addWordCount(1);
         }
     }
+    const totalCount = vocabulary.length;
+    const waitingCount = notGeneratedWords.length;
+    const startIndex = 0;
+    const endIndes = vocabulary.length;
+    await initWordTotalCount(totalCount,waitingCount,startIndex,endIndes);
+
     const trimedNotGeneratedWords = notGeneratedWords.slice(0, 100);
     const trimedGeneratedWords = generatedWords.slice(0, 100);
     logger.success(`-------------------------------------------------------------------------------`);
@@ -59,7 +62,6 @@ async function initialize_server() {
     logger.success(`Total words: ${vocabulary.length}`);
     logger.success(`Generated words: ${generatedWords.length}`);
     logger.warn(`Not generated words: ${notGeneratedWords.length}`);
-    setWordTotalCount(vocabulary.length);
 }
 
 module.exports = {

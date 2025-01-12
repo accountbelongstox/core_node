@@ -57,9 +57,7 @@ function getMd5(word) {
     }
 }
 
-/**
- * Validate and clean English word
- */
+
 function validateWord(word) {
     try {
         if (!word || typeof word !== 'string') {
@@ -72,7 +70,6 @@ function validateWord(word) {
             .replace(/[–—]/g, '-')
             .replace(/[^a-zA-Z0-9'\-]/g, '');
 
-        // Check if contains English letters
         return /[a-zA-Z]/.test(word) ? word : null;
 
     } catch (error) {
@@ -81,16 +78,13 @@ function validateWord(word) {
     }
 }
 
-/**
- * Validate and clean English sentence
- */
+
 function validateSentence(text) {
     try {
         if (!text || typeof text !== 'string') {
             return null;
         }
 
-        // Clean and normalize punctuation
         text = text.trim()
             .replace(/['']/g, "'")
             .replace(/[""]/g, '"')
@@ -102,7 +96,6 @@ function validateSentence(text) {
             .replace(/[^a-zA-Z0-9\s.,!?'"()\-]/g, ' ')
             .replace(/\s+/g, ' ');
 
-        // Check if contains English letters
         return /[a-zA-Z]/.test(text) ? text : ``;
 
     } catch (error) {
@@ -111,25 +104,19 @@ function validateSentence(text) {
     }
 }
 
-/**
- * Clean word to contain only letters and numbers
- * @param {string} word - Input word
- * @returns {string} - Cleaned word or empty string
- */
+
 function cleanWord(word) {
     try {
         if (!word || typeof word !== 'string') {
             return '';
         }
 
-        // Initial trim
         word = word.trim();
 
         const hasLetters = /[a-zA-Z]/.test(word);
 
         const hasNumbers = /[0-9]/.test(word);
 
-        // Case 1: Has both letters and numbers
         if (hasLetters && hasNumbers) {
             return word.replace(/[^a-zA-Z0-9]/g, '');
         }
@@ -142,11 +129,9 @@ function cleanWord(word) {
                 .replace(/[""]/g, '"')
                 .replace(/[–—]/g, '-');
             
-            // Keep only allowed internal punctuation
             return word.replace(/[^a-zA-Z'\-]/g, '');
         }
 
-        // Case 3: No letters
         return trimPunctuation(word);
 
     } catch (error) {
@@ -155,23 +140,16 @@ function cleanWord(word) {
     }
 }
 
-/**
- * Clean sentence to contain only letters, numbers and spaces
- * @param {string} sentence - Input sentence
- * @returns {string} - Cleaned sentence or empty string
- */
 function cleanSentence(sentence) {
     try {
         if (!sentence || typeof sentence !== 'string') {
             return '';
         }
 
-        // Remove non-alphanumeric chars (except spaces) and normalize spaces
         sentence = sentence.trim()
             .replace(/[^a-zA-Z0-9\s]/g, ' ')
             .replace(/\s+/g, ' ');
 
-        // Check if contains at least one letter
         if (!/[a-zA-Z]/.test(sentence)) {
             return '';
         }
@@ -183,11 +161,7 @@ function cleanSentence(sentence) {
     }
 }
 
-/**
- * Remove punctuation marks from both ends of text
- * @param {string} text - Input text
- * @returns {string} - Text with punctuation removed from ends
- */
+
 function trimPunctuation(text) {
     try {
         if (!text || typeof text !== 'string') {
@@ -203,12 +177,7 @@ function trimPunctuation(text) {
         return text;
     }
 }
-/**
- * Convert sentence to valid filename
- * @param {string} sentence - Input sentence
- * @param {number} maxLength - Maximum length of filename (default: 16)
- * @returns {string} - Valid filename
- */
+
 function toFileName(sentence, maxLength = 16) {
     try {
         if (!sentence || typeof sentence !== 'string') {
@@ -216,18 +185,12 @@ function toFileName(sentence, maxLength = 16) {
         }
 
         let fileName = sentence
-            // Step 1: Replace invalid characters with underscore
             .replace(/[^a-zA-Z0-9]/g, '_')
-            // Step 2: Convert to uppercase
             .toUpperCase()
-            // Step 3: Remove consecutive underscores
             .replace(/_+/g, '_')
-            // Remove leading/trailing underscores
             .replace(/^_+|_+$/g, '');
 
-        // Step 4: Truncate to maxLength
         if (fileName.length > maxLength) {
-            // If ends with underscore after truncating, remove it
             fileName = fileName
                 .substring(0, maxLength)
                 .replace(/_+$/g, '');
@@ -238,6 +201,11 @@ function toFileName(sentence, maxLength = 16) {
         log.error('Error converting to filename:', error);
         return sentence;
     }
+}
+
+function replaceSpaceToDash(text) {
+    text = text.trim();
+    return text.replace(/\s+/g, '-');
 }
 
 const generateMd5 = getMd5
@@ -251,5 +219,6 @@ module.exports = {
     cleanWord,
     cleanSentence,
     trimPunctuation,
-    toFileName
+    toFileName,
+    replaceSpaceToDash
 }; 
