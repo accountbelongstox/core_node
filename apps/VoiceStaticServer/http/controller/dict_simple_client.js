@@ -169,7 +169,8 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
             simpleForm.append(`audio_${index}`, fs.createReadStream(filePath));
         });
 
-        const audioString = `[Adding / ${audioFiles.length}]` + audioFiles.map(file => path.basename(file)).join(', '); 
+        const trimAudioFiles = audioFiles.slice(0,10)
+        const audioString = `[Adding / ${audioFiles.length}]` + trimAudioFiles.map(file => path.basename(file)).join(', '); 
         log.info(audioString);
         log.info('=== Submitting Request ===');
         log.info(`Endpoint: ${SUBMIT_AUDIO_SIMPLE_URL}`);
