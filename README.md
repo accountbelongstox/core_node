@@ -23,6 +23,11 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/master/scripts/ins
 ```sh
 systemctl stop VoiceStaticServer-node.service && node /mnt/d/programing/core_node/main.js --app=VoiceStaticServer --server
 ```
+## Server Run
+```sh
+systemctl stop VoiceStaticServer-node.service && node /www/wwwroot/core_node/main.js --app=VoiceStaticServer --server
+systemctl stop VoiceStaticServer-node.service && node /www/wwwroot/core_node/main.js --app=VoiceStaticServer
+```
 
 ## Server Deploy Command
 ```sh

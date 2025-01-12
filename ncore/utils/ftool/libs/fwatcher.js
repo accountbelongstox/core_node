@@ -96,12 +96,8 @@ class FileWatcher {
     }
 
     _removeFromIndex(filePath) {
-        // const fileInfo = this.fileMap.get(filePath);
-        // if (!fileInfo) return;
         const fileName = this.getBaseName(filePath)
         this.fileNameSet.delete(fileName);
-        // this.extensionMap.get(fileInfo.extension)?.delete(filePath);
-        // this.fileMap.delete(filePath);
     }
 
     _setupWatchers() {
@@ -134,9 +130,6 @@ class FileWatcher {
         await this.initialize();
         const fileName = path.basename(fileFullPath);
         if (!this.fileNameSet.has(fileName)) return null;
-        // for (const [filePath, info] of this.fileMap) {
-        //     if (info.name === fileName) return filePath;
-        // }
         return fileFullPath;
     }
 
