@@ -54,7 +54,10 @@ const WORD_USED_START_TIME = Date.now();
 let WORD_COUNT_NAMBER_INIT = false;
 let WORD_TOTAL_COUNT = 0;
 let WORD_GENERATED_AUDIO_COUNT = 0;
-let WORD_GENERATED_TOTAL_COUNT = 0;
+
+let WORD_GENERATED_SERVER_TOTAL_COUNT = 0;
+let WORD_GENERATED_CLIENT_TOTAL_COUNT = 0;
+
 let WORD_USED_TIME = 0;
 let WORD_SUCCESS_COUNT = 0;
 let WORD_FAILED_COUNT = 0;
@@ -108,7 +111,7 @@ const updateWordTatolCount = async (success,type) => {
 }
 
 //parameter: totalCount,waitingCount,audioCount,startIndex,endIndes
-const initWordTotalCount = async (totalCount,waitingCount,startIndex,endIndes) => {
+const initWordTotalCount = async (totalCount,waitingCount,startIndex,endIndes,serverAudioCount=0) => {
     const { DICT_SOUND_WATCHER, SENTENCES_SOUND_WATCHER } = await initializeWatcher();
     WORD_TOTAL_COUNT = totalCount;
     WORD_WAITING_COUNT = waitingCount;
@@ -116,6 +119,7 @@ const initWordTotalCount = async (totalCount,waitingCount,startIndex,endIndes) =
     WORD_START_INDEX = startIndex
     WORD_END_INDEX = endIndes
     WORD_COUNT_NAMBER_INIT=true
+    WORD_GENERATED_SERVER_TOTAL_COUNT = serverAudioCount;
 }
 
 async function initializeWatcher() {
@@ -163,6 +167,7 @@ const getWordStatus = async () => {
         wordAverageTime: WORD_AVERAGE_TIME,
         wordStartIndex: WORD_START_INDEX,
         wordEndIndex: WORD_END_INDEX,
+        wordGeneratedServerTotalCount: WORD_GENERATED_SERVER_TOTAL_COUNT,
         isServer: IS_SERVER,
         isClient: IS_CLIENT,
         role: ROLE,

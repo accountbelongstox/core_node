@@ -3,7 +3,7 @@
 // Panel collapse functionality
 const systemMonitorPanelNew = {
     panel: null,
-    
+
     initialize() {
         this.panel = document.getElementById('systemMonitorPanel');
         if (this.panel) {
@@ -16,7 +16,7 @@ const systemMonitorPanelNew = {
             });
         }
     },
-    
+
     toggleCollapse() {
         if (this.panel) {
             this.panel.classList.toggle('collapsed');
@@ -48,7 +48,7 @@ const systemMonitorNew = {
     // Update timestamp display
     updateTimestamp(timestamp) {
         const date = new Date(timestamp);
-        document.getElementById('updateTime').textContent = 
+        document.getElementById('updateTime').textContent =
             `Last update: ${date.toLocaleTimeString()}`;
     },
 
@@ -60,11 +60,11 @@ const systemMonitorNew = {
         const userUsage = parseFloat(this.formatNumber(cpuData.us || 0));
         const systemUsage = parseFloat(this.formatNumber(cpuData.sy || 0));
         const idleUsage = parseFloat(this.formatNumber(cpuData.id || 0));
-        
+
         // Update progress bar with system usage
         const cpuBar = document.getElementById('cpuUsageBar');
         cpuBar.style.width = `${systemUsage}%`;
-        
+
         // Update all CPU values
         document.getElementById('cpuUser').textContent = userUsage.toFixed(1);
         document.getElementById('cpuSystem').textContent = systemUsage.toFixed(1);
@@ -79,10 +79,10 @@ const systemMonitorNew = {
         const freeMem = parseFloat(this.formatNumber(memData.free || 0));
         const usedMem = parseFloat(this.formatNumber(memData.used || 0));
         const buffCache = parseFloat(this.formatNumber(memData['buff/cache'] || 0));
-        
+
         // Calculate free percentage for progress bar (including cache)
         const freePercent = parseFloat(((freeMem + buffCache) / totalMem * 100).toFixed(1));
-        
+
         // Format display values
         const totalFormatted = this.formatBytes(totalMem * 1024 * 1024);
         const freeFormatted = this.formatBytes(freeMem * 1024 * 1024);
@@ -103,7 +103,7 @@ const systemMonitorNew = {
     // Update task information
     updateTasks(tasksData) {
         if (!tasksData) return;
-        
+
         // Update all task values
         document.getElementById('tasksTotal').textContent = tasksData.total || 0;
         document.getElementById('tasksRunning').textContent = tasksData.running || 0;
@@ -118,16 +118,16 @@ const systemMonitorNew = {
         // Update uptime and load average
         document.getElementById('uptime').textContent = summary.uptime || '-';
         const loadAvg = summary['load average']?.undefined;
-        document.getElementById('loadAvg').textContent = 
+        document.getElementById('loadAvg').textContent =
             loadAvg ? loadAvg.toFixed(2) : '-';
     },
 
     // Update all monitoring data
-    updateAll(data,timestamp) {
+    updateAll(data, timestamp) {
         console.log(data)
         console.log(timestamp)
         if (!data || !data.summary) return;
-        
+
         this.updateTimestamp(timestamp);
         document.addEventListener('DOMContentLoaded', () => {
             systemMonitorPanelNew.initialize();
@@ -153,14 +153,14 @@ const voiceMonitor = {
         const seconds = Math.floor(ms / 1000);
         const minutes = Math.floor(seconds / 60);
         const hours = Math.floor(minutes / 60);
-        
+
         return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
     },
 
     // Update timestamp display
     updateTimestamp(timestamp) {
         const date = new Date(timestamp);
-        document.getElementById('voiceUpdateTime').textContent = 
+        document.getElementById('voiceUpdateTime').textContent =
             `Last update: ${date.toLocaleTimeString()}`;
     },
 
@@ -169,21 +169,28 @@ const voiceMonitor = {
         if (!data) return;
 
         // Update file statistics
-        const existingFiles = (data.dictSoundWatcher?.fileNameSet || 0) + 
-                             (data.sentencesSoundWatcher?.fileNameSet || 0);
-        
+        const existingFiles = (data.dictSoundWatcher?.fileNameSet || 0) +
+            (data.sentencesSoundWatcher?.fileNameSet || 0);
+
         // Update index range
         const startIndex = data.wordStartIndex || 0;
         const endIndex = data.wordEndIndex || 0;
-        document.getElementById('indexRange').textContent = 
+        document.getElementById('indexRange').textContent =
             `${startIndex} - ${endIndex}`;
 
         // Update progress calculation including existing files
-        const totalWords = data.wordCount || 0;
+        const totalWords = data.wordTotalCount || 0;
         const completedWords = (data.wordSuccessCount || 0);
-        const progressPercent = totalWords > 0 ? 
+        const progressPercent = totalWords > 0 ?
             (completedWords / totalWords * 100).toFixed(1) : 0;
-
+        let validVoiceCount = 0;
+        if (data.isClient) {
+            validVoiceCount = data.wordGeneratedServerTotalCount;
+        } else {
+            validVoiceCount = data.dictSoundWatcher.fileNameSet;
+        }
+        console.log(`validVoiceCount : ${validVoiceCount}`);
+        validVoiceCount = validVoiceCount > 0 ? validVoiceCount / 2 : 0;
         // Update progress bar
         const progressBar = document.getElementById('wordProgressBar');
         progressBar.style.width = `${progressPercent}%`;
@@ -192,15 +199,15 @@ const voiceMonitor = {
         document.getElementById('role').textContent = data.role;
         // Update count displays
         document.getElementById('wordTotalCount').textContent = data.wordTotalCount;
-        document.getElementById('validCount').textContent = (totalWords / 2).toFixed(0);
+        document.getElementById('validVoiceCount').textContent = validVoiceCount.toFixed(0);
         document.getElementById('wordSuccessCount').textContent = completedWords;
         document.getElementById('wordFailedCount').textContent = data.wordFailedCount || 0;
         document.getElementById('wordWaitingCount').textContent = data.wordWaitingCount || 0;
 
         // Update time statistics
-        document.getElementById('totalTime').textContent = 
+        document.getElementById('totalTime').textContent =
             this.formatDuration(data.wordUsedTime || 0);
-        document.getElementById('wordAverageTime').textContent = 
+        document.getElementById('wordAverageTime').textContent =
             `${(data.wordAverageTime / 1000).toFixed(2)}s`;
     },
 
@@ -209,11 +216,11 @@ const voiceMonitor = {
         try {
             const response = await fetch('/voice_status');
             const result = await response.json();
-            
+
             if (result.success) {
                 this.updateTimestamp(result.timestamp);
                 this.updateProgress(result.data);
-                systemMonitorNew.updateAll(result.data,result.timestamp);
+                systemMonitorNew.updateAll(result.data, result.timestamp);
             } else {
                 console.error('Failed to fetch voice status:', result.message);
             }
@@ -240,7 +247,7 @@ const voiceMonitor = {
 // Panel collapse functionality
 const voiceStaticPanel = {
     panel: null,
-    
+
     initialize() {
         this.panel = document.getElementById('voiceStaticPanel');
         if (this.panel) {
@@ -252,7 +259,7 @@ const voiceStaticPanel = {
             });
         }
     },
-    
+
     toggleCollapse() {
         if (this.panel) {
             this.panel.classList.toggle('collapsed');

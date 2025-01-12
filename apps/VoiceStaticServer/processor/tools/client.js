@@ -100,16 +100,18 @@ async function startWordProcessingByClient() {
                     const wordWaitingCount = result.wordWaitingCount;
                     const wordStartIndex = result.wordStartIndex;
                     const wordEndIndex = result.wordEndIndex;
-                    const isAllNotUndefined = hasNoUndefined(wordTotalCount,wordWaitingCount,wordStartIndex,wordEndIndex); 
+                    const wordGeneratedServerTotalCount = result.dictSoundWatcher.fileNameSet;
+                    const isAllNotUndefined = hasNoUndefined(wordTotalCount,wordWaitingCount,wordStartIndex,wordEndIndex,wordGeneratedServerTotalCount); 
                     logger.info(`-------------------------Update Word Total Count :${isAllNotUndefined}------------------------------`);
                     if (isAllNotUndefined) {
                         logger.info(`wordTotalCount: ${wordTotalCount}`);
                         logger.info(`wordWaitingCount: ${wordWaitingCount}`);
                         logger.info(`wordStartIndex: ${wordStartIndex}`);
                         logger.info(`wordEndIndex: ${wordEndIndex}`);
+                        logger.info(`wordGeneratedServerTotalCount: ${wordGeneratedServerTotalCount}`);
                         console.log(result);
                         logger.info(`--------------------------------------------------------------------------------`);
-                        await initWordTotalCount(wordTotalCount, wordWaitingCount, wordStartIndex, wordEndIndex);
+                        await initWordTotalCount(wordTotalCount, wordWaitingCount, wordStartIndex, wordEndIndex, wordGeneratedServerTotalCount);
                     }
                 } catch (error) {
                     logger.error('Error processing word:', error);
