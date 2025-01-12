@@ -201,7 +201,6 @@ const getWordStatus = async () => {
     }
 }
 
-
 module.exports = {
     DICTIONARY_DIR,
     LEMMAS_DIR,

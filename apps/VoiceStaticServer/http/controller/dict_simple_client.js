@@ -3,7 +3,7 @@ const path = require('path');
 const { APP_DATA_CACHE_DIR } = require('#@/ncore/gvar/gdir.js');
 const FormData = require('form-data');
 const axios = require('axios');
-const { SUBMIT_AUDIO_URL } = require('../../provider/index.js');
+const { SUBMIT_AUDIO_SIMPLE_URL } = require('../../provider/index.js');
 
 const SIMPLE_SUBMISSION_LOG_FILE = path.join(APP_DATA_CACHE_DIR, 'audio_simple_submissions.json');
 const logSimple = require('#@/ncore/utils/logger/index.js');
@@ -12,7 +12,6 @@ let submissionsCache = null;
 
 function loadSubmissionsCache() {
     if (submissionsCache !== null) return;
-
     try {
         ensureSimpleSubmissionLog();
         submissionsCache = JSON.parse(fs.readFileSync(SIMPLE_SUBMISSION_LOG_FILE, 'utf8'));
@@ -133,7 +132,7 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
             const existingSubmission = await checkSimpleSubmission(audioFile);
             if (existingSubmission && existingSubmission.success) {
                 logSimple.warn(`File "${path.basename(audioFile)}" was already submitted successfully on ${existingSubmission.submittedAt} (took ${existingSubmission.duration})`);
-                success = true;  // Mark as success since it was already submitted
+                success = true;
                 shouldReturn = true;
                 return;
             }
@@ -153,27 +152,25 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
         audioFiles.forEach((filePath, index) => {
             const fileName = path.basename(filePath);
             simpleForm.append(`audio_${index}`, fs.createReadStream(filePath));
-            logSimple.info(`[${index + 1}/${audioFiles.length}] Adding:`, {
-                file: fileName,
-                index: `audio_${index}`
-            });
         });
 
-        logSimple.info('\n=== Submitting Request ===');
-        logSimple.info(`Endpoint: ${SUBMIT_AUDIO_URL}`);
+        const audioString = `[Adding / ${audioFiles.length}]` + audioFiles.map(file => path.basename(file)).join(', '); 
+        logSimple.info(audioString);
+        logSimple.info('=== Submitting Request ===');
+        logSimple.info(`Endpoint: ${SUBMIT_AUDIO_SIMPLE_URL}`);
         logSimple.info('Payload:', {
             type: content_type,
             filesCount: audioFiles.length
         });
 
-        const response = await axios.post(SUBMIT_AUDIO_URL, simpleForm, {
+        const response = await axios.post(SUBMIT_AUDIO_SIMPLE_URL, simpleForm, {
             headers: {
                 ...simpleForm.getHeaders()
             },
             maxContentLength: Infinity,
             maxBodyLength: Infinity,
-            timeout: 10000, // 10 seconds timeout
-            timeoutErrorMessage: 'Request timed out after 10 seconds'
+            timeout: 120000,
+            timeoutErrorMessage: 'Request timed out after 120 seconds'
         });
 
         const result = response.data;

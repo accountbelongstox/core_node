@@ -15,7 +15,7 @@ async function initialize_client() {
     let once_loopCount = 0
     let count_size = 1
     while (once_loopCount < 1 && count_size > 0) {
-        const { file, index, loopCount, size } = DICT_SOUND_WATCHER.getNextFileAndIndex();
+        const { file, index, loopCount, size } = await DICT_SOUND_WATCHER.getNextFileAndIndex();
         const submission = await checkSimpleSubmission(file);
         if (!submission) {
             CLIENT_SUBMIT_TO_SERVER_FILES_MAP.set(file, true);
@@ -31,7 +31,7 @@ async function initialize_client() {
 }
 
 async function submitSimpleAudioToServer() {
-    const BATCH_SIZE = 100;  // Process 100 files at once
+    const BATCH_SIZE = 100; 
 
     async function processNextBatch() {
         if (CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size === 0) {
@@ -39,14 +39,12 @@ async function submitSimpleAudioToServer() {
             return;
         }
 
-        // Get next batch of files
         const files = Array.from(CLIENT_SUBMIT_TO_SERVER_FILES_MAP.keys()).slice(0, BATCH_SIZE);
         if (files.length === 0) {
             logger.warn('No valid files found');
             return;
         }
 
-        // Calculate progress
         const totalFiles = CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size + files.length;
         const currentBatch = totalFiles - CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size;
         const progressPercent = ((currentBatch / totalFiles) * 100).toFixed(1);
@@ -59,23 +57,15 @@ async function submitSimpleAudioToServer() {
             await submitSimpleAudio(files, ITEM_TYPE.WORD, (result) => {
                 if (result.success) {
                     logger.success(`Successfully processed batch of ${files.length} files`);
-                    result.files.forEach(file => {
-                        logger.success(`- ${file}`);
-                    });
                 } else {
-                    logger.error(`Failed to process batch`);
-                    result.files.forEach(file => {
-                        logger.error(`- ${file}`);
-                    });
+                    logger.error(`Failed to process batch ${files.length} files`);
                 }
             });
 
-            // Remove processed files from map
             files.forEach(file => {
                 CLIENT_SUBMIT_TO_SERVER_FILES_MAP.delete(file);
             });
 
-            // Schedule next batch if there are more files
             if (CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size > 0) {
                 const remainingBatches = Math.ceil(CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size / BATCH_SIZE);
                 logger.info(`\nWaiting before next batch... (${CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size} files remaining in ${remainingBatches} batches)`);
@@ -85,7 +75,6 @@ async function submitSimpleAudioToServer() {
             }
         } catch (error) {
             logger.error(`Error processing batch:`, error);
-            // On error, schedule retry after delay
             setTimeout(processNextBatch, 500);
         }
     }
@@ -139,7 +128,7 @@ async function submitAudioByClient(audio) {
         DICT_SOUND_WATCHER,
         SENTENCES_SOUND_WATCHER
     } = await initializeWatcher();
-    const { file, index, loopCount } = DICT_SOUND_WATCHER.getNextFileAndIndex();
+    const { file, index, loopCount } = await DICT_SOUND_WATCHER.getNextFileAndIndex();
     // const result = await axios.post(SUBMIT_AUDIO_URL, { audio: file, index, loopCount });
     // return result;
 }

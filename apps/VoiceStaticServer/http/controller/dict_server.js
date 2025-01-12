@@ -1,9 +1,9 @@
-const { APP_TMP_DIR, APP_DATA_DIR,APP_DATA_CACHE_DIR } = require('#@/ncore/gvar/gdir.js');
+const { APP_TMP_DIR, APP_DATA_DIR, APP_DATA_CACHE_DIR } = require('#@/ncore/gvar/gdir.js');
 const logger = require('#@/ncore/utils/logger/index.js');
-const { addWordBack, getWordCount, getWordFront, ITEM_TYPE, removeByWord,hasWord,hasSentence } = require('../../provider/QueueManager.js');
+const { addWordBack, getWordCount, getWordFront, ITEM_TYPE, removeByWord, hasWord, hasSentence } = require('../../provider/QueueManager.js');
 const { uploadAndKeepOriginName, wrapFileDetails } = require('#@/ncore/utils/express/libs/UploadTools.js');
 const { copyFileToDir } = require('#@/ncore/utils/ftool/libs/fcopy.js');
-const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR,IS_SERVER,initializeWatcher } = require('../../provider/index.js');
+const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, IS_SERVER, initializeWatcher } = require('../../provider/index.js');
 const fs = require('fs');
 const path = require('path');
 const SUBMISSION_LOG_FILE = path.join(APP_DATA_CACHE_DIR, 'server_submissions.json');
@@ -29,7 +29,7 @@ async function recordSubmission(content) {
     try {
         ensureSubmissionLog();
         const data = JSON.parse(fs.readFileSync(SUBMISSION_LOG_FILE, 'utf8'));
-        
+
         if (!data.submissions.includes(content)) {
             data.submissions.push(content);
             data.count = data.submissions.length;
@@ -183,11 +183,13 @@ async function submitAudioSimple(req, res, next) {
         const fileDetails = filePaths.fileDetails;
         const voiceDir = getVoiceDir(fields.type);
         const watcher = fields.type == ITEM_TYPE.WORD ? DICT_SOUND_WATCHER : SENTENCES_SOUND_WATCHER;
+        let copy_success_count = 0;
         fileDetails.forEach(file => {
             if (file.size > 0) {
                 let is_copy_success = copyFileToDir(file.path, voiceDir, false, true);
                 if (is_copy_success) {
-                    watcher._addToIndex(file.path);
+                    copy_success_count++;
+                    watcher.addToIndex(file.path);
                     logger.info(`File submitted ${file.path} added to watcher`);
                 }
             }
@@ -198,6 +200,7 @@ async function submitAudioSimple(req, res, next) {
             message: 'Files uploaded successfully',
             data: {
                 fields,
+                copy_success_count
             }
         });
     } catch (error) {
