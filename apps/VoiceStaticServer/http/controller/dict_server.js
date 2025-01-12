@@ -1,5 +1,6 @@
 const { APP_TMP_DIR, APP_DATA_DIR, APP_DATA_CACHE_DIR } = require('#@/ncore/gvar/gdir.js');
 const logger = require('#@/ncore/utils/logger/index.js');
+const { replaceSpaceToDash } = require('../../processor/tools/mate_libs/string.js');
 const { addWordBack, getWordCount, getWordFront, ITEM_TYPE, removeByWord, hasWord, hasSentence } = require('../../provider/QueueManager.js');
 const { uploadAndKeepOriginName, wrapFileDetails } = require('#@/ncore/utils/express/libs/UploadTools.js');
 const { copyFileToDir } = require('#@/ncore/utils/ftool/libs/fcopy.js');
@@ -124,7 +125,8 @@ async function submitAudio(req, res, next) {
                 message: 'Missing required fields: content and type'
             });
         }
-        // const hasItem = fields.type == ITEM_TYPE.SENTENCE ? hasSentence(fields.content) : hasWord(fields.content);
+        const content = replaceSpaceToDash(fields.content);
+        // const hasItem = fields.type == ITEM_TYPE.SENTENCE ? hasSentence(content) : hasWord(content);
         const fileDetails = filePaths.fileDetails;
         // if (!hasItem) {
         //     fileDetails.forEach(file => {
@@ -132,7 +134,7 @@ async function submitAudio(req, res, next) {
         //     });
         //     return res.status(400).json({
         //         success: false,
-        //         message: (fields.type == ITEM_TYPE.SENTENCE ? 'Sentence' : 'Word') + ' "' + fields.content + '" not exists to current queue'
+        //         message: (fields.type == ITEM_TYPE.SENTENCE ? 'Sentence' : 'Word') + ' "' + content + '" not exists to current queue'
         //     });
         // }
         let is_copy_success = null;
@@ -146,9 +148,9 @@ async function submitAudio(req, res, next) {
         });
         is_copy_success = all_copy_success.every(item => item != null);
         if (is_copy_success) {
-            await recordSubmission(fields.content);
+            await recordSubmission(content);
         }
-        const finishedAndRemoved = removeByWord(fields.content);
+        const finishedAndRemoved = removeByWord(content);
         const count = await getSubmissionServerCount();
         res.json({
             success: true,
