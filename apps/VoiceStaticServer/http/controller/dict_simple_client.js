@@ -155,7 +155,7 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
 
         if (shouldReturn) return;
 
-        log.info('\n=== Starting Audio Submission ===');
+        log.info('=== Starting Audio Submission ===');
         log.info('Total Files:', audioFiles.length);
 
         if (shouldReturn) return;

@@ -31,7 +31,7 @@ async function initialize_client() {
 }
 
 async function submitSimpleAudioToServer() {
-    const BATCH_SIZE = 100; 
+    const BATCH_SIZE = 500; 
 
     async function processNextBatch() {
         if (CLIENT_SUBMIT_TO_SERVER_FILES_MAP.size === 0) {
