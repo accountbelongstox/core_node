@@ -19,7 +19,10 @@ class FileWatcher {
         if (this.isInitialized) return;
         try {
             await this._scanDirectory(this.watchPath);
-            this.watcher = chokidar.watch(this.watchPath);
+            this.watcher = chokidar.watch(this.watchPath,{
+                persistent: true,
+                ignoreInitial: false,
+              });
             this._setupWatchers();
             this.isInitialized = true;
             log.warn(`File watcher initialized with ${this.fileNameSet.size} files`);
@@ -106,12 +109,7 @@ class FileWatcher {
             .on('change', path => this.addToIndex(path))
             .on('unlink', path => this._removeFromIndex(path))
             .on('error', error => log.error(`Watcher error: ${error}`))
-            .on('addDir', path => log.info(`Directory ${path} has been added`))
-            .on('unlinkDir', path => log.info(`Directory ${path} has been removed`))
             .on('ready', () => log.info('Initial scan complete. Ready for changes'))
-            .on('raw', (event, path, details) => { // internal
-              log.info('Raw event info:', event, path, details);
-            });
     }
 
     async getWatcherStatus(){

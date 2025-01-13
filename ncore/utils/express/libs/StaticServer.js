@@ -80,7 +80,9 @@ class StaticServer {
             }
             express_router.use(express.static(staticPath, {
                 fallthrough: true,
-                lastModified: true
+                lastModified: true,
+                cacheControl: true, 
+                maxAge: '1d', 
             }));
             // Configure static route
             logger.log(`✓ Added static urlPath: ${urlPath} -> ${staticPath}`);
