@@ -13,7 +13,16 @@ const colors = {
     cyan: '\x1b[36m',
     command: '\x1b[35m',
     log: '\x1b[32m',
-    debug: '\x1b[32m'
+    debug: '\x1b[33m',
+    group: '\x1b[32m',
+    custom: '\x1b[32m',
+    refresh: '\x1b[32m',
+    multiProgress: '\x1b[32m',
+    logObject: '\x1b[32m',
+    logExecutionTime: '\x1b[32m',
+    createScopedLogger: '\x1b[32m',
+    setLogLevel: '\x1b[32m',
+    setDebugMode: '\x1b[32m'
 };
 
 // Color wrapper functions
@@ -26,19 +35,40 @@ const colorize = {
     log: (text) => `${colors.log}${text}${colors.reset}`,
     gray: (text) => `${colors.gray}${text}${colors.reset}`,
     cyan: (text) => `${colors.cyan}${text}${colors.reset}`,
-    command: (text) => `${colors.command}${text}${colors.reset}`
+    command: (text) => `${colors.command}${text}${colors.reset}`,
+    debug: (text) => `${colors.debug}${text}${colors.reset}`,
+    group: (text) => `${colors.group}${text}${colors.reset}`,
+    custom: (text) => `${colors.custom}${text}${colors.reset}`,
+    refresh: (text) => `${colors.refresh}${text}${colors.reset}`,
+    multiProgress: (text) => `${colors.multiProgress}${text}${colors.reset}`,
+    logObject: (text) => `${colors.logObject}${text}${colors.reset}`,
+    logExecutionTime: (text) => `${colors.logExecutionTime}${text}${colors.reset}`,
+    createScopedLogger: (text) => `${colors.createScopedLogger}${text}${colors.reset}`,
+    setLogLevel: (text) => `${colors.setLogLevel}${text}${colors.reset}`,
+    setDebugMode: (text) => `${colors.setDebugMode}${text}${colors.reset}`
 };
 
 class Logger {
     constructor() {
-        this.debugMode = process.env.DEBUG || false;
-        this.logLevel = process.env.LOG_LEVEL || 'info';
+        this.debugMode = process.env.DEBUG || true;
+        this.logLevel = process.env.LOG_LEVEL || 'debug';
         this.logLevels = {
             error: 0,
             warn: 1,
             info: 2,
             log: 3,
-            debug: 4
+            command: 4,
+            success: 5,
+            debug: 6,
+            group: 7,
+            custom: 8,
+            refresh: 9,
+            multiProgress: 10,
+            logObject: 11,
+            logExecutionTime: 12,
+            createScopedLogger: 13,
+            setLogLevel: 14,
+            setDebugMode: 15
         };
         this.lastLineCount = 0;
         this.progressBarWidth = 40; // Default progress bar width
@@ -111,7 +141,7 @@ class Logger {
     debug(message, ...args) {
         if (this.debugMode && this.shouldLog('debug')) {
             const formattedMessage = this.formatMessage(message, ...args);
-            console.debug(colorize.gray(`[${this.getTimestamp()}] DEBUG: ${formattedMessage}`));
+            console.log(colorize.debug(`[${this.getTimestamp()}] DEBUG: ${formattedMessage}`));
         }
     }
 

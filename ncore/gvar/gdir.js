@@ -24,9 +24,9 @@ const SCRIPT_NAME = `core_node`
 const LOCAL_DIR = os.platform() === 'win32'
     ? path.join(homeDir, `.${SCRIPT_NAME}`)
     : `/usr/${SCRIPT_NAME}`;   
-const GLOBAL_VAR_DIR = os.platform() === 'win32'
-    ? path.join(homeDir, `.${SCRIPT_NAME}/global_var`)
-    : path.join(LOCAL_DIR, 'global_var');
+const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
+
+const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
 
 const PUBLIC_DIR = path.join(BASEDIR, 'public');
 const APP_PUBLIC_DIR = appname ? path.join(PUBLIC_DIR, appname) : PUBLIC_DIR;
@@ -56,6 +56,8 @@ mkdir(APP_METADATA_DIR);
 mkdir(APP_TEMPLATE_STATIC_DIR);
 mkdir(APP_TMP_DIR);
 mkdir(APP_METADATA_SQLITE_DIR)
+mkdir(COMMON_CACHE_DIR);
+
 // Directory creation
 function mkdir(path) {
     return fs.mkdirSync(path, { recursive: true });
@@ -225,6 +227,7 @@ module.exports = {
     APP_TEMPLATE_STATIC_DIR,
     APP_OUTPUT_DIR,
     APP_METADATA_SQLITE_DIR,
+    COMMON_CACHE_DIR,
 
     // Drive management functions
     getSystemDrives,

@@ -118,6 +118,10 @@ function execCmd(command, info = false, cwd = null, logname = null) {
     return resultText;
 }
 
+function execCmdResultText(command, info = false, cwd = null, logname = null) {
+    return execCmd(command, info, cwd, logname);
+}
+
 async function execCommand(command, info = true, cwd = null, logname = null) {
     if (Array.isArray(command)) {
         command = command.join(" ");
@@ -330,15 +334,14 @@ function pipeExecCmdAsync(command, useShell = true, cwd = null, inheritIO = true
     return spawnAsync(command, useShell, cwd, inheritIO, env);
 }
 
-const execCmdResultText = execCmd
 
 module.exports = {
     getPlatformShell,
     isLinux,
     byteToStr,
     wrapEmdResult,
-    execCmd,
     execCmdResultText,
+    execCmd,
     execCommand,
     spawnAsync,
     findPowerShellPath,
