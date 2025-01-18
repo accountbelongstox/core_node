@@ -1,15 +1,17 @@
 const path = require('path');
 const fs = require('fs');
 const sysarg = require('#@ncore/utils/systool/libs/sysarg.js'); 
-const { env } = require('#@globalvars');
+const gconfig = require('#@ncore/gvar/gconfig.js');
 let log = require('#@/ncore/utils/logger/index.js');
+
 
 function mkdir(path) {
     return fs.mkdirSync(path, { recursive: true });
 }
 
 const { EdgeTTS } = require('@andresaya/edge-tts');
-const FWatcher = require('#@/ncore/utils/ftool/libs/fwatcher.js');
+const FMonitor = require('#@/ncore/utils/ftool/libs/fmonitor.js');
+
 let TTS_NODE_VOICES = null;
 const GET_TTS_NODE_VOICES = async (MS_TTS) => {
     if (TTS_NODE_VOICES) {
@@ -23,7 +25,7 @@ const GET_TTS_NODE_VOICES = async (MS_TTS) => {
     log.info(`\n--------------------------------------------------------------------------------`)
     return TTS_NODE_VOICES;
 };
-const { APP_DATA_DIR, APP_OUTPUT_DIR, APP_METADATA_DIR } = require('#@/ncore/gvar/gdir.js');
+const { APP_DATA_DIR, APP_OUTPUT_DIR, APP_METADATA_DIR,APP_DATA_CACHE_DIR } = require('#@/ncore/gvar/gdir.js');
 const ITEM_TYPE = {
     WORD: 'word',
     SENTENCE: 'sentence'
@@ -33,11 +35,13 @@ const DICTIONARY_DIR = path.join(APP_METADATA_DIR, 'dictionary');
 const LEMMAS_DIR = path.join(APP_METADATA_DIR, 'lemmas');
 const SENTENCES_DIR = path.join(APP_METADATA_DIR, 'sentences');
 const VOCABULARY_DIR = path.join(APP_METADATA_DIR, 'vocabulary');
+const VOCABULARY_TABLE_DIR = path.join(APP_DATA_CACHE_DIR, 'vocabulary_table');
 const META_DIR = path.join(APP_METADATA_DIR, 'meta');
 const DICT_SOUND_DIR = path.join(APP_OUTPUT_DIR, 'dictSoundLib');
 const DICT_SOUND_SUBTITLE_DIR = path.join(APP_OUTPUT_DIR, 'dictSoundSubtitle');
 const SENTENCES_SOUND_DIR = path.join(APP_OUTPUT_DIR, 'sentenceSoundLib');
 const SENTENCES_SOUND_SUBTITLE_DIR = path.join(APP_OUTPUT_DIR, 'sentenceSoundSubtitle');
+
 
 // const DICT_SOUND_WATCHER = new FWatcher(DICT_SOUND_DIR);
 // const SENTENCES_SOUND_WATCHER = new FWatcher(SENTENCES_SOUND_DIR);
@@ -71,7 +75,12 @@ let SENTENCE_TIME = 0;
 let SENTENCE_SUCCESS_COUNT = 0;
 let SENTENCE_FAILED_COUNT = 0;
 
-const SERVER_URL = env.getEnvValue(`SERVER_URL`);
+const SERVER_URL = gconfig.getConfig(`SERVER_URL`);
+const CLIENTS_URL = gconfig.getConfig(`CLIENTS_URL`).split(',');
+
+console.log(`SERVER_URL`,SERVER_URL)
+console.log(`CLIENTS_URL`,CLIENTS_URL)
+
 const SUBMIT_AUDIO_URL = `${SERVER_URL}/submit_audio`;
 const GET_ROW_WORD_URL = `${SERVER_URL}/get_row_word`;
 const SUBMIT_AUDIO_SIMPLE_URL = `${SERVER_URL}/submit_audio_simple`;
@@ -124,11 +133,11 @@ const initWordTotalCount = async (totalCount,waitingCount,startIndex,endIndes,se
 
 async function initializeWatcher() {
     if (!DICT_SOUND_WATCHER) {
-        DICT_SOUND_WATCHER = new FWatcher(DICT_SOUND_DIR);
+        DICT_SOUND_WATCHER = new FMonitor(DICT_SOUND_DIR);
         await DICT_SOUND_WATCHER.initialize();
     }
     if (!SENTENCES_SOUND_WATCHER) {
-        SENTENCES_SOUND_WATCHER = new FWatcher(SENTENCES_SOUND_DIR);
+        SENTENCES_SOUND_WATCHER = new FMonitor(SENTENCES_SOUND_DIR);
         await SENTENCES_SOUND_WATCHER.initialize();
     }
     return {
@@ -142,6 +151,7 @@ mkdir(SENTENCES_SOUND_DIR)
 mkdir(DICT_SOUND_SUBTITLE_DIR)
 mkdir(SENTENCES_SOUND_SUBTITLE_DIR)
 mkdir(META_DIR)
+mkdir(VOCABULARY_TABLE_DIR)
 
 const printWordStatus = () => {
     log.success(`Word count: ${WORD_TOTAL_COUNT}`);
@@ -181,6 +191,7 @@ module.exports = {
     LEMMAS_DIR,
     SENTENCES_DIR,
     VOCABULARY_DIR,
+    VOCABULARY_TABLE_DIR,
     META_DIR,
     DICT_SOUND_DIR,
     DICT_SOUND_SUBTITLE_DIR,

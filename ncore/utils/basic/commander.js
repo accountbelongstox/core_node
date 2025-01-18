@@ -2,26 +2,102 @@ const { execSync, spawn, spawnSync } = require('child_process');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-let log;
-try {
-    const logger = require('#@/ncore/utils/logger/index.js');
-    log = {
-        info: (...args) => logger.info(...args),
-        warn: (...args) => logger.warn(...args),
-        error: (...args) => logger.error(...args),
-        success: (...args) => logger.success(...args),
-        debug: (...args) => logger.debug ? logger.debug(...args) : console.log('[DEBUG]', ...args),
-        command: (...args) => logger.command(...args)
-    };
-} catch (error) {
-    log = {
-        info: (...args) => console.log('[INFO]', ...args),
-        warn: (...args) => console.warn('[WARN]', ...args),
-        error: (...args) => console.error('[ERROR]', ...args),
-        success: (...args) => console.log('[SUCCESS]', ...args),
-        debug: (...args) => console.log('[DEBUG]', ...args),
-        command: (...args) => console.log('[COMMAND]', ...args)
-    };
+const log = {
+    colors: {
+        reset: '\x1b[0m',
+        red: '\x1b[31m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        blue: '\x1b[34m',
+        magenta: '\x1b[35m',
+        cyan: '\x1b[36m',
+        white: '\x1b[37m',
+        brightRed: '\x1b[91m',
+        brightGreen: '\x1b[92m',
+        brightYellow: '\x1b[93m',
+        brightBlue: '\x1b[94m',
+        brightMagenta: '\x1b[95m',
+        brightCyan: '\x1b[96m',
+        brightWhite: '\x1b[97m',
+    },
+
+    info: function (...args) {
+        console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
+    },
+    warn: function (...args) {
+        console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
+    },
+    error: function (...args) {
+        console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
+    },
+    success: function (...args) {
+        console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
+    },
+    debug: function (...args) {
+        console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
+    },
+    command: function (...args) {
+        console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
+    }
+};
+
+
+// Track if files are in overflow mode (size > MAX_LOG_SIZE)
+const fileOverflowMode = {};
+
+function appendToLog(type, message) {
+    const MAX_LOG_SIZE = 50 * 1024 * 1024;
+    function getLogFilePath(type) {
+        const homeDir = os.homedir();
+        const SCRIPT_NAME = 'core_node';
+        const LOCAL_DIR = os.platform() === 'win32' ? path.join(homeDir, `.${SCRIPT_NAME}`) : `/usr/${SCRIPT_NAME}`;
+        const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
+        const LOG_DIR = path.join(COMMON_CACHE_DIR, '.command_logs');
+        [LOCAL_DIR, COMMON_CACHE_DIR, LOG_DIR].forEach(dir => {
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+        });
+        const logPath = path.join(LOG_DIR, `${type}.log`);
+        if (!fs.existsSync(logPath)) {
+            fs.writeFileSync(logPath, '', 'utf8');
+        }
+        if (fileOverflowMode[logPath] === undefined) {
+            fileOverflowMode[logPath] = false;
+        }
+        return logPath;
+    }
+    try {
+        const logFile = getLogFilePath(type);
+        const timestamp = new Date().toISOString();
+        const logMessage = `[${timestamp}] ${message}\n`;
+        const stats = fs.statSync(logFile);
+        if (stats.size + Buffer.byteLength(logMessage) > MAX_LOG_SIZE) {
+            fileOverflowMode[logFile] = true;
+        }
+        if (fileOverflowMode[logFile]) {
+            const lines = fs.readFileSync(logFile, 'utf8').split('\n');
+            let currentSize = stats.size;
+            while (currentSize > MAX_LOG_SIZE * 0.8) { // Keep 20% buffer
+                const removedLine = lines.shift();
+                if (!removedLine) break;
+                currentSize -= Buffer.byteLength(removedLine + '\n');
+            }
+            lines.push(logMessage.trim());
+            fs.writeFileSync(logFile, lines.join('\n') + '\n', 'utf8');
+            const newStats = fs.statSync(logFile);
+            if (newStats.size < MAX_LOG_SIZE * 0.8) {
+                fileOverflowMode[logFile] = false;
+            }
+        } else {
+            fs.appendFileSync(logFile, logMessage);
+            if (stats.size + Buffer.byteLength(logMessage) > MAX_LOG_SIZE) {
+                fileOverflowMode[logFile] = true;
+            }
+        }
+    } catch (error) {
+        console.error(`Failed to write to log file: ${error}`);
+    }
 }
 
 const initialWorkingDirectory = process.cwd();
@@ -107,7 +183,7 @@ function execCmd(command, info = false, cwd = null, logname = null) {
     }
 
     if (logname) {
-        fs.appendFileSync(path.join(process.cwd(), 'logs', `${logname}.log`), resultText + '\n');
+        appendToLog(logname, resultText);
     }
     if (info) {
         log.info(resultText);
@@ -154,7 +230,7 @@ async function execCommand(command, info = true, cwd = null, logname = null) {
         process.chdir(initialWorkingDirectory);
 
         if (logname) {
-            fs.appendFileSync(path.join(process.cwd(), 'logs', `${logname}.log`), stdoutData + '\n');
+            appendToLog(`info`, stdoutData);
         }
 
         if (childProcess.error) {

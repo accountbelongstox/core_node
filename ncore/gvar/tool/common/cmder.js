@@ -6,7 +6,6 @@ const path = require('path');
 const log = {
     colors: {
         reset: '\x1b[0m',
-        // Regular colors
         red: '\x1b[31m',
         green: '\x1b[32m',
         yellow: '\x1b[33m',
@@ -14,7 +13,6 @@ const log = {
         magenta: '\x1b[35m',
         cyan: '\x1b[36m',
         white: '\x1b[37m',
-        // Bright colors
         brightRed: '\x1b[91m',
         brightGreen: '\x1b[92m',
         brightYellow: '\x1b[93m',
@@ -24,22 +22,22 @@ const log = {
         brightWhite: '\x1b[97m',
     },
 
-    info: function(...args) {
+    info: function (...args) {
         console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
     },
-    warn: function(...args) {
+    warn: function (...args) {
         console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
     },
-    error: function(...args) {
+    error: function (...args) {
         console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
     },
-    success: function(...args) {
+    success: function (...args) {
         console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
     },
-    debug: function(...args) {
+    debug: function (...args) {
         console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
     },
-    command: function(...args) {
+    command: function (...args) {
         console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
     }
 };

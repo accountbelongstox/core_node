@@ -1,0 +1,39 @@
+const config = {
+    APP_NAME: 'DevOps',
+    APP_MODULE: 'module/APP',
+    APP_KEYS: '2GQUA1DlhP/fZaVvIYG4tA',
+    API_TOKEN_SALT: 'EsX6aWwfVjfyF2qtnxkafw',
+    ADMIN_JWT_SECRET: 'asbifIfY8kjAxNsV1P/MLw',
+    TRANSFER_TOKEN_SALT: '/Hlht5l1E7EVmhxfFqlFRA',
+    JWT_SECRET: 'Dq6gADkj5uD67xj6uBwxCQ',
+    
+    DATABASE_CLIENT: 'mysql',
+    DATABASE_HOST: 'mysql.local.12gm.com',
+    DATABASE_PORT: 13306,
+    DATABASE_NAME: 'dictapi_old',
+    DATABASE_USERNAME: 'root',
+    DATABASE_PASSWORD: 'hbmIAk)R4)7+',
+    DATABASE_SSL: false,
+    
+    MYSQL_HOST: 'mysql.local.12gm.com',
+    MYSQL_PORT: 13306,
+    MYSQL_DB: 'dictapi_old',
+    MYSQL_USER: 'root',
+    MYSQL_PWD: 'hbmIAk)R4)7+',
+    
+    SQLITE_DB: './.cache/data.db',
+    
+    AZURE_SPEECH_KEY: '486f5b8668074056b6ad610d95fd6ac2',
+    AZURE_SPEECH_REGION: 'eastus',
+    AZURE_SPEECH_SPEED: 1.0,
+    
+    STRAPI_HOST: '0.0.0.0',
+    STRAPI_PORT: 1337,
+    STRAPI_URL: 'https://dictapitest.local.12gm.com:910',
+    STRAPI_TOKEN: '6d2d9bf6248f70d5432ec1e36599ba1ad2d2c736c1abc186178477d782097578a20bcb63a57a0eddf53d7a5c6fe77c9619720757ee0ba041680f96b53dbe7f6ba6dca68174486c2ff379b3792cf6b6eccf6acbb96ac2564d12aee93ebe8c250a6e57dcb5177c723727405934325c6b5656a562b149504c2b151eedf81baff1bf',
+    GITEA_TOKEN: '*147729cb62a4d282f635255e0f7db69cda97094e*'
+};
+
+module.exports = {
+    ...config
+};

@@ -45,8 +45,9 @@ class Main {
             logger.info('EdgeTTS binary found successfully! Path: ', edgeTTSPath);
         }
         logger.info(`usage:  --app=${appname} --word_segmentation=0-30000`);
+
         wordMaster.start()
-        http.start(config)
+        // http.start(config)
     }
 }
 

@@ -4,6 +4,64 @@ const { execSync, spawn, spawnSync } = require('child_process');
     const fs = require('fs');
     const readline = require('readline');
 
+// Track if files are in overflow mode (size > MAX_LOG_SIZE)
+const fileOverflowMode = {};
+
+function appendToLog(type, message) {
+    const MAX_LOG_SIZE = 50 * 1024 * 1024;
+    function getLogFilePath(type) {
+        const homeDir = os.homedir();
+        const SCRIPT_NAME = 'core_node';
+        const LOCAL_DIR = os.platform() === 'win32' ? path.join(homeDir, `.${SCRIPT_NAME}`) : `/usr/${SCRIPT_NAME}`;
+        const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
+        const LOG_DIR = path.join(COMMON_CACHE_DIR, '.command_logs');
+        [LOCAL_DIR, COMMON_CACHE_DIR, LOG_DIR].forEach(dir => {
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+        });
+        const logPath = path.join(LOG_DIR, `${type}.log`);
+        if (!fs.existsSync(logPath)) {
+            fs.writeFileSync(logPath, '', 'utf8');
+        }
+        if (fileOverflowMode[logPath] === undefined) {
+            fileOverflowMode[logPath] = false;
+        }
+        return logPath;
+    }
+    try {
+        const logFile = getLogFilePath(type);
+        const timestamp = new Date().toISOString();
+        const logMessage = `[${timestamp}] ${message}\n`;
+        const stats = fs.statSync(logFile);
+        if (stats.size + Buffer.byteLength(logMessage) > MAX_LOG_SIZE) {
+            fileOverflowMode[logFile] = true;
+        }
+        if (fileOverflowMode[logFile]) {
+            const lines = fs.readFileSync(logFile, 'utf8').split('\n');
+            let currentSize = stats.size;
+            while (currentSize > MAX_LOG_SIZE * 0.8) { // Keep 20% buffer
+                const removedLine = lines.shift();
+                if (!removedLine) break;
+                currentSize -= Buffer.byteLength(removedLine + '\n');
+            }
+            lines.push(logMessage.trim());
+            fs.writeFileSync(logFile, lines.join('\n') + '\n', 'utf8');
+            const newStats = fs.statSync(logFile);
+            if (newStats.size < MAX_LOG_SIZE * 0.8) {
+                fileOverflowMode[logFile] = false;
+            }
+        } else {
+            fs.appendFileSync(logFile, logMessage);
+            if (stats.size + Buffer.byteLength(logMessage) > MAX_LOG_SIZE) {
+                fileOverflowMode[logFile] = true;
+            }
+        }
+    } catch (error) {
+        console.error(`Failed to write to log file: ${error}`);
+    }
+}
+
     const initialWorkingDirectory = process.cwd();
 
     // Platform detection
@@ -71,7 +129,7 @@ const { execSync, spawn, spawnSync } = require('child_process');
         const resultText = result.toString();
 
         if (logname) {
-            fs.appendFileSync(path.join(process.cwd(), 'logs', `${logname}.log`), resultText + '\n');
+            appendToLog(logname, resultText);
         }
         if (info) {
             console.log(resultText);
@@ -125,7 +183,7 @@ const { execSync, spawn, spawnSync } = require('child_process');
             childProcess.on('close', (code) => {
                 process.chdir(initialWorkingDirectory);
                 if (logname) {
-                    fs.appendFileSync(path.join(process.cwd(), 'logs', `${logname}.log`), stdoutData + '\n');
+                    appendToLog(logname, stdoutData);
                 }
                 if (code === 0) {
                     resolve(wrapEmdResult(true, stdoutData, null, 0, info));

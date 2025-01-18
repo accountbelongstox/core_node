@@ -71,7 +71,7 @@ function getRecursiveSubDirectories(dirPath, excludes = []) {
         }
 
         const items = fs.readdirSync(absolutePath);
-        
+
         for (const item of items) {
             if (excludes.includes(item)) continue;
 
@@ -131,35 +131,35 @@ function ensureDirectory(dirPath) {
 
 function getFilesAtDepth(dirPath, depth = 1) {
     if (!fs.existsSync(dirPath)) {
-      return []; // Return empty array if the directory doesn't exist
+        return []; // Return empty array if the directory doesn't exist
     }
-  
+
     let files = [];
-  
+
     function readDir(currentPath, currentDepth) {
-      if (currentDepth > depth) return;
-  
-      const items = fs.readdirSync(currentPath);
-  
-      items.forEach(item => {
-        const fullPath = path.join(currentPath, item);
-        const stat = fs.statSync(fullPath);
-  
-        if (stat.isDirectory()) {
-          // If the item is a directory, recurse deeper
-          readDir(fullPath, currentDepth + 1);
-        } else {
-          // If the item is a file, add it to the result array
-          if (currentDepth <= depth) {
-            files.push(fullPath);
-          }
-        }
-      });
+        if (currentDepth > depth) return;
+
+        const items = fs.readdirSync(currentPath);
+
+        items.forEach(item => {
+            const fullPath = path.join(currentPath, item);
+            const stat = fs.statSync(fullPath);
+
+            if (stat.isDirectory()) {
+                // If the item is a directory, recurse deeper
+                readDir(fullPath, currentDepth + 1);
+            } else {
+                // If the item is a file, add it to the result array
+                if (currentDepth <= depth) {
+                    files.push(fullPath);
+                }
+            }
+        });
     }
-  
+
     readDir(dirPath, 1); // Start reading from depth 1
     return files;
-  }
+}
 
 module.exports = {
     getSubDirectories,

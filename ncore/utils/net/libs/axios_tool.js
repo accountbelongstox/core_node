@@ -57,7 +57,7 @@ async function getJsonFromUrl(url) {
             };
         }
     } catch (error) {
-        log.error('Error fetching JSON from URL:', error.message);
+        log.error(`Error fetching JSON from URL: ${error.message}, url: ${url}`);
         return {
             success: false,
             __originalText: error.message
