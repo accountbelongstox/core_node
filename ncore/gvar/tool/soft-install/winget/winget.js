@@ -1,42 +1,62 @@
 const fs = require('fs');
 const path = require('path');
-const parseInstalledPackages = require('./winget_parse_list.js');
-const { isWindows, execCmdResultText, pipeExecCmd } = require('../common/cmder.js');
-const parseSearchResults = require('./winget_parse_search.js').parseSearchResults;
-const { handleCache, updateCache, sortSearchResults } = require('./winget_parse_utils.js');
+const parseInstalledPackages = require('./parse/winget_parse_list.js');
+const { isWindows, execCmdResultText, pipeExecCmd } = require('../../common/cmder.js');
+const parseSearchResults = require('./parse/winget_parse_search.js').parseSearchResults;
+const { handleCache, updateCache, sortSearchResults } = require('./parse/winget_parse_utils.js');
 const os = require('os');
-const { normalizeKeywords, calculateMatchScore } = require('./winget_parse_utils.js');
+const { normalizeKeywords, calculateMatchScore } = require('./parse/winget_parse_utils.js');
 
-let log;
-try {
-    const logger = require('#@/ncore/utils/logger/index.js');
-    log = {
-        info: (...args) => logger.info(...args),
-        warn: (...args) => logger.warn(...args),
-        error: (...args) => logger.error(...args),
-        success: (...args) => logger.success(...args),
-        debug: (...args) => logger.debug ? logger.debug(...args) : console.log('[DEBUG]', ...args),
-        command: (...args) => logger.command(...args)
-    };
-} catch (error) {
-    log = {
-        info: (...args) => console.log('[INFO]', ...args),
-        warn: (...args) => console.warn('[WARN]', ...args),
-        error: (...args) => console.error('[ERROR]', ...args),
-        success: (...args) => console.log('[SUCCESS]', ...args),
-        debug: (...args) => console.log('[DEBUG]', ...args),
-        command: (...args) => console.log('[COMMAND]', ...args)
-    };
-}
+const log = {
+    colors: {
+        reset: '\x1b[0m',
+        // Regular colors
+        red: '\x1b[31m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        blue: '\x1b[34m',
+        magenta: '\x1b[35m',
+        cyan: '\x1b[36m',
+        white: '\x1b[37m',
+        // Bright colors
+        brightRed: '\x1b[91m',
+        brightGreen: '\x1b[92m',
+        brightYellow: '\x1b[93m',
+        brightBlue: '\x1b[94m',
+        brightMagenta: '\x1b[95m',
+        brightCyan: '\x1b[96m',
+        brightWhite: '\x1b[97m',
+    },
 
-let cacheDir;
-try {
-    const { COMMON_CACHE_DIR } = require('#@/ncore/gvar/gdir.js');
-    cacheDir = path.join(COMMON_CACHE_DIR, '.winget');
-} catch (error) {
-    const homeDir = os.homedir();   
-    cacheDir = path.join(homeDir, 'core_node/.cache/.winget');
-}
+    info: function (...args) {
+        console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
+    },
+    warn: function (...args) {
+        console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
+    },
+    error: function (...args) {
+        console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
+    },
+    success: function (...args) {
+        console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
+    },
+    debug: function (...args) {
+        console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
+    },
+    command: function (...args) {
+        console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
+    }
+};
+
+
+const process = require('process');
+const homeDir = os.homedir();
+const SCRIPT_NAME = `core_node`
+const LOCAL_DIR = os.platform() === 'win32'
+    ? path.join(homeDir, `.${SCRIPT_NAME}`)
+    : `/usr/${SCRIPT_NAME}`;
+const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
+let cacheDir = path.join(COMMON_CACHE_DIR, '.winget');
 
 class WingetManager {
     constructor() {
@@ -124,7 +144,7 @@ class WingetManager {
             const installedPackages = await this.getInstalledPackages();
 
             // Check if any of the search results match installed packages
-            return searchResults.some(searchResult => 
+            return searchResults.some(searchResult =>
                 installedPackages.some(installedPackage => {
                     const installedId = installedPackage.packageId.toLowerCase();
                     const searchId = searchResult.id.toLowerCase();
@@ -144,7 +164,7 @@ class WingetManager {
         try {
             // If just installed something, force skip cache
             const shouldUseCache = useCache && !this.justInstalled;
-            
+
             // Check cache first - use 5000ms (5 seconds) as maxAge
             const cacheResult = handleCache(this.packagesCachePath, 'installed', 5000, shouldUseCache);
             if (cacheResult.exists && cacheResult.isValid) {
@@ -185,9 +205,9 @@ class WingetManager {
             }
 
             // Get fresh data
-            const output = await execCmdResultText(`winget search "${searchTerm}"`, true, null, log);
+            const output = await execCmdResultText(`winget search "${searchTerm}"`, true, null);
             const searchResults = parseSearchResults(output, searchTerm);
-            
+
             // Ensure cache directory exists and update cache
             if (useCache) {
                 this.ensureCache();
@@ -228,7 +248,7 @@ class WingetManager {
         log.info(`  Version: ${bestMatch.version}`);
         log.info(`  Source: ${bestMatch.source}`);
         log.info(`  Match Score: ${matchScore}`);
-        
+
         if (sortedResults.length > 1) {
             log.info('\nOther matches:');
             sortedResults.slice(1).forEach(result => {
@@ -247,24 +267,18 @@ class WingetManager {
         }
 
         try {
-            // Check if already installed
-            const isInstalled = await this.isPackageInstalled(packageId);
-            if (isInstalled) {
-                log.info(`Package "${packageId}" is already installed`);
-                return true;
-            }
-
+            log.info(`installById ${packageId}`)
             // Verify if the package ID exists
-            const searchResults = await this.search(packageId, false);
-            const exactMatch = searchResults.find(pkg => pkg.id === packageId);
-            if (!exactMatch) {
-                log.error(`Invalid package ID: "${packageId}". Please provide a valid package ID`);
-                return false;
-            }
+            // const searchResults = await this.search(packageId, false);
+            // const exactMatch = searchResults.find(pkg => pkg.id === packageId);
+            // if (!exactMatch) {
+            //     log.error(`Invalid package ID: "${packageId}". Please provide a valid package ID`);
+            //     return false;
+            // }
 
             // Prepare install command
             let installCmd = `winget install --accept-source-agreements --accept-package-agreements --id "${packageId}" --silent --force`;
-            
+
             // Add location if specified
             if (installDir) {
                 installCmd += ` --location "${installDir}"`;
@@ -274,33 +288,7 @@ class WingetManager {
             log.info(`Installing package "${packageId}"...`);
             await pipeExecCmd(installCmd, true, null, true);
 
-            // Verify installation
-            log.info('Verifying installation...');
-            const verifyAttempts = 3;
-            let isVerified = false;
-
-            for (let i = 0; i < verifyAttempts; i++) {
-                // Wait a bit before verification (especially for larger packages)
-                if (i > 0) {
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-
-                const verifyInstalled = await this.isPackageInstalled(packageId);
-                if (verifyInstalled) {
-                    isVerified = true;
-                    break;
-                }
-                log.warn(`Verification attempt ${i + 1}/${verifyAttempts} failed, retrying...`);
-            }
-
-            if (isVerified) {
-                log.success(`Successfully installed and verified "${packageId}"`);
-                this.justInstalled = true;
-                return true;
-            } else {
-                log.error(`Installation verification failed for "${packageId}"`);
-                return false;
-            }
+            return true
 
         } catch (error) {
             log.error(`Failed to install package "${packageId}":`, error);

@@ -1,8 +1,7 @@
 const path = require('path');
 // const fs = require('fs');
 const gdir = require('./gvar/gdir.js');
-const bdir = require('./gvar/bdir.js');
-const env = require('./gvar/env.js');
+const env = require('./gvar/env-lib/env.js');
 const { getAppName } = require('./gvar/libs/appname.js');
 let appname = getAppName()
 
@@ -15,7 +14,7 @@ const rootdir = path.resolve(gfilename, '..');
 const cwd = rootdir;
 
 const appsdir = path.join(rootdir, 'apps');
-
+// #Abcdeqf!23
 const basedir = gdir.CWD;
 const appdir = path.join(appsdir, appname);
 env.addRootDir(appdir);
@@ -54,7 +53,6 @@ const app = {
 module.exports = {
   gdir,
   cwd,
-  bdir,
   env,
   encyclopedia,
   localDir,

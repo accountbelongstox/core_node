@@ -1,7 +1,6 @@
 const fs = require('fs');
     const path = require('path');
     const { gdir, appConfDir } = require('#@globalvars');
-    const { bdir } = require('#@/ncore/gvar/bdir.js');
     const gconfig = require('#@/ncore/gvar/gconfig.js');
 
     const localDir = gconfig.localDir;

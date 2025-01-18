@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { sysarg } = require('#@utils_native');
+const sysarg = require('#@ncore/utils/systool/libs/sysarg.js'); 
 const { env } = require('#@globalvars');
 let log = require('#@/ncore/utils/logger/index.js');
 

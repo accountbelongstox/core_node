@@ -1,13 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const systemInfo = require('./system_info.js');
-const findBin = require('./find_bin.js');
-const logger = require('#@utils_logger');
-const { getSoftwarePath, smartInstaller } = require('../tool/soft-install/index.js');
-const { pipeExecCmd } = require('#@utils_commander');
-const fileFinder = require('../tool/soft-install/common/ffinder.js');
+const systemInfo = require('../system_info.js');
+let log= {
+    info: (...args) => console.log('[INFO]', ...args),
+    warn: (...args) => console.warn('[WARN]', ...args),
+    error: (...args) => console.error('[ERROR]', ...args),
+    success: (...args) => console.log('[SUCCESS]', ...args),
+    debug: (...args) => console.log('[DEBUG]', ...args)
+};
+
+const { smartInstaller } = require('../../tool/soft-install/index.js');
+const { pipeExecCmd } = require('../../tool/common/cmder.js');
+const fileFinder = require('../../tool/common/ffinder.js');
 const isWindows = os.platform() === 'win32';
+const initializedInstall = {
+    "7zip": {
+        install:false,
+        search:false,
+    }
+}
 
 class Ensure7Zip {
     constructor() {
@@ -19,10 +31,21 @@ class Ensure7Zip {
     ensure7zip = async () => {
         const exeBy7zName = isWindows ? '7z.exe' : '7z';
         if (fileFinder.isFinderCacheValid(exeBy7zName)) {
-            return fileFinder.getFinderCache(exeBy7zName);
+            return fileFinder.readCacheByKey(exeBy7zName);
         }
-        await smartInstaller.install('7zip');
-        const exeBy7zPath = fileFinder.getFinderCache(exeBy7zName);
+        let exeBy7zPath = null
+        log.warn(`No cached 7-Zip path found, proceeding to find or install 7-Zip...`);
+        if (!initializedInstall["7zip"].install) {
+            initializedInstall["7zip"].install = true
+            await smartInstaller.smartInstall('7zip');
+        }
+        if (!initializedInstall["7zip"].search) {
+            initializedInstall["7zip"].search = true
+            exeBy7zPath = await fileFinder.findByCommonInstallDir(exeBy7zName);
+        }
+        if(exeBy7zPath){
+            fileFinder.saveCacheByKey(exeBy7zName,exeBy7zPath);
+        }
         return exeBy7zPath;
     }
 
@@ -61,19 +84,19 @@ class Ensure7Zip {
 
         // Skip if already installed
         if (fs.existsSync(exePath)) {
-            logger.info('7-Zip already installed, skipping installation.');
+            log.info('7-Zip already installed, skipping installation.');
             return exePath;
         }
 
         // Clean up old installer if exists
         if (fs.existsSync(installerPath)) {
-            logger.info('Removing old 7-Zip installer...');
+            log.info('Removing old 7-Zip installer...');
             fs.unlinkSync(installerPath);
         }
 
         try {
             // Download installer
-            logger.info('Downloading 7-Zip installer...');
+            log.info('Downloading 7-Zip installer...');
             const command = `curl -L "${downloadUrl}" -o "${installerPath}"`;
             pipeExecCmd(command);
 
@@ -82,18 +105,18 @@ class Ensure7Zip {
             }
 
             // Install silently
-            logger.info(`Installing 7-Zip to ${installDir}...`);
+            log.info(`Installing 7-Zip to ${installDir}...`);
             pipeExecCmd(`"${installerPath}" /S /D=${installDir}`);
 
             // Verify installation
             if (fs.existsSync(exePath)) {
-                logger.success('7-Zip installed successfully');
+                log.success('7-Zip installed successfully');
                 return exePath;
             } else {
                 throw new Error('7-Zip installation failed - executable not found');
             }
         } catch (error) {
-            logger.error('7-Zip installation failed:', error.message);
+            log.error('7-Zip installation failed:', error.message);
             throw error;
         } finally {
             // Clean up installer
@@ -101,7 +124,7 @@ class Ensure7Zip {
                 try {
                     fs.unlinkSync(installerPath);
                 } catch (error) {
-                    logger.warning('Failed to clean up installer:', error.message);
+                    log.warning('Failed to clean up installer:', error.message);
                 }
             }
         }

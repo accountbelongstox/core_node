@@ -2,54 +2,65 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const homeDir = os.homedir();
-let log;
+const log = {
+    colors: {
+        reset: '\x1b[0m',
+        // Regular colors
+        red: '\x1b[31m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        blue: '\x1b[34m',
+        magenta: '\x1b[35m',
+        cyan: '\x1b[36m',
+        white: '\x1b[37m',
+        // Bright colors
+        brightRed: '\x1b[91m',
+        brightGreen: '\x1b[92m',
+        brightYellow: '\x1b[93m',
+        brightBlue: '\x1b[94m',
+        brightMagenta: '\x1b[95m',
+        brightCyan: '\x1b[96m',
+        brightWhite: '\x1b[97m',
+    },
 
-try {
-    const logger = require('#@/ncore/utils/logger/index.js');
-    log = {
-        info: (...args) => logger.info(...args),
-        warn: (...args) => logger.warn(...args),
-        error: (...args) => logger.error(...args),
-        success: (...args) => logger.success(...args),
-        debug: (...args) => logger.debug ? logger.debug(...args) : console.log('[DEBUG]', ...args)
-    };
-} catch (error) {
-    log = {
-        info: (...args) => console.log('[INFO]', ...args),
-        warn: (...args) => console.warn('[WARN]', ...args),
-        error: (...args) => console.error('[ERROR]', ...args),
-        success: (...args) => console.log('[SUCCESS]', ...args),
-        debug: (...args) => console.log('[DEBUG]', ...args)
-    };
-}
-let globalVarDir,localDir;
+    info: function(...args) {
+        console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
+    },
+    warn: function(...args) {
+        console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
+    },
+    error: function(...args) {
+        console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
+    },
+    success: function(...args) {
+        console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
+    },
+    debug: function(...args) {
+        console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
+    },
+    command: function(...args) {
+        console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
+    }
+};
 
-try {
-    const {GLOBAL_VAR_DIR, LOCAL_DIR} = require('../gdir');
-    globalVarDir = GLOBAL_VAR_DIR
-    localDir = LOCAL_DIR
-} catch (error) {
-    localDir = os.platform() === 'win32'
-        ? path.join(homeDir, '.core_node')
-        : '/usr/core_node';
-    globalVarDir = os.platform() === 'win32'
-        ? path.join(homeDir, '.core_node/global_var')
-        : path.join(localDir, 'global_var');
-}
+const SCRIPT_NAME = `core_node`
+const LOCAL_DIR = os.platform() === 'win32'
+    ? path.join(homeDir, `.${SCRIPT_NAME}`)
+    : `/usr/${SCRIPT_NAME}`;
+const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
+
+
 function mkdir(path) {
     return fs.mkdirSync(path, { recursive: true });
 }
-mkdir(globalVarDir);
 
-function mkdir(path) {
-    return fs.mkdirSync(path, { recursive: true });
-}
-mkdir(globalVarDir);
+mkdir(GLOBAL_VAR_DIR);
+mkdir(GLOBAL_VAR_DIR);
 
 class ConfigTool {
     constructor(configDir) {
         this.platform = process.platform;
-        this.configDir = configDir ? configDir : globalVarDir;
+        this.configDir = configDir ? configDir : GLOBAL_VAR_DIR;
         if (!fs.existsSync(this.configDir)) {
             fs.mkdirSync(this.configDir, { recursive: true });
             log.info(`Created config directory: ${this.configDir}`);

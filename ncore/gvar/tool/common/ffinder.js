@@ -1,27 +1,56 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-let log;
-try {
-    const logger = require('#@/ncore/utils/logger/index.js');
-    log = logger;
-} catch (error) {
-    log = {
-        info: (...args) => console.log('[INFO]', ...args),
-        warn: (...args) => console.warn('[WARN]', ...args),
-        error: (...args) => console.error('[ERROR]', ...args),
-        debug: (...args) => console.log('[DEBUG]', ...args)
-    };
-}
-let cacheDir;
-try {
-    const { COMMON_CACHE_DIR } = require('#@/ncore/gvar/gdir.js');
-    cacheDir = path.join(COMMON_CACHE_DIR, '.ffinder');
-} catch (error) {
-    const homeDir = os.homedir();
-    cacheDir = path.join(homeDir, 'core_node/.cache/.ffinder');
-}
+const log = {
+    colors: {
+        reset: '\x1b[0m',
+        // Regular colors
+        red: '\x1b[31m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        blue: '\x1b[34m',
+        magenta: '\x1b[35m',
+        cyan: '\x1b[36m',
+        white: '\x1b[37m',
+        // Bright colors
+        brightRed: '\x1b[91m',
+        brightGreen: '\x1b[92m',
+        brightYellow: '\x1b[93m',
+        brightBlue: '\x1b[94m',
+        brightMagenta: '\x1b[95m',
+        brightCyan: '\x1b[96m',
+        brightWhite: '\x1b[97m',
+    },
 
+    info: function(...args) {
+        console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
+    },
+    warn: function(...args) {
+        console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
+    },
+    error: function(...args) {
+        console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
+    },
+    success: function(...args) {
+        console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
+    },
+    debug: function(...args) {
+        console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
+    },
+    command: function(...args) {
+        console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
+    }
+};
+
+const process = require('process');
+const homeDir = os.homedir();
+const SCRIPT_NAME = `core_node`
+const LOCAL_DIR = os.platform() === 'win32'
+    ? path.join(homeDir, `.${SCRIPT_NAME}`)
+    : `/usr/${SCRIPT_NAME}`;   
+const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
+
+const cacheDir = path.join(COMMON_CACHE_DIR, '.ffinder');
 const isWindows = os.platform() === 'win32';
 
 class FileFinder {
@@ -72,8 +101,23 @@ class FileFinder {
         this.saveCache(cache);
     }
 
-    readCacheByPath(path) {   
+    saveCacheByKey(key, value) {
+        key = this.pathToKey(key);
+        const cache = this.loadCache();
+        const cacheKey = `which:${key}`;
+        cache[cacheKey] = value;
+        this.saveCache(cache);
+    }
+
+    readCacheByPath(path) {
         const key = this.pathToKey(path);
+        const cache = this.loadCache();
+        const cacheKey = `which:${key}`;
+        return cache[cacheKey];
+    }
+
+    readCacheByKey(key) {
+        key = this.pathToKey(key);
         const cache = this.loadCache();
         const cacheKey = `which:${key}`;
         return cache[cacheKey];
@@ -215,19 +259,12 @@ class FileFinder {
 
     isFinderCacheValid(executable) {
         const cachePath = this.readCacheByPath(executable);
-        if(cachePath) {
+        if (cachePath) {
             return this.validateCachedPath(cachePath);
         }
         return false;
     }
-    /**
-     * Find executable in system PATH (cross-platform which/where)
-     * @param {string} executable - Name of executable to find
-     * @param {Object} options - Search options
-     * @param {boolean} [options.deepSearch=false] - Enable deep search in Linux
-     * @param {number} [options.maxDepth=3] - Maximum search depth for Windows/deep search
-     * @returns {Promise<string|null>} - Executable path or null if not found
-     */
+
     async findByCommonInstallDir(executable, options = {}) {
         const { deepSearch = false, maxDepth = 3, useCache = false } = options;
 

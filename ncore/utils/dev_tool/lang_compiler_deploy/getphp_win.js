@@ -1,18 +1,13 @@
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const { gdir } = require('#@globalvars'); // Import com_bin
-const { bdir } = require('#@/ncore/gvar/bdir.js'); // Import com_bin from #@globalvars
+const { gdir } = require('#@globalvars');
+const bdir = require('#@/ncore/gvar/bdir.js');
 const gconfig = require('#@/ncore/gvar/gconfig.js');
-const { execCmd } = require('#@utils_commander');
+const { execCmd, execCmdResultText, pipeExecCmd } = require('#@utils_commander');
 const logger = require('#@utils_logger');
 const phpReleasesFetcher = require('./php_libs/get_releases.js');
-
 const langdir = gconfig.DEV_LANG_DIR;
-
-const tar = bdir.getTarExecutable(); // Get the tar executable path
-const v7zexe = bdir.get7zExecutable(); // Get the v7z executable path
-const curl = bdir.getCurlExecutable(); // Get the curl executable path
 
 class GetPHPWin {
     constructor() {
@@ -32,7 +27,7 @@ class GetPHPWin {
         const details = this.getVersionDetails(php_release);
         const baseDir = new Set();
 
-        console.log(`details`, details);
+        logger.info(`details`, details);
         const phpBaseDir = path.dirname(details.phpPath);
         baseDir.add(phpBaseDir);
 
@@ -72,7 +67,7 @@ class GetPHPWin {
             phpInstallDir: this.phpInstallDir,
             phpPath: this.phpPath,
         };
-        console.log(this.cachedVersionDetails[versionKey]);
+        logger.info(this.cachedVersionDetails[versionKey]);
         return this.cachedVersionDetails[versionKey];
     }
 
@@ -89,7 +84,7 @@ class GetPHPWin {
         if (developmentVersion.startsWith('/downloads/releases/')) {
             developmentVersion = developmentVersion.substring('/downloads/releases/'.length);
         }
-        console.log(`developmentVersion`, developmentVersion);
+        logger.info(`developmentVersion`, developmentVersion);
         return developmentVersion;
     }
 
@@ -108,6 +103,11 @@ class GetPHPWin {
     }
 
     async start(versionKey = null) {
+        await bdir.initializedBDir();
+        this.tar = await bdir.getTarExecutable();
+        this.v7z = await bdir.get7zExecutable();
+        this.curl = await bdir.getCurlExecutable();
+
         this.prepareDirectories();
         let releases = await phpReleasesFetcher.fetchReleases();
         this.excludeVersionKeys.forEach(versionKey => {
@@ -119,23 +119,23 @@ class GetPHPWin {
         if (versionKey !== null) {
             const php_release = await phpReleasesFetcher.getVersionByMajor(versionKey);
             this.setPHPVersion(php_release);
-            this.installPHP();
+            await this.installPHP();
         } else {
-            releases.forEach(php_release => {
+            for (const php_release of releases) {
                 this.setPHPVersion(php_release);
-                this.installPHP();
-            });
+                await this.installPHP();
+            }
         }
     }
 
-    installPHP() {
+    async installPHP() {
         if (this.checkPHPInstalled()) {
             logger.info(`PHP ${this.phpVersionKey} is already installed.`);
         } else {
-            this.downloadAndExtractPHP();
+            await this.downloadAndExtractPHP();
         }
-        this.configurePHP();
-        this.verifyInstallation();
+        await this.configurePHP();
+        await this.verifyInstallation();
     }
 
     checkPHPInstalled() {
@@ -152,41 +152,41 @@ class GetPHPWin {
         }
     }
 
-    downloadAndExtractPHP() {
+    async downloadAndExtractPHP() {
         logger.info(`Downloading PHP ${this.phpVersionKey} from ${this.phpUrl}...`);
         const tempPHPZip = path.join(this.tempDir, this.phpFileName);
         if (fs.existsSync(tempPHPZip)) {
             fs.unlinkSync(tempPHPZip);
         }
 
-        const command = `${curl} -k -L -o "${tempPHPZip}" "${this.phpUrl}"`;
+        const command = `${this.curl} -k -L -o "${tempPHPZip}" "${this.phpUrl}"`;
         logger.info(command);
         try {
-            execCmd(command);
+            await execCmd(command);
         } catch (error) {
             logger.error(`Error downloading PHP: ${error}`);
         }
 
         logger.info(`Extracting PHP ${this.phpVersionKey} ${tempPHPZip} ...`);
         try {
-            execCmd(`${tar} -xf "${tempPHPZip}" -C "${this.phpInstallDir}"`);
+            await execCmd(`${this.tar} -xf "${tempPHPZip}" -C "${this.phpInstallDir}"`);
         } catch (error) {
             logger.error(`Error extracting PHP: ${error}`);
         }
     }
 
-    verifyInstallation() {
+    async verifyInstallation() {
         const phpExePath = path.join(this.phpInstallDir, 'php.exe');
         if (fs.existsSync(phpExePath)) {
             logger.success(`PHP ${this.phpVersionKey} installed successfully.`);
-            const version = execCmd(`"${phpExePath}" --version`);
+            const version = await execCmdResultText(`"${phpExePath}" --version`);
             logger.info(`PHP version: ${version}`);
         } else {
             logger.error(`PHP ${this.phpVersionKey} installation failed.`);
         }
     }
 
-    configurePHP() {
+    async configurePHP() {
         const phpIniPath = path.join(this.phpInstallDir, 'php.ini');
         if (!fs.existsSync(phpIniPath)) {
             fs.copyFileSync(path.join(this.phpInstallDir, 'php.ini-development'), phpIniPath);

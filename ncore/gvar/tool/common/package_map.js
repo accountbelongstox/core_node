@@ -85,6 +85,19 @@ const packageMap = {
         pacman: ['htop', 'iotop', 'iftop', 'sysstat'],
         zypper: ['htop', 'iotop', 'iftop', 'sysstat'],
         winget: ['Microsoft.Sysinternals.ProcessExplorer', 'Microsoft.PowerToys']
+    },
+
+    "7zip": {
+        category: "compression",
+        packages: {
+            winget: "7zip.7zip",
+            linux: {
+                apt: ["p7zip-full", "p7zip-rar"],  // Debian/Ubuntu
+                yum: ["p7zip", "p7zip-plugins"],    // RHEL/CentOS
+                apk: ["p7zip"],                     // Alpine
+                pacman: ["p7zip"]                   // Arch Linux
+            }
+        }
     }
 };
 

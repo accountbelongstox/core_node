@@ -16,11 +16,13 @@ This guide explains how to initialize and run the script using `curl` and `pytho
    ```
    
 ## Couser Reference
-PowerShell 
+```PowerShell 
 irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/master/scripts/install.ps1 | iex
+https://github.com/yuaotian/go-cursor-help/releases
 
 ## Debug Command
 ```sh
+systemctl stop VoiceStaticServer-node.service && node /mnt/d/programing/core_node/main.js --app=VoiceStaticServer --client
 systemctl stop VoiceStaticServer-node.service && node /mnt/d/programing/core_node/main.js --app=VoiceStaticServer --server
 ```
 ## Server Run

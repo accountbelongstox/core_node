@@ -5,7 +5,7 @@ const { checkVoice } = require('./libs/check_voice.js');
 const logger = require('#@/ncore/utils/logger/index.js');
 const { addWordBack } = require('../../provider/QueueManager.js');
 const { initWordTotalCount } = require('../../provider/index');
-const { sysarg } = require('#@utils_native');
+const sysarg = require('#@ncore/utils/systool/libs/sysarg.js'); 
 
 async function initialize_not_client() {
     let word_segmentation = sysarg.getArg('word_segmentation');

@@ -2,27 +2,47 @@ const os = require('os');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-let log;
-try {
-    const logger = require('#@/ncore/utils/logger/index.js');
-    log = {
-        info: (...args) => logger.info(...args),
-        warn: (...args) => logger.warn(...args),
-        error: (...args) => logger.error(...args),
-        success: (...args) => logger.success(...args),
-        debug: (...args) => logger.debug ? logger.debug(...args) : console.log('[DEBUG]', ...args),
-        command: (...args) => logger.command(...args)
-    };
-} catch (error) {
-    log = {
-        info: (...args) => console.log('[INFO]', ...args),
-        warn: (...args) => console.warn('[WARN]', ...args),
-        error: (...args) => console.error('[ERROR]', ...args),
-        success: (...args) => console.log('[SUCCESS]', ...args),
-        debug: (...args) => console.log('[DEBUG]', ...args),
-        command: (...args) => console.log('[COMMAND]', ...args)
-    };
-}
+
+const log = {
+    colors: {
+        reset: '\x1b[0m',
+        // Regular colors
+        red: '\x1b[31m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        blue: '\x1b[34m',
+        magenta: '\x1b[35m',
+        cyan: '\x1b[36m',
+        white: '\x1b[37m',
+        // Bright colors
+        brightRed: '\x1b[91m',
+        brightGreen: '\x1b[92m',
+        brightYellow: '\x1b[93m',
+        brightBlue: '\x1b[94m',
+        brightMagenta: '\x1b[95m',
+        brightCyan: '\x1b[96m',
+        brightWhite: '\x1b[97m',
+    },
+
+    info: function(...args) {
+        console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
+    },
+    warn: function(...args) {
+        console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
+    },
+    error: function(...args) {
+        console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
+    },
+    success: function(...args) {
+        console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
+    },
+    debug: function(...args) {
+        console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
+    },
+    command: function(...args) {
+        console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
+    }
+};
 
 function isWindows() {
     return os.platform() == 'win32';

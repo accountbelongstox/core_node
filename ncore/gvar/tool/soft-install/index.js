@@ -1,57 +1,69 @@
 const os = require('os');
-const path = require('path');
-const { packageMap } = require('./common/package_map.js');
+const { packageMap } = require('../common/package_map.js');
 const packageManagerFactory = require('./linux-apt/package_manager.js');
 const wingetManager = require('./winget/winget.js');
-const { execCmdResultText } = require('./common/cmder.js');
 const softwareFinder = require('./win-soft/software_finder.js');
-const fileFinder = require('./common/ffinder.js');
+const fileFinder = require('../common/ffinder.js');
 
-let log;
-try {
-    const logger = require('#@/ncore/utils/logger/index.js');
-    log = {
-        info: (...args) => logger.info(...args),
-        warn: (...args) => logger.warn(...args),
-        error: (...args) => logger.error(...args),
-        success: (...args) => logger.success(...args),
-        debug: (...args) => logger.debug(...args),
-        command: (...args) => logger.command(...args)
-    };
-} catch (error) {
-    log = {
-        info: (...args) => console.log('[INFO]', ...args),
-        warn: (...args) => console.warn('[WARN]', ...args),
-        error: (...args) => console.error('[ERROR]', ...args),
-        success: (...args) => console.log('[SUCCESS]', ...args),
-        debug: (...args) => console.log('[DEBUG]', ...args),
-        command: (...args) => console.log('[COMMAND]', ...args)
-    };
-}
+const log = {
+    colors: {
+        reset: '\x1b[0m',
+        // Regular colors
+        red: '\x1b[31m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        blue: '\x1b[34m',
+        magenta: '\x1b[35m',
+        cyan: '\x1b[36m',
+        white: '\x1b[37m',
+        // Bright colors
+        brightRed: '\x1b[91m',
+        brightGreen: '\x1b[92m',
+        brightYellow: '\x1b[93m',
+        brightBlue: '\x1b[94m',
+        brightMagenta: '\x1b[95m',
+        brightCyan: '\x1b[96m',
+        brightWhite: '\x1b[97m',
+    },
+
+    info: function(...args) {
+        console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
+    },
+    warn: function(...args) {
+        console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
+    },
+    error: function(...args) {
+        console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
+    },
+    success: function(...args) {
+        console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
+    },
+    debug: function(...args) {
+        console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
+    },
+    command: function(...args) {
+        console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
+    }
+};
 
 /**
  * Windows package management functions
  */
 const wingetTools = {
-    // Install package by winget ID
     install: async (packageId) => {
         return await wingetManager.installById(packageId);
     },
 
-    // Search packages
     search: async (searchTerm) => {
         return await wingetManager.search(searchTerm);
     },
 
-    // Get installed packages
     getInstalled: async () => {
         return await wingetManager.getInstalledPackages();
     }
 };
 
-/**
- * Linux package management functions
- */
+
 const linuxTools = {
     // Install package by name
     install: async (packageName) => {
@@ -59,10 +71,7 @@ const linuxTools = {
     }
 };
 
-/**
- * Smart package installer
- * Installs packages based on predefined keys or direct package names
- */
+
 class SmartInstaller {
     constructor() {
         this.isWindows = os.platform() === 'win32';
@@ -70,9 +79,26 @@ class SmartInstaller {
 
     // Get package mapping from predefined keys
     getPackageMapping(shortName) {
+        // First check if there's a direct match in packageMap
+        if (packageMap[shortName]) {
+            const pkgInfo = packageMap[shortName];
+            return {
+                category: pkgInfo.category,
+                packages: {
+                    winget: pkgInfo.packages.winget || null,
+                    linux: this.isWindows ? [] :
+                        (pkgInfo.packages.linux?.[packageManagerFactory.packageManager?.type] || [])
+                }
+            };
+        }
+
+        // If no direct match, search through all packages
         for (const [category, packages] of Object.entries(packageMap)) {
+            // Skip entries with special format
+            if (packages.category) continue;
+
             for (const [system, pkgList] of Object.entries(packages)) {
-                if (pkgList.some(pkg =>
+                if (Array.isArray(pkgList) && pkgList.some(pkg =>
                     pkg.toLowerCase().includes(shortName.toLowerCase()) ||
                     pkg.toLowerCase().replace(/[-_.]/g, '').includes(shortName.toLowerCase().replace(/[-_.]/g, ''))
                 )) {
@@ -105,10 +131,10 @@ class SmartInstaller {
                     pkgList.forEach(pkg => log.info(`  - ${pkg}`));
                 }
             }
-
             return false;
         }
 
+        console.log(mapping)
         log.info(`Found package mapping for "${shortName}":`);
         log.info(`Category: ${mapping.category}`);
         log.info(`Package name: ${this.isWindows ? mapping.packages.winget : mapping.packages.linux[0]}`);
@@ -141,11 +167,11 @@ class SmartInstaller {
     }
 }
 
-async function getSoftwarePath(software,searchLevel = 2,useCache = true) {
-    if(useCache && fileFinder.isFinderCacheValid(software)) {
+async function getSoftwarePath(software, searchLevel = 2, useCache = true) {
+    if (useCache && fileFinder.isFinderCacheValid(software)) {
         return fileFinder.getFinderCache(software);
     }
-    return await softwareFinder.findSoftware(software, true,searchLevel, useCache);;
+    return await softwareFinder.findSoftware(software, true, searchLevel, useCache);;
 }
 
 const smartInstaller = new SmartInstaller();
@@ -194,8 +220,8 @@ if (require.main === module) {
         // const pkg = os.platform() === 'win32' ? 'Python.Python.3.11' : 'python3';
         // await smartInstaller.install(pkg);
 
-        const path = await getSoftwarePath('7z',2,false)
-        log.info('7z path:', path || 'Not found');
+        // const path = await getSoftwarePath('7z',2,false)
+        // log.info('7z path:', path || 'Not found');
     }
 
     runTests().catch(error => {

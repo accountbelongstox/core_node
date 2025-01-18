@@ -1,15 +1,12 @@
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const { gdir } = require('#@globalvars'); // Import com_bin
-const { bdir } = require('#@/ncore/gvar/bdir.js'); // Import com_bin from #@globalvars
+const { gdir } = require('#@globalvars');
+const bdir = require('#@/ncore/gvar/bdir.js');
 const gconfig = require('#@/ncore/gvar/gconfig.js');
-const { execCmd } = require('#@utils_commander');
-
+const { execCmd, execCmdResultText, pipeExecCmd } = require('#@utils_commander');
+const logger = require('#@utils_logger');
 const langdir = gconfig.DEV_LANG_DIR;
-
-const tar = bdir.getTarExecutable(); // Get the tar executable path
-const curl = bdir.getCurlExecutable(); // Get the curl executable path
 
 class GetGolang {
     constructor() {
@@ -51,7 +48,7 @@ class GetGolang {
 
         if (this.golangVersions[versionKey]) {
             const golangFileName = this.golangVersions[versionKey];
-            const golangDir = golangFileName.replace(/\.(zip|tar\.gz)$/, ''); // Remove file extension to get the directory name
+            const golangDir = golangFileName.replace(/\.(zip|tar\.gz)$/, '');
             const golangUrl = `https://go.dev/dl/${golangFileName}`;
             const golangInstallDir = path.join(this.installDir, golangDir);
             const golangPath = path.join(golangInstallDir, 'bin', os.platform() === 'win32' ? 'go.exe' : 'go');
@@ -65,7 +62,7 @@ class GetGolang {
             };
             return this.cachedVersionDetails[versionKey];
         } else {
-            console.error(`Golang version key ${versionKey} is not supported.`);
+            logger.error(`Golang version key ${versionKey} is not supported.`);
             return null;
         }
     }
@@ -83,26 +80,30 @@ class GetGolang {
     }
 
     async start(versionKey = null) {
+        await bdir.initializedBDir();
+        this.tar = await bdir.getTarExecutable();
+        this.curl = await bdir.getCurlExecutable();
+
         this.prepareDirectories();
         if (versionKey !== null) {
             this.setGolangVersion(versionKey);
-            this.installGolang();
+            await this.installGolang();
         } else {
             for (const key of Object.keys(this.golangVersions)) {
                 this.setGolangVersion(key);
-                this.installGolang();
+                await this.installGolang();
             }
         }
     }
 
-    installGolang() {
+    async installGolang() {
         if (this.checkGolangInstalled()) {
-            console.log(`Golang ${this.golangVersion} is already installed.`);
+            logger.info(`Golang ${this.golangVersion} is already installed.`);
         } else {
-            this.downloadAndExtractGolang();
+            await this.downloadAndExtractGolang();
         }
-        this.verifyInstallation();
-        this.configureGolang();
+        await this.verifyInstallation();
+        await this.configureGolang();
     }
 
     checkGolangInstalled() {
@@ -119,18 +120,18 @@ class GetGolang {
         }
     }
 
-    downloadAndExtractGolang() {
-        console.log(`Downloading Golang ${this.golangVersion} from ${this.golangUrl}...`);
+    async downloadAndExtractGolang() {
+        logger.info(`Downloading Golang ${this.golangVersion} from ${this.golangUrl}...`);
         const tempGolangArchive = path.join(this.tempDir, this.golangVersions[this.golangVersionKey]);
         
         // Use curl with -L and -k parameters
-        execCmd(`${curl} -L -k -o "${tempGolangArchive}" "${this.golangUrl}"`);
+        await execCmd(`${this.curl} -L -k -o "${tempGolangArchive}" "${this.golangUrl}"`);
 
-        console.log(`Extracting Golang ${this.golangVersion}...`);
+        logger.info(`Extracting Golang ${this.golangVersion}...`);
         if (os.platform() === 'win32') {
-            execCmd(`${tar} -xf "${tempGolangArchive}" -C "${this.installDir}"`);
+            await execCmd(`${this.tar} -xf "${tempGolangArchive}" -C "${this.installDir}"`);
         } else {
-            execCmd(`sudo ${tar} -C "${this.installDir}" -xzf "${tempGolangArchive}"`);
+            await execCmd(`sudo ${this.tar} -C "${this.installDir}" -xzf "${tempGolangArchive}"`);
         }
 
         // Rename the extracted 'go' directory to golangInstallDir
@@ -140,30 +141,30 @@ class GetGolang {
         }
     }
 
-    verifyInstallation() {
+    async verifyInstallation() {
         if (fs.existsSync(this.golangPath)) {
-            console.log(`Golang ${this.golangVersion} installed successfully.`);
-            const version = execCmd(`"${this.golangPath}" version`);
-            console.log(`Golang version: ${version}`);
+            logger.info(`Golang ${this.golangVersion} installed successfully.`);
+            const version = await execCmdResultText(`"${this.golangPath}" version`);
+            logger.info(`Golang version: ${version}`);
         } else {
-            console.error(`Golang ${this.golangVersion} installation failed.`);
+            logger.error(`Golang ${this.golangVersion} installation failed.`);
         }
     }
 
-    configureGolang() {
+    async configureGolang() {
         const goBin = path.join(this.golangInstallDir, 'bin');
         if (!process.env.PATH.includes(goBin)) {
             process.env.PATH = `${goBin}${path.delimiter}${process.env.PATH}`;
         }
 
         const proxyUrl = "https://goproxy.cn,direct";
-        const goProxy = execCmd(`"${this.golangPath}" env GOPROXY`).trim();
-        if (!goProxy.includes("goproxy.cn")) {
-            console.log("Setting Go proxy settings...");
-            execCmd(`"${this.golangPath}" env -w GO111MODULE=on`);
-            execCmd(`"${this.golangPath}" env -w GOPROXY=${proxyUrl}`);
+        const goProxy = await execCmdResultText(`"${this.golangPath}" env GOPROXY`);
+        if (!goProxy.trim().includes("goproxy.cn")) {
+            logger.info("Setting Go proxy settings...");
+            await execCmd(`"${this.golangPath}" env -w GO111MODULE=on`);
+            await execCmd(`"${this.golangPath}" env -w GOPROXY=${proxyUrl}`);
         } else {
-            console.log(`GOPROXY is already set to ${proxyUrl}`);
+            logger.info(`GOPROXY is already set to ${proxyUrl}`);
         }
     }
 }

@@ -1,8 +1,8 @@
-const { sysarg } = require('#@utils_native');
+const sysarg = require('#@ncore/utils/systool/libs/sysarg.js');
 const logger = require('#@utils_logger');
 const path = require('path');
 const fs = require('fs');
-const { installService, removeService, getServiceStatus } = require('./ncore/utils/linux/libs/service.js');
+const { installService, removeService, getServiceStatus } = require('#@ncore/utils/linux/libs/service.js');
 
 const APP_DIR = path.join(__dirname, 'apps');
 const APP_NAME = sysarg.getArg('app');

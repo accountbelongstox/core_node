@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const env = require('../env.js');
+const env = require('../env-lib/env.js');
 
 
 // Get all subdirectories from apps directory

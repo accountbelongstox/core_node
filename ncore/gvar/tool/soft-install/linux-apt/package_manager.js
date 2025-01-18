@@ -2,8 +2,49 @@ const { execSync } = require('child_process');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const { log, cacheDir } = require('./apt_utils.js');
-const { getPackagesForSystem, getPackagesForCategory } = require('../common/package_map.js');
+const { cacheDir } = require('./apt_utils.js');
+const { getPackagesForSystem, getPackagesForCategory } = require('../../common/package_map.js');
+
+const log = {
+    colors: {
+        reset: '\x1b[0m',
+        // Regular colors
+        red: '\x1b[31m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        blue: '\x1b[34m',
+        magenta: '\x1b[35m',
+        cyan: '\x1b[36m',
+        white: '\x1b[37m',
+        // Bright colors
+        brightRed: '\x1b[91m',
+        brightGreen: '\x1b[92m',
+        brightYellow: '\x1b[93m',
+        brightBlue: '\x1b[94m',
+        brightMagenta: '\x1b[95m',
+        brightCyan: '\x1b[96m',
+        brightWhite: '\x1b[97m',
+    },
+
+    info: function (...args) {
+        console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
+    },
+    warn: function (...args) {
+        console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
+    },
+    error: function (...args) {
+        console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
+    },
+    success: function (...args) {
+        console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
+    },
+    debug: function (...args) {
+        console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
+    },
+    command: function (...args) {
+        console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
+    }
+};
 
 class PackageManagerFactory {
     constructor() {
@@ -35,14 +76,14 @@ class PackageManagerFactory {
                     const release = fs.readFileSync('/etc/openwrt_release', 'utf8');
                     const version = release.match(/DISTRIB_RELEASE='(.+)'/);
                     if (version) info.version = version[1];
-                } catch (e) {}
+                } catch (e) { }
             }
             // Check for Alpine
             else if (fs.existsSync('/etc/alpine-release')) {
                 info.type = 'alpine';
                 try {
                     info.version = fs.readFileSync('/etc/alpine-release', 'utf8').trim();
-                } catch (e) {}
+                } catch (e) { }
             }
             // Check for other distributions
             else if (fs.existsSync('/etc/os-release')) {
@@ -240,7 +281,7 @@ class PackageManagerFactory {
 
     async checkSourcesUpdated() {
         if (!this.isLinux) return false;
-        
+
         try {
             const fs = require('fs');
             const updateCache = this.loadUpdateCache();
@@ -257,7 +298,7 @@ class PackageManagerFactory {
                 const files = fs.readdirSync(this.sourcesPath);
                 for (const file of files) {
                     if (!file.endsWith('.list')) continue;
-                    
+
                     const filePath = path.join(this.sourcesPath, file);
                     const stats = fs.statSync(filePath);
                     if (stats.mtimeMs > lastUpdateTime) {
@@ -303,7 +344,7 @@ class PackageManagerFactory {
 
         try {
             const sysInfo = await this.detectSystemInfo();
-            
+
             switch (manager.type) {
                 case 'apt':
                     // ... existing apt update logic ...
@@ -356,10 +397,10 @@ class PackageManagerFactory {
 
             // Install package
             log.info(`Installing ${packageName} using ${manager.type}...`);
-            const installCmd = manager.type === 'opkg' ? 
+            const installCmd = manager.type === 'opkg' ?
                 `${manager.commands.install} ${packageName}` :
                 `sudo ${manager.commands.install} ${packageName}`;
-            
+
             execSync(installCmd, { stdio: 'inherit' });
 
             // Verify installation
@@ -384,7 +425,7 @@ class PackageManagerFactory {
         try {
             const sysInfo = await this.detectSystemInfo();
             const packages = getPackagesForSystem(manager.type, packageSet);
-            
+
             log.info(`Installing ${packageSet} package set (${packages.length} packages) on ${sysInfo.type}`);
             log.info('Packages to install:', packages.join(', '));
 
