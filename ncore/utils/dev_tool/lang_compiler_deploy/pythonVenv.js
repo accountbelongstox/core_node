@@ -1,4 +1,4 @@
-const { execCmdResultText,pipeExecCmd } = require('#@utils_commander');
+const { execCmdResultText,pipeExecCmd } = require('#@commander');
 const { CWD } = require('#@/ncore/gvar/gdir.js');
 const fs = require('fs');
 const path = require('path');
@@ -6,7 +6,7 @@ const gconfig = require('#@/ncore/gvar/gconfig.js');
 
 let log;
 try {
-    const logger = require('#@/ncore/utils/logger/index.js');
+    const logger = require('#@logger');
     log = {
         info: (...args) => logger.info(...args),
         warn: (...args) => logger.warn(...args),

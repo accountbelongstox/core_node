@@ -4,7 +4,7 @@ const { getVoiceStatus } = require('../controller/voice_status.js');
 const { getRowWordByServer, submitAudio, submitAudioSimple } = require('../controller/dict_server.js');
 const { getDiffAudioTable } = require('../controller/sync_audio.js');
 
-const log = require('#@/ncore/utils/logger/index.js');
+const log = require('#@logger');
 
 class RouteInitializer {
     static initializeRoutes() {

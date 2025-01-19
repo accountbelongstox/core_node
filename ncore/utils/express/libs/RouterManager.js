@@ -1,4 +1,4 @@
-const logger = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 const expressProvider = require('../provider/expressProvider');
 const { processResponse } = require('../tool/response.js');
 const { getConfig } = require('../config');

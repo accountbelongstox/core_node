@@ -1,8 +1,8 @@
 const axios = require('axios');
-const { getUniqueContentLines } = require('./content.js');
+const { getUniqueContentLines } = require('./word_unique_content_lines.js');
 const { VOCABULARY_DIR } = require('../../provider/index');
 const { checkVoice } = require('./libs/check_voice.js');
-const logger = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 const { addWordBack } = require('../../provider/QueueManager.js');
 const { initWordTotalCount } = require('../../provider/index');
 const sysarg = require('#@ncore/utils/systool/libs/sysarg.js'); 

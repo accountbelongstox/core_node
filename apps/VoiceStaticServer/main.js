@@ -1,7 +1,7 @@
 const { appname } = require('#@/ncore/globalvars.js');
 const config = require('./config/index.js');
 const http = require('./http/index.js');
-const logger = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 const wordMaster = require('./processor/wordMaster.js');
 const pythonSetup = require('#@/ncore/utils/dev_tool/lang_compiler_deploy/pythonSetup.js');
 const edgeTTSFinder = require('./processor/tools/mate_libs/edgeTTSFinder.js');
@@ -47,7 +47,7 @@ class Main {
         logger.info(`usage:  --app=${appname} --word_segmentation=0-30000`);
 
         wordMaster.start()
-        // http.start(config)
+        http.start(config)
     }
 }
 

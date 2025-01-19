@@ -1,5 +1,34 @@
 const util = require('util');
 const readline = require('readline');
+function formatDurationToStr(timestamp) {
+    const seconds = Math.floor(timestamp / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    const months = Math.floor(days / 30);
+    const years = Math.floor(days / 365);
+    const remainingMonths = Math.floor((days % 365) / 30);
+    const remainingDays = days % 30;
+    const remainingHours = hours % 24;
+    const remainingMinutes = minutes % 60;
+    const remainingSeconds = seconds % 60;
+    if (years > 0) {
+        return `${years}y ${remainingMonths}m ${remainingDays}d ${remainingHours}h ${remainingMinutes}m`;
+    }
+    if (months > 0) {
+        return `${months}m ${remainingDays}d ${remainingHours}h ${remainingMinutes}m`;
+    }
+    if (days > 0) {
+        return `${days}d ${remainingHours}h ${remainingMinutes}m ${remainingSeconds}s`;
+    }
+    if (hours > 0) {
+        return `${hours}h ${remainingMinutes}m ${remainingSeconds}s`;
+    }
+    if (minutes > 0) {
+        return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${seconds}s`;
+}
 
 // ANSI color codes
 const colors = {
@@ -71,7 +100,71 @@ class Logger {
             setDebugMode: 15
         };
         this.lastLineCount = 0;
-        this.progressBarWidth = 40; // Default progress bar width
+        this.progressBarWidth = 40;
+        this.wsBroadcast = null;
+        this.LOG_EVENT = 'server_log';
+
+        // Initialize namespace logging stats
+        this.namespaceStats = {
+            _default: {
+                lastLogTime: 0,
+                lastAccessTime: Date.now(),
+                skipCount: 0
+            }
+        };
+
+        // Start namespace cleanup interval
+        setInterval(() => this.cleanupNamespaces(), 60000); // Check every minute
+    }
+
+    /**
+     * Set WebSocket instance for logger
+     * @param {Object} broadcast - WebSocket broadcast function
+     */
+    setWsBroadcast(broadcast) {
+        this.wsBroadcast = broadcast;
+    }
+
+    /**
+     * Send log message to WebSocket clients
+     * @param {string} level - Log level (info/warn/error/success)
+     * @param {string} message - Log message
+     * @param {Object} [data] - Additional data
+     */
+    sendLogToWs(level, message, data = null) {
+        if (!this.wsBroadcast) return;
+
+        this.wsBroadcast({
+            event: this.LOG_EVENT,
+            data: {
+                timestamp: Date.now(),
+                level,
+                message,
+                data,
+                formatted: this.formatLogMessage(level, message)
+            }
+        });
+    }
+
+    formatLogMessage(level, message) {
+        const timestamp = formatDurationToStr(new Date());
+        return `[${timestamp}] ${level.toUpperCase()}: ${message}`;
+    }
+
+    /**
+     * Clean up inactive namespaces (no access for more than 1 minute)
+     * @private
+     */
+    cleanupNamespaces() {
+        const now = Date.now();
+        const INACTIVE_THRESHOLD = 60000; // 1 minute
+
+        Object.entries(this.namespaceStats).forEach(([namespace, stats]) => {
+            if (namespace !== '_default' && now - stats.lastAccessTime > INACTIVE_THRESHOLD) {
+                this.debug(`Cleaning up inactive namespace: ${namespace} (${stats.skipCount} skipped messages)`);
+                delete this.namespaceStats[namespace];
+            }
+        });
     }
 
     formatMessage(message, ...args) {
@@ -93,6 +186,7 @@ class Logger {
         if (this.shouldLog('info')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.log(colorize.green(`[${this.getTimestamp()}] SUCCESS: ${formattedMessage}`));
+            this.sendLogToWs('success', formattedMessage);
         }
     }
 
@@ -100,6 +194,7 @@ class Logger {
         if (this.shouldLog('log')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.log(colorize.log(`[${this.getTimestamp()}] LOG: ${formattedMessage}`));
+            this.sendLogToWs('info', formattedMessage);
         }
     }
 
@@ -107,6 +202,7 @@ class Logger {
         if (this.shouldLog('info')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.log(colorize.command(`[${this.getTimestamp()}] COMMAND: ${formattedMessage}`));
+            this.sendLogToWs('info', formattedMessage);
         }
     }
 
@@ -114,6 +210,7 @@ class Logger {
         if (this.shouldLog('error')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.error(colorize.red(`[${this.getTimestamp()}] ERROR: ${formattedMessage}`));
+            this.sendLogToWs('error', formattedMessage);
         }
     }
 
@@ -121,6 +218,7 @@ class Logger {
         if (this.shouldLog('warn')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.warn(colorize.yellow(`[${this.getTimestamp()}] WARNING: ${formattedMessage}`));
+            this.sendLogToWs('warn', formattedMessage);
         }
     }
 
@@ -128,6 +226,7 @@ class Logger {
         if (this.shouldLog('warn')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.warn(colorize.yellow(`[${this.getTimestamp()}] WARNING: ${formattedMessage}`));
+            this.sendLogToWs('warn', formattedMessage);
         }
     }
 
@@ -135,6 +234,7 @@ class Logger {
         if (this.shouldLog('info')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.info(colorize.white(`[${this.getTimestamp()}] INFO: ${formattedMessage}`));
+            this.sendLogToWs('info', formattedMessage);
         }
     }
 
@@ -142,6 +242,7 @@ class Logger {
         if (this.debugMode && this.shouldLog('debug')) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.log(colorize.debug(`[${this.getTimestamp()}] DEBUG: ${formattedMessage}`));
+            this.sendLogToWs('debug', formattedMessage);
         }
     }
 
@@ -149,6 +250,7 @@ class Logger {
         if (this.shouldLog('info')) {
             console.log(colorize.blue(`[${this.getTimestamp()}] ${label}:`));
             console.log(util.inspect(obj, { colors: true, depth: null }));
+            this.sendLogToWs('info', util.inspect(obj, { colors: true, depth: null }));
         }
     }
 
@@ -158,8 +260,9 @@ class Logger {
             const result = await func();
             const [seconds, nanoseconds] = process.hrtime(start);
             const duration = seconds * 1000 + nanoseconds / 1000000;
-            
+
             console.log(colorize.cyan(`[${this.getTimestamp()}] ${label} Time: ${duration.toFixed(2)}ms`));
+            this.sendLogToWs('info', `[${this.getTimestamp()}] ${label} Time: ${duration.toFixed(2)}ms`);
             return result;
         }
         return await func();
@@ -208,30 +311,8 @@ class Logger {
         if (this.shouldLog('info') && colors[color]) {
             const formattedMessage = this.formatMessage(message, ...args);
             console.log(`${colors[color]}[${this.getTimestamp()}] ${formattedMessage}${colors.reset}`);
+            this.sendLogToWs('info', formattedMessage);
         }
-    }
-
-    /**
-     * Clear previous lines and print new content
-     * @param {string|string[]} content - Content to print
-     */
-    refresh(content) {
-        if (!this.shouldLog('info')) return;
-
-        const lines = Array.isArray(content) ? content : [content];
-        
-        // Clear previous lines
-        if (this.lastLineCount > 0) {
-            readline.moveCursor(process.stdout, 0, -this.lastLineCount);
-            readline.clearScreenDown(process.stdout);
-        }
-
-        // Print new lines with timestamp
-        lines.forEach(line => {
-            process.stdout.write(colorize.white(`[${this.getTimestamp()}] ${line}\n`));
-        });
-
-        this.lastLineCount = lines.length;
     }
 
     /**
@@ -265,8 +346,8 @@ class Logger {
         const completeLength = Math.round((percentage / 100) * opts.width);
         const incompleteLength = opts.width - completeLength;
 
-        const bar = opts.complete.repeat(completeLength) + 
-                   opts.incomplete.repeat(incompleteLength);
+        const bar = opts.complete.repeat(completeLength) +
+            opts.incomplete.repeat(incompleteLength);
 
         const output = opts.format
             .replace('{bar}', bar)
@@ -290,24 +371,113 @@ class Logger {
             const width = options.width || 30;
             const completeLength = Math.round((percentage / 100) * width);
             const bar = '█'.repeat(completeLength) + '░'.repeat(width - completeLength);
-            
+
             return `${item.label}: [${bar}] ${percentage}% (${item.current}/${item.total})`;
         });
 
         this.refresh(lines);
     }
+
+    /**
+     * Log message with interval control and message counting per namespace
+     * @param {string} message - Message to log
+     * @param {number} intervalSeconds - Minimum interval between logs in seconds
+     * @param {string} [namespace='_default'] - Namespace for the log
+     * @param {string} [logLevel='info'] - Log level to use (error, warn, info, debug, etc.)
+     */
+    interval(message, intervalSeconds, namespace = '_default', logLevel = 'info') {
+        // Initialize stats for new namespace
+        if (!this.namespaceStats[namespace]) {
+            this.namespaceStats[namespace] = {
+                lastLogTime: 0,
+                lastAccessTime: Date.now(),
+                skipCount: 0
+            };
+        }
+
+        const stats = this.namespaceStats[namespace];
+        const now = Date.now();
+        const intervalMs = intervalSeconds * 1000;
+
+        // Update last access time
+        stats.lastAccessTime = now;
+
+        // Clean up inactive namespaces (except current and default)
+        const INACTIVE_THRESHOLD = 60000; // 1 minute
+        let cleanedCount = 0;
+        Object.entries(this.namespaceStats).forEach(([ns, nsStats]) => {
+            if (ns !== '_default' && ns !== namespace && now - nsStats.lastAccessTime > INACTIVE_THRESHOLD) {
+                if (nsStats.skipCount > 0) {
+                    this.debug(`[${ns}] Cleaned up inactive namespace with ${nsStats.skipCount} skipped messages`);
+                }
+                delete this.namespaceStats[ns];
+                cleanedCount++;
+            }
+        });
+
+        if (cleanedCount > 0) {
+            this.debug(`Cleaned up ${cleanedCount} inactive namespace(s)`);
+        }
+
+        // First time logging in this namespace
+        if (stats.lastLogTime === 0) {
+            this[logLevel](`[${namespace}] ${message}`);
+            stats.lastLogTime = now;
+            return;
+        }
+
+        // Check if enough time has passed
+        if (now - stats.lastLogTime >= intervalMs) {
+            // If there were skipped messages, include them in the log
+            if (stats.skipCount > 0) {
+                this[logLevel](`[${namespace}] ${message} (Skipped ${stats.skipCount} messages)`);
+                stats.skipCount = 0;
+            } else {
+                this[logLevel](`[${namespace}] ${message}`);
+            }
+            stats.lastLogTime = now;
+        } else {
+            // Increment skip counter if not enough time has passed
+            stats.skipCount++;
+        }
+    }
+
+    /**
+     * Refresh message(s) on screen
+     * @param {string|string[]} message - Message to display (string or array of strings)
+     * @param {string} logLevel - Log level (info, warn, error, success)
+     */
+    refresh(message, logLevel = 'info') {
+        if (!this.shouldLog(logLevel)) return;
+
+        // Get color function based on log level
+        const colorFunc = {
+            'info': colorize.white,
+            'warn': colorize.yellow,
+            'error': colorize.red,
+            'success': colorize.green
+        }[logLevel] || colorize.white;
+
+        // Convert message to array of lines
+        const lines = Array.isArray(message) ?
+            message :
+            message.toString().split('\n');
+
+        // Clear previous lines if any
+        if (this.lastLineCount > 0) {
+            readline.moveCursor(process.stdout, 0, -this.lastLineCount);
+            readline.clearScreenDown(process.stdout);
+        }
+
+        // Write new lines with timestamp and color
+        lines.forEach(line => {
+            process.stdout.write(colorFunc(`[${this.getTimestamp()}] ${line}\n`));
+        });
+
+        // Update line count
+        this.lastLineCount = lines.length;
+    }
 }
 
-// Create singleton instance
-const logger = new Logger();
-
-// Export the logger instance
-module.exports = logger;
-
-// Also export the Logger class for extensibility
-module.exports.Logger = Logger;
-
-// Export utility functions
-module.exports.createScopedLogger = (scope) => logger.createScopedLogger(scope);
-module.exports.setLogLevel = (level) => logger.setLogLevel(level);
-module.exports.setDebugMode = (enabled) => logger.setDebugMode(enabled); 
+// Export only the logger instance
+module.exports = new Logger();

@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const logger = require('#@utils_logger');
+const logger = require('#@logger');
 
 class ConfigHelper {
     // Required fields and their generators

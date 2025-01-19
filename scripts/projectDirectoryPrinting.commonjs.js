@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const minimatch = require('minimatch');
-const logger = require('#@utils_logger');
+const logger = require('#@logger');
 
 // Ignored file extensions and directories
 const ignoredExtensions = [

@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const logger = require('#@utils_logger');
+const logger = require('#@logger');
 const ConfigHelper = require('./ConfigHelper.js');
 const DEBUG_PRINT = false;
 

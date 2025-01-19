@@ -6,7 +6,7 @@ const { checkVoice,updateWordCount} = require('./libs/check_voice');
 const { ensureQueueItem, generateAudioMa3Name, generateAudioMa3RawName, getVoiceDir, showGenerateInfo } = require('./mate_libs/voice_tool');
 let log;
 try {
-    const logger = require('#@/ncore/utils/logger/index.js');
+    const logger = require('#@logger');
     log = {
         info: (...args) => logger.info(...args),
         warn: (...args) => logger.warn(...args),

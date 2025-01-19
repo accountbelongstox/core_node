@@ -4,7 +4,7 @@ import os from 'os';
 import crypto from 'crypto';
 import { bdir } from '#@/ncore/gvar/bdir.js';
 import { execSync } from 'child_process';
-import logger from '#@utils_logger';
+import logger from '#@logger';
 
 export function getPlatformShell() {
     return process.platform === 'win32' ? 

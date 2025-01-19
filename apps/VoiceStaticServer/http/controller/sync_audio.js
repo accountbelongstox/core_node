@@ -1,6 +1,6 @@
 const { APP_TMP_DIR, APP_DATA_DIR, APP_DATA_CACHE_DIR } = require('#@/ncore/gvar/gdir.js');
-const logger = require('#@/ncore/utils/logger/index.js');
-const { replaceSpaceToDash } = require('../../processor/tools/mate_libs/string.js');
+const logger = require('#@logger');
+const { replaceSpaceToDash } = require('#@ncore/utils/tool/libs/strtool.js');
 const { addWordBack, getWordCount, getWordFront, ITEM_TYPE, removeByWord, hasWord, hasSentence } = require('../../provider/QueueManager.js');
 const { uploadAndKeepOriginName, wrapFileDetails } = require('#@/ncore/utils/express/libs/UploadTools.js');
 const { copyFileToDir } = require('#@/ncore/utils/ftool/libs/fcopy.js');

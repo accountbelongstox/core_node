@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const sysarg = require('#@ncore/utils/systool/libs/sysarg.js'); 
 const gconfig = require('#@ncore/gvar/gconfig.js');
-let log = require('#@/ncore/utils/logger/index.js');
+let log = require('#@logger');
 
 
 function mkdir(path) {
@@ -42,7 +42,7 @@ const DICT_SOUND_SUBTITLE_DIR = path.join(APP_OUTPUT_DIR, 'dictSoundSubtitle');
 const SENTENCES_SOUND_DIR = path.join(APP_OUTPUT_DIR, 'sentenceSoundLib');
 const SENTENCES_SOUND_SUBTITLE_DIR = path.join(APP_OUTPUT_DIR, 'sentenceSoundSubtitle');
 
-
+const START_TIME = Date.now();
 // const DICT_SOUND_WATCHER = new FWatcher(DICT_SOUND_DIR);
 // const SENTENCES_SOUND_WATCHER = new FWatcher(SENTENCES_SOUND_DIR);
 let DICT_SOUND_WATCHER = null;
@@ -54,7 +54,6 @@ const ROLE = ARG_SERVER ? 'server' : 'client';
 const IS_SERVER = ROLE == 'server';
 const IS_CLIENT = !IS_SERVER;
 
-const WORD_USED_START_TIME = Date.now();
 let WORD_COUNT_NAMBER_INIT = false;
 let WORD_TOTAL_COUNT = 0;
 let WORD_GENERATED_AUDIO_COUNT = 0;
@@ -78,8 +77,6 @@ let SENTENCE_FAILED_COUNT = 0;
 const SERVER_URL = gconfig.getConfig(`SERVER_URL`);
 const CLIENTS_URL = gconfig.getConfig(`CLIENTS_URL`).split(',');
 
-console.log(`SERVER_URL`,SERVER_URL)
-console.log(`CLIENTS_URL`,CLIENTS_URL)
 
 const SUBMIT_AUDIO_URL = `${SERVER_URL}/submit_audio`;
 const GET_ROW_WORD_URL = `${SERVER_URL}/get_row_word`;
@@ -90,7 +87,7 @@ const updateWordTatolCount = async (success,type) => {
     if (type == ITEM_TYPE.WORD) {
         if (success) {
             WORD_SUCCESS_COUNT++;
-            WORD_USED_TIME += Date.now() - WORD_USED_START_TIME;
+            WORD_USED_TIME = Date.now() - START_TIME;
             WORD_AVERAGE_TIME = WORD_USED_TIME / WORD_SUCCESS_COUNT;
             WORD_WAITING_COUNT--;
             if (WORD_WAITING_COUNT < 0) {
@@ -98,14 +95,14 @@ const updateWordTatolCount = async (success,type) => {
             }
         } else {
             WORD_FAILED_COUNT++;
-            WORD_USED_TIME += Date.now() - WORD_USED_START_TIME;
+            WORD_USED_TIME = Date.now() - START_TIME;
             WORD_AVERAGE_TIME = WORD_USED_TIME / WORD_SUCCESS_COUNT;
         }
         WORD_GENERATED_AUDIO_COUNT = await DICT_SOUND_WATCHER.getWatcherStatus().fileNameSet 
     } else{
         if (success) {
             WORD_SUCCESS_COUNT++;
-            WORD_USED_TIME += Date.now() - WORD_USED_START_TIME;
+            WORD_USED_TIME = Date.now() - START_TIME;
             WORD_AVERAGE_TIME = WORD_USED_TIME / WORD_SUCCESS_COUNT;
             WORD_WAITING_COUNT--;
             if (WORD_WAITING_COUNT < 0) {
@@ -113,7 +110,7 @@ const updateWordTatolCount = async (success,type) => {
             }
         } else {
             WORD_FAILED_COUNT++;
-            WORD_USED_TIME += Date.now() - WORD_USED_START_TIME;
+            WORD_USED_TIME = Date.now() - START_TIME;
             WORD_AVERAGE_TIME = WORD_USED_TIME / WORD_SUCCESS_COUNT;
         }
     }

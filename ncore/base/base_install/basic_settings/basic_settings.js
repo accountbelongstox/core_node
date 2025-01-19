@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const {execPowerShell} = require('#@utils_commander');
+const {execPowerShell} = require('#@commander');
 
 class BasicSettings  {
     constructor() {

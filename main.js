@@ -1,5 +1,5 @@
 const sysarg = require('#@ncore/utils/systool/libs/sysarg.js');
-const logger = require('#@utils_logger');
+const logger = require('#@logger');
 const path = require('path');
 const fs = require('fs');
 const { installService, removeService, getServiceStatus } = require('#@ncore/utils/linux/libs/service.js');

@@ -2,14 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const { findEdgeTTSBinary } = require('./mate_libs/edgeTTSFinder');
 const { getAmericanVoice, getEnglishVoice } = require('./mate_data/soundQuality');
-const { execCommand, execCmdResultText } = require('#@utils_commander');
+const { execCommand, execCmdResultText } = require('#@commander');
 const { findVoiceByLocale } = require('./mate_data/soundQuality');
 const { checkVoice, updateWordCount} = require('./libs/check_voice');
 const { ensureQueueItem, generateAudioMa3Name, generateAudioMa3RawName, ITEM_TYPE, getVoiceDir, generateAudioSubtitleName, getSubtitleDir, showGenerateInfo } = require('./mate_libs/voice_tool');
-const { getMd5 } = require('./mate_libs/string.js');
 let log;
 try {
-    const logger = require('#@/ncore/utils/logger/index.js');
+    const logger = require('#@logger');
     log = {
         info: (...args) => logger.info(...args),
         warn: (...args) => logger.warn(...args),

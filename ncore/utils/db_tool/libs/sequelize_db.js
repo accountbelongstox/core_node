@@ -2,10 +2,10 @@ const { Sequelize, DataTypes, Model } = require('sequelize');
 const path = require('path');
 const { APP_METADATA_SQLITE_DIR } = require('#@/ncore/gvar/gdir.js');
 const fs = require('fs');
-const logger = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 let dbConnections = {};
 
-async function getDatabase(dbName) {
+async function getDatabase(dbName,debugPrint=false) {
     if (dbConnections[dbName]) {
         return dbConnections[dbName];
     }
@@ -17,6 +17,7 @@ async function getDatabase(dbName) {
         const sequelize = new Sequelize({
             dialect: 'sqlite',
             storage: dbPath,
+            logging: debugPrint ? (msg) => logger.debug(`[Sequelize] ${msg}`) : false,
         });
         await sequelize.authenticate();
         dbConnections[dbName] = sequelize;

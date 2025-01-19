@@ -1,4 +1,4 @@
-const { execCmd, execCmdResultText } = require('#@/ncore/utils/basic/commander.js');
+const { execCmd, execCmdResultText } = require('#@commander');
 const { getSoftwarePath } = require('../ncore/gvar/tool/soft-install');
 
 let log;

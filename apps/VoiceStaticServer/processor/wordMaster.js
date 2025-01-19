@@ -1,7 +1,7 @@
-const logger = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 const { IS_SERVER, IS_CLIENT, initializeWatcher, ROLE, } = require('../provider/index');
 const { addWordBack, getWordCount, getWordFront } = require('../provider/QueueManager.js');
-const { initialize_server, startWordProcessingByServer,} = require('./tools/server');
+const { initialize_server, startWordProcessingByServer, } = require('./tools/server');
 const { initialize_not_client } = require('./tools/not_client');
 const { initialize_client, startWordProcessingByClient } = require('./tools/client');
 class DictInitController {

@@ -5,7 +5,7 @@ const https = require('https');
     const path = require('path');
     const os = require('os');
     const { request_headers } = require('#@globalvars');
-    // const { execCmd } = require('#@utils_commander');
+    // const { execCmd } = require('#@commander');
 
     class PhpReleasesFetcher {
         constructor() {

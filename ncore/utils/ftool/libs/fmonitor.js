@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const log = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 
 // Global state management
 const globalState = {
@@ -21,7 +21,7 @@ class FileMonitor {
     constructor(watchPath, options = {}) {
         this.watchPath = watchPath;
         this.maxDepth = options.maxDepth || 1;
-        this.rescanInterval = options.rescanInterval || 0; // milliseconds, 0 means no rescan
+        this.rescanInterval = options.rescanInterval || 10 * 1000;
 
         if (!globalState.fileNameSets.has(watchPath)) {
             globalState.fileNameSets.set(watchPath, new Set());
@@ -48,7 +48,7 @@ class FileMonitor {
 
     async rescan() {
         if (globalState.scanInProgress.get(this.watchPath)) {
-            log.warn(`[Monitoring] Skip rescan | Path: ${this.watchPath} | Status: Previous scan in progress`);
+            logger.warn(`[Monitoring] Skip rescan | Path: ${this.watchPath} | Status: Previous scan in progress`);
             return;
         }
 
@@ -61,7 +61,7 @@ class FileMonitor {
             const newFiles = Array.from(currentFiles).filter(file => !previousFiles.has(file));
             
             if (newFiles.length > 0) {
-                log.info(`[Monitoring] New Files | Path: ${this.watchPath} | Count: ${newFiles.length} | Files: ${newFiles.join(', ')}`);
+                logger.info(`[Monitoring] New Files | Path: ${this.watchPath} | Count: ${newFiles.length} | Files: ${newFiles.join(', ')}`);
             }
             
             globalState.lastScanTime.set(this.watchPath, Date.now());
@@ -91,9 +91,9 @@ class FileMonitor {
             await this.scanDirectory(this.watchPath, 1);
             globalState.isInitialized.set(this.watchPath, true);
             globalState.lastScanTime.set(this.watchPath, Date.now());
-            log.warn(`[Monitoring] Initialized | Path: ${this.watchPath} | Total Files: ${this.getFileNameSet().size}`);
+            logger.warn(`[Monitoring] Initialized | Path: ${this.watchPath} | Total Files: ${this.getFileNameSet().size}`);
         } catch (error) {
-            log.error(`[Monitoring] Error | Path: ${this.watchPath} | Error: ${error.message}`);
+            logger.error(`[Monitoring] Error | Path: ${this.watchPath} | Error: ${error.message}`);
             throw error;
         } finally {
             globalState.scanInProgress.set(this.watchPath, false);
@@ -116,7 +116,7 @@ class FileMonitor {
             const stats = fs.statSync(filePath);
             return stats.size;
         } catch (error) {
-            log.error(`[Monitoring] File Size Error | Path: ${filePath} | Error: ${error.message}`);
+            logger.error(`[Monitoring] File Size Error | Path: ${filePath} | Error: ${error.message}`);
             return 0;
         }
     }
@@ -129,7 +129,7 @@ class FileMonitor {
             const stats = fs.statSync(filePath);
             return stats.mtime.getTime();
         } catch (error) {
-            log.error(`[Monitoring] Modification Time Error | Path: ${filePath} | Error: ${error.message}`);
+            logger.error(`[Monitoring] Modification Time Error | Path: ${filePath} | Error: ${error.message}`);
             return 0;
         }
     }
@@ -148,7 +148,7 @@ class FileMonitor {
             if (lastAddTime > 0 && (now - lastAddTime) > 500) {
                 const totalTime = (now - globalState.firstScanStartTime.get(this.watchPath)) / 1000;
                 const totalFiles = globalState.firstScanFileCount.get(this.watchPath);
-                log.info(`[Monitoring] First Scan Complete | Path: ${this.watchPath} | Files: ${totalFiles} | Time: ${totalTime.toFixed(2)}s`);
+                logger.refresh(`[Monitoring] First Scan Complete | Path: ${this.watchPath} | Files: ${totalFiles} | Time: ${totalTime.toFixed(2)}s`);
                 globalState.isFirstScanComplete.set(this.watchPath, true);
             } else {
                 const currentCount = globalState.firstScanFileCount.get(this.watchPath) + 1;
@@ -156,11 +156,11 @@ class FileMonitor {
                 
                 if (currentCount % 1000 === 0) {
                     const timeElapsed = (now - globalState.firstScanStartTime.get(this.watchPath)) / 1000;
-                    log.info(`[Monitoring] Scan Progress | Path: ${this.watchPath} | Files: ${currentCount} | Time: ${timeElapsed.toFixed(2)}s`);
+                    logger.refresh(`[Monitoring] Scan Progress | Path: ${this.watchPath} | Files: ${currentCount} | Time: ${timeElapsed.toFixed(2)}s`);
                 }
             }
         } else if (!fileSet.has(fileName)) {
-            log.info(`[Monitoring] New File | Path: ${this.watchPath} | File: ${filePath} | Total Files: ${fileSet.size + 1}`);
+            logger.info(`[Monitoring] New File | Path: ${this.watchPath} | File: ${filePath} | Total Files: ${fileSet.size + 1}`);
         }
 
         globalState.lastAddTime.set(this.watchPath, now);
@@ -206,7 +206,7 @@ class FileMonitor {
         if (size <= 0) {
             if(size == 0){
                 fs.unlinkSync(fileFullPath);
-                log.warn(`[Monitoring] Empty File Removed | Path: ${fileFullPath}`);
+                logger.warn(`[Monitoring] Empty File Removed | Path: ${fileFullPath}`);
             }
             return null;
         }

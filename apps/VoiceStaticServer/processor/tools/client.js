@@ -1,12 +1,12 @@
 const { getJsonFromUrl } = require('#@/ncore/utils/net/libs/axios_tool.js');
 const { initializeWatcher, GET_ROW_WORD_URL, updateWordTatolCount, initWordTotalCount } = require('../../provider/index');
-const logger = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 const { ITEM_TYPE } = require('../../provider/QueueManager.js');
 const { getOrGenerateAudioPy } = require('./edge_tts_py');
 const CLIENT_SUBMIT_TO_SERVER_FILES_MAP = new Map();
 const { submitAudio } = require('../../http/controller/dict_client.js');
 const { submitSimpleAudio, checkSimpleSubmission, recordSimpleSubmission } = require('../../http/controller/dict_simple_client.js');
-const { hasNoUndefined, isAllNumbers } = require('./mate_libs/string.js');
+const { hasNoUndefined, isAllNumbers } = require('#@ncore/utils/tool/libs/arrtool.js');
 
 async function initialize_client() {
     const {

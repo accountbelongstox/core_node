@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
-const logger = require('../../logger');
-const { execCmdResultText } = require('#@utils_commander');
+const logger = require('../../../gvar/basic/logger');
+const { execCmdResultText } = require('#@commander');
 const { CADDY_PATHS, CADDY_USER } = require('../provider/constants');
 const CaddyService = require('./service');
 

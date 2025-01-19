@@ -2,7 +2,7 @@ const {
     printWordStatus,
     updateWordTatolCount } = require('../../../provider/index');
 
-const log = require('#@/ncore/utils/logger/index.js');
+const log = require('#@logger');
 
 const {
     ensureQueueItem,
@@ -24,13 +24,9 @@ const updateWordCount = async (ma3Path, type) => {
     return isSuccess;
 }
 
-const checkVoice = async (input) => {
+const checkVoice = async (inputQueueItem) => {
     try {
-        const queueItem = ensureQueueItem(input);
-        if (!queueItem) {
-            log.error('Failed to create valid queue item from input');
-            return false;
-        }
+        const queueItem = ensureQueueItem(inputQueueItem);
         const audioMapName = await generateAudioMa3Name(queueItem);
         return await checkValidFile(audioMapName, queueItem.type);
     } catch (e) {

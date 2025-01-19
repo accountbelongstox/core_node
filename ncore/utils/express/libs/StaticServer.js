@@ -5,7 +5,7 @@ const express = expressProvider.getExpress()
 const path = require('path');
 const fs = require('fs');
 const { APP_STATIC_DIR,APP_OUTPUT_DIR, APP_TEMPLATE_DIR, APP_TEMPLATE_STATIC_DIR } = require('#@/ncore/gvar/gdir.js');
-const logger = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 const DEFULAT_TEMPLATE_DIR = path.join(__dirname, '..', 'template'); 
 const DEFULAT_STATIC_DIR = path.join(DEFULAT_TEMPLATE_DIR, 'static');
 

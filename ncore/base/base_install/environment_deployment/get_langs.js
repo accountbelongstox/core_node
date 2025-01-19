@@ -3,7 +3,7 @@ const fs = require('fs');
 const { execSync } = require('child_process');
 
 const { getnode_win, getpython_win, getgolang_win, getjava_win, getrust_win, getruby_win, getphp_win, winpath } = require('#@utils_native');
-const logger = require('#@utils_logger');
+const logger = require('#@logger');
 
 class GetNode {
   constructor() {

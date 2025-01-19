@@ -1,4 +1,4 @@
-const logger = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 const expressProvider = require('../provider/expressProvider');
 const path = require('path');
 const fs = require('fs');

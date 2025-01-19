@@ -6,7 +6,7 @@ const {
     generateAudioMa3UsGbName,
 } = require('../mate_libs/voice_tool');
 
-const log = require('#@/ncore/utils/logger/index.js');
+const log = require('#@logger');
 
 const searchVoiceByContent = async (content) => {
     content = content.trim();

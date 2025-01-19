@@ -75,7 +75,7 @@ const getChineseVoice = (gender = 'female') => {
     return getVoice('zh-CN', gender);
 };
 
-const log = require('#@/ncore/utils/logger/index.js');
+const log = require('#@logger');
 
 /**
  * Find and randomly select an American English voice

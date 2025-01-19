@@ -1,6 +1,6 @@
 let log;
 try {
-    const logger = require('#@/ncore/utils/logger/index.js');
+    const logger = require('#@logger');
     log = {
         info: (...args) => logger.info(...args),
         warn: (...args) => logger.warn(...args),

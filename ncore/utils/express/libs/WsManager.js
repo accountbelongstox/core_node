@@ -2,7 +2,7 @@ const expressProvider = require('../provider/expressProvider');
 const app = expressProvider.getExpressApp();
 const WebSocket = require('ws');
 const http = require('http');
-const logger = require('#@/ncore/utils/logger/index.js');
+const logger = require('#@logger');
 
 
 function ensureParsedObject(message,) {
@@ -26,13 +26,13 @@ function ensureParsedObject(message,) {
     }
 }
 
+const clients = new Set();
+
 class WsManager {
     constructor() {
         this.wss = null;
         this.server = null;
-        this.clients = new Set();
     }
-
 
     async start(portOrConfig) {
         let port = portOrConfig.HTTP_PORT;
@@ -41,7 +41,7 @@ class WsManager {
 
         this.wss.on('connection', (ws) => {
             logger.info('New WebSocket client connected');
-            this.clients.add(ws);
+            clients.add(ws);
 
             ws.on('message', (message) => {
                 try {
@@ -55,16 +55,17 @@ class WsManager {
             // Handle client disconnection
             ws.on('close', () => {
                 logger.info('Client disconnected');
-                this.clients.delete(ws);
+                clients.delete(ws);
             });
 
             // Handle errors
             ws.on('error', (error) => {
                 logger.error('WebSocket error:', error);
-                this.clients.delete(ws);
+                clients.delete(ws);
             });
         });
 
+        logger.setWsBroadcast(this.broadcastWs);
         expressProvider.setWsToken(true)
         expressProvider.setServerApp(this.server)
         expressProvider.setExpressApp(app)
@@ -80,10 +81,10 @@ class WsManager {
 
         switch (type) {
             case 'message':
-                this.sendToWsClient(ws, { type: 'pong', payload: Date.now() });
+                this.sendToWsClient(ws, { type: 'message', payload: Date.now() });
                 break;
             case 'ping':
-                this.sendToWsClient(ws, { type: 'pong', payload: Date.now() });
+                this.sendToWsClient(ws, { type: 'ping', payload: Date.now() });
                 break;
             case 'broadcast':
                 this.broadcastWs(payload);
@@ -100,7 +101,7 @@ class WsManager {
     }
 
     broadcastWs(data) {
-        this.clients.forEach(client => {
+        clients.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(JSON.stringify(data));
             }
@@ -109,8 +110,8 @@ class WsManager {
 
     stop() {
         if (this.wss) {
-            this.clients.forEach(client => client.close());
-            this.clients.clear();
+            clients.forEach(client => client.close());
+            clients.clear();
             this.wss.close();
             logger.info('WebSocket server stopped');
         }

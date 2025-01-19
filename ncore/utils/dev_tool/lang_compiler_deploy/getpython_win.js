@@ -6,8 +6,8 @@ const gconfig = require('#@/ncore/gvar/gconfig.js');
 const langdir = gconfig.DEV_LANG_DIR;
 const { gdir } = require('#@globalvars');
 const { PYTHON_VERSIONS } = require('./config/index.js');
-const { execCmd, execCmdResultText, pipeExecCmd } = require('#@utils_commander');
-const logger = require('#@utils_logger');
+const { execCmd, execCmdResultText, pipeExecCmd } = require('#@commander');
+const logger = require('#@logger');
 
 class GetPythonWin {
     constructor() {

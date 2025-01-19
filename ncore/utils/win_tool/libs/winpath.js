@@ -1,8 +1,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const logger = require('#@utils_logger');
-const { execCmd,execPowerShell } = require("#@utils_commander");
+const logger = require('#@logger');
+const { execCmd,execPowerShell } = require("#@commander");
 
 class WinPath {
     constructor() {

@@ -3,8 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const bdir = require('#@/ncore/gvar/bdir.js');
 const gconfig = require('#@/ncore/gvar/gconfig.js');
-const { execCmd, execCmdResultText, pipeExecCmd } = require('#@utils_commander');
-const logger = require('#@utils_logger');
+const { execCmd, execCmdResultText, pipeExecCmd } = require('#@commander');
+const logger = require('#@logger');
 const langdir = gconfig.DEV_LANG_DIR;
 
 class GetNodeWin {

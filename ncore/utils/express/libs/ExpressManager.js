@@ -1,4 +1,4 @@
-const logger = require('#@utils_logger');
+const logger = require('#@logger');
 const expressProvider = require('../provider/expressProvider');
 const { getConfig } = require('../config');
 

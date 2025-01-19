@@ -6,7 +6,7 @@ const axios = require('axios');
 const { SUBMIT_AUDIO_SIMPLE_URL } = require('../../provider/index.js');
 
 const SIMPLE_SUBMISSION_LOG_FILE = path.join(APP_DATA_CACHE_DIR, 'audio_simple_submissions.json');
-const log = require('#@/ncore/utils/logger/index.js');
+const log = require('#@logger');
 
 let submissionsCache = null;
 

@@ -1,5 +1,5 @@
-const logger = require('../../logger');
-const { execCmdResultText } = require('#@utils_commander');
+const logger = require('../../../gvar/basic/logger');
+const { execCmdResultText } = require('#@commander');
 
 class CaddyService {
     /**

@@ -1,24 +1,7 @@
-const crypto = require('crypto');
-function hasString(value) {
-    return typeof value === 'string' && value.trim() !== '';
-}
-function getMd5(word) {
-    if (typeof word === 'string') {
-        word = word.trim();
-    }else{
-        word = ``;
-    }
-    word = word.replace(/\W+/g, '');
-    try {
-        return crypto.createHash('md5').update(word).digest('hex');
-    } catch (error) {
-        log.error('Error generating MD5:', error);
-        return '';
-    }
-}
+const { ensureQueueItem, ITEM_TYPE } = require('./types');
 let log;
 try {
-    const logger = require('#@/ncore/utils/logger/index.js');
+    const logger = require('#@logger');
     log = {
         info: (...args) => logger.info(...args),
         warn: (...args) => logger.warn(...args),
@@ -34,108 +17,99 @@ try {
     };
 }
 
-const ITEM_TYPE = {
-    WORD: 'word',
-    SENTENCE: 'sentence'
-};
 
 let wordQueue = [];
 let sentenceQueue = [];
 let wordMap = new Map();
 let sentenceMap = new Map();
 
-function createQueueItem(content, type) {
-    return {
-        content: content.trim(),
-        addedTime: Date.now(),
-        type,
-        md5: getMd5(content.trim()),
-        retries: 0
-    };
-}
 
-function addWordFront(word) {
-    if (Array.isArray(word)) {
+function addWordFront(wordOrQueueItem) {
+    if (Array.isArray(wordOrQueueItem)) {
         let success = true;
-        word.forEach(item => {
+        wordOrQueueItem.forEach(item => {
             if (!addWordFront(item)) success = false;
         });
         return success;
     }
-    if (!hasString(word)) return false;
-    const trimmedWord = word.trim();
-    if (hasWord(trimmedWord)) return false;
-
-    const item = createQueueItem(trimmedWord, ITEM_TYPE.WORD);
+    const item = ensureQueueItem(wordOrQueueItem, ITEM_TYPE.WORD);
     wordQueue.unshift(item);
-    wordMap.set(trimmedWord, item);
+    wordMap.set(item.content, item.content);
     return true;
 }
 
-function addWordBack(word) {
-    if (Array.isArray(word)) {
+function addWordBack(wordOrQueueItem) {
+    if (Array.isArray(wordOrQueueItem)) {
         let success = true;
-        word.forEach(item => {
+        wordOrQueueItem.forEach(item => {
             if (!addWordBack(item)) success = false;
         });
         return success;
     }
-    if (!hasString(word)) return false;
-    const trimmedWord = word.trim().replace(/\s+/g, '-');
-    if (hasWord(trimmedWord)) return false;
-    const item = createQueueItem(trimmedWord, ITEM_TYPE.WORD);
+    const item = ensureQueueItem(wordOrQueueItem, ITEM_TYPE.WORD);
     wordQueue.push(item);
-    wordMap.set(trimmedWord, item);
+    wordMap.set(item.content, item.content);
     return true;
 }
 
-function addSentenceFront(sentence) {
-    if (Array.isArray(sentence)) {
+function addSentenceFront(sentenceOrQueueItem   ) {
+    if (Array.isArray(sentenceOrQueueItem)) {
         let success = true;
-        sentence.forEach(item => {
+        sentenceOrQueueItem.forEach(item => {
             if (!addSentenceFront(item)) success = false;
         });
         return success;
     }
-    if (!hasString(sentence)) return false;
-    const trimmedSentence = sentence.trim();
-    if (hasSentence(trimmedSentence)) return false;
-
-    const item = createQueueItem(trimmedSentence, ITEM_TYPE.SENTENCE);
+    const item = ensureQueueItem(sentenceOrQueueItem, ITEM_TYPE.SENTENCE);
     sentenceQueue.unshift(item);
-    sentenceMap.set(trimmedSentence, item);
+    sentenceMap.set(item.content, item.content);
     return true;
 }
 
-function addSentenceBack(sentence) {
-    if (Array.isArray(sentence)) {
+function addSentenceBack(sentenceOrQueueItem) {
+    if (Array.isArray(sentenceOrQueueItem)) {
         let success = true;
-        sentence.forEach(item => {
+        sentenceOrQueueItem.forEach(item => {
             if (!addSentenceBack(item)) success = false;
         });
         return success;
     }
-    if (!hasString(sentence)) return false;
-    const trimmedSentence = sentence.trim();
-    if (hasSentence(trimmedSentence)) return false;
-
-    const item = createQueueItem(trimmedSentence, ITEM_TYPE.SENTENCE);
+    const item = ensureQueueItem(sentenceOrQueueItem, ITEM_TYPE.SENTENCE);
     sentenceQueue.push(item);
-    sentenceMap.set(trimmedSentence, item);
+    sentenceMap.set(item.content, item.content);
     return true;
 }
 
-function removeByWord(word) {
-    if (hasWord(word)) {
-        const item = wordMap.get(word);
-        let removeBeforeLength = wordQueue.length;
-        wordQueue.splice(wordQueue.indexOf(item), 1);
-        wordMap.delete(word);
-        let removeAfterLength = wordQueue.length;
-        let removed = removeBeforeLength - removeAfterLength == 1;
-        return removed;
-    }
-    return false;
+function removeByWord(wordOrQueueItem) {
+    if (!wordOrQueueItem) return false;
+    
+    const item = ensureQueueItem(wordOrQueueItem, ITEM_TYPE.WORD);
+    if (!item) return false;
+
+    const index = wordQueue.findIndex(queueItem => queueItem.content === item.content);
+    if (index === -1) return false;
+
+    wordQueue.splice(index, 1);
+    wordMap.delete(item.content);
+    return true;
+}
+
+function hasWord(wordOrQueueItem) {
+    if (!wordOrQueueItem) return false;
+    
+    const item = ensureQueueItem(wordOrQueueItem, ITEM_TYPE.WORD);
+    if (!item) return false;
+
+    return wordMap.has(item.content);
+}
+
+function hasSentence(sentenceOrQueueItem) {
+    if (!sentenceOrQueueItem) return false;
+    
+    const item = ensureQueueItem(sentenceOrQueueItem, ITEM_TYPE.SENTENCE);
+    if (!item) return false;
+
+    return sentenceMap.has(item.content);
 }
 
 function removeWordFront() {
@@ -166,12 +140,18 @@ function removeSentenceBack() {
     return item;
 }
 
-function hasWord(word) {
-    return wordMap.has(word.trim());
-}
+function removeBySentence(sentenceOrQueueItem) {
+    if (!sentenceOrQueueItem) return false;
+    
+    const item = ensureQueueItem(sentenceOrQueueItem, ITEM_TYPE.SENTENCE);
+    if (!item) return false;
 
-function hasSentence(sentence) {
-    return sentenceMap.has(sentence.trim());
+    const index = sentenceQueue.findIndex(queueItem => queueItem.content === item.content);
+    if (index === -1) return false;
+
+    sentenceQueue.splice(index, 1);
+    sentenceMap.delete(item.content);
+    return true;
 }
 
 function getWordCount() {
@@ -187,6 +167,7 @@ const getSentenceFront = removeSentenceFront;
 const getSentenceBack = removeSentenceBack;
 module.exports = {
     ITEM_TYPE,
+    ensureQueueItem,
     addWordFront,
     addWordBack,
     addSentenceFront,
@@ -203,5 +184,6 @@ module.exports = {
     getWordBack,
     getSentenceFront,
     getSentenceBack,
-    removeByWord
+    removeByWord,
+    removeBySentence
 };

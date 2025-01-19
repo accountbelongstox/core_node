@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const { CADDY_PATHS, CADDY_PORTS } = require('../provider/constants');
-const logger = require('../../logger');
+const logger = require('../../../gvar/basic/logger');
 
 class CaddyConfig {
     /**

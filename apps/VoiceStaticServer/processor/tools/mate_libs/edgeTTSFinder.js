@@ -1,4 +1,4 @@
-const { execCmdResultText,pipeExecCmd } = require('#@utils_commander');
+const { execCmdResultText,pipeExecCmd } = require('#@commander');
 const pythonSetup = require('../../../../../ncore/utils/dev_tool/lang_compiler_deploy/pythonSetup');
 const pythonVenv = require('../../../../../ncore/utils/dev_tool/lang_compiler_deploy/pythonVenv');
 const fs = require('fs');
@@ -7,7 +7,7 @@ const path = require('path');
 let log;
 let edgeTTSPath = null;
 try {
-    const logger = require('#@/ncore/utils/logger/index.js');
+    const logger = require('#@logger');
     log = {
         info: (...args) => logger.info(...args),
         warn: (...args) => logger.warn(...args),
