@@ -24,22 +24,22 @@ const log = {
         brightWhite: '\x1b[97m',
     },
 
-    info: function(...args) {
+    info: function (...args) {
         console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
     },
-    warn: function(...args) {
+    warn: function (...args) {
         console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
     },
-    error: function(...args) {
+    error: function (...args) {
         console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
     },
-    success: function(...args) {
+    success: function (...args) {
         console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
     },
-    debug: function(...args) {
+    debug: function (...args) {
         console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
     },
-    command: function(...args) {
+    command: function (...args) {
         console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
     }
 };
@@ -106,7 +106,7 @@ class ConfigTool {
             // Remove prefix and split IV and encrypted text
             const encryptedData = text.substring(this.encryptedPrefix.length);
             const [ivHex, encryptedText] = encryptedData.split(':');
-            
+
             const iv = Buffer.from(ivHex, 'hex');
             const decipher = crypto.createDecipheriv(this.algorithm, this.encryptionKey, iv);
             let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
@@ -162,7 +162,7 @@ class ConfigTool {
                 }
                 return success;
             }
-            
+
             // Handle single key-value pair
             return this._setSingleConfig(key, value);
         } catch (error) {
@@ -196,7 +196,7 @@ class ConfigTool {
 
         // Check for JSON objects/arrays
         try {
-            if ((value.startsWith('{') && value.endsWith('}')) || 
+            if ((value.startsWith('{') && value.endsWith('}')) ||
                 (value.startsWith('[') && value.endsWith(']'))) {
                 return JSON.parse(value);
             }
@@ -229,30 +229,30 @@ class ConfigTool {
         try {
             const upperKey = key.toUpperCase();
             const filePath = path.join(this.configDir, upperKey);
-            
+
             // Encrypt if necessary
             if (typeof value === 'string' && this.needsEncryption(key)) {
                 value = this.encryptValue(value);
             }
-            
+
             // Convert value to string format for storage
             const stringValue = this._stringifyValue(value);
-            
+
             // Check if file exists and content is different
             let shouldLog = false;
             if (fs.existsSync(filePath)) {
                 const existingContent = fs.readFileSync(filePath, 'utf8');
                 shouldLog = existingContent !== stringValue;
             }
-            
+
             // Write to file, overwriting if exists
             fs.writeFileSync(filePath, stringValue, 'utf8');
-            
+
             // Only log if content changed
             if (shouldLog) {
                 log.debug(`Config updated: ${upperKey} = ${stringValue}`);
             }
-            
+
             return true;
         } catch (error) {
             log.error(`Error setting config for ${key}:`, error);
@@ -269,20 +269,20 @@ class ConfigTool {
         try {
             const upperKey = key.toUpperCase();
             const filePath = path.join(this.configDir, upperKey);
-            
+
             if (!fs.existsSync(filePath)) {
                 log.debug(`Config not found: ${upperKey}`);
                 return '';
             }
-            
+
             const content = fs.readFileSync(filePath, 'utf8');
             const convertedValue = this._convertValue(content);
-            
+
             // Decrypt if necessary
             if (typeof convertedValue === 'string' && this.needsEncryption(key)) {
                 return this.decryptValue(convertedValue);
             }
-            
+
             // log.debug(`Config read: ${upperKey} = ${content} (converted to ${typeof convertedValue})`);
             return convertedValue;
         } catch (error) {
@@ -324,7 +324,7 @@ class ConfigTool {
         try {
             const upperKey = key.toUpperCase();
             const filePath = path.join(this.configDir, upperKey);
-            
+
             if (fs.existsSync(filePath)) {
                 fs.writeFileSync(filePath, '', 'utf8');
                 log.debug(`Config cleared: ${upperKey}`);
@@ -335,15 +335,10 @@ class ConfigTool {
         }
     }
 
-    /**
-     * Import configuration from a JavaScript file
-     * @param {string} filePath - Path to the JavaScript file
-     * @returns {boolean} - Success status
-     */
-    importConfigFromJs(filePath) {
+    importConfigFromJs(filePath, setConfig = false) {
         try {
             const absolutePath = path.resolve(filePath);
-            
+
             if (!fs.existsSync(absolutePath)) {
                 log.error(`Config file not found: ${absolutePath}`);
                 return false;
@@ -351,10 +346,10 @@ class ConfigTool {
 
             // Read file content for later replacement
             let content = fs.readFileSync(absolutePath, 'utf8');
-            
+
             delete require.cache[absolutePath];
             const importedConfig = require(absolutePath);
-            
+
             if (typeof importedConfig !== 'object' || importedConfig === null) {
                 log.error(`Invalid config format in ${filePath}. Expected an object.`);
                 return false;
@@ -380,18 +375,20 @@ class ConfigTool {
 
             // Set all config values
             log.debug(`Importing config from ${filePath}`);
-            const success = this.setConfig(importedConfig);
-            
-            if (success) {
-                log.debug(`Successfully imported config from ${filePath}`);
-            } else {
-                log.error(`Failed to import some config values from ${filePath}`);
+            if (setConfig) {
+                const success = this.setConfig(importedConfig);
+                if (success) {
+                    log.debug(`Successfully imported config from ${filePath}`);
+                } else {
+                    log.error(`Failed to import some config values from ${filePath}`);
+                }
+                return success;
             }
-            
-            return success;
+            return importedConfig
+
         } catch (error) {
             log.error(`Error importing config from ${filePath}:`, error);
-            return false;
+            return setConfig ? false : {};
         }
     }
 }

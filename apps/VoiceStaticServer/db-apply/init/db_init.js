@@ -1,26 +1,27 @@
 const { getDatabase } = require('#@/ncore/utils/db_tool/libs/sequelize_db.js');
 const logger = require('#@logger');
-const { defineModel } = require('../db-tools/db_utils.js');
+const { sequelize_init_tables } = require('../../provider/types/index.js');
 
 const dbs = {};
 const models = {};
 let isInitialized = false;
 let debugPrint = false;
+const options = { printStructure: true }
 
 async function initialize() {
     if (isInitialized) return;
 
     try {
-        dbs.word = await getDatabase('word_content', debugPrint);
-        models.word = await defineModel(dbs.word);
+        const { sequelize: word_sequelize, model: word_model } = await getDatabase('word_content', sequelize_init_tables, options);
+        dbs.word = word_sequelize;
+        models.word = word_model;
 
-        dbs.sentence = await getDatabase('sentence_content', debugPrint);
-        models.sentence = await defineModel(dbs.sentence);
-
-        await models.word.sync();
-        await models.sentence.sync();
+        const { sequelize: sentence_sequelize, model: sentence_model } = await getDatabase('sentence_content', sequelize_init_tables, options);
+        dbs.sentence = sentence_sequelize;
+        models.sentence = sentence_model;
 
         isInitialized = true;
+        logger.success('Database tables synchronized successfully');
     } catch (error) {
         logger.error('Failed to initialize databases:', error);
         return false;

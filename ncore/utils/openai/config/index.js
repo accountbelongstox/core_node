@@ -1,7 +1,5 @@
-const proxyConfig = require('./proxy');
-const apiConfig = require('./api');
+const { importConfigFromJs } = require('#@/ncore/gvar/libs/config_tool.js');
+const path = require('path');
+const config = importConfigFromJs(path.join(__dirname, './open_config.js'));
 
-module.exports = {
-    proxy: proxyConfig,
-    api: apiConfig
-}; 
+module.exports = config

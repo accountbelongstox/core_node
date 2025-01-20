@@ -1,4 +1,3 @@
-
 const expressProvider = require('../provider/expressProvider');
 const app = expressProvider.getExpressApp()
 const express = expressProvider.getExpress()
@@ -81,8 +80,15 @@ class StaticServer {
             express_router.use(express.static(staticPath, {
                 fallthrough: true,
                 lastModified: true,
-                cacheControl: true, 
-                maxAge: '1d', 
+                etag: true,
+                cacheControl: false,
+                maxAge: 0,
+                setHeaders: (res, path, stat) => {
+                    // Disable caching for all static files
+                    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+                    res.set('Pragma', 'no-cache');
+                    res.set('Expires', '0');
+                }
             }));
             // Configure static route
             logger.log(`✓ Added static urlPath: ${urlPath} -> ${staticPath}`);

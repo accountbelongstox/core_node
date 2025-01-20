@@ -29,16 +29,36 @@ const sequelize_init_tables = {
         type: DataTypes.CHAR,
         allowNull: false
     },
+    is_valid: {
+        type: DataTypes.BOOLEAN,
+        allowNull: true,
+    },
+    valid_provider: {
+        type: DataTypes.CHAR,
+        allowNull: true
+    },
     translation: {
         type: DataTypes.TEXT,
+        allowNull: true
+    },
+    translation_provider: {
+        type: DataTypes.CHAR,
         allowNull: true
     },
     image_files: {
         type: DataTypes.JSON,
         allowNull: true
     },
+    image_files_provider: {
+        type: DataTypes.CHAR,
+        allowNull: true
+    },
     voice_files: {
         type: DataTypes.JSON,
+        allowNull: true
+    },
+    voice_files_provider: {
+        type: DataTypes.CHAR,
         allowNull: true
     },
     last_modified: {

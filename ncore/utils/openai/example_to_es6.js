@@ -1,4 +1,4 @@
-const OpenAIChat = require('./chat');
+const OpenAIChat = require('.');
 const fs = require('fs');
 const path = require('path');
 // const { parseConversionResult } = require('./utils/xmlParser');

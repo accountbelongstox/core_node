@@ -19,7 +19,7 @@
 /* Header Styling */
 .VoiceStaticPanel .card-header {
     padding: 16px 20px;
-    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    background: linear-gradient(135deg, #3498db, #3498db);
     border-radius: 0 12px 0 0;
     display: flex;
     justify-content: space-between;
@@ -53,13 +53,14 @@
     border-radius: 10px;
     padding: 16px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    margin-bottom: 20px;
+    margin-bottom: 5px;
 }
 
 .VoiceStaticPanel .card-title {
     color: #27ae60;
     font-weight: 600;
     margin-bottom: 16px;
+    margin-top: 6px;
     font-size: 1em;
 }
 
@@ -128,7 +129,7 @@
     right: -30px;
     top: 50%;
     transform: translateY(-50%);
-    background-color: #2ecc71;
+    background-color: #3498db;
     color: white;
     padding: 10px;
     border-radius: 0 5px 5px 0;

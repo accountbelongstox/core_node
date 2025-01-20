@@ -23,8 +23,8 @@ const LOCAL_DIR = os.platform() === 'win32'
     : `/usr/${SCRIPT_NAME}`;
 const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
 
-config_tool.importConfigFromJs(root_config_file);
-config_tool.importConfigFromJs(app_config_file);
+config_tool.importConfigFromJs(root_config_file,true);
+config_tool.importConfigFromJs(app_config_file,true);
 
 function mkdir(path) {
     return fs.mkdirSync(path, { recursive: true });

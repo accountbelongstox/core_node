@@ -141,10 +141,12 @@ async function getUniqueContentLines(dirPath, extensions = null) {
     const batchSize = 1000;
     let totalInserted = 0;
     const startTime = Date.now();
+    const sliceNotExistsWords = wordsArray.slice(0, 100);
 
     // Log total statistics
     log.success(`Total processed files: ${processedFiles}/${totalFilesToProcess}`);
     log.success(`Total lines processed: ${totalLines}`);
+    log.warn(`Not exists words: ${sliceNotExistsWords.join(', ')}`);
     log.success(`Not exists words: ${notExistsWords.size}`);
     log.success(`Exists words: ${existsWords.size}`);
 
@@ -184,19 +186,6 @@ async function getUniqueContentLines(dirPath, extensions = null) {
     return await getContentCount(ITEM_TYPE.WORD);
 }
 
-// Handle process termination
-process.on('exit', () => {
-    log.info(`[Content] Process exited`);
-});
-
-process.on('SIGINT', async () => {
-    try {
-        process.exit();
-    } catch (error) {
-        log.error(`[Content] Cleanup error: ${error.message}`);
-        process.exit(1);
-    }
-});
 
 module.exports = {
     getUniqueContentLines

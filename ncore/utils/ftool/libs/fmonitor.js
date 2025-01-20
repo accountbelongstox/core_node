@@ -206,13 +206,11 @@ class FileMonitor {
         if (size <= 0) {
             if(size == 0){
                 fs.unlinkSync(fileFullPath);
+                const fileName = path.basename(fileFullPath);
+                this.getFileNameSet().delete(fileName);
                 logger.warn(`[Monitoring] Empty File Removed | Path: ${fileFullPath}`);
+                return null;
             }
-            return null;
-        }
-        const fileName = path.basename(filePath);
-        if (!this.getFileNameSet().has(fileName)) {
-            this.trackFile(filePath);
         }
         return filePath;
     }

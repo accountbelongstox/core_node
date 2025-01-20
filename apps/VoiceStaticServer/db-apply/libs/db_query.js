@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const logger = require('#@logger');
 const { ITEM_TYPE, detectContentTypeAndDbModel, getDbModelByItemType } = require('../db-tools/db_utils.js');
 const { ensureQueueItem } = require('../../provider/types/index.js');
@@ -26,35 +27,120 @@ async function getContentByMd5(md5) {
     return null;
 }
 
-async function getContent(contentOrObject, rawItemType) {
+/**
+ * Enhanced getContent function with flexible query conditions
+ * @param {string|object} contentOrObject - Content string or query conditions
+ * @param {string} rawItemType - Type of content (word/sentence)
+ * @param {object} options - Additional query options
+ * @returns {Promise<Array>} Query results
+ * 
+ * Example usage:
+ * 1. Simple content query:
+ *    getContent("hello", ITEM_TYPE.WORD)
+ * 
+ * 2. Multiple exact matches:
+ *    getContent({ content: ["hello", "world"] }, ITEM_TYPE.WORD)
+ * 
+ * 3. Like query:
+ *    getContent({ content: { like: "%hello%" } }, ITEM_TYPE.WORD)
+ * 
+ * 4. Range query:
+ *    getContent({ 
+ *      last_modified: { 
+ *        between: [startTime, endTime] 
+ *      }
+ *    }, ITEM_TYPE.WORD)
+ * 
+ * 5. Complex conditions:
+ *    getContent({
+ *      content: { like: "%hello%" },
+ *      last_modified: { gt: timestamp },
+ *      voice_files: { not: null }
+ *    }, ITEM_TYPE.WORD)
+ * 
+ * 6. Pagination:
+ *    getContent("hello", ITEM_TYPE.WORD, { limit: 10, offset: 0 })
+ */
+async function getContent(contentOrObject, rawItemType, options = {}) {
+    if (!rawItemType) {
+        logger.error('rawItemType is required for getContent');
+        return [];
+    }
+
     await ensureInitialized();
     const models = getModels();
-    let content, model;
-    
-    if (typeof contentOrObject === "string") {
-        const itemQueueItem = ensureQueueItem(contentOrObject, rawItemType);
-        rawItemType = itemQueueItem.type;
-        model = detectContentTypeAndDbModel(itemQueueItem, models);
-        content = itemQueueItem.content;
-    } else {
-        model = getDbModelByItemType(rawItemType, models);
-        content = contentOrObject.content;
-    }
+    const model = getDbModelByItemType(rawItemType, models);
 
     try {
-        const result = await model.findOne({
-            where: { content }
-        });
-        if (result) {
+        let where = {};
+
+        // Handle different types of content queries
+        if (typeof contentOrObject === 'string') {
+            where.content = contentOrObject;
+        } else if (typeof contentOrObject === 'object') {
+            // Process each field in the query object
+            for (const [field, condition] of Object.entries(contentOrObject)) {
+                if (typeof condition === 'object' && !Array.isArray(condition)) {
+                    // Handle special operators
+                    const processedCondition = {};
+                    for (const [op, value] of Object.entries(condition)) {
+                        switch (op.toLowerCase()) {
+                            case 'like':
+                                processedCondition[Op.like] = value;
+                                break;
+                            case 'between':
+                                processedCondition[Op.between] = value;
+                                break;
+                            case 'in': // in
+                                processedCondition[Op.in] = value;
+                                break;
+                            case 'gt': // greater than
+                                processedCondition[Op.gt] = value;
+                                break;
+                            case 'gte': // greater than or equal to
+                                processedCondition[Op.gte] = value;
+                                break;
+                            case 'lt': // less than
+                                processedCondition[Op.lt] = value;
+                                break;
+                            case 'lte': // less than or equal to
+                                processedCondition[Op.lte] = value;
+                                break;
+                            case 'not': // not
+                                processedCondition[Op.not] = value;
+                                break;
+                            default:
+                                processedCondition[op] = value;
+                        }
+                    }
+                    where[field] = processedCondition;
+                } else if (Array.isArray(condition)) {
+                    // Handle array of values as IN condition
+                    where[field] = { [Op.in]: condition };
+                } else {
+                    // Simple equality condition
+                    where[field] = condition;
+                }
+            }
+        }
+
+        const queryOptions = {
+            where,
+            ...options
+        };
+
+        const results = await model.findAll(queryOptions);
+
+        if (results.length > 0) {
             cacheCoordinator.recordOperation('query', rawItemType);
         }
-        return result;
+
+        return results;
     } catch (error) {
         logger.error(`Failed to get content: ${error.message}`);
-        return null;
+        return [];
     }
 }
-
 
 async function getWordsByDB(start = 0, end = null) {
     await ensureInitialized();

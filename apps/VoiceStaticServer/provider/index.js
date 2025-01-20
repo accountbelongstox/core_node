@@ -42,6 +42,10 @@ const DICT_SOUND_SUBTITLE_DIR = path.join(APP_OUTPUT_DIR, 'dictSoundSubtitle');
 const SENTENCES_SOUND_DIR = path.join(APP_OUTPUT_DIR, 'sentenceSoundLib');
 const SENTENCES_SOUND_SUBTITLE_DIR = path.join(APP_OUTPUT_DIR, 'sentenceSoundSubtitle');
 
+
+const WORD_VALIDITY_DIR = path.join(APP_METADATA_DIR, 'word_validity');
+const WORD_VALIDITY_FILE = path.join(WORD_VALIDITY_DIR, 'word_validity.json');
+
 const START_TIME = Date.now();
 // const DICT_SOUND_WATCHER = new FWatcher(DICT_SOUND_DIR);
 // const SENTENCES_SOUND_WATCHER = new FWatcher(SENTENCES_SOUND_DIR);
@@ -149,6 +153,7 @@ mkdir(DICT_SOUND_SUBTITLE_DIR)
 mkdir(SENTENCES_SOUND_SUBTITLE_DIR)
 mkdir(META_DIR)
 mkdir(VOCABULARY_TABLE_DIR)
+mkdir(WORD_VALIDITY_DIR)
 
 const printWordStatus = () => {
     log.success(`Word count: ${WORD_TOTAL_COUNT}`);
@@ -183,6 +188,8 @@ const getWordStatus = async () => {
     }
 }
 
+
+
 module.exports = {
     DICTIONARY_DIR,
     LEMMAS_DIR,
@@ -212,4 +219,6 @@ module.exports = {
     SENTENCES_SOUND_WATCHER,
     getWordStatus,
     GET_TTS_NODE_VOICES,
+    WORD_VALIDITY_DIR,
+    WORD_VALIDITY_FILE,
 };

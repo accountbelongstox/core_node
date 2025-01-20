@@ -3,15 +3,16 @@ const logger = require('#@logger');
 const path = require('path');
 const fs = require('fs');
 const { installService, removeService, getServiceStatus } = require('#@ncore/utils/linux/libs/service.js');
+const processHandler = require('#@/ncore/base/process_handler.js');
 
 const APP_DIR = path.join(__dirname, 'apps');
 const APP_NAME = sysarg.getArg('app');
 const service_run = sysarg.getArg('service');
 
-
 class Main {
     constructor() {
         this.app = null;
+        processHandler.addShutdownHandler(() => this.stop());
     }
 
     async start() {
@@ -80,18 +81,6 @@ async function handleService(args) {
 }
 
 const main = new Main();
-
-process.on('SIGINT', async () => {
-    logger.info('Received SIGINT. Graceful shutdown...');
-    await main.stop();
-    process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-    logger.info('Received SIGTERM. Graceful shutdown...');
-    await main.stop();
-    process.exit(0);
-});
 
 if (require.main === module) {
     main.start().catch(error => {

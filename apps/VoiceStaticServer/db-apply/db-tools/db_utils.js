@@ -44,18 +44,10 @@ function getDbModelByItemType(itemType,models) {
     return model;
 }
 
-function defineModel(sequelize) {
-    return sequelize.define('contents', sequelize_init_tables, {
-        timestamps: false,
-        freezeTableName: true
-    });
-}
-
 
 module.exports = {
     ITEM_TYPE,
     detectContentTypeAndDbModel,
     getDbModelByItemType,
-    defineModel,
     validateAndSetDefaults
 };
