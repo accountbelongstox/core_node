@@ -95,6 +95,13 @@ async function startInputOldDataTranslate() {
                 }
             });
 
+            const filePath = path.join(TRANSLATE_TMP_DIR, '../translation_dictionary.json');
+            const writeResult = writeJson(filePath, isTranslatedRecords, {
+                createDir: true,
+                pretty: true,
+                forceEmpty: false
+            });
+
             logger.info(`Found ${records.length} records in translation_dictionary`);
             logger.warn(`Not translated records: ${notTranslatedRecords.length}`)
             logger.warn(`Is translated records: ${isTranslatedRecords.length}`)

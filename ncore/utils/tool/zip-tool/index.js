@@ -1,5 +1,6 @@
 const state = require('./constants');
 const taskManager = require('./task_manager');
+const bestCompressor = require('./best_compressor');
 
 module.exports = {
     // Task Management
@@ -12,5 +13,8 @@ module.exports = {
     // Configuration and Status
     setMaxProcessingSize: state.setMaxProcessingSize,
     setMultiProcessing: state.setMultiProcessing,
-    getStatus: state.getStatus
+    getStatus: state.getStatus,
+
+    // Best Compression
+    bestCompressor
 }; 
