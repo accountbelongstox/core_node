@@ -2,7 +2,7 @@ const config = require('./config/index.js');
     const { initDatabase } = require('./internal/database/sqlite.js');
     const jobQueue = require('./internal/jobqueue/main.js');
     const { server } = require('./internal/api/server.js');
-    const logger = require('./internal/logger/logger.js');
+    const logger = require('#@logger');
     const { assetManager } = require('./embed/main.js');
 
     const version = '3.0.0';

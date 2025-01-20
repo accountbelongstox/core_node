@@ -15,7 +15,7 @@ const app_dir = path.join(apps_dir, appname);
 const app_config_dir = path.join(app_dir, 'config');
 const app_config_file = path.join(app_config_dir, 'index.js');
 
-const config_tool = require('./libs/config_tool.js');
+const {importConfigFromJs,setConfig,getConfig,getAllKeys,getConfigAll} = require('./libs/config_tool.js');
 
 const SCRIPT_NAME = `core_node`
 const LOCAL_DIR = os.platform() === 'win32'
@@ -23,8 +23,8 @@ const LOCAL_DIR = os.platform() === 'win32'
     : `/usr/${SCRIPT_NAME}`;
 const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
 
-config_tool.importConfigFromJs(root_config_file,true);
-config_tool.importConfigFromJs(app_config_file,true);
+importConfigFromJs(root_config_file,true,false);
+importConfigFromJs(app_config_file,true,false);
 
 function mkdir(path) {
     return fs.mkdirSync(path, { recursive: true });
@@ -37,19 +37,19 @@ class GlobalConfig {
     }
 
     setConfig = (key, value) => {
-        config_tool.setConfig(key, value);
+        setConfig(key, value);
     }
 
     getConfig = (key) => {
-        return config_tool.getConfig(key);
+        return getConfig(key);
     }
 
     getAllKeys = () => {
-        return config_tool.getAllKeys();
+        return getAllKeys();
     }
 
     getConfigAll = () => {
-        return config_tool.getConfigAll();
+        return getConfigAll();
     }
 }
 

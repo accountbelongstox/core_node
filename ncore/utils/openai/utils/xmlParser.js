@@ -1,11 +1,13 @@
 const { XMLParser } = require('fast-xml-parser');
+const logger = require('#@logger');
 
 function parseConversionResult(result) {
     try {
         // Clean up the response to get just the XML part
         const xmlMatch = result.match(/<conversion_result>[\s\S]*<\/conversion_result>/);
         if (!xmlMatch) {
-            throw new Error('No XML content found in response');
+            logger.error('No XML content found in response');
+            return null;
         }
 
         const xmlContent = xmlMatch[0];
@@ -28,7 +30,7 @@ function parseConversionResult(result) {
 
         return parsed.conversion_result;
     } catch (error) {
-        console.error('Error parsing conversion result:', error);
+        logger.error('Error parsing conversion result:', error);
         return null;
     }
 }

@@ -1,5 +1,5 @@
 const os = require('os');
-const { packageMap } = require('../common/package_map.js');
+const { packageMap } = require('./linux-apt/plist_map.js');
 const packageManagerFactory = require('./linux-apt/package_manager.js');
 const wingetManager = require('./winget/winget.js');
 const softwareFinder = require('./win-soft/software_finder.js');
@@ -80,37 +80,9 @@ class SmartInstaller {
     // Get package mapping from predefined keys
     getPackageMapping(shortName) {
         // First check if there's a direct match in packageMap
-        if (packageMap[shortName]) {
-            const pkgInfo = packageMap[shortName];
-            return {
-                category: pkgInfo.category,
-                packages: {
-                    winget: pkgInfo.packages.winget || null,
-                    linux: this.isWindows ? [] :
-                        (pkgInfo.packages.linux?.[packageManagerFactory.packageManager?.type] || [])
-                }
-            };
-        }
-
-        // If no direct match, search through all packages
-        for (const [category, packages] of Object.entries(packageMap)) {
-            // Skip entries with special format
-            if (packages.category) continue;
-
-            for (const [system, pkgList] of Object.entries(packages)) {
-                if (Array.isArray(pkgList) && pkgList.some(pkg =>
-                    pkg.toLowerCase().includes(shortName.toLowerCase()) ||
-                    pkg.toLowerCase().replace(/[-_.]/g, '').includes(shortName.toLowerCase().replace(/[-_.]/g, ''))
-                )) {
-                    return {
-                        category,
-                        packages: {
-                            winget: packages.winget?.[0] || null,
-                            linux: packages[this.isWindows ? 'winget' : packageManagerFactory.packageManager?.type] || []
-                        }
-                    };
-                }
-            }
+        const pkgInfo = packageMap[shortName];
+        if (pkgInfo) {
+            return pkgInfo;
         }
         return null;
     }
@@ -118,26 +90,15 @@ class SmartInstaller {
     // Install by predefined key
     async smartInstall(shortName) {
         const mapping = this.getPackageMapping(shortName);
-
+        log.info(`mapping: shortName ${shortName}`);
         if (!mapping) {
             log.warn(`No predefined package found for "${shortName}"`);
             log.info('\nAvailable predefined packages:');
-
-            for (const [category, packages] of Object.entries(packageMap)) {
-                const system = this.isWindows ? 'winget' : 'apt';
-                const pkgList = packages[system] || [];
-                if (pkgList.length > 0) {
-                    log.info(`\n${category}:`);
-                    pkgList.forEach(pkg => log.info(`  - ${pkg}`));
-                }
-            }
             return false;
         }
 
-        console.log(mapping)
         log.info(`Found package mapping for "${shortName}":`);
-        log.info(`Category: ${mapping.category}`);
-        log.info(`Package name: ${this.isWindows ? mapping.packages.winget : mapping.packages.linux[0]}`);
+        console.log(mapping)
 
         try {
             if (this.isWindows) {
@@ -147,10 +108,14 @@ class SmartInstaller {
                 log.warn('No Windows package defined for this software');
                 return false;
             } else {
-                if (mapping.packages.linux.length > 0) {
-                    return await linuxTools.install(mapping.packages.linux[0]);
+                const manager = await packageManagerFactory.getPackageManager();
+                const packageType = manager.type
+                const pkgList = mapping[packageType]
+                if (pkgList.length > 0) {
+                    log.info(`Installing ${pkgList.join(', ')} using ${packageType}...`);
+                    return await linuxTools.install(pkgList);
                 }
-                log.warn('No Linux package defined for this system');
+                log.warn(`No Linux package defined for this system by packageType: ${packageType}`);
                 return false;
             }
         } catch (error) {
@@ -183,49 +148,3 @@ module.exports = {
     getSoftwarePath
 };
 
-// Test code
-if (require.main === module) {
-    async function runTests() {
-        const { wingetTools, linuxTools, smartInstaller, getSoftwarePath } = require('./index.js');
-
-        log.info('Running tests...');
-
-        // // Windows specific tests
-        // if (os.platform() === 'win32') {
-        //     log.info('\nWindows Tests:');
-        //     log.info('\nSearching for 7zip:');
-        //     const results = await wingetTools.search('7zip');
-        //     log.info('Search results:', results);
-
-        //     log.info('\nGetting installed packages:');
-        //     const installed = await wingetTools.getInstalled();
-        //     log.info('Installed packages:', installed);
-
-        //     log.info('\nInstalling Git:');
-        //     await wingetTools.install('Git.Git');
-        // }
-        // // Linux specific tests
-        // else {
-        //     log.info('\nLinux Tests:');
-        //     log.info('\nInstalling git:');
-        //     await linuxTools.install('git');
-        // }
-
-        // // Cross-platform tests
-        // log.info('\nCross-platform Tests:');
-        // log.info('\nInstalling by key (7z):');
-        // await smartInstaller.smartInstall('7z');
-
-        // log.info('\nDirect install:');
-        // const pkg = os.platform() === 'win32' ? 'Python.Python.3.11' : 'python3';
-        // await smartInstaller.install(pkg);
-
-        // const path = await getSoftwarePath('7z',2,false)
-        // log.info('7z path:', path || 'Not found');
-    }
-
-    runTests().catch(error => {
-        log.error('Test failed:', error);
-        process.exit(1);
-    });
-}

@@ -2,7 +2,7 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { pipeExecCmd, execPowerShell, execCmd } = require('#@commander');
+const { pipeExecCmd, execPowerShell, execCmd } = require('#@/ncore/basic/libs/commander.js');
 
 class WSLActivator {
     constructor() {

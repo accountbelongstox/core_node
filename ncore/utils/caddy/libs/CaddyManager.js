@@ -1,7 +1,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
-const logger = require('../../../gvar/basic/logger');
+const logger = require('../../../basic/libs/logger');
 const { 
     CADDY_PATHS, 
     CADDY_USER, 

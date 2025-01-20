@@ -1,4 +1,4 @@
-const BaseInstall = require('#@ncore/base/base_install/main.js');
+const BaseInstall = require('#@/apps/base_install/main.js');
 
     class appMain  {
 

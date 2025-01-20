@@ -1,9 +1,9 @@
-const { execCmd, execCmdResultText } = require('#@commander');
+const { execCmd, execCmdResultText } = require('#@/ncore/basic/libs/commander.js');
 const { getSoftwarePath } = require('../ncore/gvar/tool/soft-install');
 
 let log;
 try {
-    const logger = require('#@/ncore/utils/logger/index.js');
+    const logger = require('#@logger');
     log = logger;
 } catch (error) {
     log = {

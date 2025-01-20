@@ -3,10 +3,9 @@ const { WORD_VALIDITY_FILE } = require('../../provider/index.js');
 const { getContent } = require('../../db-apply/libs/db_query.js');
 const { ITEM_TYPE } = require('../../provider/types');
 const logger = require('#@logger');
-const OpenAIChat = require('#@/ncore/utils/openai/index.js');
+const { streamChat } = require('#@/ncore/utils/openai/chat.js');
 
 let preloadedWordValidity = null;
-const openaiChat = new OpenAIChat();
 
 async function loadWordValidityData() {
     try {
@@ -34,7 +33,7 @@ async function checkWordValidityWithOpenAI(queueItem) {
         }
 
         const prompt = `Is "${queueItem.content}" a valid English word? Please respond with only "true" or "false".`;
-        const response = await openaiChat.streamChat(prompt, () => {}, false);
+        const response = await streamChat(prompt, () => {}, false);
         const result = response.toLowerCase().includes('true');
         
         // Create validity object

@@ -1,9 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const logger = require('#@logger');
 
-/**
- * Extract module information from modularization result
- */
 class ModuleExtractor {
     static extractModules(text) {
         try {
@@ -26,7 +24,7 @@ class ModuleExtractor {
             const originalMatch = text.match(originalFilePattern);
             
             if (!originalMatch) {
-                console.error('No original file content found');
+                logger.error('No original file content found');
                 return null;
             }
 
@@ -54,7 +52,7 @@ class ModuleExtractor {
                         }
                         return true;
                     } catch (error) {
-                        console.error('Error saving files:', error);
+                        logger.error('Error saving files:', error);
                         return false;
                     }
                 },
@@ -65,7 +63,7 @@ class ModuleExtractor {
                 }
             };
         } catch (error) {
-            console.error('Error extracting modules:', error);
+            logger.error('Error extracting modules:', error);
             return null;
         }
     }

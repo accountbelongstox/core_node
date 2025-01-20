@@ -1,7 +1,7 @@
 const logger = require('#@logger');
 let sequelize_db = null;
 try {
-    sequelize_db = require('#@/ncore/utils/db_tool/libs/sequelize_db.js');
+    sequelize_db = require('#@/ncore/utils/db_tool/sequelize_db.js');
 } catch (error) {
     logger.error('Failed to initialize sequelize_db:', error);
 }

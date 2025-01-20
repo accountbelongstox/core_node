@@ -1,4 +1,4 @@
-const { getDatabase } = require('#@/ncore/utils/db_tool/libs/sequelize_db.js');
+const { getDatabase } = require('#@/ncore/utils/db_tool/sequelize_db.js');
 const logger = require('#@logger');
 const { sequelize_init_tables } = require('../../provider/types/index.js');
 

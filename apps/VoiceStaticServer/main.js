@@ -47,7 +47,7 @@ class Main {
         logger.info(`usage:  --app=${appname} --word_segmentation=0-30000`);
 
         wordMaster.start()
-        http.start(config)
+        // http.start(config)
     }
 }
 

@@ -4,7 +4,7 @@ const fs = require('fs');
 const bdir = require('#@/ncore/gvar/bdir.js');
 const { gdir } = require('#@globalvars');
 const gconfig = require('#@/ncore/gvar/gconfig.js');
-const { execCmd, execCmdResultText, pipeExecCmd } = require('#@commander');
+const { execCmd, execCmdResultText, pipeExecCmd } = require('#@/ncore/basic/libs/commander.js');
 const logger = require('#@logger');
 const langdir = gconfig.DEV_LANG_DIR;
 

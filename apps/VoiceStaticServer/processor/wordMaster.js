@@ -4,7 +4,9 @@ const { addWordBack, getWordCount, getWordFront } = require('../provider/QueueMa
 const { initialize_server, startWordProcessingByServer, } = require('./tools/server_initial_words ');
 const { checkAllWordValidityWithOpenAI } = require('./tools/server_initial_valid');
 const { initialize_not_client } = require('./tools/not_client');
+const { startInputOldDataTranslate } = require('./tools/server_initial_trans_input');
 const { initialize_client, startWordProcessingByClient } = require('./tools/client');
+const { serverTest } = require('./tools/server_test');
 class DictInitController {
     constructor() {
         this.isProcessing = false;
@@ -17,10 +19,13 @@ class DictInitController {
         try {
             if (IS_SERVER) {
                 logger.success(`Role:${ROLE} initialize server..`);
-                await initialize_server();
-                logger.success(`Role:${ROLE} initialize server success`);
-                await checkAllWordValidityWithOpenAI();
-                startWordProcessingByServer();
+                // await checkAllWordValidityWithOpenAI();
+                await startInputOldDataTranslate();
+                // await serverTest();
+                
+                // await initialize_server();
+                // logger.success(`Role:${ROLE} initialize server success`);
+                // startWordProcessingByServer();
             } else if (IS_CLIENT) {
                 logger.success(`Role:${ROLE} initialize client..`);
                 await initialize_client();

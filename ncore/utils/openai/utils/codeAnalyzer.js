@@ -1,6 +1,6 @@
-/**
- * Analyze code for ES6 features
- */
+
+const logger = require('#@logger');
+
 class CodeAnalyzer {
     static hasES6Features(code) {
         const es6Patterns = {

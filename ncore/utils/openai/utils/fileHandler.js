@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const logger = require('#@logger');
 
 class FileHandler {
     static async safeReplaceFile(codeResult, filePath) {
@@ -23,12 +24,12 @@ class FileHandler {
 
                 // If the converted code has less than 80% of original lines or more than 120%
                 if (lineRatio < 0.8 || lineRatio > 1.2) {
-                    console.warn(`Warning: Significant line count difference detected!`);
-                    console.warn(`Original: ${originalLines} lines`);
-                    console.warn(`Converted: ${codeResult.totalLines} lines`);
-                    console.warn(`Difference: ${lineDifference} lines`);
-                    console.warn(`Ratio: ${(lineRatio * 100).toFixed(1)}%`);
-                    console.warn(`Backup saved at: ${backupPath}`);
+                    logger.warn(`Warning: Significant line count difference detected!`);
+                    logger.warn(`Original: ${originalLines} lines`);
+                    logger.warn(`Converted: ${codeResult.totalLines} lines`);
+                    logger.warn(`Difference: ${lineDifference} lines`);
+                    logger.warn(`Ratio: ${(lineRatio * 100).toFixed(1)}%`);
+                    logger.warn(`Backup saved at: ${backupPath}`);
                     return {
                         success: false,
                         backupPath,
@@ -38,7 +39,7 @@ class FileHandler {
             }
             // For files under 100 lines, proceed directly with replacement
             else {
-                console.log(`Small file (${originalLines} lines), proceeding with direct replacement`);
+                logger.info(`Small file (${originalLines} lines), proceeding with direct replacement`);
             }
 
             // Replace file content
@@ -51,7 +52,7 @@ class FileHandler {
                 newLines: codeResult.totalLines
             };
         } catch (error) {
-            console.error('Error handling file replacement:', error);
+            logger.error('Error handling file replacement:', error);
             return {
                 success: false,
                 error: error.message
@@ -65,7 +66,7 @@ class FileHandler {
             const originalContent = fs.readFileSync(originalPath, 'utf8');
             return backupContent === originalContent;
         } catch (error) {
-            console.error('Error validating backup:', error);
+            logger.error('Error validating backup:', error);
             return false;
         }
     }

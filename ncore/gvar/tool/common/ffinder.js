@@ -265,11 +265,67 @@ class FileFinder {
         return false;
     }
 
-    async findByCommonInstallDir(executable, options = {}) {
+    /**
+     * Find file in common installation directories
+     * @param {string} fileName - File name to find
+     * @param {Object} [options] - Search options
+     * @param {string[]} [options.additionalPaths] - Additional paths to search
+     * @param {boolean} [options.recursive=true] - Whether to search recursively
+     * @returns {Promise<string|null>} Found file path or null
+     */
+    async findByCommonInstallDir(fileName, options = {}) {
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                log.warn(`Search timeout for ${fileName} after 20 seconds`);
+                resolve(null);
+            }, 20000); // 20 seconds timeout
+
+            this.findByCommonInstallDirSync(fileName, options)
+                .then(result => {
+                    clearTimeout(timeout);
+                    resolve(result);
+                })
+                .catch(error => {
+                    clearTimeout(timeout);
+                    log.error(`Error searching for ${fileName}:`, error);
+                    resolve(null);
+                });
+        });
+    }
+
+    /**
+     * Find all instances of file in common installation directories
+     * @param {string} fileName - File name to find
+     * @param {Object} [options] - Search options
+     * @param {string[]} [options.additionalPaths] - Additional paths to search
+     * @param {boolean} [options.recursive=true] - Whether to search recursively
+     * @returns {Promise<string[]>} Array of found file paths
+     */
+    async findByCommonInstallDirAll(fileName, options = {}) {
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                log.warn(`Search timeout for ${fileName} after 20 seconds`);
+                resolve([]);
+            }, 20000); // 20 seconds timeout
+
+            this.findByCommonInstallDirAllSync(fileName, options)
+                .then(results => {
+                    clearTimeout(timeout);
+                    resolve(results);
+                })
+                .catch(error => {
+                    clearTimeout(timeout);
+                    log.error(`Error searching for ${fileName}:`, error);
+                    resolve([]);
+                });
+        });
+    }
+
+    async findByCommonInstallDirSync(fileName, options = {}) {
         const { deepSearch = false, maxDepth = 3, useCache = false } = options;
 
         // Normalize executable name
-        let execName = executable;
+        let execName = fileName;
         if (isWindows) {
             execName = execName.toLowerCase().endsWith('.exe') ? execName : `${execName}.exe`;
         } else {
@@ -369,6 +425,7 @@ class FileFinder {
                 }
 
                 log.success(`Found ${execName} at: ${result}`);
+                const cache = this.loadCache();
                 cache[cacheKey] = result;
                 this.saveCache(cache);
                 return result;
@@ -393,20 +450,12 @@ class FileFinder {
         return null;
     }
 
-    /**
-     * Find all occurrences of an executable in system
-     * @param {string} executable - Name of executable to find
-     * @param {Object} options - Search options
-     * @param {boolean} [options.deepSearch=false] - Enable deep search in Linux
-     * @param {number} [options.maxDepth=3] - Maximum search depth for Windows/deep search
-     * @returns {Promise<string[]>} - Array of executable paths
-     */
-    async findByCommonInstallDirAll(executable, options = {}) {
+    async findByCommonInstallDirAllSync(fileName, options = {}) {
         const isWindows = process.platform === 'win32';
         const { deepSearch = false, maxDepth = 3 } = options;
 
         // Normalize executable name
-        let execName = executable;
+        let execName = fileName;
         if (isWindows) {
             execName = execName.toLowerCase().endsWith('.exe') ? execName : `${execName}.exe`;
         } else {
@@ -522,6 +571,7 @@ class FileFinder {
             if (resultArray.length > 0) {
                 log.success(`Found ${resultArray.length} instances of ${execName}:`);
                 resultArray.forEach(p => log.info(`  - ${p}`));
+                const cache = this.loadCache();
                 cache[cacheKey] = resultArray;
                 this.saveCache(cache);
             } else {

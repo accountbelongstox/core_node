@@ -10,8 +10,11 @@
     "#@globalvars": "./ncore/globalvars.js",
     "#@bdir": "./ncore/gvar/bdir.js",
     "#@gconfig": "./ncore/gvar/gconfig.js",
-    "#@logger": "./ncore/gvar/basic/logger.js",
-    "#@commander": "./ncore/gvar/basic/commander.js"
+    "#@logger": "./ncore/basic/libs/logger.js",
+    "#@commander": "./ncore/basic/libs/commander.js",
+    "#@freader": "./ncore/basic/libs/freader.js",
+    "#@fwriter": "./ncore/basic/libs/fwriter.js",
+    "#@downloader": "./ncore/basic/libs/downloader.js"
   },
   "private": true,
   "description": "ncore is a collection of core modules for Electron application development. This module set provides foundational infrastructure and common functionalities, including plugin management, logging, and core feature extensions. By using ncore, developers can efficiently build and manage complex Electron applications, enhancing maintainability and scalability throughout the development process.",

@@ -2,7 +2,7 @@ const path = require('path');
     const { sysarg, run } = require('#@utils_native');
     const { appentry, appentry_es, basedir } = require('./ncore/globalvars.js');
     const BaseInstall = require('./ncore/base/base_install/main.js');
-    const autoInstall = require('#@ncore/base/base_install/auto_install/main.js');
+    const autoInstall = require('#@/apps/base_install/auto_install/main.js');
     const printer = require('#@/ncore/base/printer.js');
     
     const __filename = __filename;

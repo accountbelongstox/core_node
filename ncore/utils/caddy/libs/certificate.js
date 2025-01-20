@@ -1,8 +1,8 @@
 const fs = require('fs').promises;
 const path = require('path');
-const logger = require('../../../gvar/basic/logger');
+const logger = require('../../../basic/libs/logger');
 const { CADDY_PATHS } = require('../provider/constants');
-const { execCmdResultText } = require('#@commander');
+const { execCmdResultText } = require('#@/ncore/basic/libs/commander.js');
 
 class CaddyCertificate {
     /**

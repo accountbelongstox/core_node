@@ -35,13 +35,19 @@ const DICTIONARY_DIR = path.join(APP_METADATA_DIR, 'dictionary');
 const LEMMAS_DIR = path.join(APP_METADATA_DIR, 'lemmas');
 const SENTENCES_DIR = path.join(APP_METADATA_DIR, 'sentences');
 const VOCABULARY_DIR = path.join(APP_METADATA_DIR, 'vocabulary');
+const TRANSLATE_TMP_DIR = path.join(APP_DATA_CACHE_DIR, 'translate_tmp');
+const TRANSLATE_DIR = path.join(APP_METADATA_DIR, 'translate');
 const VOCABULARY_TABLE_DIR = path.join(APP_DATA_CACHE_DIR, 'vocabulary_table');
 const META_DIR = path.join(APP_METADATA_DIR, 'meta');
 const DICT_SOUND_DIR = path.join(APP_OUTPUT_DIR, 'dictSoundLib');
 const DICT_SOUND_SUBTITLE_DIR = path.join(APP_OUTPUT_DIR, 'dictSoundSubtitle');
 const SENTENCES_SOUND_DIR = path.join(APP_OUTPUT_DIR, 'sentenceSoundLib');
 const SENTENCES_SOUND_SUBTITLE_DIR = path.join(APP_OUTPUT_DIR, 'sentenceSoundSubtitle');
-
+const OLD_DATA_DIR = path.join(APP_OUTPUT_DIR, 'oldData');
+const OLD_BING_DIR = path.join(OLD_DATA_DIR, 'bing');
+const OLD_BING_VOICE_DIR = path.join(OLD_BING_DIR, 'voice');
+const OLD_BING_IMAGE_DIR = path.join(OLD_BING_DIR, 'image');
+const OLD_DB_DIR = path.join(OLD_DATA_DIR, 'data');
 
 const WORD_VALIDITY_DIR = path.join(APP_METADATA_DIR, 'word_validity');
 const WORD_VALIDITY_FILE = path.join(WORD_VALIDITY_DIR, 'word_validity.json');
@@ -154,6 +160,11 @@ mkdir(SENTENCES_SOUND_SUBTITLE_DIR)
 mkdir(META_DIR)
 mkdir(VOCABULARY_TABLE_DIR)
 mkdir(WORD_VALIDITY_DIR)
+mkdir(OLD_BING_VOICE_DIR)
+mkdir(OLD_BING_IMAGE_DIR)
+mkdir(OLD_DB_DIR)
+mkdir(TRANSLATE_DIR)
+mkdir(TRANSLATE_TMP_DIR)
 
 const printWordStatus = () => {
     log.success(`Word count: ${WORD_TOTAL_COUNT}`);
@@ -221,4 +232,9 @@ module.exports = {
     GET_TTS_NODE_VOICES,
     WORD_VALIDITY_DIR,
     WORD_VALIDITY_FILE,
+    OLD_BING_VOICE_DIR,
+    OLD_BING_IMAGE_DIR,
+    OLD_DB_DIR,
+    TRANSLATE_DIR,
+    TRANSLATE_TMP_DIR,
 };

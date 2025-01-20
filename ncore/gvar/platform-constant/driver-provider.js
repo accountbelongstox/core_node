@@ -1,7 +1,7 @@
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const printer = require('../../base/printer.js');
+const printer = require('../../basic/printer.js');
 
 // Get all system drives (Windows) or mount points (Unix)
 function getSystemDrives() {

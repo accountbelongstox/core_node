@@ -1,4 +1,4 @@
-const { execCmdResultText } = require('#@commander');
+const { execCmdResultText } = require('#@/ncore/basic/libs/commander.js');
 const os = require('os');
 const gconfig = require('#@/ncore/gvar/gconfig.js');
 

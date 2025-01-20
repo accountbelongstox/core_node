@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const {execPowerShell} = require('#@commander');
+const {execPowerShell} = require('#@/ncore/basic/libs/commander.js');
 
 class BasicSettings  {
     constructor() {

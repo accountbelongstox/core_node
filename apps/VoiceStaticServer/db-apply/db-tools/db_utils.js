@@ -1,11 +1,12 @@
 const logger = require('#@logger');
 const { sequelize_init_tables } = require('../../provider/types/index.js');
 const logSpacename = 'DB-Utils';
+const tableMaps = sequelize_init_tables.contents
 
 function validateAndSetDefaults(obj) {
     // return obj
     const result = {};
-    const validKeys = new Set(Object.keys(sequelize_init_tables));
+    const validKeys = new Set(Object.keys(tableMaps));
     
     // // Check for unknown fields and remove them
     Object.keys(obj).forEach(key => {

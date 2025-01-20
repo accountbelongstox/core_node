@@ -1,4 +1,4 @@
-const { execCmdResultText,pipeExecCmd } = require('#@commander');
+const { execCmdResultText,pipeExecCmd } = require('#@/ncore/basic/libs/commander.js');
 const pythonSetup = require('../../../../../ncore/utils/dev_tool/lang_compiler_deploy/pythonSetup');
 const pythonVenv = require('../../../../../ncore/utils/dev_tool/lang_compiler_deploy/pythonVenv');
 const fs = require('fs');

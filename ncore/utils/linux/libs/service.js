@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { getAppName } = require('#@/ncore/gvar/libs/appname.js');
-const { pipeExecCmd,execCmdResultText } = require('#@commander');
+const { pipeExecCmd,execCmdResultText } = require('#@/ncore/basic/libs/commander.js');
 let log;
 try {
     const logger = require('#@logger');

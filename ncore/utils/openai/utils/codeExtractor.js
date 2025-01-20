@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const logger = require('#@logger');
 
 /**
  * Extract and parse code content from conversion result
@@ -41,9 +42,9 @@ class CodeExtractor {
             };
             fs.writeFileSync(detailsFile, JSON.stringify(details, null, 2), 'utf8');
 
-            console.warn(`${success ? 'Successful' : 'Failed'} extraction logged to: ${fullLogPath}`);
+            logger.warn(`${success ? 'Successful' : 'Failed'} extraction logged to: ${fullLogPath}`);
         } catch (error) {
-            console.error('Error logging extraction:', error);
+            logger.error('Error logging extraction:', error);
         }
     }
 
@@ -54,7 +55,7 @@ class CodeExtractor {
             const match = text.match(regex);
             
             if (!match || !match[1]) {
-                console.error('No code block found in conversion result');
+                logger.error('No code block found in conversion result');
                 if (filePath) {
                     this.logExtraction(filePath, text, false);
                 }
@@ -84,7 +85,7 @@ class CodeExtractor {
                     try {
                         return this.lines.find(line => line.lineNumber === lineNumber);
                     } catch (error) {
-                        console.error('Error getting line:', error);
+                        logger.error('Error getting line:', error);
                         return null;
                     }
                 },
@@ -96,7 +97,7 @@ class CodeExtractor {
                             line.lineNumber <= endLine
                         );
                     } catch (error) {
-                        console.error('Error getting lines:', error);
+                        logger.error('Error getting lines:', error);
                         return [];
                     }
                 },
@@ -105,13 +106,13 @@ class CodeExtractor {
                     try {
                         return this.rawCode;
                     } catch (error) {
-                        console.error('Error converting to string:', error);
+                        logger.error('Error converting to string:', error);
                         return '';
                     }
                 }
             };
         } catch (error) {
-            console.error('Error extracting code:', error);
+            logger.error('Error extracting code:', error);
             if (filePath) {
                 this.logExtraction(filePath, text, false);
             }

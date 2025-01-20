@@ -1,4 +1,4 @@
-const { execCmdResultText,pipeExecCmd } = require('#@commander');
+const { execCmdResultText,pipeExecCmd } = require('#@/ncore/basic/libs/commander.js');
 const { CWD } = require('#@/ncore/gvar/gdir.js');
 const fs = require('fs');
 const path = require('path');

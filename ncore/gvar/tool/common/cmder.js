@@ -220,11 +220,28 @@ function findPowerShellPath() {
     return null;
 }
 
+/**
+ * Execute command using Windows cmd shell
+ * @param {string} command - Command to execute
+ * @param {boolean} [ignoreError=false] - Whether to ignore execution errors
+ * @param {string|null} [cwd=null] - Working directory for command execution
+ * @returns {Promise<string>} Command output
+ */
+async function execCmdShell(command, ignoreError = false, cwd = null,print = true) {
+    command = command.replace(/^cmd\s+\/c\s+/, '');
+    const cmdCommand = `cmd /c ${command}`;
+    if (print) {
+        log.info(cmdCommand);
+    }
+    return execCmdResultText(cmdCommand, ignoreError, cwd);
+}
+
 module.exports = {
     isWindows,
     getPlatformShell,
     byteToStr,
     execCmdResultText,
     pipeExecCmd,
-    execPowerShell
+    execPowerShell,
+    execCmdShell
 }; 

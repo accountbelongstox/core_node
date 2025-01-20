@@ -279,6 +279,53 @@ function hasNoUndefined(...inputs) {
     return items.every(item => item !== undefined);
 }
 
+function delayForEach(array, delay = 1) {
+    return {
+        forEach: function(callback) {
+            return new Promise((resolve) => {
+                let index = 0;
+                const iterate = () => {
+                    if (index < array.length) {
+                        callback(array[index], index);
+                        index++;
+                        setTimeout(iterate, delay);
+                    } else {
+                        resolve();
+                    }
+                };
+                iterate();
+            });
+        }
+    };
+}
+
+function smartDelayForEach(array,delaySet=0.5) {
+    return {
+        forEach: function(callback) {
+            return new Promise((resolve) => {
+                let index = 0;
+                const shouldDelay = array.length > 10000;
+                const delay = shouldDelay ? delaySet : 0;
+                
+                const iterate = () => {
+                    if (index < array.length) {
+                        callback(array[index], index);
+                        index++;
+                        if (shouldDelay) {
+                            setTimeout(iterate, delay);
+                        } else {
+                            iterate();
+                        }
+                    } else {
+                        resolve();
+                    }
+                };
+                iterate();
+            });
+        }
+    };
+}
+
 module.exports = {
     extractList,
     splitList,
@@ -309,5 +356,7 @@ module.exports = {
     isArray,
     isAllNumbers,
     isAllStrings,
-    hasNoUndefined
+    hasNoUndefined,
+    delayForEach,
+    smartDelayForEach
 };

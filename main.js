@@ -3,7 +3,7 @@ const logger = require('#@logger');
 const path = require('path');
 const fs = require('fs');
 const { installService, removeService, getServiceStatus } = require('#@ncore/utils/linux/libs/service.js');
-const processHandler = require('#@/ncore/base/process_handler.js');
+const processHandler = require('#@/ncore/basic/process_hand/process_handler.js');
 
 const APP_DIR = path.join(__dirname, 'apps');
 const APP_NAME = sysarg.getArg('app');

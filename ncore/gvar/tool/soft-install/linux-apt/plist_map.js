@@ -86,18 +86,13 @@ const packageMap = {
         zypper: ['htop', 'iotop', 'iftop', 'sysstat'],
         winget: ['Microsoft.Sysinternals.ProcessExplorer', 'Microsoft.PowerToys']
     },
-
-    "7zip": {
-        category: "compression",
-        packages: {
-            winget: "7zip.7zip",
-            linux: {
-                apt: ["p7zip-full", "p7zip-rar"],  // Debian/Ubuntu
-                yum: ["p7zip", "p7zip-plugins"],    // RHEL/CentOS
-                apk: ["p7zip"],                     // Alpine
-                pacman: ["p7zip"]                   // Arch Linux
-            }
-        }
+    "7z": {
+        apt: ["p7zip-full", "p7zip-rar"],  // Debian/Ubuntu
+        yum: ["p7zip", "p7zip-plugins"],    // RHEL/CentOS
+        apk: ["p7zip"],                     // Alpine
+        pacman: ["p7zip"],                   // Arch Linux
+        zypper: ["p7zip", "p7zip-plugins"], // openSUSE
+        opkg: ["p7zip"]     
     }
 };
 
@@ -109,30 +104,7 @@ const commonPackageSets = {
     complete: Object.keys(packageMap)
 };
 
-// Get package list for specific system and package set
-function getPackagesForSystem(system, packageSet = 'minimal') {
-    if (!packageMap || !system) return [];
-
-    const packages = new Set();
-    const categories = commonPackageSets[packageSet] || commonPackageSets.minimal;
-
-    categories.forEach(category => {
-        const categoryPackages = packageMap[category]?.[system] || [];
-        categoryPackages.forEach(pkg => packages.add(pkg));
-    });
-
-    return Array.from(packages);
-}
-
-// Get packages for a specific category
-function getPackagesForCategory(system, category) {
-    if (!packageMap || !system || !packageMap[category]) return [];
-    return packageMap[category][system] || [];
-}
-
 module.exports = {
     packageMap,
     commonPackageSets,
-    getPackagesForSystem,
-    getPackagesForCategory
 }; 

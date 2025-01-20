@@ -224,6 +224,12 @@ function cleanWord(word) {
     }
 }
 
+function wordToFileName(word) {
+    word = cleanWord(word)
+    word = word.replace(/[^a-zA-Z0-9'\-]/g, '');
+    return word;
+}
+
 function cleanSentence(sentence) {
     try {
         if (!sentence || typeof sentence !== 'string') {
@@ -335,4 +341,5 @@ module.exports = {
     replaceSpaceToDash,
     isStr,
     extractHttpUrl,
+    wordToFileName
 };

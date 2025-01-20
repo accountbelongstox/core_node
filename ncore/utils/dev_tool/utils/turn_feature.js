@@ -1,5 +1,5 @@
 const { execSync, exec } = require('child_process');
-const { pipeExecCmd, execPowerShell, execCmd } = require('#@commander');
+const { pipeExecCmd, execPowerShell, execCmd } = require('#@/ncore/basic/libs/commander.js');
 
 class TurnFeature {
     constructor() {

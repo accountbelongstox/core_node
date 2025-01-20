@@ -402,7 +402,7 @@ function pipeExecCmd(command, useShell = true, cwd = null, inheritIO = true, env
     } catch (error) {
         log.error(`Command execution failed: ${command}`);
         log.error(error);
-        throw error;
+        return null;
     }
 }
 
@@ -410,6 +410,14 @@ function pipeExecCmdAsync(command, useShell = true, cwd = null, inheritIO = true
     return spawnAsync(command, useShell, cwd, inheritIO, env);
 }
 
+async function execCmdShell(command, ignoreError = false, cwd = null,print = true) {
+    command = command.replace(/^cmd\s+\/c\s+/, '');
+    const cmdCommand = `cmd /c ${command}`;
+    if (print) {
+        log.info(cmdCommand);
+    }
+    return execCmdResultText(cmdCommand, ignoreError, cwd);
+}
 
 module.exports = {
     getPlatformShell,
@@ -423,6 +431,7 @@ module.exports = {
     findPowerShellPath,
     execPowerShell,
     pipeExecCmd,
-    pipeExecCmdAsync
+    pipeExecCmdAsync,
+    execCmdShell
 };
 

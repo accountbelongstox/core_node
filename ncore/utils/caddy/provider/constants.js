@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { execCmdResultText } = require('#@commander');
+const { execCmdResultText } = require('#@/ncore/basic/libs/commander.js');
 
 const CADDY_PATHS = {
     ROOT: '/usr/local/caddy',

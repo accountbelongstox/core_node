@@ -1,5 +1,5 @@
 const { generateMd5, trimPunctuation, cleanWord, cleanSentence } = require('#@ncore/utils/tool/libs/strtool.js');
-const { DataTypes } = require('#@/ncore/utils/db_tool/libs/sequelize_db.js');
+const { DataTypes } = require('#@/ncore/utils/db_tool/sequelize_db.js');
 const logger = require('#@logger');
 
 const logSpacename = 'Provider-Types';
@@ -10,66 +10,68 @@ const ITEM_TYPE = {
 };
 
 const sequelize_init_tables = {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
-    content: {
-        type: DataTypes.TEXT,
-        allowNull: false,
-        unique: true
-    },
-    md5: {
-        type: DataTypes.STRING(32),
-        allowNull: false,
-        unique: true
-    },
-    type: {
-        type: DataTypes.CHAR,
-        allowNull: false
-    },
-    is_valid: {
-        type: DataTypes.BOOLEAN,
-        allowNull: true,
-    },
-    valid_provider: {
-        type: DataTypes.CHAR,
-        allowNull: true
-    },
-    translation: {
-        type: DataTypes.TEXT,
-        allowNull: true
-    },
-    translation_provider: {
-        type: DataTypes.CHAR,
-        allowNull: true
-    },
-    image_files: {
-        type: DataTypes.JSON,
-        allowNull: true
-    },
-    image_files_provider: {
-        type: DataTypes.CHAR,
-        allowNull: true
-    },
-    voice_files: {
-        type: DataTypes.JSON,
-        allowNull: true
-    },
-    voice_files_provider: {
-        type: DataTypes.CHAR,
-        allowNull: true
-    },
-    last_modified: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW
-    },
-    created_at: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW
+    contents: {
+        id: {
+            type: DataTypes.INTEGER,
+            primaryKey: true,
+            autoIncrement: true
+        },
+        content: {
+            type: DataTypes.TEXT,
+            allowNull: false,
+            unique: true
+        },
+        md5: {
+            type: DataTypes.STRING(32),
+            allowNull: false,
+            unique: true
+        },
+        type: {
+            type: DataTypes.CHAR,
+            allowNull: false
+        },
+        is_valid: {
+            type: DataTypes.BOOLEAN,
+            allowNull: true,
+        },
+        valid_provider: {
+            type: DataTypes.CHAR,
+            allowNull: true
+        },
+        translation: {
+            type: DataTypes.TEXT,
+            allowNull: true
+        },
+        translation_provider: {
+            type: DataTypes.CHAR,
+            allowNull: true
+        },
+        image_files: {
+            type: DataTypes.JSON,
+            allowNull: true
+        },
+        image_files_provider: {
+            type: DataTypes.CHAR,
+            allowNull: true
+        },
+        voice_files: {
+            type: DataTypes.JSON,
+            allowNull: true
+        },
+        voice_files_provider: {
+            type: DataTypes.CHAR,
+            allowNull: true
+        },
+        last_modified: {
+            type: DataTypes.DATE,
+            defaultValue: DataTypes.NOW
+        },
+        created_at: {
+            type: DataTypes.DATE,
+            defaultValue: DataTypes.NOW
+        }
     }
-}
+};
 
 /**
  * Get default value based on DataTypes
@@ -117,7 +119,7 @@ const validateAndWrapQueueItem = (data) => {
         }
 
         const result = {};
-        const validKeys = new Set(Object.keys(sequelize_init_tables));
+        const validKeys = new Set(Object.keys(sequelize_init_tables.contents));
 
         // Copy only valid fields and handle missing required fields
         Object.entries(data).forEach(([key, value]) => {
@@ -129,7 +131,7 @@ const validateAndWrapQueueItem = (data) => {
         });
 
         // Add missing fields with appropriate defaults based on schema
-        Object.entries(sequelize_init_tables).forEach(([key, schema]) => {
+        Object.entries(sequelize_init_tables.contents).forEach(([key, schema]) => {
             if (key === 'id') {
                 return; // Skip id field as it's auto-generated
             }

@@ -1,132 +1,148 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const systemInfo = require('../system_info.js');
-let log= {
-    info: (...args) => console.log('[INFO]', ...args),
-    warn: (...args) => console.warn('[WARN]', ...args),
-    error: (...args) => console.error('[ERROR]', ...args),
-    success: (...args) => console.log('[SUCCESS]', ...args),
-    debug: (...args) => console.log('[DEBUG]', ...args)
+const log = {
+    colors: {
+        reset: '\x1b[0m',
+        // Regular colors
+        red: '\x1b[31m',
+        green: '\x1b[32m',
+        yellow: '\x1b[33m',
+        blue: '\x1b[34m',
+        magenta: '\x1b[35m',
+        cyan: '\x1b[36m',
+        white: '\x1b[37m',
+        // Bright colors
+        brightRed: '\x1b[91m',
+        brightGreen: '\x1b[92m',
+        brightYellow: '\x1b[93m',
+        brightBlue: '\x1b[94m',
+        brightMagenta: '\x1b[95m',
+        brightCyan: '\x1b[96m',
+        brightWhite: '\x1b[97m',
+    },
+
+    info: function(...args) {
+        console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
+    },
+    warn: function(...args) {
+        console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
+    },
+    error: function(...args) {
+        console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
+    },
+    success: function(...args) {
+        console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
+    },
+    debug: function(...args) {
+        console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
+    },
+    command: function(...args) {
+        console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
+    }
 };
 
 const { smartInstaller } = require('../../tool/soft-install/index.js');
-const { pipeExecCmd } = require('../../tool/common/cmder.js');
+const { pipeExecCmd, execCmdResultText } = require('../../tool/common/cmder.js');
 const fileFinder = require('../../tool/common/ffinder.js');
+const { findExecutable } = require('../../tool/soft-install/executable_finder.js');
 const isWindows = os.platform() === 'win32';
 const initializedInstall = {
     "7zip": {
-        install:false,
-        search:false,
+        install: false,
+        search: false,
     }
 }
 
 class Ensure7Zip {
     constructor() {
-        this.windows7zUrl = 'https://www.7-zip.org/a/7z2408-x64.exe';
-        this.linux7zUrl = 'https://www.7-zip.org/a/7z2408-linux-x64.tar.xz';
-        this.defaultInstallDir = systemInfo.isWindows() ? 'D:\\lang_compiler\\7z' : '/usr/bin';
     }
 
     ensure7zip = async () => {
+        const totalStartTime = Date.now();
+        let stepStartTime;
         const exeBy7zName = isWindows ? '7z.exe' : '7z';
+
+        // Check cache
+        stepStartTime = Date.now();
         if (fileFinder.isFinderCacheValid(exeBy7zName)) {
-            return fileFinder.readCacheByKey(exeBy7zName);
+            const exePath = fileFinder.readCacheByKey(exeBy7zName);
+            log.info(`Cache check completed in ${Date.now() - stepStartTime}ms`);
+
+            // Get version from cache
+            stepStartTime = Date.now();
+            const version = await this.getVersion(exePath);
+            if (version) {
+                log.info(`Found 7-Zip in cache: ${exePath}`);
+                log.info(`Version: ${version}`);
+                log.info(`Version check completed in ${Date.now() - stepStartTime}ms`);
+            }
+            log.info(`Total time taken: ${Date.now() - totalStartTime}ms`);
+            return exePath;
         }
-        let exeBy7zPath = null
-        log.warn(`No cached 7-Zip path found, proceeding to find or install 7-Zip...`);
-        if (!initializedInstall["7zip"].install) {
-            initializedInstall["7zip"].install = true
-            await smartInstaller.smartInstall('7zip');
+        log.info(`Cache check completed in ${Date.now() - stepStartTime}ms`);
+
+        // Initial executable search
+        stepStartTime = Date.now();
+        let exeBy7zPath = await findExecutable(exeBy7zName);
+        log.info(`Initial search completed in ${Date.now() - stepStartTime}ms`);
+
+        if (!exeBy7zPath) {
+            log.info('7z not found, attempting to install...');
+            
+            // Installation process
+            if (!initializedInstall["7zip"].install) {
+                stepStartTime = Date.now();
+                await smartInstaller.smartInstall('7zip');
+                await smartInstaller.smartInstall('compression');
+                initializedInstall["7zip"].install = true;
+                log.success('Installation completed successfully');
+                log.info(`Installation completed in ${Date.now() - stepStartTime}ms`);
+            }
+
+            // Deep search after installation
+            log.info('Searching for 7z executable (timeout: 20s)...');
+            stepStartTime = Date.now();
+            exeBy7zPath = await findExecutable(exeBy7zName, {
+                timeout: 20000,
+            });
+            log.info(`Deep search completed in ${Date.now() - stepStartTime}ms`);
+
+            if (exeBy7zPath) {
+                stepStartTime = Date.now();
+                fileFinder.saveCacheByKey(exeBy7zName, exeBy7zPath);
+                log.info(`Cache save completed in ${Date.now() - stepStartTime}ms`);
+            }
         }
-        if (!initializedInstall["7zip"].search) {
-            initializedInstall["7zip"].search = true
-            exeBy7zPath = await fileFinder.findByCommonInstallDir(exeBy7zName);
+
+        // Version check
+        if (exeBy7zPath) {
+            stepStartTime = Date.now();
+            const version = await this.getVersion(exeBy7zPath);
+            if (version) {
+                log.info(`Found 7-Zip: ${exeBy7zPath}`);
+                log.info(`Version: ${version}`);
+            }
+            log.info(`Version check completed in ${Date.now() - stepStartTime}ms`);
         }
-        if(exeBy7zPath){
-            fileFinder.saveCacheByKey(exeBy7zName,exeBy7zPath);
-        }
+        
+        log.info(`Total time taken: ${Date.now() - totalStartTime}ms`);
         return exeBy7zPath;
     }
 
-    verify = (executablePath) => {
+    getVersion = async (executablePath) => {
         try {
             let cmd = ``;
-            if (systemInfo.isWindows()) {
+            if (isWindows) {
                 cmd = `"${executablePath}" | findstr /i "7-Zip"`;
             } else {
                 cmd = `"${executablePath}" | grep -i "7-Zip"`;
             }
-            console.log(`Executing command: ${cmd}`);
-            const version = pipeExecCmd(cmd);
-            return true;
+            const version = await execCmdResultText(cmd);
+            return version;
         } catch (error) {
             console.error('7-Zip executable verification failed:', error);
             return false;
-        }
-    }
-
-    /**
-     * Install 7-Zip using batch script logic
-     * @param {string} installDir - Installation directory
-     * @returns {string} Path to 7z executable
-     */
-    installUsingSilentMode(installDir) {
-        const tempDir = path.join(installDir, 'tmp');
-        const exePath = path.join(installDir, '7z.exe');
-        const installerPath = path.join(tempDir, '7z-installer.exe');
-        const downloadUrl = 'https://www.7-zip.org/a/7z2301-x64.exe';
-
-        // Create temp directory if not exists
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
-
-        // Skip if already installed
-        if (fs.existsSync(exePath)) {
-            log.info('7-Zip already installed, skipping installation.');
-            return exePath;
-        }
-
-        // Clean up old installer if exists
-        if (fs.existsSync(installerPath)) {
-            log.info('Removing old 7-Zip installer...');
-            fs.unlinkSync(installerPath);
-        }
-
-        try {
-            // Download installer
-            log.info('Downloading 7-Zip installer...');
-            const command = `curl -L "${downloadUrl}" -o "${installerPath}"`;
-            pipeExecCmd(command);
-
-            if (!fs.existsSync(installerPath)) {
-                throw new Error('Failed to download 7-Zip installer');
-            }
-
-            // Install silently
-            log.info(`Installing 7-Zip to ${installDir}...`);
-            pipeExecCmd(`"${installerPath}" /S /D=${installDir}`);
-
-            // Verify installation
-            if (fs.existsSync(exePath)) {
-                log.success('7-Zip installed successfully');
-                return exePath;
-            } else {
-                throw new Error('7-Zip installation failed - executable not found');
-            }
-        } catch (error) {
-            log.error('7-Zip installation failed:', error.message);
-            throw error;
-        } finally {
-            // Clean up installer
-            if (fs.existsSync(installerPath)) {
-                try {
-                    fs.unlinkSync(installerPath);
-                } catch (error) {
-                    log.warning('Failed to clean up installer:', error.message);
-                }
-            }
         }
     }
 }

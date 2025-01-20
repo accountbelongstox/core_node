@@ -1,4 +1,4 @@
-const { execCmdResultText, pipeExecCmd } = require('#@commander');
+const { execCmdResultText, pipeExecCmd } = require('#@/ncore/basic/libs/commander.js');
 let log;
 try {
     const logger = require('#@logger');
