@@ -42,44 +42,44 @@ async function processNextWordByServer() {
 async function printDatabaseSummary() {
     const type = ITEM_TYPE.WORD;
     const typeName = type === ITEM_TYPE.WORD ? 'Word' : 'Sentence';
-    
+
     logger.success('-------------------------------------------------------------------------------');
     logger.success(`Database Summary (Startup Statistics) - Type: ${typeName} [${type}]`);
     logger.success('-------------------------------------------------------------------------------');
-    
+
     const totalCount = await getContentCount(type);
     let startIndex = 0;
     const batchSize = 10000;
-    
+
     let totalWithVoice = 0;
     let totalWithImage = 0;
-    
+
     while (startIndex < totalCount) {
         const batch = await getWordsByDB(startIndex, startIndex + batchSize);
         if (!batch || batch.length === 0) break;
-        
+
         // Count items with voice_files and image_files
         for (const item of batch) {
             if (item.voice_files && item.voice_files.length > 0) totalWithVoice++;
             if (item.image_files && item.image_files.length > 0) totalWithImage++;
         }
-        
+
         // Show progress
         logger.progressBar(startIndex + batch.length, totalCount, {
             format: `Analyzing ${typeName} database: [{bar}] {percentage}% | ${startIndex + batch.length}/${totalCount} | ` +
                 `With Voice: ${totalWithVoice} | With Image: ${totalWithImage}`
         });
-        
+
         startIndex += batchSize;
     }
-    
+
     // Clear progress bar and print final statistics
     logger.clearRefresh();
     logger.success('-------------------------------------------------------------------------------');
     logger.success(`Final Database Statistics - Type: ${typeName} [${type}]`);
     logger.success(`Total ${typeName} Count: ${totalCount}`);
-    logger.success(`${typeName} with Voice Files: ${totalWithVoice} (${((totalWithVoice/totalCount)*100).toFixed(2)}%)`);
-    logger.success(`${typeName} with Image Files: ${totalWithImage} (${((totalWithImage/totalCount)*100).toFixed(2)}%)`);
+    logger.success(`${typeName} with Voice Files: ${totalWithVoice} (${((totalWithVoice / totalCount) * 100).toFixed(2)}%)`);
+    logger.success(`${typeName} with Image Files: ${totalWithImage} (${((totalWithImage / totalCount) * 100).toFixed(2)}%)`);
     logger.success('-------------------------------------------------------------------------------');
 }
 
@@ -118,7 +118,7 @@ async function initialize_server() {
                 // Get cached item and check voice_files
                 const cachedItem = await getCachedItem(queueItem.content, ITEM_TYPE.WORD);
                 const needsUpdate = !cachedItem || !cachedItem.voice_files || cachedItem.voice_files.length === 0;
-                
+
                 if (needsUpdate) {
                     updateBatch.push({
                         id: queueItem.id,

@@ -5,6 +5,7 @@ const { initialize_server, startWordProcessingByServer, } = require('./tools/ser
 const { checkAllWordValidityWithOpenAI } = require('./tools/server_initial_valid');
 const { initialize_not_client } = require('./tools/not_client');
 const { startInputOldDataTranslate } = require('./tools/server_initial_trans_input');
+const { startInputProcessOldDataTranslate } = require('./tools/server_initial_process_trans_input');
 const { initialize_client, startWordProcessingByClient } = require('./tools/client');
 const { serverTest } = require('./tools/server_test');
 class DictInitController {
@@ -20,7 +21,8 @@ class DictInitController {
             if (IS_SERVER) {
                 logger.success(`Role:${ROLE} initialize server..`);
                 // await checkAllWordValidityWithOpenAI();
-                await startInputOldDataTranslate();
+                await startInputProcessOldDataTranslate();
+                // await startInputOldDataTranslate();
                 // await serverTest();
                 
                 // await initialize_server();

@@ -1,5 +1,5 @@
 const path = require('path');
-const file = require('#@/ncore/utils/ftool/libs/file.js');
+const { fsexists,isAbsolutePath } = require('#@/ncore/utils/ftool/libs/file.js');
 const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, initializeWatcher, DICT_SOUND_SUBTITLE_DIR, SENTENCES_SOUND_SUBTITLE_DIR } = require('../../../provider/index');
 const { findEdgeTTSBinary } = require('./edgeTTSFinder');
 const { toFileName } = require('#@ncore/utils/tool/libs/strtool.js');
@@ -79,7 +79,7 @@ const checkValidFile = async (filePath, type) => {
     const { DICT_SOUND_WATCHER, SENTENCES_SOUND_WATCHER } = await initializeWatcher();
     const watcher = type == ITEM_TYPE.WORD ? DICT_SOUND_WATCHER : SENTENCES_SOUND_WATCHER;
     const dir = type == ITEM_TYPE.WORD ? DICT_SOUND_DIR : SENTENCES_SOUND_DIR;
-    const absoluteFilePath = file.isAbsulutePath(filePath) ? filePath : path.join(dir, filePath);
+    const absoluteFilePath = isAbsolutePath(filePath) ? filePath : path.join(dir, filePath);
     const validFile = await watcher.findValidFile(absoluteFilePath);
     if (validFile) {
         return validFile;
