@@ -137,6 +137,21 @@ function formatSize(bytes) {
 }
 
 /**
+ * Escape path for command line usage
+ * @param {string} filePath - Path to escape
+ * @returns {string} Escaped path
+ */
+function escapePathForCmd(filePath) {
+    if (process.platform === 'win32') {
+        // For Windows: escape quotes with backslash and wrap in quotes
+        return `"${filePath.replace(/"/g, '\\"')}"`;
+    } else {
+        // For Linux: escape quotes with backslash and wrap in quotes
+        return `"${filePath.replace(/"/g, '\\\\"')}"`;
+    }
+}
+
+/**
  * Compress file or directory using 7z
  */
 async function compress(sourcePath, targetPath) {
@@ -151,16 +166,16 @@ async function compress(sourcePath, targetPath) {
         fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    // Build 7z command
+    // Build 7z command with escaped paths
     const cmd = [
-        sevenZipPath,
+        escapePathForCmd(sevenZipPath),
         'a',           // Add to archive
         '-tzip',       // ZIP format
         '-mx=9',       // Maximum compression
         '-mmt=on',     // Multi-threading on
         '-y',          // Yes to all queries (overwrite)
-        targetPath,    // Output file
-        sourcePath     // Input path
+        escapePathForCmd(targetPath),    // Output file
+        escapePathForCmd(sourcePath)     // Input path
     ].join(' ');
 
     try {
@@ -186,14 +201,14 @@ async function extractFile(zipPath, targetPath) {
         fs.mkdirSync(targetPath, { recursive: true });
     }
 
-    // Build 7z command
+    // Build 7z command with escaped paths
     const cmd = [
-        sevenZipPath,
+        escapePathForCmd(sevenZipPath),
         'x',           // Extract with full paths
         '-y',          // Yes to all queries (overwrite)
         '-aoa',        // Overwrite all existing files
-        '-o' + targetPath,  // Output directory
-        zipPath       // Input file
+        '-o' + escapePathForCmd(targetPath),  // Output directory
+        escapePathForCmd(zipPath)       // Input file
     ].join(' ');
 
     try {
@@ -296,6 +311,34 @@ function checkPathType(itemPath, type) {
     }
 }
 
+/**
+ * Format source and target paths for display, shortening if too long
+ * @param {string} filePath - Source file path
+ * @param {string} targetPath - Target file path
+ * @param {number} [maxLength=100] - Maximum total length
+ * @returns {string} Formatted path string
+ */
+function formatTaskPaths(filePath, targetPath, maxLength = 100) {
+    const arrow = ' -> ';
+    const fullPath = `${filePath}${arrow}${targetPath}`;
+    
+    if (fullPath.length <= maxLength) {
+        return fullPath;
+    }
+
+    // Try with basenames for both paths
+    const sourceBase = path.basename(filePath);
+    const targetBase = path.basename(targetPath);
+    const shortenedPath = `${sourceBase}${arrow}${targetBase}`;
+    
+    if (shortenedPath.length <= maxLength) {
+        return shortenedPath;
+    }
+
+    // If still too long, use only source basename
+    return `${sourceBase}${arrow}...`;
+}
+
 module.exports = {
     getSystemUsage,
     printTaskSummary,
@@ -306,5 +349,7 @@ module.exports = {
     calculateSize,
     formatSize,
     scanDirectorySize,
-    checkPathType
+    checkPathType,
+    escapePathForCmd,
+    formatTaskPaths
 }; 

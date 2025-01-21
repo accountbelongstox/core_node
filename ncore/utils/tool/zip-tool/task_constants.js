@@ -1,5 +1,5 @@
 const logger = require('#@logger');
-const { formatSize } = require('./zutils');
+const { formatSize } = require('./task_zutils');
 
 // Queue state
 let queue = [];

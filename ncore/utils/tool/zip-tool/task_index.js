@@ -1,4 +1,4 @@
-const state = require('./constants');
+const state = require('./task_constants');
 const taskManager = require('./task_manager');
 const bestCompressor = require('./best_compressor');
 

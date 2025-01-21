@@ -4,6 +4,7 @@ const { APP_DATA_CACHE_DIR } = require('#@/ncore/gvar/gdir.js');
 const FormData = require('form-data');
 const axios = require('axios');
 const { SUBMIT_AUDIO_SIMPLE_URL } = require('../../provider/index.js');
+const {readJson} = require('#@freader');
 
 const SIMPLE_SUBMISSION_LOG_FILE = path.join(APP_DATA_CACHE_DIR, 'audio_simple_submissions.json');
 const log = require('#@logger');
@@ -14,7 +15,7 @@ function loadSubmissionsCache() {
     if (submissionsCache !== null) return;
     try {
         ensureSimpleSubmissionLog();
-        submissionsCache = JSON.parse(fs.readFileSync(SIMPLE_SUBMISSION_LOG_FILE, 'utf8'));
+        submissionsCache = readJson(SIMPLE_SUBMISSION_LOG_FILE);
         log.info('Submissions cache loaded from file');
         let removed = false;
         for (const [key, value] of Object.entries(submissionsCache)) {
@@ -29,6 +30,8 @@ function loadSubmissionsCache() {
         }
     } catch (error) {
         log.error('Error loading submissions cache:', error);
+        log.error(SIMPLE_SUBMISSION_LOG_FILE);
+
         submissionsCache = {};
     }
 }

@@ -1,37 +1,55 @@
+// const { addWordBack, getWordFront, getWordCount, ITEM_TYPE } = require('../../provider/QueueManager.js');
+const { OLD_DB_DIR, TRANSLATE_TMP_DIR, TRANSLATE_DIR } = require('../../provider/index');
+const { query } = require('#@/ncore/utils/db_tool/sequelize-oporate/sequelize_query.js');
+const { hardDelete } = require('#@/ncore/utils/db_tool/sequelize-oporate/sequelize_delete.js');
+const path = require('path');
+const fs = require('fs').promises;
+const { downloadFile } = require('#@/ncore/basic/libs/downloader.js');
+const { formatDurationToStr } = require('#@/ncore/utils/tool/libs/datetool.js');
+const { getOldDatabase } = require('#@/ncore/utils/db_tool/sequelize_db.js');
 const logger = require('#@logger');
-// const { streamChat } = require('#@/ncore/utils/openai/chat.js');
-const { smartDelayForEach } = require('#@/ncore/utils/tool/libs/arrtool.js');
-const { get7zExecutable } = require('#@/ncore/gvar/bdir.js');
+const FileMonitor = require('#@/ncore/utils/ftool/libs/fmonitor.js');
+const gconfig = require('#@/ncore/gvar/gconfig.js');
+const dbUrl = gconfig.getConfig(`OLD_DB_URL`);
+const { writeJson, exists } = require('#@/ncore/basic/libs/fwriter.js');
+const dataOldName = gconfig.getConfig(`OLD_DB_NAME`);
+const dbPath = path.join(OLD_DB_DIR, dataOldName);
+const { replaceExtension } = require('#@/ncore/utils/ftool/libs/fpath.js');
+const { sequelize_init_tables } = require('../../provider/types/old_data_types.js');
+const { smartDelayForEach, delayForEach } = require('#@/ncore/utils/tool/libs/arrtool.js');
+const { generateMd5, wordToFileName } = require('#@/ncore/utils/tool/libs/strtool.js');
+const zipTool = require('#@/ncore/utils/tool/zip-tool/task_index.js');
 
-
-async function testLoggerWarnInterval() {
-    const messages = [
-        'Database connection timeout',
-        'Memory usage exceeds threshold',
-        'High CPU load detected',
-        'Network latency is high',
-        'Cache miss rate increasing'
-    ];
-
-    let counter = 0;
-    const intervalId = setInterval(() => {
-        const messageIndex = counter % messages.length;
-        const currentMessage = `Warning ${counter + 1}: ${messages[messageIndex]}`;
-        logger.warn(currentMessage);
-        
-        counter++;
-        if (counter >= 40000) {
-            clearInterval(intervalId);
-            logger.info('Logger warn interval test completed');
-        }
-    }, 200); // Send warning every 200ms
-}
+const { Worker, isMainThread, parentPort } = require('worker_threads');
 
 async function serverTest() {
-    const exe = await get7zExecutable();
-    logger.info(`7z executable: ${exe}`);
+    let forLimit = 10;
+    const files = await fs.readdir(TRANSLATE_TMP_DIR);
+    const totalFiles = files.length;
+    const startTime = Date.now();
+
+    for(let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fullPath = path.join(TRANSLATE_TMP_DIR, file);
+        const zipTargetPath = replaceExtension(path.join(TRANSLATE_DIR, file), 'j7son');
+        
+        zipTool.addFileCompressionTask(fullPath, zipTargetPath, {}, (err) => {
+            if(err) {
+                logger.error(`error: ${err}`);
+            }
+        }, false);
+
+        if(i % 1000 === 0) {
+            const currentDuration = formatDurationToStr(Date.now() - startTime);
+            const progress = ((i / totalFiles) * 100).toFixed(2);
+            logger.info(`Progress: ${i}/${totalFiles} (${progress}%) files processed in ${currentDuration}`);
+        }
+    }
+
+    const totalDuration = formatDurationToStr(Date.now() - startTime);
+    logger.info(`All ${totalFiles} files processed in ${totalDuration}`);
 }
 
 module.exports = {
     serverTest,
-};
+}

@@ -10,7 +10,8 @@ const colors = {
     yellow: '\x1b[33m',
     command: '\x1b[35m',
     log: '\x1b[32m',
-    debug: '\x1b[33m'
+    debug: '\x1b[33m',
+    gray: '\x1b[90m'
 };
 
 // Color wrapper functions
@@ -21,7 +22,8 @@ const colorize = {
     yellow: (text) => `${colors.yellow}${text}${colors.reset}`,
     command: (text) => `${colors.command}${text}${colors.reset}`,
     log: (text) => `${colors.log}${text}${colors.reset}`,
-    debug: (text) => `${colors.debug}${text}${colors.reset}`
+    debug: (text) => `${colors.debug}${text}${colors.reset}`,
+    gray: (text) => `${colors.gray}${text}${colors.reset}`
 };
 
 // Namespace stats storage
@@ -105,6 +107,35 @@ const printBufferController = (funcNamespace, namespace, intervalSeconds, messag
     return { shouldLog: false, skipped: 0, buffer: [] };
 };
 
+// Storage for limited logging counts
+const limitedLogStorage = new Map();
+const limitedDebugStorage = new Map(); // Add storage for debug messages
+
+/**
+ * Get the current count for a namespace
+ * @private
+ */
+function getLimitedLogCount(namespace) {
+    return limitedLogStorage.get(namespace) || 0;
+}
+
+/**
+ * Check if debug message has been shown for namespace
+ * @private
+ */
+function hasShownDebug(namespace) {
+    return limitedDebugStorage.get(namespace) || false;
+}
+
+/**
+ * Increment the count for a namespace
+ * @private
+ */
+function incrementLimitedLogCount(namespace) {
+    const currentCount = getLimitedLogCount(namespace);
+    limitedLogStorage.set(namespace, currentCount + 1);
+    return currentCount + 1;
+}
 
 class Logger {
     constructor() {
@@ -119,6 +150,7 @@ class Logger {
             debug: 6,
             refresh: 9,
             multiProgress: 10,
+            gray: 11,
         };
         this.lastLineCount = 0;
         this.progressBarWidth = 40;
@@ -127,6 +159,7 @@ class Logger {
 
         // Configure log methods and their colors
         this.logConfigs = {
+            gray: { color: 'gray', prefix: 'GRAY', level: 'info' },
             success: { color: 'green', prefix: 'SUCCESS', level: 'info' },
             log: { color: 'log', prefix: 'LOG', level: 'log' },
             command: { color: 'command', prefix: 'COMMAND', level: 'info' },
@@ -217,6 +250,7 @@ class Logger {
     command(message, ...args) { this._log('command', message, ...args); }
     error(message, ...args) { this._log('error', message, ...args); }
     warn(message, ...args) { this._log('warn', message, ...args); }
+    gray(message, ...args) { this._log('gray', message, ...args); }
     info(message, ...args) { this._log('info', message, ...args); }
     debug(message, ...args) { this._log('debug', message, ...args); }
 
@@ -343,6 +377,41 @@ class Logger {
 
         // Update line count
         this.lastLineCount = lines.length;
+    }
+
+    /**
+     * Log a message limited number of times within a namespace
+     * @param {string} message - Message to log
+     * @param {number} [maxCount=1] - Maximum number of times to print
+     * @param {string} [namespace='default'] - Namespace for the message
+     * @param {string} [type='info'] - Log type ('info', 'warn', 'error', etc.)
+     */
+    limitedLog(message, maxCount = 1, namespace = 'default', type = 'info') {
+        const count = incrementLimitedLogCount(namespace);
+        if (count <= maxCount) {
+            this._log(type, message);
+        }
+        if (count === maxCount && !hasShownDebug(namespace)) {
+            this.debug(`Namespace "${namespace}" has reached its print limit of ${maxCount}`);
+            limitedDebugStorage.set(namespace, true);
+        }
+    }
+
+    /**
+     * Reset the print count for a namespace
+     * @param {string} namespace - Namespace to reset
+     */
+    resetLimitedLog(namespace = 'default') {
+        limitedLogStorage.delete(namespace);
+        limitedDebugStorage.delete(namespace);
+    }
+
+    /**
+     * Reset all limited log counts
+     */
+    resetAllLimitedLogs() {
+        limitedLogStorage.clear();
+        limitedDebugStorage.clear();
     }
 }
 

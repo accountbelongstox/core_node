@@ -84,7 +84,6 @@ async function hardDelete(sequelize, options = {}) {
         const whereClause = buildWhereClause(where);
 
         if (model) {
-            console.log(model)
             const count = await model.destroy({
                 where: whereClause
             });

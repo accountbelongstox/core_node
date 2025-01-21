@@ -1,7 +1,7 @@
 const logger = require('#@logger');
-const { calculateSize, formatSize, generateCompressTargetPath, generateExtractTargetPath, checkPathType, scanDirectorySize } = require('./zutils');
-const state = require('./constants');
-const { processQueue } = require('./executor');
+const { calculateSize, formatSize, generateCompressTargetPath, generateExtractTargetPath, checkPathType, scanDirectorySize, compress, extractFile, formatTaskPaths } = require('./task_zutils');
+const state = require('./task_constants');
+const { processQueue } = require('./task_executor');
 
 /**
  * Set or update group callback
@@ -22,7 +22,7 @@ function setGroupCallback(groupName, callback) {
  * @returns {Object} Normalized parameters and task info
  * @private
  */
-function prepareCompressionTask(sourcePath, targetPath, options, callback, type) {
+function prepareCompressionTask(sourcePath, targetPath, options, callback, type, printInfo = true) {
     // Normalize parameters
     let finalTargetPath, finalOptions, finalCallback;
 
@@ -53,15 +53,21 @@ function prepareCompressionTask(sourcePath, targetPath, options, callback, type)
     if (typeof sourceSize !== 'number') {
         if (type === 'file') {
             sourceSize = calculateSize(sourcePath);
-            logger.info(`Source file size: ${formatSize(sourceSize)}`);
+            if (printInfo) {
+                logger.info(`Source file size: ${formatSize(sourceSize)}`);
+            }
         } else {
             const scanResult = scanDirectorySize(sourcePath, finalOptions.scanTimeout || 5000);
             sourceSize = scanResult.size;
             scanComplete = scanResult.isComplete;
-            logger.info(`Source directory ${scanComplete ? 'complete' : 'estimated'} size: ${formatSize(sourceSize)}`);
+            if (printInfo) {
+                logger.info(`Source directory ${scanComplete ? 'complete' : 'estimated'} size: ${formatSize(sourceSize)}`);
+            }
         }
     } else {
-        logger.info(`Using provided source size: ${formatSize(sourceSize)}`);
+        if (printInfo) {
+            logger.info(`Using provided source size: ${formatSize(sourceSize)}`);
+        }
     }
 
     // Store size info
@@ -71,7 +77,9 @@ function prepareCompressionTask(sourcePath, targetPath, options, callback, type)
     // Check size limit
     if (sourceSize > state.getMaxProcessingSize()) {
         if (!scanComplete) {
-            logger.warn(`Size limit check based on estimated size: ${formatSize(sourceSize)}`);
+            if (printInfo) {
+                logger.warn(`Size limit check based on estimated size: ${formatSize(sourceSize)}`);
+            }
         }
         const error = new Error(`Adding task would exceed size limit of ${formatSize(state.getMaxProcessingSize())}`);
         if (typeof finalCallback === 'function') {
@@ -83,7 +91,7 @@ function prepareCompressionTask(sourcePath, targetPath, options, callback, type)
     // Generate target path if not provided
     finalTargetPath = finalTargetPath || generateCompressTargetPath(sourcePath, finalOptions.extension || '.7z');
     const groupName = finalOptions.groupName || 'default';
-    
+
     // Set or update group callback if provided
     if (finalOptions.groupCallback) {
         setGroupCallback(groupName, finalOptions.groupCallback);
@@ -100,7 +108,7 @@ function prepareCompressionTask(sourcePath, targetPath, options, callback, type)
         scanComplete
     };
 }
-
+let processTimeOut = null;
 /**
  * Add file compression task to queue
  * @param {string} filePath - Source file path to compress
@@ -114,8 +122,8 @@ function prepareCompressionTask(sourcePath, targetPath, options, callback, type)
  * @param {Function} [callback] - Callback function
  * @returns {Promise<void>}
  */
-async function addFileCompressionTask(filePath, targetPath, options, callback) {
-    const taskInfo = prepareCompressionTask(filePath, targetPath, options, callback, 'file');
+async function addFileCompressionTask(filePath, targetPath, options, callback, printInfo = true) {
+    const taskInfo = prepareCompressionTask(filePath, targetPath, options, callback, 'file', printInfo);
     const task = {
         type: 'compress',
         sourcePath: filePath,
@@ -129,11 +137,18 @@ async function addFileCompressionTask(filePath, targetPath, options, callback) {
     };
 
     state.addToQueue(task);
-    logger.info(`Added file compression task: ${filePath} (${formatSize(taskInfo.sourceSize)}) -> ${taskInfo.targetPath} (Group: ${taskInfo.groupName})`);
-
-    if (!state.isProcessing()) {
-        await processQueue();
+    if (printInfo) {
+        const isProcessing = state.isProcessing();
+        const queueLength = state.getQueueLength();
+        const message = `Zip File Task: ${formatTaskPaths(filePath, taskInfo.targetPath)} (${formatSize(taskInfo.sourceSize)}) (Group: ${taskInfo.groupName}) queueLength:${queueLength} Processing:${isProcessing}`;
+        logger.gray(message,);
     }
+    // if(!processTimeOut){
+    //     processTimeOut = setTimeout(()=>{
+    processQueue();
+    //         processTimeOut = null;
+    //     },0.5);
+    // }
 }
 
 /**
@@ -150,7 +165,7 @@ async function addFileCompressionTask(filePath, targetPath, options, callback) {
  * @param {Function} [options.callback] - Individual task callback function
  * @returns {Promise<void>}
  */
-async function addDirectoryCompressionTask(dirPath, targetPath, options = {}) {
+async function addDirectoryCompressionTask(dirPath, targetPath, options = {}, printInfo = true) {
     // Normalize options with defaults
     const normalizedOptions = {
         removeSource: false,
@@ -163,7 +178,7 @@ async function addDirectoryCompressionTask(dirPath, targetPath, options = {}) {
         ...options
     };
 
-    const taskInfo = prepareCompressionTask(dirPath, targetPath, normalizedOptions, normalizedOptions.callback, 'directory');
+    const taskInfo = prepareCompressionTask(dirPath, targetPath, normalizedOptions, normalizedOptions.callback, 'directory', printInfo);
     const task = {
         type: 'compress',
         sourcePath: dirPath,
@@ -177,11 +192,9 @@ async function addDirectoryCompressionTask(dirPath, targetPath, options = {}) {
     };
 
     state.addToQueue(task);
-    logger.info(`Added directory compression task: ${dirPath} (${formatSize(taskInfo.sourceSize)}) -> ${taskInfo.targetPath} (Group: ${taskInfo.groupName})`);
+    logger.info(`Added directory compression task: ${formatTaskPaths(dirPath, taskInfo.targetPath)} (${formatSize(taskInfo.sourceSize)}) (Group: ${taskInfo.groupName})`);
 
-    if (!state.isProcessing()) {
-        await processQueue();
-    }
+    await processQueue();
 }
 
 /**
@@ -209,7 +222,7 @@ async function addExtractionTask(zipPath, targetPath, options, callback) {
     // Generate target path if not provided
     finalTargetPath = finalTargetPath || generateExtractTargetPath(zipPath);
     const groupName = finalOptions.groupName || 'default';
-    
+
     // Set or update group callback if provided
     if (finalOptions.groupCallback) {
         setGroupCallback(groupName, finalOptions.groupCallback);
@@ -227,7 +240,7 @@ async function addExtractionTask(zipPath, targetPath, options, callback) {
     };
 
     state.addToQueue(task);
-    logger.info(`Added extraction task: ${zipPath} -> ${finalTargetPath} (Group: ${groupName})`);
+    logger.info(`Added extraction task: ${formatTaskPaths(zipPath, finalTargetPath)} (Group: ${groupName})`);
 
     if (!state.isProcessing()) {
         await processQueue();

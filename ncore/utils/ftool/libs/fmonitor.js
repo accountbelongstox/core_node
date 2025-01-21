@@ -148,7 +148,7 @@ class FileMonitor {
             if (lastAddTime > 0 && (now - lastAddTime) > 500) {
                 const totalTime = (now - globalState.firstScanStartTime.get(this.watchPath)) / 1000;
                 const totalFiles = globalState.firstScanFileCount.get(this.watchPath);
-                logger.refresh(`[Monitoring] First Scan Complete | Path: ${this.watchPath} | Files: ${totalFiles} | Time: ${totalTime.toFixed(2)}s`);
+                // logger.info(`[Monitoring] First Scan Complete | Path: ${this.watchPath} | Files: ${totalFiles} | Time: ${totalTime.toFixed(2)}s`);
                 globalState.isFirstScanComplete.set(this.watchPath, true);
             } else {
                 const currentCount = globalState.firstScanFileCount.get(this.watchPath) + 1;

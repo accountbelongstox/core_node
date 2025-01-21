@@ -94,8 +94,9 @@ function readFirstLine(filePath, encoding = 'utf-8', info = false) {
 function readJson(filePath, encoding = 'utf-8', info = false) {
     filePath = getAbsolutePath(filePath);
     const content = readText(filePath, encoding, info);
-    log.info(filePath);
-    log.info(content);
+    if(info){
+        log.info(`readJson: ${filePath}`);
+    }
     if (content) {
         try {
             return JSON.parse(content);

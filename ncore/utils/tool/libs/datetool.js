@@ -7,6 +7,7 @@ function randomMillisecond(x = 0, y = 1500) {
  * @returns {string} Formatted duration string
  */
 function formatDurationToStr(timestamp) {
+    const milliseconds = timestamp % 1000;
     const seconds = Math.floor(timestamp / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
@@ -42,7 +43,11 @@ function formatDurationToStr(timestamp) {
         return `${minutes}m ${remainingSeconds}s`;
     }
 
-    return `${seconds}s`;
+    if (seconds > 0) {
+        return `${seconds}s`;
+    }
+
+    return `${milliseconds}ms`;
 }
 
 /**
