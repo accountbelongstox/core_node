@@ -2,7 +2,7 @@
 setlocal
 
 :: Define paths
-set "SCRIPT_PATH=D:\programing\core_node\scripts\start_cursor.py"
+set "SCRIPT_PATH=D:\programing\core_node\scripts\cursor\start_cursor.py"
 set "SHORTCUT_NAME=start_cursor.lnk"
 set "SHORTCUT_PATH=%USERPROFILE%\Desktop\%SHORTCUT_NAME%"
 set "ICON_PATH=%USERPROFILE%\AppData\Local\Programs\cursor\Cursor.exe"

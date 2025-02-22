@@ -1,12 +1,39 @@
 import os
 import shutil
 import sys
+import ctypes
+import winreg
 from pathlib import Path
 from colorama import Fore, Style, init
 from datetime import datetime  # 添加在 import 部分
 
 # Initialize colorama for colored output
 init(autoreset=True)
+
+# 新增管理员权限检查函数
+def check_admin_privileges():
+    """Check administrator privileges"""
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+
+# 新增安全模式检查函数
+def check_safe_mode():
+    """Check if running in Safe Mode"""
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\SafeBoot\Option",
+            0, winreg.KEY_READ
+        )
+        value, _ = winreg.QueryValueEx(key, "OptionValue")
+        return value == 1
+    except FileNotFoundError:
+        return False
+    except Exception as e:
+        print(Fore.YELLOW + f"Safe mode check failed: {str(e)}")
+        return False
 
 # Target directory for storing the moved folders
 TARGET_DIR = r"D:\CDriveRedirect"
@@ -309,6 +336,18 @@ def print_summary_report(entries):
         print(f"\n{yellow}⚠ Some directories could not be accessed due to permissions{reset}")
 
 def main():
+    if not check_admin_privileges():
+        print(Fore.RED + "✖ Please run this script as Administrator!")
+        input("Press any key to exit...")
+        sys.exit(1)
+
+    if not check_safe_mode():
+        print(Fore.YELLOW + "⚠ Strongly recommended to run in Safe Mode!")
+        print(Fore.YELLOW + "Reason: System files might be locked")
+        choice = input("Continue? (y/n): ").lower()
+        if choice != 'y':
+            sys.exit(0)
+
     """Main execution flow"""
     ensure_directory_exists(TARGET_DIR)
     
@@ -322,4 +361,13 @@ def main():
     print(Fore.GREEN + "\n✔ All operations completed successfully!")
 
 if __name__ == "__main__":
+    # 新增启动提示
+    print("="*50)
+    print(Fore.CYAN + " C Drive Slimmer - System File Relocation Tool")
+    print("="*50)
+    print(Fore.YELLOW + "Important Notes:")
+    print(Fore.YELLOW + "1. Requires Administrator privileges")
+    print(Fore.YELLOW + "2. Recommended to run in Safe Mode")
+    print(Fore.YELLOW + "3. Automatic backup will be created")
+    print("="*50)
     main()

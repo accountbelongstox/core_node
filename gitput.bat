@@ -1,10 +1,17 @@
 @echo off
-:: Check if Python 3 is installed
-python --version 2>NUL | findstr /R "Python 3" >NUL
-if %errorlevel% equ 0 (
-    echo Python 3 detected. Executing the script...
-    python .\scripts\auto_commit.py
-) else (
-    echo Python 3 is not detected. Please install Python 3 and try again.
-    exit /b 1
-)
+setlocal
+REM YYYY-MM-DD HH:MM:SS
+for /f "delims=" %%a in ('wmic OS Get localdatetime ^| find "."') do set datetime=%%a
+set "year=%datetime:~0,4%"
+set "month=%datetime:~4,2%"
+set "day=%datetime:~6,2%"
+set "hour=%datetime:~8,2%"
+set "minute=%datetime:~10,2%"
+set "second=%datetime:~12,2%"
+set "timestamp=%year%-%month%-%day% %hour%:%minute%:%second%"
+REM git
+git add .
+git commit -m "%timestamp%"
+git push --set-upstream origin master
+endlocal
+        
