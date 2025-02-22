@@ -12,7 +12,8 @@ init(autoreset=True)
 # 获取脚本所在目录
 SCRIPT_DIR = Path(__file__).parent.resolve()
 # 构建.bin目录路径
-BIN_DIR = SCRIPT_DIR.parent.parent / ".bin"
+CACHE_DIR = SCRIPT_DIR.parent.parent / ".cache"
+BIN_DIR = CACHE_DIR / "bin"
 BIN_DIR.mkdir(exist_ok=True)  # 自动创建目录
 
 # Paths to executables
