@@ -6,7 +6,6 @@ import string
 import random
 import platform
 
-
 class GitManager:
     def __init__(self, project_root):
         self.PROJECT_ROOT = Path(project_root)
@@ -38,7 +37,7 @@ class GitManager:
         return formatted[:30]
 
     @staticmethod
-    def run_command(command, cwd=None):
+    def run_command(command, cwd=None, printError=True):
         """Execute command and return output"""
         cwd = cwd or str(Path(__file__).parent.parent.parent)
         try:
@@ -67,25 +66,37 @@ class GitManager:
             return '\n'.join(full_output)
 
         except Exception as e:
-            print(f"\033[91m[ERROR] {e}\033[0m")
+            if printError is True:
+                print(f"\033[91m[ERROR] {e}\033[0m")
             return None
 
     def set_git_remote_url(self, url, remote_name='origin'):
-        """Set or update git remote URL"""
-        existing_remotes = self.run_command('git remote')
-        if existing_remotes is None:
-            return False
-
-        existing_remotes = existing_remotes.split('\n')
-        if remote_name in existing_remotes:
-            if self.run_command(f'git remote set-url {remote_name} {url}') is not None:
-                self.colored_print("success", f"Successfully updated {remote_name} remote to {url} ✅")
-                return True
+        """Try to set the remote URL, and if it fails, add the remote URL."""
+        
+        # Try to set the remote URL first
+        command = f'git remote set-url {remote_name} {url}'
+        result = self.run_command(command, printError=False)
+        
+        if result is not None:
+            self.colored_print("success", f"Successfully updated {remote_name} remote to {url} ✅")
+            self.colored_print("info", f"Used command: {command}")
+            return True
         else:
-            if self.run_command(f'git remote add {remote_name} {url}') is not None:
+            # If set-url fails, add the remote URL instead
+            self.colored_print("warning", f"Failed to update {remote_name} remote URL. Attempting to add new remote.")
+            
+            command = f'git remote add {remote_name} {url}'
+            result = self.run_command(command)
+            
+            if result is not None:
                 self.colored_print("success", f"Successfully added {remote_name} remote with {url} ✅")
+                self.colored_print("info", f"Used command: {command}")
                 return True
-        return False
+            else:
+                self.colored_print("error", f"Failed to add {remote_name} remote URL.")
+                self.colored_print("info", f"Used command: {command}")
+                return False
+
 
     def commit_and_push(self, remote_name='origin', branch='main'):
         """Commit and push changes with timestamp"""
@@ -149,6 +160,26 @@ class GitManager:
             self.colored_print("info", "Initializing new Git repository... 🔧")
             self.run_command('git init')
 
+    def remove_unwanted_remotes(self):
+        """Remove unwanted remotes like 'gitee', 'github', 'local', keeping only 'origin'."""
+        # Get current remotes
+        current_remotes = self.run_command('git remote')
+        if current_remotes:
+            current_remotes = [r.strip() for r in current_remotes.split('\n')]
+
+            # List of remotes to be removed (other than 'origin')
+            remotes_to_remove = ['gitee', 'github', 'local']
+            for remote in remotes_to_remove:
+                if remote in current_remotes:
+                    self.colored_print("warning", f"Removing unwanted remote: {remote}")
+                    command = f'git remote remove {remote}'
+                    if self.run_command(command) is not None:
+                        self.colored_print("success", f"Successfully removed {remote} remote ✅")
+                    else:
+                        self.colored_print("error", f"Failed to remove {remote} remote.")
+        else:
+            self.colored_print("warning", "No remotes found. Nothing to remove.")
+            
     def setup_multiple_remotes(self):
         """Setup multiple git remote repositories and commit changes"""
         self.initialize_git_settings()
@@ -163,8 +194,8 @@ class GitManager:
             current_success = True
 
             steps = [
-                (self.set_git_remote_url, (url, remote_name)),
-                (self.commit_and_push, (remote_name, 'main')),
+                (self.set_git_remote_url, (url, 'origin')),
+                (self.commit_and_push, ('origin', 'main')),
             ]
 
             for step_idx, (step_func, args) in enumerate(steps, 1):
@@ -205,4 +236,5 @@ class GitManager:
 if __name__ == "__main__":
     project_root = Path(__file__).parent.parent.parent
     git_manager = GitManager(project_root)
+    git_manager.remove_unwanted_remotes()
     git_manager.setup_multiple_remotes()
