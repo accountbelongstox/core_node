@@ -5,6 +5,11 @@ import time
 import re
 from colorama import Fore, Style, init
 from pathlib import Path
+import zipfile
+import shutil
+import webbrowser
+from urllib.request import Request, urlopen
+import sys
 
 # Initialize colorama for colored output
 init(autoreset=True)
@@ -26,6 +31,77 @@ last_message = None
 last_full_message = None  # 新增：记录完整格式消息
 lock = threading.Lock()
 TIME_PATTERN = re.compile(r'\b\d+d \d+h \d+m \d+s\b')
+
+# Add these constants at the top of the file after imports
+RCLONE_BASE_PATH = r"D:\lang_compiler\environments"
+RCLONE_EXE_PATH = os.path.join(RCLONE_BASE_PATH, "rclone.exe")
+TEMP_DIR = "D:/.tmp"
+WIN_FSP_URL = "https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi"
+RCLONE_DOWNLOAD_URL = "https://downloads.rclone.org/v1.69.1/rclone-v1.69.1-windows-amd64.zip"
+FTP_MOUNT_PATH = r"D:\programing\ftp-199-dict-server-client"
+RCLONE_MOUNT_COMMAND = fr'{RCLONE_EXE_PATH} mount ftp-199-dict-server-client: "{FTP_MOUNT_PATH}" --vfs-cache-mode writes'
+
+class RcloneManager:
+    def __init__(self):
+        self.rclone_path = RCLONE_EXE_PATH
+        self.temp_dir = TEMP_DIR
+        self.winfsp_url = WIN_FSP_URL
+        self.winfsp_installer = os.path.join(TEMP_DIR, "winfsp-2.0.23075.msi")
+        self.color_codes = {
+            "red": Fore.RED,
+            "green": Fore.GREEN,
+            "yellow": Fore.YELLOW,
+            "blue": Fore.BLUE,
+            "white": Fore.WHITE
+        }
+
+    def log(self, message, color="white", emoji=None):
+        log_message(message, self.color_codes[color], emoji)
+
+    def is_winfsp_installed(self):
+        try:
+            result = subprocess.run(
+                ['fsutil', 'fsinfo', 'drives'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            output = result.stdout.strip()
+            return output.startswith("Drives")
+        except Exception as e:
+            self.log(f"WinFsp check error: {str(e)}", "red", "❌")
+            return False
+
+    def setup_winfsp(self):
+        if not self.is_winfsp_installed():
+            self.log("Installing WinFsp...", "yellow", "⚠️")
+            os.makedirs(self.temp_dir, exist_ok=True)
+            
+            # Download and install WinFsp
+            subprocess.run(f"curl -L {self.winfsp_url} -o {self.winfsp_installer}", shell=True, check=True)
+            subprocess.run(f"msiexec /i {self.winfsp_installer} /quiet /norestart", shell=True, check=True)
+            self.log("WinFsp installed successfully", "green", "✅")
+
+    def setup_rclone(self):
+        if not os.path.exists(self.rclone_path):
+            self.log("Installing rclone...", "yellow", "⚠️")
+            os.makedirs(self.temp_dir, exist_ok=True)
+            
+            # Download and extract rclone
+            zip_path = os.path.join(self.temp_dir, "rclone.zip")
+            subprocess.run(f"curl -L https://downloads.rclone.org/v1.69.1/rclone-v1.69.1-windows-amd64.zip -o {zip_path}", shell=True, check=True)
+            
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                zip_ref.extractall(self.temp_dir)
+            
+            shutil.copy(os.path.join(self.temp_dir, "rclone-v1.69.1-windows-amd64", "rclone.exe"), self.rclone_path)
+            self.log("Rclone installed successfully", "green", "✅")
+
+    def verify_installation(self):
+        self.setup_winfsp()
+        self.setup_rclone()
+        if not os.path.exists(self.rclone_path):
+            raise Exception("Rclone installation failed")
 
 def log_message(message, color=Fore.WHITE, emoji=None):
     """Smart logging with duplicate prevention and dynamic formatting"""
@@ -74,10 +150,6 @@ def is_process_running(process_name):
 
 def download_cursor_vip():
     """Download cursor-vip executable with proper validation"""
-    import shutil
-    import webbrowser
-    from urllib.request import Request, urlopen
-    
     log_message("cursor-vip not found, attempting download...", Fore.YELLOW, emoji="⚠️")
     
     # 在下载前确保目录存在
@@ -132,39 +204,58 @@ def download_cursor_vip():
         webbrowser.open(releases_url)
         return False
 
+def execute_command(command, success_message, error_prefix, color=Fore.WHITE):
+    """Common method to execute commands with real-time output logging"""
+    try:
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace"
+        )
+        
+        # Read output in real-time
+        for line in process.stdout:
+            log_message(f"{error_prefix}{line.strip()}", color)
+            
+        process.wait()
+        if process.returncode == 0 and success_message:
+            log_message(success_message, Fore.GREEN, "✅")
+        return process.returncode
+        
+    except Exception as e:
+        log_message(f"{error_prefix}Error: {str(e)}", Fore.RED, "❌")
+        return -1
+
 def start_cursor_vip():
     """Start cursor-vip service with validation"""
     global cursor_vip_running
     
     if not os.path.exists(CURSOR_VIP_PATH):
         if not download_cursor_vip():
-            log_message("Cannot continue without cursor-vip executable", Fore.RED, emoji="❌")
+            log_message("Missing cursor-vip executable", Fore.RED, "❌")
             return
             
-    # Rest of original start_cursor_vip function...
-    log_message("Starting cursor-vip service...", color=Fore.BLUE, emoji="🚀")
+    log_message("Starting cursor-vip service...", Fore.BLUE, "🚀")
 
     if is_process_running("cursor-vip_windows_amd64.exe"):
-        log_message("cursor-vip_windows_amd64.exe is already running.", Fore.YELLOW, emoji="⚠️")
+        log_message("cursor-vip is already running", Fore.YELLOW, "⚠️")
         cursor_vip_running = True
         return
 
-    try:
-        process = subprocess.Popen(
-            CURSOR_VIP_PATH, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, encoding="utf-8", errors="replace"
-        )
-
-        # Read output in real-time
-        for line in process.stdout:
-            log_message(f"[cursor-vip] {line.strip()}", Fore.BLUE)
-
-            # Check if the process is successfully running
-            if "success" in line.lower() or "listening" in line.lower():
-                cursor_vip_running = True
-
-    except Exception as e:
-        log_message(f"Failed to start cursor-vip: {e}", Fore.RED, emoji="❌")
+    # Use common execute method
+    return_code = execute_command(
+        command=CURSOR_VIP_PATH,
+        success_message="cursor-vip service started",
+        error_prefix="[cursor-vip] ",
+        color=Fore.BLUE
+    )
+    
+    if return_code == 0:
+        cursor_vip_running = True
 
 def start_cursor():
     """Wait for cursor-vip to start, then launch Cursor.exe."""
@@ -180,13 +271,39 @@ def start_cursor():
     except Exception as e:
         log_message(f"Failed to start Cursor.exe: {e}", Fore.RED, emoji="❌")
 
+# Add new thread function
+def run_rclone_mount():
+    """Run rclone mount command in a continuous thread"""
+    # Use common execute method
+    execute_command(
+        command=RCLONE_MOUNT_COMMAND,
+        success_message=f"📁 Mounted at: {FTP_MOUNT_PATH}\n"
+                        f"💡 Remote filesystem mounted as local folder\n"
+                        f"⚡ Changes will sync automatically",
+        error_prefix="[rclone] ",
+        color=Fore.MAGENTA
+    )
+
+# Before thread starts
+rclone_mgr = RcloneManager()
+try:
+    rclone_mgr.verify_installation()
+    log_message("Rclone dependencies verified", Fore.GREEN, "✅")
+except Exception as e:
+    log_message(f"Rclone setup failed: {str(e)}", Fore.RED, "❌")
+
 # Start threads
 thread_vip = threading.Thread(target=start_cursor_vip, daemon=True)
 thread_cursor = threading.Thread(target=start_cursor, daemon=True)
 
+# Add rclone thread startup
+rclone_thread = threading.Thread(target=run_rclone_mount, daemon=True)
+
 thread_vip.start()
 thread_cursor.start()
+rclone_thread.start()
 
 # Keep main thread alive
 thread_vip.join()
 thread_cursor.join()
+rclone_thread.join()

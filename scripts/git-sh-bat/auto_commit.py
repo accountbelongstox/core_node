@@ -3,6 +3,16 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 
+# Add at the top after imports
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+git_repositorie_name = PROJECT_ROOT.name 
+remote_urls = {
+    'local': f'ssh://git@git.local.12gm.com:17003/adminroot/{git_repositorie_name}.git',
+    'gitee': f'git@gitee.com:accountbelongstox/{git_repositorie_name}.git',
+    'github': f'git@github.com:accountbelongstox/{git_repositorie_name}.git'
+}
+
 class ColorPrinter:
     # ANSI escape codes for colors
     COLORS = {
@@ -10,6 +20,7 @@ class ColorPrinter:
         'green': '\033[92m',
         'blue': '\033[94m',
         'yellow': '\033[93m',
+        'purple': '\033[95m',
         'reset': '\033[0m'
     }
 
@@ -39,11 +50,18 @@ class ColorPrinter:
         """Print warning message in yellow"""
         ColorPrinter.print_color(f"[WARNING] {message}", 'yellow')
 
+    @staticmethod
+    def step_print(step, message):
+        """Step information printing"""
+        color_code = ColorPrinter.COLORS['purple']
+        print(f"{color_code}[STEP {step}] {message}{ColorPrinter.COLORS['reset']}")
+
+ColorPrinter.info(f"Project root: {PROJECT_ROOT}")
+
 def run_git_command(command, cwd=None):
     """Execute git command and return result"""
-    cwd = cwd or str(Path(__file__).parent.parent)
-    info = f"cwd: {cwd}"
-    ColorPrinter.info(info)
+    cwd = cwd or str(PROJECT_ROOT)
+    ColorPrinter.info(f"Working directory: {cwd}")
     try:
         # Use Popen for real-time output
         process = subprocess.Popen(
@@ -84,7 +102,6 @@ def run_git_command(command, cwd=None):
 
 def set_git_remote_url(url, remote_name='origin'):
     """Set or update git remote URL"""
-    # Get current remotes
     existing_remotes = run_git_command('git remote')
     if existing_remotes is None:
         ColorPrinter.error("Failed to get current remotes")
@@ -93,15 +110,13 @@ def set_git_remote_url(url, remote_name='origin'):
     existing_remotes = existing_remotes.split('\n')
     
     if remote_name in existing_remotes:
-        # Update existing remote
         ColorPrinter.info(f"Updating remote '{remote_name}' URL to: {url}")
-        if run_git_command(f'git remote set-url origin {url}') is not None:
-            ColorPrinter.success(f"Successfully updated origin remote by {url}")
+        if run_git_command(f'git remote set-url {remote_name} {url}') is not None:
+            ColorPrinter.success(f"Successfully updated {remote_name} remote by {url}")
             return True
     else:
-        # Add new remote
-        ColorPrinter.info(f"Adding new remote 'origin' with URL: {url}")
-        if run_git_command(f'git remote add origin {url}') is not None:
+        ColorPrinter.info(f"Adding new remote '{remote_name}' with URL: {url}")
+        if run_git_command(f'git remote add {remote_name} {url}') is not None:
             ColorPrinter.success(f"Successfully added {remote_name} remote by {url}")
             return True
     
@@ -170,42 +185,201 @@ def commit_and_push(remote_name='origin', branch='main'):
     ColorPrinter.success("\nCommit and push completed successfully!")
     return True
 
+def check_and_set_remote(remote_name, url):
+    """Step 1: Check and set remote repository"""
+    ColorPrinter.step_print(1, f"🔄 Checking remote config [{remote_name}]")
+    
+    existing_remotes = run_git_command('git remote')
+    if existing_remotes is None:
+        ColorPrinter.error("❌ Failed to get remote list")
+        return False
+
+    if remote_name in existing_remotes.split('\n'):
+        ColorPrinter.info(f"🔍 Found existing remote [{remote_name}]")
+        current_url = run_git_command(f'git remote get-url {remote_name}')
+        if current_url.strip() == url:
+            ColorPrinter.success(f"✅ Remote [{remote_name}] is up-to-date")
+            return True
+        ColorPrinter.warning(f"🔄 Needs URL update\nOld URL: {current_url}\nNew URL: {url}")
+    else:
+        ColorPrinter.info(f"🆕 Adding new remote [{remote_name}]")
+
+    return set_git_remote_url(url, remote_name)
+
+def ensure_branch_exists(remote_name, branch):
+    """Step 2: Ensure branch exists"""
+    ColorPrinter.step_print(2, f"🌿 Checking branch status [{branch}]")
+    
+    # Check current branch
+    current_branch = run_git_command('git branch --show-current')
+    if current_branch and current_branch.strip() == branch:
+        ColorPrinter.success(f"✅ Already on {branch} branch")
+        return True
+    
+    # Check local branch existence
+    local_branches = run_git_command('git branch --list')
+    branch_exists = any(b.strip('* ') == branch for b in local_branches.split('\n')) if local_branches else False
+    
+    if branch_exists:
+        ColorPrinter.info(f"🔀 Switching to existing {branch} branch")
+        if run_git_command(f'git checkout {branch}') is None:
+            ColorPrinter.error(f"❌ Failed to switch to {branch}")
+            return False
+        return True
+    
+    # Create new branch
+    ColorPrinter.warning(f"⚠️ Creating new branch [{branch}]...")
+    cmds = [
+        f'git checkout -b {branch}',
+        f'git push --set-upstream {remote_name} {branch}',
+        f'git branch --set-upstream-to={remote_name}/{branch} {branch}'
+    ]
+    
+    for cmd in cmds:
+        ColorPrinter.info(f"⚡ Executing command: {cmd}")
+        if run_git_command(cmd) is None:
+            return False
+    return True
+
+def commit_local_changes(remote_name, url):
+    """Step 3: Commit local changes"""
+    ColorPrinter.step_print(3, f"📦 Saving snapshot for {remote_name}")
+    ColorPrinter.info(f"🔗 Remote URL: {url}")
+    timestamp = datetime.now().strftime("%Y-%m-%d@%H-%M-%S")
+    
+    # Check for changes
+    status = run_git_command('git status --porcelain')
+    if not status.strip():
+        ColorPrinter.warning("📭 No changes to commit")
+        return True
+
+    ColorPrinter.info(f"📝 Found {len(status.splitlines())} changes")
+    cmds = [
+        'git add .',
+        f'git commit -m "Auto commit {timestamp} ({remote_name})"'
+    ]
+    
+    for cmd in cmds:
+        ColorPrinter.info(f"⚡ Executing command: {cmd}")
+        if run_git_command(cmd) is None:
+            return False
+    return True
+
+def sync_with_remote(remote_name, branch):
+    """Step 4: Synchronize with remote"""
+    ColorPrinter.step_print(4, "🔄 Syncing remote changes")
+    ColorPrinter.info(f"⏬ Pulling updates from [{remote_name}]...")
+    
+    # Check for uncommitted changes
+    status = run_git_command('git status --porcelain')
+    stash_needed = bool(status.strip())
+    
+    if stash_needed:
+        ColorPrinter.warning("⚠️ Found uncommitted changes, stashing...")
+        if run_git_command('git stash push --include-untracked') is None:
+            ColorPrinter.error("❌ Failed to stash changes")
+            return False
+
+    # Attempt rebase pull
+    pull_result = run_git_command(f'git pull {remote_name} {branch} --rebase')
+    
+    if stash_needed:
+        ColorPrinter.info("🔄 Restoring stashed changes...")
+        if run_git_command('git stash pop') is None:
+            ColorPrinter.error("❌ Failed to restore stashed changes")
+            return False
+
+    if not pull_result:
+        return False
+    
+    # Check merge conflicts
+    conflict = run_git_command('git diff --check')
+    if conflict and 'conflict' in conflict.lower():
+        ColorPrinter.error("❌ Merge conflicts detected! Please resolve manually!")
+        ColorPrinter.info("💡 Conflict files:\n" + conflict)
+        return False
+    
+    ColorPrinter.success("✅ Remote changes synchronized")
+    return True
+
+def push_changes(remote_name, branch):
+    """Step 5: Push changes"""
+    ColorPrinter.step_print(5, "🚀 Pushing to remote")
+    ColorPrinter.info(f"⏫ Pushing to [{remote_name}/{branch}]...")
+    
+    result = run_git_command(f'git push {remote_name} {branch}')
+    
+    # 更精确的成功判断
+    success_indicators = [
+        '-> main',
+        'up to date',
+        'successfully pushed',
+        'new branch'
+    ]
+    
+    # 检查实际推送结果
+    if any(indicator in result.lower() for indicator in success_indicators):
+        ColorPrinter.success(f"✅ Successfully pushed to [{remote_name}]")
+        return True
+    
+    # 错误检测
+    error_indicators = [
+        'rejected',
+        'error',
+        'failed',
+        'conflict'
+    ]
+    if any(indicator in result.lower() for indicator in error_indicators):
+        ColorPrinter.error("❌ Push rejected - remote contains unmerged changes")
+        return False
+    
+    # 非关键警告处理
+    ColorPrinter.warning("⚠️ Push completed with non-critical messages")
+    return True
+
 def setup_multiple_remotes():
     """Setup multiple git remote repositories and commit changes"""
-    remote_urls = {
-        'local': 'ssh://git@git.local.12gm.com:17003/adminroot/core_node.git',
-        'gitee': 'git@gitee.com:accountbelongstox/core_node.git',
-        'github': 'git@github.com:accountbelongstox/core_node.git'
-    }
-
     success_count = 0
     total_count = len(remote_urls)
+    branch = 'main'
 
-    ColorPrinter.info(f"Setting up {total_count} remote repositories...")
+    ColorPrinter.info(f"🌈 Initializing {total_count} remotes...")
     
     for remote_name, url in remote_urls.items():
-        ColorPrinter.info(f"\nProcessing remote: {remote_name}")
-        if set_git_remote_url(url, remote_name):
+        ColorPrinter.info(f"\n{'-'*5} Processing: {remote_name}  {url} {'-'*5}")
+        current_success = True
+
+        # Execute steps
+        steps = [
+            (check_and_set_remote, (remote_name, url)),
+            (ensure_branch_exists, (remote_name, branch)),
+            (commit_local_changes, (remote_name, url)),
+            (sync_with_remote, (remote_name, branch)),
+            (push_changes, (remote_name, branch))
+        ]
+
+        for step_idx, (step_func, args) in enumerate(steps, 1):
+            ColorPrinter.info(f"\n🔰 Step {step_idx}/5")
+            if not current_success:
+                ColorPrinter.warning(f"⏭️ Skipping step {step_idx} (previous step failed)")
+                continue
+                
+            if not step_func(*args):
+                ColorPrinter.error(f"❌ Step {step_idx} failed")
+                current_success = False
+
+        if current_success:
             success_count += 1
-            # After successful remote setup, commit and push
-            ColorPrinter.info(f"\nCommitting changes to {remote_name}...")
-            if commit_and_push(remote_name):
-                ColorPrinter.success(f"Successfully committed to {remote_name}")
-            else:
-                ColorPrinter.error(f"Failed to commit to {remote_name}")
+            ColorPrinter.success(f"🎉 {remote_name} processed successfully!")
+        else:
+            ColorPrinter.error(f"💥 {remote_name} processing failed")
 
-    # Print summary
-    ColorPrinter.info("\n=== Setup Summary ===")
-    ColorPrinter.print_color(f"Total remotes: {total_count}", 'blue')
-    ColorPrinter.print_color(f"Successfully configured: {success_count}", 'green')
+    # Print final results
+    ColorPrinter.info("\n📊 Final result statistics")
+    ColorPrinter.print_color(f"📦 Total repositories: {total_count}", 'blue')
+    ColorPrinter.print_color(f"✅ Successes: {success_count}", 'green')
     if success_count < total_count:
-        ColorPrinter.print_color(f"Failed: {total_count - success_count}", 'red')
-
-    # Show final remote configuration
-    ColorPrinter.info("\nFinal remote configuration:")
-    remotes = run_git_command('git remote -v')
-    if remotes:
-        ColorPrinter.print_color(remotes, 'green')
+        ColorPrinter.print_color(f"❌ Failures: {total_count - success_count}", 'red')
 
 if __name__ == "__main__":
     setup_multiple_remotes()
