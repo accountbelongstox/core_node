@@ -19,7 +19,8 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 # 构建.bin目录路径
 CACHE_DIR = SCRIPT_DIR.parent.parent / ".cache"
 BIN_DIR = CACHE_DIR / "bin"
-BIN_DIR.mkdir(exist_ok=True)  # 自动创建目录
+BIN_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # Paths to executables
 CURSOR_VIP_PATH = str(BIN_DIR / "cursor-vip_windows_amd64.exe")
@@ -31,77 +32,6 @@ last_message = None
 last_full_message = None  # 新增：记录完整格式消息
 lock = threading.Lock()
 TIME_PATTERN = re.compile(r'\b\d+d \d+h \d+m \d+s\b')
-
-# Add these constants at the top of the file after imports
-RCLONE_BASE_PATH = r"D:\lang_compiler\environments"
-RCLONE_EXE_PATH = os.path.join(RCLONE_BASE_PATH, "rclone.exe")
-TEMP_DIR = "D:/.tmp"
-WIN_FSP_URL = "https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi"
-RCLONE_DOWNLOAD_URL = "https://downloads.rclone.org/v1.69.1/rclone-v1.69.1-windows-amd64.zip"
-FTP_MOUNT_PATH = r"D:\programing\ftp-199-dict-server-client"
-RCLONE_MOUNT_COMMAND = fr'{RCLONE_EXE_PATH} mount ftp-199-dict-server-client: "{FTP_MOUNT_PATH}" --vfs-cache-mode writes'
-
-class RcloneManager:
-    def __init__(self):
-        self.rclone_path = RCLONE_EXE_PATH
-        self.temp_dir = TEMP_DIR
-        self.winfsp_url = WIN_FSP_URL
-        self.winfsp_installer = os.path.join(TEMP_DIR, "winfsp-2.0.23075.msi")
-        self.color_codes = {
-            "red": Fore.RED,
-            "green": Fore.GREEN,
-            "yellow": Fore.YELLOW,
-            "blue": Fore.BLUE,
-            "white": Fore.WHITE
-        }
-
-    def log(self, message, color="white", emoji=None):
-        log_message(message, self.color_codes[color], emoji)
-
-    def is_winfsp_installed(self):
-        try:
-            result = subprocess.run(
-                ['fsutil', 'fsinfo', 'drives'],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            output = result.stdout.strip()
-            return output.startswith("Drives")
-        except Exception as e:
-            self.log(f"WinFsp check error: {str(e)}", "red", "❌")
-            return False
-
-    def setup_winfsp(self):
-        if not self.is_winfsp_installed():
-            self.log("Installing WinFsp...", "yellow", "⚠️")
-            os.makedirs(self.temp_dir, exist_ok=True)
-            
-            # Download and install WinFsp
-            subprocess.run(f"curl -L {self.winfsp_url} -o {self.winfsp_installer}", shell=True, check=True)
-            subprocess.run(f"msiexec /i {self.winfsp_installer} /quiet /norestart", shell=True, check=True)
-            self.log("WinFsp installed successfully", "green", "✅")
-
-    def setup_rclone(self):
-        if not os.path.exists(self.rclone_path):
-            self.log("Installing rclone...", "yellow", "⚠️")
-            os.makedirs(self.temp_dir, exist_ok=True)
-            
-            # Download and extract rclone
-            zip_path = os.path.join(self.temp_dir, "rclone.zip")
-            subprocess.run(f"curl -L https://downloads.rclone.org/v1.69.1/rclone-v1.69.1-windows-amd64.zip -o {zip_path}", shell=True, check=True)
-            
-            with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                zip_ref.extractall(self.temp_dir)
-            
-            shutil.copy(os.path.join(self.temp_dir, "rclone-v1.69.1-windows-amd64", "rclone.exe"), self.rclone_path)
-            self.log("Rclone installed successfully", "green", "✅")
-
-    def verify_installation(self):
-        self.setup_winfsp()
-        self.setup_rclone()
-        if not os.path.exists(self.rclone_path):
-            raise Exception("Rclone installation failed")
 
 def log_message(message, color=Fore.WHITE, emoji=None):
     """Smart logging with duplicate prevention and dynamic formatting"""
@@ -270,40 +200,16 @@ def start_cursor():
         log_message("Cursor.exe launched successfully!", Fore.GREEN, emoji="🎉")
     except Exception as e:
         log_message(f"Failed to start Cursor.exe: {e}", Fore.RED, emoji="❌")
-
-# Add new thread function
-def run_rclone_mount():
-    """Run rclone mount command in a continuous thread"""
-    # Use common execute method
-    execute_command(
-        command=RCLONE_MOUNT_COMMAND,
-        success_message=f"📁 Mounted at: {FTP_MOUNT_PATH}\n"
-                        f"💡 Remote filesystem mounted as local folder\n"
-                        f"⚡ Changes will sync automatically",
-        error_prefix="[rclone] ",
-        color=Fore.MAGENTA
-    )
-
-# Before thread starts
-rclone_mgr = RcloneManager()
-try:
-    rclone_mgr.verify_installation()
-    log_message("Rclone dependencies verified", Fore.GREEN, "✅")
-except Exception as e:
-    log_message(f"Rclone setup failed: {str(e)}", Fore.RED, "❌")
-
 # Start threads
 thread_vip = threading.Thread(target=start_cursor_vip, daemon=True)
 thread_cursor = threading.Thread(target=start_cursor, daemon=True)
 
 # Add rclone thread startup
-rclone_thread = threading.Thread(target=run_rclone_mount, daemon=True)
 
 thread_vip.start()
 thread_cursor.start()
-rclone_thread.start()
 
 # Keep main thread alive
 thread_vip.join()
 thread_cursor.join()
-rclone_thread.join()
+

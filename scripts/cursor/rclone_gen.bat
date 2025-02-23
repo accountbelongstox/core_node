@@ -1,12 +1,13 @@
 @echo off
 setlocal
-set "SCRIPT_DIR=D:\programing\core_node\scripts\cursor"
-set "SCRIPT_NAME=start_cursor"
+set "BatName=rclone_start"
 :: Define paths
-set "SCRIPT_PATH=%SCRIPT_DIR%\%SCRIPT_NAME%.py"
-set "SHORTCUT_NAME=%SCRIPT_NAME%.lnk"
+set "SCRIPT_PATH=D:\programing\core_node\scripts\cursor\%BatName%.py"
+set "ENV_PATH=D:\lang_compiler\environments\"
+set "RCLONE_PATH=%ENV_PATH%rclone.exe"
+set "SHORTCUT_NAME=%BatName%.lnk"
 set "SHORTCUT_PATH=%USERPROFILE%\Desktop\%SHORTCUT_NAME%"
-set "ICON_PATH=%SCRIPT_DIR%\iconcursor.ico"
+set "ICON_PATH=%RCLONE_PATH%"
 
 :: Check shortcut existence
 if exist "%SHORTCUT_PATH%" (
