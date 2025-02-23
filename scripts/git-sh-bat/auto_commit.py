@@ -145,9 +145,9 @@ def commit_and_push(remote_name='origin', branch='main'):
             
             # Create and setup branch
             commands = [
-                f'git checkout -b {branch}',
+                # f'git checkout -b {branch}',
                 f'git push --set-upstream origin {branch}',
-                f'git branch --set-upstream-to=origin/{branch} {branch}',
+                # f'git branch --set-upstream-to=origin/{branch} {branch}',
                 # f'git pull origin {branch}'
             ]
             
@@ -230,9 +230,9 @@ def ensure_branch_exists(remote_name, branch):
     # Create new branch
     ColorPrinter.warning(f"⚠️ Creating new branch [{branch}]...")
     cmds = [
-        f'git checkout -b {branch}',
+        # f'git checkout -b {branch}',
         f'git push --set-upstream {remote_name} {branch}',
-        f'git branch --set-upstream-to={remote_name}/{branch} {branch}'
+        # f'git branch --set-upstream-to={remote_name}/{branch} {branch}'
     ]
     
     for cmd in cmds:
