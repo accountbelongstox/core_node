@@ -624,7 +624,7 @@ initialize_menu_items() {
     menu_items["Run Apps"]="text=Run Apps;values=default;current=0;key=RUN_APPS_TYPE;action=run_apps"
     menu_order+=("Run Apps")
 
-    menu_items["Unified App Manager"]="text=Unified App Manager;values=install,start,build,deploy,list;current=0;key=UNIFIED_MANAGER_TYPE;action=unified_manager"
+    menu_items["Unified App Manager"]="text=Unified App Manager;values=default;current=0;key=UNIFIED_MANAGER_TYPE;action=unified_manager"
     menu_order+=("Unified App Manager")
 
     menu_items["Set Special Software Environment Variables (like AI)"]="text=Set Special Software Environment Variables (like AI);values=default;current=0;key=SPECIAL_ENV_MENU;action=show_special_software_env_menu"
@@ -731,58 +731,13 @@ handle_menu_action() {
             show_special_software_env_menu
             ;;
         "unified_manager")
-            local unified_manager_script="$SHELLS_DIR/../unified_manager"
-            case "$value" in
-                "install")
-                    echo "Installing all application dependencies..."
-                    if [ -f "$unified_manager_script/install_all.sh" ]; then
-                        bash "$unified_manager_script/install_all.sh"
-                    else
-                        echo "Error: install_all.sh script not found"
-                    fi
-                    ;;
-                "start")
-                    echo "[*] Selected: Unified App Manager [start]"
-                    echo ""
-                    if [ -f "$unified_manager_script/start_apps.sh" ]; then
-                        bash "$unified_manager_script/start_apps.sh"
-                    else
-                        echo "Error: start_apps.sh script not found"
-                    fi
-                    ;;
-                "build")
-                    echo "Building applications..."
-                    if [ -f "$unified_manager_script/build_apps.sh" ]; then
-                        bash "$unified_manager_script/build_apps.sh" --list
-                        echo ""
-                        read -p "Enter apps to build (comma-separated, or --all for all buildable apps): " build_input
-                        if [ "$build_input" = "--all" ]; then
-                            bash "$unified_manager_script/build_apps.sh" --all
-                        else
-                            bash "$unified_manager_script/build_apps.sh" --apps "$build_input"
-                        fi
-                    else
-                        echo "Error: build_apps.sh script not found"
-                    fi
-                    ;;
-                "deploy")
-                    echo "[*] Selected: Unified App Manager [deploy]"
-                    echo ""
-                    if [ -f "$unified_manager_script/deploy_apps.sh" ]; then
-                        bash "$unified_manager_script/deploy_apps.sh"
-                    else
-                        echo "Error: deploy_apps.sh script not found"
-                    fi
-                    ;;
-                "list")
-                    echo "Available applications and presets:"
-                    if [ -f "$unified_manager_script/start_apps.sh" ]; then
-                        bash "$unified_manager_script/start_apps.sh" --list
-                    else
-                        echo "Error: start_apps.sh script not found"
-                    fi
-                    ;;
-            esac
+            local unified_manager_py_script="$SCRIPT_DIR/unified_manager_py/unified_manager.sh"
+            if [ -x "$unified_manager_py_script" ]; then
+                bash "$unified_manager_py_script"
+            else
+                echo "Error: unified_manager.sh script not found at $unified_manager_py_script"
+                echo "Please ensure the Python Unified Manager scripts are properly installed"
+            fi
             echo ""
             echo "Press Enter to continue..."
             read
