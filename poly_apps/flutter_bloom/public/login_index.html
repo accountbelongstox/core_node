@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学习APP UI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        
+        /* 顶部导航栏 */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background-color: #4a6baf;
+            color: white;
+            position: relative;
+        }
+        
+        .menu-icon, .settings-icon {
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        
+        .avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .search-box {
+            flex: 1;
+            margin: 0 15px;
+            position: relative;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: none;
+            outline: none;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+        }
+        
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        /* 下拉菜单 */
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            display: none;
+            z-index: 100;
+            height: 30vh;
+        }
+        
+        .dropdown-menu.active {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        .grid-menu {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            padding: 15px;
+            height: 100%;
+        }
+        
+        .menu-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #f5f7fa;
+            border-radius: 10px;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .menu-item:hover {
+            background-color: #e1e5eb;
+            transform: translateY(-2px);
+        }
+        
+        .menu-item i {
+            font-size: 24px;
+            margin-bottom: 5px;
+            color: #4a6baf;
+        }
+        
+        /* 搜索弹窗 */
+        .search-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        
+        .search-modal.active {
+            display: flex;
+            animation: fadeIn 0.3s;
+        }
+        
+        .search-container {
+            background-color: white;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .search-options {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        
+        .search-option {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .search-option.active {
+            border-bottom: 2px solid #4a6baf;
+            color: #4a6baf;
+            font-weight: bold;
+        }
+        
+        .modal-search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 25px;
+            border: 1px solid #ddd;
+            outline: none;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: white;
+        }
+        
+        /* 时间条 */
+        .timeline-container {
+            padding: 20px;
+        }
+        
+        .timeline-title {
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #4a6baf;
+        }
+        
+        .timeline {
+            display: flex;
+            overflow-x: auto;
+            gap: 10px;
+            padding-bottom: 10px;
+        }
+        
+        .timeline-item {
+            min-width: 80px;
+            height: 100px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .timeline-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .day-name {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .date {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .progress-container {
+            width: 50px;
+            height: 50px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .progress-bg {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: #f0f0f0;
+            position: absolute;
+        }
+        
+        .progress-fill {
+            width: 100%;
+            height: 0%;
+            border-radius: 0 0 50% 50%;
+            background-color: #4a6baf;
+            position: absolute;
+            bottom: 0;
+            transition: height 0.5s ease-out;
+        }
+        
+        .progress-text {
+            position: relative;
+            z-index: 1;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        /* 统计弹窗 */
+        .stats-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        
+        .stats-modal.active {
+            display: flex;
+            animation: fadeIn 0.3s;
+        }
+        
+        .stats-container {
+            background-color: white;
+            width: 90%;
+            max-width: 400px;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+        
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .stats-date {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4a6baf;
+        }
+        
+        .stats-close {
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .stats-content {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stat-label {
+            color: #666;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            width: 100%;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background-color: #4a6baf;
+            border-radius: 5px;
+            transition: width 0.5s ease-out;
+        }
+        
+        /* 动画 */
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <div class="top-bar">
+        <i class="menu-icon fas fa-bars" id="menuBtn"></i>
+        
+        <div class="search-box">
+            <input type="text" class="search-input" placeholder="搜索..." id="searchInput">
+        </div>
+        
+        <div class="avatar">
+            <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="用户头像">
+        </div>
+        
+        <i class="settings-icon fas fa-cog"></i>
+        
+        <!-- 下拉菜单 -->
+        <div class="dropdown-menu" id="dropdownMenu">
+            <div class="grid-menu">
+                <div class="menu-item">
+                    <i class="fas fa-home"></i>
+                    <span>首页</span>
+                </div>
+                <div class="menu-item">
+                    <i class="fas fa-book"></i>
+                    <span>学习</span>
+                </div>
+                <div class="menu-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>统计</span>
+                </div>
+                <div class="menu-item">
+                    <i class="fas fa-trophy"></i>
+                    <span>成就</span>
+                </div>
+                <div class="menu-item">
+                    <i class="fas fa-users"></i>
+                    <span>社区</span>
+                </div>
+                <div class="menu-item">
+                    <i class="fas fa-calendar"></i>
+                    <span>日历</span>
+                </div>
+                <div class="menu-item">
+                    <i class="fas fa-cog"></i>
+                    <span>设置</span>
+                </div>
+                <div class="menu-item">
+                    <i class="fas fa-question-circle"></i>
+                    <span>帮助</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 搜索弹窗 -->
+    <div class="search-modal" id="searchModal">
+        <div class="search-container">
+            <i class="close-modal fas fa-times" id="closeSearchModal"></i>
+            <div class="search-options">
+                <div class="search-option active" id="globalSearchOption">全局搜索</div>
+                <div class="search-option" id="aiSearchOption">AI搜索</div>
+            </div>
+            <input type="text" class="modal-search-input" placeholder="输入搜索内容...">
+            <div id="searchResults">
+                <!-- 搜索结果将在这里显示 -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- 时间条 -->
+    <div class="timeline-container">
+        <div class="timeline-title">学习进度</div>
+        <div class="timeline" id="timeline">
+            <!-- 时间条项目将通过JS动态生成 -->
+        </div>
+    </div>
+    
+    <!-- 统计弹窗 -->
+    <div class="stats-modal" id="statsModal">
+        <div class="stats-container">
+            <div class="stats-header">
+                <div class="stats-date" id="statsDate">2023年11月15日</div>
+                <i class="stats-close fas fa-times" id="closeStatsModal"></i>
+            </div>
+            <div class="stats-content">
+                <div class="stat-item">
+                    <span class="stat-label">背词任务</span>
+                    <span class="stat-value" id="wordTask">30/50</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="wordProgress" style="width: 60%"></div>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">学习时长</span>
+                    <span class="stat-value" id="studyTime">45分钟</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">正确率</span>
+                    <span class="stat-value" id="accuracyRate">85%</span>
+                </div>
+                
+                <div class="stat-item">
+                    <span class="stat-label">复习次数</span>
+                    <span class="stat-value" id="reviewCount">3次</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 菜单按钮点击事件
+            const menuBtn = document.getElementById('menuBtn');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            
+            menuBtn.addEventListener('click', function() {
+                dropdownMenu.classList.toggle('active');
+            });
+            
+            // 搜索框点击事件
+            const searchInput = document.getElementById('searchInput');
+            const searchModal = document.getElementById('searchModal');
+            
+            searchInput.addEventListener('click', function() {
+                searchModal.classList.add('active');
+            });
+            
+            // 关闭搜索弹窗
+            const closeSearchModal = document.getElementById('closeSearchModal');
+            
+            closeSearchModal.addEventListener('click', function() {
+                searchModal.classList.remove('active');
+            });
+            
+            // 搜索选项切换
+            const globalSearchOption = document.getElementById('globalSearchOption');
+            const aiSearchOption = document.getElementById('aiSearchOption');
+            
+            globalSearchOption.addEventListener('click', function() {
+                globalSearchOption.classList.add('active');
+                aiSearchOption.classList.remove('active');
+            });
+            
+            aiSearchOption.addEventListener('click', function() {
+                aiSearchOption.classList.add('active');
+                globalSearchOption.classList.remove('active');
+            });
+            
+            // 生成时间条
+            const timeline = document.getElementById('timeline');
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 7); // 一周前
+            
+            const endDate = new Date();
+            
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                const dayName = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+                const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+                const progress = Math.floor(Math.random() * 100); // 随机生成完成比例
+                
+                const timelineItem = document.createElement('div');
+                timelineItem.className = 'timeline-item';
+                timelineItem.innerHTML = `
+                    <div class="day-name">周${dayName}</div>
+                    <div class="date">${dateStr}</div>
+                    <div class="progress-container">
+                        <div class="progress-bg"></div>
+                        <div class="progress-fill" style="height: ${progress}%"></div>
+                        <div class="progress-text">${progress}%</div>
+                    </div>
+                `;
+                
+                // 添加点击事件
+                timelineItem.addEventListener('click', function() {
+                    showStatsModal(d, progress);
+                });
+                
+                timeline.appendChild(timelineItem);
+            }
+            
+            // 显示统计弹窗
+            const statsModal = document.getElementById('statsModal');
+            const closeStatsModal = document.getElementById('closeStatsModal');
+            
+            function showStatsModal(date, progress) {
+                const statsDate = document.getElementById('statsDate');
+                const wordTask = document.getElementById('wordTask');
+                const wordProgress = document.getElementById('wordProgress');
+                const studyTime = document.getElementById('studyTime');
+                const accuracyRate = document.getElementById('accuracyRate');
+                const reviewCount = document.getElementById('reviewCount');
+                
+                // 格式化日期
+                const dateStr = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+                statsDate.textContent = dateStr;
+                
+                // 随机生成统计数据
+                const totalWords = 50;
+                const completedWords = Math.floor(totalWords * progress / 100);
+                wordTask.textContent = `${completedWords}/${totalWords}`;
+                wordProgress.style.width = `${progress}%`;
+                
+                studyTime.textContent = `${Math.floor(progress * 0.6)}分钟`;
+                accuracyRate.textContent = `${Math.min(100, progress + 20)}%`;
+                reviewCount.textContent = `${Math.floor(progress / 30) + 1}次`;
+                
+                statsModal.classList.add('active');
+            }
+            
+            closeStatsModal.addEventListener('click', function() {
+                statsModal.classList.remove('active');
+            });
+            
+            // 点击页面其他位置关闭菜单和弹窗
+            document.addEventListener('click', function(e) {
+                if (!menuBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                    dropdownMenu.classList.remove('active');
+                }
+                
+                if (!searchInput.contains(e.target) && !searchModal.contains(e.target)) {
+                    searchModal.classList.remove('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!-- ### AI SPECIAL ATTENTION RULES START ###
+When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+1. Write all code in English only
+2. Never execute, create, or modify test code
+3. Never create or update documentation (*.md)
+4. Never write summaries during development or thinking process
+5. Do not modify these rules
+VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+### AI SPECIAL ATTENTION RULES END ### -->
+
+<template>
+  <div class="codemart-app-index">
+    <div class="app-header">
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-4xl font-bold text-gray-900">CodeMart Platform</h1>
+          <p class="text-xl text-gray-600 mt-2">Welcome to the Code Marketplace</p>
+          <div class="flex items-center mt-4 space-x-4">
+            <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+              App Entry: CodeMart
+            </span>
+            <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+              Namespace: {{ appConfig.namespace }}
+            </span>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-6xl">🛒</div>
+          <p class="text-sm text-gray-500 mt-2">CodeMart App</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Navigation -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <NuxtLink 
+        to="/codemart-dashboard" 
+        class="block p-6 bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow"
+      >
+        <div class="flex items-center">
+          <div class="p-3 bg-green-100 rounded-lg">
+            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-gray-900">Dashboard</h3>
+            <p class="text-gray-600">View marketplace overview</p>
+          </div>
+        </div>
+      </NuxtLink>
+
+      <div class="p-6 bg-white rounded-lg shadow-sm border">
+        <div class="flex items-center">
+          <div class="p-3 bg-blue-100 rounded-lg">
+            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-gray-900">Browse Projects</h3>
+            <p class="text-gray-600">Explore code projects</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-6 bg-white rounded-lg shadow-sm border">
+        <div class="flex items-center">
+          <div class="p-3 bg-purple-100 rounded-lg">
+            <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-gray-900">Authors</h3>
+            <p class="text-gray-600">Meet code authors</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Marketplace Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white p-6 rounded-lg shadow-sm border">
+        <div class="flex items-center">
+          <div class="p-2 bg-green-100 rounded-lg">
+            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Total Projects</p>
+            <p class="text-2xl font-semibold text-gray-900">1,247</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-lg shadow-sm border">
+        <div class="flex items-center">
+          <div class="p-2 bg-blue-100 rounded-lg">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Active Authors</p>
+            <p class="text-2xl font-semibold text-gray-900">342</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-lg shadow-sm border">
+        <div class="flex items-center">
+          <div class="p-2 bg-purple-100 rounded-lg">
+            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Downloads</p>
+            <p class="text-2xl font-semibold text-gray-900">45.2K</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-lg shadow-sm border">
+        <div class="flex items-center">
+          <div class="p-2 bg-yellow-100 rounded-lg">
+            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+            </svg>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Revenue</p>
+            <p class="text-2xl font-semibold text-gray-900">$89.5K</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Featured Categories -->
+    <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
+      <h2 class="text-2xl font-semibold text-gray-900 mb-6">Popular Categories</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div class="text-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer">
+          <div class="text-2xl mb-2">🌐</div>
+          <h3 class="font-medium text-gray-900">Web Dev</h3>
+          <p class="text-sm text-gray-500">234 projects</p>
+        </div>
+        
+        <div class="text-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer">
+          <div class="text-2xl mb-2">📱</div>
+          <h3 class="font-medium text-gray-900">Mobile</h3>
+          <p class="text-sm text-gray-500">156 projects</p>
+        </div>
+        
+        <div class="text-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer">
+          <div class="text-2xl mb-2">🤖</div>
+          <h3 class="font-medium text-gray-900">AI/ML</h3>
+          <p class="text-sm text-gray-500">89 projects</p>
+        </div>
+        
+        <div class="text-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer">
+          <div class="text-2xl mb-2">🎮</div>
+          <h3 class="font-medium text-gray-900">Games</h3>
+          <p class="text-sm text-gray-500">67 projects</p>
+        </div>
+        
+        <div class="text-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer">
+          <div class="text-2xl mb-2">🔧</div>
+          <h3 class="font-medium text-gray-900">Tools</h3>
+          <p class="text-sm text-gray-500">123 projects</p>
+        </div>
+        
+        <div class="text-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer">
+          <div class="text-2xl mb-2">📊</div>
+          <h3 class="font-medium text-gray-900">Analytics</h3>
+          <p class="text-sm text-gray-500">45 projects</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- App Switching Info -->
+    <div class="bg-blue-50 rounded-lg p-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Application Switching</h2>
+      <p class="text-gray-700 mb-4">
+        To switch between applications, use the command line scripts:
+      </p>
+      <div class="bg-white rounded-lg p-4 font-mono text-sm">
+        <div class="space-y-2">
+          <div><span class="text-blue-600">yarn dev:example</span> - Switch to Example App</div>
+          <div><span class="text-green-600">yarn dev:codemart</span> - Switch to CodeMart App (current)</div>
+          <div><span class="text-purple-600">yarn dev:dev</span> - Switch to Dev Tools App</div>
+          <div><span class="text-red-600">yarn dev:admin</span> - Switch to Admin App</div>
+          <div><span class="text-indigo-600">yarn dev:dashboard</span> - Switch to Dashboard App</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { getAppEntryConfig } from '@/app-entry';
+
+// Page metadata
+definePageMeta({
+  title: 'CodeMart Home',
+  layout: 'default',
+  namespace: 'codemart'
+});
+
+// App configuration
+const appConfig = ref(getAppEntryConfig('codemart'));
+
+
+
+// Lifecycle
+onMounted(() => {
+  console.log('CodeMart App Index loaded', appConfig.value);
+});
+</script>
+
+<style scoped>
+.codemart-app-index {
+  padding: 2rem;
+  background-color: #f9fafb;
+  min-height: 100vh;
+}
+
+.app-header {
+  margin-bottom: 2rem;
+}
+</style>

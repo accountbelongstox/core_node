@@ -1,0 +1,128 @@
+``````````
+我们再次确认一下  在start.ps1中，调用get flutter apps，得到一个动态的apps表，包含了index 然后打印[INFO] Flutter Bloom App Selection
+  ===================================
+
+  Available Flutter Apps:
+  - * 50
+       0. app_main (Main Entry Point) [Debug/Android]
+       1. app_achat [Debug/Android]
+   ->  2. app_bank [Debug/Web]
+       3. app_example [Debug/Android]
+       4. app_wuy [Debug/Android]
+
+  Controls:
+    Up/Down arrows: Navigate apps
+    Left arrow: Toggle Debug/Build mode
+    Right arrow: Toggle platform (Web/Android/Windows/All)
+    Enter: Select app
+
+   这样一个菜单，之后根据菜单的toggle实时将各个APP对应的行为，平台存放，注意各个平台的要分别存放为文件变量，但只有一个当前APP，本如本例中就是bank，之后
+  在 D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\main.ps1
+  进行读取文件，并判断要跑那个调试，之后在startDebugByIOSweb中再次读取文件变量，以及调用get flutter
+  apps得到index映射表，然后推导出入口文件，启动高试。请全页检测。
+  ``````````
+
+  根据上面的要求，修正下面的错误，
+
+
+[INFO] Flutter Bloom App Selection
+===================================
+
+Available Flutter Apps:
+- * 50
+     0. app_main (Main Entry Point) [Debug/Android]
+     1. app_example [Debug/Android]
+     2. app_wuy [Debug/Android]
+     3. app_achat [Debug/Android]
+ ->  4. app_bank [Debug/Web]
+
+Controls:
+  Up/Down arrows: Navigate apps
+  Left arrow: Toggle Debug/Build mode
+  Right arrow: Toggle platform (Web/Android/Windows/All)
+  Enter: Select app
+
+
+[INFO] Selection completed:
+  App: app_bank
+  Action: Debug
+  Platform: web
+
+[DEBUG] Final selection values:
+  App: app_bank
+  Action: Debug
+  Platform: Web
+
+[INFO] App information loaded:
+  Entry File: D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_bank\main_app_bank.dart
+  App Index: 4
+  Debug Port: 10004
+[INFO] Selection and computed values stored in file variables
+  App: app_bank
+  Action: Debug
+  Platform: Web
+  Entry File: D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_bank\main_app_bank.dart
+  Debug Port: 10004
+
+[INFO] Calling dev_debug main script for Debug mode
+Executing: D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\main.ps1
+
+=== VERIFICATION: Reading back all Set-FileVariable values BEFORE script execution ===
+KEY_SELECTED_APP: 'app_bank'
+KEY_SELECTED_ACTION: 'Debug'
+KEY_SELECTED_PLATFORM: 'Web'
+KEY_CURRENT_ACTIVE_APP: 'app_bank'
+KEY_CURRENT_ACTIVE_ACTION: 'Debug'
+KEY_CURRENT_ACTIVE_PLATFORM: 'Web'
+KEY_APP_NAME: 'app_bank'
+KEY_BUILD_ACTION: 'Debug'
+KEY_BUILD_PLATFORM: 'Web'
+KEY_SELECTED_ENTRY_FILE: 'D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_bank\main_app_bank.dart'
+KEY_APP_INDEX: '4'
+KEY_DEBUG_PORT: '10004'
+======================================================
+
+[INFO] Executing script: D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\main.ps1
+[INFO] Flutter Bloom Dev Debug Main Script
+============================================
+
+===========================================
+Flutter Bloom Dev Debug - Current Selection
+===========================================
+
+App:      app_bank
+Action:   Debug
+Platform: Web
+
+This script will execute the appropriate
+debug script based on your selection.
+
+=== VERIFICATION: Variables received from start.ps1 ===
+KEY_SELECTED_APP: 'app_bank'
+KEY_SELECTED_ACTION: 'Debug'
+KEY_SELECTED_PLATFORM: 'Web'
+=================================================
+Press any key to continue with debug mode...
+
+[INFO] Dev Debug script - Debug mode only
+[INFO] Starting Debug Mode - Routing to platform-specific script
+  App: app_bank
+  Platform: Web
+[INFO] Calling Web Debug Script
+[INFO] Executing: D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\startDebugByWeb.ps1
+[INFO] Flutter Bloom Web Debug Script
+
+[INFO] Starting Web Debug Mode...
+=====================================
+[DEBUG] Reading variables from file system...
+[DEBUG] FTEMP_FLUTTER_DIR: D:\programing\core_node\poly_apps\flutter_bloom\.cache\flutter_bloom
+[ERROR] App '' not found in Flutter apps index mapping
+[DEBUG] Retrieved values:
+[DEBUG] selectedApp: ''
+[DEBUG] selectedAction: 'Debug'
+[DEBUG] selectedPlatform: 'Web'
+[DEBUG] selectedEntryFile: ''
+[DEBUG] debugPort: '10000'
+[WARN] No app selected, using default behavior
+[INFO] Updating Flutter packages...
+Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!

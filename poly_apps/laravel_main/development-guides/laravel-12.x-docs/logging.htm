@@ -1,0 +1,254 @@
+<!doctypehtml tml tml><html lang=en><title>Logging - Laravel 12.x - The PHP Framework For Web Artisans</title><body>See everything we announced at Laracon US 2025. Read the blog post → <div><div><nav><div><ul><li><a href=https://laravel.com/> Home </a></ul>ΓîÿK</div></nav><div popover><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></div><div><a href=#main-content> Skip to content </a><div><aside><div><div><nav><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></nav></div></div></aside><section><div><section><section><div>Logging<ul><li><a href=#introduction>Introduction</a><li><a href=#configuration>Configuration</a> <ul><li><a href=#available-channel-drivers>Available Channel Drivers</a><li><a href=#channel-prerequisites>Channel Prerequisites</a><li><a href=#logging-deprecation-warnings>Logging Deprecation Warnings</a></ul><li><a href=#building-log-stacks>Building Log Stacks</a><li><a href=#writing-log-messages>Writing Log Messages</a> <ul><li><a href=#contextual-information>Contextual Information</a><li><a href=#writing-to-specific-channels>Writing to Specific Channels</a></ul><li><a href=#monolog-channel-customization>Monolog Channel Customization</a> <ul><li><a href=#customizing-monolog-for-channels>Customizing Monolog for Channels</a><li><a href=#creating-monolog-handler-channels>Creating Monolog Handler Channels</a><li><a href=#creating-custom-channels-via-factories>Creating Custom Channels via Factories</a></ul><li><a href=#tailing-log-messages-using-pail>Tailing Log Messages Using Pail</a> <ul><li><a href=#pail-installation>Installation</a><li><a href=#pail-usage>Usage</a><li><a href=#pail-filtering-logs>Filtering Logs</a></ul></ul><h2><a href=#introduction>Introduction</a></h2><p>To help you learn more about what's happening within your application, Laravel provides robust logging services that allow you to log messages to files, the system error log, and even to Slack to notify your entire team.<p>Laravel logging is based on "channels". Each channel represents a specific way of writing log information. For example, the <code>single</code> channel writes log files to a single log file, while the <code>slack</code> channel sends log messages to Slack. Log messages may be written to multiple channels based on their severity.<p>Under the hood, Laravel utilizes the <a href=https://github.com/Seldaek/monolog>Monolog</a> library, which provides support for a variety of powerful log handlers. Laravel makes it a cinch to configure these handlers, allowing you to mix and match them to customize your application's log handling.<h2><a href=#configuration>Configuration</a></h2><p>All of the configuration options that control your application's logging behavior are housed in the <code>config/logging.php</code> configuration file. This file allows you to configure your application's log channels, so be sure to review each of the available channels and their options. We'll review a few common options below.<p>By default, Laravel will use the <code>stack</code> channel when logging messages. The <code>stack</code> channel is used to aggregate multiple log channels into a single channel. For more information on building stacks, check out the <a href=#building-log-stacks>documentation below</a>.<h3><a href=#available-channel-drivers>Available Channel Drivers</a></h3><p>Each log channel is powered by a "driver". The driver determines how and where the log message is actually recorded. The following log channel drivers are available in every Laravel application. An entry for most of these drivers is already present in your application's <code>config/logging.php</code> configuration file, so be sure to review this file to become familiar with its contents:<div><table><thead><tr><th>Name<th>Description<tbody><tr><td><code>custom</code><td>A driver that calls a specified factory to create a channel.<tr><td><code>daily</code><td>A <code>RotatingFileHandler</code> based Monolog driver which rotates daily.<tr><td><code>errorlog</code><td>An <code>ErrorLogHandler</code> based Monolog driver.<tr><td><code>monolog</code><td>A Monolog factory driver that may use any supported Monolog handler.<tr><td><code>papertrail</code><td>A <code>SyslogUdpHandler</code> based Monolog driver.<tr><td><code>single</code><td>A single file or path based logger channel (<code>StreamHandler</code>).<tr><td><code>slack</code><td>A <code>SlackWebhookHandler</code> based Monolog driver.<tr><td><code>stack</code><td>A wrapper to facilitate creating "multi-channel" channels.<tr><td><code>syslog</code><td>A <code>SyslogHandler</code> based Monolog driver.</thead></table></div><div><p>Check out the documentation on <a href=#monolog-channel-customization>advanced channel customization</a> to learn more about the <code>monolog</code> and <code>custom</code> drivers.</div><h4><a href=#configuring-the-channel-name>Configuring the Channel Name</a></h4><p>By default, Monolog is instantiated with a "channel name" that matches the current environment, such as <code>production</code> or <code>local</code>. To change this value, you may add a <code>name</code> option to your channel's configuration:<div><pre><code>1'stack'=> [2'driver'=>'stack',3'name'=>'channel-name',4'channels'=> ['single', 'slack'],5],
+'stack' => [
+    'driver' => 'stack',
+    'name' => 'channel-name',
+    'channels' => ['single', 'slack'],
+],</code></pre></div><h3><a href=#channel-prerequisites>Channel Prerequisites</a></h3><h4><a href=#configuring-the-single-and-daily-channels>Configuring the Single and Daily Channels</a></h4><p>The <code>single</code> and <code>daily</code> channels have three optional configuration options: <code>bubble</code>, <code>permission</code>, and <code>locking</code>.<div><table><thead><tr><th>Name<th>Description<th>Default<tbody><tr><td><code>bubble</code><td>Indicates if messages should bubble up to other channels after being handled.<td><code>true</code><tr><td><code>locking</code><td>Attempt to lock the log file before writing to it.<td><code>false</code><tr><td><code>permission</code><td>The log file's permissions.<td><code>0644</code></thead></table></div><p>Additionally, the retention policy for the <code>daily</code> channel can be configured via the <code>LOG_DAILY_DAYS</code> environment variable or by setting the <code>days</code> configuration option.<div><table><thead><tr><th>Name<th>Description<th>Default<tbody><tr><td><code>days</code><td>The number of days that daily log files should be retained.<td><code>14</code></thead></table></div><h4><a href=#configuring-the-papertrail-channel>Configuring the Papertrail Channel</a></h4><p>The <code>papertrail</code> channel requires <code>host</code> and <code>port</code> configuration options. These may be defined via the <code>PAPERTRAIL_URL</code> and <code>PAPERTRAIL_PORT</code> environment variables. You can obtain these values from <a href=https://help.papertrailapp.com/kb/configuration/configuring-centralized-logging-from-php-apps/#send-events-from-php-app>Papertrail</a>.<h4><a href=#configuring-the-slack-channel>Configuring the Slack Channel</a></h4><p>The <code>slack</code> channel requires a <code>url</code> configuration option. This value may be defined via the <code>LOG_SLACK_WEBHOOK_URL</code> environment variable. This URL should match a URL for an <a href=https://slack.com/apps/A0F7XDUAZ-incoming-webhooks>incoming webhook</a> that you have configured for your Slack team.<p>By default, Slack will only receive logs at the <code>critical</code> level and above; however, you can adjust this using the <code>LOG_LEVEL</code> environment variable or by modifying the <code>level</code> configuration option within your Slack log channel's configuration array.<h3><a href=#logging-deprecation-warnings>Logging Deprecation Warnings</a></h3><p>PHP, Laravel, and other libraries often notify their users that some of their features have been deprecated and will be removed in a future version. If you would like to log these deprecation warnings, you may specify your preferred <code>deprecations</code> log channel using the <code>LOG_DEPRECATIONS_CHANNEL</code> environment variable, or within your application's <code>config/logging.php</code> configuration file:<div><pre><code>1'deprecations'=> [2'channel'=>env('LOG_DEPRECATIONS_CHANNEL','null'),3'trace'=>env('LOG_DEPRECATIONS_TRACE', false),4],5 6'channels'=> [7// ...8]
+'deprecations' => [
+    'channel' => env('LOG_DEPRECATIONS_CHANNEL', 'null'),
+    'trace' => env('LOG_DEPRECATIONS_TRACE', false),
+],
+
+'channels' => [
+    // ...
+]</code></pre></div><p>Or, you may define a log channel named <code>deprecations</code>. If a log channel with this name exists, it will always be used to log deprecations:<div><pre><code>1'channels'=> [2'deprecations'=> [3'driver'=>'single',4'path'=>storage_path('logs/php-deprecation-warnings.log'),5    ],6],
+'channels' => [
+    'deprecations' => [
+        'driver' => 'single',
+        'path' => storage_path('logs/php-deprecation-warnings.log'),
+    ],
+],</code></pre></div><h2><a href=#building-log-stacks>Building Log Stacks</a></h2><p>As mentioned previously, the <code>stack</code> driver allows you to combine multiple channels into a single log channel for convenience. To illustrate how to use log stacks, let's take a look at an example configuration that you might see in a production application:<div><pre><code> 1'channels'=> [ 2'stack'=> [ 3'driver'=>'stack', 4'channels'=> ['syslog', 'slack'],  5'ignore_exceptions'=>false, 6    ], 7  8'syslog'=> [ 9'driver'=>'syslog',10'level'=>env('LOG_LEVEL','debug'),11'facility'=>env('LOG_SYSLOG_FACILITY',LOG_USER),12'replace_placeholders'=>true,13    ],14 15'slack'=> [16'driver'=>'slack',17'url'=>env('LOG_SLACK_WEBHOOK_URL'),18'username'=>env('LOG_SLACK_USERNAME','Laravel Log'),19'emoji'=>env('LOG_SLACK_EMOJI',':boom:'),20'level'=>env('LOG_LEVEL','critical'),21'replace_placeholders'=>true,22    ],23],
+'channels' => [
+    'stack' => [
+        'driver' => 'stack',
+        'channels' => ['syslog', 'slack'],
+        'ignore_exceptions' => false,
+    ],
+
+    'syslog' => [
+        'driver' => 'syslog',
+        'level' => env('LOG_LEVEL', 'debug'),
+        'facility' => env('LOG_SYSLOG_FACILITY', LOG_USER),
+        'replace_placeholders' => true,
+    ],
+
+    'slack' => [
+        'driver' => 'slack',
+        'url' => env('LOG_SLACK_WEBHOOK_URL'),
+        'username' => env('LOG_SLACK_USERNAME', 'Laravel Log'),
+        'emoji' => env('LOG_SLACK_EMOJI', ':boom:'),
+        'level' => env('LOG_LEVEL', 'critical'),
+        'replace_placeholders' => true,
+    ],
+],</code></pre></div><p>Let's dissect this configuration. First, notice our <code>stack</code> channel aggregates two other channels via its <code>channels</code> option: <code>syslog</code> and <code>slack</code>. So, when logging messages, both of these channels will have the opportunity to log the message. However, as we will see below, whether these channels actually log the message may be determined by the message's severity / "level".<h4><a href=#log-levels>Log Levels</a></h4><p>Take note of the <code>level</code> configuration option present on the <code>syslog</code> and <code>slack</code> channel configurations in the example above. This option determines the minimum "level" a message must be in order to be logged by the channel. Monolog, which powers Laravel's logging services, offers all of the log levels defined in the <a href=https://tools.ietf.org/html/rfc5424>RFC 5424 specification</a>. In descending order of severity, these log levels are: emergency, alert, critical, error, warning, notice, info, and debug.<p>So, imagine we log a message using the <code>debug</code> method:<div><pre><code>1Log::debug('An informational message.');
+Log::debug('An informational message.');</code></pre></div><p>Given our configuration, the <code>syslog</code> channel will write the message to the system log; however, since the error message is not <code>critical</code> or above, it will not be sent to Slack. However, if we log an <code>emergency</code> message, it will be sent to both the system log and Slack since the <code>emergency</code> level is above our minimum level threshold for both channels:<div><pre><code>1Log::emergency('The system is down!');
+Log::emergency('The system is down!');</code></pre></div><h2><a href=#writing-log-messages>Writing Log Messages</a></h2><p>You may write information to the logs using the <code>Log</code> <a href=facades.htm>facade</a>. As previously mentioned, the logger provides the eight logging levels defined in the <a href=https://tools.ietf.org/html/rfc5424>RFC 5424 specification</a>: emergency, alert, critical, error, warning, notice, info and debug:<div><pre><code> 1use Illuminate\Support\Facades\Log; 2  3Log::emergency($message); 4Log::alert($message); 5Log::critical($message); 6Log::error($message); 7Log::warning($message); 8Log::notice($message); 9Log::info($message);10Log::debug($message);
+use Illuminate\Support\Facades\Log;
+
+Log::emergency($message);
+Log::alert($message);
+Log::critical($message);
+Log::error($message);
+Log::warning($message);
+Log::notice($message);
+Log::info($message);
+Log::debug($message);</code></pre></div><p>You may call any of these methods to log a message for the corresponding level. By default, the message will be written to the default log channel as configured by your <code>logging</code> configuration file:<div><pre><code> 1&lt;?php 2  3namespace App\Http\Controllers; 4  5use App\Models\User; 6use Illuminate\Support\Facades\Log; 7use Illuminate\View\View; 8  9classUserControllerextendsController10{11/**12     * Show the profile for the given user.13*/14publicfunctionshow(string$id):View15    {16Log::info('Showing the user profile for user: {id}', ['id'=>$id]);17 18returnview('user.profile',[19'user'=>User::findOrFail($id)20]);21    }22}
+&lt;?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
+
+class UserController extends Controller
+{
+    /**
+     * Show the profile for the given user.
+     */
+    public function show(string $id): View
+    {
+        Log::info('Showing the user profile for user: {id}', ['id' => $id]);
+
+        return view('user.profile', [
+            'user' => User::findOrFail($id)
+        ]);
+    }
+}</code></pre></div><h3><a href=#contextual-information>Contextual Information</a></h3><p>An array of contextual data may be passed to the log methods. This contextual data will be formatted and displayed with the log message:<div><pre><code>1use Illuminate\Support\Facades\Log;2 3Log::info('User {id} failed to login.', ['id'=>$user->id]);
+use Illuminate\Support\Facades\Log;
+
+Log::info('User {id} failed to login.', ['id' => $user->id]);</code></pre></div><p>Occasionally, you may wish to specify some contextual information that should be included with all subsequent log entries in a particular channel. For example, you may wish to log a request ID that is associated with each incoming request to your application. To accomplish this, you may call the <code>Log</code> facade's <code>withContext</code> method:<div><pre><code> 1&lt;?php 2  3namespace App\Http\Middleware; 4  5useClosure; 6use Illuminate\Http\Request; 7use Illuminate\Support\Facades\Log; 8use Illuminate\Support\Str; 9use Symfony\Component\HttpFoundation\Response;10 11classAssignRequestId12{13/**14     * Handle an incoming request.15     *16     * @param\Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next17*/18publicfunctionhandle(Request$request, Closure$next):Response19    {20$requestId= (string) Str::uuid();21 22Log::withContext([23'request-id'=>$requestId24        ]);25 26$response=$next($request);27 28$response->headers->set('Request-Id', $requestId);29 30return$response;31    }32}
+&lt;?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
+
+class AssignRequestId
+{
+    /**
+     * Handle an incoming request.
+     *
+     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        $requestId = (string) Str::uuid();
+
+        Log::withContext([
+            'request-id' => $requestId
+        ]);
+
+        $response = $next($request);
+
+        $response->headers->set('Request-Id', $requestId);
+
+        return $response;
+    }
+}</code></pre></div><p>If you would like to share contextual information across all logging channels, you may invoke the <code>Log::shareContext()</code> method. This method will provide the contextual information to all created channels and any channels that are created subsequently:<div><pre><code> 1&lt;?php 2  3namespace App\Http\Middleware; 4  5useClosure; 6use Illuminate\Http\Request; 7use Illuminate\Support\Facades\Log; 8use Illuminate\Support\Str; 9use Symfony\Component\HttpFoundation\Response;10 11classAssignRequestId12{13/**14     * Handle an incoming request.15     *16     * @param\Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next17*/18publicfunctionhandle(Request$request, Closure$next):Response19    {20$requestId= (string) Str::uuid();21 22Log::shareContext([23'request-id'=>$requestId24        ]);25 26// ...27    }28}
+&lt;?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
+
+class AssignRequestId
+{
+    /**
+     * Handle an incoming request.
+     *
+     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        $requestId = (string) Str::uuid();
+
+        Log::shareContext([
+            'request-id' => $requestId
+        ]);
+
+        // ...
+    }
+}</code></pre></div><div><p>If you need to share log context while processing queued jobs, you may utilize <a href=queues.htm#job-middleware>job middleware</a>.</div><h3><a href=#writing-to-specific-channels>Writing to Specific Channels</a></h3><p>Sometimes you may wish to log a message to a channel other than your application's default channel. You may use the <code>channel</code> method on the <code>Log</code> facade to retrieve and log to any channel defined in your configuration file:<div><pre><code>1use Illuminate\Support\Facades\Log;2 3Log::channel('slack')->info('Something happened!');
+use Illuminate\Support\Facades\Log;
+
+Log::channel('slack')->info('Something happened!');</code></pre></div><p>If you would like to create an on-demand logging stack consisting of multiple channels, you may use the <code>stack</code> method:<div><pre><code>1Log::stack(['single', 'slack'])->info('Something happened!');
+Log::stack(['single', 'slack'])->info('Something happened!');</code></pre></div><h4><a href=#on-demand-channels>On-Demand Channels</a></h4><p>It is also possible to create an on-demand channel by providing the configuration at runtime without that configuration being present in your application's <code>logging</code> configuration file. To accomplish this, you may pass a configuration array to the <code>Log</code> facade's <code>build</code> method:<div><pre><code>1use Illuminate\Support\Facades\Log;2 3Log::build([4'driver'=>'single',5'path'=>storage_path('logs/custom.log'),6])->info('Something happened!');
+use Illuminate\Support\Facades\Log;
+
+Log::build([
+  'driver' => 'single',
+  'path' => storage_path('logs/custom.log'),
+])->info('Something happened!');</code></pre></div><p>You may also wish to include an on-demand channel in an on-demand logging stack. This can be achieved by including your on-demand channel instance in the array passed to the <code>stack</code> method:<div><pre><code>1use Illuminate\Support\Facades\Log;2 3$channel=Log::build([4'driver'=>'single',5'path'=>storage_path('logs/custom.log'),6]);7 8Log::stack(['slack', $channel])->info('Something happened!');
+use Illuminate\Support\Facades\Log;
+
+$channel = Log::build([
+  'driver' => 'single',
+  'path' => storage_path('logs/custom.log'),
+]);
+
+Log::stack(['slack', $channel])->info('Something happened!');</code></pre></div><h2><a href=#monolog-channel-customization>Monolog Channel Customization</a></h2><h3><a href=#customizing-monolog-for-channels>Customizing Monolog for Channels</a></h3><p>Sometimes you may need complete control over how Monolog is configured for an existing channel. For example, you may want to configure a custom Monolog <code>FormatterInterface</code> implementation for Laravel's built-in <code>single</code> channel.<p>To get started, define a <code>tap</code> array on the channel's configuration. The <code>tap</code> array should contain a list of classes that should have an opportunity to customize (or "tap" into) the Monolog instance after it is created. There is no conventional location where these classes should be placed, so you are free to create a directory within your application to contain these classes:<div><pre><code>1'single'=> [2'driver'=>'single',3'tap'=> [App\Logging\CustomizeFormatter::class],4'path'=>storage_path('logs/laravel.log'),5'level'=>env('LOG_LEVEL','debug'),6'replace_placeholders'=>true,7],
+'single' => [
+    'driver' => 'single',
+    'tap' => [App\Logging\CustomizeFormatter::class],
+    'path' => storage_path('logs/laravel.log'),
+    'level' => env('LOG_LEVEL', 'debug'),
+    'replace_placeholders' => true,
+],</code></pre></div><p>Once you have configured the <code>tap</code> option on your channel, you're ready to define the class that will customize your Monolog instance. This class only needs a single method: <code>__invoke</code>, which receives an <code>Illuminate\Log\Logger</code> instance. The <code>Illuminate\Log\Logger</code> instance proxies all method calls to the underlying Monolog instance:<div><pre><code> 1&lt;?php 2  3namespace App\Logging; 4  5use Illuminate\Log\Logger; 6use Monolog\Formatter\LineFormatter; 7  8classCustomizeFormatter 9{10/**11     * Customize the given logger instance.12*/13publicfunction__invoke(Logger$logger):void14    {15foreach ($logger->getHandlers() as$handler) {16$handler->setFormatter(newLineFormatter(17'[%datetime%] %channel%.%level_name%: %message% %context% %extra%'18            ));19        }20    }21}
+&lt;?php
+
+namespace App\Logging;
+
+use Illuminate\Log\Logger;
+use Monolog\Formatter\LineFormatter;
+
+class CustomizeFormatter
+{
+    /**
+     * Customize the given logger instance.
+     */
+    public function __invoke(Logger $logger): void
+    {
+        foreach ($logger->getHandlers() as $handler) {
+            $handler->setFormatter(new LineFormatter(
+                '[%datetime%] %channel%.%level_name%: %message% %context% %extra%'
+            ));
+        }
+    }
+}</code></pre></div><div><p>All of your "tap" classes are resolved by the <a href=container.htm>service container</a>, so any constructor dependencies they require will automatically be injected.</div><h3><a href=#creating-monolog-handler-channels>Creating Monolog Handler Channels</a></h3><p>Monolog has a variety of <a href=https://github.com/Seldaek/monolog/tree/main/src/Monolog/Handler>available handlers</a> and Laravel does not include a built-in channel for each one. In some cases, you may wish to create a custom channel that is merely an instance of a specific Monolog handler that does not have a corresponding Laravel log driver. These channels can be easily created using the <code>monolog</code> driver.<p>When using the <code>monolog</code> driver, the <code>handler</code> configuration option is used to specify which handler will be instantiated. Optionally, any constructor parameters the handler needs may be specified using the <code>handler_with</code> configuration option:<div><pre><code>1'logentries'=> [2'driver'=>'monolog',3'handler'=> Monolog\Handler\SyslogUdpHandler::class,4'handler_with'=> [5'host'=>'my.logentries.internal.datahubhost.company.com',6'port'=>'10000',7    ],8],
+'logentries' => [
+    'driver'  => 'monolog',
+    'handler' => Monolog\Handler\SyslogUdpHandler::class,
+    'handler_with' => [
+        'host' => 'my.logentries.internal.datahubhost.company.com',
+        'port' => '10000',
+    ],
+],</code></pre></div><h4><a href=#monolog-formatters>Monolog Formatters</a></h4><p>When using the <code>monolog</code> driver, the Monolog <code>LineFormatter</code> will be used as the default formatter. However, you may customize the type of formatter passed to the handler using the <code>formatter</code> and <code>formatter_with</code> configuration options:<div><pre><code>1'browser'=> [2'driver'=>'monolog',3'handler'=> Monolog\Handler\BrowserConsoleHandler::class,4'formatter'=> Monolog\Formatter\HtmlFormatter::class,5'formatter_with'=> [6'dateFormat'=>'Y-m-d',7    ],8],
+'browser' => [
+    'driver' => 'monolog',
+    'handler' => Monolog\Handler\BrowserConsoleHandler::class,
+    'formatter' => Monolog\Formatter\HtmlFormatter::class,
+    'formatter_with' => [
+        'dateFormat' => 'Y-m-d',
+    ],
+],</code></pre></div><p>If you are using a Monolog handler that is capable of providing its own formatter, you may set the value of the <code>formatter</code> configuration option to <code>default</code>:<div><pre><code>1'newrelic'=> [2'driver'=>'monolog',3'handler'=> Monolog\Handler\NewRelicHandler::class,4'formatter'=>'default',5],
+'newrelic' => [
+    'driver' => 'monolog',
+    'handler' => Monolog\Handler\NewRelicHandler::class,
+    'formatter' => 'default',
+],</code></pre></div><h4><a href=#monolog-processors>Monolog Processors</a></h4><p>Monolog can also process messages before logging them. You can create your own processors or use the <a href=https://github.com/Seldaek/monolog/tree/main/src/Monolog/Processor>existing processors offered by Monolog</a>.<p>If you would like to customize the processors for a <code>monolog</code> driver, add a <code>processors</code> configuration value to your channel's configuration:<div><pre><code> 1'memory'=> [ 2'driver'=>'monolog', 3'handler'=> Monolog\Handler\StreamHandler::class, 4'handler_with'=> [ 5'stream'=>'php://stderr', 6    ], 7'processors'=> [ 8// Simple syntax... 9        Monolog\Processor\MemoryUsageProcessor::class,10 11// With options...12        [13'processor'=> Monolog\Processor\PsrLogMessageProcessor::class,14'with'=> ['removeUsedContextFields'=>true],15        ],16    ],17],
+'memory' => [
+    'driver' => 'monolog',
+    'handler' => Monolog\Handler\StreamHandler::class,
+    'handler_with' => [
+        'stream' => 'php://stderr',
+    ],
+    'processors' => [
+        // Simple syntax...
+        Monolog\Processor\MemoryUsageProcessor::class,
+
+        // With options...
+        [
+            'processor' => Monolog\Processor\PsrLogMessageProcessor::class,
+            'with' => ['removeUsedContextFields' => true],
+        ],
+    ],
+],</code></pre></div><h3><a href=#creating-custom-channels-via-factories>Creating Custom Channels via Factories</a></h3><p>If you would like to define an entirely custom channel in which you have full control over Monolog's instantiation and configuration, you may specify a <code>custom</code> driver type in your <code>config/logging.php</code> configuration file. Your configuration should include a <code>via</code> option that contains the name of the factory class which will be invoked to create the Monolog instance:<div><pre><code>1'channels'=> [2'example-custom-channel'=> [3'driver'=>'custom',4'via'=> App\Logging\CreateCustomLogger::class,5    ],6],
+'channels' => [
+    'example-custom-channel' => [
+        'driver' => 'custom',
+        'via' => App\Logging\CreateCustomLogger::class,
+    ],
+],</code></pre></div><p>Once you have configured the <code>custom</code> driver channel, you're ready to define the class that will create your Monolog instance. This class only needs a single <code>__invoke</code> method which should return the Monolog logger instance. The method will receive the channels configuration array as its only argument:<div><pre><code> 1&lt;?php 2  3namespace App\Logging; 4  5use Monolog\Logger; 6  7classCreateCustomLogger 8{ 9/**10     * Create a custom Monolog instance.11*/12publicfunction__invoke(array$config):Logger13    {14returnnewLogger(/* ... */);15    }16}
+&lt;?php
+
+namespace App\Logging;
+
+use Monolog\Logger;
+
+class CreateCustomLogger
+{
+    /**
+     * Create a custom Monolog instance.
+     */
+    public function __invoke(array $config): Logger
+    {
+        return new Logger(/* ... */);
+    }
+}</code></pre></div><h2><a href=#tailing-log-messages-using-pail>Tailing Log Messages Using Pail</a></h2><p>Often you may need to tail your application's logs in real time. For example, when debugging an issue or when monitoring your application's logs for specific types of errors.<p>Laravel Pail is a package that allows you to easily dive into your Laravel application's log files directly from the command line. Unlike the standard <code>tail</code> command, Pail is designed to work with any log driver, including Sentry or Flare. In addition, Pail provides a set of useful filters to help you quickly find what you're looking for.<h3><a href=#pail-installation>Installation</a></h3><div><p>Laravel Pail requires the <a href=https://www.php.net/manual/en/book.pcntl.php>PCNTL</a> PHP extension.</div><p>To get started, install Pail into your project using the Composer package manager:<div><pre><code>1composer require--devlaravel/pail
+composer require --dev laravel/pail</code></pre></div><h3><a href=#pail-usage>Usage</a></h3><p>To start tailing logs, run the <code>pail</code> command:<div><pre><code>1php artisanpail
+php artisan pail</code></pre></div><p>To increase the verbosity of the output and avoid truncation (ΓÇª), use the <code>-v</code> option:<div><pre><code>1php artisanpail-v
+php artisan pail -v</code></pre></div><p>For maximum verbosity and to display exception stack traces, use the <code>-vv</code> option:<div><pre><code>1php artisanpail-vv
+php artisan pail -vv</code></pre></div><p>To stop tailing logs, press <code>Ctrl+C</code> at any time.<h3><a href=#pail-filtering-logs>Filtering Logs</a></h3><h4><a href=#pail-filtering-logs-filter-option><code>--filter</code></a></h4><p>You may use the <code>--filter</code> option to filter logs by their type, file, message, and stack trace content:<div><pre><code>1php artisanpail--filter="QueryException"
+php artisan pail --filter="QueryException"</code></pre></div><h4><a href=#pail-filtering-logs-message-option><code>--message</code></a></h4><p>To filter logs by only their message, you may use the <code>--message</code> option:<div><pre><code>1php artisanpail--message="User created"
+php artisan pail --message="User created"</code></pre></div><h4><a href=#pail-filtering-logs-level-option><code>--level</code></a></h4><p>The <code>--level</code> option may be used to filter logs by their <a href=#log-levels>log level</a>:<div><pre><code>1php artisanpail--level=error
+php artisan pail --level=error</code></pre></div><h4><a href=#pail-filtering-logs-user-option><code>--user</code></a></h4><p>To only display logs that were written while a given user was authenticated, you may provide the user's ID to the <code>--user</code> option:<div><pre><code>1php artisanpail--user=1
+php artisan pail --user=1</code></pre></div></div></section></section></div></section><div><div><div>On this page<div><div><ul><li><a href=#introduction> Introduction </a><li><a href=#configuration> Configuration </a> <ul><li><a href=#available-channel-drivers> Available Channel Drivers </a><li><a href=#channel-prerequisites> Channel Prerequisites </a><li><a href=#logging-deprecation-warnings> Logging Deprecation Warnings </a></ul><li><a href=#building-log-stacks> Building Log Stacks </a><li><a href=#writing-log-messages> Writing Log Messages </a> <ul><li><a href=#contextual-information> Contextual Information </a><li><a href=#writing-to-specific-channels> Writing to Specific Channels </a></ul><li><a href=#monolog-channel-customization> Monolog Channel Customization </a> <ul><li><a href=#customizing-monolog-for-channels> Customizing Monolog for Channels </a><li><a href=#creating-monolog-handler-channels> Creating Monolog Handler Channels </a><li><a href=#creating-custom-channels-via-factories> Creating Custom Channels via Factories </a></ul><li><a href=#tailing-log-messages-using-pail> Tailing Log Messages Using Pail </a> <ul><li><a href=#pail-installation> Installation </a><li><a href=#pail-usage> Usage </a><li><a href=#pail-filtering-logs> Filtering Logs </a></ul></ul></div></div></div></div></div></div></div></div></div>

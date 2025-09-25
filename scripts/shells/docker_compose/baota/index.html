@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BT Panel Configuration</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+        h1 { color: #333; }
+        #config, #actions { margin-bottom: 20px; }
+        button { padding: 10px; margin-right: 10px; }
+        #sshKey { word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h1>BT Panel Configuration</h1>
+    <div id="config">
+        <h2>Current Configuration:</h2>
+        <pre id="configContent"></pre>
+    </div>
+    <div id="actions">
+        <button onclick="performAction('backup')">Backup</button>
+        <button onclick="performAction('restore')">Restore</button>
+        <button onclick="performAction('enable_ssh')">Enable SSH</button>
+        <button onclick="performAction('get_ssh_key')">Show SSH Key</button>
+    </div>
+    <div id="sshKey"></div>
+
+    <script>
+        function loadConfig() {
+            fetch('/config.json')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('configContent').textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function performAction(action) {
+            fetch('/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: action }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (action === 'get_ssh_key') {
+                    document.getElementById('sshKey').textContent = data.message;
+                } else {
+                    alert(data.message);
+                }
+                if (action === 'backup' || action === 'restore') {
+                    loadConfig();
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+
+        loadConfig();
+    </script>
+</body>
+</html>

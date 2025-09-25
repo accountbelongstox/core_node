@@ -1,0 +1,313 @@
+<!doctypehtml tml tml><html lang=en><title>Eloquent: Factories - Laravel 12.x - The PHP Framework For Web Artisans</title><body>See everything we announced at Laracon US 2025. Read the blog post → <div><div><nav><div><ul><li><a href=https://laravel.com/> Home </a></ul>ΓîÿK</div></nav><div popover><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></div><div><a href=#main-content> Skip to content </a><div><aside><div><div><nav><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></nav></div></div></aside><section><div><section><section><div>Eloquent: Factories<ul><li><a href=#introduction>Introduction</a><li><a href=#defining-model-factories>Defining Model Factories</a> <ul><li><a href=#generating-factories>Generating Factories</a><li><a href=#factory-states>Factory States</a><li><a href=#factory-callbacks>Factory Callbacks</a></ul><li><a href=#creating-models-using-factories>Creating Models Using Factories</a> <ul><li><a href=#instantiating-models>Instantiating Models</a><li><a href=#persisting-models>Persisting Models</a><li><a href=#sequences>Sequences</a></ul><li><a href=#factory-relationships>Factory Relationships</a> <ul><li><a href=#has-many-relationships>Has Many Relationships</a><li><a href=#belongs-to-relationships>Belongs To Relationships</a><li><a href=#many-to-many-relationships>Many to Many Relationships</a><li><a href=#polymorphic-relationships>Polymorphic Relationships</a><li><a href=#defining-relationships-within-factories>Defining Relationships Within Factories</a><li><a href=#recycling-an-existing-model-for-relationships>Recycling an Existing Model for Relationships</a></ul></ul><h2><a href=#introduction>Introduction</a></h2><p>When testing your application or seeding your database, you may need to insert a few records into your database. Instead of manually specifying the value of each column, Laravel allows you to define a set of default attributes for each of your <a href=eloquent.htm>Eloquent models</a> using model factories.<p>To see an example of how to write a factory, take a look at the <code>database/factories/UserFactory.php</code> file in your application. This factory is included with all new Laravel applications and contains the following factory definition:<div><pre><code> 1namespace Database\Factories; 2  3use Illuminate\Database\Eloquent\Factories\Factory; 4use Illuminate\Support\Facades\Hash; 5use Illuminate\Support\Str; 6  7/** 8 * @extends \Illuminate\Database\Eloquent\Factories\Factory&lt;\App\Models\User> 9*/10classUserFactoryextendsFactory11{12/**13     * The current password being used by the factory.14*/15protectedstatic?string$password;16 17/**18     * Define the model's default state.19     *20     * @returnarray&lt;string, mixed>21*/22publicfunctiondefinition():array23    {24return [25'name'=>fake()->name(),26'email'=>fake()->unique()->safeEmail(),27'email_verified_at'=>now(),28'password'=>static::$password??=Hash::make('password'),29'remember_token'=>Str::random(10),30        ];31    }32 33/**34     * Indicate that the model's email address should be unverified.35*/36publicfunctionunverified():static37    {38return$this->state(fn(array$attributes) => [39'email_verified_at'=>null,40        ]);41    }42}
+namespace Database\Factories;
+
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+
+/**
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory&lt;\App\Models\User>
+ */
+class UserFactory extends Factory
+{
+    /**
+     * The current password being used by the factory.
+     */
+    protected static ?string $password;
+
+    /**
+     * Define the model's default state.
+     *
+     * @return array&lt;string, mixed>
+     */
+    public function definition(): array
+    {
+        return [
+            'name' => fake()->name(),
+            'email' => fake()->unique()->safeEmail(),
+            'email_verified_at' => now(),
+            'password' => static::$password ??= Hash::make('password'),
+            'remember_token' => Str::random(10),
+        ];
+    }
+
+    /**
+     * Indicate that the model's email address should be unverified.
+     */
+    public function unverified(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'email_verified_at' => null,
+        ]);
+    }
+}</code></pre></div><p>As you can see, in their most basic form, factories are classes that extend Laravel's base factory class and define a <code>definition</code> method. The <code>definition</code> method returns the default set of attribute values that should be applied when creating a model using the factory.<p>Via the <code>fake</code> helper, factories have access to the <a href=https://github.com/FakerPHP/Faker>Faker</a> PHP library, which allows you to conveniently generate various kinds of random data for testing and seeding.<div><p>You can change your application's Faker locale by updating the <code>faker_locale</code> option in your <code>config/app.php</code> configuration file.</div><h2><a href=#defining-model-factories>Defining Model Factories</a></h2><h3><a href=#generating-factories>Generating Factories</a></h3><p>To create a factory, execute the <code>make:factory</code> <a href=artisan.htm>Artisan command</a>:<div><pre><code>1php artisanmake:factoryPostFactory
+php artisan make:factory PostFactory</code></pre></div><p>The new factory class will be placed in your <code>database/factories</code> directory.<h4><a href=#factory-and-model-discovery-conventions>Model and Factory Discovery Conventions</a></h4><p>Once you have defined your factories, you may use the static <code>factory</code> method provided to your models by the <code>Illuminate\Database\Eloquent\Factories\HasFactory</code> trait in order to instantiate a factory instance for that model.<p>The <code>HasFactory</code> trait's <code>factory</code> method will use conventions to determine the proper factory for the model the trait is assigned to. Specifically, the method will look for a factory in the <code>Database\Factories</code> namespace that has a class name matching the model name and is suffixed with <code>Factory</code>. If these conventions do not apply to your particular application or factory, you may overwrite the <code>newFactory</code> method on your model to return an instance of the model's corresponding factory directly:<div><pre><code>1use Database\Factories\Administration\FlightFactory;2 3/**4 * Create a new factory instance for the model.5*/6protectedstaticfunctionnewFactory()7{8returnFlightFactory::new();9}
+use Database\Factories\Administration\FlightFactory;
+
+/**
+ * Create a new factory instance for the model.
+ */
+protected static function newFactory()
+{
+    return FlightFactory::new();
+}</code></pre></div><p>Then, define a <code>model</code> property on the corresponding factory:<div><pre><code> 1use App\Administration\Flight; 2use Illuminate\Database\Eloquent\Factories\Factory; 3  4classFlightFactoryextendsFactory 5{ 6/** 7     * The name of the factory's corresponding model. 8     * 9     * @varclass-string&lt;\Illuminate\Database\Eloquent\Model>10*/11protected$model=Flight::class;12}
+use App\Administration\Flight;
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+class FlightFactory extends Factory
+{
+    /**
+     * The name of the factory's corresponding model.
+     *
+     * @var class-string&lt;\Illuminate\Database\Eloquent\Model>
+     */
+    protected $model = Flight::class;
+}</code></pre></div><h3><a href=#factory-states>Factory States</a></h3><p>State manipulation methods allow you to define discrete modifications that can be applied to your model factories in any combination. For example, your <code>Database\Factories\UserFactory</code> factory might contain a <code>suspended</code> state method that modifies one of its default attribute values.<p>State transformation methods typically call the <code>state</code> method provided by Laravel's base factory class. The <code>state</code> method accepts a closure which will receive the array of raw attributes defined for the factory and should return an array of attributes to modify:<div><pre><code> 1use Illuminate\Database\Eloquent\Factories\Factory; 2  3/** 4 * Indicate that the user is suspended. 5*/ 6publicfunctionsuspended():Factory 7{ 8return$this->state(function(array$attributes) { 9return [10'account_status'=>'suspended',11        ];12    });13}
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+/**
+ * Indicate that the user is suspended.
+ */
+public function suspended(): Factory
+{
+    return $this->state(function (array $attributes) {
+        return [
+            'account_status' => 'suspended',
+        ];
+    });
+}</code></pre></div><h4><a href=#trashed-state>"Trashed" State</a></h4><p>If your Eloquent model can be <a href=eloquent.htm#soft-deleting>soft deleted</a>, you may invoke the built-in <code>trashed</code> state method to indicate that the created model should already be "soft deleted". You do not need to manually define the <code>trashed</code> state as it is automatically available to all factories:<div><pre><code>1use App\Models\User;2 3$user=User::factory()->trashed()->create();
+use App\Models\User;
+
+$user = User::factory()->trashed()->create();</code></pre></div><h3><a href=#factory-callbacks>Factory Callbacks</a></h3><p>Factory callbacks are registered using the <code>afterMaking</code> and <code>afterCreating</code> methods and allow you to perform additional tasks after making or creating a model. You should register these callbacks by defining a <code>configure</code> method on your factory class. This method will be automatically called by Laravel when the factory is instantiated:<div><pre><code> 1namespace Database\Factories; 2  3use App\Models\User; 4use Illuminate\Database\Eloquent\Factories\Factory; 5  6classUserFactoryextendsFactory 7{ 8/** 9     * Configure the model factory.10*/11publicfunctionconfigure():static12    {13return$this->afterMaking(function(User$user) {14// ...15        })->afterCreating(function(User$user) {16// ...17        });18    }19 20// ...21}
+namespace Database\Factories;
+
+use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+class UserFactory extends Factory
+{
+    /**
+     * Configure the model factory.
+     */
+    public function configure(): static
+    {
+        return $this->afterMaking(function (User $user) {
+            // ...
+        })->afterCreating(function (User $user) {
+            // ...
+        });
+    }
+
+    // ...
+}</code></pre></div><p>You may also register factory callbacks within state methods to perform additional tasks that are specific to a given state:<div><pre><code> 1use App\Models\User; 2use Illuminate\Database\Eloquent\Factories\Factory; 3  4/** 5 * Indicate that the user is suspended. 6*/ 7publicfunctionsuspended():Factory 8{ 9return$this->state(function(array$attributes) {10return [11'account_status'=>'suspended',12        ];13    })->afterMaking(function(User$user) {14// ...15    })->afterCreating(function(User$user) {16// ...17    });18}
+use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+/**
+ * Indicate that the user is suspended.
+ */
+public function suspended(): Factory
+{
+    return $this->state(function (array $attributes) {
+        return [
+            'account_status' => 'suspended',
+        ];
+    })->afterMaking(function (User $user) {
+        // ...
+    })->afterCreating(function (User $user) {
+        // ...
+    });
+}</code></pre></div><h2><a href=#creating-models-using-factories>Creating Models Using Factories</a></h2><h3><a href=#instantiating-models>Instantiating Models</a></h3><p>Once you have defined your factories, you may use the static <code>factory</code> method provided to your models by the <code>Illuminate\Database\Eloquent\Factories\HasFactory</code> trait in order to instantiate a factory instance for that model. Let's take a look at a few examples of creating models. First, we'll use the <code>make</code> method to create models without persisting them to the database:<div><pre><code>1use App\Models\User;2 3$user=User::factory()->make();
+use App\Models\User;
+
+$user = User::factory()->make();</code></pre></div><p>You may create a collection of many models using the <code>count</code> method:<div><pre><code>1$users=User::factory()->count(3)->make();
+$users = User::factory()->count(3)->make();</code></pre></div><h4><a href=#applying-states>Applying States</a></h4><p>You may also apply any of your <a href=#factory-states>states</a> to the models. If you would like to apply multiple state transformations to the models, you may simply call the state transformation methods directly:<div><pre><code>1$users=User::factory()->count(5)->suspended()->make();
+$users = User::factory()->count(5)->suspended()->make();</code></pre></div><h4><a href=#overriding-attributes>Overriding Attributes</a></h4><p>If you would like to override some of the default values of your models, you may pass an array of values to the <code>make</code> method. Only the specified attributes will be replaced while the rest of the attributes remain set to their default values as specified by the factory:<div><pre><code>1$user=User::factory()->make([2'name'=>'Abigail Otwell',3]);
+$user = User::factory()->make([
+    'name' => 'Abigail Otwell',
+]);</code></pre></div><p>Alternatively, the <code>state</code> method may be called directly on the factory instance to perform an inline state transformation:<div><pre><code>1$user=User::factory()->state([2'name'=>'Abigail Otwell',3])->make();
+$user = User::factory()->state([
+    'name' => 'Abigail Otwell',
+])->make();</code></pre></div><div><p><a href=eloquent.htm#mass-assignment>Mass assignment protection</a> is automatically disabled when creating models using factories.</div><h3><a href=#persisting-models>Persisting Models</a></h3><p>The <code>create</code> method instantiates model instances and persists them to the database using Eloquent's <code>save</code> method:<div><pre><code>1use App\Models\User;2 3// Create a single App\Models\User instance...4$user=User::factory()->create();5 6// Create three App\Models\User instances...7$users=User::factory()->count(3)->create();
+use App\Models\User;
+
+// Create a single App\Models\User instance...
+$user = User::factory()->create();
+
+// Create three App\Models\User instances...
+$users = User::factory()->count(3)->create();</code></pre></div><p>You may override the factory's default model attributes by passing an array of attributes to the <code>create</code> method:<div><pre><code>1$user=User::factory()->create([2'name'=>'Abigail',3]);
+$user = User::factory()->create([
+    'name' => 'Abigail',
+]);</code></pre></div><h3><a href=#sequences>Sequences</a></h3><p>Sometimes you may wish to alternate the value of a given model attribute for each created model. You may accomplish this by defining a state transformation as a sequence. For example, you may wish to alternate the value of an <code>admin</code> column between <code>Y</code> and <code>N</code> for each created user:<div><pre><code> 1use App\Models\User; 2use Illuminate\Database\Eloquent\Factories\Sequence; 3  4$users=User::factory() 5->count(10) 6->state(newSequence( 7        ['admin'=>'Y'], 8        ['admin'=>'N'], 9    ))10->create();
+use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Sequence;
+
+$users = User::factory()
+    ->count(10)
+    ->state(new Sequence(
+        ['admin' => 'Y'],
+        ['admin' => 'N'],
+    ))
+    ->create();</code></pre></div><p>In this example, five users will be created with an <code>admin</code> value of <code>Y</code> and five users will be created with an <code>admin</code> value of <code>N</code>.<p>If necessary, you may include a closure as a sequence value. The closure will be invoked each time the sequence needs a new value:<div><pre><code>1use Illuminate\Database\Eloquent\Factories\Sequence;2 3$users=User::factory()4->count(10)5->state(newSequence(6fn(Sequence$sequence) => ['role'=>UserRoles::all()->random()],7    ))8->create();
+use Illuminate\Database\Eloquent\Factories\Sequence;
+
+$users = User::factory()
+    ->count(10)
+    ->state(new Sequence(
+        fn (Sequence $sequence) => ['role' => UserRoles::all()->random()],
+    ))
+    ->create();</code></pre></div><p>Within a sequence closure, you may access the <code>$index</code> or <code>$count</code> properties on the sequence instance that is injected into the closure. The <code>$index</code> property contains the number of iterations through the sequence that have occurred thus far, while the <code>$count</code> property contains the total number of times the sequence will be invoked:<div><pre><code>1$users=User::factory()2->count(10)3->sequence(fn(Sequence$sequence) => ['name'=>'Name '.$sequence->index])4->create();
+$users = User::factory()
+    ->count(10)
+    ->sequence(fn (Sequence $sequence) => ['name' => 'Name '.$sequence->index])
+    ->create();</code></pre></div><p>For convenience, sequences may also be applied using the <code>sequence</code> method, which simply invokes the <code>state</code> method internally. The <code>sequence</code> method accepts a closure or arrays of sequenced attributes:<div><pre><code>1$users=User::factory()2->count(2)3->sequence(4        ['name'=>'First User'],5        ['name'=>'Second User'],6    )7->create();
+$users = User::factory()
+    ->count(2)
+    ->sequence(
+        ['name' => 'First User'],
+        ['name' => 'Second User'],
+    )
+    ->create();</code></pre></div><h2><a href=#factory-relationships>Factory Relationships</a></h2><h3><a href=#has-many-relationships>Has Many Relationships</a></h3><p>Next, let's explore building Eloquent model relationships using Laravel's fluent factory methods. First, let's assume our application has an <code>App\Models\User</code> model and an <code>App\Models\Post</code> model. Also, let's assume that the <code>User</code> model defines a <code>hasMany</code> relationship with <code>Post</code>. We can create a user that has three posts using the <code>has</code> method provided by the Laravel's factories. The <code>has</code> method accepts a factory instance:<div><pre><code>1use App\Models\Post;2use App\Models\User;3 4$user=User::factory()5->has(Post::factory()->count(3))6->create();
+use App\Models\Post;
+use App\Models\User;
+
+$user = User::factory()
+    ->has(Post::factory()->count(3))
+    ->create();</code></pre></div><p>By convention, when passing a <code>Post</code> model to the <code>has</code> method, Laravel will assume that the <code>User</code> model must have a <code>posts</code> method that defines the relationship. If necessary, you may explicitly specify the name of the relationship that you would like to manipulate:<div><pre><code>1$user=User::factory()2->has(Post::factory()->count(3), 'posts')3->create();
+$user = User::factory()
+    ->has(Post::factory()->count(3), 'posts')
+    ->create();</code></pre></div><p>Of course, you may perform state manipulations on the related models. In addition, you may pass a closure-based state transformation if your state change requires access to the parent model:<div><pre><code>1$user=User::factory()2->has(3Post::factory()4->count(3)5->state(function(array$attributes, User$user) {6return ['user_type'=>$user->type];7            })8        )9->create();
+$user = User::factory()
+    ->has(
+        Post::factory()
+            ->count(3)
+            ->state(function (array $attributes, User $user) {
+                return ['user_type' => $user->type];
+            })
+        )
+    ->create();</code></pre></div><h4><a href=#has-many-relationships-using-magic-methods>Using Magic Methods</a></h4><p>For convenience, you may use Laravel's magic factory relationship methods to build relationships. For example, the following example will use convention to determine that the related models should be created via a <code>posts</code> relationship method on the <code>User</code> model:<div><pre><code>1$user=User::factory()2->hasPosts(3)3->create();
+$user = User::factory()
+    ->hasPosts(3)
+    ->create();</code></pre></div><p>When using magic methods to create factory relationships, you may pass an array of attributes to override on the related models:<div><pre><code>1$user=User::factory()2->hasPosts(3, [3'published'=>false,4    ])5->create();
+$user = User::factory()
+    ->hasPosts(3, [
+        'published' => false,
+    ])
+    ->create();</code></pre></div><p>You may provide a closure-based state transformation if your state change requires access to the parent model:<div><pre><code>1$user=User::factory()2->hasPosts(3, function(array$attributes, User$user) {3return ['user_type'=>$user->type];4    })5->create();
+$user = User::factory()
+    ->hasPosts(3, function (array $attributes, User $user) {
+        return ['user_type' => $user->type];
+    })
+    ->create();</code></pre></div><h3><a href=#belongs-to-relationships>Belongs To Relationships</a></h3><p>Now that we have explored how to build "has many" relationships using factories, let's explore the inverse of the relationship. The <code>for</code> method may be used to define the parent model that factory created models belong to. For example, we can create three <code>App\Models\Post</code> model instances that belong to a single user:<div><pre><code>1use App\Models\Post;2use App\Models\User;3 4$posts=Post::factory()5->count(3)6->for(User::factory()->state([7'name'=>'Jessica Archer',8    ]))9->create();
+use App\Models\Post;
+use App\Models\User;
+
+$posts = Post::factory()
+    ->count(3)
+    ->for(User::factory()->state([
+        'name' => 'Jessica Archer',
+    ]))
+    ->create();</code></pre></div><p>If you already have a parent model instance that should be associated with the models you are creating, you may pass the model instance to the <code>for</code> method:<div><pre><code>1$user=User::factory()->create();2 3$posts=Post::factory()4->count(3)5->for($user)6->create();
+$user = User::factory()->create();
+
+$posts = Post::factory()
+    ->count(3)
+    ->for($user)
+    ->create();</code></pre></div><h4><a href=#belongs-to-relationships-using-magic-methods>Using Magic Methods</a></h4><p>For convenience, you may use Laravel's magic factory relationship methods to define "belongs to" relationships. For example, the following example will use convention to determine that the three posts should belong to the <code>user</code> relationship on the <code>Post</code> model:<div><pre><code>1$posts=Post::factory()2->count(3)3->forUser([4'name'=>'Jessica Archer',5    ])6->create();
+$posts = Post::factory()
+    ->count(3)
+    ->forUser([
+        'name' => 'Jessica Archer',
+    ])
+    ->create();</code></pre></div><h3><a href=#many-to-many-relationships>Many to Many Relationships</a></h3><p>Like <a href=#has-many-relationships>has many relationships</a>, "many to many" relationships may be created using the <code>has</code> method:<div><pre><code>1use App\Models\Role;2use App\Models\User;3 4$user=User::factory()5->has(Role::factory()->count(3))6->create();
+use App\Models\Role;
+use App\Models\User;
+
+$user = User::factory()
+    ->has(Role::factory()->count(3))
+    ->create();</code></pre></div><h4><a href=#pivot-table-attributes>Pivot Table Attributes</a></h4><p>If you need to define attributes that should be set on the pivot / intermediate table linking the models, you may use the <code>hasAttached</code> method. This method accepts an array of pivot table attribute names and values as its second argument:<div><pre><code>1use App\Models\Role;2use App\Models\User;3 4$user=User::factory()5->hasAttached(6Role::factory()->count(3),7        ['active'=>true]8    )9->create();
+use App\Models\Role;
+use App\Models\User;
+
+$user = User::factory()
+    ->hasAttached(
+        Role::factory()->count(3),
+        ['active' => true]
+    )
+    ->create();</code></pre></div><p>You may provide a closure-based state transformation if your state change requires access to the related model:<div><pre><code> 1$user=User::factory() 2->hasAttached( 3Role::factory() 4->count(3) 5->state(function(array$attributes, User$user) { 6return ['name'=>$user->name.' Role']; 7            }), 8        ['active'=>true] 9    )10->create();
+$user = User::factory()
+    ->hasAttached(
+        Role::factory()
+            ->count(3)
+            ->state(function (array $attributes, User $user) {
+                return ['name' => $user->name.' Role'];
+            }),
+        ['active' => true]
+    )
+    ->create();</code></pre></div><p>If you already have model instances that you would like to be attached to the models you are creating, you may pass the model instances to the <code>hasAttached</code> method. In this example, the same three roles will be attached to all three users:<div><pre><code>1$roles=Role::factory()->count(3)->create();2 3$user=User::factory()4->count(3)5->hasAttached($roles, ['active'=>true])6->create();
+$roles = Role::factory()->count(3)->create();
+
+$user = User::factory()
+    ->count(3)
+    ->hasAttached($roles, ['active' => true])
+    ->create();</code></pre></div><h4><a href=#many-to-many-relationships-using-magic-methods>Using Magic Methods</a></h4><p>For convenience, you may use Laravel's magic factory relationship methods to define many to many relationships. For example, the following example will use convention to determine that the related models should be created via a <code>roles</code> relationship method on the <code>User</code> model:<div><pre><code>1$user=User::factory()2->hasRoles(1, [3'name'=>'Editor'4    ])5->create();
+$user = User::factory()
+    ->hasRoles(1, [
+        'name' => 'Editor'
+    ])
+    ->create();</code></pre></div><h3><a href=#polymorphic-relationships>Polymorphic Relationships</a></h3><p><a href=eloquent-relationships.htm#polymorphic-relationships>Polymorphic relationships</a> may also be created using factories. Polymorphic "morph many" relationships are created in the same way as typical "has many" relationships. For example, if an <code>App\Models\Post</code> model has a <code>morphMany</code> relationship with an <code>App\Models\Comment</code> model:<div><pre><code>1use App\Models\Post;2 3$post=Post::factory()->hasComments(3)->create();
+use App\Models\Post;
+
+$post = Post::factory()->hasComments(3)->create();</code></pre></div><h4><a href=#morph-to-relationships>Morph To Relationships</a></h4><p>Magic methods may not be used to create <code>morphTo</code> relationships. Instead, the <code>for</code> method must be used directly and the name of the relationship must be explicitly provided. For example, imagine that the <code>Comment</code> model has a <code>commentable</code> method that defines a <code>morphTo</code> relationship. In this situation, we may create three comments that belong to a single post by using the <code>for</code> method directly:<div><pre><code>1$comments=Comment::factory()->count(3)->for(2Post::factory(), 'commentable'3)->create();
+$comments = Comment::factory()->count(3)->for(
+    Post::factory(), 'commentable'
+)->create();</code></pre></div><h4><a href=#polymorphic-many-to-many-relationships>Polymorphic Many to Many Relationships</a></h4><p>Polymorphic "many to many" (<code>morphToMany</code> / <code>morphedByMany</code>) relationships may be created just like non-polymorphic "many to many" relationships:<div><pre><code>1use App\Models\Tag;2use App\Models\Video;3 4$videos=Video::factory()5->hasAttached(6Tag::factory()->count(3),7        ['public'=>true]8    )9->create();
+use App\Models\Tag;
+use App\Models\Video;
+
+$videos = Video::factory()
+    ->hasAttached(
+        Tag::factory()->count(3),
+        ['public' => true]
+    )
+    ->create();</code></pre></div><p>Of course, the magic <code>has</code> method may also be used to create polymorphic "many to many" relationships:<div><pre><code>1$videos=Video::factory()2->hasTags(3, ['public'=>true])3->create();
+$videos = Video::factory()
+    ->hasTags(3, ['public' => true])
+    ->create();</code></pre></div><h3><a href=#defining-relationships-within-factories>Defining Relationships Within Factories</a></h3><p>To define a relationship within your model factory, you will typically assign a new factory instance to the foreign key of the relationship. This is normally done for the "inverse" relationships such as <code>belongsTo</code> and <code>morphTo</code> relationships. For example, if you would like to create a new user when creating a post, you may do the following:<div><pre><code> 1use App\Models\User; 2  3/** 4 * Define the model's default state. 5 * 6 * @returnarray&lt;string, mixed> 7*/ 8publicfunctiondefinition():array 9{10return [11'user_id'=>User::factory(),12'title'=>fake()->title(),13'content'=>fake()->paragraph(),14    ];15}
+use App\Models\User;
+
+/**
+ * Define the model's default state.
+ *
+ * @return array&lt;string, mixed>
+ */
+public function definition(): array
+{
+    return [
+        'user_id' => User::factory(),
+        'title' => fake()->title(),
+        'content' => fake()->paragraph(),
+    ];
+}</code></pre></div><p>If the relationship's columns depend on the factory that defines it you may assign a closure to an attribute. The closure will receive the factory's evaluated attribute array:<div><pre><code> 1/** 2 * Define the model's default state. 3 * 4 * @returnarray&lt;string, mixed> 5*/ 6publicfunctiondefinition():array 7{ 8return [ 9'user_id'=>User::factory(),10'user_type'=>function(array$attributes) {11returnUser::find($attributes['user_id'])->type;12        },13'title'=>fake()->title(),14'content'=>fake()->paragraph(),15    ];16}
+/**
+ * Define the model's default state.
+ *
+ * @return array&lt;string, mixed>
+ */
+public function definition(): array
+{
+    return [
+        'user_id' => User::factory(),
+        'user_type' => function (array $attributes) {
+            return User::find($attributes['user_id'])->type;
+        },
+        'title' => fake()->title(),
+        'content' => fake()->paragraph(),
+    ];
+}</code></pre></div><h3><a href=#recycling-an-existing-model-for-relationships>Recycling an Existing Model for Relationships</a></h3><p>If you have models that share a common relationship with another model, you may use the <code>recycle</code> method to ensure a single instance of the related model is recycled for all of the relationships created by the factory.<p>For example, imagine you have <code>Airline</code>, <code>Flight</code>, and <code>Ticket</code> models, where the ticket belongs to an airline and a flight, and the flight also belongs to an airline. When creating tickets, you will probably want the same airline for both the ticket and the flight, so you may pass an airline instance to the <code>recycle</code> method:<div><pre><code>1Ticket::factory()2->recycle(Airline::factory()->create())3->create();
+Ticket::factory()
+    ->recycle(Airline::factory()->create())
+    ->create();</code></pre></div><p>You may find the <code>recycle</code> method particularly useful if you have models belonging to a common user or team.<p>The <code>recycle</code> method also accepts a collection of existing models. When a collection is provided to the <code>recycle</code> method, a random model from the collection will be chosen when the factory needs a model of that type:<div><pre><code>1Ticket::factory()2->recycle($airlines)3->create();
+Ticket::factory()
+    ->recycle($airlines)
+    ->create();</code></pre></div></div></section></section></div></section><div><div><div>On this page<div><div><ul><li><a href=#introduction> Introduction </a><li><a href=#defining-model-factories> Defining Model Factories </a> <ul><li><a href=#generating-factories> Generating Factories </a><li><a href=#factory-states> Factory States </a><li><a href=#factory-callbacks> Factory Callbacks </a></ul><li><a href=#creating-models-using-factories> Creating Models Using Factories </a> <ul><li><a href=#instantiating-models> Instantiating Models </a><li><a href=#persisting-models> Persisting Models </a><li><a href=#sequences> Sequences </a></ul><li><a href=#factory-relationships> Factory Relationships </a> <ul><li><a href=#has-many-relationships> Has Many Relationships </a><li><a href=#belongs-to-relationships> Belongs To Relationships </a><li><a href=#many-to-many-relationships> Many to Many Relationships </a><li><a href=#polymorphic-relationships> Polymorphic Relationships </a><li><a href=#defining-relationships-within-factories> Defining Relationships Within Factories </a><li><a href=#recycling-an-existing-model-for-relationships> Recycling an Existing Model for Relationships </a></ul></ul></div></div></div></div></div></div></div></div></div>

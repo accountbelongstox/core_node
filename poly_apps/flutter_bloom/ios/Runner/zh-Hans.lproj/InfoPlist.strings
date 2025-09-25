@@ -1,0 +1,10 @@
+CFBundleDisplayName = "爱约平台";
+CFBundleName = "爱约平台";
+NSCameraUsageDescription = "此应用需要访问相机以拍摄照片和视频";
+NSMicrophoneUsageDescription = "此应用需要访问麦克风以录制音频";
+NSLocationWhenInUseUsageDescription = "此应用需要访问位置以提供基于位置的服务";
+NSLocationAlwaysAndWhenInUseUsageDescription = "此应用需要访问位置以提供基于位置的服务";
+NSLocationAlwaysUsageDescription = "此应用需要访问位置以提供基于位置的服务";
+NSPhotoLibraryUsageDescription = "此应用需要访问相册以保存和加载照片";
+NSPhotoLibraryAddUsageDescription = "此应用需要访问相册以保存照片";
+NSContactsUsageDescription = "此应用需要访问通讯录以读取电话号码"; 

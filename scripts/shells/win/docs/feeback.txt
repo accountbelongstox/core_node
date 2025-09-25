@@ -1,0 +1,56 @@
+[Step31] Desktop cleanup failed for Chrome: 无法处理对参数“CategoryName”的参数转换。无法将值转换为类型 System.String。
+
+WeChat.exe" 的安装包在C盘.
+
+[DEBUG] [NPM] Installing package: ClaudeCodeRouter
+[DEBUG] [NPM] Command: D:\.dev_win10\node\npm.cmd install -g ClaudeCodeRouter
+npm error code E404
+npm error 404 Not Found - GET https://registry.npmjs.org/ClaudeCodeRouter - Not found
+npm error 404
+npm error 404  'ClaudeCodeRouter@*' is not in this registry.
+npm error 404 This package name is not valid, because
+npm error 404  1. name can no longer contain capital letters
+npm error 404
+npm error 404 Note that you can also install from a
+
+[DEBUG] [NPM] Command: D:\.dev_win10\node\npm.cmd install -g OpenAICodex
+npm error code E404
+npm error 404 Not Found - GET https://registry.npmjs.org/OpenAICodex - Not found
+npm error 404
+npm error 404  'OpenAICodex@*' is not in this registry.
+npm error 404 This package name is not valid, because
+npm error 404  1. name can no longer contain capital letters
+npm error 404
+npm error 404 Note that you can also install from a
+npm error 404 tarball, folder, http url, or git url.
+npm error A complete log of this run can be found in: C:\Users\DSPC\AppData\Local\npm-cache\_logs\2025-09-20T19_52_19_174Z-debug-0.log
+
+Path D:\.dev_win10\php-84 already exists
+D:\programing\core_node\scripts\shells\win\dd.ps1 : 检索不到变量“$step”，因为未设置该变量。
+    + CategoryInfo          : InvalidOperation: (step:String) [dd.ps1]，RuntimeException
+    + FullyQualifiedErrorId : VariableIsUndefined,dd.ps1
+
+"> Restoring working directory..."
+"> Current directory: C:\Users\DSPC\Desktop
+
+LINUX
+[26] Installing DNSPod plugin for Certbot...
+error: externally-managed-environment
+
+× This environment is externally managed
+╰─> To install Python packages system-wide, try apt install
+    python3-xyz, where xyz is the package you are trying to
+    install.
+
+    If you wish to install a non-Debian-packaged Python package,
+    create a virtual environment using python3 -m venv path/to/venv.
+    Then use path/to/venv/bin/python and path/to/venv/bin/pip. Make
+    sure you have python3-full installed.
+
+    If you wish to install a non-Debian packaged Python application,
+    it may be easiest to use pipx install xyz, which will manage a
+    virtual environment for you. Make sure you have pipx installed.
+
+    See /usr/share/doc/python3.12/README.venv for more information.
+
+note: If you believe this is a mistake, please contact your Python installation or 

@@ -1,0 +1,170 @@
+---
+description: Laravel 12 Multi-API Project Rules. This file uses the official Cursor rule format. The alwaysApply: true setting means all rules below are always enforced. When developing in the IDE, you must follow these rules before and during code development.
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+
+## Project Architecture
+
+This is a Laravel 12 project with multiple independent APIs sharing a single database. Each API runs on different servers and has its own directory structure.
+
+- API Structure
+Each API has its own directory under `app/ApiName/` (e.g., `app/DictV1/`, `app/AwyV0/`, `app/D3g/`)
+Each API has independent route files under `routes/ApiName/*.php` (e.g., `routes/dict_v1/dict.php`)
+All route files are included in `routes/api.php` for centralized management
+APIs share the same database but run on different servers
+
+- Directory Structure
+```
+app/
+├── Apps/          
+
+routes/
+├── api.php           # Main API router (includes all API routes)
+├── ApiName/          # API-specific routes (dict_v1, awy_v0, etc.)
+│   ├── auth.php
+│   ├── dict.php
+│   └── manager.php
+└── web.php           # Web routes
+```
+
+## Code Standards.
+
+
+- Naming Conventions
+Controllers: PascalCase (e.g., `UserController`, `DictloginController`)
+Models: PascalCase (e.g., `User`, `Dictionary`)
+Routes: kebab-case (e.g., `/api/user-profile`)
+Database tables: snake_case (e.g., `user_profiles`)
+API directories: PascalCase (e.g., `DictV1`, `AwyV0`)
+Route files: snake_case (e.g., `dict_v1`, `auth.php`) 
+
+- PHP Standards
+Use PSR-12 coding standards
+Use PHP 8+ features (type hints, return types)
+Use Laravel's dependency injection
+Write self-documenting code with clear variable names
+
+## API Development Rules
+
+- Response Format
+Always return consistent JSON responses:
+
+```php
+// Success response
+return response()->json([
+    'success' => true,
+    'data' => $data,
+    'message' => 'Operation completed successfully'
+], 200);
+
+// Error response
+return response()->json([
+    'success' => false,
+    'error' => $errorMessage,
+    'code' => $errorCode
+], $statusCode);
+```
+
+- Authentication
+Use Laravel Sanctum for API authentication
+Implement client token authentication for external services
+Always validate authentication in protected routes
+Use middleware for route protection
+Handle token expiration properly
+
+- Validation
+Create Form Request classes for complex validation
+Use Laravel's validation rules
+Return validation errors in consistent format
+Validate all input data before processing
+
+- Error Handling
+Use try-catch blocks for database operations
+Log errors appropriately
+Return meaningful error messages
+Use appropriate HTTP status codes
+Don't expose sensitive information in errors
+
+## Database Rules
+
+- Models
+Use Eloquent ORM features (scopes, accessors, mutators)
+Define relationships in models
+Use database transactions for complex operations
+Implement soft deletes where appropriate
+Use migrations for all database changes
+
+- Security
+Always validate and sanitize user input
+Use Laravel's built-in CSRF protection
+Implement proper authorization using policies
+Hash passwords using `Hash::make()`
+Use prepared statements (Laravel handles this automatically)
+
+## API Module Development
+
+- Creating New API Module
+1. Create directory under `app/ApiName/`
+2. Create route files under `routes/ApiName/`
+3. Include routes in `routes/api.php`
+4. Follow existing module structure (Auth, Controller, Gvar, etc.)
+
+- Module Structure
+Each API module should follow this structure:
+```
+app/ApiName/
+├── Auth/              # Authentication controllers
+│   ├── AuthPublic/    # Public auth endpoints
+│   └── *.php          # Auth controllers
+├── Controller/         # Main API controllers
+├── Gvar/              # Global variables
+├── Middleware/         # Module-specific middleware
+│   └── MidPublic/     # Public middleware
+├── Public/            # Public API endpoints
+└── Welcome/           # Welcome controllers
+```
+
+- Route Organization
+Group routes by functionality
+Use descriptive route names
+Implement proper middleware
+Document API endpoints
+
+## Performance & Testing
+
+- Performance
+Use eager loading to prevent N+1 queries
+Implement caching where appropriate
+Use database indexes for frequently queried columns
+Optimize database queries
+Use queue jobs for heavy operations
+
+- Testing
+Write unit tests for business logic
+Write feature tests for API endpoints
+Use factories for test data
+Mock external services in tests
+Maintain high test coverage
+
+## Documentation
+- Write clear method and class documentation
+- Document API endpoints with examples
+- Keep README files updated
+- Use meaningful commit messages
+- Document module-specific functionality
+
+## Deployment
+- Each API can be deployed to different servers
+- Use environment variables for configuration
+- Implement proper logging
+- Use database migrations for schema changes
+- Follow Laravel deployment best practices
+
+- Each API can be deployed to different servers
+- Use environment variables for configuration
+- Implement proper logging
+- Use database migrations for schema changes
+- Follow Laravel deployment best practices

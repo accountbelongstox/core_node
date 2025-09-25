@@ -1,0 +1,69 @@
+FROM node:20-bookworm
+
+RUN echo "deb https://mirrors.huaweicloud.com/debian/ bookworm main non-free non-free-firmware contrib" > /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian/ bookworm main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian-security/ bookworm-security main" >> /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian-security/ bookworm-security main" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian/ bookworm-updates main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian/ bookworm-updates main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb https://mirrors.huaweicloud.com/debian/ bookworm-backports main non-free non-free-firmware contrib" >> /etc/apt/sources.list && \
+    echo "deb-src https://mirrors.huaweicloud.com/debian/ bookworm-backports main non-free non-free-firmware contrib" >> /etc/apt/sources.list
+
+
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list
+
+RUN apt-get update && apt-get install -y \
+    google-chrome-stable \
+    fonts-freefont-ttf \
+    fonts-noto \
+    libx11-6 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxi6 \
+    libxtst6 \
+    libnss3 \
+    libfreetype6 \
+    libharfbuzz0b \
+    dbus \
+    fonts-open-sans \
+    bash \
+    git \
+    vim \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variable to point to Chrome executable
+ENV CHROME_BIN=/usr/bin/google-chrome-stable
+
+# Set working directory
+WORKDIR /app
+
+# Install global npm packages
+RUN yarn global add \
+    puppeteer \
+    puppeteer-extra \
+    puppeteer-extra-plugin-stealth \
+    nodemon \
+    electron \
+    axios \
+    body-parser \
+    cheerio \
+    dotenv \
+    express \
+    express-ws \
+    lodash \
+    multer \
+    random-useragent \
+    serve-handler \
+    shortid \
+    user-agents \
+    uuid \
+    winston \
+    xmldom \
+    xpath
+
+EXPOSE 3000
+
+CMD ["tail", "-f", "/dev/null"]

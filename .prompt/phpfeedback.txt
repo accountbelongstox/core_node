@@ -1,0 +1,395 @@
+Found PHP 8.4 [PHP.PHP.8.4] Version 8.4.12
+This application is licensed to you by its owner.
+Microsoft is not responsible for, nor does it grant any licenses to, third-party packages.
+This package requires the following dependencies:
+  - Packages
+      Microsoft.VCRedist.2015+.x64
+Downloading https://windows.php.net/downloads/releases/php-8.4.12-Win32-vs17-x64.zip
+  ██████████████████████████████  32.3 MB / 32.3 MB
+Successfully verified installer hash
+Extracting archive...
+Successfully extracted archive
+Starting package install...
+Path environment variable modified; restart your shell to use the new value.
+Command line alias added: "php"
+Successfully installed
+       Successfully installed PHP.PHP.8.4
+       Performing final repair check...
+       [REPAIR] Checking for installation mismatch for PHP.PHP.8.4
+       [REPAIR] Expected location: D:\.dev_win10\php84
+       [REPAIR] No executable path provided, searching in expected directory: D:\.dev_win10\php84
+[DEBUG] [EXEC] Performing deep search in system directories...
+[DEBUG] [KEYWORD] Added keyword: 'php.exe'
+[DEBUG] [KEYWORD] Added keyword: 'php-cli'
+[DEBUG] [KEYWORD] Added keyword: 'php8'
+[DEBUG] [KEYWORD] Deduplicated keywords: php.exe, php8, php-cli
+[DEBUG] [EXEC] Searching in: D:\.dev_win10\php84
+[DEBUG] [EXEC] Searching for file: 'php.exe' in path: 'D:\.dev_win10\php84' (MaxDepth: 3)
+[DEBUG] [EXEC] Find-FileWithDepth result for 'php.exe': 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [EXEC] Found executable with keyword 'php.exe' and extension '.exe': D:\.dev_win10\php84\php.exe
+       [REPAIR] Found location: D:\.dev_win10\php84\php.exe
+       [REPAIR] Executable already in expected location
+       Repair completed successfully
+[Step12] Found PHP84 executable at: D:\.dev_win10\php84\php.exe
+[Step12] Verifying installation with: 'D:\.dev_win10\php84\php.exe --version'
+[Step12] PHP84 verification result: PHP 8.4.12 (cli) (built: Aug 26 2025 18:04:08) (ZTS Visual C++ 2022 x64)
+[Step12] Setting environment variables for PHP84...
+[DEBUG] [STEP12] About to call Set-MultipleEnvironmentVariablesForPackage
+[DEBUG] [STEP12] PackageName: 'PHP84'
+[DEBUG] [STEP12] PackageName type: String
+[DEBUG] [STEP12] EnvVars: {
+    "Type":  [
+                 "Path"
+             ],
+    "Keyword":  [
+                    "php.exe"
+                ]
+}
+[DEBUG] [STEP12] EnvVars type: Object[]
+[DEBUG] [STEP12] executable: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [STEP12] executable type: String
+[DEBUG] [STEP12] executable value: "D:\\.dev_win10\\php84\\php.exe"
+[DEBUG] [STEP12] EXEC_NAME: 'php.exe'
+[DEBUG] [STEP12] EXEC_NAME type: String
+[DEBUG] [ENV] Id: 'PHP84'
+[DEBUG] [ENV] Id type: String
+[DEBUG] [ENV] EnvVars: {
+    "Type":  [
+                 "Path"
+             ],
+    "Keyword":  [
+                    "php.exe"
+                ]
+}
+[DEBUG] [ENV] EnvVars type: Object[]
+[DEBUG] [ENV] ExecutablePath: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [ENV] ExecutablePath type: String
+[DEBUG] [ENV] ExecutablePath value: "D:\\.dev_win10\\php84\\php.exe"
+[DEBUG] [ENV] DefaultExec: 'php.exe'
+[DEBUG] [ENV] DefaultExec type: String
+[DEBUG] [ENV] Setting environment variables for PHP84
+[DEBUG] [ENV] Processing ExecutablePath: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [ENV] After array check - ExecutablePath: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [ENV] After array check - ExecutablePath type: String
+[DEBUG] [ENV] Converted to string: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [ENV] Base directory: 'D:\.dev_win10\php84'
+[DEBUG] [ENV] Processing 1 environment variables
+[DEBUG] [ENV] Processing envVar: {
+    "Type":  [
+                 "Path"
+             ],
+    "Keyword":  [
+                    "php.exe"
+                ]
+}
+[DEBUG] [ENV] Types: Path
+[DEBUG] [ENV] Found Keyword: "php.exe"
+[DEBUG] [ENV] Searching for executable with keyword: 'php.exe'
+[DEBUG] [EXEC] Added subdirectories from D:\.dev_win10 (excluding .winenvs): .desktopIcons, 7z, apktool, dart_sdk, ffmpeg, Fnm, GNUWget, Java, java-17, mcp_service, node, Pandoc, php-84, php84, poetry, Python313, Rust, scoop, wsl_disk
+[DEBUG] [EXEC] Performing deep search in system directories...
+[DEBUG] [KEYWORD] Added keyword: 'php.exe'
+[DEBUG] [KEYWORD] Deduplicated keywords: php.exe
+[DEBUG] [EXEC] Searching in: D:\.dev_win10\php84
+[DEBUG] [EXEC] Searching for file: 'php.exe' in path: 'D:\.dev_win10\php84' (MaxDepth: 3)
+[DEBUG] [EXEC] Find-FileWithDepth result for 'php.exe': 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [EXEC] Found executable with keyword 'php.exe' and extension '.exe': D:\.dev_win10\php84\php.exe
+[DEBUG] [ENV] Added binary path to AddExec list: D:\.dev_win10\php84\php.exe
+[DEBUG] [ENV] Processing 1 environment variable types
+[DEBUG] [ENV] Processing type: 'Path'
+[DEBUG] [ENV] Adding D:\.dev_win10\php84 to Windows PATH
+Backup created at D:\.tmp\.GlobalEnv\path_20250922_075025.bak
+Added D:\.dev_win10\php84 to PATH
+[DEBUG] [ENV] Refreshing environment variables...
+Generated: C:\Users\DSPC\AppData\Local\Temp\refresh_env.cmd
+[DEBUG] [ENV] Environment variables set and refreshed successfully
+[Step12] Performing desktop cleanup for: PHP84
+[Step12] Desktop cleanup successful for PHP84 (Found: 0, Created: 0)
+[Step12] Performing final desktop organization after custom scripts...
+[Step12] Post-scripts desktop organization completed with warnings
+[Step12] PHP84 installation completed.
+
+[Step12] Installation via winget failed for PHP84, trying next method...
+[Step12] Trying installation method: choco
+[DEBUG] [STEP12] AdditionalKeywords: php-cli, php8
+[Step12] Using sub-installation type: choco
+[Step12] Installing PHP 8.4 - Server-side scripting language (Name: php84)
+[Step12] Package ID: php
+[Step12] Install Type: choco
+[Step12] Chocolatey Package Name: php
+[Step12] Note: Chocolatey may not support custom install directories for all packages
+[Step12] Choco installation with specific version: 8.4
+[Step12] Executing: choco install php --version=8.4 -y
+[Step12] Choco installation failed: The term 'choco' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+[Step12] Installing choco package: php
+[DEBUG] [CHOCO] Processing chocolatey package: php
+[DEBUG] [CHOCO] Chocolatey not found in PATH
+[Step12] Failed to install choco package: php
+[Step12] Warning: Could not locate php.exe in PATH or known install directories
+[Step12] Installation may have failed. You can try manual installation:
+[Step12]   winget install php
+[Step12]   choco install php
+[Step12] Setting environment variables for PHP84...
+[DEBUG] [STEP12] About to call Set-MultipleEnvironmentVariablesForPackage
+[DEBUG] [STEP12] PackageName: 'PHP84'
+[DEBUG] [STEP12] PackageName type: String
+[DEBUG] [STEP12] EnvVars: {
+    "Type":  [
+                 "Path"
+             ],
+    "Keyword":  [
+                    "php.exe"
+                ]
+}
+[DEBUG] [STEP12] EnvVars type: Object[]
+[DEBUG] [STEP12] executable: ''
+[DEBUG] [STEP12] executable type: null
+[DEBUG] [STEP12] executable value: null
+[DEBUG] [STEP12] EXEC_NAME: 'php.exe'
+[DEBUG] [STEP12] EXEC_NAME type: String
+[Step12] Warning: Cannot set environment variables for PHP84 - executable path is null
+[Step12] Skipping desktop cleanup for PHP84 (no executable found)
+[Step12] Performing final desktop organization after custom scripts...
+[Step12] Post-scripts desktop organization completed with warnings
+[Step12] PHP84 installation completed.
+
+[Step12] Installation via choco failed for PHP84, trying next method...
+[Step12] Trying installation method: scoop
+[DEBUG] [STEP12] AdditionalKeywords: php-cli, php8
+[Step12] Using sub-installation type: scoop
+[Step12] Installing PHP 8.4 - Server-side scripting language (Name: php84)
+[Step12] Package ID: php84
+[Step12] Install Type: scoop
+[Step12] Scoop Package Name: php84
+[Step12] Note: Scoop installs command-line applications in isolated environments
+[Step12] Installing scoop package: php84
+[DEBUG] [SCOOP] Processing scoop package: php84
+[DEBUG] [SCOOP] Scoop installation path: C:\Users\DSPC\scoop
+[DEBUG] [SCOOP] Added scoop shims path: C:\Users\DSPC\scoop\shims
+[DEBUG] [SCOOP] Added scoop app current path: C:\Users\DSPC\scoop\apps\php84\current
+[DEBUG] [SCOOP] Added scoop app bin path: C:\Users\DSPC\scoop\apps\php84\current\bin
+[DEBUG] [EXEC] Performing deep search in system directories...
+[DEBUG] [KEYWORD] Added keyword: 'php.exe'
+[DEBUG] [KEYWORD] Added keyword: 'php-cli'
+[DEBUG] [KEYWORD] Added keyword: 'php8'
+[DEBUG] [KEYWORD] Deduplicated keywords: php.exe, php8, php-cli
+[DEBUG] [EXEC] No executable found matching keyword: php.exe php-cli php8,IncludeSystemPaths: False
+[DEBUG] [EXEC] No searched paths found
+[DEBUG] [SCOOP] Installing scoop package: php84
+[DEBUG] [SCOOP] Command: scoop install php84
+WARN  scoop: 'install php84' isn't a scoop command. See 'scoop help'.
+[DEBUG] [SCOOP] scoop installation output:
+[DEBUG] [SCOOP] Installation failed with exit code: 1
+[DEBUG] [SCOOP] Attempting uninstall and reinstall...
+ERROR 'php84' isn't installed.
+[Step12] Failed to install scoop package: php84
+[Step12] Warning: Could not locate php.exe in PATH or known install directories
+[Step12] Installation may have failed. You can try manual installation:
+[Step12]   winget install php84
+[Step12]   choco install php84
+[Step12] Setting environment variables for PHP84...
+[DEBUG] [STEP12] About to call Set-MultipleEnvironmentVariablesForPackage
+[DEBUG] [STEP12] PackageName: 'PHP84'
+[DEBUG] [STEP12] PackageName type: String
+[DEBUG] [STEP12] EnvVars: {
+    "Type":  [
+                 "Path"
+             ],
+    "Keyword":  [
+                    "php.exe"
+                ]
+}
+[DEBUG] [STEP12] EnvVars type: Object[]
+[DEBUG] [STEP12] executable: ''
+[DEBUG] [STEP12] executable type: null
+[DEBUG] [STEP12] executable value: null
+[DEBUG] [STEP12] EXEC_NAME: 'php.exe'
+[DEBUG] [STEP12] EXEC_NAME type: String
+[Step12] Warning: Cannot set environment variables for PHP84 - executable path is null
+[Step12] Skipping desktop cleanup for PHP84 (no executable found)
+[Step12] Performing final desktop organization after custom scripts...
+[Step12] Post-scripts desktop organization completed with warnings
+[Step12] PHP84 installation completed.
+
+[Step12] Installation via scoop failed for PHP84, trying next method...
+[Step12] Trying installation method: web
+[DEBUG] [STEP12] AdditionalKeywords: php-cli, php8
+[Step12] Using sub-installation type: web
+[Step12] Installing PHP 8.4 - Server-side scripting language (Name: php84)
+[Step12] Package ID: php-8.4.12-Win32-vs17-x64.zip
+[Step12] Install Type: web
+[Step12] Base Directory: BaseDir (D:\.dev_win10)
+[Step12] Install Dir: D:\.dev_win10\php84
+[Step12] ForceToInstallDir: True
+[Step12] Web download installation for PHP84
+[Step12] Download URL: php-8.4.12-Win32-vs17-x64.zip
+[Step12] Executable Name: php.exe
+       [WEB] Processing PHP84
+       [WEB] PHP84 executable found at: D:\.dev_win10\php84\php.exe
+       [WEB] PHP84 already installed, skipping download
+[Step12] Found PHP84 executable at: D:\.dev_win10\php84\php.exe
+[Step12] Verifying installation with: 'D:\.dev_win10\php84\php.exe --version'
+[Step12] PHP84 verification result: PHP 8.4.12 (cli) (built: Aug 26 2025 18:04:08) (ZTS Visual C++ 2022 x64)
+[Step12] Setting environment variables for PHP84...
+[DEBUG] [STEP12] About to call Set-MultipleEnvironmentVariablesForPackage
+[DEBUG] [STEP12] PackageName: 'PHP84'
+[DEBUG] [STEP12] PackageName type: String
+[DEBUG] [STEP12] EnvVars: {
+    "Type":  [
+                 "Path"
+             ],
+    "Keyword":  [
+                    "php.exe"
+                ]
+}
+[DEBUG] [STEP12] EnvVars type: Object[]
+[DEBUG] [STEP12] executable: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [STEP12] executable type: String
+[DEBUG] [STEP12] executable value: "D:\\.dev_win10\\php84\\php.exe"
+[DEBUG] [STEP12] EXEC_NAME: 'php.exe'
+[DEBUG] [STEP12] EXEC_NAME type: String
+[DEBUG] [ENV] Id: 'PHP84'
+[DEBUG] [ENV] Id type: String
+[DEBUG] [ENV] EnvVars: {
+    "Type":  [
+                 "Path"
+             ],
+    "Keyword":  [
+                    "php.exe"
+                ]
+}
+[DEBUG] [ENV] EnvVars type: Object[]
+[DEBUG] [ENV] ExecutablePath: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [ENV] ExecutablePath type: String
+[DEBUG] [ENV] ExecutablePath value: "D:\\.dev_win10\\php84\\php.exe"
+[DEBUG] [ENV] DefaultExec: 'php.exe'
+[DEBUG] [ENV] DefaultExec type: String
+[DEBUG] [ENV] Setting environment variables for PHP84
+[DEBUG] [ENV] Processing ExecutablePath: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [ENV] After array check - ExecutablePath: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [ENV] After array check - ExecutablePath type: String
+[DEBUG] [ENV] Converted to string: 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [ENV] Base directory: 'D:\.dev_win10\php84'
+[DEBUG] [ENV] Processing 1 environment variables
+[DEBUG] [ENV] Processing envVar: {
+    "Type":  [
+                 "Path"
+             ],
+    "Keyword":  [
+                    "php.exe"
+                ]
+}
+[DEBUG] [ENV] Types: Path
+[DEBUG] [ENV] Found Keyword: "php.exe"
+[DEBUG] [ENV] Searching for executable with keyword: 'php.exe'
+[DEBUG] [EXEC] Added subdirectories from D:\.dev_win10 (excluding .winenvs): .desktopIcons, 7z, apktool, dart_sdk, ffmpeg, Fnm, GNUWget, Java, java-17, mcp_service, node, Pandoc, php-84, php84, poetry, Python313, Rust, scoop, wsl_disk
+[DEBUG] [EXEC] Performing deep search in system directories...
+[DEBUG] [KEYWORD] Added keyword: 'php.exe'
+[DEBUG] [KEYWORD] Deduplicated keywords: php.exe
+[DEBUG] [EXEC] Searching in: D:\.dev_win10\php84
+[DEBUG] [EXEC] Searching for file: 'php.exe' in path: 'D:\.dev_win10\php84' (MaxDepth: 3)
+[DEBUG] [EXEC] Find-FileWithDepth result for 'php.exe': 'D:\.dev_win10\php84\php.exe'
+[DEBUG] [EXEC] Found executable with keyword 'php.exe' and extension '.exe': D:\.dev_win10\php84\php.exe
+[DEBUG] [ENV] Added binary path to AddExec list: D:\.dev_win10\php84\php.exe
+[DEBUG] [ENV] Processing 1 environment variable types
+[DEBUG] [ENV] Processing type: 'Path'
+[DEBUG] [ENV] Adding D:\.dev_win10\php84 to Windows PATH
+Path D:\.dev_win10\php84 already exists
+[DEBUG] [ENV] Refreshing environment variables...
+Generated: C:\Users\DSPC\AppData\Local\Temp\refresh_env.cmd
+[DEBUG] [ENV] Environment variables set and refreshed successfully
+[Step12] Performing desktop cleanup for: PHP84
+[Step12] Desktop cleanup successful for PHP84 (Found: 0, Created: 0)
+[Step12] Performing final desktop organization after custom scripts...
+[Step12] Post-scripts desktop organization completed with warnings
+[Step12] PHP84 installation completed.
+
+[Step12] Installation via web failed for PHP84, trying next method...
+[Step12] All installation methods failed for PHP84
+[Step12] Skipping Rust - does not match filter 'php'
+[Step12] Skipping Fnm - does not match filter 'php'
+[Step12] Skipping Java - does not match filter 'php'
+[Step12] Skipping Python313 - does not match filter 'php'
+[Step12] Skipping Pandoc - does not match filter 'php'
+[Step12] Skipping GNUWget - does not match filter 'php'
+[Step12] Installing all applications packages from GlobalVars.ps1
+[Step12] Applications Packages: Kiro, ACLI, Cursor, VSCodium, Windsurf, VSCode, RustDesk, Bandizip, Vim, NotepadPlusPlus, Neovim
+[Step12] Skipping Kiro - does not match filter 'php'
+[Step12] Skipping ACLI - does not match filter 'php'
+[Step12] Skipping Cursor - does not match filter 'php'
+[Step12] Skipping VSCodium - does not match filter 'php'
+[Step12] Skipping Windsurf - does not match filter 'php'
+[Step12] Skipping VSCode - does not match filter 'php'
+[Step12] Skipping RustDesk - does not match filter 'php'
+[Step12] Skipping Bandizip - does not match filter 'php'
+[Step12] Skipping Vim - does not match filter 'php'
+[Step12] Skipping NotepadPlusPlus - does not match filter 'php'
+[Step12] Skipping Neovim - does not match filter 'php'
+[Step12] Installing all common software packages from GlobalVars.ps1
+[Step12] Common Software Packages: OneTwoThreePan, WeChatInput, Edge, IntelliJIDEA, BaiduNetDisk, Firefox, QQNT, AdsPowerGlobal, Chrome, CodeBuddy, CapCut, Trae, WeChat, LibreOffice, ThunderSpeed, WPSOffice, VSCodiumInsiders
+[Step12] Skipping OneTwoThreePan - does not match filter 'php'
+[Step12] Skipping WeChatInput - does not match filter 'php'
+[Step12] Skipping Edge - does not match filter 'php'
+[Step12] Skipping IntelliJIDEA - does not match filter 'php'
+[Step12] Skipping BaiduNetDisk - does not match filter 'php'
+[Step12] Skipping Firefox - does not match filter 'php'
+[Step12] Skipping QQNT - does not match filter 'php'
+[Step12] Skipping AdsPowerGlobal - does not match filter 'php'
+[Step12] Skipping Chrome - does not match filter 'php'
+[Step12] Skipping CodeBuddy - does not match filter 'php'
+[Step12] Skipping CapCut - does not match filter 'php'
+[Step12] Skipping Trae - does not match filter 'php'
+[Step12] Skipping WeChat - does not match filter 'php'
+[Step12] Skipping LibreOffice - does not match filter 'php'
+[Step12] Skipping ThunderSpeed - does not match filter 'php'
+[Step12] Skipping WPSOffice - does not match filter 'php'
+[Step12] Skipping VSCodiumInsiders - does not match filter 'php'
+[Step12] Installing all MCP services packages from GlobalVars.ps1
+[Step12] MCP Services Packages: CunzhiCli, FeedbackEnhancedMCP, AlibabaDataworksMCP
+[Step12] Skipping CunzhiCli - does not match filter 'php'
+[Step12] Skipping FeedbackEnhancedMCP - does not match filter 'php'
+[Step12] Skipping AlibabaDataworksMCP - does not match filter 'php'
+[Step12] Executing post-MCP installation integration...
+[Step12] [GEMINI_MCP] Starting Gemini MCP integration
+[Step12] [GEMINI_MCP] Target Gemini settings path: C:\Users\DSPC\AppData\Roaming\Google\Gemini\CLI\settings.json
+[Step12] [GEMINI_MCP] Loaded existing Gemini settings
+[Step12] [GEMINI_MCP] Processing MCP server: CunzhiCli
+[Step12] [GEMINI_MCP] Processing MCP server: promptx
+[Step12] [GEMINI_MCP] Processing MCP server: github.com/upstash/context7-mcp
+[Step12] [GEMINI_MCP] Processing MCP server: McpAlchemy
+[Step12] [GEMINI_MCP] Processing MCP server: AlibabaDataworks
+[Step12] [GEMINI_MCP] Processing MCP server: FeedbackEnhanced
+[Step12] [GEMINI_MCP] Successfully integrated 6 MCP servers into Gemini CLI
+[Step12] [GEMINI_MCP] Gemini settings updated at: C:\Users\DSPC\AppData\Roaming\Google\Gemini\CLI\settings.json
+[Step12] Gemini MCP integration completed successfully
+[Step12] Installing all dev software packages from GlobalVars.ps1
+[Step12] Dev Software Packages: Postman, DBeaver, MobaXterm, LangChainCli, Termius, DrawIO, FiddlerClassic, AlibabaQoder, ClaudeCodeRouter, CursorAgent, Insomnia, OpenCode, WinSocat, Nmap, HeidiSQL, Tabby, ChromeRemoteDesktopHost, WinSCP, HTTPie, Rclone, iPerf3, Wireshark, Captura, ClaudeCode, OpenAICodex, GeminiCli, SuperClaude
+[Step12] Skipping Postman - does not match filter 'php'
+[Step12] Skipping DBeaver - does not match filter 'php'
+[Step12] Skipping MobaXterm - does not match filter 'php'
+[Step12] Skipping LangChainCli - does not match filter 'php'
+[Step12] Skipping Termius - does not match filter 'php'
+[Step12] Skipping DrawIO - does not match filter 'php'
+[Step12] Skipping FiddlerClassic - does not match filter 'php'
+[Step12] Skipping AlibabaQoder - does not match filter 'php'
+[Step12] Skipping ClaudeCodeRouter - does not match filter 'php'
+[Step12] Skipping CursorAgent - does not match filter 'php'
+[Step12] Skipping Insomnia - does not match filter 'php'
+[Step12] Skipping OpenCode - does not match filter 'php'
+[Step12] Skipping WinSocat - does not match filter 'php'
+[Step12] Skipping Nmap - does not match filter 'php'
+[Step12] Skipping HeidiSQL - does not match filter 'php'
+[Step12] Skipping Tabby - does not match filter 'php'
+[Step12] Skipping ChromeRemoteDesktopHost - does not match filter 'php'
+[Step12] Skipping WinSCP - does not match filter 'php'
+[Step12] Skipping HTTPie - does not match filter 'php'
+[Step12] Skipping Rclone - does not match filter 'php'
+[Step12] Skipping iPerf3 - does not match filter 'php'
+[Step12] Skipping Wireshark - does not match filter 'php'
+[Step12] Skipping Captura - does not match filter 'php'
+[Step12] Skipping ClaudeCode - does not match filter 'php'
+[Step12] Skipping OpenAICodex - does not match filter 'php'
+[Step12] Skipping GeminiCli - does not match filter 'php'
+[Step12] Skipping SuperClaude - does not match filter 'php'
+[Step12] All installation and organization tasks completed.
+[Step12] Installing custom scripts and commands...
+       [DESKTOP] Creating desktop shortcut: Quick Git Status

@@ -1,0 +1,64 @@
+Open the Local Security Policy Editor:
+Press Windows + R to open the Run dialog.
+Type secpol.msc and press Enter to open the Local Security Policy Editor.
+Navigate to the Security Options:
+In the Local Security Policy Editor, navigate to Local Policies > Security Options.
+Disable Restriction on Blank Passwords:
+Find the policy named Accounts: Limit local account use of blank passwords to console logon only.
+Double-click on this policy to open its properties.
+Set the policy to Disabled.
+Click Apply and then OK to save the changes.
+Restart Your Computer:
+For the changes to take effect, you may need to restart your computer.
+要求：
+
+操作系统版本要求： 23H2
+
+wsl的要求：wsl 2.0.7以上
+
+1. 按照提示安装wsl之后，需要升级wsl
+
+wsl --set-default-version 2
+
+wsl --update --pre-release
+
+
+
+ 2. 在宿主机中的用户目录下新建或者编辑文件 .wslconfig
+
+[experimental]
+autoMemoryReclaim=gradual
+networkingMode=mirrored
+dnsTunneling=true
+firewall=true
+autoProxy=true
+sparseVhd=true
+
+调整内存大小，wsl默认限制内存大小，此时需要调整
+
+[wsl2]
+memory=16GB //内存大熊
+processors=2  //CPU进程数
+
+3. 启用稀疏 VHD 允许 WSL2 的硬盘空间自动回收
+
+ wsl --mange Debian --set-spares true
+
+4. 重新启动之后，宿主机与虚拟主机在共享同一个ip地址
+
+[WSL]设置
+在WINDOWS liunx/debian/home/sources.list下输入：
+
+deb https://mirrors.huaweicloud.com/debian/ bookworm main non-free non-free-firmware contrib
+deb-src https://mirrors.huaweicloud.com/debian/ bookworm main non-free non-free-firmware contrib
+deb https://mirrors.huaweicloud.com/debian-security/ bookworm-security main
+deb-src https://mirrors.huaweicloud.com/debian-security/ bookworm-security main
+deb https://mirrors.huaweicloud.com/debian/ bookworm-updates main non-free non-free-firmware contrib
+deb-src https://mirrors.huaweicloud.com/debian/ bookworm-updates main non-free non-free-firmware contrib
+deb https://mirrors.huaweicloud.com/debian/ bookworm-backports main non-free non-free-firmware contrib
+deb-src https://mirrors.huaweicloud.com/debian/ bookworm-backports main non-free non-free-firmware contrib
+
+执行命令：
+sudo cp /home/debian/sources.list /etc/apt/sources.list
+sudo apt update -y
+sudo apt install apt-transport-https ca-certificates

@@ -1,0 +1,174 @@
+首页图片资源需求清单
+====================
+
+基于 bank_homepage.html 分析，首页需要以下图片资源：
+
+状态栏和顶部导航图标:
+------------------
+1. homepage_version_icon.png - 版本按钮图标 (📱)
+   - 建议尺寸: 24x24px
+   - 用途: 顶部导航版本信息按钮
+   - 当前占位图: 使用emoji 📱
+
+2. homepage_voice_icon.png - 语音搜索图标 (🎤)
+   - 建议尺寸: 32x32px
+   - 用途: 顶部导航语音搜索按钮
+   - 当前占位图: 使用emoji 🎤
+
+3. homepage_customer_service.png - 客服图标 (🎧)
+   - 建议尺寸: 32x32px
+   - 用途: 顶部导航客服按钮
+   - 当前占位图: 使用emoji 🎧
+
+4. homepage_message_icon.png - 消息图标 (✉️)
+   - 建议尺寸: 32x32px
+   - 用途: 顶部导航消息按钮，带通知徽章
+   - 当前占位图: 使用emoji ✉️
+
+主横幅区域:
+----------
+5. homepage_banner_bg.png - 校园招聘横幅背景 ✓ 已复制
+   - 建议尺寸: 375x120px
+   - 用途: 主横幅背景图片
+   - 当前占位图: placeholder_image/1.png
+
+6. homepage_banner_graduation.png - 毕业帽图标 (🎓)
+   - 建议尺寸: 120x80px
+   - 用途: 横幅右侧装饰图标
+   - 当前占位图: 使用emoji 🎓
+
+功能网格图标 (第一行 - 4个):
+-------------------------
+7. homepage_function_account.png - 账户查询图标 ✓ 已复制
+   - 建议尺寸: 48x48px
+   - 用途: 账户查询功能入口
+   - 当前占位图: placeholder_image/2.png
+
+8. homepage_function_transfer.png - 转账汇款图标 ✓ 已复制
+   - 建议尺寸: 48x48px
+   - 用途: 转账汇款功能入口
+   - 当前占位图: placeholder_image/3.png
+
+9. homepage_function_loan.png - 贷款图标 ✓ 已复制
+   - 建议尺寸: 48x48px
+   - 用途: 贷款功能入口
+   - 当前占位图: placeholder_image/4.png
+
+10. homepage_function_scan.png - 扫一扫图标 ✓ 已复制
+    - 建议尺寸: 48x48px
+    - 用途: 扫一扫功能入口
+    - 当前占位图: placeholder_image/5.png
+
+功能网格图标 (第二行 - 5个):
+-------------------------
+11. homepage_function_deposit.png - 存款图标 ✓ 已复制
+    - 建议尺寸: 48x48px
+    - 用途: 存款功能入口
+    - 当前占位图: placeholder_image/6.png
+
+12. homepage_function_fund.png - 基金图标 ✓ 已复制
+    - 建议尺寸: 48x48px
+    - 用途: 基金功能入口
+    - 当前占位图: placeholder_image/7.png
+
+13. homepage_function_credit.png - 信用卡图标 ✓ 已复制
+    - 建议尺寸: 48x48px
+    - 用途: 信用卡功能入口
+    - 当前占位图: placeholder_image/8.png
+
+14. homepage_function_insurance.png - 建信人寿图标 ✓ 已复制
+    - 建议尺寸: 48x48px
+    - 用途: 建信人寿功能入口
+    - 当前占位图: placeholder_image/9.png
+
+15. homepage_function_wealth.png - 财富图标 ✓ 已复制
+    - 建议尺寸: 48x48px
+    - 用途: 财富管理功能入口
+    - 当前占位图: placeholder_image/10.png
+
+功能网格图标 (第三行 - 5个):
+-------------------------
+16. homepage_function_pension.png - 养老金图标 (👴)
+    - 建议尺寸: 48x48px
+    - 用途: 养老金功能入口
+    - 当前占位图: 使用emoji 👴
+
+17. homepage_function_guizhou.png - 贵州银行图标 (🏔️)
+    - 建议尺寸: 48x48px
+    - 用途: 贵州银行功能入口
+    - 当前占位图: 使用emoji 🏔️
+
+18. homepage_function_save.png - 零存整取图标 (💰)
+    - 建议尺寸: 48x48px
+    - 用途: 零存整取功能入口
+    - 当前占位图: 使用emoji 💰
+
+19. homepage_function_dragon.png - 龙支付图标 (🐉)
+    - 建议尺寸: 48x48px
+    - 用途: 龙支付功能入口
+    - 当前占位图: 使用emoji 🐉
+
+20. homepage_function_gold.png - 黄金图标 (🥇)
+    - 建议尺寸: 48x48px
+    - 用途: 黄金投资功能入口
+    - 当前占位图: 使用emoji 🥇
+
+横幅和活动图标:
+-------------
+21. homepage_announcement_icon.png - 公告图标 (📢)
+    - 建议尺寸: 32x32px
+    - 用途: 公告横幅图标
+    - 当前占位图: 使用emoji 📢
+
+22. homepage_activity_gift.png - 活动礼品图标 (🎁)
+    - 建议尺寸: 60x60px
+    - 用途: 活动横幅装饰图标
+    - 当前占位图: 使用emoji 🎁
+
+财富区域:
+--------
+23. homepage_wealth_finance.png - 理财产品图标
+    - 建议尺寸: 40x40px
+    - 用途: 理财产品展示
+    - 当前占位图: 需要添加
+
+24. homepage_wealth_fund.png - 基金产品图标
+    - 建议尺寸: 40x40px
+    - 用途: 基金产品展示
+    - 当前占位图: 需要添加
+
+25. homepage_wealth_insurance.png - 保险产品图标
+    - 建议尺寸: 40x40px
+    - 用途: 保险产品展示
+    - 当前占位图: 需要添加
+
+账户和养老金区域:
+--------------
+26. homepage_account_card.png - 银行卡图标
+    - 建议尺寸: 32x32px
+    - 用途: 账户区域银行卡图标
+    - 当前占位图: 需要添加
+
+27. homepage_pension_new.png - NEW徽章图标
+    - 建议尺寸: 24x12px
+    - 用途: 养老金区域NEW标识
+    - 当前占位图: 需要添加
+
+注意事项:
+--------
+- 所有图标建议使用PNG格式，支持透明背景
+- 图标设计应符合银行应用的专业风格
+- 颜色搭配应与蓝色渐变主题保持一致
+- 图标应清晰可辨，在小尺寸下也能保持良好的视觉效果
+- 建议提供2x和3x分辨率版本以适配不同设备
+- 当前使用emoji作为占位符，确保在图片加载失败时有fallback显示
+
+替换方式:
+--------
+将实际切图文件重命名为对应的文件名，直接替换assets/apps/app_bank/images/目录下的占位图片即可。
+
+进度状态:
+--------
+✓ 已复制: 10个基础功能图标和主横幅背景
+⏳ 待复制: 17个剩余图标和装饰图片
+📱 使用emoji: 当前所有图标都有emoji fallback确保显示正常

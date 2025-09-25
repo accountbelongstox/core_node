@@ -1,0 +1,82 @@
+services:
+  nginx-proxy-manager:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      - '18880:80'
+      - '18881:81'
+      - '18443:443'
+    volumes:
+      - /www/wwwroot/docker-data/nginx-proxy-manager:/data
+      - /www/wwwroot/docker-data/nginx-proxy-manager/letsencrypt:/etc/letsencrypt
+  dockerhub:
+    container_name: reg-docker-hub
+    image: dqzboy/registry:latest
+    restart: always
+    environment:
+      - OTEL_TRACES_EXPORTER=none
+      #- http=http://host:port
+      #- https=http://host:port
+    volumes:
+      - /www/wwwroot/registry-data:/var/lib/registry
+      - ./Docker-Proxy/config/registry-hub.yml:/etc/distribution/config.yml
+      #- ./htpasswd:/auth/htpasswd
+    ports:
+      - 51000:5000
+    networks:
+      - registry-net
+
+
+  ## docker.elastic.co
+  elastic:
+    container_name: reg-elastic
+    image: dqzboy/registry:latest
+    restart: always
+    environment:
+      - OTEL_TRACES_EXPORTER=none
+      #- http=http://host:port
+      #- https=http://host:port
+    volumes:
+      - /www/wwwroot/registry-data:/var/lib/registry
+      - ./Docker-Proxy/config/registry-elastic.yml:/etc/distribution/config.yml
+      #- ./htpasswd:/auth/htpasswd
+    ports:
+      - 58000:5000
+    networks:
+      - registry-net
+
+  ## UI
+  registry-ui:
+    container_name: registry-ui
+    image: dqzboy/docker-registry-ui:latest
+    environment:
+      - DOCKER_REGISTRY_URL=http://reg-docker-hub:5000
+      - SECRET_KEY_BASE=9f18244a1e1179fa5aa4a06a335d01b2
+      - ENABLE_DELETE_IMAGES=true
+      - NO_SSL_VERIFICATION=true
+    restart: always
+    ports:
+      - 50000:8080
+    networks:
+      - registry-net
+
+  gitea:
+    image: docker.gitea.com/gitea:1.23.7
+    container_name: gitea
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+    restart: always
+    networks:
+      - gitea
+    volumes:
+      - /www/wwwroot/gitea_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "13000:3000"
+      - "13222:22"
+networks:
+  registry-net:
+  gitea:
+    external: false

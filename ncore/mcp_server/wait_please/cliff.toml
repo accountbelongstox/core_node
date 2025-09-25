@@ -1,0 +1,86 @@
+# git-cliff 配置文件
+# 用于生成结构化的 changelog
+
+[changelog]
+# changelog 头部
+header = ""
+
+# changelog 主体模板 - 清晰的结构化格式
+body = """
+## What's Changed
+
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+
+{% for commit in commits -%}
+* {{ commit.message | split(pat=":") | last | trim | upper_first }} by [@{{ commit.author.name }}](https://github.com/{{ commit.author.name }}) in [{{ commit.id | truncate(length=7, end="") }}](https://github.com/imhuso/cunzhi/commit/{{ commit.id }})
+{% endfor %}
+{% endfor -%}
+"""
+
+# changelog 尾部
+footer = ""
+
+# 去除多余空行
+trim = true
+
+[git]
+# Parse conventional commit format
+conventional_commits = true
+# Filter unconventional commits
+filter_unconventional = false
+# Split commit messages
+split_commits = false
+# Commit parsers
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactor" },
+  { message = "^docs?", group = "Documentation" },
+  { message = "^style", group = "Styling" },
+  { message = "^test", group = "Testing" },
+  { message = "^build", group = "Build" },
+  { message = "^security", group = "Security" },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^chore\\(deps", skip = true },
+  { message = "^chore|^ci", group = "Maintenance" },
+  { message = "^revert", group = "Reverts" },
+  { message = ".*", group = "Other" },
+]
+
+# 提交预处理器 - 清理提交信息
+commit_preprocessors = [
+  # 移除 issue 编号
+  { pattern = ' #\d+$', replace = "" },
+  # 移除多余空格
+  { pattern = '\s+', replace = " " },
+  # 清理 merge commit 格式
+  { pattern = '^Merge pull request #\d+ from [^\s]+', replace = "" },
+  { pattern = '^Merge branch ', replace = "" },
+]
+
+# 链接解析器 - 自动识别 issue 和 PR 链接
+link_parsers = [
+  { pattern = "#(\\d+)", href = "https://github.com/imhuso/cunzhi/issues/$1" },
+  { pattern = "\\[([^\\]]+)\\]\\(([^)]+)\\)", text = "$1", href = "$2" },
+]
+
+# 保护分支
+protect_breaking_commits = false
+# 过滤提交
+filter_commits = false
+# 标签模式
+tag_pattern = "v[0-9].*"
+# 跳过标签
+skip_tags = "v0.1.0-beta.1"
+# 忽略标签
+ignore_tags = ""
+# 排序方式
+topo_order = false
+# 排序提交 - 最新的在前
+sort_commits = "newest"
+
+[remote.github]
+owner = "imhuso"
+repo = "cunzhi"

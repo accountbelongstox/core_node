@@ -1,0 +1,2 @@
+D:\programing\core_node\scripts\shells\win\install_powershells\Step12_InstallApplications.ps1 给加上PHP包,先用winget PHP.PHP.8.4(有时候会安装失败是 是官方的问题,其后使用choco install php --version=8.4 -y 再之后使用 scoop install php84, 之后使用 @https://downloads.php.net/~windows/releases/php-8.4.12-Win32-vs17-x64.zip 原理就是前面的安装成功后后面的检测到exe会自动跳过.请创建一个新的安装type就是组合安装 其他 的如AdditionalInstallationPackages 和PostInstallCallbacks  EnvVars 都一样,实际上也就是D:\programing\core_node\scripts\shells\win\install_powershells\Step12_InstallApplications.ps1 在其中加入组合调用的功能,当一个安装成功后跳过后面的,然后继续设置环境变量等步骤.
+ 

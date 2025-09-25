@@ -1,0 +1,583 @@
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+param (
+    [string]$action,
+    [string]$param1,
+    [string]$param2,
+    [string]$param3
+)
+
+$systemName = "win"
+$osInfo = Get-CimInstance Win32_OperatingSystem
+$winVer = $osInfo.Version
+$winBuild = [int]$osInfo.BuildNumber
+
+if ($winBuild -ge 22000) {
+    $systemName = "win11"
+    $Global:isWin11 = $true
+    $Global:isWin10 = $false
+} elseif ($winVer.StartsWith("10.0")) {
+    $systemName = "win10"
+    $Global:isWin11 = $false
+    $Global:isWin10 = $true
+} elseif ($winVer.StartsWith("6.3")) {
+    $systemName = "win_8"
+    $Global:isWin11 = $false
+    $Global:isWin10 = $false
+} elseif ($winVer.StartsWith("6.2")) {
+    $systemName = "win_8"
+    $Global:isWin11 = $false
+    $Global:isWin10 = $false
+} elseif ($winVer.StartsWith("6.1")) {
+    $systemName = "win_7"
+    $Global:isWin11 = $false
+    $Global:isWin10 = $false
+} else {
+    $systemName = "win"
+    $Global:isWin11 = $false
+    $Global:isWin10 = $false
+}
+
+$Global:LANG_COMPILER_DIR = "D:\.dev_$systemName"
+$Global:WINENVS_DIR = ".winenvs"
+
+function Write-Log {
+    param (
+        [string]$message,
+        [string]$color = "White"
+    )
+    Write-Host $message -ForegroundColor $color
+}
+
+function Test-IsExecutableFile {
+    param (
+        [System.IO.FileInfo]$FileItem
+    )
+    
+    # Check if the item is a file (not a directory)
+    if ($FileItem.PSIsContainer) {
+        return $false
+    }
+    
+    # Check if the file extension matches supported executable formats
+    $supportedExtensions = @('.exe', '.cmd', '.bat', '.ps1')
+    $fileExtension = $FileItem.Extension.ToLower()
+    
+    return $supportedExtensions -contains $fileExtension
+}
+
+function Normalize-WindowsPath {
+    param (
+        [string]$p
+    )
+    if ([string]::IsNullOrWhiteSpace($p)) { return $null }
+    $p = $p.Trim().Trim('"')
+    $p = $p -replace '/', '\\'
+    try { $p = [System.IO.Path]::GetFullPath($p) } catch {}
+    if ($p -match '^[a-z]:\\') { $p = $p.Substring(0,1).ToUpper() + $p.Substring(1) }
+    if ($p.Length -gt 3) { $p = $p.TrimEnd('\\') }
+    return $p
+}
+
+function Build-CombinedNormalizedPath {
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $segments = @()
+    if ($userPath)   { $segments += ($userPath -split ';') }
+    if ($machinePath){ $segments += ($machinePath -split ';') }
+    $normalized = @()
+    foreach ($seg in $segments) {
+        $n = Normalize-WindowsPath $seg
+        if ($n -and -not ($normalized -contains $n)) { $normalized += $n }
+    }
+    return ($normalized -join ';')
+}
+
+function Emit-CmdSetPath {
+    param (
+        [string]$combinedPath
+    )
+    # Output only the set command for CMD to consume
+    Write-Output ('set "PATH={0}"' -f $combinedPath)
+}
+
+function Get-EffectiveEnvVar {
+    param (
+        [string]$varName
+    )
+    $userVal = [Environment]::GetEnvironmentVariable($varName, "User")
+    if (-not [string]::IsNullOrEmpty($userVal)) { return $userVal }
+    return [Environment]::GetEnvironmentVariable($varName, "Machine")
+}
+
+function Emit-CmdSetVar {
+    param (
+        [string]$varName,
+        [string]$varValue
+    )
+    Write-Output ('set "{0}={1}"' -f $varName, $varValue)
+}
+
+function Write-RefreshBatch {
+    $combined = Build-CombinedNormalizedPath
+    $content  = @"
+@echo off
+set "PATH=$combined"
+exit /b 0
+"@
+    $outFile  = Join-Path $env:TEMP "refresh_env.cmd"
+    $enc = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($outFile, $content, $enc)
+    Write-Log "Generated: $outFile" -color "Green"
+}
+
+function Write-RefreshVarBatch {
+    param (
+        [string]$varName
+    )
+    if ([string]::IsNullOrWhiteSpace($varName)) {
+        Write-Log "Variable name is required for refreshvar-bat" -color "Red"
+        return
+    }
+    $val = Get-EffectiveEnvVar -varName $varName
+    $content  = @"
+@echo off
+set "$varName=$val"
+exit /b 0
+"@
+    $outFile  = Join-Path $env:TEMP ("refresh_env_{0}.cmd" -f $varName)
+    $enc = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($outFile, $content, $enc)
+    Write-Log "Generated: $outFile" -color "Green"
+}
+
+function Normalize-WindowsPath {
+    param (
+        [string]$p
+    )
+    if ([string]::IsNullOrWhiteSpace($p)) { return $null }
+    $p = $p.Trim().Trim('"')
+    $p = $p -replace '/', '\\'
+    try {
+        $p = [System.IO.Path]::GetFullPath($p)
+    } catch {
+        # keep original if GetFullPath fails
+    }
+    if ($p -match '^[a-z]:\\') { $p = $p.Substring(0,1).ToUpper() + $p.Substring(1) }
+    if ($p.Length -gt 3) { $p = $p.TrimEnd('\') }
+    return $p
+}
+
+function Backup-Environment {
+    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    $backupDir = "D:\.tmp\.GlobalEnv"
+    $backupFile = "$backupDir\path_$timestamp.bak"
+    
+    # Ensure backup directory exists
+    if (-not (Test-Path $backupDir)) {
+        New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        Write-Log "Created backup directory: $backupDir" -color "Yellow"
+    }
+    
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    Set-Content -Path $backupFile -Value $currentPath
+    Write-Log "Backup created at $backupFile"
+}
+
+function Add-Path {
+    param (
+        [string]$newPath
+    )
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $paths = $currentPath -split ';'
+    $newPath = Normalize-WindowsPath $newPath
+    $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
+    if (-not ($pathsNormalized -contains $newPath)) {
+        $pathsNormalized += $newPath
+        $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
+        Backup-Environment
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString
+        Write-Log "Added $newPath to PATH" -color "Green"
+    } else {
+        Write-Log "Path $newPath already exists" -color "Yellow"
+    }
+}
+
+function Remove-Path {
+    param (
+        [string]$pathToRemove
+    )
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $paths = $currentPath -split ';'
+    $normToRemove = Normalize-WindowsPath $pathToRemove
+    $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
+    if ($pathsNormalized -contains $normToRemove) {
+        $pathsNormalized = $pathsNormalized | Where-Object { $_ -ne $normToRemove }
+        $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
+        Backup-Environment
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString
+        Write-Log "Removed $normToRemove from PATH" -color "Green"
+    } else {
+        Write-Log "Path $normToRemove does not exist" -color "Yellow"
+    }
+}
+
+function Is-Path {
+    param (
+        [string]$pathToCheck
+    )
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $paths = $currentPath -split ';'
+    $normToCheck = Normalize-WindowsPath $pathToCheck
+    $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
+    return ($pathsNormalized -contains $normToCheck)
+}
+
+function Show-Path {
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $paths = $currentPath -split ';'
+    Write-Log "Current PATH entries:"
+    $paths | ForEach-Object { Write-Log $_ }
+}
+
+function Get-EnvVar {
+    param (
+        [string]$varName
+    )
+    return [Environment]::GetEnvironmentVariable($varName, "Machine")
+}
+
+function Is-EnvVar {
+    param (
+        [string]$varName,
+        [string]$varValue
+    )
+    $effective = Get-EffectiveEnvVar -varName $varName
+    if ([string]::IsNullOrEmpty($varValue)) {
+        return -not [string]::IsNullOrEmpty($effective)
+    }
+    return [string]::Equals($effective, $varValue, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Set-EnvVar {
+    param (
+        [string]$varName,
+        [string]$varValue
+    )
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -Value $varValue
+    Write-Log "Set $varName to $varValue" -color "Green"
+}
+
+function Remove-EnvVar {
+    param (
+        [string]$varName
+    )
+    Remove-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name $varName -ErrorAction SilentlyContinue
+    Write-Log "Removed $varName" -color "Green"
+}
+
+function Add-ExecutableToGlobalEnvs {
+    param (
+        [string]$exePath
+    )
+    
+    # Ensure GlobalEnvs directory exists and is in PATH
+    $globalEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    if (-not (Test-Path $globalEnvsDir)) {
+        New-Item -ItemType Directory -Path $globalEnvsDir -Force | Out-Null
+        Write-Log "Created GlobalEnvs directory: $globalEnvsDir" -color "Yellow"
+    }
+    
+    # Add GlobalEnvs directory to PATH if not already present
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $paths = $currentPath -split ';'
+    $globalEnvsNormalized = Normalize-WindowsPath $globalEnvsDir
+    $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
+    
+    if (-not ($pathsNormalized -contains $globalEnvsNormalized)) {
+        $pathsNormalized += $globalEnvsNormalized
+        $newPathString = ($pathsNormalized | Where-Object { $_ }) -join ';'
+        Backup-Environment
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPathString
+        Write-Log "Added GlobalEnvs directory to PATH: $globalEnvsDir" -color "Green"
+    }
+    
+    # Process the executable path
+    $exePathNormalized = Normalize-WindowsPath $exePath
+    if (-not (Test-Path $exePathNormalized)) {
+        Write-Log "Executable path does not exist: $exePathNormalized" -color "Red"
+        return
+    }
+    
+    $exeItem = Get-Item $exePathNormalized
+    
+    if ($exeItem.PSIsContainer) {
+        # If it's a directory, process all executable files recursively
+        Write-Log "Processing directory: $exePathNormalized" -color "Cyan"
+        $executableFiles = Get-ChildItem -Path $exePathNormalized -Recurse -ErrorAction SilentlyContinue | Where-Object { 
+            Test-IsExecutableFile -FileItem $_
+        }
+        foreach ($file in $executableFiles) {
+            Create-SymbolicLinkForExecutable -executableFile $file -globalEnvsDir $globalEnvsDir
+        }
+    } else {
+        # If it's a single file, process it directly
+        if (Test-IsExecutableFile -FileItem $exeItem) {
+            Create-SymbolicLinkForExecutable -executableFile $exeItem -globalEnvsDir $globalEnvsDir
+        } else {
+            Write-Log "File is not a supported executable format: $exePathNormalized (Supported: .exe, .cmd, .bat, .ps1)" -color "Yellow"
+        }
+    }
+}
+
+function Create-SymbolicLinkForExecutable {
+    param (
+        [System.IO.FileInfo]$executableFile,
+        [string]$globalEnvsDir
+    )
+    
+    $linkName = $executableFile.Name
+    $linkPath = Join-Path $globalEnvsDir $linkName
+    
+    # Remove existing link if it exists
+    if (Test-Path $linkPath) {
+        try {
+            Remove-Item -Path $linkPath -Force -ErrorAction Stop
+            Write-Log "Removed existing link: $linkPath" -color "Yellow"
+        } catch {
+            Write-Log "Failed to remove existing link: $linkPath" -color "Red"
+            return
+        }
+    }
+    
+    # Create symbolic link
+    try {
+        New-Item -ItemType SymbolicLink -Path $linkPath -Target $executableFile.FullName -Force | Out-Null
+            Write-Log "Created symbolic link: $linkName -> $($executableFile.FullName)" -color "Green"
+    } catch {
+        Write-Log "Failed to create symbolic link for $linkName" -color "Red"
+    }
+}
+
+function Add-FileToWinEnvs {
+    param (
+        [string]$filePath
+    )
+    
+    # Ensure .winenvs directory exists
+    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    if (-not (Test-Path $winEnvsDir)) {
+        New-Item -ItemType Directory -Path $winEnvsDir -Force | Out-Null
+        Write-Log "Created $Global:WINENVS_DIR directory: $winEnvsDir" -color "Yellow"
+    }
+    
+    # Process the file path
+    $filePathNormalized = Normalize-WindowsPath $filePath
+    if (-not (Test-Path $filePathNormalized)) {
+        Write-Log "File path does not exist: $filePathNormalized" -color "Red"
+        return
+    }
+    
+    $fileItem = Get-Item $filePathNormalized
+    
+    if ($fileItem.PSIsContainer) {
+        # If it's a directory, process all executable files recursively
+        Write-Log "Processing directory: $filePathNormalized" -color "Cyan"
+        $executableFiles = Get-ChildItem -Path $filePathNormalized -Recurse -ErrorAction SilentlyContinue | Where-Object { 
+            Test-IsExecutableFile -FileItem $_
+        }
+        foreach ($file in $executableFiles) {
+            Copy-FileToWinEnvs -file $file -winEnvsDir $winEnvsDir
+        }
+    } else {
+        # If it's a single file, process it directly if it's executable
+        if (Test-IsExecutableFile -FileItem $fileItem) {
+            Copy-FileToWinEnvs -file $fileItem -winEnvsDir $winEnvsDir
+        } else {
+            Write-Log "File is not a supported executable format: $filePathNormalized (Supported: .exe, .cmd, .bat, .ps1)" -color "Yellow"
+        }
+    }
+}
+
+function Copy-FileToWinEnvs {
+    param (
+        [System.IO.FileInfo]$file,
+        [string]$winEnvsDir
+    )
+    
+    $fileName = $file.Name
+    $targetPath = Join-Path $winEnvsDir $fileName
+    
+    # Remove existing file if it exists
+    if (Test-Path $targetPath) {
+        try {
+            Remove-Item -Path $targetPath -Force -ErrorAction Stop
+            Write-Log "Removed existing file: $targetPath" -color "Yellow"
+        } catch {
+            Write-Log "Failed to remove existing file: $targetPath" -color "Red"
+            return
+        }
+    }
+    
+    # Copy file to .winenvs directory
+    try {
+        Copy-Item -Path $file.FullName -Destination $targetPath -Force
+        Write-Log "Copied file to .winenvs: $fileName -> $targetPath" -color "Green"
+    } catch {
+        Write-Log "Failed to copy file $fileName to .winenvs: $($_.Exception.Message)" -color "Red"
+    }
+}
+
+# Main logic
+switch ($action) {
+    "add" {
+        Add-Path -newPath $param1
+    }
+    "remove" {
+        Remove-Path -pathToRemove $param1
+    }
+    "is" {
+        $exists = Is-Path -pathToCheck $param1
+        Write-Log $exists
+    }
+    "show" {
+        Show-Path
+    }
+    "refresh" {
+        $combined = Build-CombinedNormalizedPath
+        Emit-CmdSetPath -combinedPath $combined
+    }
+    "refresh-bat" {
+        Write-RefreshBatch
+    }
+    "refreshvar" {
+        # param1 = variable name
+        if ([string]::IsNullOrWhiteSpace($param1)) {
+            Write-Log "Variable name is required for refreshvar" -color "Red"
+        } else {
+            $val = Get-EffectiveEnvVar -varName $param1
+            Emit-CmdSetVar -varName $param1 -varValue $val
+        }
+    }
+    "refreshvar-bat" {
+        Write-RefreshVarBatch -varName $param1
+    }
+    "get" {
+        # DEPRECATED: For compatibility only. Use getvar or getpath instead.
+        Write-Log "WARNING: 'get' is deprecated. Use 'getvar' for environment variables or 'getpath' for PATH." -color "Yellow"
+        $value = Get-EnvVar -varName $param1
+        if ($value) {
+            Write-Log "$param1=$value"
+        } else {
+            Write-Log "Variable $param1 not found" -color "Yellow"
+        }
+    }
+    "getvar" {
+        # Get environment variable value
+        # param1 = variable name
+        if ([string]::IsNullOrWhiteSpace($param1)) {
+            Write-Log "Variable name is required for getvar" -color "Red"
+            return $null
+        } else {
+            $value = Get-EnvVar -varName $param1
+            if ($value) {
+                Write-Log "$param1=$value"
+                return $value
+            } else {
+                Write-Log "Variable $param1 not found" -color "Yellow"
+                return $null
+            }
+        }
+    }
+    "getpath" {
+        # Get PATH environment variable
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        Write-Log "Current PATH:"
+        $paths = $currentPath -split ';'
+        foreach ($p in $paths) {
+            if (-not [string]::IsNullOrWhiteSpace($p)) {
+                Write-Log "  $p"
+            }
+        }
+    }
+    "getvars" {
+        # Get all environment variables
+        Write-Log "All Environment Variables:"
+        $envVars = [Environment]::GetEnvironmentVariables("Machine")
+        foreach ($var in $envVars.GetEnumerator()) {
+            Write-Log "$($var.Key)=$($var.Value)"
+        }
+    }
+    "isvar" {
+        $exists = Is-EnvVar -varName $param1 -varValue $param2
+        Write-Log $exists
+    }
+    "setvar" {
+        # param1 = variable name, param2 = variable value
+        if ([string]::IsNullOrWhiteSpace($param1)) {
+            Write-Log "Variable name is required for setvar" -color "Red"
+        } else {
+            Set-EnvVar -varName $param1 -varValue $param2
+        }
+    }
+    "removevar" {
+        Remove-EnvVar -varName $param1
+    }
+    "addexec" {
+        if ([string]::IsNullOrWhiteSpace($param1)) {
+            Write-Log "Executable path is required for addexec" -color "Red"
+        } else {
+            Add-ExecutableToGlobalEnvs -exePath $param1
+        }
+    }
+    "addfile" {
+        if ([string]::IsNullOrWhiteSpace($param1)) {
+            Write-Log "File path is required for addfile" -color "Red"
+        } else {
+            Add-FileToWinEnvs -filePath $param1
+        }
+    }
+    "help" {
+        Write-Log "Invalid action. Available actions:" -color "Red"
+        Write-Log "  PATH Management:" -color "Yellow"
+        Write-Log "    add <path>                    - Add directory to system PATH" -color "White"
+        Write-Log "    remove <path>                 - Remove directory from system PATH" -color "White"
+        Write-Log "    is <path>                     - Check if directory exists in PATH" -color "White"
+        Write-Log "    show                          - Display current PATH entries" -color "White"
+        Write-Log "  Environment Variables:" -color "Yellow"
+        Write-Log "    setvar <varName> <varValue>   - Set environment variable" -color "White"
+        Write-Log "    getvar <varName>              - Get environment variable value" -color "White"
+        Write-Log "    getvars                       - Get all environment variables" -color "White"
+        Write-Log "    getpath                       - Get PATH environment variable" -color "White"
+        Write-Log "    get <varName>                 - Get environment variable (DEPRECATED)" -color "Gray"
+        Write-Log "    isvar <varName> <varValue>    - Check if variable equals value" -color "White"
+        Write-Log "    removevar <varName>           - Remove environment variable" -color "White"
+        Write-Log "  Refresh Operations:" -color "Yellow"
+        Write-Log "    refresh                       - Output PATH for CMD consumption" -color "White"
+        Write-Log "    refresh-bat                   - Generate refresh batch file" -color "White"
+        Write-Log "    refreshvar <varName>          - Output variable for CMD consumption" -color "White"
+        Write-Log "    refreshvar-bat <varName>      - Generate variable refresh batch file" -color "White"
+        Write-Log "  Symbolic Link Management:" -color "Yellow"
+        Write-Log "    addexec <exePath>             - Add executable via symbolic links to GlobalEnvs" -color "White"
+        Write-Log "    addfile <filePath>             - Copy file to $Global:WINENVS_DIR directory" -color "White"
+        Write-Log "  Examples:" -color "Yellow"
+        Write-Log "    .\WindowsPathFunction.ps1 add 'C:\Program Files\Git\bin'" -color "Cyan"
+        Write-Log "    .\WindowsPathFunction.ps1 setvar 'JAVA_HOME' 'C:\Program Files\Java\jdk-11'" -color "Cyan"
+        Write-Log "    .\WindowsPathFunction.ps1 addexec 'C:\Program Files\Git\bin'" -color "Cyan"
+    }
+    default {
+        Write-Log "Use WindowsPathFunction.ps1 v1.0.0; help ?" -color "Green"
+    }
+}
+
+

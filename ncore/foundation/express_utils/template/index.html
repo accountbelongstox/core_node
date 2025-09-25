@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Express Server Running</title>
+  <link rel="stylesheet" href="/static/styles/index.css">
+  <link rel="stylesheet" href="/static/styles/system_monitor_panel.css">
+  <link rel="stylesheet" href="/static/styles/log-container.css">
+</head>
+<body>
+
+  <div>
+    <div class="container">
+      <h1>Express Server is Running!</h1>
+      <p>Your Express application is up and running successfully.</p>
+      <a href="/" class="btn">Go to Home</a>
+    </div>
+
+    <div class="SystemMonitorPanel" id="systemMonitorPanel">
+      <div class="card-header">
+        <h5 class="mb-0">System Monitor</h5>
+        <span id="updateTime" class="badge">Last update: Never</span>
+      </div>
+      <div class="card-body">
+        <div class="monitor-grid">
+          <!-- System Overview -->
+          <div class="monitor-card">
+            <h6 class="card-title">System Overview</h6>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="label">Uptime:</span>
+                <span id="uptime" class="value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="label">Load Average:</span>
+                <span id="loadAvg" class="value">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- CPU Status -->
+          <div class="monitor-card">
+            <h6 class="card-title">CPU Status</h6>
+            <div class="progress-section">
+              <div class="progress">
+                <div id="cpuUsageBar" class="progress-bar" role="progressbar"></div>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <span class="label">User:</span>
+                <span id="cpuUser" class="value">-</span>%
+              </div>
+              <div class="stat-item">
+                <span class="label">System:</span>
+                <span id="cpuSystem" class="value">-</span>%
+              </div>
+              <div class="stat-item">
+                <span class="label">Idle:</span>
+                <span id="cpuIdle" class="value">-</span>%
+              </div>
+            </div>
+          </div>
+
+          <!-- Memory Status -->
+          <div class="monitor-card">
+            <h6 class="card-title">Memory Status</h6>
+            <div class="progress-section">
+              <div class="progress">
+                <div id="memUsageBar" class="progress-bar" role="progressbar"></div>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <span class="label">Total:</span>
+                <span id="memTotal" class="value">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="label">Used:</span>
+                <span id="memUsed" class="value">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="label">Free:</span>
+                <span id="memFree" class="value">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="label">Cache:</span>
+                <span id="memCache" class="value">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Task Status -->
+          <div class="monitor-card">
+            <h6 class="card-title">Task Status</h6>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <span class="label">Total:</span>
+                <span id="tasksTotal" class="value">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="label">Running:</span>
+                <span id="tasksRunning" class="value">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="label">Sleeping:</span>
+                <span id="tasksSleeping" class="value">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="label">Stopped:</span>
+                <span id="tasksStopped" class="value">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Command window for WebSocket messages -->
+  <div id="commandWindow">
+    <pre id="commandWindowContent"></pre>
+  </div>
+
+
+  <script src="/static/scripts/interact.min.js"></script>
+  <script src="/static/scripts/log-console.js"></script>
+  <script src="/static/scripts/websocket-client.js"></script>
+  <script src="/static/scripts/index.js"></script>
+  <script src="/static/scripts/system_monitor.js"></script>
+
+</body>
+</html>
+

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新建群组 - 企业通讯</title>
+    <link rel="stylesheet" href="styles/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: #fff;
+            border-bottom: 1px solid #eee;
+        }
+
+        .header-action {
+            color: #007AFF;
+            font-size: 15px;
+        }
+
+        .header-action.disabled {
+            color: #999;
+        }
+
+        .header-title {
+            font-size: 17px;
+            font-weight: 500;
+        }
+
+        .search-bar {
+            padding: 10px 15px;
+            background: #f8f8f8;
+            border-bottom: 1px solid #eee;
+        }
+
+        .search-input {
+            background: #fff;
+            border-radius: 10px;
+            padding: 8px 15px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .search-input i {
+            color: #999;
+            margin-right: 8px;
+        }
+
+        .search-input input {
+            border: none;
+            outline: none;
+            font-size: 14px;
+            width: 100%;
+            color: #333;
+        }
+
+        .hint-text {
+            padding: 15px;
+            color: #999;
+            font-size: 14px;
+            text-align: center;
+            background: #f8f8f8;
+        }
+
+        .contact-list {
+            overflow-y: auto;
+            height: calc(100vh - 190px);
+            position: relative;
+        }
+
+        .contact-item {
+            display: flex;
+            padding: 12px 15px;
+            background: #fff;
+            align-items: center;
+            border-bottom: 1px solid #f5f5f5;
+            animation: slideIn 0.3s ease;
+        }
+
+        .contact-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 6px;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .contact-info {
+            flex: 1;
+        }
+
+        .contact-name {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .contact-title {
+            font-size: 13px;
+            color: #999;
+        }
+
+        .checkbox {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 1.5px solid #ddd;
+            margin-left: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox.checked {
+            background: #007AFF;
+            border-color: #007AFF;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+        }
+
+        .alphabet-index {
+            position: fixed;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            padding: 10px 2px;
+            font-size: 11px;
+            color: #007AFF;
+            background: transparent;
+            z-index: 100;
+        }
+
+        .alphabet-item {
+            padding: 2px 4px;
+            cursor: pointer;
+        }
+
+        .alphabet-item:active {
+            background: #007AFF;
+            color: white;
+            border-radius: 4px;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .contact-item {
+            animation: slideIn 0.3s ease forwards;
+        }
+
+        .contact-item:nth-child(1) { animation-delay: 0.05s; }
+        .contact-item:nth-child(2) { animation-delay: 0.1s; }
+        .contact-item:nth-child(3) { animation-delay: 0.15s; }
+        .contact-item:nth-child(4) { animation-delay: 0.2s; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="time">2:41</div>
+            <div class="status-icons">
+                <i class="fas fa-bluetooth-b"></i>
+                <i class="fas fa-moon"></i>
+                <i class="fas fa-copyright"></i>
+                <span class="signal">5G</span>
+                <span class="signal">5G</span>
+                <span class="battery">33%</span>
+            </div>
+        </div>
+
+        <!-- 头部 -->
+        <div class="header">
+            <div class="header-action" onclick="history.back()">取消</div>
+            <div class="header-title">新建群组</div>
+            <div class="header-action disabled">下一步</div>
+        </div>
+
+        <!-- 搜索栏 -->
+        <div class="search-bar">
+            <div class="search-input">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="搜索用户">
+            </div>
+        </div>
+
+        <!-- 提示文本 -->
+        <div class="hint-text">
+            选择一个或多个联系人发起群聊
+        </div>
+
+        <!-- 联系人列表 -->
+        <div class="contact-list">
+            <div class="contact-item">
+                <div class="contact-avatar" style="background-color: #4CAF50;">张</div>
+                <div class="contact-info">
+                    <div class="contact-name">张经理</div>
+                    <div class="contact-title">技术部 | 项目总监</div>
+                </div>
+                <div class="checkbox"></div>
+            </div>
+
+            <div class="contact-item">
+                <div class="contact-avatar" style="background-color: #2196F3;">李</div>
+                <div class="contact-info">
+                    <div class="contact-name">李工程师</div>
+                    <div class="contact-title">研发部 | 高级开发工程师</div>
+                </div>
+                <div class="checkbox"></div>
+            </div>
+
+            <div class="contact-item">
+                <div class="contact-avatar" style="background-color: #9C27B0;">王</div>
+                <div class="contact-info">
+                    <div class="contact-name">王设计师</div>
+                    <div class="contact-title">设计部 | UI设计师</div>
+                </div>
+                <div class="checkbox"></div>
+            </div>
+
+            <div class="contact-item">
+                <div class="contact-avatar" style="background-color: #FF5722;">赵</div>
+                <div class="contact-info">
+                    <div class="contact-name">赵经理</div>
+                    <div class="contact-title">产品部 | 产品经理</div>
+                </div>
+                <div class="checkbox"></div>
+            </div>
+
+            <!-- 字母导航 -->
+            <div class="alphabet-index">
+                <div class="alphabet-item">A</div>
+                <div class="alphabet-item">B</div>
+                <div class="alphabet-item">C</div>
+                <div class="alphabet-item">D</div>
+                <div class="alphabet-item">E</div>
+                <div class="alphabet-item">F</div>
+                <div class="alphabet-item">G</div>
+                <div class="alphabet-item">H</div>
+                <div class="alphabet-item">I</div>
+                <div class="alphabet-item">J</div>
+                <div class="alphabet-item">K</div>
+                <div class="alphabet-item">L</div>
+                <div class="alphabet-item">M</div>
+                <div class="alphabet-item">N</div>
+                <div class="alphabet-item">O</div>
+                <div class="alphabet-item">P</div>
+                <div class="alphabet-item">Q</div>
+                <div class="alphabet-item">R</div>
+                <div class="alphabet-item">S</div>
+                <div class="alphabet-item">T</div>
+                <div class="alphabet-item">U</div>
+                <div class="alphabet-item">V</div>
+                <div class="alphabet-item">W</div>
+                <div class="alphabet-item">X</div>
+                <div class="alphabet-item">Y</div>
+                <div class="alphabet-item">Z</div>
+                <div class="alphabet-item">#</div>
+            </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <nav class="bottom-nav">
+            <div class="nav-item">
+                <i class="fas fa-comment"></i>
+                <span>聊天</span>
+            </div>
+            <div class="nav-item active">
+                <i class="fas fa-address-book"></i>
+                <span>联系人</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-compass"></i>
+                <span>工作台</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-user"></i>
+                <span>我的</span>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        // 更新时间
+        function updateTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            document.querySelector('.time').textContent = `${hours}:${minutes}`;
+        }
+        
+        updateTime();
+        setInterval(updateTime, 60000);
+
+        // 复选框点击效果
+        document.querySelectorAll('.contact-item').forEach(item => {
+            const checkbox = item.querySelector('.checkbox');
+            const nextBtn = document.querySelector('.header-action.disabled');
+            
+            item.addEventListener('click', () => {
+                checkbox.classList.toggle('checked');
+                if (checkbox.classList.contains('checked')) {
+                    checkbox.innerHTML = '<i class="fas fa-check"></i>';
+                } else {
+                    checkbox.innerHTML = '';
+                }
+
+                // 更新下一步按钮状态
+                const checkedBoxes = document.querySelectorAll('.checkbox.checked').length;
+                if (checkedBoxes > 0) {
+                    nextBtn.classList.remove('disabled');
+                } else {
+                    nextBtn.classList.add('disabled');
+                }
+            });
+        });
+
+        // 字母导航点击效果
+        document.querySelectorAll('.alphabet-item').forEach(item => {
+            item.addEventListener('touchstart', function() {
+                this.style.background = '#007AFF';
+                this.style.color = 'white';
+                this.style.borderRadius = '4px';
+            });
+
+            item.addEventListener('touchend', function() {
+                this.style.background = 'transparent';
+                this.style.color = '#007AFF';
+            });
+        });
+
+        // 搜索框焦点效果
+        const searchInput = document.querySelector('.search-input input');
+        searchInput.addEventListener('focus', () => {
+            searchInput.parentElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        });
+        searchInput.addEventListener('blur', () => {
+            searchInput.parentElement.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+        });
+    </script>
+</body>
+</html> 

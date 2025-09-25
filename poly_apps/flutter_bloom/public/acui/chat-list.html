@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天列表 - 企业通讯</title>
+    <link rel="stylesheet" href="styles/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .chat-list {
+            padding-bottom: 60px;
+        }
+
+        .chat-item {
+            display: flex;
+            padding: 12px 15px;
+            background: white;
+            border-bottom: 1px solid #f5f5f5;
+            position: relative;
+            animation: slideIn 0.3s ease;
+        }
+
+        .chat-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 6px;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .chat-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .chat-title {
+            font-size: 16px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .chat-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .chat-message {
+            font-size: 14px;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .message-count {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #FF3B30;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .search-bar {
+            padding: 10px 15px;
+            background: #f8f8f8;
+        }
+
+        .search-input {
+            background: white;
+            border-radius: 10px;
+            padding: 8px 15px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .search-input i {
+            color: #999;
+            margin-right: 8px;
+        }
+
+        .search-input input {
+            border: none;
+            outline: none;
+            font-size: 14px;
+            width: 100%;
+            color: #333;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-item {
+            animation: slideIn 0.3s ease forwards;
+        }
+
+        .chat-item:nth-child(1) { animation-delay: 0.1s; }
+        .chat-item:nth-child(2) { animation-delay: 0.2s; }
+        .chat-item:nth-child(3) { animation-delay: 0.3s; }
+        .chat-item:nth-child(4) { animation-delay: 0.4s; }
+
+        .verified-icon {
+            color: #007AFF;
+            margin-left: 4px;
+            font-size: 14px;
+        }
+
+        .chat-item:active {
+            background: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部状态栏 -->
+        <div class="status-bar">
+            <div class="time">16:15</div>
+            <div class="status-icons">
+                <i class="fab fa-bluetooth-b"></i>
+                <i class="fas fa-signal"></i>
+                <span class="battery">58%</span>
+            </div>
+        </div>
+
+        <!-- 头部 -->
+        <div class="header">
+            <h1>企业通讯</h1>
+            <div class="header-actions">
+                <i class="fas fa-plus-circle" onclick="window.location.href='new-chat.html'"></i>
+                <i class="fas fa-lock" onclick="window.location.href='app-lock.html'"></i>
+            </div>
+        </div>
+
+        <!-- 搜索栏 -->
+        <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" class="search-input" placeholder="搜索">
+        </div>
+
+        <!-- 聊天列表 -->
+        <div class="chat-list">
+            <!-- 公告频道 -->
+            <div class="chat-item" onclick="window.location.href='chat-details.html'">
+                <div class="chat-avatar avatar-announce">公告</div>
+                <div class="chat-content">
+                    <div class="chat-header">
+                        <span class="chat-name">企业公告</span>
+                        <span class="chat-time">09:30</span>
+                    </div>
+                    <div class="chat-message">
+                        [通知] 关于下周团建活动的安排
+                        <span class="chat-badge">2</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 项目组 -->
+            <div class="chat-item" onclick="window.location.href='group-chat.html'">
+                <div class="chat-avatar avatar-project">APP</div>
+                <div class="chat-content">
+                    <div class="chat-header">
+                        <span class="chat-name">移动端开发组</span>
+                        <span class="chat-time">10:15</span>
+                    </div>
+                    <div class="chat-message">
+                        张工：新版本UI评审会议记录已上传
+                        <span class="chat-badge">5</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 部门群 -->
+            <div class="chat-item" onclick="window.location.href='group-chat.html'">
+                <div class="chat-avatar avatar-dept">研发</div>
+                <div class="chat-content">
+                    <div class="chat-header">
+                        <span class="chat-name">研发部门群</span>
+                        <span class="chat-time">11:30</span>
+                    </div>
+                    <div class="chat-message">
+                        李总：下午3点技术评审会，请准时参加
+                    </div>
+                </div>
+            </div>
+
+            <!-- 团队协作 -->
+            <div class="chat-item" onclick="window.location.href='group-chat.html'">
+                <div class="chat-avatar avatar-team">UI</div>
+                <div class="chat-content">
+                    <div class="chat-header">
+                        <span class="chat-name">UI/UX团队</span>
+                        <span class="chat-time">13:45</span>
+                    </div>
+                    <div class="chat-message">
+                        王设计：最新的设计稿已经上传到原型库
+                    </div>
+                </div>
+            </div>
+
+            <!-- 项目沟通 -->
+            <div class="chat-item" onclick="window.location.href='group-chat.html'">
+                <div class="chat-avatar avatar-project">PRO</div>
+                <div class="chat-content">
+                    <div class="chat-header">
+                        <span class="chat-name">产品研发群</span>
+                        <span class="chat-time">14:20</span>
+                    </div>
+                    <div class="chat-message">
+                        陈PM：Sprint 3进度更新
+                        <span class="chat-badge">3</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <nav class="bottom-nav">
+            <div class="nav-item active">
+                <i class="fas fa-comment"></i>
+                <span>聊天</span>
+            </div>
+            <div class="nav-item" onclick="window.location.href='new-chat.html'">
+                <i class="fas fa-address-book"></i>
+                <span>联系人</span>
+            </div>
+            <div class="nav-item" onclick="window.location.href='chat-list-alt.html'">
+                <i class="fas fa-compass"></i>
+                <span>发现</span>
+            </div>
+            <div class="nav-item" onclick="window.location.href='profile.html'">
+                <i class="fas fa-user"></i>
+                <span>我的</span>
+            </div>
+        </nav>
+    </div>
+    <script src="scripts/script.js"></script>
+    <script>
+        // 更新时间
+        function updateTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            document.querySelector('.time').textContent = `${hours}:${minutes}`;
+        }
+        
+        updateTime();
+        setInterval(updateTime, 60000);
+
+        // 聊天项点击效果
+        document.querySelectorAll('.chat-item').forEach(item => {
+            item.addEventListener('click', function() {
+                this.style.backgroundColor = '#f5f5f5';
+                setTimeout(() => {
+                    this.style.backgroundColor = '';
+                }, 200);
+            });
+        });
+
+        // 搜索框焦点效果
+        const searchInput = document.querySelector('.search-input');
+        searchInput.addEventListener('focus', () => {
+            searchInput.style.backgroundColor = '#fff';
+            searchInput.style.boxShadow = '0 0 0 1px #007AFF';
+        });
+
+        searchInput.addEventListener('blur', () => {
+            searchInput.style.backgroundColor = '#f5f5f5';
+            searchInput.style.boxShadow = 'none';
+        });
+
+        // 底部导航点击效果
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.nav-item').forEach(nav => {
+                    nav.classList.remove('active');
+                });
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html> 

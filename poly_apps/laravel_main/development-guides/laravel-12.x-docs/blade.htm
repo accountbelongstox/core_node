@@ -1,0 +1,709 @@
+<!doctypehtml tml tml><html lang=en><title>Blade Templates - Laravel 12.x - The PHP Framework For Web Artisans</title><body>See everything we announced at Laracon US 2025. Read the blog post → <div><div><nav><div><ul><li><a href=https://laravel.com/> Home </a></ul>ΓîÿK</div></nav><div popover><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></div><div><a href=#main-content> Skip to content </a><div><aside><div><div><nav><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></nav></div></div></aside><section><div><section><section><div>Blade Templates<ul><li><a href=#introduction>Introduction</a> <ul><li><a href=#supercharging-blade-with-livewire>Supercharging Blade With Livewire</a></ul><li><a href=#displaying-data>Displaying Data</a> <ul><li><a href=#html-entity-encoding>HTML Entity Encoding</a><li><a href=#blade-and-javascript-frameworks>Blade and JavaScript Frameworks</a></ul><li><a href=#blade-directives>Blade Directives</a> <ul><li><a href=#if-statements>If Statements</a><li><a href=#switch-statements>Switch Statements</a><li><a href=#loops>Loops</a><li><a href=#the-loop-variable>The Loop Variable</a><li><a href=#conditional-classes>Conditional Classes</a><li><a href=#additional-attributes>Additional Attributes</a><li><a href=#including-subviews>Including Subviews</a><li><a href=#the-once-directive>The <code>@once</code> Directive</a><li><a href=#raw-php>Raw PHP</a><li><a href=#comments>Comments</a></ul><li><a href=#components>Components</a> <ul><li><a href=#rendering-components>Rendering Components</a><li><a href=#index-components>Index Components</a><li><a href=#passing-data-to-components>Passing Data to Components</a><li><a href=#component-attributes>Component Attributes</a><li><a href=#reserved-keywords>Reserved Keywords</a><li><a href=#slots>Slots</a><li><a href=#inline-component-views>Inline Component Views</a><li><a href=#dynamic-components>Dynamic Components</a><li><a href=#manually-registering-components>Manually Registering Components</a></ul><li><a href=#anonymous-components>Anonymous Components</a> <ul><li><a href=#anonymous-index-components>Anonymous Index Components</a><li><a href=#data-properties-attributes>Data Properties / Attributes</a><li><a href=#accessing-parent-data>Accessing Parent Data</a><li><a href=#anonymous-component-paths>Anonymous Components Paths</a></ul><li><a href=#building-layouts>Building Layouts</a> <ul><li><a href=#layouts-using-components>Layouts Using Components</a><li><a href=#layouts-using-template-inheritance>Layouts Using Template Inheritance</a></ul><li><a href=#forms>Forms</a> <ul><li><a href=#csrf-field>CSRF Field</a><li><a href=#method-field>Method Field</a><li><a href=#validation-errors>Validation Errors</a></ul><li><a href=#stacks>Stacks</a><li><a href=#service-injection>Service Injection</a><li><a href=#rendering-inline-blade-templates>Rendering Inline Blade Templates</a><li><a href=#rendering-blade-fragments>Rendering Blade Fragments</a><li><a href=#extending-blade>Extending Blade</a> <ul><li><a href=#custom-echo-handlers>Custom Echo Handlers</a><li><a href=#custom-if-statements>Custom If Statements</a></ul></ul><h2><a href=#introduction>Introduction</a></h2><p>Blade is the simple, yet powerful templating engine that is included with Laravel. Unlike some PHP templating engines, Blade does not restrict you from using plain PHP code in your templates. In fact, all Blade templates are compiled into plain PHP code and cached until they are modified, meaning Blade adds essentially zero overhead to your application. Blade template files use the <code>.blade.php</code> file extension and are typically stored in the <code>resources/views</code> directory.<p>Blade views may be returned from routes or controllers using the global <code>view</code> helper. Of course, as mentioned in the documentation on <a href=views.htm>views</a>, data may be passed to the Blade view using the <code>view</code> helper's second argument:<div><pre><code>1Route::get('/', function() {2returnview('greeting',['name'=>'Finn']);3});
+Route::get('/', function () {
+    return view('greeting', ['name' => 'Finn']);
+});</code></pre></div><h3><a href=#supercharging-blade-with-livewire>Supercharging Blade With Livewire</a></h3><p>Want to take your Blade templates to the next level and build dynamic interfaces with ease? Check out <a href=https://livewire.laravel.com/>Laravel Livewire</a>. Livewire allows you to write Blade components that are augmented with dynamic functionality that would typically only be possible via frontend frameworks like React or Vue, providing a great approach to building modern, reactive frontends without the complexities, client-side rendering, or build steps of many JavaScript frameworks.<h2><a href=#displaying-data>Displaying Data</a></h2><p>You may display data that is passed to your Blade views by wrapping the variable in curly braces. For example, given the following route:<div><pre><code>1Route::get('/', function() {2returnview('welcome',['name'=>'Samantha']);3});
+Route::get('/', function () {
+    return view('welcome', ['name' => 'Samantha']);
+});</code></pre></div><p>You may display the contents of the <code>name</code> variable like so:<div><pre><code>1Hello, {{$name}}.
+Hello, {{ $name }}.</code></pre></div><div><p>Blade's <code>{{ }}</code> echo statements are automatically sent through PHP's <code>htmlspecialchars</code> function to prevent XSS attacks.</div><p>You are not limited to displaying the contents of the variables passed to the view. You may also echo the results of any PHP function. In fact, you can put any PHP code you wish inside of a Blade echo statement:<div><pre><code>1The current UNIX timestamp is {{time() }}.
+The current UNIX timestamp is {{ time() }}.</code></pre></div><h3><a href=#html-entity-encoding>HTML Entity Encoding</a></h3><p>By default, Blade (and the Laravel <code>e</code> function) will double encode HTML entities. If you would like to disable double encoding, call the <code>Blade::withoutDoubleEncoding</code> method from the <code>boot</code> method of your <code>AppServiceProvider</code>:<div><pre><code> 1&lt;?php 2  3namespace App\Providers; 4  5use Illuminate\Support\Facades\Blade; 6use Illuminate\Support\ServiceProvider; 7  8classAppServiceProviderextendsServiceProvider 9{10/**11     * Bootstrap any application services.12*/13publicfunctionboot():void14    {15Blade::withoutDoubleEncoding();16    }17}
+&lt;?php
+
+namespace App\Providers;
+
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        Blade::withoutDoubleEncoding();
+    }
+}</code></pre></div><h4><a href=#displaying-unescaped-data>Displaying Unescaped Data</a></h4><p>By default, Blade <code>{{ }}</code> statements are automatically sent through PHP's <code>htmlspecialchars</code> function to prevent XSS attacks. If you do not want your data to be escaped, you may use the following syntax:<div><pre><code>1Hello, {!!$name!!}.
+Hello, {!! $name !!}.</code></pre></div><div><p>Be very careful when echoing content that is supplied by users of your application. You should typically use the escaped, double curly brace syntax to prevent XSS attacks when displaying user supplied data.</div><h3><a href=#blade-and-javascript-frameworks>Blade and JavaScript Frameworks</a></h3><p>Since many JavaScript frameworks also use "curly" braces to indicate a given expression should be displayed in the browser, you may use the <code>@</code> symbol to inform the Blade rendering engine an expression should remain untouched. For example:<div><pre><code>1&lt;h1>Laravel&lt;/h1>2 3Hello, @{{name}}.
+&lt;h1>Laravel&lt;/h1>
+
+Hello, @{{ name }}.</code></pre></div><p>In this example, the <code>@</code> symbol will be removed by Blade; however, <code>{{ name }}</code> expression will remain untouched by the Blade engine, allowing it to be rendered by your JavaScript framework.<p>The <code>@</code> symbol may also be used to escape Blade directives:<div><pre><code>1{{-- Blade template --}}2@@if()3 4 HTML output -->5@if()
+{{-- Blade template --}}
+@@if()
+
+&lt;!-- HTML output -->
+@if()</code></pre></div><h4><a href=#rendering-json>Rendering JSON</a></h4><p>Sometimes you may pass an array to your view with the intention of rendering it as JSON in order to initialize a JavaScript variable. For example:<div><pre><code>1&lt;script>2var app =&lt;?phpechojson_encode($array); ?>;3&lt;/script>
+&lt;script>
+    var app = &lt;?php echo json_encode($array); ?>;
+&lt;/script></code></pre></div><p>However, instead of manually calling <code>json_encode</code>, you may use the <code>Illuminate\Support\Js::from</code> method directive. The <code>from</code> method accepts the same arguments as PHP's <code>json_encode</code> function; however, it will ensure that the resulting JSON has been properly escaped for inclusion within HTML quotes. The <code>from</code> method will return a string <code>JSON.parse</code> JavaScript statement that will convert the given object or array into a valid JavaScript object:<div><pre><code>1&lt;script>2var app = {{ Illuminate\Support\Js::from($array) }};3&lt;/script>
+&lt;script>
+    var app = {{ Illuminate\Support\Js::from($array) }};
+&lt;/script></code></pre></div><p>The latest versions of the Laravel application skeleton include a <code>Js</code> facade, which provides convenient access to this functionality within your Blade templates:<div><pre><code>1&lt;script>2var app = {{ Js::from($array) }};3&lt;/script>
+&lt;script>
+    var app = {{ Js::from($array) }};
+&lt;/script></code></pre></div><div><p>You should only use the <code>Js::from</code> method to render existing variables as JSON. The Blade templating is based on regular expressions and attempts to pass a complex expression to the directive may cause unexpected failures.</div><h4><a href=#the-at-verbatim-directive>The <code>@verbatim</code> Directive</a></h4><p>If you are displaying JavaScript variables in a large portion of your template, you may wrap the HTML in the <code>@verbatim</code> directive so that you do not have to prefix each Blade echo statement with an <code>@</code> symbol:<div><pre><code>1@verbatim2&lt;divclass="container">3        Hello, {{name}}.4&lt;/div>5@endverbatim
+@verbatim
+    &lt;div class="container">
+        Hello, {{ name }}.
+    &lt;/div>
+@endverbatim</code></pre></div><h2><a href=#blade-directives>Blade Directives</a></h2><p>In addition to template inheritance and displaying data, Blade also provides convenient shortcuts for common PHP control structures, such as conditional statements and loops. These shortcuts provide a very clean, terse way of working with PHP control structures while also remaining familiar to their PHP counterparts.<h3><a href=#if-statements>If Statements</a></h3><p>You may construct <code>if</code> statements using the <code>@if</code>, <code>@elseif</code>, <code>@else</code>, and <code>@endif</code> directives. These directives function identically to their PHP counterparts:<div><pre><code>1@if (count($records) ===1)2    I have one record!3@elseif (count($records) >1)4    I have multiple records!5@else6    I don't have any records!7@endif
+@if (count($records) === 1)
+    I have one record!
+@elseif (count($records) > 1)
+    I have multiple records!
+@else
+    I don't have any records!
+@endif</code></pre></div><p>For convenience, Blade also provides an <code>@unless</code> directive:<div><pre><code>1@unless (Auth::check())2    You are not signed in.3@endunless
+@unless (Auth::check())
+    You are not signed in.
+@endunless</code></pre></div><p>In addition to the conditional directives already discussed, the <code>@isset</code> and <code>@empty</code> directives may be used as convenient shortcuts for their respective PHP functions:<div><pre><code>1@isset($records)2    // $records is defined and is not null...3@endisset4 5@empty($records)6    // $records is "empty"...7@endempty
+@isset($records)
+    // $records is defined and is not null...
+@endisset
+
+@empty($records)
+    // $records is "empty"...
+@endempty</code></pre></div><h4><a href=#authentication-directives>Authentication Directives</a></h4><p>The <code>@auth</code> and <code>@guest</code> directives may be used to quickly determine if the current user is <a href=authentication.htm>authenticated</a> or is a guest:<div><pre><code>1@auth2    // The user is authenticated...3@endauth4 5@guest6    // The user is not authenticated...7@endguest
+@auth
+    // The user is authenticated...
+@endauth
+
+@guest
+    // The user is not authenticated...
+@endguest</code></pre></div><p>If needed, you may specify the authentication guard that should be checked when using the <code>@auth</code> and <code>@guest</code> directives:<div><pre><code>1@auth('admin')2    // The user is authenticated...3@endauth4 5@guest('admin')6    // The user is not authenticated...7@endguest
+@auth('admin')
+    // The user is authenticated...
+@endauth
+
+@guest('admin')
+    // The user is not authenticated...
+@endguest</code></pre></div><h4><a href=#environment-directives>Environment Directives</a></h4><p>You may check if the application is running in the production environment using the <code>@production</code> directive:<div><pre><code>1@production2    // Production specific content...3@endproduction
+@production
+    // Production specific content...
+@endproduction</code></pre></div><p>Or, you may determine if the application is running in a specific environment using the <code>@env</code> directive:<div><pre><code>1@env('staging')2    // The application is running in "staging"...3@endenv4 5@env(['staging', 'production'])6    // The application is running in "staging" or "production"...7@endenv
+@env('staging')
+    // The application is running in "staging"...
+@endenv
+
+@env(['staging', 'production'])
+    // The application is running in "staging" or "production"...
+@endenv</code></pre></div><h4><a href=#section-directives>Section Directives</a></h4><p>You may determine if a template inheritance section has content using the <code>@hasSection</code> directive:<div><pre><code>1@hasSection('navigation')2&lt;divclass="pull-right">3@yield('navigation')4&lt;/div>5 6&lt;divclass="clearfix">&lt;/div>7@endif
+@hasSection('navigation')
+    &lt;div class="pull-right">
+        @yield('navigation')
+    &lt;/div>
+
+    &lt;div class="clearfix">&lt;/div>
+@endif</code></pre></div><p>You may use the <code>sectionMissing</code> directive to determine if a section does not have content:<div><pre><code>1@sectionMissing('navigation')2&lt;divclass="pull-right">3@include('default-navigation')4&lt;/div>5@endif
+@sectionMissing('navigation')
+    &lt;div class="pull-right">
+        @include('default-navigation')
+    &lt;/div>
+@endif</code></pre></div><h4><a href=#session-directives>Session Directives</a></h4><p>The <code>@session</code> directive may be used to determine if a <a href=session.htm>session</a> value exists. If the session value exists, the template contents within the <code>@session</code> and <code>@endsession</code> directives will be evaluated. Within the <code>@session</code> directive's contents, you may echo the <code>$value</code> variable to display the session value:<div><pre><code>1@session('status')2&lt;divclass="p-4 bg-green-100">3{{$value}}4&lt;/div>5@endsession
+@session('status')
+    &lt;div class="p-4 bg-green-100">
+        {{ $value }}
+    &lt;/div>
+@endsession</code></pre></div><h4><a href=#context-directives>Context Directives</a></h4><p>The <code>@context</code> directive may be used to determine if a <a href=context.htm>context</a> value exists. If the context value exists, the template contents within the <code>@context</code> and <code>@endcontext</code> directives will be evaluated. Within the <code>@context</code> directive's contents, you may echo the <code>$value</code> variable to display the context value:<div><pre><code>1@context('canonical')2&lt;linkhref="{{$value}}"rel="canonical">3@endcontext
+@context('canonical')
+    &lt;link href="{{ $value }}" rel="canonical">
+@endcontext</code></pre></div><h3><a href=#switch-statements>Switch Statements</a></h3><p>Switch statements can be constructed using the <code>@switch</code>, <code>@case</code>, <code>@break</code>, <code>@default</code> and <code>@endswitch</code> directives:<div><pre><code> 1@switch($i) 2@case(1) 3        First case... 4@break 5  6@case(2) 7        Second case... 8@break 9 10@default11        Default case...12@endswitch
+@switch($i)
+    @case(1)
+        First case...
+        @break
+
+    @case(2)
+        Second case...
+        @break
+
+    @default
+        Default case...
+@endswitch</code></pre></div><h3><a href=#loops>Loops</a></h3><p>In addition to conditional statements, Blade provides simple directives for working with PHP's loop structures. Again, each of these directives functions identically to their PHP counterparts:<div><pre><code> 1@for ($i=0; $i&lt;10; $i++) 2    The current value is {{$i}} 3@endfor 4  5@foreach ($usersas$user) 6&lt;p>This is user {{$user->id}}&lt;/p> 7@endforeach 8  9@forelse ($usersas$user)10&lt;li>{{$user->name}}&lt;/li>11@empty12&lt;p>No users&lt;/p>13@endforelse14 15@while (true)16&lt;p>I'm looping forever.&lt;/p>17@endwhile
+@for ($i = 0; $i &lt; 10; $i++)
+    The current value is {{ $i }}
+@endfor
+
+@foreach ($users as $user)
+    &lt;p>This is user {{ $user->id }}&lt;/p>
+@endforeach
+
+@forelse ($users as $user)
+    &lt;li>{{ $user->name }}&lt;/li>
+@empty
+    &lt;p>No users&lt;/p>
+@endforelse
+
+@while (true)
+    &lt;p>I'm looping forever.&lt;/p>
+@endwhile</code></pre></div><div><p>While iterating through a <code>foreach</code> loop, you may use the <a href=#the-loop-variable>loop variable</a> to gain valuable information about the loop, such as whether you are in the first or last iteration through the loop.</div><p>When using loops you may also skip the current iteration or end the loop using the <code>@continue</code> and <code>@break</code> directives:<div><pre><code> 1@foreach ($usersas$user) 2@if ($user->type==1) 3@continue 4@endif 5  6&lt;li>{{$user->name}}&lt;/li> 7  8@if ($user->number==5) 9@break10@endif11@endforeach
+@foreach ($users as $user)
+    @if ($user->type == 1)
+        @continue
+    @endif
+
+    &lt;li>{{ $user->name }}&lt;/li>
+
+    @if ($user->number == 5)
+        @break
+    @endif
+@endforeach</code></pre></div><p>You may also include the continuation or break condition within the directive declaration:<div><pre><code>1@foreach ($usersas$user)2@continue($user->type==1)3 4&lt;li>{{$user->name}}&lt;/li>5 6@break($user->number==5)7@endforeach
+@foreach ($users as $user)
+    @continue($user->type == 1)
+
+    &lt;li>{{ $user->name }}&lt;/li>
+
+    @break($user->number == 5)
+@endforeach</code></pre></div><h3><a href=#the-loop-variable>The Loop Variable</a></h3><p>While iterating through a <code>foreach</code> loop, a <code>$loop</code> variable will be available inside of your loop. This variable provides access to some useful bits of information such as the current loop index and whether this is the first or last iteration through the loop:<div><pre><code> 1@foreach ($usersas$user) 2@if ($loop->first) 3        This is the first iteration. 4@endif 5  6@if ($loop->last) 7        This is the last iteration. 8@endif 9 10&lt;p>This is user {{$user->id}}&lt;/p>11@endforeach
+@foreach ($users as $user)
+    @if ($loop->first)
+        This is the first iteration.
+    @endif
+
+    @if ($loop->last)
+        This is the last iteration.
+    @endif
+
+    &lt;p>This is user {{ $user->id }}&lt;/p>
+@endforeach</code></pre></div><p>If you are in a nested loop, you may access the parent loop's <code>$loop</code> variable via the <code>parent</code> property:<div><pre><code>1@foreach ($usersas$user)2@foreach ($user->postsas$post)3@if ($loop->parent->first)4            This is the first iteration of the parent loop.5@endif6@endforeach7@endforeach
+@foreach ($users as $user)
+    @foreach ($user->posts as $post)
+        @if ($loop->parent->first)
+            This is the first iteration of the parent loop.
+        @endif
+    @endforeach
+@endforeach</code></pre></div><p>The <code>$loop</code> variable also contains a variety of other useful properties:<div><table><thead><tr><th>Property<th>Description<tbody><tr><td><code>$loop->index</code><td>The index of the current loop iteration (starts at 0).<tr><td><code>$loop->iteration</code><td>The current loop iteration (starts at 1).<tr><td><code>$loop->remaining</code><td>The iterations remaining in the loop.<tr><td><code>$loop->count</code><td>The total number of items in the array being iterated.<tr><td><code>$loop->first</code><td>Whether this is the first iteration through the loop.<tr><td><code>$loop->last</code><td>Whether this is the last iteration through the loop.<tr><td><code>$loop->even</code><td>Whether this is an even iteration through the loop.<tr><td><code>$loop->odd</code><td>Whether this is an odd iteration through the loop.<tr><td><code>$loop->depth</code><td>The nesting level of the current loop.<tr><td><code>$loop->parent</code><td>When in a nested loop, the parent's loop variable.</thead></table></div><h3><a href=#conditional-classes>Conditional Classes & Styles</a></h3><p>The <code>@class</code> directive conditionally compiles a CSS class string. The directive accepts an array of classes where the array key contains the class or classes you wish to add, while the value is a boolean expression. If the array element has a numeric key, it will always be included in the rendered class list:<div><pre><code> 1@php 2$isActive=false; 3$hasError=true; 4@endphp 5  6&lt;span@class([ 7'p-4', 8'font-bold' => $isActive, 9'text-gray-500' => !$isActive,10'bg-red' => $hasError,11])>&lt;/span>12 13&lt;spanclass="p-4 text-gray-500 bg-red">&lt;/span>
+@php
+    $isActive = false;
+    $hasError = true;
+@endphp
+
+&lt;span @class([
+    'p-4',
+    'font-bold' => $isActive,
+    'text-gray-500' => ! $isActive,
+    'bg-red' => $hasError,
+])>&lt;/span>
+
+&lt;span class="p-4 text-gray-500 bg-red">&lt;/span></code></pre></div><p>Likewise, the <code>@style</code> directive may be used to conditionally add inline CSS styles to an HTML element:<div><pre><code> 1@php 2$isActive=true; 3@endphp 4  5&lt;span@style([ 6'background-color: red', 7'font-weight: bold' => $isActive, 8])>&lt;/span> 9 10&lt;spanstyle="background-color: red; font-weight: bold;">&lt;/span>
+@php
+    $isActive = true;
+@endphp
+
+&lt;span @style([
+    'background-color: red',
+    'font-weight: bold' => $isActive,
+])>&lt;/span>
+
+&lt;span style="background-color: red; font-weight: bold;">&lt;/span></code></pre></div><h3><a href=#additional-attributes>Additional Attributes</a></h3><p>For convenience, you may use the <code>@checked</code> directive to easily indicate if a given HTML checkbox input is "checked". This directive will echo <code>checked</code> if the provided condition evaluates to <code>true</code>:<div><pre><code>1&lt;input2type="checkbox"3name="active"4value="active"5@checked(old('active',$user->active))6/>
+&lt;input
+    type="checkbox"
+    name="active"
+    value="active"
+    @checked(old('active', $user->active))
+/></code></pre></div><p>Likewise, the <code>@selected</code> directive may be used to indicate if a given select option should be "selected":<div><pre><code>1&lt;selectname="version">2@foreach ($product->versionsas$version)3&lt;optionvalue="{{$version}}"@selected(old('version')==$version)>4{{$version}}5&lt;/option>6@endforeach7&lt;/select>
+&lt;select name="version">
+    @foreach ($product->versions as $version)
+        &lt;option value="{{ $version }}" @selected(old('version') == $version)>
+            {{ $version }}
+        &lt;/option>
+    @endforeach
+&lt;/select></code></pre></div><p>Additionally, the <code>@disabled</code> directive may be used to indicate if a given element should be "disabled":<div><pre><code>1&lt;buttontype="submit"@disabled($errors->isNotEmpty())>Submit&lt;/button>
+&lt;button type="submit" @disabled($errors->isNotEmpty())>Submit&lt;/button></code></pre></div><p>Moreover, the <code>@readonly</code> directive may be used to indicate if a given element should be "readonly":<div><pre><code>1&lt;input2type="email"3name="email"<div>4value="<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>"</div>5@readonly($user->isNotAdmin())6/><div hidden>
+&lt;input
+    type="email"
+    name="email"
+    value="<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>"
+    @readonly($user->isNotAdmin())
+/></div></code></pre></div><p>In addition, the <code>@required</code> directive may be used to indicate if a given element should be "required":<div><pre><code>1&lt;input2type="text"3name="title"4value="title"5@required($user->isAdmin())6/>
+&lt;input
+    type="text"
+    name="title"
+    value="title"
+    @required($user->isAdmin())
+/></code></pre></div><h3><a href=#including-subviews>Including Subviews</a></h3><div><p>While you're free to use the <code>@include</code> directive, Blade <a href=#components>components</a> provide similar functionality and offer several benefits over the <code>@include</code> directive such as data and attribute binding.</div><p>Blade's <code>@include</code> directive allows you to include a Blade view from within another view. All variables that are available to the parent view will be made available to the included view:<div><pre><code>1&lt;div>2@include('shared.errors')3 4&lt;form>5 Form Contents -->6&lt;/form>7&lt;/div>
+&lt;div>
+    @include('shared.errors')
+
+    &lt;form>
+        &lt;!-- Form Contents -->
+    &lt;/form>
+&lt;/div></code></pre></div><p>Even though the included view will inherit all data available in the parent view, you may also pass an array of additional data that should be made available to the included view:<div><pre><code>1@include('view.name', ['status'=>'complete'])
+@include('view.name', ['status' => 'complete'])</code></pre></div><p>If you attempt to <code>@include</code> a view which does not exist, Laravel will throw an error. If you would like to include a view that may or may not be present, you should use the <code>@includeIf</code> directive:<div><pre><code>1@includeIf('view.name', ['status'=>'complete'])
+@includeIf('view.name', ['status' => 'complete'])</code></pre></div><p>If you would like to <code>@include</code> a view if a given boolean expression evaluates to <code>true</code> or <code>false</code>, you may use the <code>@includeWhen</code> and <code>@includeUnless</code> directives:<div><pre><code>1@includeWhen($boolean, 'view.name', ['status'=>'complete'])2 3@includeUnless($boolean, 'view.name', ['status'=>'complete'])
+@includeWhen($boolean, 'view.name', ['status' => 'complete'])
+
+@includeUnless($boolean, 'view.name', ['status' => 'complete'])</code></pre></div><p>To include the first view that exists from a given array of views, you may use the <code>includeFirst</code> directive:<div><pre><code>1@includeFirst(['custom.admin', 'admin'], ['status'=>'complete'])
+@includeFirst(['custom.admin', 'admin'], ['status' => 'complete'])</code></pre></div><div><p>You should avoid using the <code>__DIR__</code> and <code>__FILE__</code> constants in your Blade views, since they will refer to the location of the cached, compiled view.</div><h4><a href=#rendering-views-for-collections>Rendering Views for Collections</a></h4><p>You may combine loops and includes into one line with Blade's <code>@each</code> directive:<div><pre><code>1@each('view.name', $jobs, 'job')
+@each('view.name', $jobs, 'job')</code></pre></div><p>The <code>@each</code> directive's first argument is the view to render for each element in the array or collection. The second argument is the array or collection you wish to iterate over, while the third argument is the variable name that will be assigned to the current iteration within the view. So, for example, if you are iterating over an array of <code>jobs</code>, typically you will want to access each job as a <code>job</code> variable within the view. The array key for the current iteration will be available as the <code>key</code> variable within the view.<p>You may also pass a fourth argument to the <code>@each</code> directive. This argument determines the view that will be rendered if the given array is empty.<div><pre><code>1@each('view.name', $jobs, 'job', 'view.empty')
+@each('view.name', $jobs, 'job', 'view.empty')</code></pre></div><div><p>Views rendered via <code>@each</code> do not inherit the variables from the parent view. If the child view requires these variables, you should use the <code>@foreach</code> and <code>@include</code> directives instead.</div><h3><a href=#the-once-directive>The <code>@once</code> Directive</a></h3><p>The <code>@once</code> directive allows you to define a portion of the template that will only be evaluated once per rendering cycle. This may be useful for pushing a given piece of JavaScript into the page's header using <a href=#stacks>stacks</a>. For example, if you are rendering a given <a href=#components>component</a> within a loop, you may wish to only push the JavaScript to the header the first time the component is rendered:<div><pre><code>1@once2@push('scripts')3&lt;script>4// Your custom JavaScript...5&lt;/script>6@endpush7@endonce
+@once
+    @push('scripts')
+        &lt;script>
+            // Your custom JavaScript...
+        &lt;/script>
+    @endpush
+@endonce</code></pre></div><p>Since the <code>@once</code> directive is often used in conjunction with the <code>@push</code> or <code>@prepend</code> directives, the <code>@pushOnce</code> and <code>@prependOnce</code> directives are available for your convenience:<div><pre><code>1@pushOnce('scripts')2&lt;script>3// Your custom JavaScript...4&lt;/script>5@endPushOnce
+@pushOnce('scripts')
+    &lt;script>
+        // Your custom JavaScript...
+    &lt;/script>
+@endPushOnce</code></pre></div><h3><a href=#raw-php>Raw PHP</a></h3><p>In some situations, it's useful to embed PHP code into your views. You can use the Blade <code>@php</code> directive to execute a block of plain PHP within your template:<div><pre><code>1@php2$counter=1;3@endphp
+@php
+    $counter = 1;
+@endphp</code></pre></div><p>Or, if you only need to use PHP to import a class, you may use the <code>@use</code> directive:<div><pre><code>1@use('App\Models\Flight')
+@use('App\Models\Flight')</code></pre></div><p>A second argument may be provided to the <code>@use</code> directive to alias the imported class:<div><pre><code>1@use('App\Models\Flight', 'FlightModel')
+@use('App\Models\Flight', 'FlightModel')</code></pre></div><p>If you have multiple classes within the same namespace, you may group the imports of those classes:<div><pre><code>1@use('App\Models\{Flight, Airport}')
+@use('App\Models\{Flight, Airport}')</code></pre></div><p>The <code>@use</code> directive also supports importing PHP functions and constants by prefixing the import path with the <code>function</code> or <code>const</code> modifiers:<div><pre><code>1@use(functionApp\Helpers\format_currency)2@use(constApp\Constants\MAX_ATTEMPTS)
+@use(function App\Helpers\format_currency)
+@use(const App\Constants\MAX_ATTEMPTS)</code></pre></div><p>Just like class imports, aliases are supported for functions and constants as well:<div><pre><code>1@use(functionApp\Helpers\format_currency, 'formatMoney')2@use(constApp\Constants\MAX_ATTEMPTS, 'MAX_TRIES')
+@use(function App\Helpers\format_currency, 'formatMoney')
+@use(const App\Constants\MAX_ATTEMPTS, 'MAX_TRIES')</code></pre></div><p>Grouped imports are also supported with both function and const modifiers, allowing you to import multiple symbols from the same namespace in a single directive:<div><pre><code>1@use(functionApp\Helpers\{format_currency, format_date})2@use(constApp\Constants\{MAX_ATTEMPTS, DEFAULT_TIMEOUT})
+@use(function App\Helpers\{format_currency, format_date})
+@use(const App\Constants\{MAX_ATTEMPTS, DEFAULT_TIMEOUT})</code></pre></div><h3><a href=#comments>Comments</a></h3><p>Blade also allows you to define comments in your views. However, unlike HTML comments, Blade comments are not included in the HTML returned by your application:<div><pre><code>1{{-- This comment will not be present in the rendered HTML --}}
+{{-- This comment will not be present in the rendered HTML --}}</code></pre></div><h2><a href=#components>Components</a></h2><p>Components and slots provide similar benefits to sections, layouts, and includes; however, some may find the mental model of components and slots easier to understand. There are two approaches to writing components: class-based components and anonymous components.<p>To create a class-based component, you may use the <code>make:component</code> Artisan command. To illustrate how to use components, we will create a simple <code>Alert</code> component. The <code>make:component</code> command will place the component in the <code>app/View/Components</code> directory:<div><pre><code>1php artisanmake:componentAlert
+php artisan make:component Alert</code></pre></div><p>The <code>make:component</code> command will also create a view template for the component. The view will be placed in the <code>resources/views/components</code> directory. When writing components for your own application, components are automatically discovered within the <code>app/View/Components</code> directory and <code>resources/views/components</code> directory, so no further component registration is typically required.<p>You may also create components within subdirectories:<div><pre><code>1php artisanmake:componentForms/Input
+php artisan make:component Forms/Input</code></pre></div><p>The command above will create an <code>Input</code> component in the <code>app/View/Components/Forms</code> directory and the view will be placed in the <code>resources/views/components/forms</code> directory.<p>If you would like to create an anonymous component (a component with only a Blade template and no class), you may use the <code>--view</code> flag when invoking the <code>make:component</code> command:<div><pre><code>1php artisanmake:componentforms.input--view
+php artisan make:component forms.input --view</code></pre></div><p>The command above will create a Blade file at <code>resources/views/components/forms/input.blade.php</code> which can be rendered as a component via <code>&lt;x-forms.input /></code>.<h4><a href=#manually-registering-package-components>Manually Registering Package Components</a></h4><p>When writing components for your own application, components are automatically discovered within the <code>app/View/Components</code> directory and <code>resources/views/components</code> directory.<p>However, if you are building a package that utilizes Blade components, you will need to manually register your component class and its HTML tag alias. You should typically register your components in the <code>boot</code> method of your package's service provider:<div><pre><code>1use Illuminate\Support\Facades\Blade;2 3/**4 * Bootstrap your package's services.5*/6publicfunctionboot():void7{8Blade::component('package-alert', Alert::class);9}
+use Illuminate\Support\Facades\Blade;
+
+/**
+ * Bootstrap your package's services.
+ */
+public function boot(): void
+{
+    Blade::component('package-alert', Alert::class);
+}</code></pre></div><p>Once your component has been registered, it may be rendered using its tag alias:<div><pre><code>1&lt;x-package-alert/>
+&lt;x-package-alert/></code></pre></div><p>Alternatively, you may use the <code>componentNamespace</code> method to autoload component classes by convention. For example, a <code>Nightshade</code> package might have <code>Calendar</code> and <code>ColorPicker</code> components that reside within the <code>Package\Views\Components</code> namespace:<div><pre><code>1use Illuminate\Support\Facades\Blade;2 3/**4 * Bootstrap your package's services.5*/6publicfunctionboot():void7{8Blade::componentNamespace('Nightshade\\Views\\Components', 'nightshade');9}
+use Illuminate\Support\Facades\Blade;
+
+/**
+ * Bootstrap your package's services.
+ */
+public function boot(): void
+{
+    Blade::componentNamespace('Nightshade\\Views\\Components', 'nightshade');
+}</code></pre></div><p>This will allow the usage of package components by their vendor namespace using the <code>package-name::</code> syntax:<div><pre><code>1&lt;x-nightshade::calendar />2&lt;x-nightshade::color-picker />
+&lt;x-nightshade::calendar />
+&lt;x-nightshade::color-picker /></code></pre></div><p>Blade will automatically detect the class that's linked to this component by pascal-casing the component name. Subdirectories are also supported using "dot" notation.<h3><a href=#rendering-components>Rendering Components</a></h3><p>To display a component, you may use a Blade component tag within one of your Blade templates. Blade component tags start with the string <code>x-</code> followed by the kebab case name of the component class:<div><pre><code>1&lt;x-alert/>2 3&lt;x-user-profile/>
+&lt;x-alert/>
+
+&lt;x-user-profile/></code></pre></div><p>If the component class is nested deeper within the <code>app/View/Components</code> directory, you may use the <code>.</code> character to indicate directory nesting. For example, if we assume a component is located at <code>app/View/Components/Inputs/Button.php</code>, we may render it like so:<div><pre><code>1&lt;x-inputs.button/>
+&lt;x-inputs.button/></code></pre></div><p>If you would like to conditionally render your component, you may define a <code>shouldRender</code> method on your component class. If the <code>shouldRender</code> method returns <code>false</code> the component will not be rendered:<div><pre><code>1use Illuminate\Support\Str;2 3/**4 * Whether the component should be rendered5*/6publicfunctionshouldRender():bool7{8returnStr::length($this->message) >0;9}
+use Illuminate\Support\Str;
+
+/**
+ * Whether the component should be rendered
+ */
+public function shouldRender(): bool
+{
+    return Str::length($this->message) > 0;
+}</code></pre></div><h3><a href=#index-components>Index Components</a></h3><p>Sometimes components are part of a component group and you may wish to group the related components within a single directory. For example, imagine a "card" component with the following class structure:<div><pre><code>1App\Views\Components\Card\Card2App\Views\Components\Card\Header3App\Views\Components\Card\Body
+App\Views\Components\Card\Card
+App\Views\Components\Card\Header
+App\Views\Components\Card\Body</code></pre></div><p>Since the root <code>Card</code> component is nested within a <code>Card</code> directory, you might expect that you would need to render the component via <code>&lt;x-card.card></code>. However, when a component's file name matches the name of the component's directory, Laravel automatically assumes that component is the "root" component and allows you to render the component without repeating the directory name:<div><pre><code>1&lt;x-card>2&lt;x-card.header>...&lt;/x-card.header>3&lt;x-card.body>...&lt;/x-card.body>4&lt;/x-card>
+&lt;x-card>
+    &lt;x-card.header>...&lt;/x-card.header>
+    &lt;x-card.body>...&lt;/x-card.body>
+&lt;/x-card></code></pre></div><h3><a href=#passing-data-to-components>Passing Data to Components</a></h3><p>You may pass data to Blade components using HTML attributes. Hard-coded, primitive values may be passed to the component using simple HTML attribute strings. PHP expressions and variables should be passed to the component via attributes that use the <code>:</code> character as a prefix:<div><pre><code>1&lt;x-alerttype="error":message="$message"/>
+&lt;x-alert type="error" :message="$message"/></code></pre></div><p>You should define all of the component's data attributes in its class constructor. All public properties on a component will automatically be made available to the component's view. It is not necessary to pass the data to the view from the component's <code>render</code> method:<div><pre><code> 1&lt;?php 2  3namespace App\View\Components; 4  5use Illuminate\View\Component; 6use Illuminate\View\View; 7  8classAlertextendsComponent 9{10/**11     * Create the component instance.12*/13publicfunction__construct(14publicstring$type,15publicstring$message,16) {}17 18/**19     * Get the view / contents that represent the component.20*/21publicfunctionrender():View22    {23returnview('components.alert');24    }25}
+&lt;?php
+
+namespace App\View\Components;
+
+use Illuminate\View\Component;
+use Illuminate\View\View;
+
+class Alert extends Component
+{
+    /**
+     * Create the component instance.
+     */
+    public function __construct(
+        public string $type,
+        public string $message,
+    ) {}
+
+    /**
+     * Get the view / contents that represent the component.
+     */
+    public function render(): View
+    {
+        return view('components.alert');
+    }
+}</code></pre></div><p>When your component is rendered, you may display the contents of your component's public variables by echoing the variables by name:<div><pre><code>1&lt;divclass="alert alert-{{$type}}">2{{$message}}3&lt;/div>
+&lt;div class="alert alert-{{ $type }}">
+    {{ $message }}
+&lt;/div></code></pre></div><h4><a href=#casing>Casing</a></h4><p>Component constructor arguments should be specified using <code>camelCase</code>, while <code>kebab-case</code> should be used when referencing the argument names in your HTML attributes. For example, given the following component constructor:<div><pre><code>1/**2 * Create the component instance.3*/4publicfunction__construct(5publicstring$alertType,6) {}
+/**
+ * Create the component instance.
+ */
+public function __construct(
+    public string $alertType,
+) {}</code></pre></div><p>The <code>$alertType</code> argument may be provided to the component like so:<div><pre><code>1&lt;x-alertalert-type="danger" />
+&lt;x-alert alert-type="danger" /></code></pre></div><h4><a href=#short-attribute-syntax>Short Attribute Syntax</a></h4><p>When passing attributes to components, you may also use a "short attribute" syntax. This is often convenient since attribute names frequently match the variable names they correspond to:<div><pre><code>1{{-- Short attribute syntax... --}}2&lt;x-profile:$userId:$name />3 4{{-- Is equivalent to... --}}5&lt;x-profile:user-id="$userId":name="$name" />
+{{-- Short attribute syntax... --}}
+&lt;x-profile :$userId :$name />
+
+{{-- Is equivalent to... --}}
+&lt;x-profile :user-id="$userId" :name="$name" /></code></pre></div><h4><a href=#escaping-attribute-rendering>Escaping Attribute Rendering</a></h4><p>Since some JavaScript frameworks such as Alpine.js also use colon-prefixed attributes, you may use a double colon (<code>::</code>) prefix to inform Blade that the attribute is not a PHP expression. For example, given the following component:<div><pre><code>1&lt;x-button::class="{ danger: isDeleting }">2    Submit3&lt;/x-button>
+&lt;x-button ::class="{ danger: isDeleting }">
+    Submit
+&lt;/x-button></code></pre></div><p>The following HTML will be rendered by Blade:<div><pre><code>1&lt;button:class="{ danger: isDeleting }">2    Submit3&lt;/button>
+&lt;button :class="{ danger: isDeleting }">
+    Submit
+&lt;/button></code></pre></div><h4><a href=#component-methods>Component Methods</a></h4><p>In addition to public variables being available to your component template, any public methods on the component may be invoked. For example, imagine a component that has an <code>isSelected</code> method:<div><pre><code>1/**2 * Determine if the given option is the currently selected option.3*/4publicfunctionisSelected(string$option):bool5{6return$option===$this->selected;7}
+/**
+ * Determine if the given option is the currently selected option.
+ */
+public function isSelected(string $option): bool
+{
+    return $option === $this->selected;
+}</code></pre></div><p>You may execute this method from your component template by invoking the variable matching the name of the method:<div><pre><code>1&lt;option {{ $isSelected($value) ? 'selected' : '' }} value="{{$value}}">2{{$label}}3&lt;/option>
+&lt;option {{ $isSelected($value) ? 'selected' : '' }} value="{{ $value }}">
+    {{ $label }}
+&lt;/option></code></pre></div><h4><a href=#using-attributes-slots-within-component-class>Accessing Attributes and Slots Within Component Classes</a></h4><p>Blade components also allow you to access the component name, attributes, and slot inside the class's render method. However, in order to access this data, you should return a closure from your component's <code>render</code> method:<div><pre><code> 1useClosure; 2  3/** 4 * Get the view / contents that represent the component. 5*/ 6publicfunctionrender():Closure 7{ 8returnfunction() { 9return'&lt;div {{ $attributes }}>Components content&lt;/div>';10    };11}
+use Closure;
+
+/**
+ * Get the view / contents that represent the component.
+ */
+public function render(): Closure
+{
+    return function () {
+        return '&lt;div {{ $attributes }}>Components content&lt;/div>';
+    };
+}</code></pre></div><p>The closure returned by your component's <code>render</code> method may also receive a <code>$data</code> array as its only argument. This array will contain several elements that provide information about the component:<div><pre><code>1returnfunction(array$data) {2// $data['componentName'];3// $data['attributes'];4// $data['slot'];5 6return'&lt;div {{ $attributes }}>Components content&lt;/div>';7}
+return function (array $data) {
+    // $data['componentName'];
+    // $data['attributes'];
+    // $data['slot'];
+
+    return '&lt;div {{ $attributes }}>Components content&lt;/div>';
+}</code></pre></div><div><p>The elements in the <code>$data</code> array should never be directly embedded into the Blade string returned by your <code>render</code> method, as doing so could allow remote code execution via malicious attribute content.</div><p>The <code>componentName</code> is equal to the name used in the HTML tag after the <code>x-</code> prefix. So <code>&lt;x-alert /></code>'s <code>componentName</code> will be <code>alert</code>. The <code>attributes</code> element will contain all of the attributes that were present on the HTML tag. The <code>slot</code> element is an <code>Illuminate\Support\HtmlString</code> instance with the contents of the component's slot.<p>The closure should return a string. If the returned string corresponds to an existing view, that view will be rendered; otherwise, the returned string will be evaluated as an inline Blade view.<h4><a href=#additional-dependencies>Additional Dependencies</a></h4><p>If your component requires dependencies from Laravel's <a href=container.htm>service container</a>, you may list them before any of the component's data attributes and they will automatically be injected by the container:<div><pre><code> 1use App\Services\AlertCreator; 2  3/** 4 * Create the component instance. 5*/ 6publicfunction__construct( 7publicAlertCreator$creator, 8publicstring$type, 9publicstring$message,10) {}
+use App\Services\AlertCreator;
+
+/**
+ * Create the component instance.
+ */
+public function __construct(
+    public AlertCreator $creator,
+    public string $type,
+    public string $message,
+) {}</code></pre></div><h4><a href=#hiding-attributes-and-methods>Hiding Attributes / Methods</a></h4><p>If you would like to prevent some public methods or properties from being exposed as variables to your component template, you may add them to an <code>$except</code> array property on your component:<div><pre><code> 1&lt;?php 2  3namespace App\View\Components; 4  5use Illuminate\View\Component; 6  7classAlertextendsComponent 8{ 9/**10     * The properties / methods that should not be exposed to the component template.11     *12     * @vararray13*/14protected$except= ['type'];15 16/**17     * Create the component instance.18*/19publicfunction__construct(20publicstring$type,21) {}22}
+&lt;?php
+
+namespace App\View\Components;
+
+use Illuminate\View\Component;
+
+class Alert extends Component
+{
+    /**
+     * The properties / methods that should not be exposed to the component template.
+     *
+     * @var array
+     */
+    protected $except = ['type'];
+
+    /**
+     * Create the component instance.
+     */
+    public function __construct(
+        public string $type,
+    ) {}
+}</code></pre></div><h3><a href=#component-attributes>Component Attributes</a></h3><p>We've already examined how to pass data attributes to a component; however, sometimes you may need to specify additional HTML attributes, such as <code>class</code>, that are not part of the data required for a component to function. Typically, you want to pass these additional attributes down to the root element of the component template. For example, imagine we want to render an <code>alert</code> component like so:<div><pre><code>1&lt;x-alerttype="error":message="$message"class="mt-4"/>
+&lt;x-alert type="error" :message="$message" class="mt-4"/></code></pre></div><p>All of the attributes that are not part of the component's constructor will automatically be added to the component's "attribute bag". This attribute bag is automatically made available to the component via the <code>$attributes</code> variable. All of the attributes may be rendered within the component by echoing this variable:<div><pre><code>1&lt;div {{ $attributes }}>2 Component content -->3&lt;/div>
+&lt;div {{ $attributes }}>
+    &lt;!-- Component content -->
+&lt;/div></code></pre></div><div><p>Using directives such as <code>@env</code> within component tags is not supported at this time. For example, <code>&lt;x-alert :live="@env('production')"/></code> will not be compiled.</div><h4><a href=#default-merged-attributes>Default / Merged Attributes</a></h4><p>Sometimes you may need to specify default values for attributes or merge additional values into some of the component's attributes. To accomplish this, you may use the attribute bag's <code>merge</code> method. This method is particularly useful for defining a set of default CSS classes that should always be applied to a component:<div><pre><code>1&lt;div {{ $attributes->merge(['class' => 'alert alert-'.$type]) }}>2{{$message}}3&lt;/div>
+&lt;div {{ $attributes->merge(['class' => 'alert alert-'.$type]) }}>
+    {{ $message }}
+&lt;/div></code></pre></div><p>If we assume this component is utilized like so:<div><pre><code>1&lt;x-alerttype="error":message="$message"class="mb-4"/>
+&lt;x-alert type="error" :message="$message" class="mb-4"/></code></pre></div><p>The final, rendered HTML of the component will appear like the following:<div><pre><code>1&lt;divclass="alert alert-error mb-4">2 Contents of the $message variable -->3&lt;/div>
+&lt;div class="alert alert-error mb-4">
+    &lt;!-- Contents of the $message variable -->
+&lt;/div></code></pre></div><h4><a href=#conditionally-merge-classes>Conditionally Merge Classes</a></h4><p>Sometimes you may wish to merge classes if a given condition is <code>true</code>. You can accomplish this via the <code>class</code> method, which accepts an array of classes where the array key contains the class or classes you wish to add, while the value is a boolean expression. If the array element has a numeric key, it will always be included in the rendered class list:<div><pre><code>1&lt;div {{ $attributes->class(['p-4', 'bg-red' => $hasError]) }}>2{{$message}}3&lt;/div>
+&lt;div {{ $attributes->class(['p-4', 'bg-red' => $hasError]) }}>
+    {{ $message }}
+&lt;/div></code></pre></div><p>If you need to merge other attributes onto your component, you can chain the <code>merge</code> method onto the <code>class</code> method:<div><pre><code>1&lt;button {{ $attributes->class(['p-4'])->merge(['type' => 'button']) }}>2{{$slot}}3&lt;/button>
+&lt;button {{ $attributes->class(['p-4'])->merge(['type' => 'button']) }}>
+    {{ $slot }}
+&lt;/button></code></pre></div><div><p>If you need to conditionally compile classes on other HTML elements that shouldn't receive merged attributes, you can use the <a href=#conditional-classes>@class directive</a>.</div><h4><a href=#non-class-attribute-merging>Non-Class Attribute Merging</a></h4><p>When merging attributes that are not <code>class</code> attributes, the values provided to the <code>merge</code> method will be considered the "default" values of the attribute. However, unlike the <code>class</code> attribute, these attributes will not be merged with injected attribute values. Instead, they will be overwritten. For example, a <code>button</code> component's implementation may look like the following:<div><pre><code>1&lt;button {{ $attributes->merge(['type' => 'button']) }}>2{{$slot}}3&lt;/button>
+&lt;button {{ $attributes->merge(['type' => 'button']) }}>
+    {{ $slot }}
+&lt;/button></code></pre></div><p>To render the button component with a custom <code>type</code>, it may be specified when consuming the component. If no type is specified, the <code>button</code> type will be used:<div><pre><code>1&lt;x-buttontype="submit">2    Submit3&lt;/x-button>
+&lt;x-button type="submit">
+    Submit
+&lt;/x-button></code></pre></div><p>The rendered HTML of the <code>button</code> component in this example would be:<div><pre><code>1&lt;buttontype="submit">2    Submit3&lt;/button>
+&lt;button type="submit">
+    Submit
+&lt;/button></code></pre></div><p>If you would like an attribute other than <code>class</code> to have its default value and injected values joined together, you may use the <code>prepends</code> method. In this example, the <code>data-controller</code> attribute will always begin with <code>profile-controller</code> and any additional injected <code>data-controller</code> values will be placed after this default value:<div><pre><code>1&lt;div {{ $attributes->merge(['data-controller' => $attributes->prepends('profile-controller')]) }}>2{{$slot}}3&lt;/div>
+&lt;div {{ $attributes->merge(['data-controller' => $attributes->prepends('profile-controller')]) }}>
+    {{ $slot }}
+&lt;/div></code></pre></div><h4><a href=#filtering-attributes>Retrieving and Filtering Attributes</a></h4><p>You may filter attributes using the <code>filter</code> method. This method accepts a closure which should return <code>true</code> if you wish to retain the attribute in the attribute bag:<div><pre><code>1{{$attributes->filter(fn (string$value,string$key) =>$key=='foo') }}
+{{ $attributes->filter(fn (string $value, string $key) => $key == 'foo') }}</code></pre></div><p>For convenience, you may use the <code>whereStartsWith</code> method to retrieve all attributes whose keys begin with a given string:<div><pre><code>1{{$attributes->whereStartsWith('wire:model') }}
+{{ $attributes->whereStartsWith('wire:model') }}</code></pre></div><p>Conversely, the <code>whereDoesntStartWith</code> method may be used to exclude all attributes whose keys begin with a given string:<div><pre><code>1{{$attributes->whereDoesntStartWith('wire:model') }}
+{{ $attributes->whereDoesntStartWith('wire:model') }}</code></pre></div><p>Using the <code>first</code> method, you may render the first attribute in a given attribute bag:<div><pre><code>1{{$attributes->whereStartsWith('wire:model')->first() }}
+{{ $attributes->whereStartsWith('wire:model')->first() }}</code></pre></div><p>If you would like to check if an attribute is present on the component, you may use the <code>has</code> method. This method accepts the attribute name as its only argument and returns a boolean indicating whether or not the attribute is present:<div><pre><code>1@if ($attributes->has('class'))2&lt;div>Class attribute is present&lt;/div>3@endif
+@if ($attributes->has('class'))
+    &lt;div>Class attribute is present&lt;/div>
+@endif</code></pre></div><p>If an array is passed to the <code>has</code> method, the method will determine if all of the given attributes are present on the component:<div><pre><code>1@if ($attributes->has(['name', 'class']))2&lt;div>All of the attributes are present&lt;/div>3@endif
+@if ($attributes->has(['name', 'class']))
+    &lt;div>All of the attributes are present&lt;/div>
+@endif</code></pre></div><p>The <code>hasAny</code> method may be used to determine if any of the given attributes are present on the component:<div><pre><code>1@if ($attributes->hasAny(['href', ':href', 'v-bind:href']))2&lt;div>One of the attributes is present&lt;/div>3@endif
+@if ($attributes->hasAny(['href', ':href', 'v-bind:href']))
+    &lt;div>One of the attributes is present&lt;/div>
+@endif</code></pre></div><p>You may retrieve a specific attribute's value using the <code>get</code> method:<div><pre><code>1{{$attributes->get('class') }}
+{{ $attributes->get('class') }}</code></pre></div><p>The <code>only</code> method may be used to retrieve only the attributes with the given keys:<div><pre><code>1{{$attributes->only(['class']) }}
+{{ $attributes->only(['class']) }}</code></pre></div><p>The <code>except</code> method may be used to retrieve all attributes except those with the given keys:<div><pre><code>1{{$attributes->except(['class']) }}
+{{ $attributes->except(['class']) }}</code></pre></div><h3><a href=#reserved-keywords>Reserved Keywords</a></h3><p>By default, some keywords are reserved for Blade's internal use in order to render components. The following keywords cannot be defined as public properties or method names within your components:<div markdown=1><ul><li><code>data</code><li><code>render</code><li><code>resolveView</code><li><code>shouldRender</code><li><code>view</code><li><code>withAttributes</code><li><code>withName</code></ul></div><h3><a href=#slots>Slots</a></h3><p>You will often need to pass additional content to your component via "slots". Component slots are rendered by echoing the <code>$slot</code> variable. To explore this concept, let's imagine that an <code>alert</code> component has the following markup:<div><pre><code>1 /resources/views/components/alert.blade.php -->2 3&lt;divclass="alert alert-danger">4{{$slot}}5&lt;/div></code></pre></div><p>We may pass content to the <code>slot</code> by injecting content into the component:<div><pre><code>1&lt;x-alert>2&lt;strong>Whoops!&lt;/strong> Something went wrong!3&lt;/x-alert>
+&lt;x-alert>
+    &lt;strong>Whoops!&lt;/strong> Something went wrong!
+&lt;/x-alert></code></pre></div><p>Sometimes a component may need to render multiple different slots in different locations within the component. Let's modify our alert component to allow for the injection of a "title" slot:<div><pre><code>1 /resources/views/components/alert.blade.php -->2 3&lt;spanclass="alert-title">{{$title}}&lt;/span>4 5&lt;divclass="alert alert-danger">6{{$slot}}7&lt;/div></code></pre></div><p>You may define the content of the named slot using the <code>x-slot</code> tag. Any content not within an explicit <code>x-slot</code> tag will be passed to the component in the <code>$slot</code> variable:<div><pre><code>1&lt;x-alert>2&lt;x-slot:title>3        Server Error4&lt;/x-slot>5 6&lt;strong>Whoops!&lt;/strong> Something went wrong!7&lt;/x-alert>
+&lt;x-alert>
+    &lt;x-slot:title>
+        Server Error
+    &lt;/x-slot>
+
+    &lt;strong>Whoops!&lt;/strong> Something went wrong!
+&lt;/x-alert></code></pre></div><p>You may invoke a slot's <code>isEmpty</code> method to determine if the slot contains content:<div><pre><code>1&lt;spanclass="alert-title">{{$title}}&lt;/span>2 3&lt;divclass="alert alert-danger">4@if ($slot->isEmpty())5        This is default content if the slot is empty.6@else7{{$slot}}8@endif9&lt;/div>
+&lt;span class="alert-title">{{ $title }}&lt;/span>
+
+&lt;div class="alert alert-danger">
+    @if ($slot->isEmpty())
+        This is default content if the slot is empty.
+    @else
+        {{ $slot }}
+    @endif
+&lt;/div></code></pre></div><p>Additionally, the <code>hasActualContent</code> method may be used to determine if the slot contains any "actual" content that is not an HTML comment:<div><pre><code>1@if ($slot->hasActualContent())2    The scope has non-comment content.3@endif
+@if ($slot->hasActualContent())
+    The scope has non-comment content.
+@endif</code></pre></div><h4><a href=#scoped-slots>Scoped Slots</a></h4><p>If you have used a JavaScript framework such as Vue, you may be familiar with "scoped slots", which allow you to access data or methods from the component within your slot. You may achieve similar behavior in Laravel by defining public methods or properties on your component and accessing the component within your slot via the <code>$component</code> variable. In this example, we will assume that the <code>x-alert</code> component has a public <code>formatAlert</code> method defined on its component class:<div><pre><code>1&lt;x-alert>2&lt;x-slot:title>3{{$component->formatAlert('Server Error') }}4&lt;/x-slot>5 6&lt;strong>Whoops!&lt;/strong> Something went wrong!7&lt;/x-alert>
+&lt;x-alert>
+    &lt;x-slot:title>
+        {{ $component->formatAlert('Server Error') }}
+    &lt;/x-slot>
+
+    &lt;strong>Whoops!&lt;/strong> Something went wrong!
+&lt;/x-alert></code></pre></div><h4><a href=#slot-attributes>Slot Attributes</a></h4><p>Like Blade components, you may assign additional <a href=#component-attributes>attributes</a> to slots such as CSS class names:<div><pre><code> 1&lt;x-cardclass="shadow-sm"> 2&lt;x-slot:headingclass="font-bold"> 3        Heading 4&lt;/x-slot> 5  6    Content 7  8&lt;x-slot:footerclass="text-sm"> 9        Footer10&lt;/x-slot>11&lt;/x-card>
+&lt;x-card class="shadow-sm">
+    &lt;x-slot:heading class="font-bold">
+        Heading
+    &lt;/x-slot>
+
+    Content
+
+    &lt;x-slot:footer class="text-sm">
+        Footer
+    &lt;/x-slot>
+&lt;/x-card></code></pre></div><p>To interact with slot attributes, you may access the <code>attributes</code> property of the slot's variable. For more information on how to interact with attributes, please consult the documentation on <a href=#component-attributes>component attributes</a>:<div><pre><code> 1@props([ 2'heading', 3'footer', 4]) 5  6&lt;div {{ $attributes->class(['border']) }}> 7&lt;h1 {{ $heading->attributes->class(['text-lg']) }}> 8{{$heading}} 9&lt;/h1>10 11{{$slot}}12 13&lt;footer {{ $footer->attributes->class(['text-gray-700']) }}>14{{$footer}}15&lt;/footer>16&lt;/div>
+@props([
+    'heading',
+    'footer',
+])
+
+&lt;div {{ $attributes->class(['border']) }}>
+    &lt;h1 {{ $heading->attributes->class(['text-lg']) }}>
+        {{ $heading }}
+    &lt;/h1>
+
+    {{ $slot }}
+
+    &lt;footer {{ $footer->attributes->class(['text-gray-700']) }}>
+        {{ $footer }}
+    &lt;/footer>
+&lt;/div></code></pre></div><h3><a href=#inline-component-views>Inline Component Views</a></h3><p>For very small components, it may feel cumbersome to manage both the component class and the component's view template. For this reason, you may return the component's markup directly from the <code>render</code> method:<div><pre><code> 1/** 2 * Get the view / contents that represent the component. 3*/ 4publicfunctionrender():string 5{ 6return&lt;&lt;&lt;'blade' 7        &lt;div class="alert alert-danger"> 8            {{ $slot }} 9        &lt;/div>10blade;11}
+/**
+ * Get the view / contents that represent the component.
+ */
+public function render(): string
+{
+    return &lt;&lt;&lt;'blade'
+        &lt;div class="alert alert-danger">
+            {{ $slot }}
+        &lt;/div>
+    blade;
+}</code></pre></div><h4><a href=#generating-inline-view-components>Generating Inline View Components</a></h4><p>To create a component that renders an inline view, you may use the <code>inline</code> option when executing the <code>make:component</code> command:<div><pre><code>1php artisanmake:componentAlert--inline
+php artisan make:component Alert --inline</code></pre></div><h3><a href=#dynamic-components>Dynamic Components</a></h3><p>Sometimes you may need to render a component but not know which component should be rendered until runtime. In this situation, you may use Laravel's built-in <code>dynamic-component</code> component to render the component based on a runtime value or variable:<div><pre><code>1// $componentName = "secondary-button";2 3&lt;x-dynamic-component:component="$componentName"class="mt-4" />
+// $componentName = "secondary-button";
+
+&lt;x-dynamic-component :component="$componentName" class="mt-4" /></code></pre></div><h3><a href=#manually-registering-components>Manually Registering Components</a></h3><div><p>The following documentation on manually registering components is primarily applicable to those who are writing Laravel packages that include view components. If you are not writing a package, this portion of the component documentation may not be relevant to you.</div><p>When writing components for your own application, components are automatically discovered within the <code>app/View/Components</code> directory and <code>resources/views/components</code> directory.<p>However, if you are building a package that utilizes Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Laravel knows where to find the component. You should typically register your components in the <code>boot</code> method of your package's service provider:<div><pre><code> 1use Illuminate\Support\Facades\Blade; 2use VendorPackage\View\Components\AlertComponent; 3  4/** 5 * Bootstrap your package's services. 6*/ 7publicfunctionboot():void 8{ 9Blade::component('package-alert', AlertComponent::class);10}
+use Illuminate\Support\Facades\Blade;
+use VendorPackage\View\Components\AlertComponent;
+
+/**
+ * Bootstrap your package's services.
+ */
+public function boot(): void
+{
+    Blade::component('package-alert', AlertComponent::class);
+}</code></pre></div><p>Once your component has been registered, it may be rendered using its tag alias:<div><pre><code>1&lt;x-package-alert/>
+&lt;x-package-alert/></code></pre></div>Autoloading Package Components<p>Alternatively, you may use the <code>componentNamespace</code> method to autoload component classes by convention. For example, a <code>Nightshade</code> package might have <code>Calendar</code> and <code>ColorPicker</code> components that reside within the <code>Package\Views\Components</code> namespace:<div><pre><code>1use Illuminate\Support\Facades\Blade;2 3/**4 * Bootstrap your package's services.5*/6publicfunctionboot():void7{8Blade::componentNamespace('Nightshade\\Views\\Components', 'nightshade');9}
+use Illuminate\Support\Facades\Blade;
+
+/**
+ * Bootstrap your package's services.
+ */
+public function boot(): void
+{
+    Blade::componentNamespace('Nightshade\\Views\\Components', 'nightshade');
+}</code></pre></div><p>This will allow the usage of package components by their vendor namespace using the <code>package-name::</code> syntax:<div><pre><code>1&lt;x-nightshade::calendar />2&lt;x-nightshade::color-picker />
+&lt;x-nightshade::calendar />
+&lt;x-nightshade::color-picker /></code></pre></div><p>Blade will automatically detect the class that's linked to this component by pascal-casing the component name. Subdirectories are also supported using "dot" notation.<h2><a href=#anonymous-components>Anonymous Components</a></h2><p>Similar to inline components, anonymous components provide a mechanism for managing a component via a single file. However, anonymous components utilize a single view file and have no associated class. To define an anonymous component, you only need to place a Blade template within your <code>resources/views/components</code> directory. For example, assuming you have defined a component at <code>resources/views/components/alert.blade.php</code>, you may simply render it like so:<div><pre><code>1&lt;x-alert/>
+&lt;x-alert/></code></pre></div><p>You may use the <code>.</code> character to indicate if a component is nested deeper inside the <code>components</code> directory. For example, assuming the component is defined at <code>resources/views/components/inputs/button.blade.php</code>, you may render it like so:<div><pre><code>1&lt;x-inputs.button/>
+&lt;x-inputs.button/></code></pre></div><h3><a href=#anonymous-index-components>Anonymous Index Components</a></h3><p>Sometimes, when a component is made up of many Blade templates, you may wish to group the given component's templates within a single directory. For example, imagine an "accordion" component with the following directory structure:<div><pre><code>1/resources/views/components/accordion.blade.php2/resources/views/components/accordion/item.blade.php
+/resources/views/components/accordion.blade.php
+/resources/views/components/accordion/item.blade.php</code></pre></div><p>This directory structure allows you to render the accordion component and its item like so:<div><pre><code>1&lt;x-accordion>2&lt;x-accordion.item>3        ...4&lt;/x-accordion.item>5&lt;/x-accordion>
+&lt;x-accordion>
+    &lt;x-accordion.item>
+        ...
+    &lt;/x-accordion.item>
+&lt;/x-accordion></code></pre></div><p>However, in order to render the accordion component via <code>x-accordion</code>, we were forced to place the "index" accordion component template in the <code>resources/views/components</code> directory instead of nesting it within the <code>accordion</code> directory with the other accordion related templates.<p>Thankfully, Blade allows you to place a file matching the component's directory name within the component's directory itself. When this template exists, it can be rendered as the "root" element of the component even though it is nested within a directory. So, we can continue to use the same Blade syntax given in the example above; however, we will adjust our directory structure like so:<div><pre><code>1/resources/views/components/accordion/accordion.blade.php2/resources/views/components/accordion/item.blade.php
+/resources/views/components/accordion/accordion.blade.php
+/resources/views/components/accordion/item.blade.php</code></pre></div><h3><a href=#data-properties-attributes>Data Properties / Attributes</a></h3><p>Since anonymous components do not have any associated class, you may wonder how you may differentiate which data should be passed to the component as variables and which attributes should be placed in the component's <a href=#component-attributes>attribute bag</a>.<p>You may specify which attributes should be considered data variables using the <code>@props</code> directive at the top of your component's Blade template. All other attributes on the component will be available via the component's attribute bag. If you wish to give a data variable a default value, you may specify the variable's name as the array key and the default value as the array value:<div><pre><code>1 /resources/views/components/alert.blade.php -->2 3@props(['type'=>'info', 'message'])4 5&lt;div {{ $attributes->merge(['class' => 'alert alert-'.$type]) }}>6{{$message}}7&lt;/div></code></pre></div><p>Given the component definition above, we may render the component like so:<div><pre><code>1&lt;x-alerttype="error":message="$message"class="mb-4"/>
+&lt;x-alert type="error" :message="$message" class="mb-4"/></code></pre></div><h3><a href=#accessing-parent-data>Accessing Parent Data</a></h3><p>Sometimes you may want to access data from a parent component inside a child component. In these cases, you may use the <code>@aware</code> directive. For example, imagine we are building a complex menu component consisting of a parent <code>&lt;x-menu></code> and child <code>&lt;x-menu.item></code>:<div><pre><code>1&lt;x-menucolor="purple">2&lt;x-menu.item>...&lt;/x-menu.item>3&lt;x-menu.item>...&lt;/x-menu.item>4&lt;/x-menu>
+&lt;x-menu color="purple">
+    &lt;x-menu.item>...&lt;/x-menu.item>
+    &lt;x-menu.item>...&lt;/x-menu.item>
+&lt;/x-menu></code></pre></div><p>The <code>&lt;x-menu></code> component may have an implementation like the following:<div><pre><code>1 /resources/views/components/menu/index.blade.php -->2 3@props(['color'=>'gray'])4 5&lt;ul {{ $attributes->merge(['class' => 'bg-'.$color.'-200']) }}>6{{$slot}}7&lt;/ul></code></pre></div><p>Because the <code>color</code> prop was only passed into the parent (<code>&lt;x-menu></code>), it won't be available inside <code>&lt;x-menu.item></code>. However, if we use the <code>@aware</code> directive, we can make it available inside <code>&lt;x-menu.item></code> as well:<div><pre><code>1 /resources/views/components/menu/item.blade.php -->2 3@aware(['color'=>'gray'])4 5&lt;li {{ $attributes->merge(['class' => 'text-'.$color.'-800']) }}>6{{$slot}}7&lt;/li></code></pre></div><div><p>The <code>@aware</code> directive cannot access parent data that is not explicitly passed to the parent component via HTML attributes. Default <code>@props</code> values that are not explicitly passed to the parent component cannot be accessed by the <code>@aware</code> directive.</div><h3><a href=#anonymous-component-paths>Anonymous Component Paths</a></h3><p>As previously discussed, anonymous components are typically defined by placing a Blade template within your <code>resources/views/components</code> directory. However, you may occasionally want to register other anonymous component paths with Laravel in addition to the default path.<p>The <code>anonymousComponentPath</code> method accepts the "path" to the anonymous component location as its first argument and an optional "namespace" that components should be placed under as its second argument. Typically, this method should be called from the <code>boot</code> method of one of your application's <a href=providers.htm>service providers</a>:<div><pre><code>1/**2 * Bootstrap any application services.3*/4publicfunctionboot():void5{6Blade::anonymousComponentPath(__DIR__.'/../components');7}
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Blade::anonymousComponentPath(__DIR__.'/../components');
+}</code></pre></div><p>When component paths are registered without a specified prefix as in the example above, they may be rendered in your Blade components without a corresponding prefix as well. For example, if a <code>panel.blade.php</code> component exists in the path registered above, it may be rendered like so:<div><pre><code>1&lt;x-panel />
+&lt;x-panel /></code></pre></div><p>Prefix "namespaces" may be provided as the second argument to the <code>anonymousComponentPath</code> method:<div><pre><code>1Blade::anonymousComponentPath(__DIR__.'/../components', 'dashboard');
+Blade::anonymousComponentPath(__DIR__.'/../components', 'dashboard');</code></pre></div><p>When a prefix is provided, components within that "namespace" may be rendered by prefixing to the component's namespace to the component name when the component is rendered:<div><pre><code>1&lt;x-dashboard::panel />
+&lt;x-dashboard::panel /></code></pre></div><h2><a href=#building-layouts>Building Layouts</a></h2><h3><a href=#layouts-using-components>Layouts Using Components</a></h3><p>Most web applications maintain the same general layout across various pages. It would be incredibly cumbersome and hard to maintain our application if we had to repeat the entire layout HTML in every view we create. Thankfully, it's convenient to define this layout as a single <a href=#components>Blade component</a> and then use it throughout our application.<h4><a href=#defining-the-layout-component>Defining the Layout Component</a></h4><p>For example, imagine we are building a "todo" list application. We might define a <code>layout</code> component that looks like the following:<div><pre><code> 1 resources/views/components/layout.blade.php --> 2  3&lt;html> 4&lt;head> 5&lt;title>{{$title ?? 'Todo Manager'}}&lt;/title> 6&lt;/head> 7&lt;body> 8&lt;h1>Todos&lt;/h1> 9&lt;hr/>10{{$slot}}11&lt;/body>12&lt;/html></code></pre></div><h4><a href=#applying-the-layout-component>Applying the Layout Component</a></h4><p>Once the <code>layout</code> component has been defined, we may create a Blade view that utilizes the component. In this example, we will define a simple view that displays our task list:<div><pre><code>1 resources/views/tasks.blade.php -->2 3&lt;x-layout>4@foreach ($tasksas$task)5&lt;div>{{$task}}&lt;/div>6@endforeach7&lt;/x-layout></code></pre></div><p>Remember, content that is injected into a component will be supplied to the default <code>$slot</code> variable within our <code>layout</code> component. As you may have noticed, our <code>layout</code> also respects a <code>$title</code> slot if one is provided; otherwise, a default title is shown. We may inject a custom title from our task list view using the standard slot syntax discussed in the <a href=#components>component documentation</a>:<div><pre><code> 1 resources/views/tasks.blade.php --> 2  3&lt;x-layout> 4&lt;x-slot:title> 5        Custom Title 6&lt;/x-slot> 7  8@foreach ($tasksas$task) 9&lt;div>{{$task}}&lt;/div>10@endforeach11&lt;/x-layout></code></pre></div><p>Now that we have defined our layout and task list views, we just need to return the <code>task</code> view from a route:<div><pre><code>1use App\Models\Task;2 3Route::get('/tasks', function() {4returnview('tasks',['tasks'=>Task::all()]);5});
+use App\Models\Task;
+
+Route::get('/tasks', function () {
+    return view('tasks', ['tasks' => Task::all()]);
+});</code></pre></div><h3><a href=#layouts-using-template-inheritance>Layouts Using Template Inheritance</a></h3><h4><a href=#defining-a-layout>Defining a Layout</a></h4><p>Layouts may also be created via "template inheritance". This was the primary way of building applications prior to the introduction of <a href=#components>components</a>.<p>To get started, let's take a look at a simple example. First, we will examine a page layout. Since most web applications maintain the same general layout across various pages, it's convenient to define this layout as a single Blade view:<div><pre><code> 1 resources/views/layouts/app.blade.php --> 2  3&lt;html> 4&lt;head> 5&lt;title>App Name - @yield('title')&lt;/title> 6&lt;/head> 7&lt;body> 8@section('sidebar') 9            This is the master sidebar.10@show11 12&lt;divclass="container">13@yield('content')14&lt;/div>15&lt;/body>16&lt;/html></code></pre></div><p>As you can see, this file contains typical HTML mark-up. However, take note of the <code>@section</code> and <code>@yield</code> directives. The <code>@section</code> directive, as the name implies, defines a section of content, while the <code>@yield</code> directive is used to display the contents of a given section.<p>Now that we have defined a layout for our application, let's define a child page that inherits the layout.<h4><a href=#extending-a-layout>Extending a Layout</a></h4><p>When defining a child view, use the <code>@extends</code> Blade directive to specify which layout the child view should "inherit". Views which extend a Blade layout may inject content into the layout's sections using <code>@section</code> directives. Remember, as seen in the example above, the contents of these sections will be displayed in the layout using <code>@yield</code>:<div><pre><code> 1 resources/views/child.blade.php --> 2  3@extends('layouts.app') 4  5@section('title', 'Page Title') 6  7@section('sidebar') 8    @@parent 9 10&lt;p>This is appended to the master sidebar.&lt;/p>11@endsection12 13@section('content')14&lt;p>This is my body content.&lt;/p>15@endsection</code></pre></div><p>In this example, the <code>sidebar</code> section is utilizing the <code>@@parent</code> directive to append (rather than overwriting) content to the layout's sidebar. The <code>@@parent</code> directive will be replaced by the content of the layout when the view is rendered.<div><p>Contrary to the previous example, this <code>sidebar</code> section ends with <code>@endsection</code> instead of <code>@show</code>. The <code>@endsection</code> directive will only define a section while <code>@show</code> will define and immediately yield the section.</div><p>The <code>@yield</code> directive also accepts a default value as its second parameter. This value will be rendered if the section being yielded is undefined:<div><pre><code>1@yield('content', 'Default content')
+@yield('content', 'Default content')</code></pre></div><h2><a href=#forms>Forms</a></h2><h3><a href=#csrf-field>CSRF Field</a></h3><p>Anytime you define an HTML form in your application, you should include a hidden CSRF token field in the form so that <a href=csrf.htm>the CSRF protection</a> middleware can validate the request. You may use the <code>@csrf</code> Blade directive to generate the token field:<div><pre><code>1&lt;formmethod="POST"action="/profile">2@csrf3 4    ...5&lt;/form>
+&lt;form method="POST" action="/profile">
+    @csrf
+
+    ...
+&lt;/form></code></pre></div><h3><a href=#method-field>Method Field</a></h3><p>Since HTML forms can't make <code>PUT</code>, <code>PATCH</code>, or <code>DELETE</code> requests, you will need to add a hidden <code>_method</code> field to spoof these HTTP verbs. The <code>@method</code> Blade directive can create this field for you:<div><pre><code>1&lt;formaction="/foo/bar"method="POST">2@method('PUT')3 4    ...5&lt;/form>
+&lt;form action="/foo/bar" method="POST">
+    @method('PUT')
+
+    ...
+&lt;/form></code></pre></div><h3><a href=#validation-errors>Validation Errors</a></h3><p>The <code>@error</code> directive may be used to quickly check if <a href=validation.htm#quick-displaying-the-validation-errors>validation error messages</a> exist for a given attribute. Within an <code>@error</code> directive, you may echo the <code>$message</code> variable to display the error message:<div><pre><code> 1 /resources/views/post/create.blade.php --> 2  3&lt;labelfor="title">Post Title&lt;/label> 4  5&lt;input 6id="title" 7type="text" 8class="@error('title') is-invalid @enderror" 9/>10 11@error('title')12&lt;divclass="alert alert-danger">{{$message}}&lt;/div>13@enderror</code></pre></div><p>Since the <code>@error</code> directive compiles to an "if" statement, you may use the <code>@else</code> directive to render content when there is not an error for an attribute:<div><pre><code>1 /resources/views/auth.blade.php -->2 3&lt;labelfor="email">Email address&lt;/label>4 5&lt;input6id="email"7type="email"8class="@error('email') is-invalid @else is-valid @enderror"9/></code></pre></div><p>You may pass <a href=validation.htm#named-error-bags>the name of a specific error bag</a> as the second parameter to the <code>@error</code> directive to retrieve validation error messages on pages containing multiple forms:<div><pre><code> 1 /resources/views/auth.blade.php --> 2  3&lt;labelfor="email">Email address&lt;/label> 4  5&lt;input 6id="email" 7type="email" 8class="@error('email', 'login') is-invalid @enderror" 9/>10 11@error('email', 'login')12&lt;divclass="alert alert-danger">{{$message}}&lt;/div>13@enderror</code></pre></div><h2><a href=#stacks>Stacks</a></h2><p>Blade allows you to push to named stacks which can be rendered somewhere else in another view or layout. This can be particularly useful for specifying any JavaScript libraries required by your child views:<div><pre><code>1@push('scripts')2&lt;scriptsrc="/example.js">&lt;/script>3@endpush
+@push('scripts')
+    &lt;script src="/example.js">&lt;/script>
+@endpush</code></pre></div><p>If you would like to <code>@push</code> content if a given boolean expression evaluates to <code>true</code>, you may use the <code>@pushIf</code> directive:<div><pre><code>1@pushIf($shouldPush, 'scripts')2&lt;scriptsrc="/example.js">&lt;/script>3@endPushIf
+@pushIf($shouldPush, 'scripts')
+    &lt;script src="/example.js">&lt;/script>
+@endPushIf</code></pre></div><p>You may push to a stack as many times as needed. To render the complete stack contents, pass the name of the stack to the <code>@stack</code> directive:<div><pre><code>1&lt;head>2 Head Contents -->3 4@stack('scripts')5&lt;/head>
+&lt;head>
+    &lt;!-- Head Contents -->
+
+    @stack('scripts')
+&lt;/head></code></pre></div><p>If you would like to prepend content onto the beginning of a stack, you should use the <code>@prepend</code> directive:<div><pre><code>1@push('scripts')2    This will be second...3@endpush4 5// Later...6 7@prepend('scripts')8    This will be first...9@endprepend
+@push('scripts')
+    This will be second...
+@endpush
+
+// Later...
+
+@prepend('scripts')
+    This will be first...
+@endprepend</code></pre></div><h2><a href=#service-injection>Service Injection</a></h2><p>The <code>@inject</code> directive may be used to retrieve a service from the Laravel <a href=container.htm>service container</a>. The first argument passed to <code>@inject</code> is the name of the variable the service will be placed into, while the second argument is the class or interface name of the service you wish to resolve:<div><pre><code>1@inject('metrics', 'App\Services\MetricsService')2 3&lt;div>4    Monthly Revenue: {{$metrics->monthlyRevenue() }}.5&lt;/div>
+@inject('metrics', 'App\Services\MetricsService')
+
+&lt;div>
+    Monthly Revenue: {{ $metrics->monthlyRevenue() }}.
+&lt;/div></code></pre></div><h2><a href=#rendering-inline-blade-templates>Rendering Inline Blade Templates</a></h2><p>Sometimes you may need to transform a raw Blade template string into valid HTML. You may accomplish this using the <code>render</code> method provided by the <code>Blade</code> facade. The <code>render</code> method accepts the Blade template string and an optional array of data to provide to the template:<div><pre><code>1use Illuminate\Support\Facades\Blade;2 3returnBlade::render('Hello, {{ $name }}', ['name'=>'Julian Bashir']);
+use Illuminate\Support\Facades\Blade;
+
+return Blade::render('Hello, {{ $name }}', ['name' => 'Julian Bashir']);</code></pre></div><p>Laravel renders inline Blade templates by writing them to the <code>storage/framework/views</code> directory. If you would like Laravel to remove these temporary files after rendering the Blade template, you may provide the <code>deleteCachedView</code> argument to the method:<div><pre><code>1returnBlade::render(2'Hello, {{ $name }}',3    ['name'=>'Julian Bashir'],4    deleteCachedView: true5);
+return Blade::render(
+    'Hello, {{ $name }}',
+    ['name' => 'Julian Bashir'],
+    deleteCachedView: true
+);</code></pre></div><h2><a href=#rendering-blade-fragments>Rendering Blade Fragments</a></h2><p>When using frontend frameworks such as <a href=https://turbo.hotwired.dev/>Turbo</a> and <a href=https://htmx.org/>htmx</a>, you may occasionally need to only return a portion of a Blade template within your HTTP response. Blade "fragments" allow you to do just that. To get started, place a portion of your Blade template within <code>@fragment</code> and <code>@endfragment</code> directives:<div><pre><code>1@fragment('user-list')2&lt;ul>3@foreach ($usersas$user)4&lt;li>{{$user->name}}&lt;/li>5@endforeach6&lt;/ul>7@endfragment
+@fragment('user-list')
+    &lt;ul>
+        @foreach ($users as $user)
+            &lt;li>{{ $user->name }}&lt;/li>
+        @endforeach
+    &lt;/ul>
+@endfragment</code></pre></div><p>Then, when rendering the view that utilizes this template, you may invoke the <code>fragment</code> method to specify that only the specified fragment should be included in the outgoing HTTP response:<div><pre><code>1returnview('dashboard',['users'=>$users])->fragment('user-list');
+return view('dashboard', ['users' => $users])->fragment('user-list');</code></pre></div><p>The <code>fragmentIf</code> method allows you to conditionally return a fragment of a view based on a given condition. Otherwise, the entire view will be returned:<div><pre><code>1returnview('dashboard',['users'=>$users])2->fragmentIf($request->hasHeader('HX-Request'), 'user-list');
+return view('dashboard', ['users' => $users])
+    ->fragmentIf($request->hasHeader('HX-Request'), 'user-list');</code></pre></div><p>The <code>fragments</code> and <code>fragmentsIf</code> methods allow you to return multiple view fragments in the response. The fragments will be concatenated together:<div><pre><code>1view('dashboard',['users'=>$users])2->fragments(['user-list', 'comment-list']);3 4view('dashboard',['users'=>$users])5->fragmentsIf(6$request->hasHeader('HX-Request'),7        ['user-list', 'comment-list']8    );
+view('dashboard', ['users' => $users])
+    ->fragments(['user-list', 'comment-list']);
+
+view('dashboard', ['users' => $users])
+    ->fragmentsIf(
+        $request->hasHeader('HX-Request'),
+        ['user-list', 'comment-list']
+    );</code></pre></div><h2><a href=#extending-blade>Extending Blade</a></h2><p>Blade allows you to define your own custom directives using the <code>directive</code> method. When the Blade compiler encounters the custom directive, it will call the provided callback with the expression that the directive contains.<p>The following example creates a <code>@datetime($var)</code> directive which formats a given <code>$var</code>, which should be an instance of <code>DateTime</code>:<div><pre><code> 1&lt;?php 2  3namespace App\Providers; 4  5use Illuminate\Support\Facades\Blade; 6use Illuminate\Support\ServiceProvider; 7  8classAppServiceProviderextendsServiceProvider 9{10/**11     * Register any application services.12*/13publicfunctionregister():void14    {15// ...16    }17 18/**19     * Bootstrap any application services.20*/21publicfunctionboot():void22    {23Blade::directive('datetime', function(string$expression) {24return"&lt;?php echo ($expression)->format('m/d/Y H:i'); ?>";25        });26    }27}
+&lt;?php
+
+namespace App\Providers;
+
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        // ...
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        Blade::directive('datetime', function (string $expression) {
+            return "&lt;?php echo ($expression)->format('m/d/Y H:i'); ?>";
+        });
+    }
+}</code></pre></div><p>As you can see, we will chain the <code>format</code> method onto whatever expression is passed into the directive. So, in this example, the final PHP generated by this directive will be:<div><pre><code>1&lt;?phpecho($var)->format('m/d/Y H:i'); ?>
+&lt;?php echo ($var)->format('m/d/Y H:i'); ?></code></pre></div><div><p>After updating the logic of a Blade directive, you will need to delete all of the cached Blade views. The cached Blade views may be removed using the <code>view:clear</code> Artisan command.</div><h3><a href=#custom-echo-handlers>Custom Echo Handlers</a></h3><p>If you attempt to "echo" an object using Blade, the object's <code>__toString</code> method will be invoked. The <a href=https://www.php.net/manual/en/language.oop5.magic.php#object.tostring>__toString</a> method is one of PHP's built-in "magic methods". However, sometimes you may not have control over the <code>__toString</code> method of a given class, such as when the class that you are interacting with belongs to a third-party library.<p>In these cases, Blade allows you to register a custom echo handler for that particular type of object. To accomplish this, you should invoke Blade's <code>stringable</code> method. The <code>stringable</code> method accepts a closure. This closure should type-hint the type of object that it is responsible for rendering. Typically, the <code>stringable</code> method should be invoked within the <code>boot</code> method of your application's <code>AppServiceProvider</code> class:<div><pre><code> 1use Illuminate\Support\Facades\Blade; 2use Money\Money; 3  4/** 5 * Bootstrap any application services. 6*/ 7publicfunctionboot():void 8{ 9Blade::stringable(function(Money$money) {10return$money->formatTo('en_GB');11    });12}
+use Illuminate\Support\Facades\Blade;
+use Money\Money;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Blade::stringable(function (Money $money) {
+        return $money->formatTo('en_GB');
+    });
+}</code></pre></div><p>Once your custom echo handler has been defined, you may simply echo the object in your Blade template:<div><pre><code>1Cost: {{$money}}
+Cost: {{ $money }}</code></pre></div><h3><a href=#custom-if-statements>Custom If Statements</a></h3><p>Programming a custom directive is sometimes more complex than necessary when defining simple, custom conditional statements. For that reason, Blade provides a <code>Blade::if</code> method which allows you to quickly define custom conditional directives using closures. For example, let's define a custom conditional that checks the configured default "disk" for the application. We may do this in the <code>boot</code> method of our <code>AppServiceProvider</code>:<div><pre><code> 1use Illuminate\Support\Facades\Blade; 2  3/** 4 * Bootstrap any application services. 5*/ 6publicfunctionboot():void 7{ 8Blade::if('disk', function(string$value) { 9returnconfig('filesystems.default') ===$value;10    });11}
+use Illuminate\Support\Facades\Blade;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Blade::if('disk', function (string $value) {
+        return config('filesystems.default') === $value;
+    });
+}</code></pre></div><p>Once the custom conditional has been defined, you can use it within your templates:<div><pre><code> 1@disk('local') 2 The application is using the local disk... --> 3@elsedisk('s3') 4 The application is using the s3 disk... --> 5@else 6 The application is using some other disk... --> 7@enddisk 8  9@unlessdisk('local')10 The application is not using the local disk... -->11@enddisk
+@disk('local')
+    &lt;!-- The application is using the local disk... -->
+@elsedisk('s3')
+    &lt;!-- The application is using the s3 disk... -->
+@else
+    &lt;!-- The application is using some other disk... -->
+@enddisk
+
+@unlessdisk('local')
+    &lt;!-- The application is not using the local disk... -->
+@enddisk</code></pre></div></div></section></section></div></section><div><div><div>On this page<div><div><ul><li><a href=#introduction> Introduction </a> <ul><li><a href=#supercharging-blade-with-livewire> Supercharging Blade With Livewire </a></ul><li><a href=#displaying-data> Displaying Data </a> <ul><li><a href=#html-entity-encoding> HTML Entity Encoding </a><li><a href=#blade-and-javascript-frameworks> Blade and JavaScript Frameworks </a></ul><li><a href=#blade-directives> Blade Directives </a> <ul><li><a href=#if-statements> If Statements </a><li><a href=#switch-statements> Switch Statements </a><li><a href=#loops> Loops </a><li><a href=#the-loop-variable> The Loop Variable </a><li><a href=#conditional-classes> Conditional Classes </a><li><a href=#additional-attributes> Additional Attributes </a><li><a href=#including-subviews> Including Subviews </a><li><a href=#the-once-directive> The @once Directive </a><li><a href=#raw-php> Raw PHP </a><li><a href=#comments> Comments </a></ul><li><a href=#components> Components </a> <ul><li><a href=#rendering-components> Rendering Components </a><li><a href=#index-components> Index Components </a><li><a href=#passing-data-to-components> Passing Data to Components </a><li><a href=#component-attributes> Component Attributes </a><li><a href=#reserved-keywords> Reserved Keywords </a><li><a href=#slots> Slots </a><li><a href=#inline-component-views> Inline Component Views </a><li><a href=#dynamic-components> Dynamic Components </a><li><a href=#manually-registering-components> Manually Registering Components </a></ul><li><a href=#anonymous-components> Anonymous Components </a> <ul><li><a href=#anonymous-index-components> Anonymous Index Components </a><li><a href=#data-properties-attributes> Data Properties / Attributes </a><li><a href=#accessing-parent-data> Accessing Parent Data </a><li><a href=#anonymous-component-paths> Anonymous Components Paths </a></ul><li><a href=#building-layouts> Building Layouts </a> <ul><li><a href=#layouts-using-components> Layouts Using Components </a><li><a href=#layouts-using-template-inheritance> Layouts Using Template Inheritance </a></ul><li><a href=#forms> Forms </a> <ul><li><a href=#csrf-field> CSRF Field </a><li><a href=#method-field> Method Field </a><li><a href=#validation-errors> Validation Errors </a></ul><li><a href=#stacks> Stacks </a><li><a href=#service-injection> Service Injection </a><li><a href=#rendering-inline-blade-templates> Rendering Inline Blade Templates </a><li><a href=#rendering-blade-fragments> Rendering Blade Fragments </a><li><a href=#extending-blade> Extending Blade </a> <ul><li><a href=#custom-echo-handlers> Custom Echo Handlers </a><li><a href=#custom-if-statements> Custom If Statements </a></ul></ul></div></div></div></div></div></div></div></div></div>

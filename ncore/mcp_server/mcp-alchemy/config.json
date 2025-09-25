@@ -1,0 +1,52 @@
+{
+    "debug": false,
+    "max_connections": 10,
+    "timeout": 30000,
+    "execute_query_max_chars": 4000,
+    "supported_databases": [
+        "sqlite",
+        "postgresql", 
+        "mysql",
+        "mariadb",
+        "mssql",
+        "oracle",
+        "cratedb",
+        "vertica"
+    ],
+    "auto_create_databases": true,
+    "connection_pool": {
+        "pool_size": 1,
+        "max_overflow": 2,
+        "pool_recycle": 3600,
+        "pool_pre_ping": true,
+        "isolation_level": "AUTOCOMMIT"
+    },
+    "security": {
+        "enable_sql_injection_protection": true,
+        "log_all_queries": true,
+        "max_query_length": 10000,
+        "allowed_operations": [
+            "SELECT",
+            "INSERT", 
+            "UPDATE",
+            "DELETE",
+            "CREATE",
+            "DROP",
+            "ALTER",
+            "INDEX"
+        ]
+    },
+    "logging": {
+        "level": "INFO",
+        "max_file_size": "10MB",
+        "backup_count": 5,
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    },
+    "performance": {
+        "enable_query_cache": true,
+        "cache_ttl": 300,
+        "max_cache_size": 100,
+        "enable_connection_pooling": true,
+        "query_timeout": 30
+    }
+}

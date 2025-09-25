@@ -1,0 +1,763 @@
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+param(
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("gitee", "github", "local", "")]
+    [string]$TargetRemote = "",
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$Pull,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$Backup
+)
+
+# Declare all variables at the beginning
+$ErrorActionPreference = "Stop"
+$script:EncryptionCheckCompleted = $false
+$script:PullCompleted = $false
+$originalWorkingDir = Get-Location
+$originalRemoteUrl = ""
+$scriptPath = $PSScriptRoot
+$coreNodeDir = Split-Path (Split-Path $scriptPath -Parent) -Parent
+$projectName = (Get-Item $coreNodeDir).Name
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$preCommitScript = Join-Path $scriptPath "pre_commit_encrypt.ps1"
+$BACKUP_ENABLED = if ($Backup) { "true" } else { "false" }
+$currentBranch = ""
+
+# Global variable management function
+function Get-GlobalVar {
+    param (
+        [string]$Key
+    )
+    $globalVarDir = Join-Path $env:USERPROFILE ".core_node\.global_vars"
+    $filePath = Join-Path $globalVarDir $Key
+    if (Test-Path $filePath) {
+        $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
+        return $content -replace "`0", ""
+    }
+    return $null
+}
+
+# Function to get current git branch
+function Get-CurrentBranch {
+    try {
+        $branch = git branch --show-current 2>$null
+        if (-not $branch) {
+            $branch = git rev-parse --abbrev-ref HEAD 2>$null
+        }
+        if (-not $branch) {
+            return "HEAD"
+        }
+        return $branch
+    } catch {
+        return "HEAD"
+    }
+}
+
+# Function to ensure we're on the target branch without forcing
+function Ensure-TargetBranch {
+    param([string]$TargetBranch = "main")
+    
+    $script:currentBranch = Get-CurrentBranch
+    
+    if ($currentBranch -eq $TargetBranch) {
+        Write-ColorText "Already on branch '$currentBranch'" -ForegroundColor Green
+        return $true
+    }
+    
+    Write-ColorText "Current branch: $currentBranch" -ForegroundColor Yellow
+    Write-ColorText "Target branch: $TargetBranch" -ForegroundColor Yellow
+    
+    # Check if target branch exists
+    $branchExists = git show-ref --verify --quiet "refs/heads/$TargetBranch"
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorText "Branch '$TargetBranch' does not exist locally. Creating from current branch..." -ForegroundColor Cyan
+        git checkout -b $TargetBranch
+        if ($LASTEXITCODE -eq 0) {
+            Write-ColorText "Created and switched to branch '$TargetBranch'" -ForegroundColor Green
+            return $true
+        } else {
+            Write-ColorText "Failed to create branch '$TargetBranch'" -ForegroundColor Red
+            return $false
+        }
+    }
+    
+    # Check working directory status
+    $status = git status --porcelain 2>$null
+    if ($status) {
+        Write-ColorText "Working directory has uncommitted changes. Please commit or stash first." -ForegroundColor Red
+        Write-ColorText "Or use 'git stash' to temporarily save changes." -ForegroundColor Yellow
+        return $false
+    }
+    
+    # Switch to target branch
+    Write-ColorText "Switching from '$currentBranch' to '$TargetBranch'..." -ForegroundColor Cyan
+    git checkout $TargetBranch
+    if ($LASTEXITCODE -eq 0) {
+        Write-ColorText "Successfully switched to branch '$TargetBranch'" -ForegroundColor Green
+        return $true
+    } else {
+        Write-ColorText "Failed to switch to branch '$TargetBranch'" -ForegroundColor Red
+        return $false
+    }
+}
+
+# Function to create working directory backup
+function Create-WorkingBackup {
+    if ($BACKUP_ENABLED -ne "true") {
+        return $true
+    }
+    
+    Write-ColorText "Creating working directory backup..." -ForegroundColor Cyan
+    
+    $backupDir = Join-Path $coreNodeDir ".git_backups"
+    $backupTimestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
+    $backupPath = Join-Path $backupDir "backup_$backupTimestamp"
+    
+    try {
+        if (-not (Test-Path $backupDir)) {
+            New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        }
+        
+        # Use robocopy for efficient copying, excluding .git directories
+        robocopy $coreNodeDir $backupPath /E /XD .git .git_backups /NFL /NDL /NJH /NJS | Out-Null
+        
+        if ($LASTEXITCODE -le 1) {  # robocopy exit codes 0-1 are success
+            Write-ColorText "Backup created: $backupPath" -ForegroundColor Green
+            
+            # Clean up old backups (keep last 5)
+            $allBackups = Get-ChildItem $backupDir -Directory | Sort-Object CreationTime -Descending
+            if ($allBackups.Count -gt 5) {
+                $oldBackups = $allBackups | Select-Object -Skip 5
+                foreach ($oldBackup in $oldBackups) {
+                    Remove-Item $oldBackup.FullName -Recurse -Force
+                    Write-ColorText "Removed old backup: $($oldBackup.Name)" -ForegroundColor DarkGray
+                }
+            }
+            
+            return $true
+        } else {
+            Write-ColorText "Backup creation failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+            return $false
+        }
+    } catch {
+        Write-ColorText "Backup creation failed: $_" -ForegroundColor Red
+        return $false
+    }
+}
+
+# Function to determine default remote based on region setting
+function Get-DefaultRemote {
+    param([string]$ProjectName)
+    
+    $selectedRegion = Get-GlobalVar -Key "SELECTED_REGION"
+    if ($selectedRegion -eq "Global") {
+        return "git@github.com:accountbelongstox/$ProjectName.git"
+    } else {
+        # Default to China/Gitee if no region is set or if set to China
+        return "git@gitee.com:accountbelongstox/$ProjectName.git"
+    }
+}
+
+# Default remote (primary) - this will be restored after each operation
+$DEFAULT_REMOTE = Get-DefaultRemote -ProjectName $projectName
+
+# Remote configurations
+$remoteConfigs = @{
+    "gitee" = "git@gitee.com:accountbelongstox/$projectName.git"
+    "github" = "git@github.com:accountbelongstox/$projectName.git"
+    "local" = "ssh://git@git.local.12gm.com:17004/adminroot/$projectName.git"
+}
+
+# Determine execution order - DEFAULT_REMOTE should be executed first
+function Get-ExecutionOrder {
+    param([array]$Targets)
+    
+    $orderedTargets = @()
+    $defaultRemoteKey = ""
+    
+    # Find which key corresponds to DEFAULT_REMOTE
+    foreach ($key in $remoteConfigs.Keys) {
+        if ($remoteConfigs[$key] -eq $DEFAULT_REMOTE) {
+            $defaultRemoteKey = $key
+            break
+        }
+    }
+    
+    # Add default remote first if it's in the target list
+    if ($defaultRemoteKey -and ($Targets -contains $defaultRemoteKey)) {
+        $orderedTargets += $defaultRemoteKey
+    }
+    
+    # Add remaining targets
+    foreach ($target in $Targets) {
+        if ($target -ne $defaultRemoteKey) {
+            $orderedTargets += $target
+        }
+    }
+    
+    return $orderedTargets
+}
+
+# Function to display colored text
+function Write-ColorText {
+    param(
+        [string]$Text,
+        [ConsoleColor]$ForegroundColor = [ConsoleColor]::White
+    )
+    Write-Host $Text -ForegroundColor $ForegroundColor
+}
+
+# Function to get current remote URL
+function Get-CurrentRemote {
+    try {
+        return (git remote get-url origin 2>$null)
+    } catch {
+        return ""
+    }
+}
+
+# Function to set remote URL
+function Set-RemoteUrl {
+    param([string]$RemoteUrl)
+    
+    try {
+        Write-ColorText "Executing: git remote set-url origin $RemoteUrl" -ForegroundColor DarkGray
+        git remote set-url origin $RemoteUrl
+        Write-ColorText "Remote set to: $RemoteUrl" -ForegroundColor Green
+    } catch {
+        Write-ColorText "Failed to set remote: $_" -ForegroundColor Red
+        throw
+    }
+}
+
+# Function to restore original remote
+function Restore-OriginalRemote {
+    try {
+        if ($originalRemoteUrl -and $originalRemoteUrl -ne $DEFAULT_REMOTE) {
+            Write-ColorText "Restoring original remote: $originalRemoteUrl" -ForegroundColor Yellow
+            Set-RemoteUrl $originalRemoteUrl
+        } elseif ((Get-CurrentRemote) -ne $DEFAULT_REMOTE) {
+            Write-ColorText "Restoring default remote: $DEFAULT_REMOTE" -ForegroundColor Yellow
+            Set-RemoteUrl $DEFAULT_REMOTE
+        }
+    } catch {
+        Write-ColorText "Warning: Failed to restore remote: $_" -ForegroundColor Red
+    }
+}
+
+# Function to perform safe git pull operations
+function Invoke-SafeGitPull {
+    param([string]$TargetUrl)
+    
+    Write-ColorText "Starting SAFE GIT PULL operations for: $TargetUrl" -ForegroundColor Cyan
+    Write-ColorText "Project: $projectName" -ForegroundColor Green
+    Write-ColorText "Timestamp: $timestamp" -ForegroundColor Green
+    
+    # Change to project directory
+    Set-Location $coreNodeDir
+    Write-ColorText "Changed to: $coreNodeDir" -ForegroundColor DarkCyan
+    
+    # Store original remote for restoration
+    $script:originalRemoteUrl = Get-CurrentRemote
+    Write-ColorText "Original remote: $originalRemoteUrl" -ForegroundColor DarkGray
+    
+    try {
+        # Set target remote
+        Set-RemoteUrl $TargetUrl
+        
+        # Show remote configuration
+        Write-ColorText "--------------------------------" -ForegroundColor Green
+        Write-ColorText "Executing: git remote -v" -ForegroundColor DarkGray
+        git remote -v
+        Write-ColorText "--------------------------------" -ForegroundColor Green
+
+        # Step 1: Ensure local changes are committed
+        Write-ColorText "Step 1: Checking for uncommitted changes..." -ForegroundColor Cyan
+        Write-ColorText "Executing: git status --porcelain" -ForegroundColor DarkGray
+        $changes = git status --porcelain
+        
+        if ($changes) {
+            Write-ColorText "Found uncommitted changes. Saving local work..." -ForegroundColor Yellow
+            Write-ColorText "Executing: git add ." -ForegroundColor DarkGray
+            git add .
+            Write-ColorText "Executing: git commit -m `"Auto-commit before pull: $timestamp`"" -ForegroundColor DarkGray
+            git commit -m "Auto-commit before pull: $timestamp"
+        } else {
+            Write-ColorText "No uncommitted changes found." -ForegroundColor Green
+        }
+
+        # Step 2: Check if main branch exists on remote
+        Write-ColorText "Step 2: Checking if main branch exists on remote..." -ForegroundColor Cyan
+        Write-ColorText "Executing: git branch -r | Select-String -Pattern 'origin/$currentBranch'" -ForegroundColor DarkGray
+        $branchExists = git branch -r | Select-String -Pattern "origin/$currentBranch"
+        
+        if (-not $branchExists) {
+            Write-ColorText "Branch '$currentBranch' does not exist. Creating '$currentBranch' branch..." -ForegroundColor Red
+            Write-ColorText "Executing: git checkout -b $currentBranch" -ForegroundColor DarkGray
+            git checkout -b $currentBranch
+            Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
+            git push --set-upstream origin $currentBranch
+            Write-ColorText "Executing: git branch --set-upstream-to=origin/$currentBranch $currentBranch" -ForegroundColor DarkGray
+            git branch --set-upstream-to=origin/$currentBranch $currentBranch
+            return $true
+        }
+
+        # Step 3: Safe pull with merge
+        Write-ColorText "Step 3: Performing safe pull..." -ForegroundColor Cyan
+        Write-ColorText "Executing: git pull origin main --no-edit" -ForegroundColor DarkGray
+        $pullResult = git pull origin main --no-edit 2>&1
+        $pullExitCode = $LASTEXITCODE
+        
+        Write-ColorText "Pull command output:" -ForegroundColor DarkGray
+        Write-ColorText "$pullResult" -ForegroundColor White
+        
+        if ($pullExitCode -eq 0) {
+            Write-ColorText "SUCCESS: Safe pull completed successfully!" -ForegroundColor Green
+        } else {
+            Write-ColorText "WARNING: Pull failed with merge conflicts!" -ForegroundColor Red
+            Write-ColorText "MERGE CONFLICT RESOLUTION OPTIONS:" -ForegroundColor Yellow
+            Write-ColorText "" -ForegroundColor White
+            Write-ColorText "Option 1 - Keep REMOTE version (discard local changes):" -ForegroundColor Cyan
+            Write-ColorText "git checkout --theirs ." -ForegroundColor White
+            Write-ColorText "git add ." -ForegroundColor White  
+            Write-ColorText "git commit -m `"Resolved conflicts by keeping remote version`"" -ForegroundColor White
+            Write-ColorText "" -ForegroundColor White
+            Write-ColorText "Option 2 - Keep LOCAL version (discard remote changes):" -ForegroundColor Cyan
+            Write-ColorText "git checkout --ours ." -ForegroundColor White
+            Write-ColorText "git add ." -ForegroundColor White
+            Write-ColorText "git commit -m `"Resolved conflicts by keeping local version`"" -ForegroundColor White
+            Write-ColorText "" -ForegroundColor White
+            Write-ColorText "Option 3 - Manual resolution:" -ForegroundColor Cyan
+            Write-ColorText "Edit conflicted files manually, then:" -ForegroundColor White
+            Write-ColorText "git add ." -ForegroundColor White
+            Write-ColorText "git commit -m `"Manually resolved merge conflicts`"" -ForegroundColor White
+            Write-ColorText "" -ForegroundColor White
+            Write-ColorText "Option 4 - Abort and try later:" -ForegroundColor Cyan
+            Write-ColorText "git merge --abort" -ForegroundColor White
+            Write-ColorText "git reset --hard HEAD~1  # Remove auto-commit" -ForegroundColor White
+            
+            # Offer automated conflict resolution
+            if (Handle-ConflictResolution) {
+                Write-ColorText "Conflict resolution completed successfully!" -ForegroundColor Green
+                return $true
+            } else {
+                Write-ColorText "Conflict resolution failed or was aborted" -ForegroundColor Yellow
+                return $false
+            }
+        }
+        
+        Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkBlue
+        return $true
+        
+    } catch {
+        Write-ColorText "Git pull operation failed: $_" -ForegroundColor Red
+        return $false
+    } finally {
+        # Always restore original/default remote
+        Restore-OriginalRemote
+    }
+}
+
+# Function to handle automated conflict resolution
+function Handle-ConflictResolution {
+    Write-ColorText "" -ForegroundColor White
+    Write-ColorText "AUTOMATED CONFLICT RESOLUTION OPTIONS:" -ForegroundColor Magenta
+    Write-ColorText "" -ForegroundColor White
+    Write-Host "Would you like to automatically resolve conflicts? [Y/n]: " -ForegroundColor Cyan -NoNewline
+    
+    $userChoice = Read-Host
+    if ([string]::IsNullOrEmpty($userChoice)) { $userChoice = "Y" }
+    
+    if ($userChoice -match "^[Yy]$") {
+        Write-ColorText "" -ForegroundColor White
+        Write-ColorText "Select resolution strategy:" -ForegroundColor Yellow
+        Write-ColorText "1) Keep REMOTE version (recommended for pulling latest changes)" -ForegroundColor Cyan
+        Write-ColorText "2) Keep LOCAL version (preserve your changes)" -ForegroundColor Cyan
+        Write-ColorText "3) Abort operation" -ForegroundColor Cyan
+        Write-Host "Enter choice [1-3]: " -ForegroundColor Yellow -NoNewline
+        
+        $resolutionChoice = Read-Host
+        
+        switch ($resolutionChoice) {
+            1 {
+                Write-ColorText "Applying REMOTE version..." -ForegroundColor Green
+                git checkout --theirs .
+                git add .
+                $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                git commit -m "Resolved conflicts by keeping remote version - $timestamp"
+                if ($LASTEXITCODE -eq 0) {
+                    Write-ColorText "SUCCESS: Conflicts resolved automatically!" -ForegroundColor Green
+                    Write-ColorText "Continuing with git operations..." -ForegroundColor Cyan
+                    return $true
+                } else {
+                    Write-ColorText "ERROR: Failed to resolve conflicts automatically" -ForegroundColor Red
+                    return $false
+                }
+            }
+            2 {
+                Write-ColorText "Applying LOCAL version..." -ForegroundColor Green
+                git checkout --ours .
+                git add .
+                $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                git commit -m "Resolved conflicts by keeping local version - $timestamp"
+                if ($LASTEXITCODE -eq 0) {
+                    Write-ColorText "SUCCESS: Conflicts resolved automatically!" -ForegroundColor Green
+                    Write-ColorText "Continuing with git operations..." -ForegroundColor Cyan
+                    return $true
+                } else {
+                    Write-ColorText "ERROR: Failed to resolve conflicts automatically" -ForegroundColor Red
+                    return $false
+                }
+            }
+            3 {
+                Write-ColorText "Aborting merge operation..." -ForegroundColor Yellow
+                git merge --abort
+                Write-ColorText "Merge aborted. Repository restored to previous state." -ForegroundColor Yellow
+                return $false
+            }
+            default {
+                Write-ColorText "Invalid choice. Please resolve conflicts manually." -ForegroundColor Red
+                return $false
+            }
+        }
+    } else {
+        Write-ColorText "Manual resolution required. Please resolve conflicts using the options above." -ForegroundColor Yellow
+        return $false
+    }
+}
+
+# Function to perform git operations
+function Invoke-GitOperations {
+    param([string]$TargetUrl)
+    
+    Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkYellow
+    Write-ColorText "Starting git operations for: $TargetUrl" -ForegroundColor Cyan
+    Write-ColorText "Project: $projectName" -ForegroundColor Green
+    Write-ColorText "Timestamp: $timestamp" -ForegroundColor Green
+    Write-ColorText "--------------------------------" -ForegroundColor Green
+    
+    # Change to project directory
+    Set-Location $coreNodeDir
+    Write-ColorText "Changed to: $coreNodeDir" -ForegroundColor DarkCyan
+    
+    # Store original remote for restoration
+    $script:originalRemoteUrl = Get-CurrentRemote
+    Write-ColorText "Original remote: $originalRemoteUrl" -ForegroundColor DarkGray
+    
+    try {
+        # Set target remote
+        Set-RemoteUrl $TargetUrl
+        
+        # Show remote configuration
+        Write-ColorText "--------------------------------" -ForegroundColor Green
+        Write-ColorText "Executing: git remote -v" -ForegroundColor DarkGray
+        git remote -v
+        Write-ColorText "--------------------------------" -ForegroundColor Green
+        Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkYellow
+
+        # Run pre-commit encryption check (only once per session)
+        if (-not $script:EncryptionCheckCompleted) {
+            Write-ColorText "Checking for unencrypted sensitive files..." -ForegroundColor Cyan
+
+            # Check for correct secret keys structure
+            $coreNodeDir = Split-Path (Split-Path $scriptPath -Parent) -Parent
+            $secretKeysDir = Join-Path $coreNodeDir ".secret_keys"
+            $secretKeysRawDir = Join-Path $secretKeysDir ".secret_ignore"
+            $secretKeysEncryptedDir = Join-Path $secretKeysDir "already_encrypted"
+
+            Write-ColorText "Scanning directory: $secretKeysRawDir" -ForegroundColor Cyan
+
+            if (Test-Path $secretKeysRawDir) {
+                $unencryptedFiles = @()
+                $rawFiles = Get-ChildItem -Path $secretKeysRawDir -File
+
+                foreach ($rawFile in $rawFiles) {
+                    $encryptedFile = Join-Path $secretKeysEncryptedDir "$($rawFile.Name).js"
+
+                    # Check if corresponding encrypted .js file exists and is newer than raw file
+                    if (-not (Test-Path $encryptedFile)) {
+                        # No encrypted .js file exists, need to encrypt
+                        $unencryptedFiles += $rawFile
+                    } elseif ($rawFile.LastWriteTime -gt (Get-Item $encryptedFile).LastWriteTime) {
+                        # Raw file is newer than encrypted .js file, need to re-encrypt
+                        $unencryptedFiles += $rawFile
+                    }
+                    # If encrypted .js file exists and is newer than raw file, skip encryption
+                }
+
+                if ($unencryptedFiles.Count -gt 0) {
+                    Write-ColorText "WARNING: Unencrypted sensitive files detected!" -ForegroundColor Yellow
+                    Write-ColorText "[SECRET] Found $($unencryptedFiles.Count) unencrypted sensitive files:" -ForegroundColor Red
+                    foreach ($file in $unencryptedFiles) {
+                        Write-ColorText "  - $($file.FullName)" -ForegroundColor Yellow
+                    }
+                    Write-Host ""
+
+                    Write-ColorText "Starting automatic encryption using disguise.js..." -ForegroundColor Cyan
+
+                # Find disguise.js in scripts directory
+                Write-ColorText "Searching for disguise.js in scripts directory..." -ForegroundColor Cyan
+                $scriptsDir = Join-Path $coreNodeDir "scripts"
+                $disguiseJsPath = $null
+
+                if (Test-Path $scriptsDir) {
+                    $disguiseJs = Get-ChildItem -Path $scriptsDir -Name "disguise.js" -Recurse | Select-Object -First 1
+                    if ($disguiseJs) {
+                        $disguiseJsPath = Join-Path $scriptsDir $disguiseJs
+                    }
+                }
+
+                if ($disguiseJsPath) {
+                    Write-ColorText "Found disguise.js at: $disguiseJsPath" -ForegroundColor Green
+
+                    # Get password once for all files
+                    Write-ColorText "Enter encryption password for all sensitive files:" -ForegroundColor Yellow
+                    $globalPassword = $null
+
+                    do {
+                        Write-Host "Enter encryption password: " -NoNewline -ForegroundColor Yellow
+                        $password1 = Read-Host -AsSecureString
+                        $plaintextPassword1 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password1))
+
+                        if ([string]::IsNullOrWhiteSpace($plaintextPassword1)) {
+                            Write-ColorText "ERROR: Password cannot be empty. Please try again." -ForegroundColor Red
+                            continue
+                        }
+
+                        Write-Host "Confirm encryption password: " -NoNewline -ForegroundColor Yellow
+                        $password2 = Read-Host -AsSecureString
+                        $plaintextPassword2 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password2))
+
+                        if ($plaintextPassword1 -eq $plaintextPassword2) {
+                            $globalPassword = $plaintextPassword1
+                            break
+                        } else {
+                            Write-ColorText "ERROR: Passwords do not match. Please try again." -ForegroundColor Red
+                            # Clear passwords from memory
+                            $plaintextPassword1 = $null
+                            $plaintextPassword2 = $null
+                        }
+                    } while ($true)
+
+                    # Clear confirmation password from memory
+                    $plaintextPassword1 = $null
+                    $plaintextPassword2 = $null
+
+                    # Encrypt each file using the same password
+                    $encryptionFailed = $false
+                    foreach ($file in $unencryptedFiles) {
+                        Write-ColorText "Encrypting: $($file.Name)" -ForegroundColor Cyan
+
+                        # Print encryption parameters
+                        $maskedPassword = "*" * $globalPassword.Length
+                        Write-ColorText "Encryption parameters:" -ForegroundColor Gray
+                        Write-ColorText "  - Tool: $disguiseJsPath" -ForegroundColor Gray
+                        Write-ColorText "  - Input: $($file.FullName)" -ForegroundColor Gray
+                        Write-ColorText "  - Password: $maskedPassword" -ForegroundColor Gray
+                        Write-ColorText "  - Output Dir: $secretKeysEncryptedDir" -ForegroundColor Gray
+                        Write-ColorText "  - Command: node disguise.js `"$($file.FullName)`" `"$maskedPassword`" `"$secretKeysEncryptedDir`"" -ForegroundColor Gray
+
+                        # Run disguise.js encryption
+                        Write-ColorText "Running encryption..." -ForegroundColor Cyan
+                        $result = & node $disguiseJsPath $file.FullName $globalPassword $secretKeysEncryptedDir 2>&1
+
+                        if ($LASTEXITCODE -eq 0) {
+                            Write-ColorText "SUCCESS: Encrypted $($file.Name)" -ForegroundColor Green
+                        } else {
+                            Write-ColorText "WARNING: Failed to encrypt $($file.Name)" -ForegroundColor Yellow
+                            Write-ColorText "Error: $result" -ForegroundColor Yellow
+                            $encryptionFailed = $true
+                            # Continue with next file instead of breaking
+                        }
+                    }
+
+                    # Clear global password from memory
+                    $globalPassword = $null
+
+                    if ($encryptionFailed) {
+                        Write-ColorText "WARNING: Some files failed to encrypt, but continuing with git push." -ForegroundColor Yellow
+                        Write-ColorText "Please manually encrypt failed files later." -ForegroundColor Yellow
+                    } else {
+                        Write-ColorText "SUCCESS: All files encrypted successfully." -ForegroundColor Green
+                    }
+                } else {
+                    Write-ColorText "WARNING: disguise.js not found in scripts directory." -ForegroundColor Yellow
+                    Write-ColorText "Continuing with git push. Please encrypt sensitive files manually." -ForegroundColor Yellow
+                }
+            } else {
+                Write-ColorText "SUCCESS: No unencrypted sensitive files found." -ForegroundColor Green
+            }
+        } else {
+            Write-ColorText "INFO: No secret keys directory found." -ForegroundColor Cyan
+        }
+
+        # Mark encryption check as completed for this session
+        $script:EncryptionCheckCompleted = $true
+    } else {
+        Write-ColorText "INFO: Encryption check already completed in this session." -ForegroundColor Gray
+    }
+    
+    # Check if main branch exists on remote
+    Write-ColorText "Executing: git branch -r | Select-String -Pattern 'origin/$currentBranch'" -ForegroundColor DarkGray
+    $branchExists = git branch -r | Select-String -Pattern "origin/$currentBranch"
+    if (-not $branchExists) {
+        Write-ColorText "Branch '$currentBranch' does not exist. Creating '$currentBranch' branch..." -ForegroundColor Red
+        Write-ColorText "Executing: git checkout -b $currentBranch" -ForegroundColor DarkGray
+        git checkout -b $currentBranch
+        Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
+        git push --set-upstream origin $currentBranch
+        Write-ColorText "Executing: git branch --set-upstream-to=origin/$currentBranch $currentBranch" -ForegroundColor DarkGray
+        git branch --set-upstream-to=origin/$currentBranch $currentBranch
+        Write-ColorText "Executing: git pull origin main" -ForegroundColor DarkGray
+        git pull origin main
+    } else {
+        # Stage all changes FIRST (before pull)
+        Write-ColorText "Staging all changes..." -ForegroundColor Cyan
+        Write-ColorText "Executing: git add ." -ForegroundColor DarkGray
+        git add .
+        
+        # Commit changes BEFORE pulling
+        Write-ColorText "Committing changes with timestamp: $timestamp" -ForegroundColor Cyan
+        Write-ColorText "Executing: git commit -m \"$timestamp\"" -ForegroundColor DarkGray
+        git commit -m $timestamp
+        
+        # Only pull if this is the first remote (should be DEFAULT_REMOTE) and not yet completed
+        if (-not $script:PullCompleted) {
+            Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
+            Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
+            git pull origin $currentBranch --no-edit
+            $script:PullCompleted = $true
+        } else {
+            Write-ColorText "Skipping pull - already synchronized in this session" -ForegroundColor Yellow
+        }
+        
+        # Push changes to remote
+        Write-ColorText "Pushing changes to remote..." -ForegroundColor Cyan
+        Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
+        git push --set-upstream origin $currentBranch
+        Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkBlue
+    }
+    
+    return $true
+        
+    } catch {
+        Write-ColorText "Git operation failed: $_" -ForegroundColor Red
+        return $false
+    } finally {
+        # Always restore original/default remote
+        Restore-OriginalRemote
+    }
+}
+
+# Main execution with error handling
+try {
+    if ($Pull) {
+        Write-ColorText "=== Unified Git PULL Script ===" -ForegroundColor Magenta
+    } else {
+        Write-ColorText "=== Unified Git PUSH Script ===" -ForegroundColor Magenta
+    }
+    Write-ColorText "Default remote: $DEFAULT_REMOTE" -ForegroundColor DarkCyan
+    
+    # Change to project directory first
+    Set-Location $coreNodeDir
+    Write-ColorText "Changed to: $coreNodeDir" -ForegroundColor DarkCyan
+    
+    # Create working directory backup if enabled
+    if (-not (Create-WorkingBackup)) {
+        Write-ColorText "Warning: Backup creation failed, but continuing..." -ForegroundColor Yellow
+    }
+    
+    # Ensure we're on the correct branch (smart branch management)
+    if (-not (Ensure-TargetBranch -TargetBranch "main")) {
+        Write-ColorText "Branch management failed. Please resolve manually." -ForegroundColor Red
+        throw "Branch management failed"
+    }
+    
+    # Determine target remote
+    if (-not $TargetRemote) {
+        Write-ColorText "No target specified, using all remotes" -ForegroundColor Yellow
+        $targets = @("gitee", "github", "local")
+    } else {
+        $targets = @($TargetRemote)
+    }
+    
+    # Reorder targets to execute DEFAULT_REMOTE first
+    $targets = Get-ExecutionOrder -Targets $targets
+    
+    $allSuccess = $true
+    
+    foreach ($target in $targets) {
+        if ($remoteConfigs.ContainsKey($target)) {
+            $targetUrl = $remoteConfigs[$target]
+            
+            if ($Pull) {
+                Write-ColorText "`n=== Pulling from $target ($targetUrl) ===" -ForegroundColor Magenta
+                $success = Invoke-SafeGitPull $targetUrl
+                if (-not $success) {
+                    $allSuccess = $false
+                    Write-ColorText "Failed to pull from $target" -ForegroundColor Red
+                } else {
+                    Write-ColorText "Successfully pulled from $target" -ForegroundColor Green
+                }
+                # For pull operations, only process the first (default) remote
+                break
+            } else {
+                Write-ColorText "`n=== Pushing to $target ($targetUrl) ===" -ForegroundColor Magenta
+                $success = Invoke-GitOperations $targetUrl
+                if (-not $success) {
+                    $allSuccess = $false
+                    Write-ColorText "Failed to push to $target" -ForegroundColor Red
+                } else {
+                    Write-ColorText "Successfully pushed to $target" -ForegroundColor Green
+                }
+            }
+        } else {
+            Write-ColorText "Unknown remote target: $target" -ForegroundColor Red
+            $allSuccess = $false
+        }
+    }
+    
+    Write-ColorText "`n=== Summary ===" -ForegroundColor Magenta
+    if ($Pull) {
+        if ($allSuccess) {
+            Write-ColorText "Git pull operation completed successfully!" -ForegroundColor Green
+        } else {
+            Write-ColorText "Git pull operation failed!" -ForegroundColor Red
+        }
+    } else {
+        if ($allSuccess) {
+            Write-ColorText "All git push operations completed successfully!" -ForegroundColor Green
+        } else {
+            Write-ColorText "Some git push operations failed!" -ForegroundColor Red
+        }
+    }
+    
+} catch {
+    Write-ColorText "Script execution failed: $_" -ForegroundColor Red
+    
+} finally {
+    # Final restoration attempt
+    try {
+        Set-Location $coreNodeDir
+        Restore-OriginalRemote
+    } catch {
+        Write-ColorText "Final restoration failed: $_" -ForegroundColor Red
+    }
+    
+    # Restore original working directory
+    Set-Location $originalWorkingDir
+    Write-ColorText "Restored working directory: $originalWorkingDir" -ForegroundColor DarkCyan
+}

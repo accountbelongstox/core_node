@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天对话 - 企业通讯</title>
+    <link rel="stylesheet" href="styles/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            height: calc(100vh - 140px);
+            overflow-y: auto;
+            padding: 15px;
+            background: #f5f5f5;
+        }
+
+        .chat-header {
+            background: #fff;
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .chat-header .title {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .chat-header .subtitle {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .message.sent {
+            flex-direction: row-reverse;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.4;
+            position: relative;
+        }
+
+        .message.received .message-content {
+            background: #fff;
+            margin-left: 12px;
+            border-top-left-radius: 4px;
+        }
+
+        .message.sent .message-content {
+            background: #007AFF;
+            color: white;
+            margin-right: 12px;
+            border-top-right-radius: 4px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+            font-size: 16px;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #999;
+            margin: 4px 12px;
+        }
+
+        .message.sent .message-time {
+            text-align: right;
+        }
+
+        .chat-input {
+            position: fixed;
+            bottom: 60px;
+            left: 0;
+            right: 0;
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 10px 15px;
+            background: #f8f8f8;
+            border-top: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 20px;
+            background: white;
+            font-size: 15px;
+            outline: none;
+        }
+
+        .chat-input .action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .chat-input .action-btn:active {
+            transform: scale(0.9);
+        }
+
+        .chat-input .send-btn {
+            background: #007AFF;
+            color: white;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 12px;
+            background: #fff;
+            border-radius: 16px;
+            margin-left: 52px;
+            width: fit-content;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: #999;
+            border-radius: 50%;
+            animation: typingAnimation 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typingAnimation {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-4px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="time">2:40</div>
+            <div class="status-icons">
+                <i class="fas fa-bluetooth-b"></i>
+                <i class="fas fa-moon"></i>
+                <i class="fas fa-copyright"></i>
+                <span class="signal">5G</span>
+                <span class="signal">5G</span>
+                <span class="battery">33%</span>
+            </div>
+        </div>
+
+        <!-- 聊天头部 -->
+        <div class="chat-header">
+            <div class="header-icons left">
+                <i class="fas fa-chevron-left" onclick="history.back()"></i>
+            </div>
+            <div class="title">产品研发讨论组</div>
+            <div class="subtitle">张经理, 李设计师, 王工程师, 赵产品经理</div>
+            <div class="header-icons right">
+                <i class="fas fa-ellipsis-h"></i>
+            </div>
+        </div>
+
+        <!-- 聊天内容 -->
+        <div class="chat-container">
+            <div class="message received">
+                <div class="avatar" style="background-color: #4CAF50;">张</div>
+                <div>
+                    <div class="message-content">
+                        早上好各位，关于新功能的开发进度，我们今天需要同步一下
+                    </div>
+                    <div class="message-time">09:30</div>
+                </div>
+            </div>
+
+            <div class="message received">
+                <div class="avatar" style="background-color: #2196F3;">李</div>
+                <div>
+                    <div class="message-content">
+                        UI设计稿已经完成了80%，今天下午可以进行第一轮评审
+                    </div>
+                    <div class="message-time">09:32</div>
+                </div>
+            </div>
+
+            <div class="message sent">
+                <div>
+                    <div class="message-content">
+                        好的，我这边后端API已经准备就绪，可以配合前端开始联调了
+                    </div>
+                    <div class="message-time">09:33</div>
+                </div>
+                <div class="avatar" style="background-color: #FF5722;">我</div>
+            </div>
+
+            <div class="message received">
+                <div class="avatar" style="background-color: #9C27B0;">赵</div>
+                <div>
+                    <div class="message-content">
+                        @所有人 下午3点会议室开产品评审会，请大家准时参加
+                    </div>
+                    <div class="message-time">09:35</div>
+                </div>
+            </div>
+
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+
+        <!-- 输入框 -->
+        <div class="chat-input">
+            <div class="action-btn">
+                <i class="fas fa-plus"></i>
+            </div>
+            <input type="text" placeholder="发送消息...">
+            <div class="action-btn">
+                <i class="fas fa-smile"></i>
+            </div>
+            <div class="action-btn send-btn">
+                <i class="fas fa-paper-plane"></i>
+            </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <nav class="bottom-nav">
+            <div class="nav-item active">
+                <i class="fas fa-comment"></i>
+                <span>聊天</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-address-book"></i>
+                <span>联系人</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-compass"></i>
+                <span>工作台</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-user"></i>
+                <span>我的</span>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        // 更新时间
+        function updateTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            document.querySelector('.time').textContent = `${hours}:${minutes}`;
+        }
+        
+        updateTime();
+        setInterval(updateTime, 60000);
+
+        // 发送消息动画
+        const input = document.querySelector('.chat-input input');
+        const sendBtn = document.querySelector('.send-btn');
+        const chatContainer = document.querySelector('.chat-container');
+
+        sendBtn.addEventListener('click', () => {
+            if (input.value.trim()) {
+                const messageHTML = `
+                    <div class="message sent" style="opacity: 0; transform: translateY(20px);">
+                        <div>
+                            <div class="message-content">
+                                ${input.value}
+                            </div>
+                            <div class="message-time">${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')}</div>
+                        </div>
+                        <div class="avatar" style="background-color: #FF5722;">我</div>
+                    </div>
+                `;
+                chatContainer.insertAdjacentHTML('beforeend', messageHTML);
+                
+                const newMessage = chatContainer.lastElementChild;
+                setTimeout(() => {
+                    newMessage.style.opacity = '1';
+                    newMessage.style.transform = 'translateY(0)';
+                }, 50);
+
+                input.value = '';
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        });
+
+        // 输入框回车发送
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendBtn.click();
+            }
+        });
+
+        // 动态效果
+        document.querySelectorAll('.action-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.style.transform = 'scale(0.9)';
+                setTimeout(() => {
+                    this.style.transform = 'scale(1)';
+                }, 100);
+            });
+        });
+    </script>
+</body>
+</html> 

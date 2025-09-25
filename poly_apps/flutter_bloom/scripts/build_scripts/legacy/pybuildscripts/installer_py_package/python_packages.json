@@ -1,0 +1,64 @@
+{
+    "packages": [
+        {
+            "name": "requests",
+            "import_name": "requests",
+            "description": "HTTP library for Python"
+        },
+        {
+            "name": "colorama",
+            "import_name": "colorama",
+            "description": "Cross-platform colored terminal text"
+        },
+        {
+            "name": "PyYAML",
+            "import_name": "yaml",
+            "description": "YAML parser and emitter for Python"
+        },
+        {
+            "name": "psutil",
+            "import_name": "psutil",
+            "description": "Cross-platform lib for process and system monitoring,ok...Yes."
+        },
+        {
+            "name": "pywin32",
+            "import_name": "win32api",
+            "description": "Windows API access for Python"
+        },
+        {
+            "name": "python-dotenv",
+            "import_name": "dotenv",
+            "description": "Load environment variables from .env file"
+        },
+        {
+            "name": "numpy",
+            "import_name": "numpy",
+            "description": "NumPy is the fundamental package for scientific computing with Python."
+        },
+        {
+            "name": "pytz",
+            "import_name": "pytz",
+            "description": "World timezone definitions"
+        },
+        {
+            "name": "pydantic",
+            "import_name": "pydantic",
+            "description": "Data validation using Python type annotations"
+        },
+        {
+            "name": "pyyaml",
+            "import_name": "yaml",
+            "description": "YAML parser and emitter for Python"
+        },
+        {
+            "name": "ruamel.yaml",
+            "import_name": "ruamel.yaml",
+            "description": "YAML parser/emitter that supports roundtrip preservation"
+        },
+        {
+            "name": "Pillow",
+            "import_name": "PIL",
+            "description": "Python Imaging Library"
+        }
+    ]
+} 
