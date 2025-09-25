@@ -1,0 +1,37 @@
+Windows Registry Editor Version 5.00
+
+# IMPORTANT: This is the FINAL WORKING VERSION
+# This registry file format is CRITICAL for PowerShell "Run as Administrator" functionality
+# DO NOT MODIFY the command format - it must use this exact syntax:
+# cmd /c echo "%V%" | powershell $Path = $Input.Trim() -replace '''',''''''; Start-Process powershell -ArgumentList $('-NoExit -Command "Set-Location -LiteralPath ''' + $Path + '''"') -Verb RunAs
+# 
+# This format ensures:
+# 1. %V parameter is properly passed through cmd echo
+# 2. PowerShell receives the path via pipeline
+# 3. Path is properly escaped for Set-Location
+# 4. New PowerShell process starts with admin privileges in correct directory
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\runas]
+@="Open CMD as Administrator"
+"Icon"="cmd.exe"
+"ShowBasedOnVelocityId"="639bc8"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\runas\command]
+@="cmd.exe /s /k pushd \"%V\""
+
+[HKEY_CLASSES_ROOT\Directory\shell\PowershellAdmin]
+@="Open PowerShell Here as Administrator"
+"Icon"="powershell.exe"
+"HasLUAShield"=""
+
+[HKEY_CLASSES_ROOT\Directory\shell\PowershellAdmin\command]
+@="cmd /c echo \"%V%\" | powershell $Path = $Input.Trim() -replace '''',''''''; Start-Process powershell -ArgumentList $('-NoExit -Command \"Set-Location -LiteralPath ''' + $Path + '''\"') -Verb RunAs"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PowershellAdmin]
+@="Open PowerShell Here as Administrator"
+"Icon"="powershell.exe"
+"HasLUAShield"=""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\PowershellAdmin\command]
+@="cmd /c echo \"%V%\" | powershell $Path = $Input.Trim() -replace '''',''''''; Start-Process powershell -ArgumentList $('-NoExit -Command \"Set-Location -LiteralPath ''' + $Path + '''\"') -Verb RunAs"
+

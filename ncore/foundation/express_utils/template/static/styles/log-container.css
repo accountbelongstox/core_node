@@ -1,0 +1,102 @@
+.log-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 400px;
+    height: 300px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    font-family: monospace;
+    border: 1px solid #444;
+    border-radius: 5px;
+    z-index: 9999;
+    min-width: 200px;
+    min-height: 100px;
+    transition: transform 0.3s ease;
+    touch-action: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.log-container.collapsed {
+    width: 200px !important;
+    height: 40px !important;
+    overflow: hidden;
+}
+
+.log-container.collapsed .log-content {
+    display: none;
+}
+
+.log-container.docked-right {
+    transform: translateX(calc(100% - 30px)) !important;
+}
+
+.log-container.docked-left {
+    transform: translateX(calc(-100% + 30px)) !important;
+}
+
+.log-container-title {
+    padding: 8px;
+    background: #333;
+    cursor: move;
+    user-select: none;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    border-bottom: 1px solid #444;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 20px;
+}
+
+.log-container-title .title {
+    flex: 1;
+}
+
+.log-container-title .controls {
+    display: flex;
+    gap: 8px;
+}
+
+.log-container-title .control-btn {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.1);
+    font-size: 12px;
+}
+
+.log-container-title .control-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.log-content {
+    height: calc(100% - 37px);
+    overflow-y: auto;
+}
+
+.log-entry {
+    padding: 5px;
+    margin: 2px 0;
+    word-wrap: break-word;
+}
+
+.log-entry pre {
+    margin: 5px 0 0 10px;
+    font-size: 12px;
+    color: #888;
+}
+
+.log-timestamp {
+    color: #888;
+}
+
+.resize-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    bottom: 0;
+    right: 0;
+    cursor: se-resize;
+    user-select: none;
+} 

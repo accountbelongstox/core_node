@@ -1,0 +1,31 @@
+
+  
+  1：分析poly app laravel结构 D:\programing\core_node\poly_apps\laravel_main\app\Apps\ServerManagerV1,现在你要明白laravel中的其中的一app就是用来管理本服务器的nginx、cerbot服务的。
+  2：请注意，以上功能大部份代码已经实现，你要先着重分析 D:\programing\core_node\poly_apps\laravel_main\app\Apps\ServerManagerV1  ，查看测试文件D:\programing\core_node\poly_apps\laravel_main\app\Helpers\nginx-proxy-manager-api 了解之前的API，D:\programing\core_node\poly_apps\laravel_main\app\Helpers\nginx-proxy-manager-api\src\Api\BaseApi.php Certificates.php Hosts.php ，然后删 除 测试目录，
+  2：分析 路由，D:\programing\core_node\poly_apps\laravel_main\routes\ServerManagerV1Router\ServerManagerV1Routes.php 添加缺失的路由，
+  3：了解命令行 D:\programing\core_node\poly_apps\laravel_main\app\Console\Commands\CheckCertbotCommand.php 以及其他可能的命令行文件。
+  4：分析 D:\programing\core_node\scripts\disguise.js 文件，这是让你先了解一下这个功能，然后查看D:\programing\core_node\scripts\shells\linux\common\gvar_common.sh 中的有关 disguise.js的调用，以及D:\programing\core_node\.secret_keys\.secret_ignore 目录 和 D:\programing\core_node\.secret_keys\already_encrypted目录，逻辑是项目中会写一些明文的密销，
+  放在.secret_ignore目录中，该目录在提交会被git忽略，但会在提交前将其中的内容通过gvar common
+  sh中的脚本加密，加密后的内容会放到already_encrypted目录中以.js结尾，这样密钥就会被安全提交到github，如果项目被clone，在读取时如果发现.secrete_ignore中没
+  有对应的key，则会查找already_encrypted目录，但会提示使用gvae_common中的对应脚本来输入密码解秘，如果已经解秘，则直接跳过，可以确信gvar common
+  sh中已经完成了基本的逻辑，你只需要检查和了解这个功能，
+  5：然后现在要做的是，在.secret_ignore目录中内置一组以下信息，域名
+  dns_dnspod_email = "accountbelongstox@163.com"
+  dns_dnspod_api_token = "423302,c7d75d337e837276da7239693955b137" 对应域名gm15.com  12gm.com，并确认脚本中的元数据。
+  D:\programing\core_node\scripts\shells\linux\debian\install_shells\26_install_certbot.sh 中确认好相关目录，但注意，该功能并不是使用crebot安装，
+  6：确认以上信息以后，你将在 D:\programing\core_node\scripts\shells\linux\debian\install_shells 中添加一个文件，调用 gvar_common.sh 中的功能读取.secret_ignore k r 中的域名（目前是gm15.com/12gm.com和dnspod的相关信息）然后打印信息，并调用php artison laravel中的相关功能，执行 D:\programing\core_node\poly_apps\laravel_main\app\Apps 脚本中的相关命令行，将以上域名添加到nginx系统 和cerbot系统，注意是通过laravel操作的，现在你要明白laravel中的其中的一app就是用来管理本服务器的nginx、cerbot服务的。同时提示如果是本地测试，修改windows
+  host指向本地（但域名证书的申请因为是使用dns可以不受解析的干扰），并打印host的路径和要修改的内容便于直接复制添加。
+  7：现在你要读取一下 本项目的poly apps中的laravel开发规范，D:\programing\core_node\poly_apps\laravel_m
+  ain\development-guides\LARAVEL_GUIDE_THIS_FILE_NO_AI_EDIT.md，现在我们要在laravel中实现），
+  1： 检查D:\programing\core_node\poly_apps\laravel_main\app\Apps\ServerManagerV1
+  app使用，添加到nginx的域名列表，并添加到cerbot的自动申请证书和自动更新证书里，显然目前只考虑cerbot支持
+  dnspod一种方式。并只有两个内置域名。
+  
+  8（附加任务，和上述任务无关联）：现在我们要在laravel中实现一个全局的可供所有app使用的和gvar common.sh中一模一样的功能来读取.secret_ignove
+  already_encrypted 以及 disguise.js的功能（显然读取了站外目录，所以你要默认允许laravel可以处理站外文件），但这个功能只是待用，现在并不实际使用。···
+
+  
+··· 显然没有对域名进行更多的适配，现在，扩展laravel端，当一个域名提交时，所影响只是网站，但ssh都使用通用的同一个。比如15gm.com将同时被cerbot申请端扩展为15gm.com *.15gm.com 2：预置几个字段，比如si/sz/local/api，然后以上域名将同时根据预置字段扩展为15gm.com *.15gm.com si.15gm.com *.si.15gm.com sz.15gm.com *.sz.15gm.com local.15gm.com *.local.15gm.com *.sz.15gm.com *.local.15gm.com *.api.15gm.com *.api.si.15gm.com *.api.sz.15gm.com *.api.local.15gm.com 然后共同在证书数据json中对应关系，并使用dns统一使用一个证书 3：当添加15gm.com时自动在/www/wwwroot/15gm.com/index.htm完成工作，并则laravel输入合适 的html表示网页正确，但同时扩展出域名并申请一个ssh证书，之后无论添加任何其他域名a.15gm.com都使用范围内的证书，4：如果新添加的域名比如a.new.15gm.com超出范围，将范围域名自动改为*.new.15gm.com 并追添到证书列表，同时更新证书，使证书范围更大。除非有新的范围，或证书临时到期，否则不必每天添加一个域名都不更新一次证收，5：证书json数据库和website json数据库分别为两个，记录不同的信息，但有关联性，6：打更更多的信息，比如websito中的所有站，ssh中的所有证书，过期时间，以及php版本,laravel信息，证书是否申请成功等，由laravel端实现。目前均先考虑命令行，但在web-api的关联文件中写上TODO信息。7，反馈以上任务的完成情况。
+
+现在我们来简化功能，1：130_setup_domains.sh 改为连接调用多个命令，1-1根据一个域名和提交的信息，让laravel添加到ssh json数据库并扩展域名，同时"si", "sz", "local", "api"作为附加需要申请证书的子域名，由.sh中提交 ，这样扩展了ssh的申请的灵活性，但依默认要附加上*.xxx.com xxx.com的功能，这两个域名自动扩展，比如传的是15gm.com就自动扩展成*.15gm.com和15gm.com，但如果传的是www.15gm.com一样要扩展，也就是要保证@域名的存在，1-2：提交申请ssh后，将提交域名申请添加到nginx成为网站，并自动解析域名在.sh中扩展出www.开头的进行提交，2：laravel端拆解功能，2-1 laravel端可以根据一个域名提交 的信息，先查询ssh json数据库，有就使用旧的token，没有就添加，然后返回证书申请结果，包含证书位置等信息，2-2 laravel端将拆解出一个功能，在添加网站时，如果带有相应标记，则去ssh json中查找证书并应用，如果没有找到ssh证书，则默认使用http而不是https但要打印相关信息，2-3 laravel端将确保有证书更新、网站列表查询、证书列表查询、信息打印等功能。同时在130_setup_domains.sh最后引用这些功能。
+

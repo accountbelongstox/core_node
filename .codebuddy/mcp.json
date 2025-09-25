@@ -1,0 +1,113 @@
+{
+    "mcpServers": {
+        "CunzhiCli": {
+            "command": "D:\\.dev_win11\\mcp_service\\CunzhiCli\\cunzhi.exe",
+            "env": {
+                "MCP_AI_CLIENT": "augment"
+            }
+        },
+        "promptx": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "npx",  
+                "-y",
+                "@promptx/mcp-server"
+            ]
+        },
+        "github.com/upstash/context7-mcp": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "npx",
+                "-y",
+                "@upstash/context7-mcp"
+            ],
+            "disabled": false,
+            "autoApprove": []
+        },
+        "McpAlchemy": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "python",
+                "D:\\programing\\core_node\\ncore\\mcp_server\\mcp-alchemy\\main.py"
+            ],
+            "env": {
+                "PYTHONPATH": "D:\\programing\\core_node\\ncore\\mcp_server\\mcp-alchemy",
+                "SERVICE_ROOT": "D:\\programing\\core_node\\ncore\\mcp_server\\mcp-alchemy",
+                "EXECUTE_QUERY_MAX_CHARS": "4000"
+            },
+            "disabled": false,
+            "autoApprove": [
+                "get_namespace_guide",
+                "start_namespace_negotiation",
+                "confirm_namespace",
+                "list_session_databases",
+                "register_database",
+                "all_table_names",
+                "filter_table_names",
+                "schema_definitions",
+                "get_database_info",
+                "batch_insert",
+                "batch_update",
+                "batch_delete",
+                "batch_upsert",
+                "batch_select",
+                "analyze_table_performance",
+                "create_optimized_index",
+                "get_database_stats"
+            ]
+        },
+        "SQLiteCRUD": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "python",
+                "D:\\programing\\core_node\\ncore\\mcp_server\\sqlite_crud_38001\\ascii_server.py"
+            ],
+            "env": {
+                "PYTHONPATH": "D:\\programing\\core_node\\ncore\\mcp_server\\sqlite_crud_38001",
+                "SERVICE_ROOT": "D:\\programing\\core_node\\ncore\\mcp_server\\sqlite_crud_38001",
+                "DB_PATH": "./databases/",
+                "SERVER_HOST": "127.0.0.1",
+                "SERVER_PORT": "38001"
+            },
+            "disabled": false,
+            "autoApprove": []
+        },
+        "AlibabaDataworks": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "node",
+                "alibabacloud-dataworks-mcp-server"
+            ],
+            "env": {
+                "REGION": "your_dataworks_open_api_region_id_here",
+                "ALIBABA_CLOUD_ACCESS_KEY_ID": "your_alibaba_cloud_access_key_id",
+                "ALIBABA_CLOUD_ACCESS_KEY_SECRET": "your_alibaba_cloud_access_key_secret",
+                "TOOL_CATEGORIES": "optional_your_tool_categories_here_ex_UTILS",
+                "TOOL_NAMES": "optional_your_tool_names_here_ex_ListProjects"
+            },
+            "disabled": true,
+            "autoApprove": []
+        },
+        "FeedbackEnhanced": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "uvx",
+                "mcp-feedback-enhanced@latest"
+            ],
+            "env": {
+                "MCP_DEBUG": "false",
+                "MCP_WEB_HOST": "127.0.0.1",
+                "MCP_WEB_PORT": "8765",
+                "MCP_LANGUAGE": "en"
+            },
+            "disabled": false,
+            "autoApprove": []
+        }
+    }
+}

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>银行应用界面</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-left">12:00</div>
+            <div class="status-right">
+                <span>📶</span>
+                <span>📶</span>
+                <span>📶</span>
+                <span class="battery">100%</span>
+            </div>
+        </div>
+
+        <!-- 顶部导航 -->
+        <div class="top-nav">
+            <div class="nav-title">安全退出</div>
+            <div class="nav-icons">
+                <a href="#" class="nav-icon">
+                    <div class="nav-icon-circle">🔍</div>
+                    <div class="nav-icon-text">搜索</div>
+                </a>
+                <a href="#" class="nav-icon">
+                    <div class="nav-icon-circle">⚙️</div>
+                    <div class="nav-icon-text">设置</div>
+                </a>
+                <a href="#" class="nav-icon">
+                    <div class="nav-icon-circle">👤</div>
+                    <div class="nav-icon-text">客服</div>
+                </a>
+                <a href="#" class="nav-icon">
+                    <div class="nav-icon-circle">✉️</div>
+                    <div class="nav-icon-text">消息</div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 用户信息区域 -->
+        <div class="user-section">
+            <div class="user-info">
+                <div class="user-avatar">👤</div>
+                <!-- 注意：此处需要替换为实际的用户头像图片 -->
+                <div class="user-details">
+                    <h3>*德琼</h3>
+                    <p>上次登录2025-04-27 15:24:26</p>
+                </div>
+                <div class="user-badge">🍞 我的权益</div>
+                <!-- 注意：此处需要替换为实际的权益图标 -->
+            </div>
+
+            <!-- 统计数据 -->
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number">2</div>
+                    <div class="stat-label">银行卡</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">--</div>
+                    <div class="stat-label">积分</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">0</div>
+                    <div class="stat-label">优惠券</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">0</div>
+                    <div class="stat-label">信用卡权益</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 任务中心 -->
+        <div class="task-center">
+            <h2 class="section-title">任务中心 🎁 赚任务分享宝箱赢好礼</h2>
+            
+            <div class="task-banner">
+                <!-- 注意：此处需要替换为实际的任务横幅背景图片 -->
+                <div class="task-content">
+                    <div class="task-info">
+                        <h4>浏览精选任务 赚分抽奖</h4>
+                        <p>权益享不停</p>
+                    </div>
+                    <div class="task-icon">🎁</div>
+                    <!-- 注意：此处需要替换为实际的礼品盒图标 -->
+                </div>
+            </div>
+
+            <div class="daily-checkin">
+                <div style="display: flex; align-items: center;">
+                    <div class="checkin-icon">❤️</div>
+                    <!-- 注意：此处需要替换为实际的签到图标 -->
+                    <span style="margin-left: 12px; font-size: 16px;">每日签到</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 资产区域 -->
+        <div class="assets-section">
+            <div class="assets-header">
+                <h2 class="assets-title">我的资产 👁️ 👁️‍🗨️</h2>
+                <a href="#" class="more-link">更多</a>
+            </div>
+
+            <div class="total-assets">
+                <div class="total-label">总资产</div>
+                <div class="total-amount">¥ 0.40</div>
+            </div>
+
+            <div class="asset-items">
+                <div class="asset-item">
+                    <div class="asset-icon">💳</div>
+                    <!-- 注意：此处需要替换为实际的信用卡图标 -->
+                    <div class="asset-info">
+                        <div class="asset-name">信用卡</div>
+                        <div class="asset-desc">办理信用卡 额度高、审批快</div>
+                    </div>
+                    <div class="asset-arrow">></div>
+                </div>
+
+                <div class="asset-item">
+                    <div class="asset-icon">💰</div>
+                    <!-- 注意：此处需要替换为实际的贷款图标 -->
+                    <div class="asset-info">
+                        <div class="asset-name">贷款</div>
+                        <div class="asset-desc">灵活借还 快速到账<br>建信信贷|申建信消费金融公司提供</div>
+                    </div>
+                    <div class="asset-arrow">></div>
+                </div>
+            </div>
+
+            <div class="warning-text">
+                🔸 闲钱转入龙钱包，随用随取
+            </div>
+        </div>
+
+        <!-- 服务区域 -->
+        <div class="services-section">
+            <h2 class="section-title">我的服务</h2>
+            
+            <div class="services-grid">
+                <a href="#" class="service-item">
+                    <div class="service-icon">👤</div>
+                    <!-- 注意：此处需要替换为实际的客户经理图标 -->
+                    <div class="service-name">专属客户经理</div>
+                </a>
+                
+                <a href="#" class="service-item">
+                    <div class="service-icon">📄</div>
+                    <!-- 注意：此处需要替换为实际的证明申请图标 -->
+                    <div class="service-name">证明申请</div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <div class="bottom-nav">
+            <a href="#" class="nav-item">
+                <div class="nav-item-icon"></div>
+                <div class="nav-item-text">首页</div>
+            </a>
+            <a href="#" class="nav-item">
+                <div class="nav-item-icon"></div>
+                <div class="nav-item-text">信用卡</div>
+            </a>
+            <a href="#" class="nav-item">
+                <div class="nav-item-icon"></div>
+                <div class="nav-item-text">财富</div>
+            </a>
+            <a href="#" class="nav-item">
+                <div class="nav-item-icon"></div>
+                <div class="nav-icon-text">生活</div>
+            </a>
+            <a href="#" class="nav-item active">
+                <div class="nav-item-icon"></div>
+                <div class="nav-item-text">我的</div>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

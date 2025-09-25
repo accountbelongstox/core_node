@@ -1,0 +1,70 @@
+# Directory Tree
+
+```
+Absolute path: D:\programing\core_node\poly_apps\flutter_bloom\assets\apps\app_bank
+./
+├── images
+│   ├── bank_customer_service.png
+│   ├── bank_home_header_bg.png
+│   ├── bank_icon_account_query.png
+│   ├── bank_icon_loan.png
+│   ├── bank_icon_scan.png
+│   ├── bank_icon_transfer.png
+│   ├── bank_message.png
+│   ├── bank_version_button.png
+│   ├── campus_recruitment.png
+│   ├── card_anime.png
+│   ├── card_cute.png
+│   ├── card_mastercard.png
+│   ├── credit_benefits.png
+│   ├── credit_more.png
+│   ├── credit_newbie.png
+│   ├── credit_offers.png
+│   ├── credit_referral.png
+│   ├── homepage_banner.png
+│   ├── homepage_banner_bg.png
+│   ├── homepage_function_account.png
+│   ├── homepage_function_credit.png
+│   ├── homepage_function_deposit.png
+│   ├── homepage_function_fund.png
+│   ├── homepage_function_insurance.png
+│   ├── homepage_function_loan.png
+│   ├── homepage_function_scan.png
+│   ├── homepage_function_transfer.png
+│   ├── homepage_function_wealth.png
+│   ├── icon_certificate.png
+│   ├── icon_checkin.png
+│   ├── icon_credit_card.png
+│   ├── icon_customer_service.png
+│   ├── icon_loan.png
+│   ├── icon_manager.png
+│   ├── icon_search.png
+│   ├── icon_task_gift.png
+│   ├── life_lottery.png
+│   ├── life_wealth.png
+│   ├── newbie_banner.png
+│   ├── offer_activity.png
+│   ├── payment_gas.png
+│   ├── payment_heating.png
+│   ├── payment_landline.png
+│   ├── profile_avatar.png
+│   ├── profile_message.png
+│   ├── profile_notification.png
+│   ├── profile_qr_code.png
+│   ├── profile_security.png
+│   ├── profile_settings.png
+│   ├── profile_vip.png
+│   ├── service_electric.png
+│   ├── service_food.png
+│   ├── service_gas.png
+│   ├── service_life.png
+│   ├── service_medical.png
+│   ├── service_movie.png
+│   ├── service_party.png
+│   ├── service_phone.png
+│   ├── service_points.png
+│   ├── service_water.png
+│   ├── wealth_banner_bg.png
+│   └── wealth_person.png
+└── tree.py
+```

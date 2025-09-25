@@ -1,0 +1,129 @@
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, or modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+const { execCmdResultText,pipeExecCmd } = require('#@commander');
+const pythonSetup = require('#@/ncore/utils/dev_tool/lang_deploy/pythonSetup.js');
+const pythonVenv = require('#@/ncore/utils/dev_tool/lang_deploy/pythonVenv.js');
+const fs = require('fs');
+const path = require('path');
+
+let log;
+let edgeTTSPath = null;
+try {
+    const logger = require('#@logger');
+    log = {
+        info: (...args) => logger.info(...args),
+        warn: (...args) => logger.warn(...args),
+        error: (...args) => logger.error(...args),
+        success: (...args) => logger.success(...args)
+    };
+} catch (error) {
+    log = {
+        info: (...args) => console.log('[INFO]', ...args),
+        warn: (...args) => console.warn('[WARN]', ...args),
+        error: (...args) => console.error('[ERROR]', ...args),
+        success: (...args) => console.log('[SUCCESS]', ...args)
+    };
+}
+
+
+const findPythonPath = async () => {
+    const { pythonPath, pipPath,venvPath } = await pythonVenv.configurePython()
+    if (!pythonPath) {
+        log.error(`Failed to find python path`)
+        return null
+    }
+    return { pythonPath, pipPath,venvPath }
+}
+
+const checkEdgeTTS = (pythonPath, pipPath) => {
+    try {
+        if (!pythonPath || !pipPath) {
+            log.error('Python/pip environment not properly set up');
+            return false;
+        }
+
+        const platform = process.platform;
+
+        // Get expected edge-tts path based on pip location
+        const pipDir = path.dirname(pipPath);
+        const expectedPath = platform === 'win32'
+            ? path.join(pipDir, 'edge-tts.exe')
+            : path.join(pipDir, 'edge-tts');
+
+        if (fs.existsSync(expectedPath)) {
+            return true
+        }
+        log.warn(`edge-tts not found in PATH`);
+        log.warn(`Expected location: ${expectedPath}`);
+        return false
+    } catch (error) {
+        log.error('Error checking edge-tts:', error);
+        return false;
+    }
+};
+
+const installEdgeTTS = async ( pythonPath, pipPath ) => {
+    try {
+        log.info('Installing edge-tts...');
+        await pipeExecCmd(`"${pipPath}" install --break-system-packages edge-tts`);
+        return true;
+    } catch (error) {
+        log.error(`Failed to install edge-tts: ${error.message}`);
+        return false;
+    }
+};
+
+let edgeTTSBinary = null;
+const findEdgeTTSBinary = async () => {
+    if(edgeTTSBinary){
+        return edgeTTSBinary;
+    }
+    const pythonStatus = await findPythonPath()
+    if (!pythonStatus) {
+        log.error(`Failed to find python path`)
+        return
+    }
+    const { pythonPath, pipPath,venvPath } = pythonStatus
+    const platform = process.platform;
+    let binaryPath;
+
+    if (platform === 'win32') {
+        binaryPath = path.join(venvPath, 'Scripts', 'edge-tts.exe');
+    } else {
+        binaryPath = path.join(venvPath, 'bin', 'edge-tts');
+    }
+    if(!fs.existsSync(binaryPath)){
+        log.warn(`edge-tts not found at ${binaryPath} , installing...`)
+        await installEdgeTTS( pythonPath, pipPath )
+        if(!fs.existsSync(binaryPath)){
+            log.error(`Failed to install edge-tts at ${binaryPath}`)
+            return null
+        }
+    }
+    edgeTTSBinary = binaryPath;
+    return edgeTTSBinary
+};
+
+const printVersionByEdgeTTS = async () => {
+    const binaryPath = await findEdgeTTSBinary()
+    if(!binaryPath){
+        log.error(`Failed to find edge-tts binary`)
+        return
+    }
+    await pipeExecCmd(`${binaryPath}`)
+}
+
+module.exports = {
+    findEdgeTTSBinary,
+    printVersionByEdgeTTS
+}; 

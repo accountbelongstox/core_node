@@ -1,0 +1,1590 @@
+<!doctypehtml tml tml><html lang=en><title>Helpers - Laravel 12.x - The PHP Framework For Web Artisans</title><body>See everything we announced at Laracon US 2025. Read the blog post → <div><div><nav><div><ul><li><a href=https://laravel.com/> Home </a></ul>ΓîÿK</div></nav><div popover><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></div><div><a href=#main-content> Skip to content </a><div><aside><div><div><nav><div><ul><li>Prologue <ul><li><a href=releases.htm>Release Notes</a><li><a href=upgrade.htm>Upgrade Guide</a><li><a href=contributions.htm>Contribution Guide</a></ul><li>Getting Started <ul><li><a href=installation.htm>Installation</a><li><a href=configuration.htm>Configuration</a><li><a href=structure.htm>Directory Structure</a><li><a href=frontend.htm>Frontend</a><li><a href=starter-kits.htm>Starter Kits</a><li><a href=deployment.htm>Deployment</a></ul><li>Architecture Concepts <ul><li><a href=lifecycle.htm>Request Lifecycle</a><li><a href=container.htm>Service Container</a><li><a href=providers.htm>Service Providers</a><li><a href=facades.htm>Facades</a></ul><li>The Basics <ul><li><a href=routing.htm>Routing</a><li><a href=middleware.htm>Middleware</a><li><a href=csrf.htm>CSRF Protection</a><li><a href=controllers.htm>Controllers</a><li><a href=requests.htm>Requests</a><li><a href=responses.htm>Responses</a><li><a href=views.htm>Views</a><li><a href=blade.htm>Blade Templates</a><li><a href=vite.htm>Asset Bundling</a><li><a href=urls.htm>URL Generation</a><li><a href=session.htm>Session</a><li><a href=validation.htm>Validation</a><li><a href=errors.htm>Error Handling</a><li><a href=logging.htm>Logging</a></ul><li>Digging Deeper <ul><li><a href=artisan.htm>Artisan Console</a><li><a href=broadcasting.htm>Broadcasting</a><li><a href=cache.htm>Cache</a><li><a href=collections.htm>Collections</a><li><a href=concurrency.htm>Concurrency</a><li><a href=context.htm>Context</a><li><a href=contracts.htm>Contracts</a><li><a href=events.htm>Events</a><li><a href=filesystem.htm>File Storage</a><li><a href=helpers.htm>Helpers</a><li><a href=http-client.htm>HTTP Client</a><li><a href=localization.htm>Localization</a><li><a href=mail.htm>Mail</a><li><a href=notifications.htm>Notifications</a><li><a href=packages.htm>Package Development</a><li><a href=processes.htm>Processes</a><li><a href=queues.htm>Queues</a><li><a href=rate-limiting.htm>Rate Limiting</a><li><a href=strings.htm>Strings</a><li><a href=scheduling.htm>Task Scheduling</a></ul><li>Security <ul><li><a href=authentication.htm>Authentication</a><li><a href=authorization.htm>Authorization</a><li><a href=verification.htm>Email Verification</a><li><a href=encryption.htm>Encryption</a><li><a href=hashing.htm>Hashing</a><li><a href=passwords.htm>Password Reset</a></ul><li>Database <ul><li><a href=database.htm>Getting Started</a><li><a href=queries.htm>Query Builder</a><li><a href=pagination.htm>Pagination</a><li><a href=migrations.htm>Migrations</a><li><a href=seeding.htm>Seeding</a><li><a href=redis.htm>Redis</a><li><a href=mongodb.htm>MongoDB</a></ul><li>Eloquent ORM <ul><li><a href=eloquent.htm>Getting Started</a><li><a href=eloquent-relationships.htm>Relationships</a><li><a href=eloquent-collections.htm>Collections</a><li><a href=eloquent-mutators.htm>Mutators / Casts</a><li><a href=eloquent-resources.htm>API Resources</a><li><a href=eloquent-serialization.htm>Serialization</a><li><a href=eloquent-factories.htm>Factories</a></ul><li>Testing <ul><li><a href=testing.htm>Getting Started</a><li><a href=http-tests.htm>HTTP Tests</a><li><a href=console-tests.htm>Console Tests</a><li><a href=dusk.htm>Browser Tests</a><li><a href=database-testing.htm>Database</a><li><a href=mocking.htm>Mocking</a></ul><li>Packages <ul><li><a href=billing.htm>Cashier (Stripe)</a><li><a href=cashier-paddle.htm>Cashier (Paddle)</a><li><a href=dusk.htm>Dusk</a><li><a href=envoy.htm>Envoy</a><li><a href=fortify.htm>Fortify</a><li><a href=folio.htm>Folio</a><li><a href=homestead.htm>Homestead</a><li><a href=horizon.htm>Horizon</a><li><a href=mix.htm>Mix</a><li><a href=octane.htm>Octane</a><li><a href=passport.htm>Passport</a><li><a href=pennant.htm>Pennant</a><li><a href=pint.htm>Pint</a><li><a href=precognition.htm>Precognition</a><li><a href=prompts.htm>Prompts</a><li><a href=pulse.htm>Pulse</a><li><a href=reverb.htm>Reverb</a><li><a href=sail.htm>Sail</a><li><a href=sanctum.htm>Sanctum</a><li><a href=scout.htm>Scout</a><li><a href=socialite.htm>Socialite</a><li><a href=telescope.htm>Telescope</a><li><a href=valet.htm>Valet</a></ul><li><a href=https://api.laravel.com/docs/12.x>API Documentation</a><li><a href=changelog.htm>Changelog</a></ul></div></nav></div></div></aside><section><div><section><section><div>Helpers<ul><li><a href=#introduction>Introduction</a><li><a href=#available-methods>Available Methods</a><li><a href=#other-utilities>Other Utilities</a> <ul><li><a href=#benchmarking>Benchmarking</a><li><a href=#dates>Dates</a><li><a href=#deferred-functions>Deferred Functions</a><li><a href=#lottery>Lottery</a><li><a href=#pipeline>Pipeline</a><li><a href=#sleep>Sleep</a><li><a href=#timebox>Timebox</a><li><a href=#uri>URI</a></ul></ul><h2><a href=#introduction>Introduction</a></h2><p>Laravel includes a variety of global "helper" PHP functions. Many of these functions are used by the framework itself; however, you are free to use them in your own applications if you find them convenient.<h2><a href=#available-methods>Available Methods</a></h2><h3><a href=#arrays-and-objects-method-list>Arrays & Objects</a></h3><div markdown=1><p><a href=#method-array-accessible>Arr::accessible</a> <a href=#method-array-add>Arr::add</a> <a href=#method-array-array>Arr::array</a> <a href=#method-array-boolean>Arr::boolean</a> <a href=#method-array-collapse>Arr::collapse</a> <a href=#method-array-crossjoin>Arr::crossJoin</a> <a href=#method-array-divide>Arr::divide</a> <a href=#method-array-dot>Arr::dot</a> <a href=#method-array-except>Arr::except</a> <a href=#method-array-exists>Arr::exists</a> <a href=#method-array-first>Arr::first</a> <a href=#method-array-flatten>Arr::flatten</a> <a href=#method-array-float>Arr::float</a> <a href=#method-array-forget>Arr::forget</a> <a href=#method-array-from>Arr::from</a> <a href=#method-array-get>Arr::get</a> <a href=#method-array-has>Arr::has</a> <a href=#method-array-hasall>Arr::hasAll</a> <a href=#method-array-hasany>Arr::hasAny</a> <a href=#method-array-integer>Arr::integer</a> <a href=#method-array-isassoc>Arr::isAssoc</a> <a href=#method-array-islist>Arr::isList</a> <a href=#method-array-join>Arr::join</a> <a href=#method-array-keyby>Arr::keyBy</a> <a href=#method-array-last>Arr::last</a> <a href=#method-array-map>Arr::map</a> <a href=#method-array-map-spread>Arr::mapSpread</a> <a href=#method-array-map-with-keys>Arr::mapWithKeys</a> <a href=#method-array-only>Arr::only</a> <a href=#method-array-partition>Arr::partition</a> <a href=#method-array-pluck>Arr::pluck</a> <a href=#method-array-prepend>Arr::prepend</a> <a href=#method-array-prependkeyswith>Arr::prependKeysWith</a> <a href=#method-array-pull>Arr::pull</a> <a href=#method-array-query>Arr::query</a> <a href=#method-array-random>Arr::random</a> <a href=#method-array-reject>Arr::reject</a> <a href=#method-array-select>Arr::select</a> <a href=#method-array-set>Arr::set</a> <a href=#method-array-shuffle>Arr::shuffle</a> <a href=#method-array-sole>Arr::sole</a> <a href=#method-array-sort>Arr::sort</a> <a href=#method-array-sort-desc>Arr::sortDesc</a> <a href=#method-array-sort-recursive>Arr::sortRecursive</a> <a href=#method-array-string>Arr::string</a> <a href=#method-array-take>Arr::take</a> <a href=#method-array-to-css-classes>Arr::toCssClasses</a> <a href=#method-array-to-css-styles>Arr::toCssStyles</a> <a href=#method-array-undot>Arr::undot</a> <a href=#method-array-where>Arr::where</a> <a href=#method-array-where-not-null>Arr::whereNotNull</a> <a href=#method-array-wrap>Arr::wrap</a> <a href=#method-data-fill>data_fill</a> <a href=#method-data-get>data_get</a> <a href=#method-data-set>data_set</a> <a href=#method-data-forget>data_forget</a> <a href=#method-head>head</a> <a href=#method-last>last</a></div><h3><a href=#numbers-method-list>Numbers</a></h3><div markdown=1><p><a href=#method-number-abbreviate>Number::abbreviate</a> <a href=#method-number-clamp>Number::clamp</a> <a href=#method-number-currency>Number::currency</a> <a href=#method-default-currency>Number::defaultCurrency</a> <a href=#method-default-locale>Number::defaultLocale</a> <a href=#method-number-file-size>Number::fileSize</a> <a href=#method-number-for-humans>Number::forHumans</a> <a href=#method-number-format>Number::format</a> <a href=#method-number-ordinal>Number::ordinal</a> <a href=#method-number-pairs>Number::pairs</a> <a href=#method-number-parse-int>Number::parseInt</a> <a href=#method-number-parse-float>Number::parseFloat</a> <a href=#method-number-percentage>Number::percentage</a> <a href=#method-number-spell>Number::spell</a> <a href=#method-number-spell-ordinal>Number::spellOrdinal</a> <a href=#method-number-trim>Number::trim</a> <a href=#method-number-use-locale>Number::useLocale</a> <a href=#method-number-with-locale>Number::withLocale</a> <a href=#method-number-use-currency>Number::useCurrency</a> <a href=#method-number-with-currency>Number::withCurrency</a></div><h3><a href=#paths-method-list>Paths</a></h3><div markdown=1><p><a href=#method-app-path>app_path</a> <a href=#method-base-path>base_path</a> <a href=#method-config-path>config_path</a> <a href=#method-database-path>database_path</a> <a href=#method-lang-path>lang_path</a> <a href=#method-public-path>public_path</a> <a href=#method-resource-path>resource_path</a> <a href=#method-storage-path>storage_path</a></div><h3><a href=#urls-method-list>URLs</a></h3><div markdown=1><p><a href=#method-action>action</a> <a href=#method-asset>asset</a> <a href=#method-route>route</a> <a href=#method-secure-asset>secure_asset</a> <a href=#method-secure-url>secure_url</a> <a href=#method-to-route>to_route</a> <a href=#method-uri>uri</a> <a href=#method-url>url</a></div><h3><a href=#miscellaneous-method-list>Miscellaneous</a></h3><div markdown=1><p><a href=#method-abort>abort</a> <a href=#method-abort-if>abort_if</a> <a href=#method-abort-unless>abort_unless</a> <a href=#method-app>app</a> <a href=#method-auth>auth</a> <a href=#method-back>back</a> <a href=#method-bcrypt>bcrypt</a> <a href=#method-blank>blank</a> <a href=#method-broadcast>broadcast</a> <a href=#method-broadcast-if>broadcast_if</a> <a href=#method-broadcast-unless>broadcast_unless</a> <a href=#method-cache>cache</a> <a href=#method-class-uses-recursive>class_uses_recursive</a> <a href=#method-collect>collect</a> <a href=#method-config>config</a> <a href=#method-context>context</a> <a href=#method-cookie>cookie</a> <a href=#method-csrf-field>csrf_field</a> <a href=#method-csrf-token>csrf_token</a> <a href=#method-decrypt>decrypt</a> <a href=#method-dd>dd</a> <a href=#method-dispatch>dispatch</a> <a href=#method-dispatch-sync>dispatch_sync</a> <a href=#method-dump>dump</a> <a href=#method-encrypt>encrypt</a> <a href=#method-env>env</a> <a href=#method-event>event</a> <a href=#method-fake>fake</a> <a href=#method-filled>filled</a> <a href=#method-info>info</a> <a href=#method-literal>literal</a> <a href=#method-logger>logger</a> <a href=#method-method-field>method_field</a> <a href=#method-now>now</a> <a href=#method-old>old</a> <a href=#method-once>once</a> <a href=#method-optional>optional</a> <a href=#method-policy>policy</a> <a href=#method-redirect>redirect</a> <a href=#method-report>report</a> <a href=#method-report-if>report_if</a> <a href=#method-report-unless>report_unless</a> <a href=#method-request>request</a> <a href=#method-rescue>rescue</a> <a href=#method-resolve>resolve</a> <a href=#method-response>response</a> <a href=#method-retry>retry</a> <a href=#method-session>session</a> <a href=#method-tap>tap</a> <a href=#method-throw-if>throw_if</a> <a href=#method-throw-unless>throw_unless</a> <a href=#method-today>today</a> <a href=#method-trait-uses-recursive>trait_uses_recursive</a> <a href=#method-transform>transform</a> <a href=#method-validator>validator</a> <a href=#method-value>value</a> <a href=#method-view>view</a> <a href=#method-with>with</a> <a href=#method-when>when</a></div><h2><a href=#arrays>Arrays & Objects</a></h2><h4><a href=#method-array-accessible><code>Arr::accessible()</code></a></h4><p>The <code>Arr::accessible</code> method determines if the given value is array accessible:<div><pre><code> 1use Illuminate\Support\Arr; 2use Illuminate\Support\Collection; 3  4$isAccessible=Arr::accessible(['a'=>1, 'b'=>2]); 5  6// true 7  8$isAccessible=Arr::accessible(newCollection); 9 10// true11 12$isAccessible=Arr::accessible('abc');13 14// false15 16$isAccessible=Arr::accessible(newstdClass);17 18// false
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+
+$isAccessible = Arr::accessible(['a' => 1, 'b' => 2]);
+
+// true
+
+$isAccessible = Arr::accessible(new Collection);
+
+// true
+
+$isAccessible = Arr::accessible('abc');
+
+// false
+
+$isAccessible = Arr::accessible(new stdClass);
+
+// false</code></pre></div><h4><a href=#method-array-add><code>Arr::add()</code></a></h4><p>The <code>Arr::add</code> method adds a given key / value pair to an array if the given key doesn't already exist in the array or is set to <code>null</code>:<div><pre><code>1use Illuminate\Support\Arr;2 3$array=Arr::add(['name'=>'Desk'], 'price', 100);4 5// ['name' => 'Desk', 'price' => 100]6 7$array=Arr::add(['name'=>'Desk', 'price'=>null], 'price', 100);8 9// ['name' => 'Desk', 'price' => 100]
+use Illuminate\Support\Arr;
+
+$array = Arr::add(['name' => 'Desk'], 'price', 100);
+
+// ['name' => 'Desk', 'price' => 100]
+
+$array = Arr::add(['name' => 'Desk', 'price' => null], 'price', 100);
+
+// ['name' => 'Desk', 'price' => 100]</code></pre></div><h4><a href=#method-array-array><code>Arr::array()</code></a></h4><p>The <code>Arr::array</code> method retrieves a value from a deeply nested array using "dot" notation (just as <a href=#method-array-get>Arr::get()</a> does), but throws an <code>InvalidArgumentException</code> if the requested value is not an <code>array</code>:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= ['name'=>'Joe', 'languages'=> ['PHP', 'Ruby']]; 4  5$value=Arr::array($array, 'languages'); 6  7// ['PHP', 'Ruby'] 8  9$value=Arr::array($array, 'name');10 11// throws InvalidArgumentException
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
+
+$value = Arr::array($array, 'languages');
+
+// ['PHP', 'Ruby']
+
+$value = Arr::array($array, 'name');
+
+// throws InvalidArgumentException</code></pre></div><h4><a href=#method-array-boolean><code>Arr::boolean()</code></a></h4><p>The <code>Arr::boolean</code> method retrieves a value from a deeply nested array using "dot" notation (just as <a href=#method-array-get>Arr::get()</a> does), but throws an <code>InvalidArgumentException</code> if the requested value is not a <code>boolean</code>:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= ['name'=>'Joe', 'available'=>true]; 4  5$value=Arr::boolean($array, 'available'); 6  7// true 8  9$value=Arr::boolean($array, 'name');10 11// throws InvalidArgumentException
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Joe', 'available' => true];
+
+$value = Arr::boolean($array, 'available');
+
+// true
+
+$value = Arr::boolean($array, 'name');
+
+// throws InvalidArgumentException</code></pre></div><h4><a href=#method-array-collapse><code>Arr::collapse()</code></a></h4><p>The <code>Arr::collapse</code> method collapses an array of arrays or collections into a single array:<div><pre><code>1use Illuminate\Support\Arr;2 3$array=Arr::collapse([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);4 5// [1, 2, 3, 4, 5, 6, 7, 8, 9]
+use Illuminate\Support\Arr;
+
+$array = Arr::collapse([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+
+// [1, 2, 3, 4, 5, 6, 7, 8, 9]</code></pre></div><h4><a href=#method-array-crossjoin><code>Arr::crossJoin()</code></a></h4><p>The <code>Arr::crossJoin</code> method cross joins the given arrays, returning a Cartesian product with all possible permutations:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$matrix=Arr::crossJoin([1, 2], ['a', 'b']); 4  5/* 6    [ 7        [1, 'a'], 8        [1, 'b'], 9        [2, 'a'],10        [2, 'b'],11    ]12*/13 14$matrix=Arr::crossJoin([1, 2], ['a', 'b'], ['I', 'II']);15 16/*17    [18        [1, 'a', 'I'],19        [1, 'a', 'II'],20        [1, 'b', 'I'],21        [1, 'b', 'II'],22        [2, 'a', 'I'],23        [2, 'a', 'II'],24        [2, 'b', 'I'],25        [2, 'b', 'II'],26    ]27*/
+use Illuminate\Support\Arr;
+
+$matrix = Arr::crossJoin([1, 2], ['a', 'b']);
+
+/*
+    [
+        [1, 'a'],
+        [1, 'b'],
+        [2, 'a'],
+        [2, 'b'],
+    ]
+*/
+
+$matrix = Arr::crossJoin([1, 2], ['a', 'b'], ['I', 'II']);
+
+/*
+    [
+        [1, 'a', 'I'],
+        [1, 'a', 'II'],
+        [1, 'b', 'I'],
+        [1, 'b', 'II'],
+        [2, 'a', 'I'],
+        [2, 'a', 'II'],
+        [2, 'b', 'I'],
+        [2, 'b', 'II'],
+    ]
+*/</code></pre></div><h4><a href=#method-array-divide><code>Arr::divide()</code></a></h4><p>The <code>Arr::divide</code> method returns two arrays: one containing the keys and the other containing the values of the given array:<div><pre><code>1use Illuminate\Support\Arr;2 3[$keys, $values] =Arr::divide(['name'=>'Desk']);4 5// $keys: ['name']6 7// $values: ['Desk']
+use Illuminate\Support\Arr;
+
+[$keys, $values] = Arr::divide(['name' => 'Desk']);
+
+// $keys: ['name']
+
+// $values: ['Desk']</code></pre></div><h4><a href=#method-array-dot><code>Arr::dot()</code></a></h4><p>The <code>Arr::dot</code> method flattens a multi-dimensional array into a single level array that uses "dot" notation to indicate depth:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['products'=> ['desk'=> ['price'=>100]]];4 5$flattened=Arr::dot($array);6 7// ['products.desk.price' => 100]
+use Illuminate\Support\Arr;
+
+$array = ['products' => ['desk' => ['price' => 100]]];
+
+$flattened = Arr::dot($array);
+
+// ['products.desk.price' => 100]</code></pre></div><h4><a href=#method-array-except><code>Arr::except()</code></a></h4><p>The <code>Arr::except</code> method removes the given key / value pairs from an array:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['name'=>'Desk', 'price'=>100];4 5$filtered=Arr::except($array, ['price']);6 7// ['name' => 'Desk']
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Desk', 'price' => 100];
+
+$filtered = Arr::except($array, ['price']);
+
+// ['name' => 'Desk']</code></pre></div><h4><a href=#method-array-exists><code>Arr::exists()</code></a></h4><p>The <code>Arr::exists</code> method checks that the given key exists in the provided array:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= ['name'=>'John Doe', 'age'=>17]; 4  5$exists=Arr::exists($array, 'name'); 6  7// true 8  9$exists=Arr::exists($array, 'salary');10 11// false
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'John Doe', 'age' => 17];
+
+$exists = Arr::exists($array, 'name');
+
+// true
+
+$exists = Arr::exists($array, 'salary');
+
+// false</code></pre></div><h4><a href=#method-array-first><code>Arr::first()</code></a></h4><p>The <code>Arr::first</code> method returns the first element of an array passing a given truth test:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= [100, 200, 300];4 5$first=Arr::first($array, function(int$value, int$key) {6return$value>=150;7});8 9// 200
+use Illuminate\Support\Arr;
+
+$array = [100, 200, 300];
+
+$first = Arr::first($array, function (int $value, int $key) {
+    return $value >= 150;
+});
+
+// 200</code></pre></div><p>A default value may also be passed as the third parameter to the method. This value will be returned if no value passes the truth test:<div><pre><code>1use Illuminate\Support\Arr;2 3$first=Arr::first($array, $callback, $default);
+use Illuminate\Support\Arr;
+
+$first = Arr::first($array, $callback, $default);</code></pre></div><h4><a href=#method-array-flatten><code>Arr::flatten()</code></a></h4><p>The <code>Arr::flatten</code> method flattens a multi-dimensional array into a single level array:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['name'=>'Joe', 'languages'=> ['PHP', 'Ruby']];4 5$flattened=Arr::flatten($array);6 7// ['Joe', 'PHP', 'Ruby']
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
+
+$flattened = Arr::flatten($array);
+
+// ['Joe', 'PHP', 'Ruby']</code></pre></div><h4><a href=#method-array-float><code>Arr::float()</code></a></h4><p>The <code>Arr::float</code> method retrieves a value from a deeply nested array using "dot" notation (just as <a href=#method-array-get>Arr::get()</a> does), but throws an <code>InvalidArgumentException</code> if the requested value is not a <code>float</code>:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= ['name'=>'Joe', 'balance'=>123.45]; 4  5$value=Arr::float($array, 'balance'); 6  7// 123.45 8  9$value=Arr::float($array, 'name');10 11// throws InvalidArgumentException
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Joe', 'balance' => 123.45];
+
+$value = Arr::float($array, 'balance');
+
+// 123.45
+
+$value = Arr::float($array, 'name');
+
+// throws InvalidArgumentException</code></pre></div><h4><a href=#method-array-forget><code>Arr::forget()</code></a></h4><p>The <code>Arr::forget</code> method removes a given key / value pairs from a deeply nested array using "dot" notation:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['products'=> ['desk'=> ['price'=>100]]];4 5Arr::forget($array, 'products.desk');6 7// ['products' => []]
+use Illuminate\Support\Arr;
+
+$array = ['products' => ['desk' => ['price' => 100]]];
+
+Arr::forget($array, 'products.desk');
+
+// ['products' => []]</code></pre></div><h4><a href=#method-array-from><code>Arr::from()</code></a></h4><p>The <code>Arr::from</code> method converts various input types into a plain PHP array. It supports a range of input types, including arrays, objects, and several common Laravel interfaces, such as <code>Arrayable</code>, <code>Enumerable</code>, <code>Jsonable</code>, and <code>JsonSerializable</code>. Additionally, it handles <code>Traversable</code> and <code>WeakMap</code> instances:<div><pre><code> 1use Illuminate\Support\Arr; 2  3Arr::from((object) ['foo'=>'bar']); // ['foo' => 'bar'] 4  5classTestJsonableObjectimplementsJsonable 6{ 7publicfunctiontoJson($options=0) 8    { 9returnjson_encode(['foo'=>'bar']);10    }11}12 13Arr::from(newTestJsonableObject); // ['foo' => 'bar']
+use Illuminate\Support\Arr;
+
+Arr::from((object) ['foo' => 'bar']); // ['foo' => 'bar']
+
+class TestJsonableObject implements Jsonable
+{
+    public function toJson($options = 0)
+    {
+        return json_encode(['foo' => 'bar']);
+    }
+}
+
+Arr::from(new TestJsonableObject); // ['foo' => 'bar']</code></pre></div><h4><a href=#method-array-get><code>Arr::get()</code></a></h4><p>The <code>Arr::get</code> method retrieves a value from a deeply nested array using "dot" notation:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['products'=> ['desk'=> ['price'=>100]]];4 5$price=Arr::get($array, 'products.desk.price');6 7// 100
+use Illuminate\Support\Arr;
+
+$array = ['products' => ['desk' => ['price' => 100]]];
+
+$price = Arr::get($array, 'products.desk.price');
+
+// 100</code></pre></div><p>The <code>Arr::get</code> method also accepts a default value, which will be returned if the specified key is not present in the array:<div><pre><code>1use Illuminate\Support\Arr;2 3$discount=Arr::get($array, 'products.desk.discount', 0);4 5// 0
+use Illuminate\Support\Arr;
+
+$discount = Arr::get($array, 'products.desk.discount', 0);
+
+// 0</code></pre></div><h4><a href=#method-array-has><code>Arr::has()</code></a></h4><p>The <code>Arr::has</code> method checks whether a given item or items exists in an array using "dot" notation:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= ['product'=> ['name'=>'Desk', 'price'=>100]]; 4  5$contains=Arr::has($array, 'product.name'); 6  7// true 8  9$contains=Arr::has($array, ['product.price', 'product.discount']);10 11// false
+use Illuminate\Support\Arr;
+
+$array = ['product' => ['name' => 'Desk', 'price' => 100]];
+
+$contains = Arr::has($array, 'product.name');
+
+// true
+
+$contains = Arr::has($array, ['product.price', 'product.discount']);
+
+// false</code></pre></div><h4><a href=#method-array-hasall><code>Arr::hasAll()</code></a></h4><p>The <code>Arr::hasAll</code> method determines if all of the specified keys exist in the given array using "dot" notation:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['name'=>'Taylor', 'language'=>'PHP'];4 5Arr::hasAll($array, ['name']); // true6Arr::hasAll($array, ['name', 'language']); // true7Arr::hasAll($array, ['name', 'IDE']); // false
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Taylor', 'language' => 'PHP'];
+
+Arr::hasAll($array, ['name']); // true
+Arr::hasAll($array, ['name', 'language']); // true
+Arr::hasAll($array, ['name', 'IDE']); // false</code></pre></div><h4><a href=#method-array-hasany><code>Arr::hasAny()</code></a></h4><p>The <code>Arr::hasAny</code> method checks whether any item in a given set exists in an array using "dot" notation:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= ['product'=> ['name'=>'Desk', 'price'=>100]]; 4  5$contains=Arr::hasAny($array, 'product.name'); 6  7// true 8  9$contains=Arr::hasAny($array, ['product.name', 'product.discount']);10 11// true12 13$contains=Arr::hasAny($array, ['category', 'product.discount']);14 15// false
+use Illuminate\Support\Arr;
+
+$array = ['product' => ['name' => 'Desk', 'price' => 100]];
+
+$contains = Arr::hasAny($array, 'product.name');
+
+// true
+
+$contains = Arr::hasAny($array, ['product.name', 'product.discount']);
+
+// true
+
+$contains = Arr::hasAny($array, ['category', 'product.discount']);
+
+// false</code></pre></div><h4><a href=#method-array-integer><code>Arr::integer()</code></a></h4><p>The <code>Arr::integer</code> method retrieves a value from a deeply nested array using "dot" notation (just as <a href=#method-array-get>Arr::get()</a> does), but throws an <code>InvalidArgumentException</code> if the requested value is not an <code>int</code>:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= ['name'=>'Joe', 'age'=>42]; 4  5$value=Arr::integer($array, 'age'); 6  7// 42 8  9$value=Arr::integer($array, 'name');10 11// throws InvalidArgumentException
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Joe', 'age' => 42];
+
+$value = Arr::integer($array, 'age');
+
+// 42
+
+$value = Arr::integer($array, 'name');
+
+// throws InvalidArgumentException</code></pre></div><h4><a href=#method-array-isassoc><code>Arr::isAssoc()</code></a></h4><p>The <code>Arr::isAssoc</code> method returns <code>true</code> if the given array is an associative array. An array is considered "associative" if it doesn't have sequential numerical keys beginning with zero:<div><pre><code>1use Illuminate\Support\Arr;2 3$isAssoc=Arr::isAssoc(['product'=> ['name'=>'Desk', 'price'=>100]]);4 5// true6 7$isAssoc=Arr::isAssoc([1, 2, 3]);8 9// false
+use Illuminate\Support\Arr;
+
+$isAssoc = Arr::isAssoc(['product' => ['name' => 'Desk', 'price' => 100]]);
+
+// true
+
+$isAssoc = Arr::isAssoc([1, 2, 3]);
+
+// false</code></pre></div><h4><a href=#method-array-islist><code>Arr::isList()</code></a></h4><p>The <code>Arr::isList</code> method returns <code>true</code> if the given array's keys are sequential integers beginning from zero:<div><pre><code>1use Illuminate\Support\Arr;2 3$isList=Arr::isList(['foo', 'bar', 'baz']);4 5// true6 7$isList=Arr::isList(['product'=> ['name'=>'Desk', 'price'=>100]]);8 9// false
+use Illuminate\Support\Arr;
+
+$isList = Arr::isList(['foo', 'bar', 'baz']);
+
+// true
+
+$isList = Arr::isList(['product' => ['name' => 'Desk', 'price' => 100]]);
+
+// false</code></pre></div><h4><a href=#method-array-join><code>Arr::join()</code></a></h4><p>The <code>Arr::join</code> method joins array elements with a string. Using this method's third argument, you may also specify the joining string for the final element of the array:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= ['Tailwind', 'Alpine', 'Laravel', 'Livewire']; 4  5$joined=Arr::join($array, ', '); 6  7// Tailwind, Alpine, Laravel, Livewire 8  9$joined=Arr::join($array, ', ', ', and ');10 11// Tailwind, Alpine, Laravel, and Livewire
+use Illuminate\Support\Arr;
+
+$array = ['Tailwind', 'Alpine', 'Laravel', 'Livewire'];
+
+$joined = Arr::join($array, ', ');
+
+// Tailwind, Alpine, Laravel, Livewire
+
+$joined = Arr::join($array, ', ', ', and ');
+
+// Tailwind, Alpine, Laravel, and Livewire</code></pre></div><h4><a href=#method-array-keyby><code>Arr::keyBy()</code></a></h4><p>The <code>Arr::keyBy</code> method keys the array by the given key. If multiple items have the same key, only the last one will appear in the new array:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4    ['product_id'=>'prod-100', 'name'=>'Desk'], 5    ['product_id'=>'prod-200', 'name'=>'Chair'], 6]; 7  8$keyed=Arr::keyBy($array, 'product_id'); 9 10/*11    [12        'prod-100' => ['product_id' => 'prod-100', 'name' => 'Desk'],13        'prod-200' => ['product_id' => 'prod-200', 'name' => 'Chair'],14    ]15*/
+use Illuminate\Support\Arr;
+
+$array = [
+    ['product_id' => 'prod-100', 'name' => 'Desk'],
+    ['product_id' => 'prod-200', 'name' => 'Chair'],
+];
+
+$keyed = Arr::keyBy($array, 'product_id');
+
+/*
+    [
+        'prod-100' => ['product_id' => 'prod-100', 'name' => 'Desk'],
+        'prod-200' => ['product_id' => 'prod-200', 'name' => 'Chair'],
+    ]
+*/</code></pre></div><h4><a href=#method-array-last><code>Arr::last()</code></a></h4><p>The <code>Arr::last</code> method returns the last element of an array passing a given truth test:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= [100, 200, 300, 110];4 5$last=Arr::last($array, function(int$value, int$key) {6return$value>=150;7});8 9// 300
+use Illuminate\Support\Arr;
+
+$array = [100, 200, 300, 110];
+
+$last = Arr::last($array, function (int $value, int $key) {
+    return $value >= 150;
+});
+
+// 300</code></pre></div><p>A default value may be passed as the third argument to the method. This value will be returned if no value passes the truth test:<div><pre><code>1use Illuminate\Support\Arr;2 3$last=Arr::last($array, $callback, $default);
+use Illuminate\Support\Arr;
+
+$last = Arr::last($array, $callback, $default);</code></pre></div><h4><a href=#method-array-map><code>Arr::map()</code></a></h4><p>The <code>Arr::map</code> method iterates through the array and passes each value and key to the given callback. The array value is replaced by the value returned by the callback:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['first'=>'james', 'last'=>'kirk'];4 5$mapped=Arr::map($array, function(string$value, string$key) {6returnucfirst($value);7});8 9// ['first' => 'James', 'last' => 'Kirk']
+use Illuminate\Support\Arr;
+
+$array = ['first' => 'james', 'last' => 'kirk'];
+
+$mapped = Arr::map($array, function (string $value, string $key) {
+    return ucfirst($value);
+});
+
+// ['first' => 'James', 'last' => 'Kirk']</code></pre></div><h4><a href=#method-array-map-spread><code>Arr::mapSpread()</code></a></h4><p>The <code>Arr::mapSpread</code> method iterates over the array, passing each nested item value into the given closure. The closure is free to modify the item and return it, thus forming a new array of modified items:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4    [0, 1], 5    [2, 3], 6    [4, 5], 7    [6, 7], 8    [8, 9], 9];10 11$mapped=Arr::mapSpread($array, function(int$even, int$odd) {12return$even+$odd;13});14 15/*16    [1, 5, 9, 13, 17]17*/
+use Illuminate\Support\Arr;
+
+$array = [
+    [0, 1],
+    [2, 3],
+    [4, 5],
+    [6, 7],
+    [8, 9],
+];
+
+$mapped = Arr::mapSpread($array, function (int $even, int $odd) {
+    return $even + $odd;
+});
+
+/*
+    [1, 5, 9, 13, 17]
+*/</code></pre></div><h4><a href=#method-array-map-with-keys><code>Arr::mapWithKeys()</code></a></h4><p>The <code>Arr::mapWithKeys</code> method iterates through the array and passes each value to the given callback. The callback should return an associative array containing a single key / value pair:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4    [ 5'name'=>'John', 6'department'=>'Sales',<div> 7'email'=>'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>',</div> 8    ], 9    [10'name'=>'Jane',11'department'=>'Marketing',<div>12'email'=>'<span><a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a></span>',</div>13    ]14];15 16$mapped=Arr::mapWithKeys($array, function(array$item, int$key) {17return [$item['email'] =>$item['name']];18});19 20/*21    [<div>22<span>        '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>' => 'John',</span></div><div>23<span>        '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>' => 'Jane',</span></div>24    ]25*/<div hidden>
+use Illuminate\Support\Arr;
+
+$array = [
+    [
+        'name' => 'John',
+        'department' => 'Sales',
+        'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>',
+    ],
+    [
+        'name' => 'Jane',
+        'department' => 'Marketing',
+        'email' => '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>',
+    ]
+];
+
+$mapped = Arr::mapWithKeys($array, function (array $item, int $key) {
+    return [$item['email'] => $item['name']];
+});
+
+/*
+    [
+        '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>' => 'John',
+        '<a href=https://laravel.com/cdn-cgi/l/email-protection>[email protected]</a>' => 'Jane',
+    ]
+*/</div></code></pre></div><h4><a href=#method-array-only><code>Arr::only()</code></a></h4><p>The <code>Arr::only</code> method returns only the specified key / value pairs from the given array:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['name'=>'Desk', 'price'=>100, 'orders'=>10];4 5$slice=Arr::only($array, ['name', 'price']);6 7// ['name' => 'Desk', 'price' => 100]
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Desk', 'price' => 100, 'orders' => 10];
+
+$slice = Arr::only($array, ['name', 'price']);
+
+// ['name' => 'Desk', 'price' => 100]</code></pre></div><h4><a href=#method-array-partition><code>Arr::partition()</code></a></h4><p>The <code>Arr::partition</code> method may be combined with PHP array destructuring to separate elements that pass a given truth test from those that do not:<div><pre><code> 1&lt;?php 2  3use Illuminate\Support\Arr; 4  5$numbers= [1, 2, 3, 4, 5, 6]; 6  7[$underThree, $equalOrAboveThree] =Arr::partition($numbers, function(int$i) { 8return$i&lt;3; 9});10 11dump($underThree);12 13// [1, 2]14 15dump($equalOrAboveThree);16 17// [3, 4, 5, 6]
+&lt;?php
+
+use Illuminate\Support\Arr;
+
+$numbers = [1, 2, 3, 4, 5, 6];
+
+[$underThree, $equalOrAboveThree] = Arr::partition($numbers, function (int $i) {
+    return $i &lt; 3;
+});
+
+dump($underThree);
+
+// [1, 2]
+
+dump($equalOrAboveThree);
+
+// [3, 4, 5, 6]</code></pre></div><h4><a href=#method-array-pluck><code>Arr::pluck()</code></a></h4><p>The <code>Arr::pluck</code> method retrieves all of the values for a given key from an array:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4    ['developer'=> ['id'=>1, 'name'=>'Taylor']], 5    ['developer'=> ['id'=>2, 'name'=>'Abigail']], 6]; 7  8$names=Arr::pluck($array, 'developer.name'); 9 10// ['Taylor', 'Abigail']
+use Illuminate\Support\Arr;
+
+$array = [
+    ['developer' => ['id' => 1, 'name' => 'Taylor']],
+    ['developer' => ['id' => 2, 'name' => 'Abigail']],
+];
+
+$names = Arr::pluck($array, 'developer.name');
+
+// ['Taylor', 'Abigail']</code></pre></div><p>You may also specify how you wish the resulting list to be keyed:<div><pre><code>1use Illuminate\Support\Arr;2 3$names=Arr::pluck($array, 'developer.name', 'developer.id');4 5// [1 => 'Taylor', 2 => 'Abigail']
+use Illuminate\Support\Arr;
+
+$names = Arr::pluck($array, 'developer.name', 'developer.id');
+
+// [1 => 'Taylor', 2 => 'Abigail']</code></pre></div><h4><a href=#method-array-prepend><code>Arr::prepend()</code></a></h4><p>The <code>Arr::prepend</code> method will push an item onto the beginning of an array:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['one', 'two', 'three', 'four'];4 5$array=Arr::prepend($array, 'zero');6 7// ['zero', 'one', 'two', 'three', 'four']
+use Illuminate\Support\Arr;
+
+$array = ['one', 'two', 'three', 'four'];
+
+$array = Arr::prepend($array, 'zero');
+
+// ['zero', 'one', 'two', 'three', 'four']</code></pre></div><p>If needed, you may specify the key that should be used for the value:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['price'=>100];4 5$array=Arr::prepend($array, 'Desk', 'name');6 7// ['name' => 'Desk', 'price' => 100]
+use Illuminate\Support\Arr;
+
+$array = ['price' => 100];
+
+$array = Arr::prepend($array, 'Desk', 'name');
+
+// ['name' => 'Desk', 'price' => 100]</code></pre></div><h4><a href=#method-array-prependkeyswith><code>Arr::prependKeysWith()</code></a></h4><p>The <code>Arr::prependKeysWith</code> prepends all key names of an associative array with the given prefix:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4'name'=>'Desk', 5'price'=>100, 6]; 7  8$keyed=Arr::prependKeysWith($array, 'product.'); 9 10/*11    [12        'product.name' => 'Desk',13        'product.price' => 100,14    ]15*/
+use Illuminate\Support\Arr;
+
+$array = [
+    'name' => 'Desk',
+    'price' => 100,
+];
+
+$keyed = Arr::prependKeysWith($array, 'product.');
+
+/*
+    [
+        'product.name' => 'Desk',
+        'product.price' => 100,
+    ]
+*/</code></pre></div><h4><a href=#method-array-pull><code>Arr::pull()</code></a></h4><p>The <code>Arr::pull</code> method returns and removes a key / value pair from an array:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['name'=>'Desk', 'price'=>100];4 5$name=Arr::pull($array, 'name');6 7// $name: Desk8 9// $array: ['price' => 100]
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Desk', 'price' => 100];
+
+$name = Arr::pull($array, 'name');
+
+// $name: Desk
+
+// $array: ['price' => 100]</code></pre></div><p>A default value may be passed as the third argument to the method. This value will be returned if the key doesn't exist:<div><pre><code>1use Illuminate\Support\Arr;2 3$value=Arr::pull($array, $key, $default);
+use Illuminate\Support\Arr;
+
+$value = Arr::pull($array, $key, $default);</code></pre></div><h4><a href=#method-array-query><code>Arr::query()</code></a></h4><p>The <code>Arr::query</code> method converts the array into a query string:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4'name'=>'Taylor', 5'order'=> [ 6'column'=>'created_at', 7'direction'=>'desc' 8    ] 9];10 11Arr::query($array);12 13// name=Taylorℴ[column]=created_atℴ[direction]=desc
+use Illuminate\Support\Arr;
+
+$array = [
+    'name' => 'Taylor',
+    'order' => [
+        'column' => 'created_at',
+        'direction' => 'desc'
+    ]
+];
+
+Arr::query($array);
+
+// name=Taylorℴ[column]=created_atℴ[direction]=desc</code></pre></div><h4><a href=#method-array-random><code>Arr::random()</code></a></h4><p>The <code>Arr::random</code> method returns a random value from an array:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= [1, 2, 3, 4, 5];4 5$random=Arr::random($array);6 7// 4 - (retrieved randomly)
+use Illuminate\Support\Arr;
+
+$array = [1, 2, 3, 4, 5];
+
+$random = Arr::random($array);
+
+// 4 - (retrieved randomly)</code></pre></div><p>You may also specify the number of items to return as an optional second argument. Note that providing this argument will return an array even if only one item is desired:<div><pre><code>1use Illuminate\Support\Arr;2 3$items=Arr::random($array, 2);4 5// [2, 5] - (retrieved randomly)
+use Illuminate\Support\Arr;
+
+$items = Arr::random($array, 2);
+
+// [2, 5] - (retrieved randomly)</code></pre></div><h4><a href=#method-array-reject><code>Arr::reject()</code></a></h4><p>The <code>Arr::reject</code> method removes items from an array using the given closure:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= [100, '200', 300, '400', 500];4 5$filtered=Arr::reject($array, function(string|int$value, int$key) {6returnis_string($value);7});8 9// [0 => 100, 2 => 300, 4 => 500]
+use Illuminate\Support\Arr;
+
+$array = [100, '200', 300, '400', 500];
+
+$filtered = Arr::reject($array, function (string|int $value, int $key) {
+    return is_string($value);
+});
+
+// [0 => 100, 2 => 300, 4 => 500]</code></pre></div><h4><a href=#method-array-select><code>Arr::select()</code></a></h4><p>The <code>Arr::select</code> method selects an array of values from an array:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4    ['id'=>1, 'name'=>'Desk', 'price'=>200], 5    ['id'=>2, 'name'=>'Table', 'price'=>150], 6    ['id'=>3, 'name'=>'Chair', 'price'=>300], 7]; 8  9Arr::select($array, ['name', 'price']);10 11// [['name' => 'Desk', 'price' => 200], ['name' => 'Table', 'price' => 150], ['name' => 'Chair', 'price' => 300]]
+use Illuminate\Support\Arr;
+
+$array = [
+    ['id' => 1, 'name' => 'Desk', 'price' => 200],
+    ['id' => 2, 'name' => 'Table', 'price' => 150],
+    ['id' => 3, 'name' => 'Chair', 'price' => 300],
+];
+
+Arr::select($array, ['name', 'price']);
+
+// [['name' => 'Desk', 'price' => 200], ['name' => 'Table', 'price' => 150], ['name' => 'Chair', 'price' => 300]]</code></pre></div><h4><a href=#method-array-set><code>Arr::set()</code></a></h4><p>The <code>Arr::set</code> method sets a value within a deeply nested array using "dot" notation:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['products'=> ['desk'=> ['price'=>100]]];4 5Arr::set($array, 'products.desk.price', 200);6 7// ['products' => ['desk' => ['price' => 200]]]
+use Illuminate\Support\Arr;
+
+$array = ['products' => ['desk' => ['price' => 100]]];
+
+Arr::set($array, 'products.desk.price', 200);
+
+// ['products' => ['desk' => ['price' => 200]]]</code></pre></div><h4><a href=#method-array-shuffle><code>Arr::shuffle()</code></a></h4><p>The <code>Arr::shuffle</code> method randomly shuffles the items in the array:<div><pre><code>1use Illuminate\Support\Arr;2 3$array=Arr::shuffle([1, 2, 3, 4, 5]);4 5// [3, 2, 5, 1, 4] - (generated randomly)
+use Illuminate\Support\Arr;
+
+$array = Arr::shuffle([1, 2, 3, 4, 5]);
+
+// [3, 2, 5, 1, 4] - (generated randomly)</code></pre></div><h4><a href=#method-array-sole><code>Arr::sole()</code></a></h4><p>The <code>Arr::sole</code> method retrieves a single value from an array using the given closure. If more than one value within the array matches the given truth test, an <code>Illuminate\Support\MultipleItemsFoundException</code> exception will be thrown. If no values match the truth test, an <code>Illuminate\Support\ItemNotFoundException</code> exception will be thrown:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['Desk', 'Table', 'Chair'];4 5$value=Arr::sole($array, fn(string$value) => $value==='Desk');6 7// 'Desk'
+use Illuminate\Support\Arr;
+
+$array = ['Desk', 'Table', 'Chair'];
+
+$value = Arr::sole($array, fn (string $value) => $value === 'Desk');
+
+// 'Desk'</code></pre></div><h4><a href=#method-array-sort><code>Arr::sort()</code></a></h4><p>The <code>Arr::sort</code> method sorts an array by its values:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['Desk', 'Table', 'Chair'];4 5$sorted=Arr::sort($array);6 7// ['Chair', 'Desk', 'Table']
+use Illuminate\Support\Arr;
+
+$array = ['Desk', 'Table', 'Chair'];
+
+$sorted = Arr::sort($array);
+
+// ['Chair', 'Desk', 'Table']</code></pre></div><p>You may also sort the array by the results of a given closure:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4    ['name'=>'Desk'], 5    ['name'=>'Table'], 6    ['name'=>'Chair'], 7]; 8  9$sorted=array_values(Arr::sort($array,function(array$value){10return$value['name'];11}));12 13/*14    [15        ['name' => 'Chair'],16        ['name' => 'Desk'],17        ['name' => 'Table'],18    ]19*/
+use Illuminate\Support\Arr;
+
+$array = [
+    ['name' => 'Desk'],
+    ['name' => 'Table'],
+    ['name' => 'Chair'],
+];
+
+$sorted = array_values(Arr::sort($array, function (array $value) {
+    return $value['name'];
+}));
+
+/*
+    [
+        ['name' => 'Chair'],
+        ['name' => 'Desk'],
+        ['name' => 'Table'],
+    ]
+*/</code></pre></div><h4><a href=#method-array-sort-desc><code>Arr::sortDesc()</code></a></h4><p>The <code>Arr::sortDesc</code> method sorts an array in descending order by its values:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= ['Desk', 'Table', 'Chair'];4 5$sorted=Arr::sortDesc($array);6 7// ['Table', 'Desk', 'Chair']
+use Illuminate\Support\Arr;
+
+$array = ['Desk', 'Table', 'Chair'];
+
+$sorted = Arr::sortDesc($array);
+
+// ['Table', 'Desk', 'Chair']</code></pre></div><p>You may also sort the array by the results of a given closure:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4    ['name'=>'Desk'], 5    ['name'=>'Table'], 6    ['name'=>'Chair'], 7]; 8  9$sorted=array_values(Arr::sortDesc($array,function(array$value){10return$value['name'];11}));12 13/*14    [15        ['name' => 'Table'],16        ['name' => 'Desk'],17        ['name' => 'Chair'],18    ]19*/
+use Illuminate\Support\Arr;
+
+$array = [
+    ['name' => 'Desk'],
+    ['name' => 'Table'],
+    ['name' => 'Chair'],
+];
+
+$sorted = array_values(Arr::sortDesc($array, function (array $value) {
+    return $value['name'];
+}));
+
+/*
+    [
+        ['name' => 'Table'],
+        ['name' => 'Desk'],
+        ['name' => 'Chair'],
+    ]
+*/</code></pre></div><h4><a href=#method-array-sort-recursive><code>Arr::sortRecursive()</code></a></h4><p>The <code>Arr::sortRecursive</code> method recursively sorts an array using the <code>sort</code> function for numerically indexed sub-arrays and the <code>ksort</code> function for associative sub-arrays:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4    ['Roman', 'Taylor', 'Li'], 5    ['PHP', 'Ruby', 'JavaScript'], 6    ['one'=>1, 'two'=>2, 'three'=>3], 7]; 8  9$sorted=Arr::sortRecursive($array);10 11/*12    [13        ['JavaScript', 'PHP', 'Ruby'],14        ['one' => 1, 'three' => 3, 'two' => 2],15        ['Li', 'Roman', 'Taylor'],16    ]17*/
+use Illuminate\Support\Arr;
+
+$array = [
+    ['Roman', 'Taylor', 'Li'],
+    ['PHP', 'Ruby', 'JavaScript'],
+    ['one' => 1, 'two' => 2, 'three' => 3],
+];
+
+$sorted = Arr::sortRecursive($array);
+
+/*
+    [
+        ['JavaScript', 'PHP', 'Ruby'],
+        ['one' => 1, 'three' => 3, 'two' => 2],
+        ['Li', 'Roman', 'Taylor'],
+    ]
+*/</code></pre></div><p>If you would like the results sorted in descending order, you may use the <code>Arr::sortRecursiveDesc</code> method.<div><pre><code>1$sorted=Arr::sortRecursiveDesc($array);
+$sorted = Arr::sortRecursiveDesc($array);</code></pre></div><h4><a href=#method-array-string><code>Arr::string()</code></a></h4><p>The <code>Arr::string</code> method retrieves a value from a deeply nested array using "dot" notation (just as <a href=#method-array-get>Arr::get()</a> does), but throws an <code>InvalidArgumentException</code> if the requested value is not a <code>string</code>:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= ['name'=>'Joe', 'languages'=> ['PHP', 'Ruby']]; 4  5$value=Arr::string($array, 'name'); 6  7// Joe 8  9$value=Arr::string($array, 'languages');10 11// throws InvalidArgumentException
+use Illuminate\Support\Arr;
+
+$array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
+
+$value = Arr::string($array, 'name');
+
+// Joe
+
+$value = Arr::string($array, 'languages');
+
+// throws InvalidArgumentException</code></pre></div><h4><a href=#method-array-take><code>Arr::take()</code></a></h4><p>The <code>Arr::take</code> method returns a new array with the specified number of items:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= [0, 1, 2, 3, 4, 5];4 5$chunk=Arr::take($array, 3);6 7// [0, 1, 2]
+use Illuminate\Support\Arr;
+
+$array = [0, 1, 2, 3, 4, 5];
+
+$chunk = Arr::take($array, 3);
+
+// [0, 1, 2]</code></pre></div><p>You may also pass a negative integer to take the specified number of items from the end of the array:<div><pre><code>1$array= [0, 1, 2, 3, 4, 5];2 3$chunk=Arr::take($array, -2);4 5// [4, 5]
+$array = [0, 1, 2, 3, 4, 5];
+
+$chunk = Arr::take($array, -2);
+
+// [4, 5]</code></pre></div><h4><a href=#method-array-to-css-classes><code>Arr::toCssClasses()</code></a></h4><p>The <code>Arr::toCssClasses</code> method conditionally compiles a CSS class string. The method accepts an array of classes where the array key contains the class or classes you wish to add, while the value is a boolean expression. If the array element has a numeric key, it will always be included in the rendered class list:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$isActive=false; 4$hasError=true; 5  6$array= ['p-4', 'font-bold'=>$isActive, 'bg-red'=>$hasError]; 7  8$classes=Arr::toCssClasses($array); 9 10/*11    'p-4 bg-red'12*/
+use Illuminate\Support\Arr;
+
+$isActive = false;
+$hasError = true;
+
+$array = ['p-4', 'font-bold' => $isActive, 'bg-red' => $hasError];
+
+$classes = Arr::toCssClasses($array);
+
+/*
+    'p-4 bg-red'
+*/</code></pre></div><h4><a href=#method-array-to-css-styles><code>Arr::toCssStyles()</code></a></h4><p>The <code>Arr::toCssStyles</code> conditionally compiles a CSS style string. The method accepts an array of classes where the array key contains the class or classes you wish to add, while the value is a boolean expression. If the array element has a numeric key, it will always be included in the rendered class list:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$hasColor=true; 4  5$array= ['background-color: blue', 'color: blue'=>$hasColor]; 6  7$classes=Arr::toCssStyles($array); 8  9/*10    'background-color: blue; color: blue;'11*/
+use Illuminate\Support\Arr;
+
+$hasColor = true;
+
+$array = ['background-color: blue', 'color: blue' => $hasColor];
+
+$classes = Arr::toCssStyles($array);
+
+/*
+    'background-color: blue; color: blue;'
+*/</code></pre></div><p>This method powers Laravel's functionality allowing <a href=blade.htm#conditionally-merge-classes>merging classes with a Blade component's attribute bag</a> as well as the <code>@class</code> <a href=blade.htm#conditional-classes>Blade directive</a>.<h4><a href=#method-array-undot><code>Arr::undot()</code></a></h4><p>The <code>Arr::undot</code> method expands a single-dimensional array that uses "dot" notation into a multi-dimensional array:<div><pre><code> 1use Illuminate\Support\Arr; 2  3$array= [ 4'user.name'=>'Kevin Malone', 5'user.occupation'=>'Accountant', 6]; 7  8$array=Arr::undot($array); 9 10// ['user' => ['name' => 'Kevin Malone', 'occupation' => 'Accountant']]
+use Illuminate\Support\Arr;
+
+$array = [
+    'user.name' => 'Kevin Malone',
+    'user.occupation' => 'Accountant',
+];
+
+$array = Arr::undot($array);
+
+// ['user' => ['name' => 'Kevin Malone', 'occupation' => 'Accountant']]</code></pre></div><h4><a href=#method-array-where><code>Arr::where()</code></a></h4><p>The <code>Arr::where</code> method filters an array using the given closure:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= [100, '200', 300, '400', 500];4 5$filtered=Arr::where($array, function(string|int$value, int$key) {6returnis_string($value);7});8 9// [1 => '200', 3 => '400']
+use Illuminate\Support\Arr;
+
+$array = [100, '200', 300, '400', 500];
+
+$filtered = Arr::where($array, function (string|int $value, int $key) {
+    return is_string($value);
+});
+
+// [1 => '200', 3 => '400']</code></pre></div><h4><a href=#method-array-where-not-null><code>Arr::whereNotNull()</code></a></h4><p>The <code>Arr::whereNotNull</code> method removes all <code>null</code> values from the given array:<div><pre><code>1use Illuminate\Support\Arr;2 3$array= [0, null];4 5$filtered=Arr::whereNotNull($array);6 7// [0 => 0]
+use Illuminate\Support\Arr;
+
+$array = [0, null];
+
+$filtered = Arr::whereNotNull($array);
+
+// [0 => 0]</code></pre></div><h4><a href=#method-array-wrap><code>Arr::wrap()</code></a></h4><p>The <code>Arr::wrap</code> method wraps the given value in an array. If the given value is already an array it will be returned without modification:<div><pre><code>1use Illuminate\Support\Arr;2 3$string='Laravel';4 5$array=Arr::wrap($string);6 7// ['Laravel']
+use Illuminate\Support\Arr;
+
+$string = 'Laravel';
+
+$array = Arr::wrap($string);
+
+// ['Laravel']</code></pre></div><p>If the given value is <code>null</code>, an empty array will be returned:<div><pre><code>1use Illuminate\Support\Arr;2 3$array=Arr::wrap(null);4 5// []
+use Illuminate\Support\Arr;
+
+$array = Arr::wrap(null);
+
+// []</code></pre></div><h4><a href=#method-data-fill><code>data_fill()</code></a></h4><p>The <code>data_fill</code> function sets a missing value within a nested array or object using "dot" notation:<div><pre><code>1$data= ['products'=> ['desk'=> ['price'=>100]]];2 3data_fill($data,'products.desk.price',200);4 5// ['products' => ['desk' => ['price' => 100]]]6 7data_fill($data,'products.desk.discount',10);8 9// ['products' => ['desk' => ['price' => 100, 'discount' => 10]]]
+$data = ['products' => ['desk' => ['price' => 100]]];
+
+data_fill($data, 'products.desk.price', 200);
+
+// ['products' => ['desk' => ['price' => 100]]]
+
+data_fill($data, 'products.desk.discount', 10);
+
+// ['products' => ['desk' => ['price' => 100, 'discount' => 10]]]</code></pre></div><p>This function also accepts asterisks as wildcards and will fill the target accordingly:<div><pre><code> 1$data= [ 2'products'=> [ 3        ['name'=>'Desk 1', 'price'=>100], 4        ['name'=>'Desk 2'], 5    ], 6]; 7  8data_fill($data,'products.*.price',200); 9 10/*11    [12        'products' => [13            ['name' => 'Desk 1', 'price' => 100],14            ['name' => 'Desk 2', 'price' => 200],15        ],16    ]17*/
+$data = [
+    'products' => [
+        ['name' => 'Desk 1', 'price' => 100],
+        ['name' => 'Desk 2'],
+    ],
+];
+
+data_fill($data, 'products.*.price', 200);
+
+/*
+    [
+        'products' => [
+            ['name' => 'Desk 1', 'price' => 100],
+            ['name' => 'Desk 2', 'price' => 200],
+        ],
+    ]
+*/</code></pre></div><h4><a href=#method-data-get><code>data_get()</code></a></h4><p>The <code>data_get</code> function retrieves a value from a nested array or object using "dot" notation:<div><pre><code>1$data= ['products'=> ['desk'=> ['price'=>100]]];2 3$price=data_get($data,'products.desk.price');4 5// 100
+$data = ['products' => ['desk' => ['price' => 100]]];
+
+$price = data_get($data, 'products.desk.price');
+
+// 100</code></pre></div><p>The <code>data_get</code> function also accepts a default value, which will be returned if the specified key is not found:<div><pre><code>1$discount=data_get($data,'products.desk.discount',0);2 3// 0
+$discount = data_get($data, 'products.desk.discount', 0);
+
+// 0</code></pre></div><p>The function also accepts wildcards using asterisks, which may target any key of the array or object:<div><pre><code>1$data= [2'product-one'=> ['name'=>'Desk 1', 'price'=>100],3'product-two'=> ['name'=>'Desk 2', 'price'=>150],4];5 6data_get($data,'*.name');7 8// ['Desk 1', 'Desk 2'];
+$data = [
+    'product-one' => ['name' => 'Desk 1', 'price' => 100],
+    'product-two' => ['name' => 'Desk 2', 'price' => 150],
+];
+
+data_get($data, '*.name');
+
+// ['Desk 1', 'Desk 2'];</code></pre></div><p>The <code>{first}</code> and <code>{last}</code> placeholders may be used to retrieve the first or last items in an array:<div><pre><code> 1$flight= [ 2'segments'=> [ 3        ['from'=>'LHR', 'departure'=>'9:00', 'to'=>'IST', 'arrival'=>'15:00'], 4        ['from'=>'IST', 'departure'=>'16:00', 'to'=>'PKX', 'arrival'=>'20:00'], 5    ], 6]; 7  8data_get($flight,'segments.{first}.arrival'); 9 10// 15:00
+$flight = [
+    'segments' => [
+        ['from' => 'LHR', 'departure' => '9:00', 'to' => 'IST', 'arrival' => '15:00'],
+        ['from' => 'IST', 'departure' => '16:00', 'to' => 'PKX', 'arrival' => '20:00'],
+    ],
+];
+
+data_get($flight, 'segments.{first}.arrival');
+
+// 15:00</code></pre></div><h4><a href=#method-data-set><code>data_set()</code></a></h4><p>The <code>data_set</code> function sets a value within a nested array or object using "dot" notation:<div><pre><code>1$data= ['products'=> ['desk'=> ['price'=>100]]];2 3data_set($data,'products.desk.price',200);4 5// ['products' => ['desk' => ['price' => 200]]]
+$data = ['products' => ['desk' => ['price' => 100]]];
+
+data_set($data, 'products.desk.price', 200);
+
+// ['products' => ['desk' => ['price' => 200]]]</code></pre></div><p>This function also accepts wildcards using asterisks and will set values on the target accordingly:<div><pre><code> 1$data= [ 2'products'=> [ 3        ['name'=>'Desk 1', 'price'=>100], 4        ['name'=>'Desk 2', 'price'=>150], 5    ], 6]; 7  8data_set($data,'products.*.price',200); 9 10/*11    [12        'products' => [13            ['name' => 'Desk 1', 'price' => 200],14            ['name' => 'Desk 2', 'price' => 200],15        ],16    ]17*/
+$data = [
+    'products' => [
+        ['name' => 'Desk 1', 'price' => 100],
+        ['name' => 'Desk 2', 'price' => 150],
+    ],
+];
+
+data_set($data, 'products.*.price', 200);
+
+/*
+    [
+        'products' => [
+            ['name' => 'Desk 1', 'price' => 200],
+            ['name' => 'Desk 2', 'price' => 200],
+        ],
+    ]
+*/</code></pre></div><p>By default, any existing values are overwritten. If you wish to only set a value if it doesn't exist, you may pass <code>false</code> as the fourth argument to the function:<div><pre><code>1$data= ['products'=> ['desk'=> ['price'=>100]]];2 3data_set($data,'products.desk.price',200, overwrite: false);4 5// ['products' => ['desk' => ['price' => 100]]]
+$data = ['products' => ['desk' => ['price' => 100]]];
+
+data_set($data, 'products.desk.price', 200, overwrite: false);
+
+// ['products' => ['desk' => ['price' => 100]]]</code></pre></div><h4><a href=#method-data-forget><code>data_forget()</code></a></h4><p>The <code>data_forget</code> function removes a value within a nested array or object using "dot" notation:<div><pre><code>1$data= ['products'=> ['desk'=> ['price'=>100]]];2 3data_forget($data,'products.desk.price');4 5// ['products' => ['desk' => []]]
+$data = ['products' => ['desk' => ['price' => 100]]];
+
+data_forget($data, 'products.desk.price');
+
+// ['products' => ['desk' => []]]</code></pre></div><p>This function also accepts wildcards using asterisks and will remove values on the target accordingly:<div><pre><code> 1$data= [ 2'products'=> [ 3        ['name'=>'Desk 1', 'price'=>100], 4        ['name'=>'Desk 2', 'price'=>150], 5    ], 6]; 7  8data_forget($data,'products.*.price'); 9 10/*11    [12        'products' => [13            ['name' => 'Desk 1'],14            ['name' => 'Desk 2'],15        ],16    ]17*/
+$data = [
+    'products' => [
+        ['name' => 'Desk 1', 'price' => 100],
+        ['name' => 'Desk 2', 'price' => 150],
+    ],
+];
+
+data_forget($data, 'products.*.price');
+
+/*
+    [
+        'products' => [
+            ['name' => 'Desk 1'],
+            ['name' => 'Desk 2'],
+        ],
+    ]
+*/</code></pre></div><h4><a href=#method-head><code>head()</code></a></h4><p>The <code>head</code> function returns the first element in the given array. If the array is empty, <code>false</code> will be returned:<div><pre><code>1$array= [100, 200, 300];2 3$first=head($array);4 5// 100
+$array = [100, 200, 300];
+
+$first = head($array);
+
+// 100</code></pre></div><h4><a href=#method-last><code>last()</code></a></h4><p>The <code>last</code> function returns the last element in the given array. If the array is empty, <code>false</code> will be returned:<div><pre><code>1$array= [100, 200, 300];2 3$last=last($array);4 5// 300
+$array = [100, 200, 300];
+
+$last = last($array);
+
+// 300</code></pre></div><h2><a href=#numbers>Numbers</a></h2><h4><a href=#method-number-abbreviate><code>Number::abbreviate()</code></a></h4><p>The <code>Number::abbreviate</code> method returns the human-readable format of the provided numerical value, with an abbreviation for the units:<div><pre><code> 1use Illuminate\Support\Number; 2  3$number=Number::abbreviate(1000); 4  5// 1K 6  7$number=Number::abbreviate(489939); 8  9// 490K10 11$number=Number::abbreviate(1230000, precision: 2);12 13// 1.23M
+use Illuminate\Support\Number;
+
+$number = Number::abbreviate(1000);
+
+// 1K
+
+$number = Number::abbreviate(489939);
+
+// 490K
+
+$number = Number::abbreviate(1230000, precision: 2);
+
+// 1.23M</code></pre></div><h4><a href=#method-number-clamp><code>Number::clamp()</code></a></h4><p>The <code>Number::clamp</code> method ensures a given number stays within a specified range. If the number is lower than the minimum, the minimum value is returned. If the number is higher than the maximum, the maximum value is returned:<div><pre><code> 1use Illuminate\Support\Number; 2  3$number=Number::clamp(105, min: 10, max: 100); 4  5// 100 6  7$number=Number::clamp(5, min: 10, max: 100); 8  9// 1010 11$number=Number::clamp(10, min: 10, max: 100);12 13// 1014 15$number=Number::clamp(20, min: 10, max: 100);16 17// 20
+use Illuminate\Support\Number;
+
+$number = Number::clamp(105, min: 10, max: 100);
+
+// 100
+
+$number = Number::clamp(5, min: 10, max: 100);
+
+// 10
+
+$number = Number::clamp(10, min: 10, max: 100);
+
+// 10
+
+$number = Number::clamp(20, min: 10, max: 100);
+
+// 20</code></pre></div><h4><a href=#method-number-currency><code>Number::currency()</code></a></h4><p>The <code>Number::currency</code> method returns the currency representation of the given value as a string:<div><pre><code> 1use Illuminate\Support\Number; 2  3$currency=Number::currency(1000); 4  5// $1,000.00 6  7$currency=Number::currency(1000, in: 'EUR'); 8  9// Γé¼1,000.0010 11$currency=Number::currency(1000, in: 'EUR', locale: 'de');12 13// 1.000,00 Γé¼14 15$currency=Number::currency(1000, in: 'EUR', locale: 'de', precision: 0);16 17// 1.000 Γé¼
+use Illuminate\Support\Number;
+
+$currency = Number::currency(1000);
+
+// $1,000.00
+
+$currency = Number::currency(1000, in: 'EUR');
+
+// Γé¼1,000.00
+
+$currency = Number::currency(1000, in: 'EUR', locale: 'de');
+
+// 1.000,00 Γé¼
+
+$currency = Number::currency(1000, in: 'EUR', locale: 'de', precision: 0);
+
+// 1.000 Γé¼</code></pre></div><h4><a href=#method-default-currency><code>Number::defaultCurrency()</code></a></h4><p>The <code>Number::defaultCurrency</code> method returns the default currency being used by the <code>Number</code> class:<div><pre><code>1use Illuminate\Support\Number;2 3$currency=Number::defaultCurrency();4 5// USD
+use Illuminate\Support\Number;
+
+$currency = Number::defaultCurrency();
+
+// USD</code></pre></div><h4><a href=#method-default-locale><code>Number::defaultLocale()</code></a></h4><p>The <code>Number::defaultLocale</code> method returns the default locale being used by the <code>Number</code> class:<div><pre><code>1use Illuminate\Support\Number;2 3$locale=Number::defaultLocale();4 5// en
+use Illuminate\Support\Number;
+
+$locale = Number::defaultLocale();
+
+// en</code></pre></div><h4><a href=#method-number-file-size><code>Number::fileSize()</code></a></h4><p>The <code>Number::fileSize</code> method returns the file size representation of the given byte value as a string:<div><pre><code> 1use Illuminate\Support\Number; 2  3$size=Number::fileSize(1024); 4  5// 1 KB 6  7$size=Number::fileSize(1024*1024); 8  9// 1 MB10 11$size=Number::fileSize(1024, precision: 2);12 13// 1.00 KB
+use Illuminate\Support\Number;
+
+$size = Number::fileSize(1024);
+
+// 1 KB
+
+$size = Number::fileSize(1024 * 1024);
+
+// 1 MB
+
+$size = Number::fileSize(1024, precision: 2);
+
+// 1.00 KB</code></pre></div><h4><a href=#method-number-for-humans><code>Number::forHumans()</code></a></h4><p>The <code>Number::forHumans</code> method returns the human-readable format of the provided numerical value:<div><pre><code> 1use Illuminate\Support\Number; 2  3$number=Number::forHumans(1000); 4  5// 1 thousand 6  7$number=Number::forHumans(489939); 8  9// 490 thousand10 11$number=Number::forHumans(1230000, precision: 2);12 13// 1.23 million
+use Illuminate\Support\Number;
+
+$number = Number::forHumans(1000);
+
+// 1 thousand
+
+$number = Number::forHumans(489939);
+
+// 490 thousand
+
+$number = Number::forHumans(1230000, precision: 2);
+
+// 1.23 million</code></pre></div><h4><a href=#method-number-format><code>Number::format()</code></a></h4><p>The <code>Number::format</code> method formats the given number into a locale specific string:<div><pre><code> 1use Illuminate\Support\Number; 2  3$number=Number::format(100000); 4  5// 100,000 6  7$number=Number::format(100000, precision: 2); 8  9// 100,000.0010 11$number=Number::format(100000.123, maxPrecision: 2);12 13// 100,000.1214 15$number=Number::format(100000, locale: 'de');16 17// 100.000
+use Illuminate\Support\Number;
+
+$number = Number::format(100000);
+
+// 100,000
+
+$number = Number::format(100000, precision: 2);
+
+// 100,000.00
+
+$number = Number::format(100000.123, maxPrecision: 2);
+
+// 100,000.12
+
+$number = Number::format(100000, locale: 'de');
+
+// 100.000</code></pre></div><h4><a href=#method-number-ordinal><code>Number::ordinal()</code></a></h4><p>The <code>Number::ordinal</code> method returns a number's ordinal representation:<div><pre><code> 1use Illuminate\Support\Number; 2  3$number=Number::ordinal(1); 4  5// 1st 6  7$number=Number::ordinal(2); 8  9// 2nd10 11$number=Number::ordinal(21);12 13// 21st
+use Illuminate\Support\Number;
+
+$number = Number::ordinal(1);
+
+// 1st
+
+$number = Number::ordinal(2);
+
+// 2nd
+
+$number = Number::ordinal(21);
+
+// 21st</code></pre></div><h4><a href=#method-number-pairs><code>Number::pairs()</code></a></h4><p>The <code>Number::pairs</code> method generates an array of number pairs (sub-ranges) based on a specified range and step value. This method can be useful for dividing a larger range of numbers into smaller, manageable sub-ranges for things like pagination or batching tasks. The <code>pairs</code> method returns an array of arrays, where each inner array represents a pair (sub-range) of numbers:<div><pre><code>1use Illuminate\Support\Number;2 3$result=Number::pairs(25, 10);4 5// [[0, 9], [10, 19], [20, 25]]6 7$result=Number::pairs(25, 10, offset: 0);8 9// [[0, 10], [10, 20], [20, 25]]
+use Illuminate\Support\Number;
+
+$result = Number::pairs(25, 10);
+
+// [[0, 9], [10, 19], [20, 25]]
+
+$result = Number::pairs(25, 10, offset: 0);
+
+// [[0, 10], [10, 20], [20, 25]]</code></pre></div><h4><a href=#method-number-parse-int><code>Number::parseInt()</code></a></h4><p>The <code>Number::parseInt</code> method parse a string into an integer according to the specified locale:<div><pre><code>1use Illuminate\Support\Number;2 3$result=Number::parseInt('10.123');4 5// (int) 106 7$result=Number::parseInt('10,123', locale: 'fr');8 9// (int) 10
+use Illuminate\Support\Number;
+
+$result = Number::parseInt('10.123');
+
+// (int) 10
+
+$result = Number::parseInt('10,123', locale: 'fr');
+
+// (int) 10</code></pre></div><h4><a href=#method-number-parse-float><code>Number::parseFloat()</code></a></h4><p>The <code>Number::parseFloat</code> method parse a string into a float according to the specified locale:<div><pre><code>1use Illuminate\Support\Number;2 3$result=Number::parseFloat('10');4 5// (float) 10.06 7$result=Number::parseFloat('10', locale: 'fr');8 9// (float) 10.0
+use Illuminate\Support\Number;
+
+$result = Number::parseFloat('10');
+
+// (float) 10.0
+
+$result = Number::parseFloat('10', locale: 'fr');
+
+// (float) 10.0</code></pre></div><h4><a href=#method-number-percentage><code>Number::percentage()</code></a></h4><p>The <code>Number::percentage</code> method returns the percentage representation of the given value as a string:<div><pre><code> 1use Illuminate\Support\Number; 2  3$percentage=Number::percentage(10); 4  5// 10% 6  7$percentage=Number::percentage(10, precision: 2); 8  9// 10.00%10 11$percentage=Number::percentage(10.123, maxPrecision: 2);12 13// 10.12%14 15$percentage=Number::percentage(10, precision: 2, locale: 'de');16 17// 10,00%
+use Illuminate\Support\Number;
+
+$percentage = Number::percentage(10);
+
+// 10%
+
+$percentage = Number::percentage(10, precision: 2);
+
+// 10.00%
+
+$percentage = Number::percentage(10.123, maxPrecision: 2);
+
+// 10.12%
+
+$percentage = Number::percentage(10, precision: 2, locale: 'de');
+
+// 10,00%</code></pre></div><h4><a href=#method-number-spell><code>Number::spell()</code></a></h4><p>The <code>Number::spell</code> method transforms the given number into a string of words:<div><pre><code>1use Illuminate\Support\Number;2 3$number=Number::spell(102);4 5// one hundred and two6 7$number=Number::spell(88, locale: 'fr');8 9// quatre-vingt-huit
+use Illuminate\Support\Number;
+
+$number = Number::spell(102);
+
+// one hundred and two
+
+$number = Number::spell(88, locale: 'fr');
+
+// quatre-vingt-huit</code></pre></div><p>The <code>after</code> argument allows you to specify a value after which all numbers should be spelled out:<div><pre><code>1$number=Number::spell(10, after: 10);2 3// 104 5$number=Number::spell(11, after: 10);6 7// eleven
+$number = Number::spell(10, after: 10);
+
+// 10
+
+$number = Number::spell(11, after: 10);
+
+// eleven</code></pre></div><p>The <code>until</code> argument allows you to specify a value before which all numbers should be spelled out:<div><pre><code>1$number=Number::spell(5, until: 10);2 3// five4 5$number=Number::spell(10, until: 10);6 7// 10
+$number = Number::spell(5, until: 10);
+
+// five
+
+$number = Number::spell(10, until: 10);
+
+// 10</code></pre></div><h4><a href=#method-number-spell-ordinal><code>Number::spellOrdinal()</code></a></h4><p>The <code>Number::spellOrdinal</code> method returns the number's ordinal representation as a string of words:<div><pre><code> 1use Illuminate\Support\Number; 2  3$number=Number::spellOrdinal(1); 4  5// first 6  7$number=Number::spellOrdinal(2); 8  9// second10 11$number=Number::spellOrdinal(21);12 13// twenty-first
+use Illuminate\Support\Number;
+
+$number = Number::spellOrdinal(1);
+
+// first
+
+$number = Number::spellOrdinal(2);
+
+// second
+
+$number = Number::spellOrdinal(21);
+
+// twenty-first</code></pre></div><h4><a href=#method-number-trim><code>Number::trim()</code></a></h4><p>The <code>Number::trim</code> method removes any trailing zero digits after the decimal point of the given number:<div><pre><code>1use Illuminate\Support\Number;2 3$number=Number::trim(12.0);4 5// 126 7$number=Number::trim(12.30);8 9// 12.3
+use Illuminate\Support\Number;
+
+$number = Number::trim(12.0);
+
+// 12
+
+$number = Number::trim(12.30);
+
+// 12.3</code></pre></div><h4><a href=#method-number-use-locale><code>Number::useLocale()</code></a></h4><p>The <code>Number::useLocale</code> method sets the default number locale globally, which affects how numbers and currency are formatted by subsequent invocations to the <code>Number</code> class's methods:<div><pre><code>1use Illuminate\Support\Number;2 3/**4 * Bootstrap any application services.5*/6publicfunctionboot():void7{8Number::useLocale('de');9}
+use Illuminate\Support\Number;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Number::useLocale('de');
+}</code></pre></div><h4><a href=#method-number-with-locale><code>Number::withLocale()</code></a></h4><p>The <code>Number::withLocale</code> method executes the given closure using the specified locale and then restores the original locale after the callback has executed:<div><pre><code>1use Illuminate\Support\Number;2 3$number=Number::withLocale('de', function() {4returnNumber::format(1500);5});
+use Illuminate\Support\Number;
+
+$number = Number::withLocale('de', function () {
+    return Number::format(1500);
+});</code></pre></div><h4><a href=#method-number-use-currency><code>Number::useCurrency()</code></a></h4><p>The <code>Number::useCurrency</code> method sets the default number currency globally, which affects how the currency is formatted by subsequent invocations to the <code>Number</code> class's methods:<div><pre><code>1use Illuminate\Support\Number;2 3/**4 * Bootstrap any application services.5*/6publicfunctionboot():void7{8Number::useCurrency('GBP');9}
+use Illuminate\Support\Number;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Number::useCurrency('GBP');
+}</code></pre></div><h4><a href=#method-number-with-currency><code>Number::withCurrency()</code></a></h4><p>The <code>Number::withCurrency</code> method executes the given closure using the specified currency and then restores the original currency after the callback has executed:<div><pre><code>1use Illuminate\Support\Number;2 3$number=Number::withCurrency('GBP', function() {4// ...5});
+use Illuminate\Support\Number;
+
+$number = Number::withCurrency('GBP', function () {
+    // ...
+});</code></pre></div><h2><a href=#paths>Paths</a></h2><h4><a href=#method-app-path><code>app_path()</code></a></h4><p>The <code>app_path</code> function returns the fully qualified path to your application's <code>app</code> directory. You may also use the <code>app_path</code> function to generate a fully qualified path to a file relative to the application directory:<div><pre><code>1$path=app_path();2 3$path=app_path('Http/Controllers/Controller.php');
+$path = app_path();
+
+$path = app_path('Http/Controllers/Controller.php');</code></pre></div><h4><a href=#method-base-path><code>base_path()</code></a></h4><p>The <code>base_path</code> function returns the fully qualified path to your application's root directory. You may also use the <code>base_path</code> function to generate a fully qualified path to a given file relative to the project root directory:<div><pre><code>1$path=base_path();2 3$path=base_path('vendor/bin');
+$path = base_path();
+
+$path = base_path('vendor/bin');</code></pre></div><h4><a href=#method-config-path><code>config_path()</code></a></h4><p>The <code>config_path</code> function returns the fully qualified path to your application's <code>config</code> directory. You may also use the <code>config_path</code> function to generate a fully qualified path to a given file within the application's configuration directory:<div><pre><code>1$path=config_path();2 3$path=config_path('app.php');
+$path = config_path();
+
+$path = config_path('app.php');</code></pre></div><h4><a href=#method-database-path><code>database_path()</code></a></h4><p>The <code>database_path</code> function returns the fully qualified path to your application's <code>database</code> directory. You may also use the <code>database_path</code> function to generate a fully qualified path to a given file within the database directory:<div><pre><code>1$path=database_path();2 3$path=database_path('factories/UserFactory.php');
+$path = database_path();
+
+$path = database_path('factories/UserFactory.php');</code></pre></div><h4><a href=#method-lang-path><code>lang_path()</code></a></h4><p>The <code>lang_path</code> function returns the fully qualified path to your application's <code>lang</code> directory. You may also use the <code>lang_path</code> function to generate a fully qualified path to a given file within the directory:<div><pre><code>1$path=lang_path();2 3$path=lang_path('en/messages.php');
+$path = lang_path();
+
+$path = lang_path('en/messages.php');</code></pre></div><div><p>By default, the Laravel application skeleton does not include the <code>lang</code> directory. If you would like to customize Laravel's language files, you may publish them via the <code>lang:publish</code> Artisan command.</div><h4><a href=#method-public-path><code>public_path()</code></a></h4><p>The <code>public_path</code> function returns the fully qualified path to your application's <code>public</code> directory. You may also use the <code>public_path</code> function to generate a fully qualified path to a given file within the public directory:<div><pre><code>1$path=public_path();2 3$path=public_path('css/app.css');
+$path = public_path();
+
+$path = public_path('css/app.css');</code></pre></div><h4><a href=#method-resource-path><code>resource_path()</code></a></h4><p>The <code>resource_path</code> function returns the fully qualified path to your application's <code>resources</code> directory. You may also use the <code>resource_path</code> function to generate a fully qualified path to a given file within the resources directory:<div><pre><code>1$path=resource_path();2 3$path=resource_path('sass/app.scss');
+$path = resource_path();
+
+$path = resource_path('sass/app.scss');</code></pre></div><h4><a href=#method-storage-path><code>storage_path()</code></a></h4><p>The <code>storage_path</code> function returns the fully qualified path to your application's <code>storage</code> directory. You may also use the <code>storage_path</code> function to generate a fully qualified path to a given file within the storage directory:<div><pre><code>1$path=storage_path();2 3$path=storage_path('app/file.txt');
+$path = storage_path();
+
+$path = storage_path('app/file.txt');</code></pre></div><h2><a href=#urls>URLs</a></h2><h4><a href=#method-action><code>action()</code></a></h4><p>The <code>action</code> function generates a URL for the given controller action:<div><pre><code>1use App\Http\Controllers\HomeController;2 3$url=action([HomeController::class,'index']);
+use App\Http\Controllers\HomeController;
+
+$url = action([HomeController::class, 'index']);</code></pre></div><p>If the method accepts route parameters, you may pass them as the second argument to the method:<div><pre><code>1$url=action([UserController::class,'profile'],['id'=>1]);
+$url = action([UserController::class, 'profile'], ['id' => 1]);</code></pre></div><h4><a href=#method-asset><code>asset()</code></a></h4><p>The <code>asset</code> function generates a URL for an asset using the current scheme of the request (HTTP or HTTPS):<div><pre><code>1$url=asset('img/photo.jpg');
+$url = asset('img/photo.jpg');</code></pre></div><p>You can configure the asset URL host by setting the <code>ASSET_URL</code> variable in your <code>.env</code> file. This can be useful if you host your assets on an external service like Amazon S3 or another CDN:<div><pre><code>1// ASSET_URL=http://example.com/assets2 3$url=asset('img/photo.jpg'); // http://example.com/assets/img/photo.jpg
+// ASSET_URL=http://example.com/assets
+
+$url = asset('img/photo.jpg'); // http://example.com/assets/img/photo.jpg</code></pre></div><h4><a href=#method-route><code>route()</code></a></h4><p>The <code>route</code> function generates a URL for a given <a href=routing.htm#named-routes>named route</a>:<div><pre><code>1$url=route('route.name');
+$url = route('route.name');</code></pre></div><p>If the route accepts parameters, you may pass them as the second argument to the function:<div><pre><code>1$url=route('route.name',['id'=>1]);
+$url = route('route.name', ['id' => 1]);</code></pre></div><p>By default, the <code>route</code> function generates an absolute URL. If you wish to generate a relative URL, you may pass <code>false</code> as the third argument to the function:<div><pre><code>1$url=route('route.name',['id'=>1], false);
+$url = route('route.name', ['id' => 1], false);</code></pre></div><h4><a href=#method-secure-asset><code>secure_asset()</code></a></h4><p>The <code>secure_asset</code> function generates a URL for an asset using HTTPS:<div><pre><code>1$url=secure_asset('img/photo.jpg');
+$url = secure_asset('img/photo.jpg');</code></pre></div><h4><a href=#method-secure-url><code>secure_url()</code></a></h4><p>The <code>secure_url</code> function generates a fully qualified HTTPS URL to the given path. Additional URL segments may be passed in the function's second argument:<div><pre><code>1$url=secure_url('user/profile');2 3$url=secure_url('user/profile',[1]);
+$url = secure_url('user/profile');
+
+$url = secure_url('user/profile', [1]);</code></pre></div><h4><a href=#method-to-route><code>to_route()</code></a></h4><p>The <code>to_route</code> function generates a <a href=responses.htm#redirects>redirect HTTP response</a> for a given <a href=routing.htm#named-routes>named route</a>:<div><pre><code>1returnto_route('users.show',['user'=>1]);
+return to_route('users.show', ['user' => 1]);</code></pre></div><p>If necessary, you may pass the HTTP status code that should be assigned to the redirect and any additional response headers as the third and fourth arguments to the <code>to_route</code> method:<div><pre><code>1returnto_route('users.show',['user'=>1],302,['X-Framework'=>'Laravel']);
+return to_route('users.show', ['user' => 1], 302, ['X-Framework' => 'Laravel']);</code></pre></div><h4><a href=#method-uri><code>uri()</code></a></h4><p>The <code>uri</code> function generates a <a href=#uri>fluent URI instance</a> for the given URI:<div><pre><code>1$uri=uri('https://example.com')2->withPath('/users')3->withQuery(['page'=>1]);
+$uri = uri('https://example.com')
+    ->withPath('/users')
+    ->withQuery(['page' => 1]);</code></pre></div><p>If the <code>uri</code> function is given an array containing a callable controller and method pair, the function will create a <code>Uri</code> instance for the controller method's route path:<div><pre><code>1use App\Http\Controllers\UserController;2 3$uri=uri([UserController::class,'show'],['user'=>$user]);
+use App\Http\Controllers\UserController;
+
+$uri = uri([UserController::class, 'show'], ['user' => $user]);</code></pre></div><p>If the controller is invokable, you may simply provide the controller class name:<div><pre><code>1use App\Http\Controllers\UserIndexController;2 3$uri=uri(UserIndexController::class);
+use App\Http\Controllers\UserIndexController;
+
+$uri = uri(UserIndexController::class);</code></pre></div><p>If the value given to the <code>uri</code> function matches the name of a <a href=routing.htm#named-routes>named route</a>, a <code>Uri</code> instance will be generated for that route's path:<div><pre><code>1$uri=uri('users.show',['user'=>$user]);
+$uri = uri('users.show', ['user' => $user]);</code></pre></div><h4><a href=#method-url><code>url()</code></a></h4><p>The <code>url</code> function generates a fully qualified URL to the given path:<div><pre><code>1$url=url('user/profile');2 3$url=url('user/profile',[1]);
+$url = url('user/profile');
+
+$url = url('user/profile', [1]);</code></pre></div><p>If no path is provided, an <code>Illuminate\Routing\UrlGenerator</code> instance is returned:<div><pre><code>1$current=url()->current();2 3$full=url()->full();4 5$previous=url()->previous();
+$current = url()->current();
+
+$full = url()->full();
+
+$previous = url()->previous();</code></pre></div><p>For more information on working with the <code>url</code> function, consult the <a href=urls.htm#generating-urls>URL generation documentation</a>.<h2><a href=#miscellaneous>Miscellaneous</a></h2><h4><a href=#method-abort><code>abort()</code></a></h4><p>The <code>abort</code> function throws <a href=errors.htm#http-exceptions>an HTTP exception</a> which will be rendered by the <a href=errors.htm#handling-exceptions>exception handler</a>:<div><pre><code>1abort(403);
+abort(403);</code></pre></div><p>You may also provide the exception's message and custom HTTP response headers that should be sent to the browser:<div><pre><code>1abort(403,'Unauthorized.',$headers);
+abort(403, 'Unauthorized.', $headers);</code></pre></div><h4><a href=#method-abort-if><code>abort_if()</code></a></h4><p>The <code>abort_if</code> function throws an HTTP exception if a given boolean expression evaluates to <code>true</code>:<div><pre><code>1abort_if(!Auth::user()->isAdmin(),403);
+abort_if(! Auth::user()->isAdmin(), 403);</code></pre></div><p>Like the <code>abort</code> method, you may also provide the exception's response text as the third argument and an array of custom response headers as the fourth argument to the function.<h4><a href=#method-abort-unless><code>abort_unless()</code></a></h4><p>The <code>abort_unless</code> function throws an HTTP exception if a given boolean expression evaluates to <code>false</code>:<div><pre><code>1abort_unless(Auth::user()->isAdmin(),403);
+abort_unless(Auth::user()->isAdmin(), 403);</code></pre></div><p>Like the <code>abort</code> method, you may also provide the exception's response text as the third argument and an array of custom response headers as the fourth argument to the function.<h4><a href=#method-app><code>app()</code></a></h4><p>The <code>app</code> function returns the <a href=container.htm>service container</a> instance:<div><pre><code>1$container=app();
+$container = app();</code></pre></div><p>You may pass a class or interface name to resolve it from the container:<div><pre><code>1$api=app('HelpSpot\API');
+$api = app('HelpSpot\API');</code></pre></div><h4><a href=#method-auth><code>auth()</code></a></h4><p>The <code>auth</code> function returns an <a href=authentication.htm>authenticator</a> instance. You may use it as an alternative to the <code>Auth</code> facade:<div><pre><code>1$user=auth()->user();
+$user = auth()->user();</code></pre></div><p>If needed, you may specify which guard instance you would like to access:<div><pre><code>1$user=auth('admin')->user();
+$user = auth('admin')->user();</code></pre></div><h4><a href=#method-back><code>back()</code></a></h4><p>The <code>back</code> function generates a <a href=responses.htm#redirects>redirect HTTP response</a> to the user's previous location:<div><pre><code>1returnback($status=302,$headers=[],$fallback='/');2 3returnback();
+return back($status = 302, $headers = [], $fallback = '/');
+
+return back();</code></pre></div><h4><a href=#method-bcrypt><code>bcrypt()</code></a></h4><p>The <code>bcrypt</code> function <a href=hashing.htm>hashes</a> the given value using Bcrypt. You may use this function as an alternative to the <code>Hash</code> facade:<div><pre><code>1$password=bcrypt('my-secret-password');
+$password = bcrypt('my-secret-password');</code></pre></div><h4><a href=#method-blank><code>blank()</code></a></h4><p>The <code>blank</code> function determines whether the given value is "blank":<div><pre><code> 1blank(''); 2blank(''); 3blank(null); 4blank(collect()); 5  6// true 7  8blank(0); 9blank(true);10blank(false);11 12// false
+blank('');
+blank('   ');
+blank(null);
+blank(collect());
+
+// true
+
+blank(0);
+blank(true);
+blank(false);
+
+// false</code></pre></div><p>For the inverse of <code>blank</code>, see the <a href=#method-filled>filled</a> function.<h4><a href=#method-broadcast><code>broadcast()</code></a></h4><p>The <code>broadcast</code> function <a href=broadcasting.htm>broadcasts</a> the given <a href=events.htm>event</a> to its listeners:<div><pre><code>1broadcast(newUserRegistered($user));2 3broadcast(newUserRegistered($user))->toOthers();
+broadcast(new UserRegistered($user));
+
+broadcast(new UserRegistered($user))->toOthers();</code></pre></div><h4><a href=#method-broadcast-if><code>broadcast_if()</code></a></h4><p>The <code>broadcast_if</code> function <a href=broadcasting.htm>broadcasts</a> the given <a href=events.htm>event</a> to its listeners if a given boolean expression evaluates to <code>true</code>:<div><pre><code>1broadcast_if($user->isActive(),newUserRegistered($user));2 3broadcast_if($user->isActive(),newUserRegistered($user))->toOthers();
+broadcast_if($user->isActive(), new UserRegistered($user));
+
+broadcast_if($user->isActive(), new UserRegistered($user))->toOthers();</code></pre></div><h4><a href=#method-broadcast-unless><code>broadcast_unless()</code></a></h4><p>The <code>broadcast_unless</code> function <a href=broadcasting.htm>broadcasts</a> the given <a href=events.htm>event</a> to its listeners if a given boolean expression evaluates to <code>false</code>:<div><pre><code>1broadcast_unless($user->isBanned(),newUserRegistered($user));2 3broadcast_unless($user->isBanned(),newUserRegistered($user))->toOthers();
+broadcast_unless($user->isBanned(), new UserRegistered($user));
+
+broadcast_unless($user->isBanned(), new UserRegistered($user))->toOthers();</code></pre></div><h4><a href=#method-cache><code>cache()</code></a></h4><p>The <code>cache</code> function may be used to get values from the <a href=cache.htm>cache</a>. If the given key does not exist in the cache, an optional default value will be returned:<div><pre><code>1$value=cache('key');2 3$value=cache('key','default');
+$value = cache('key');
+
+$value = cache('key', 'default');</code></pre></div><p>You may add items to the cache by passing an array of key / value pairs to the function. You should also pass the number of seconds or duration the cached value should be considered valid:<div><pre><code>1cache(['key'=>'value'],300);2 3cache(['key'=>'value'], now()->addSeconds(10));
+cache(['key' => 'value'], 300);
+
+cache(['key' => 'value'], now()->addSeconds(10));</code></pre></div><h4><a href=#method-class-uses-recursive><code>class_uses_recursive()</code></a></h4><p>The <code>class_uses_recursive</code> function returns all traits used by a class, including traits used by all of its parent classes:<div><pre><code>1$traits=class_uses_recursive(App\Models\User::class);
+$traits = class_uses_recursive(App\Models\User::class);</code></pre></div><h4><a href=#method-collect><code>collect()</code></a></h4><p>The <code>collect</code> function creates a <a href=collections.htm>collection</a> instance from the given value:<div><pre><code>1$collection=collect(['Taylor','Abigail']);
+$collection = collect(['Taylor', 'Abigail']);</code></pre></div><h4><a href=#method-config><code>config()</code></a></h4><p>The <code>config</code> function gets the value of a <a href=configuration.htm>configuration</a> variable. The configuration values may be accessed using "dot" syntax, which includes the name of the file and the option you wish to access. You may also provide a default value that will be returned if the configuration option does not exist:<div><pre><code>1$value=config('app.timezone');2 3$value=config('app.timezone',$default);
+$value = config('app.timezone');
+
+$value = config('app.timezone', $default);</code></pre></div><p>You may set configuration variables at runtime by passing an array of key / value pairs. However, note that this function only affects the configuration value for the current request and does not update your actual configuration values:<div><pre><code>1config(['app.debug'=> true]);
+config(['app.debug' => true]);</code></pre></div><h4><a href=#method-context><code>context()</code></a></h4><p>The <code>context</code> function gets the value from the current <a href=context.htm>context</a>. You may also provide a default value that will be returned if the context key does not exist:<div><pre><code>1$value=context('trace_id');2 3$value=context('trace_id',$default);
+$value = context('trace_id');
+
+$value = context('trace_id', $default);</code></pre></div><p>You may set context values by passing an array of key / value pairs:<div><pre><code>1use Illuminate\Support\Str;2 3context(['trace_id'=>Str::uuid()->toString()]);
+use Illuminate\Support\Str;
+
+context(['trace_id' => Str::uuid()->toString()]);</code></pre></div><h4><a href=#method-cookie><code>cookie()</code></a></h4><p>The <code>cookie</code> function creates a new <a href=requests.htm#cookies>cookie</a> instance:<div><pre><code>1$cookie=cookie('name','value',$minutes);
+$cookie = cookie('name', 'value', $minutes);</code></pre></div><h4><a href=#method-csrf-field><code>csrf_field()</code></a></h4><p>The <code>csrf_field</code> function generates an HTML <code>hidden</code> input field containing the value of the CSRF token. For example, using <a href=blade.htm>Blade syntax</a>:<div><pre><code>1{{csrf_field() }}
+{{ csrf_field() }}</code></pre></div><h4><a href=#method-csrf-token><code>csrf_token()</code></a></h4><p>The <code>csrf_token</code> function retrieves the value of the current CSRF token:<div><pre><code>1$token=csrf_token();
+$token = csrf_token();</code></pre></div><h4><a href=#method-decrypt><code>decrypt()</code></a></h4><p>The <code>decrypt</code> function <a href=encryption.htm>decrypts</a> the given value. You may use this function as an alternative to the <code>Crypt</code> facade:<div><pre><code>1$password=decrypt($value);
+$password = decrypt($value);</code></pre></div><p>For the inverse of <code>decrypt</code>, see the <a href=#method-encrypt>encrypt</a> function.<h4><a href=#method-dd><code>dd()</code></a></h4><p>The <code>dd</code> function dumps the given variables and ends the execution of the script:<div><pre><code>1dd($value);2 3dd($value1,$value2,$value3,...);
+dd($value);
+
+dd($value1, $value2, $value3, ...);</code></pre></div><p>If you do not want to halt the execution of your script, use the <a href=#method-dump>dump</a> function instead.<h4><a href=#method-dispatch><code>dispatch()</code></a></h4><p>The <code>dispatch</code> function pushes the given <a href=queues.htm#creating-jobs>job</a> onto the Laravel <a href=queues.htm>job queue</a>:<div><pre><code>1dispatch(new App\Jobs\SendEmails);
+dispatch(new App\Jobs\SendEmails);</code></pre></div><h4><a href=#method-dispatch-sync><code>dispatch_sync()</code></a></h4><p>The <code>dispatch_sync</code> function pushes the given job to the <a href=queues.htm#synchronous-dispatching>sync</a> queue so that it is processed immediately:<div><pre><code>1dispatch_sync(new App\Jobs\SendEmails);
+dispatch_sync(new App\Jobs\SendEmails);</code></pre></div><h4><a href=#method-dump><code>dump()</code></a></h4><p>The <code>dump</code> function dumps the given variables:<div><pre><code>1dump($value);2 3dump($value1,$value2,$value3,...);
+dump($value);
+
+dump($value1, $value2, $value3, ...);</code></pre></div><p>If you want to stop executing the script after dumping the variables, use the <a href=#method-dd>dd</a> function instead.<h4><a href=#method-encrypt><code>encrypt()</code></a></h4><p>The <code>encrypt</code> function <a href=encryption.htm>encrypts</a> the given value. You may use this function as an alternative to the <code>Crypt</code> facade:<div><pre><code>1$secret=encrypt('my-secret-value');
+$secret = encrypt('my-secret-value');</code></pre></div><p>For the inverse of <code>encrypt</code>, see the <a href=#method-decrypt>decrypt</a> function.<h4><a href=#method-env><code>env()</code></a></h4><p>The <code>env</code> function retrieves the value of an <a href=configuration.htm#environment-configuration>environment variable</a> or returns a default value:<div><pre><code>1$env=env('APP_ENV');2 3$env=env('APP_ENV','production');
+$env = env('APP_ENV');
+
+$env = env('APP_ENV', 'production');</code></pre></div><div><p>If you execute the <code>config:cache</code> command during your deployment process, you should be sure that you are only calling the <code>env</code> function from within your configuration files. Once the configuration has been cached, the <code>.env</code> file will not be loaded and all calls to the <code>env</code> function will return external environment variables such as server-level or system-level environment variables or <code>null</code>.</div><h4><a href=#method-event><code>event()</code></a></h4><p>The <code>event</code> function dispatches the given <a href=events.htm>event</a> to its listeners:<div><pre><code>1event(newUserRegistered($user));
+event(new UserRegistered($user));</code></pre></div><h4><a href=#method-fake><code>fake()</code></a></h4><p>The <code>fake</code> function resolves a <a href=https://github.com/FakerPHP/Faker>Faker</a> singleton from the container, which can be useful when creating fake data in model factories, database seeding, tests, and prototyping views:<div><pre><code>1@for ($i=0; $i&lt;10; $i++)2&lt;dl>3&lt;dt>Name&lt;/dt>4&lt;dd>{{fake()->name() }}&lt;/dd>5 6&lt;dt>Email&lt;/dt>7&lt;dd>{{fake()->unique()->safeEmail() }}&lt;/dd>8&lt;/dl>9@endfor
+@for ($i = 0; $i &lt; 10; $i++)
+    &lt;dl>
+        &lt;dt>Name&lt;/dt>
+        &lt;dd>{{ fake()->name() }}&lt;/dd>
+
+        &lt;dt>Email&lt;/dt>
+        &lt;dd>{{ fake()->unique()->safeEmail() }}&lt;/dd>
+    &lt;/dl>
+@endfor</code></pre></div><p>By default, the <code>fake</code> function will utilize the <code>app.faker_locale</code> configuration option in your <code>config/app.php</code> configuration. Typically, this configuration option is set via the <code>APP_FAKER_LOCALE</code> environment variable. You may also specify the locale by passing it to the <code>fake</code> function. Each locale will resolve an individual singleton:<div><pre><code>1fake('nl_NL')->name()
+fake('nl_NL')->name()</code></pre></div><h4><a href=#method-filled><code>filled()</code></a></h4><p>The <code>filled</code> function determines whether the given value is not "blank":<div><pre><code> 1filled(0); 2filled(true); 3filled(false); 4  5// true 6  7filled(''); 8filled(''); 9filled(null);10filled(collect());11 12// false
+filled(0);
+filled(true);
+filled(false);
+
+// true
+
+filled('');
+filled('   ');
+filled(null);
+filled(collect());
+
+// false</code></pre></div><p>For the inverse of <code>filled</code>, see the <a href=#method-blank>blank</a> function.<h4><a href=#method-info><code>info()</code></a></h4><p>The <code>info</code> function will write information to your application's <a href=logging.htm>log</a>:<div><pre><code>1info('Some helpful information!');
+info('Some helpful information!');</code></pre></div><p>An array of contextual data may also be passed to the function:<div><pre><code>1info('User login attempt failed.',['id'=>$user->id]);
+info('User login attempt failed.', ['id' => $user->id]);</code></pre></div><h4><a href=#method-literal><code>literal()</code></a></h4><p>The <code>literal</code> function creates a new <a href=https://www.php.net/manual/en/class.stdclass.php>stdClass</a> instance with the given named arguments as properties:<div><pre><code>1$obj=literal(2    name:'Joe',3    languages:['PHP','Ruby'],4);5 6$obj->name; // 'Joe'7$obj->languages; // ['PHP', 'Ruby']
+$obj = literal(
+    name: 'Joe',
+    languages: ['PHP', 'Ruby'],
+);
+
+$obj->name; // 'Joe'
+$obj->languages; // ['PHP', 'Ruby']</code></pre></div><h4><a href=#method-logger><code>logger()</code></a></h4><p>The <code>logger</code> function can be used to write a <code>debug</code> level message to the <a href=logging.htm>log</a>:<div><pre><code>1logger('Debug message');
+logger('Debug message');</code></pre></div><p>An array of contextual data may also be passed to the function:<div><pre><code>1logger('User has logged in.',['id'=>$user->id]);
+logger('User has logged in.', ['id' => $user->id]);</code></pre></div><p>A <a href=logging.htm>logger</a> instance will be returned if no value is passed to the function:<div><pre><code>1logger()->error('You are not allowed here.');
+logger()->error('You are not allowed here.');</code></pre></div><h4><a href=#method-method-field><code>method_field()</code></a></h4><p>The <code>method_field</code> function generates an HTML <code>hidden</code> input field containing the spoofed value of the form's HTTP verb. For example, using <a href=blade.htm>Blade syntax</a>:<div><pre><code>1&lt;formmethod="POST">2{{method_field('DELETE') }}3&lt;/form>
+&lt;form method="POST">
+    {{ method_field('DELETE') }}
+&lt;/form></code></pre></div><h4><a href=#method-now><code>now()</code></a></h4><p>The <code>now</code> function creates a new <code>Illuminate\Support\Carbon</code> instance for the current time:<div><pre><code>1$now=now();
+$now = now();</code></pre></div><h4><a href=#method-old><code>old()</code></a></h4><p>The <code>old</code> function <a href=requests.htm#retrieving-input>retrieves</a> an <a href=requests.htm#old-input>old input</a> value flashed into the session:<div><pre><code>1$value=old('value');2 3$value=old('value','default');
+$value = old('value');
+
+$value = old('value', 'default');</code></pre></div><p>Since the "default value" provided as the second argument to the <code>old</code> function is often an attribute of an Eloquent model, Laravel allows you to simply pass the entire Eloquent model as the second argument to the <code>old</code> function. When doing so, Laravel will assume the first argument provided to the <code>old</code> function is the name of the Eloquent attribute that should be considered the "default value":<div><pre><code>1{{old('name',$user->name) }}2 3// Is equivalent to...4 5{{old('name',$user) }}
+{{ old('name', $user->name) }}
+
+// Is equivalent to...
+
+{{ old('name', $user) }}</code></pre></div><h4><a href=#method-once><code>once()</code></a></h4><p>The <code>once</code> function executes the given callback and caches the result in memory for the duration of the request. Any subsequent calls to the <code>once</code> function with the same callback will return the previously cached result:<div><pre><code> 1functionrandom():int 2{ 3returnonce(function(){ 4return random_int(1,1000); 5}); 6} 7  8random(); // 123 9random(); // 123 (cached result)10random(); // 123 (cached result)
+function random(): int
+{
+    return once(function () {
+        return random_int(1, 1000);
+    });
+}
+
+random(); // 123
+random(); // 123 (cached result)
+random(); // 123 (cached result)</code></pre></div><p>When the <code>once</code> function is executed from within an object instance, the cached result will be unique to that object instance:<div><pre><code> 1&lt;?php 2  3classNumberService 4{ 5publicfunctionall():array 6    { 7returnonce(fn()=>[1,2,3]); 8    } 9}10 11$service=newNumberService;12 13$service->all();14$service->all(); // (cached result)15 16$secondService=newNumberService;17 18$secondService->all();19$secondService->all(); // (cached result)
+&lt;?php
+
+class NumberService
+{
+    public function all(): array
+    {
+        return once(fn () => [1, 2, 3]);
+    }
+}
+
+$service = new NumberService;
+
+$service->all();
+$service->all(); // (cached result)
+
+$secondService = new NumberService;
+
+$secondService->all();
+$secondService->all(); // (cached result)</code></pre></div><h4><a href=#method-optional><code>optional()</code></a></h4><p>The <code>optional</code> function accepts any argument and allows you to access properties or call methods on that object. If the given object is <code>null</code>, properties and methods will return <code>null</code> instead of causing an error:<div><pre><code>1returnoptional($user->address)->street;2 3{!!old('name', optional($user)->name) !!}
+return optional($user->address)->street;
+
+{!! old('name', optional($user)->name) !!}</code></pre></div><p>The <code>optional</code> function also accepts a closure as its second argument. The closure will be invoked if the value provided as the first argument is not null:<div><pre><code>1returnoptional(User::find($id),function(User$user){2return$user->name;3});
+return optional(User::find($id), function (User $user) {
+    return $user->name;
+});</code></pre></div><h4><a href=#method-policy><code>policy()</code></a></h4><p>The <code>policy</code> method retrieves a <a href=authorization.htm#creating-policies>policy</a> instance for a given class:<div><pre><code>1$policy=policy(App\Models\User::class);
+$policy = policy(App\Models\User::class);</code></pre></div><h4><a href=#method-redirect><code>redirect()</code></a></h4><p>The <code>redirect</code> function returns a <a href=responses.htm#redirects>redirect HTTP response</a>, or returns the redirector instance if called with no arguments:<div><pre><code>1returnredirect($to= null,$status=302,$headers=[],$secure= null);2 3returnredirect('/home');4 5returnredirect()->route('route.name');
+return redirect($to = null, $status = 302, $headers = [], $secure = null);
+
+return redirect('/home');
+
+return redirect()->route('route.name');</code></pre></div><h4><a href=#method-report><code>report()</code></a></h4><p>The <code>report</code> function will report an exception using your <a href=errors.htm#handling-exceptions>exception handler</a>:<div><pre><code>1report($e);
+report($e);</code></pre></div><p>The <code>report</code> function also accepts a string as an argument. When a string is given to the function, the function will create an exception with the given string as its message:<div><pre><code>1report('Something went wrong.');
+report('Something went wrong.');</code></pre></div><h4><a href=#method-report-if><code>report_if()</code></a></h4><p>The <code>report_if</code> function will report an exception using your <a href=errors.htm#handling-exceptions>exception handler</a> if a given boolean expression evaluates to <code>true</code>:<div><pre><code>1report_if($shouldReport,$e);2 3report_if($shouldReport,'Something went wrong.');
+report_if($shouldReport, $e);
+
+report_if($shouldReport, 'Something went wrong.');</code></pre></div><h4><a href=#method-report-unless><code>report_unless()</code></a></h4><p>The <code>report_unless</code> function will report an exception using your <a href=errors.htm#handling-exceptions>exception handler</a> if a given boolean expression evaluates to <code>false</code>:<div><pre><code>1report_unless($reportingDisabled,$e);2 3report_unless($reportingDisabled,'Something went wrong.');
+report_unless($reportingDisabled, $e);
+
+report_unless($reportingDisabled, 'Something went wrong.');</code></pre></div><h4><a href=#method-request><code>request()</code></a></h4><p>The <code>request</code> function returns the current <a href=requests.htm>request</a> instance or obtains an input field's value from the current request:<div><pre><code>1$request=request();2 3$value=request('key',$default);
+$request = request();
+
+$value = request('key', $default);</code></pre></div><h4><a href=#method-rescue><code>rescue()</code></a></h4><p>The <code>rescue</code> function executes the given closure and catches any exceptions that occur during its execution. All exceptions that are caught will be sent to your <a href=errors.htm#handling-exceptions>exception handler</a>; however, the request will continue processing:<div><pre><code>1returnrescue(function(){2return$this->method();3});
+return rescue(function () {
+    return $this->method();
+});</code></pre></div><p>You may also pass a second argument to the <code>rescue</code> function. This argument will be the "default" value that should be returned if an exception occurs while executing the closure:<div><pre><code>1returnrescue(function(){2return$this->method();3}, false);4 5returnrescue(function(){6return$this->method();7},function(){8return$this->failure();9});
+return rescue(function () {
+    return $this->method();
+}, false);
+
+return rescue(function () {
+    return $this->method();
+}, function () {
+    return $this->failure();
+});</code></pre></div><p>A <code>report</code> argument may be provided to the <code>rescue</code> function to determine if the exception should be reported via the <code>report</code> function:<div><pre><code>1returnrescue(function(){2return$this->method();3}, report:function(Throwable$throwable){4return$throwableinstanceofInvalidArgumentException;5});
+return rescue(function () {
+    return $this->method();
+}, report: function (Throwable $throwable) {
+    return $throwable instanceof InvalidArgumentException;
+});</code></pre></div><h4><a href=#method-resolve><code>resolve()</code></a></h4><p>The <code>resolve</code> function resolves a given class or interface name to an instance using the <a href=container.htm>service container</a>:<div><pre><code>1$api=resolve('HelpSpot\API');
+$api = resolve('HelpSpot\API');</code></pre></div><h4><a href=#method-response><code>response()</code></a></h4><p>The <code>response</code> function creates a <a href=responses.htm>response</a> instance or obtains an instance of the response factory:<div><pre><code>1returnresponse('Hello World',200,$headers);2 3returnresponse()->json(['foo'=>'bar'], 200, $headers);
+return response('Hello World', 200, $headers);
+
+return response()->json(['foo' => 'bar'], 200, $headers);</code></pre></div><h4><a href=#method-retry><code>retry()</code></a></h4><p>The <code>retry</code> function attempts to execute the given callback until the given maximum attempt threshold is met. If the callback does not throw an exception, its return value will be returned. If the callback throws an exception, it will automatically be retried. If the maximum attempt count is exceeded, the exception will be thrown:<div><pre><code>1returnretry(5,function(){2    // Attempt 5 times while resting 100ms between attempts...3},100);
+return retry(5, function () {
+    // Attempt 5 times while resting 100ms between attempts...
+}, 100);</code></pre></div><p>If you would like to manually calculate the number of milliseconds to sleep between attempts, you may pass a closure as the third argument to the <code>retry</code> function:<div><pre><code>1useException;2 3returnretry(5,function(){4    // ...5},function(int$attempt,Exception$exception){6return$attempt*100;7});
+use Exception;
+
+return retry(5, function () {
+    // ...
+}, function (int $attempt, Exception $exception) {
+    return $attempt * 100;
+});</code></pre></div><p>For convenience, you may provide an array as the first argument to the <code>retry</code> function. This array will be used to determine how many milliseconds to sleep between subsequent attempts:<div><pre><code>1returnretry([100,200],function(){2    // Sleep for 100ms on first retry, 200ms on second retry...3});
+return retry([100, 200], function () {
+    // Sleep for 100ms on first retry, 200ms on second retry...
+});</code></pre></div><p>To only retry under specific conditions, you may pass a closure as the fourth argument to the <code>retry</code> function:<div><pre><code>1use App\Exceptions\TemporaryException;2useException;3 4returnretry(5,function(){5    // ...6},100,function(Exception$exception){7return$exceptioninstanceofTemporaryException;8});
+use App\Exceptions\TemporaryException;
+use Exception;
+
+return retry(5, function () {
+    // ...
+}, 100, function (Exception $exception) {
+    return $exception instanceof TemporaryException;
+});</code></pre></div><h4><a href=#method-session><code>session()</code></a></h4><p>The <code>session</code> function may be used to get or set <a href=session.htm>session</a> values:<div><pre><code>1$value=session('key');
+$value = session('key');</code></pre></div><p>You may set values by passing an array of key / value pairs to the function:<div><pre><code>1session(['chairs'=>7,'instruments'=>3]);
+session(['chairs' => 7, 'instruments' => 3]);</code></pre></div><p>The session store will be returned if no value is passed to the function:<div><pre><code>1$value=session()->get('key');2 3session()->put('key', $value);
+$value = session()->get('key');
+
+session()->put('key', $value);</code></pre></div><h4><a href=#method-tap><code>tap()</code></a></h4><p>The <code>tap</code> function accepts two arguments: an arbitrary <code>$value</code> and a closure. The <code>$value</code> will be passed to the closure and then be returned by the <code>tap</code> function. The return value of the closure is irrelevant:<div><pre><code>1$user=tap(User::first(),function(User$user){2$user->name='Taylor';3 4$user->save();5});
+$user = tap(User::first(), function (User $user) {
+    $user->name = 'Taylor';
+
+    $user->save();
+});</code></pre></div><p>If no closure is passed to the <code>tap</code> function, you may call any method on the given <code>$value</code>. The return value of the method you call will always be <code>$value</code>, regardless of what the method actually returns in its definition. For example, the Eloquent <code>update</code> method typically returns an integer. However, we can force the method to return the model itself by chaining the <code>update</code> method call through the <code>tap</code> function:<div><pre><code>1$user=tap($user)->update([2'name'=>$name,3'email'=>$email,4]);
+$user = tap($user)->update([
+    'name' => $name,
+    'email' => $email,
+]);</code></pre></div><p>To add a <code>tap</code> method to a class, you may add the <code>Illuminate\Support\Traits\Tappable</code> trait to the class. The <code>tap</code> method of this trait accepts a Closure as its only argument. The object instance itself will be passed to the Closure and then be returned by the <code>tap</code> method:<div><pre><code>1return$user->tap(function(User$user) {2// ...3});
+return $user->tap(function (User $user) {
+    // ...
+});</code></pre></div><h4><a href=#method-throw-if><code>throw_if()</code></a></h4><p>The <code>throw_if</code> function throws the given exception if a given boolean expression evaluates to <code>true</code>:<div><pre><code>1throw_if(!Auth::user()->isAdmin(),AuthorizationException::class);2 3throw_if(4!Auth::user()->isAdmin(),5AuthorizationException::class,6'You are not allowed to access this page.'7);
+throw_if(! Auth::user()->isAdmin(), AuthorizationException::class);
+
+throw_if(
+    ! Auth::user()->isAdmin(),
+    AuthorizationException::class,
+    'You are not allowed to access this page.'
+);</code></pre></div><h4><a href=#method-throw-unless><code>throw_unless()</code></a></h4><p>The <code>throw_unless</code> function throws the given exception if a given boolean expression evaluates to <code>false</code>:<div><pre><code>1throw_unless(Auth::user()->isAdmin(),AuthorizationException::class);2 3throw_unless(4Auth::user()->isAdmin(),5AuthorizationException::class,6'You are not allowed to access this page.'7);
+throw_unless(Auth::user()->isAdmin(), AuthorizationException::class);
+
+throw_unless(
+    Auth::user()->isAdmin(),
+    AuthorizationException::class,
+    'You are not allowed to access this page.'
+);</code></pre></div><h4><a href=#method-today><code>today()</code></a></h4><p>The <code>today</code> function creates a new <code>Illuminate\Support\Carbon</code> instance for the current date:<div><pre><code>1$today=today();
+$today = today();</code></pre></div><h4><a href=#method-trait-uses-recursive><code>trait_uses_recursive()</code></a></h4><p>The <code>trait_uses_recursive</code> function returns all traits used by a trait:<div><pre><code>1$traits=trait_uses_recursive(\Illuminate\Notifications\Notifiable::class);
+$traits = trait_uses_recursive(\Illuminate\Notifications\Notifiable::class);</code></pre></div><h4><a href=#method-transform><code>transform()</code></a></h4><p>The <code>transform</code> function executes a closure on a given value if the value is not <a href=#method-blank>blank</a> and then returns the return value of the closure:<div><pre><code>1$callback=function(int$value) {2return$value*2;3};4 5$result=transform(5,$callback);6 7// 10
+$callback = function (int $value) {
+    return $value * 2;
+};
+
+$result = transform(5, $callback);
+
+// 10</code></pre></div><p>A default value or closure may be passed as the third argument to the function. This value will be returned if the given value is blank:<div><pre><code>1$result=transform(null,$callback,'The value is blank');2 3// The value is blank
+$result = transform(null, $callback, 'The value is blank');
+
+// The value is blank</code></pre></div><h4><a href=#method-validator><code>validator()</code></a></h4><p>The <code>validator</code> function creates a new <a href=validation.htm>validator</a> instance with the given arguments. You may use it as an alternative to the <code>Validator</code> facade:<div><pre><code>1$validator=validator($data,$rules,$messages);
+$validator = validator($data, $rules, $messages);</code></pre></div><h4><a href=#method-value><code>value()</code></a></h4><p>The <code>value</code> function returns the value it is given. However, if you pass a closure to the function, the closure will be executed and its returned value will be returned:<div><pre><code>1$result=value(true);2 3// true4 5$result=value(function(){6return false;7});8 9// false
+$result = value(true);
+
+// true
+
+$result = value(function () {
+    return false;
+});
+
+// false</code></pre></div><p>Additional arguments may be passed to the <code>value</code> function. If the first argument is a closure then the additional parameters will be passed to the closure as arguments, otherwise they will be ignored:<div><pre><code>1$result=value(function(string$name){2return$name;3},'Taylor');4 5// 'Taylor'
+$result = value(function (string $name) {
+    return $name;
+}, 'Taylor');
+
+// 'Taylor'</code></pre></div><h4><a href=#method-view><code>view()</code></a></h4><p>The <code>view</code> function retrieves a <a href=views.htm>view</a> instance:<div><pre><code>1returnview('auth.login');
+return view('auth.login');</code></pre></div><h4><a href=#method-with><code>with()</code></a></h4><p>The <code>with</code> function returns the value it is given. If a closure is passed as the second argument to the function, the closure will be executed and its returned value will be returned:<div><pre><code> 1$callback=function(mixed$value) { 2returnis_numeric($value) ?$value*2:0; 3}; 4  5$result=with(5,$callback); 6  7// 10 8  9$result=with(null,$callback);10 11// 012 13$result=with(5, null);14 15// 5
+$callback = function (mixed $value) {
+    return is_numeric($value) ? $value * 2 : 0;
+};
+
+$result = with(5, $callback);
+
+// 10
+
+$result = with(null, $callback);
+
+// 0
+
+$result = with(5, null);
+
+// 5</code></pre></div><h4><a href=#method-when><code>when()</code></a></h4><p>The <code>when</code> function returns the value it is given if a given condition evaluates to <code>true</code>. Otherwise, <code>null</code> is returned. If a closure is passed as the second argument to the function, the closure will be executed and its returned value will be returned:<div><pre><code>1$value=when(true,'Hello World');2 3$value=when(true,fn()=>'Hello World');
+$value = when(true, 'Hello World');
+
+$value = when(true, fn () => 'Hello World');</code></pre></div><p>The <code>when</code> function is primarily useful for conditionally rendering HTML attributes:<div><pre><code>1&lt;div {!! when($condition,'wire:poll="calculate"') !!}>2    ...3&lt;/div>
+&lt;div {!! when($condition, 'wire:poll="calculate"') !!}>
+    ...
+&lt;/div></code></pre></div><h2><a href=#other-utilities>Other Utilities</a></h2><h3><a href=#benchmarking>Benchmarking</a></h3><p>Sometimes you may wish to quickly test the performance of certain parts of your application. On those occasions, you may utilize the <code>Benchmark</code> support class to measure the number of milliseconds it takes for the given callbacks to complete:<div><pre><code> 1&lt;?php 2  3use App\Models\User; 4use Illuminate\Support\Benchmark; 5  6Benchmark::dd(fn() => User::find(1)); // 0.1 ms 7  8Benchmark::dd([ 9'Scenario 1'=>fn() => User::count(), // 0.5 ms10'Scenario 2'=>fn() => User::all()->count(), // 20.0 ms11]);
+&lt;?php
+
+use App\Models\User;
+use Illuminate\Support\Benchmark;
+
+Benchmark::dd(fn () => User::find(1)); // 0.1 ms
+
+Benchmark::dd([
+    'Scenario 1' => fn () => User::count(), // 0.5 ms
+    'Scenario 2' => fn () => User::all()->count(), // 20.0 ms
+]);</code></pre></div><p>By default, the given callbacks will be executed once (one iteration), and their duration will be displayed in the browser / console.<p>To invoke a callback more than once, you may specify the number of iterations that the callback should be invoked as the second argument to the method. When executing a callback more than once, the <code>Benchmark</code> class will return the average number of milliseconds it took to execute the callback across all iterations:<div><pre><code>1Benchmark::dd(fn() => User::count(), iterations: 10); // 0.5 ms
+Benchmark::dd(fn () => User::count(), iterations: 10); // 0.5 ms</code></pre></div><p>Sometimes, you may want to benchmark the execution of a callback while still obtaining the value returned by the callback. The <code>value</code> method will return a tuple containing the value returned by the callback and the number of milliseconds it took to execute the callback:<div><pre><code>1[$count, $duration] =Benchmark::value(fn() => User::count());
+[$count, $duration] = Benchmark::value(fn () => User::count());</code></pre></div><h3><a href=#dates>Dates</a></h3><p>Laravel includes <a href=https://carbon.nesbot.com/docs/>Carbon</a>, a powerful date and time manipulation library. To create a new <code>Carbon</code> instance, you may invoke the <code>now</code> function. This function is globally available within your Laravel application:<div><pre><code>1$now=now();
+$now = now();</code></pre></div><p>Or, you may create a new <code>Carbon</code> instance using the <code>Illuminate\Support\Carbon</code> class:<div><pre><code>1use Illuminate\Support\Carbon;2 3$now=Carbon::now();
+use Illuminate\Support\Carbon;
+
+$now = Carbon::now();</code></pre></div><p>For a thorough discussion of Carbon and its features, please consult the <a href=https://carbon.nesbot.com/docs/>official Carbon documentation</a>.<h3><a href=#deferred-functions>Deferred Functions</a></h3><p>While Laravel's <a href=queues.htm>queued jobs</a> allow you to queue tasks for background processing, sometimes you may have simple tasks you would like to defer without configuring or maintaining a long-running queue worker.<p>Deferred functions allow you to defer the execution of a closure until after the HTTP response has been sent to the user, keeping your application feeling fast and responsive. To defer the execution of a closure, simply pass the closure to the <code>Illuminate\Support\defer</code> function:<div><pre><code> 1use App\Services\Metrics; 2use Illuminate\Http\Request; 3use Illuminate\Support\Facades\Route; 4usefunction Illuminate\Support\defer; 5  6Route::post('/orders', function(Request$request) { 7// Create order... 8  9defer(fn()=>Metrics::reportOrder($order));10 11return$order;12});
+use App\Services\Metrics;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use function Illuminate\Support\defer;
+
+Route::post('/orders', function (Request $request) {
+    // Create order...
+
+    defer(fn () => Metrics::reportOrder($order));
+
+    return $order;
+});</code></pre></div><p>By default, deferred functions will only be executed if the HTTP response, Artisan command, or queued job from which <code>Illuminate\Support\defer</code> is invoked completes successfully. This means that deferred functions will not be executed if a request results in a <code>4xx</code> or <code>5xx</code> HTTP response. If you would like a deferred function to always execute, you may chain the <code>always</code> method onto your deferred function:<div><pre><code>1defer(fn()=>Metrics::reportOrder($order))->always();
+defer(fn () => Metrics::reportOrder($order))->always();</code></pre></div><h4><a href=#cancelling-deferred-functions>Cancelling Deferred Functions</a></h4><p>If you need to cancel a deferred function before it is executed, you can use the <code>forget</code> method to cancel the function by its name. To name a deferred function, provide a second argument to the <code>Illuminate\Support\defer</code> function:<div><pre><code>1defer(fn()=>Metrics::report(),'reportMetrics');2 3defer()->forget('reportMetrics');
+defer(fn () => Metrics::report(), 'reportMetrics');
+
+defer()->forget('reportMetrics');</code></pre></div><h4><a href=#disabling-deferred-functions-in-tests>Disabling Deferred Functions in Tests</a></h4><p>When writing tests, it may be useful to disable deferred functions. You may call <code>withoutDefer</code> in your test to instruct Laravel to invoke all deferred functions immediately:<div><div><div><pre><code>1test('without defer',function(){2$this->withoutDefer();3 4    // ...5});
+test('without defer', function () {
+    $this->withoutDefer();
+
+    // ...
+});</code></pre></div><div><pre><code> 1use Tests\TestCase; 2  3classExampleTestextendsTestCase 4{ 5publicfunctiontest_without_defer():void 6    { 7$this->withoutDefer(); 8  9// ...10    }11}
+use Tests\TestCase;
+
+class ExampleTest extends TestCase
+{
+    public function test_without_defer(): void
+    {
+        $this->withoutDefer();
+
+        // ...
+    }
+}</code></pre></div></div></div><p>If you would like to disable deferred functions for all tests within a test case, you may call the <code>withoutDefer</code> method from the <code>setUp</code> method on your base <code>TestCase</code> class:<div><pre><code> 1&lt;?php 2  3namespace Tests; 4  5use Illuminate\Foundation\Testing\TestCaseas BaseTestCase; 6  7abstractclassTestCaseextendsBaseTestCase 8{ 9protectedfunctionsetUp():void10    {11parent::setUp();12 13$this->withoutDefer();14    }15}
+&lt;?php
+
+namespace Tests;
+
+use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+
+abstract class TestCase extends BaseTestCase
+{
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutDefer();
+    }
+}</code></pre></div><h3><a href=#lottery>Lottery</a></h3><p>Laravel's lottery class may be used to execute callbacks based on a set of given odds. This can be particularly useful when you only want to execute code for a percentage of your incoming requests:<div><pre><code>1use Illuminate\Support\Lottery;2 3Lottery::odds(1, 20)4->winner(fn() => $user->won())5->loser(fn() => $user->lost())6->choose();
+use Illuminate\Support\Lottery;
+
+Lottery::odds(1, 20)
+    ->winner(fn () => $user->won())
+    ->loser(fn () => $user->lost())
+    ->choose();</code></pre></div><p>You may combine Laravel's lottery class with other Laravel features. For example, you may wish to only report a small percentage of slow queries to your exception handler. And, since the lottery class is callable, we may pass an instance of the class into any method that accepts callables:<div><pre><code>1use Carbon\CarbonInterval;2use Illuminate\Support\Facades\DB;3use Illuminate\Support\Lottery;4 5DB::whenQueryingForLongerThan(6CarbonInterval::seconds(2),7Lottery::odds(1, 100)->winner(fn() => report('Querying > 2 seconds.')),8);
+use Carbon\CarbonInterval;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Lottery;
+
+DB::whenQueryingForLongerThan(
+    CarbonInterval::seconds(2),
+    Lottery::odds(1, 100)->winner(fn () => report('Querying > 2 seconds.')),
+);</code></pre></div><h4><a href=#testing-lotteries>Testing Lotteries</a></h4><p>Laravel provides some simple methods to allow you to easily test your application's lottery invocations:<div><pre><code> 1// Lottery will always win... 2Lottery::alwaysWin(); 3  4// Lottery will always lose... 5Lottery::alwaysLose(); 6  7// Lottery will win then lose, and finally return to normal behavior... 8Lottery::fix([true, false]); 9 10// Lottery will return to normal behavior...11Lottery::determineResultsNormally();
+// Lottery will always win...
+Lottery::alwaysWin();
+
+// Lottery will always lose...
+Lottery::alwaysLose();
+
+// Lottery will win then lose, and finally return to normal behavior...
+Lottery::fix([true, false]);
+
+// Lottery will return to normal behavior...
+Lottery::determineResultsNormally();</code></pre></div><h3><a href=#pipeline>Pipeline</a></h3><p>Laravel's <code>Pipeline</code> facade provides a convenient way to "pipe" a given input through a series of invokable classes, closures, or callables, giving each class the opportunity to inspect or modify the input and invoke the next callable in the pipeline:<div><pre><code> 1useClosure; 2use App\Models\User; 3use Illuminate\Support\Facades\Pipeline; 4  5$user=Pipeline::send($user) 6->through([ 7function(User$user, Closure$next) { 8// ... 9 10return$next($user);11        },12function(User$user, Closure$next) {13// ...14 15return$next($user);16        },17    ])18->then(fn(User$user) => $user);
+use Closure;
+use App\Models\User;
+use Illuminate\Support\Facades\Pipeline;
+
+$user = Pipeline::send($user)
+    ->through([
+        function (User $user, Closure $next) {
+            // ...
+
+            return $next($user);
+        },
+        function (User $user, Closure $next) {
+            // ...
+
+            return $next($user);
+        },
+    ])
+    ->then(fn (User $user) => $user);</code></pre></div><p>As you can see, each invokable class or closure in the pipeline is provided the input and a <code>$next</code> closure. Invoking the <code>$next</code> closure will invoke the next callable in the pipeline. As you may have noticed, this is very similar to <a href=middleware.htm>middleware</a>.<p>When the last callable in the pipeline invokes the <code>$next</code> closure, the callable provided to the <code>then</code> method will be invoked. Typically, this callable will simply return the given input. For convenience, if you simply want to return the input after it has been processed, you may use the <code>thenReturn</code> method.<p>Of course, as discussed previously, you are not limited to providing closures to your pipeline. You may also provide invokable classes. If a class name is provided, the class will be instantiated via Laravel's <a href=container.htm>service container</a>, allowing dependencies to be injected into the invokable class:<div><pre><code>1$user=Pipeline::send($user)2->through([3GenerateProfilePhoto::class,4ActivateSubscription::class,5SendWelcomeEmail::class,6    ])7->thenReturn();
+$user = Pipeline::send($user)
+    ->through([
+        GenerateProfilePhoto::class,
+        ActivateSubscription::class,
+        SendWelcomeEmail::class,
+    ])
+    ->thenReturn();</code></pre></div><h3><a href=#sleep>Sleep</a></h3><p>Laravel's <code>Sleep</code> class is a light-weight wrapper around PHP's native <code>sleep</code> and <code>usleep</code> functions, offering greater testability while also exposing a developer friendly API for working with time:<div><pre><code>1use Illuminate\Support\Sleep;2 3$waiting=true;4 5while ($waiting) {6Sleep::for(1)->second();7 8$waiting=/* ... */;9}
+use Illuminate\Support\Sleep;
+
+$waiting = true;
+
+while ($waiting) {
+    Sleep::for(1)->second();
+
+    $waiting = /* ... */;
+}</code></pre></div><p>The <code>Sleep</code> class offers a variety of methods that allow you to work with different units of time:<div><pre><code> 1// Return a value after sleeping... 2$result=Sleep::for(1)->second()->then(fn() => 1+1); 3  4// Sleep while a given value is true... 5Sleep::for(1)->second()->while(fn() => shouldKeepSleeping()); 6  7// Pause execution for 90 seconds... 8Sleep::for(1.5)->minutes(); 9 10// Pause execution for 2 seconds...11Sleep::for(2)->seconds();12 13// Pause execution for 500 milliseconds...14Sleep::for(500)->milliseconds();15 16// Pause execution for 5,000 microseconds...17Sleep::for(5000)->microseconds();18 19// Pause execution until a given time...20Sleep::until(now()->addMinute());21 22// Alias of PHP's native "sleep" function...23Sleep::sleep(2);24 25// Alias of PHP's native "usleep" function...26Sleep::usleep(5000);
+// Return a value after sleeping...
+$result = Sleep::for(1)->second()->then(fn () => 1 + 1);
+
+// Sleep while a given value is true...
+Sleep::for(1)->second()->while(fn () => shouldKeepSleeping());
+
+// Pause execution for 90 seconds...
+Sleep::for(1.5)->minutes();
+
+// Pause execution for 2 seconds...
+Sleep::for(2)->seconds();
+
+// Pause execution for 500 milliseconds...
+Sleep::for(500)->milliseconds();
+
+// Pause execution for 5,000 microseconds...
+Sleep::for(5000)->microseconds();
+
+// Pause execution until a given time...
+Sleep::until(now()->addMinute());
+
+// Alias of PHP's native "sleep" function...
+Sleep::sleep(2);
+
+// Alias of PHP's native "usleep" function...
+Sleep::usleep(5000);</code></pre></div><p>To easily combine units of time, you may use the <code>and</code> method:<div><pre><code>1Sleep::for(1)->second()->and(10)->milliseconds();
+Sleep::for(1)->second()->and(10)->milliseconds();</code></pre></div><h4><a href=#testing-sleep>Testing Sleep</a></h4><p>When testing code that utilizes the <code>Sleep</code> class or PHP's native sleep functions, your test will pause execution. As you might expect, this makes your test suite significantly slower. For example, imagine you are testing the following code:<div><pre><code>1$waiting=/* ... */;2 3$seconds=1;4 5while ($waiting) {6Sleep::for($seconds++)->seconds();7 8$waiting=/* ... */;9}
+$waiting = /* ... */;
+
+$seconds = 1;
+
+while ($waiting) {
+    Sleep::for($seconds++)->seconds();
+
+    $waiting = /* ... */;
+}</code></pre></div><p>Typically, testing this code would take at least one second. Luckily, the <code>Sleep</code> class allows us to "fake" sleeping so that our test suite stays fast:<div><div><div><pre><code>1it('waits until ready',function(){2Sleep::fake();3 4    // ...5});
+it('waits until ready', function () {
+    Sleep::fake();
+
+    // ...
+});</code></pre></div><div><pre><code>1publicfunctiontest_it_waits_until_ready()2{3Sleep::fake();4 5// ...6}
+public function test_it_waits_until_ready()
+{
+    Sleep::fake();
+
+    // ...
+}</code></pre></div></div></div><p>When faking the <code>Sleep</code> class, the actual execution pause is by-passed, leading to a substantially faster test.<p>Once the <code>Sleep</code> class has been faked, it is possible to make assertions against the expected "sleeps" that should have occurred. To illustrate this, let's imagine we are testing code that pauses execution three times, with each pause increasing by a single second. Using the <code>assertSequence</code> method, we can assert that our code "slept" for the proper amount of time while keeping our test fast:<div><div><div><pre><code> 1it('checks if ready three times',function(){ 2Sleep::fake(); 3  4    // ... 5  6Sleep::assertSequence([ 7Sleep::for(1)->second(), 8Sleep::for(2)->seconds(), 9Sleep::for(3)->seconds(),10]);11}
+it('checks if ready three times', function () {
+    Sleep::fake();
+
+    // ...
+
+    Sleep::assertSequence([
+        Sleep::for(1)->second(),
+        Sleep::for(2)->seconds(),
+        Sleep::for(3)->seconds(),
+    ]);
+}</code></pre></div><div><pre><code> 1publicfunctiontest_it_checks_if_ready_three_times() 2{ 3Sleep::fake(); 4  5// ... 6  7Sleep::assertSequence([ 8Sleep::for(1)->second(), 9Sleep::for(2)->seconds(),10Sleep::for(3)->seconds(),11    ]);12}
+public function test_it_checks_if_ready_three_times()
+{
+    Sleep::fake();
+
+    // ...
+
+    Sleep::assertSequence([
+        Sleep::for(1)->second(),
+        Sleep::for(2)->seconds(),
+        Sleep::for(3)->seconds(),
+    ]);
+}</code></pre></div></div></div><p>Of course, the <code>Sleep</code> class offers a variety of other assertions you may use when testing:<div><pre><code> 1use Carbon\CarbonIntervalas Duration; 2use Illuminate\Support\Sleep; 3  4// Assert that sleep was called 3 times... 5Sleep::assertSleptTimes(3); 6  7// Assert against the duration of sleep... 8Sleep::assertSlept(function(Duration$duration):bool { 9return/* ... */;10}, times: 1);11 12// Assert that the Sleep class was never invoked...13Sleep::assertNeverSlept();14 15// Assert that, even if Sleep was called, no execution paused occurred...16Sleep::assertInsomniac();
+use Carbon\CarbonInterval as Duration;
+use Illuminate\Support\Sleep;
+
+// Assert that sleep was called 3 times...
+Sleep::assertSleptTimes(3);
+
+// Assert against the duration of sleep...
+Sleep::assertSlept(function (Duration $duration): bool {
+    return /* ... */;
+}, times: 1);
+
+// Assert that the Sleep class was never invoked...
+Sleep::assertNeverSlept();
+
+// Assert that, even if Sleep was called, no execution paused occurred...
+Sleep::assertInsomniac();</code></pre></div><p>Sometimes it may be useful to perform an action whenever a fake sleep occurs. To achieve this, you may provide a callback to the <code>whenFakingSleep</code> method. In the following example, we use Laravel's <a href=mocking.htm#interacting-with-time>time manipulation helpers</a> to instantly progress time by the duration of each sleep:<div><pre><code> 1use Carbon\CarbonIntervalas Duration; 2  3$this->freezeTime(); 4  5Sleep::fake(); 6  7Sleep::whenFakingSleep(function(Duration$duration) { 8// Progress time when faking sleep... 9$this->travel($duration->totalMilliseconds)->milliseconds();10});
+use Carbon\CarbonInterval as Duration;
+
+$this->freezeTime();
+
+Sleep::fake();
+
+Sleep::whenFakingSleep(function (Duration $duration) {
+    // Progress time when faking sleep...
+    $this->travel($duration->totalMilliseconds)->milliseconds();
+});</code></pre></div><p>As progressing time is a common requirement, the <code>fake</code> method accepts a <code>syncWithCarbon</code> argument to keep Carbon in sync when sleeping within a test:<div><pre><code>1Sleep::fake(syncWithCarbon: true);2 3$start=now();4 5Sleep::for(1)->second();6 7$start->diffForHumans(); // 1 second ago
+Sleep::fake(syncWithCarbon: true);
+
+$start = now();
+
+Sleep::for(1)->second();
+
+$start->diffForHumans(); // 1 second ago</code></pre></div><p>Laravel uses the <code>Sleep</code> class internally whenever it is pausing execution. For example, the <a href=#method-retry>retry</a> helper uses the <code>Sleep</code> class when sleeping, allowing for improved testability when using that helper.<h3><a href=#timebox>Timebox</a></h3><p>Laravel's <code>Timebox</code> class ensures that the given callback always takes a fixed amount of time to execute, even if its actual execution completes sooner. This is particularly useful for cryptographic operations and user authentication checks, where attackers might exploit variations in execution time to infer sensitive information.<p>If the execution exceeds the fixed duration, <code>Timebox</code> has no effect. It is up to the developer to choose a sufficiently long time as the fixed duration to account for worst-case scenarios.<p>The call method accepts a closure and a time limit in microseconds, and then executes the closure and waits until the time limit is reached:<div><pre><code>1use Illuminate\Support\Timebox;2 3(newTimebox)->call(function($timebox) {4// ...5}, microseconds: 10000);
+use Illuminate\Support\Timebox;
+
+(new Timebox)->call(function ($timebox) {
+    // ...
+}, microseconds: 10000);</code></pre></div><p>If an exception is thrown within the closure, this class will respect the defined delay and re-throw the exception after the delay.<h3><a href=#uri>URI</a></h3><p>Laravel's <code>Uri</code> class provides a convenient and fluent interface for creating and manipulating URIs. This class wraps the functionality provided by the underlying League URI package and integrates seamlessly with Laravel's routing system.<p>You can create a <code>Uri</code> instance easily using static methods:<div><pre><code> 1use App\Http\Controllers\UserController; 2use App\Http\Controllers\InvokableController; 3use Illuminate\Support\Uri; 4  5// Generate a URI instance from the given string... 6$uri=Uri::of('https://example.com/path'); 7  8// Generate URI instances to paths, named routes, or controller actions... 9$uri=Uri::to('/dashboard');10$uri=Uri::route('users.show', ['user'=>1]);11$uri=Uri::signedRoute('users.show', ['user'=>1]);12$uri=Uri::temporarySignedRoute('user.index', now()->addMinutes(5));13$uri=Uri::action([UserController::class, 'index']);14$uri=Uri::action(InvokableController::class);15 16// Generate a URI instance from the current request URL...17$uri=$request->uri();
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\InvokableController;
+use Illuminate\Support\Uri;
+
+// Generate a URI instance from the given string...
+$uri = Uri::of('https://example.com/path');
+
+// Generate URI instances to paths, named routes, or controller actions...
+$uri = Uri::to('/dashboard');
+$uri = Uri::route('users.show', ['user' => 1]);
+$uri = Uri::signedRoute('users.show', ['user' => 1]);
+$uri = Uri::temporarySignedRoute('user.index', now()->addMinutes(5));
+$uri = Uri::action([UserController::class, 'index']);
+$uri = Uri::action(InvokableController::class);
+
+// Generate a URI instance from the current request URL...
+$uri = $request->uri();</code></pre></div><p>Once you have a URI instance, you can fluently modify it:<div><pre><code>1$uri=Uri::of('https://example.com')2->withScheme('http')3->withHost('test.com')4->withPort(8000)5->withPath('/users')6->withQuery(['page'=>2])7->withFragment('section-1');
+$uri = Uri::of('https://example.com')
+    ->withScheme('http')
+    ->withHost('test.com')
+    ->withPort(8000)
+    ->withPath('/users')
+    ->withQuery(['page' => 2])
+    ->withFragment('section-1');</code></pre></div><h4><a href=#inspecting-uris>Inspecting URIs</a></h4><p>The <code>Uri</code> class also allows you to easily inspect the various components of the underlying URI:<div><pre><code>1$scheme=$uri->scheme();2$host=$uri->host();3$port=$uri->port();4$path=$uri->path();5$segments=$uri->pathSegments();6$query=$uri->query();7$fragment=$uri->fragment();
+$scheme = $uri->scheme();
+$host = $uri->host();
+$port = $uri->port();
+$path = $uri->path();
+$segments = $uri->pathSegments();
+$query = $uri->query();
+$fragment = $uri->fragment();</code></pre></div><h4><a href=#manipulating-query-strings>Manipulating Query Strings</a></h4><p>The <code>Uri</code> class offers several methods that may be used to manipulate a URI's query string. The <code>withQuery</code> method may be used to merge additional query string parameters into the existing query string:<div><pre><code>1$uri=$uri->withQuery(['sort'=>'name']);
+$uri = $uri->withQuery(['sort' => 'name']);</code></pre></div><p>The <code>withQueryIfMissing</code> method may be used to merge additional query string parameters into the existing query string if the given keys do not already exist in the query string:<div><pre><code>1$uri=$uri->withQueryIfMissing(['page'=>1]);
+$uri = $uri->withQueryIfMissing(['page' => 1]);</code></pre></div><p>The <code>replaceQuery</code> method may be used to complete replace the existing query string with a new one:<div><pre><code>1$uri=$uri->replaceQuery(['page'=>1]);
+$uri = $uri->replaceQuery(['page' => 1]);</code></pre></div><p>The <code>pushOntoQuery</code> method may be used to push additional parameters onto a query string parameter that has an array value:<div><pre><code>1$uri=$uri->pushOntoQuery('filter', ['active', 'pending']);
+$uri = $uri->pushOntoQuery('filter', ['active', 'pending']);</code></pre></div><p>The <code>withoutQuery</code> method may be used to remove parameters from the query string:<div><pre><code>1$uri=$uri->withoutQuery(['page']);
+$uri = $uri->withoutQuery(['page']);</code></pre></div><h4><a href=#generating-responses-from-uris>Generating Responses From URIs</a></h4><p>The <code>redirect</code> method may be used to generate a <code>RedirectResponse</code> instance to the given URI:<div><pre><code>1$uri=Uri::of('https://example.com');2 3return$uri->redirect();
+$uri = Uri::of('https://example.com');
+
+return $uri->redirect();</code></pre></div><p>Or, you may simply return the <code>Uri</code> instance from a route or controller action, which will automatically generate a redirect response to the returned URI:<div><pre><code>1use Illuminate\Support\Facades\Route;2use Illuminate\Support\Uri;3 4Route::get('/redirect', function() {5returnUri::to('/index')6->withQuery(['sort'=>'name']);7});
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Uri;
+
+Route::get('/redirect', function () {
+    return Uri::to('/index')
+        ->withQuery(['sort' => 'name']);
+});</code></pre></div></div></section></section></div></section><div><div><div>On this page<div><div><ul><li><a href=#introduction> Introduction </a><li><a href=#available-methods> Available Methods </a><li><a href=#other-utilities> Other Utilities </a> <ul><li><a href=#benchmarking> Benchmarking </a><li><a href=#dates> Dates </a><li><a href=#deferred-functions> Deferred Functions </a><li><a href=#lottery> Lottery </a><li><a href=#pipeline> Pipeline </a><li><a href=#sleep> Sleep </a><li><a href=#timebox> Timebox </a><li><a href=#uri> URI </a></ul></ul></div></div></div></div></div></div></div></div></div>

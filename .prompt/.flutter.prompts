@@ -1,0 +1,11 @@
+阅读本项目的开发规范，
+D:\programing\core_node\DEVELOPMENT_GUIDE_THIS_FILE_NO_AI_EDIT.md
+D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
+查看Poly flutter 中的 exaple app.修复 provider_app_example.dart
+
+ › 1：D:\programing\core_node\scripts\unified_manager ，从dd.sh中启动的  Unified App Manager                     [depoly]时，将现在的start写为和deploy一样，也会调用服务增加、更新，启动，重启
+ app到系统服务，同时也有查看服务重启服务等菜单，2：復制D:\programing\core_node\poly_apps\laravel_main\scripts\deploy.sh 为 start.sh,使start.sh具备deploy的全部功能 
+ ，3：分析现在的最新代码，D:\programing\core_node\scripts\unified_manager\PROJECT_UNIFIED_MANAGEMENT_ANALYSIS.md 和D:\programing\core_node\scripts\unified_manager\README.md                  ──────────────────────────────────────────────────────────────────────────────────────╮
+ 更新旧的规范，并一个新的规范 /www/wwwroot/core_node/scripts/unified_manager/UNIFIED_MANAGER_DEVELOPMENT_GUIDELINES.md （WINDOWS_SCRIPT_EXECUTION_FIX.md                                                                                                                            │
+ 也并进去，windows和liunx唯一的方案是，windows的后台运地采用explorer执行新的启动对应脚本，而liunx采用后台服务），注意这里更新的是构架开发规范、不要加入使用指南、代码示例这些逻辑。其中首重要 ──────────────────────────────────────────────────────────────────────────────────────╯
+ 讲的是框架的逻辑含义、以及要求的技术现实规范。 

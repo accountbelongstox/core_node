@@ -1,0 +1,14 @@
+{
+    "watch": [
+        "ncore/",
+        "apps/",
+        "main.js"
+    ],
+    "ignore": [],
+    "ext": "js,json",
+    "verbose": true,
+    "exec": "node ./main.js --app=VoiceStaticServer --word_segmentation=0-30000",
+    "restartable": "hr",
+    "colours": true,
+    "events": {}
+}

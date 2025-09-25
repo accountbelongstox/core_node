@@ -1,0 +1,46 @@
+.nowrap {
+    white-space: nowrap;
+}
+
+.header-row .nowrap {
+    font-size: 1.17em;
+    font-weight: bold;
+    width: 100%;
+    text-align: center;
+}
+
+.url-entry {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.url-entry span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.url-entry .url {
+    width: 30%;
+}
+
+.url-entry .submission-time,
+.url-entry .expiry-time {
+    width: 25%;
+}
+
+.url-entry .actions {
+    width: 20%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.url-text {
+    max-width: 70%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

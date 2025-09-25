@@ -1,0 +1,41 @@
+# Core Node Application Registry - Simplified Format
+# Format: appname|type|description
+# Types: ncore-app, poly-vue, poly-laravel, poly-flutter, python
+# Auto-detection: paths, scripts, dependencies based on type and directory scanning
+
+# NCore Applications (scanned from D:\programing\core_node\apps)
+DevOps|ncore-app|DevOps management system
+DocumentOffline|ncore-app|Offline document processing
+GetDocFromUrlByPuppeteer|ncore-app|Web document scraping with Puppeteer
+VideoCompression|ncore-app|Video compression service
+VoiceClientAndCaddy|ncore-app|Voice client with Caddy server
+WebLocalAreaNetwork|ncore-app|Local area network web service
+ai_translator_app|ncore-app|AI translation application
+flutter_icon_manager|ncore-app|Flutter icon management tool
+
+# Python Applications (scanned from D:\programing\core_node\apps)
+d3check|python|Diablo III automation control system
+
+# Poly Vue Applications (scanned from D:\programing\core_node\poly_apps)
+nuxt_main:example|poly-vue|Example application
+nuxt_main:codemart|poly-vue|Code marketplace platform
+nuxt_main:dev|poly-vue|Development tools platform
+nuxt_main:admin|poly-vue|Admin management system
+nuxt_main:dashboard|poly-vue|Analytics dashboard
+admin-vue-tailwind|poly-vue|Vue.js admin dashboard with Tailwind CSS
+it-tools|poly-vue|Developer tools collection
+
+# Poly Laravel Applications
+laravel_main|poly-laravel|Laravel API backend service
+
+# Poly Flutter Applications
+flutter_bloom|poly-flutter|Flutter cross-platform application
+
+# Presets (optional section)
+[PRESETS]
+dev-suite|Complete development environment|DevOps,nuxt_main:dev,laravel_main
+frontend-only|Frontend applications only|nuxt_main:admin,admin-vue-tailwind,it-tools
+backend-only|Backend services only|DevOps,laravel_main,DocumentOffline
+full-stack|Full stack development environment|DevOps,nuxt_main:dev,laravel_main,flutter_bloom
+ncore-apps|All NCore framework applications|DevOps,DocumentOffline,GetDocFromUrlByPuppeteer,VideoCompression,VoiceClientAndCaddy,WebLocalAreaNetwork,ai_translator_app,flutter_icon_manager
+poly-apps|All Poly applications|nuxt_main:example,nuxt_main:codemart,nuxt_main:dev,nuxt_main:admin,nuxt_main:dashboard,admin-vue-tailwind,it-tools,laravel_main,flutter_bloom

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Multiple File Upload</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            background-color: white;
+        }
+
+        .upload-area.highlight {
+            border-color: #4CAF50;
+            background-color: #f0fff0;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .upload-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .upload-btn:hover {
+            background-color: #45a049;
+        }
+
+        .file-list {
+            margin-top: 20px;
+        }
+
+        .file-item {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .file-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .file-name {
+            font-weight: bold;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 70%;
+        }
+
+        .file-size {
+            color: #666;
+        }
+
+        .progress-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+
+        .progress-bar {
+            height: 10px;
+            background-color: #4CAF50;
+            border-radius: 5px;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .status {
+            margin-top: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .success {
+            color: #4CAF50;
+        }
+
+        .error {
+            color: #f44336;
+        }
+
+        .remove-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 3px 8px;
+            cursor: pointer;
+            float: right;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px 0;
+            background: #eee;
+            color: #333;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="tab-bar" style="display:flex;gap:2px;margin-bottom:20px;">
+        <button id="tab-upload" class="tab-btn" style="flex:1;padding:10px 0;background:#4CAF50;color:#fff;border:none;cursor:pointer;font-size:16px;">Upload</button>
+        <button id="tab-download" class="tab-btn" style="flex:1;padding:10px 0;background:#eee;color:#333;border:none;cursor:pointer;font-size:16px;">Download</button>
+    </div>
+    <div class="container">
+        <h1>Multiple File Upload</h1>
+
+        <div id="pathSelector" style="margin-bottom: 16px; padding: 10px; background: #f8f8f8; border-radius: 6px; box-shadow: 0 1px 3px #0001;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span id="breadcrumb" style="font-weight: bold; color: #333;"></span>
+                <button id="backBtn" style="padding: 4px 12px; border-radius: 4px; border: none; background: #eee; color: #333; cursor: pointer;">Back</button>
+            </div>
+            <div id="dirList" style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;"></div>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <p>Click to select or drag and drop files here</p>
+            <p>Supports videos, photos, and other files</p>
+            <button class="upload-btn" id="selectFilesBtn">Select Files</button>
+            <input type="file" id="fileInput" multiple>
+        </div>
+
+        <button class="upload-btn" id="uploadAllBtn" style="width: 100%;">Upload All Files</button>
+
+        <div class="file-list" id="fileList"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const fileInput = document.getElementById('fileInput');
+            const selectFilesBtn = document.getElementById('selectFilesBtn');
+            const uploadAllBtn = document.getElementById('uploadAllBtn');
+            const uploadArea = document.getElementById('uploadArea');
+            const fileList = document.getElementById('fileList');
+            const pathSelector = document.getElementById('pathSelector');
+            const breadcrumb = document.getElementById('breadcrumb');
+            const backBtn = document.getElementById('backBtn');
+            const dirList = document.getElementById('dirList');
+
+            let filesToUpload = [];
+            let currentPath = localStorage.getItem('uploadCurrentPath') || '/';
+
+            // Path selector logic
+            async function loadDirs(parent) {
+                dirList.innerHTML = '<span style="color:#aaa;">Loading...</span>';
+                try {
+                    const res = await fetch('/upload-dir-list?parent=' + encodeURIComponent(parent));
+                    const data = await res.json();
+                    dirList.innerHTML = '';
+                    if (data.dirs.length === 0) {
+                        dirList.innerHTML = '<span style="color:#aaa;">No subdirectories</span>';
+                    }
+                    data.dirs.forEach(dir => {
+                        const btn = document.createElement('button');
+                        btn.textContent = dir;
+                        btn.className = 'dir-btn';
+                        btn.style = 'padding:4px 14px;border-radius:4px;border:none;background:#e0eaff;color:#2a4a7b;cursor:pointer;font-weight:500;box-shadow:0 1px 2px #0001;';
+                        btn.onclick = () => {
+                            currentPath = (parent === '/' ? '' : parent) + '/' + dir;
+                            currentPath = currentPath.replace(/\\/g, '/');
+                            localStorage.setItem('uploadCurrentPath', currentPath);
+                            updatePathDisplay();
+                            loadDirs(currentPath);
+                        };
+                        dirList.appendChild(btn);
+                    });
+                } catch (e) {
+                    dirList.innerHTML = '<span style="color:#f00;">Failed to load directories</span>';
+                }
+            }
+
+            function updatePathDisplay() {
+                // Breadcrumb style
+                const parts = currentPath.split('/').filter(Boolean);
+                let html = '<span style="color:#4CAF50;cursor:pointer;" data-idx="0">/</span>';
+                parts.forEach((p, idx) => {
+                    html += ' <span style="color:#888;">/</span> ';
+                    html += `<span style="color:#4CAF50;cursor:pointer;" data-idx="${idx+1}">${p}</span>`;
+                });
+                breadcrumb.innerHTML = html;
+                // Breadcrumb click
+                Array.from(breadcrumb.querySelectorAll('span[data-idx]')).forEach(span => {
+                    span.onclick = function() {
+                        const idx = parseInt(this.getAttribute('data-idx'));
+                        if (idx === 0) {
+                            currentPath = '/';
+                        } else {
+                            const parts = currentPath.split('/').filter(Boolean);
+                            currentPath = '/' + parts.slice(0, idx).join('/');
+                        }
+                        localStorage.setItem('uploadCurrentPath', currentPath);
+                        updatePathDisplay();
+                        loadDirs(currentPath);
+                    };
+                });
+                backBtn.disabled = (currentPath === '/');
+            }
+
+            backBtn.onclick = function () {
+                if (currentPath === '/') return;
+                const parts = currentPath.split('/').filter(Boolean);
+                parts.pop();
+                currentPath = '/' + parts.join('/');
+                if (currentPath === '') currentPath = '/';
+                localStorage.setItem('uploadCurrentPath', currentPath);
+                updatePathDisplay();
+                loadDirs(currentPath);
+            };
+
+            // 初始化路径选择器
+            updatePathDisplay();
+            loadDirs(currentPath);
+
+            // Check if file already exists
+            async function checkFile(file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('uploadDir', currentPath);
+                try {
+                    const response = await fetch('/check-file', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    return await response.json();
+                } catch (error) {
+                    console.error('Error checking file:', error);
+                    return { success: false, error: 'Failed to check file' };
+                }
+            }
+
+            // Update file item status
+            function updateFileStatus(fileItem, status, message) {
+                const statusElement = fileItem.querySelector('.status');
+                const progressBar = fileItem.querySelector('.progress-bar');
+                
+                statusElement.textContent = message;
+                statusElement.className = 'status ' + status;
+                
+                if (status === 'success') {
+                    progressBar.style.width = '100%';
+                    progressBar.style.backgroundColor = '#4CAF50';
+                } else if (status === 'error') {
+                    progressBar.style.backgroundColor = '#f44336';
+                }
+            }
+
+            // Create file item element
+            function createFileItem(file) {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div class="file-info">
+                        <span class="file-name">${file.name}</span>
+                        <span class="file-size">${formatFileSize(file.size)}</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar"></div>
+                    </div>
+                    <div class="status">Pending</div>
+                `;
+                return fileItem;
+            }
+
+            // Format file size
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            // Handle selected files
+            async function handleFiles(files) {
+                for (const file of files) {
+                    if (filesToUpload.some(item => item.file.name === file.name && item.file.size === file.size)) {
+                        continue;
+                    }
+                    const fileItem = createFileItem(file);
+                    // Only store file size for pre-processing
+                    filesToUpload.push({ file, fileItem, fileSize: file.size });
+                    updateFileStatus(fileItem, 'pending', 'Ready to upload');
+                }
+                filesToUpload.sort((a, b) => a.file.size - b.file.size);
+                fileList.innerHTML = '';
+                for (const { fileItem } of filesToUpload) {
+                    fileList.appendChild(fileItem);
+                }
+            }
+
+            // Click to select files
+            selectFilesBtn.addEventListener('click', () => fileInput.click());
+
+            // File selection changed
+            fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+            // Drag and drop functionality
+            uploadArea.addEventListener('dragover', e => {
+                e.preventDefault();
+                uploadArea.classList.add('highlight');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('highlight');
+            });
+
+            uploadArea.addEventListener('drop', e => {
+                e.preventDefault();
+                uploadArea.classList.remove('highlight');
+                handleFiles(e.dataTransfer.files);
+            });
+
+            // Upload all files
+            uploadAllBtn.addEventListener('click', async () => {
+                if (filesToUpload.length === 0) {
+                    alert('Please select files to upload');
+                    return;
+                }
+                uploadAllBtn.disabled = true;
+                for (const { file, fileItem, fileSize } of filesToUpload) {
+                    updateFileStatus(fileItem, 'pending', 'Uploading...');
+                    await uploadFile(file, fileItem, fileSize);
+                }
+                filesToUpload = [];
+                uploadAllBtn.disabled = false;
+            });
+
+            // Tab switching logic
+            const tabUpload = document.getElementById('tab-upload');
+            const tabDownload = document.getElementById('tab-download');
+            if (tabUpload && tabDownload) {
+                tabUpload.style.background = '#4CAF50';
+                tabUpload.style.color = '#fff';
+                tabDownload.style.background = '#eee';
+                tabDownload.style.color = '#333';
+                tabUpload.onclick = function() { window.location.href = '/'; };
+                tabDownload.onclick = function() { window.location.href = '/download.html'; };
+            }
+
+            // Upload single file
+            async function uploadFile(file, fileItem, fileSize) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('uploadDir', currentPath);
+                if (fileSize) formData.append('fileSize', fileSize);
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        updateFileStatus(fileItem, 'success', 'Upload complete');
+                    } else {
+                        updateFileStatus(fileItem, 'error', result.error || 'Upload failed');
+                    }
+                    return result;
+                } catch (error) {
+                    updateFileStatus(fileItem, 'error', 'Upload failed');
+                    return { success: false, error: 'Upload failed' };
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,39 @@
+version: '3'
+
+services:
+  bt9debian12:
+    build:
+      context: .
+      args:
+        - CLOUD_PROVIDER=${CLOUD_PROVIDER:-huawei}
+        - ENV_LOCAL=${ENV_LOCAL:-cn}
+        - WEB_ROOT=${WEB_ROOT:-/www}
+        - BACKUP_FILE=${BACKUP_FILE:-/backup/www_backup.tar.gz}
+    environment:
+      - CLOUD_PROVIDER=${CLOUD_PROVIDER:-huawei}
+      - ENV_LOCAL=${ENV_LOCAL:-cn}
+      - WEB_ROOT=${WEB_ROOT:-/www}
+      - BACKUP_FILE=${BACKUP_FILE:-/backup/www_backup.tar.gz}
+      - BT_USERNAME=${BT_USERNAME:-btadmin}
+      - BT_PASSWORD=${BT_PASSWORD:-btpass@2024}
+    env_file:
+      - .env
+    ports:
+      - "${BT_PORT:-8888}:8888"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${SSH_PORT:-22}:22"
+      - "${RANGE_PORTS_START:-18000}-${RANGE_PORTS_END:-19000}:18000-19000"
+      - "${MYSQL_PORT:-3306}:3306"
+      - "${REDIS_PORT:-6379}:6379"
+      - "${POSTGRES_PORT:-5432}:5432"
+      - "${MONGODB_PORT:-27017}:27017"
+      - "${SQLSERVER_PORT:-1433}:1433"
+      - "${MYSQL_SECOND_PORT:-3307}:3307"
+      - "${REDIS_SECOND_PORT:-6380}:6380"
+      - "${POSTGRES_SECOND_PORT:-5433}:5433"
+      - "27018:27018"
+      - "27019:27019"
+    volumes:
+      - ${WEB_ROOT:-./www}:/www
+      - ${BACKUP_FILE:-./backup}:/backup 

@@ -1,0 +1,35 @@
+.subscription-code {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 0;
+    FONT-SIZE: xx-large;
+}
+
+.subscription-url {
+    flex-grow: 1;
+    padding: 15px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    margin-right: 10px;
+    font-size: 18px;  /* 增大字体大小 */
+    font-weight: bold;  /* 加粗字体 */
+    word-break: break-all;  /* 允许在任何字符间换行 */
+    max-width: calc(100% - 120px);  /* 为复制按钮留出空间 */
+}
+
+.copy-btn {
+    padding: 10px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-size: 16px;  /* 稍微增大按钮字体 */
+    white-space: nowrap;  /* 防止按钮文字换行 */
+}
+
+.copy-btn:hover {
+    background-color: #45a049;
+}

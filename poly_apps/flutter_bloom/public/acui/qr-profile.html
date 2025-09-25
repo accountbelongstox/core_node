@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的企业码 - 企业通讯</title>
+    <link rel="stylesheet" href="styles/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        .profile-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background: #fff;
+            height: calc(100vh - 60px);
+        }
+
+        .profile-header {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #4CAF50;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 15px;
+            position: relative;
+        }
+
+        .profile-name {
+            font-size: 18px;
+            color: #333;
+            margin: 10px 0 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .profile-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .qr-container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .qr-title {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #qrcode {
+            margin: 0 auto;
+            padding: 15px;
+            background: white;
+        }
+
+        .qr-hint {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin: 20px 0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .action-button {
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .action-button.primary {
+            background: #4CAF50;
+            color: white;
+            border: none;
+        }
+
+        .action-button.secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: none;
+        }
+
+        .action-button:active {
+            transform: scale(0.98);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .gender-icon {
+            color: #2196F3;
+            font-size: 16px;
+        }
+
+        .department-tag {
+            background: #f0f0f0;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="time">2:41</div>
+            <div class="status-icons">
+                <i class="fas fa-bluetooth-b"></i>
+                <i class="fas fa-moon"></i>
+                <i class="fas fa-copyright"></i>
+                <span class="signal">5G</span>
+                <span class="signal">5G</span>
+                <span class="battery">32%</span>
+            </div>
+        </div>
+
+        <!-- 主要内容 -->
+        <div class="profile-container">
+            <div class="profile-header">
+                <div class="profile-avatar">张</div>
+                <div class="profile-name">
+                    张明 
+                    <i class="fas fa-mars gender-icon"></i>
+                </div>
+                <div class="profile-title">技术总监 | 研发中心</div>
+                <div class="department-tag">企业认证用户</div>
+            </div>
+
+            <div class="qr-container">
+                <div class="qr-title">我的企业码</div>
+                <div id="qrcode"></div>
+                <div class="qr-hint">扫一扫上面的二维码图案，加我为工作联系人</div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="action-button secondary">
+                    <i class="fas fa-download"></i>
+                    保存二维码
+                </button>
+                <button class="action-button primary">
+                    <i class="fas fa-share-alt"></i>
+                    分享二维码
+                </button>
+            </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <nav class="bottom-nav">
+            <div class="nav-item">
+                <i class="fas fa-comment"></i>
+                <span>聊天</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-address-book"></i>
+                <span>联系人</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-compass"></i>
+                <span>工作台</span>
+            </div>
+            <div class="nav-item active">
+                <i class="fas fa-user"></i>
+                <span>我的</span>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        // 更新时间
+        function updateTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            document.querySelector('.time').textContent = `${hours}:${minutes}`;
+        }
+        
+        updateTime();
+        setInterval(updateTime, 60000);
+
+        // 生成二维码
+        window.onload = function() {
+            new QRCode(document.getElementById("qrcode"), {
+                text: "https://enterprise.example.com/contact/zhang-ming",
+                width: 200,
+                height: 200,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+        }
+
+        // 按钮点击效果
+        document.querySelectorAll('.action-button').forEach(button => {
+            button.addEventListener('click', function() {
+                this.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    this.style.transform = 'scale(1)';
+                }, 200);
+
+                // 模拟功能
+                if (this.classList.contains('primary')) {
+                    // 分享功能
+                    if (navigator.share) {
+                        navigator.share({
+                            title: '张明的企业联系方式',
+                            text: '扫描二维码添加工作联系人',
+                            url: 'https://enterprise.example.com/contact/zhang-ming'
+                        });
+                    }
+                } else {
+                    // 保存功能
+                    const qrImage = document.querySelector('#qrcode img');
+                    if (qrImage) {
+                        const link = document.createElement('a');
+                        link.href = qrImage.src;
+                        link.download = '企业二维码.png';
+                        link.click();
+                    }
+                }
+            });
+        });
+
+        // 头像悬停效果
+        const avatar = document.querySelector('.profile-avatar');
+        avatar.addEventListener('mouseover', function() {
+            this.style.transform = 'scale(1.05)';
+        });
+        avatar.addEventListener('mouseout', function() {
+            this.style.transform = 'scale(1)';
+        });
+    </script>
+</body>
+</html> 

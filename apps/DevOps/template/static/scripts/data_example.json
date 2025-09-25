@@ -1,0 +1,61 @@
+{
+    "success": true,
+    "code": 200,
+    "message": "Get voiceStaticService status",
+    "timestamp": "2025-03-29T10:19:55.278Z",
+    "data": {
+        "serverStatus": {
+            "uptime": "18:19:55 up  7:02,",
+            "load average": {
+                "undefined": 5.26
+            },
+            "Tasks": {
+                "total": 342,
+                "running": 7,
+                "sleeping": 335,
+                "stopped": 0,
+                "zombie": 0
+            },
+            "%Cpu(s)": {
+                "us": 54.3,
+                "sy": 34.8,
+                "ni": 0,
+                "id": 10.9,
+                "wa": 0,
+                "hi": 0,
+                "si": 0,
+                "st": 0
+            },
+            "MiB Mem": {
+                "total": 7911.7,
+                "free": 217.7,
+                "used": 5417.3,
+                "buff/cache": 2799
+            },
+            "MiB Swap": {
+                "total": 4096,
+                "free": 3530.5,
+                "used.": 565.5
+            },
+            "isServer": true,
+            "isClient": false,
+            "role": "server"
+        },
+        "staticStatus": {
+            "wordCountNumberInit": 0,
+            "wordUsedTime": 0,
+            "wordTotalCount": 0,
+            "wordGeneratedAudioCount": 0,
+            "wordSuccessCount": 0,
+            "wordFailedCount": 0,
+            "wordWaitingCount": 0,
+            "wordAverageTime": 0,
+            "wordStartIndex": 0,
+            "wordEndIndex": 0,
+            "wordGeneratedServerTotalCount": 0,
+            "wordSoundCount": 0,
+            "oldVoiceCount": 0
+        },
+        "clientStatus": null
+    }
+}

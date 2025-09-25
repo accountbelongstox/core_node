@@ -1,0 +1,322 @@
+_static_*/
+**/_static_-*/
+out/
+logs/
+.cache/
+.idea/
+.vscode/launch.json
+.yalc/
+chrome/
+.next/
+.bin/
+.ncore/
+.apps_dist/
+.data/
+data/
+webpack_dist/
+
+# Sensitive files - local dev contains unencrypted files
+**/secret_keys/raw/
+**/secret_keys/raw/*
+**/secret_keys/raw/**
+# Deployment configs should be committed (contains encrypted files)
+.AppleDouble
+.LSOverride
+public/uploads/*
+!public/uploads/.gitkeep
+.strapi
+.strapi-updater.json
+.strapi-cloud.json
+pyenv_*/
+**/.dart_tool-dev/
+app.*.symbols
+**/*.vsix
+**/*.test/
+/~
+
+#  Common ignore rules
+
+#  System
+**/.DS_Store
+**/Thumbs.db
+**/desktop.ini
+**/*.tmp
+**/*.temp
+**/*.pyc
+
+#  Editor and IDE
+**/.vscode/
+**/.idea/
+**/*.swp
+**/*.swo
+**/*~
+**/.atom/
+**/.sublime-project
+**/.sublime-workspace
+
+#  Log
+**/*.log
+**/*.logs
+**/logs/
+**/log/
+
+#  Cache 
+**/cache/
+**/.cache/
+**/tmp/
+**/temp/
+**/tmp_*
+**/test_*
+
+# Flutter/Dart Test
+
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
+**/build/
+**/*.g.dart
+**/*.freezed.dart
+**/*.gr.dart
+
+**/ios/.symlinks/
+**/macos/.symlinks/
+
+**/coverage/
+**/test/.test_coverage.dart
+
+**/.git/
+**/*.orig
+
+**/*.p12
+**/*.jks
+
+**/node_modules/
+**/vendor/
+**/packages/
+
+**/dist/
+**/out/
+**/release/
+**/debug/
+
+**/*.zip
+**/*.rar
+**/*.7z
+**/*.tar.gz
+
+**/*.bak
+**/*.backup
+**/*.old
+
+**/*.o
+**/*.so
+**/*.dylib
+**/*.dll
+**/*.exe
+
+
+**/test_driver/
+**/.dev_tmp/
+**/.*_tmp/
+**/.*.tmp/
+**/.secret_ignore/
+
+#  Additional ignore rules based on git-info.txt analysis
+
+# Git info and status files
+**/*.gitignore.bak
+
+# Development and testing files
+**/test_*.ps1
+**/test_*.py
+**/test_*.js
+**/*_test.py
+**/*_test.js
+**/*_test.ps1
+**/debug_*.log
+**/*.test.js
+**/*.test.py
+
+# Database files
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/mcp_test.db
+**/*.sql
+
+# Environment and configuration files
+
+# Backup and temporary files
+**/*.bak
+**/*.backup
+**/*.old
+**/.bak-*/
+**/*_backup.*
+**/*.orig
+**/*.rej
+
+# System and hidden files
+**/.wget-hsts
+**/*.url
+**/*.pif
+**/*.scr
+**/*.com
+**/*.vbs
+**/*.wsf
+**/*.hta
+**/*.jar
+**/*.msi
+**/*.msm
+**/*.apk
+**/*.msp
+**/*.cab
+**/*.iso
+**/*.seed
+
+# Development tool specific files
+**/*.suo
+**/*.ntvs*
+**/*.njsproj
+**/*.sln
+**/*.ipr
+**/*.iws
+**/*.iml
+**/nbproject/
+**/.project
+**/.classpath
+**/.settings/
+
+# Package manager files
+**/yarn.lock
+**/package-lock.json
+**/pnpm-lock.yaml
+**/*.lock
+
+# Runtime and process files
+**/*.pid
+**/*.sock
+**/*.tmp
+**/*.temp
+**/*.swp
+**/*.swo
+**/*.swn
+**/*.swm
+
+**/*.report
+**/*.analysis
+
+# AI and restricted access files
+**/.ai_restricted_access/
+**/.ai_no_access/
+**/.bak-ai-*/
+
+# Specific project directories
+
+# Empty and null files
+**/null
+**/empty
+**/*.empty
+
+# PowerShell specific
+**/*.ps1.bak
+**/*.ps1.old
+**/*.ps1.tmp
+
+# Python specific
+**/*$py.class
+**/.Python
+**/env/
+**/venv/
+**/ENV/
+**/env.bak/
+**/venv.bak/
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+**/.tox/
+**/.nox/
+**/.coverage.*
+**/nosetests.xml
+**/coverage.xml
+**/*.cover
+**/*.py,cover
+**/.hypothesis/
+**/cover/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/d3check/
+
+# Node.js specific
+**/.node_repl_history
+**/*.tgz
+**/.yarn-integrity
+
+# Flutter/Dart specific
+**/*.dill
+**/*.dill.track
+
+# IDE and editor specific
+**/.atom/
+**/.sublime-project
+**/.sublime-workspace
+
+# OS specific
+**/._*
+**/.Spotlight-V100
+**/.Trashes
+**/ehthumbs.db
+**/Desktop.ini
+**/$RECYCLE.BIN/
+**/*.lnk
+
+# Archive and compression
+**/*.bz2
+**/*.xz
+**/*.lzma
+**/*.lz
+**/*.lzo
+**/*.lzop
+**/*.zst
+
+# Binary and executable
+**/*.dylib
+**/*.bin
+**/*.app
+**/*.dmg
+**/*.pkg
+**/*.deb
+**/*.rpm
+
+# Logs and debugging
+**/*.logs
+**/debug/
+**/*.debug
+**/*.trace
+**/*.dump
+**/*.core
+**/*.stackdump
+
+# Cache and temporary
+**/cache/
+**/.tmp/
+**/.temp/
+**/*.cache
+
+# Security and keys
+**/*.key
+**/*.p12
+**/*.jks
+**/*.keystore
+**/*.pfx
+**/*.p7b
+**/*.crt
+**/*.cer
+**/*.der
+**/*.p7c
+**/*.p8
+**/*.pfx

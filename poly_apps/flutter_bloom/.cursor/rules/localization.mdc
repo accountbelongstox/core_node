@@ -1,0 +1,59 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Localization Guidelines
+
+## File Organization
+- File location: `app_[name]/localization/`
+- Must include `en.dart` and `zh.dart`
+- Translation keys must include app prefix
+- Usage: `"[app_name]_key".tr(context)`
+
+## Required Imports
+```dart
+import 'package:qyflutter/helper/localization_helper.dart';
+```
+
+## Translation Keys
+- Use app prefix (e.g., qy_)
+- Use dot notation for hierarchy (e.g., `qy_home_title`)
+- Maintain consistency in translation keys
+- Use descriptive key names
+
+## Implementation
+- Use tr() extension method for translations
+- Must provide context parameter
+- Use named parameters for dynamic content
+- Handle pluralization properly
+
+## Examples
+```dart
+// Basic usage
+Text('qy_home_title'.tr(context))
+
+// With dynamic content
+Text('qy_welcome_message'.tr(context, ['John']))
+
+// In a widget
+class MyWidget extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Text('qy_button_text'.tr(context));
+  }
+}
+```
+
+## Best Practices
+- Ensure all language files contain the same keys
+- Maintain translation accuracy
+- Handle special characters and formatting
+- Test all supported languages
+
+
+
+
+
+
+

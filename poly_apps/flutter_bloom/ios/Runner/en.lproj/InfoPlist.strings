@@ -1,0 +1,10 @@
+CFBundleDisplayName = "QianYu Words";
+CFBundleName = "QianYu Words";
+NSCameraUsageDescription = "This app needs camera access to take photos and videos";
+NSMicrophoneUsageDescription = "This app needs microphone access to record audio";
+NSLocationWhenInUseUsageDescription = "This app needs location access to provide location-based services";
+NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to provide location-based services";
+NSLocationAlwaysUsageDescription = "This app needs location access to provide location-based services";
+NSPhotoLibraryUsageDescription = "This app needs photo library access to save and load photos";
+NSPhotoLibraryAddUsageDescription = "This app needs photo library access to save photos";
+NSContactsUsageDescription = "This app needs contacts access to read phone numbers"; 

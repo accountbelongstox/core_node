@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>添加联系人 - 企业通讯</title>
+    <link rel="stylesheet" href="styles/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .add-methods {
+            padding: 15px;
+        }
+        
+        .add-method-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: white;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .add-method-item:active {
+            transform: scale(0.98);
+        }
+        
+        .add-method-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 20px;
+            color: white;
+        }
+        
+        .add-method-info {
+            flex: 1;
+        }
+        
+        .add-method-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 4px;
+            color: #333;
+        }
+        
+        .add-method-desc {
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .arrow-icon {
+            color: #ccc;
+            font-size: 18px;
+        }
+
+        .search-section {
+            padding: 15px;
+            background: #f8f8f8;
+        }
+
+        .search-input-wrapper {
+            background: white;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .search-input-wrapper i {
+            color: #999;
+            margin-right: 8px;
+        }
+
+        .search-input-wrapper input {
+            border: none;
+            outline: none;
+            flex: 1;
+            font-size: 14px;
+        }
+
+        /* 添加动画效果 */
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .add-method-item {
+            animation: slideIn 0.3s ease forwards;
+        }
+
+        .add-method-item:nth-child(1) { animation-delay: 0.1s; }
+        .add-method-item:nth-child(2) { animation-delay: 0.2s; }
+        .add-method-item:nth-child(3) { animation-delay: 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="time">2:41</div>
+            <div class="status-icons">
+                <i class="fas fa-bluetooth-b"></i>
+                <i class="fas fa-moon"></i>
+                <i class="fas fa-copyright"></i>
+                <span class="signal">5G</span>
+                <span class="signal">5G</span>
+                <span class="battery">33%</span>
+            </div>
+        </div>
+
+        <!-- 头部 -->
+        <header>
+            <div class="header-icons left">
+                <i class="fas fa-chevron-left" onclick="history.back()"></i>
+            </div>
+            <h1>添加联系人</h1>
+            <div class="header-icons right">
+            </div>
+        </header>
+
+        <!-- 搜索部分 -->
+        <div class="search-section">
+            <div class="search-input-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="搜索工号/姓名/部门">
+            </div>
+        </div>
+
+        <!-- 添加方式列表 -->
+        <div class="add-methods">
+            <div class="add-method-item">
+                <div class="add-method-icon" style="background-color: #4CAF50;">
+                    <i class="fas fa-qrcode"></i>
+                </div>
+                <div class="add-method-info">
+                    <div class="add-method-title">我的企业码</div>
+                    <div class="add-method-desc">扫描二维码添加工作联系人</div>
+                </div>
+                <i class="fas fa-chevron-right arrow-icon"></i>
+            </div>
+
+            <div class="add-method-item">
+                <div class="add-method-icon" style="background-color: #2196F3;">
+                    <i class="fas fa-camera"></i>
+                </div>
+                <div class="add-method-info">
+                    <div class="add-method-title">扫一扫</div>
+                    <div class="add-method-desc">扫描同事的企业码</div>
+                </div>
+                <i class="fas fa-chevron-right arrow-icon"></i>
+            </div>
+
+            <div class="add-method-item">
+                <div class="add-method-icon" style="background-color: #FF5722;">
+                    <i class="fas fa-share-alt"></i>
+                </div>
+                <div class="add-method-info">
+                    <div class="add-method-title">邀请更多</div>
+                    <div class="add-method-desc">邀请: Teams、Slack、企业邮箱等</div>
+                </div>
+                <i class="fas fa-chevron-right arrow-icon"></i>
+            </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <nav class="bottom-nav">
+            <div class="nav-item">
+                <i class="fas fa-comment"></i>
+                <span>聊天</span>
+            </div>
+            <div class="nav-item active">
+                <i class="fas fa-address-book"></i>
+                <span>联系人</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-compass"></i>
+                <span>工作台</span>
+            </div>
+            <div class="nav-item">
+                <i class="fas fa-user"></i>
+                <span>我的</span>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        // 添加点击效果
+        document.querySelectorAll('.add-method-item').forEach(item => {
+            item.addEventListener('click', function() {
+                this.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    this.style.transform = 'scale(1)';
+                }, 100);
+            });
+        });
+
+        // 更新时间
+        function updateTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            document.querySelector('.time').textContent = `${hours}:${minutes}`;
+        }
+        
+        updateTime();
+        setInterval(updateTime, 60000);
+    </script>
+</body>
+</html> 

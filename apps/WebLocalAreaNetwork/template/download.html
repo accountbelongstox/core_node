@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Browser</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .tab-bar { display: flex; gap: 2px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 10px 0; background: #eee; color: #333; border: none; cursor: pointer; font-size: 16px; }
+        .tab-btn.active { background: #4CAF50; color: #fff; }
+        .file-list { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .file-item { padding: 8px 0; border-bottom: 1px solid #eee; display: flex; align-items: center; }
+        .file-item:last-child { border-bottom: none; }
+        .file-link { color: #2196F3; text-decoration: none; cursor: pointer; flex: 1; }
+        .file-link:hover { text-decoration: underline; }
+        .folder { font-weight: bold; color: #4CAF50; }
+    </style>
+</head>
+<body>
+    <div class="tab-bar">
+        <button id="tab-upload" class="tab-btn">Upload</button>
+        <button id="tab-download" class="tab-btn active">Download</button>
+    </div>
+    <h2>File Browser</h2>
+    <div id="breadcrumb"></div>
+    <div class="file-list" id="fileList"></div>
+    <script>
+        // Tab switching
+        document.getElementById('tab-upload').onclick = function() { window.location.href = '/'; };
+        document.getElementById('tab-download').onclick = function() { window.location.href = '/download.html'; };
+
+        // File browser logic
+        let currentPath = localStorage.getItem('downloadCurrentPath') || '/';
+        function loadDir(dir) {
+            if (!dir || dir === '' || dir === undefined) dir = '/';
+            localStorage.setItem('downloadCurrentPath', dir);
+            fetch(`/api/list?dir=${encodeURIComponent(dir)}`)
+                .then(res => {
+                    if (res.status === 403) return res.json().then(data => { throw new Error(data.error || 'Unauthorized directory'); });
+                    return res.json();
+                })
+                .then(data => {
+                    currentPath = data.path || '/';
+                    localStorage.setItem('downloadCurrentPath', currentPath);
+                    renderBreadcrumb(currentPath);
+                    const fileList = document.getElementById('fileList');
+                    fileList.innerHTML = '';
+                    if (currentPath !== '/') {
+                        const up = document.createElement('div');
+                        up.className = 'file-item';
+                        up.innerHTML = '<span class="file-link folder">.. (Up)</span>';
+                        up.onclick = () => {
+                            const parent = currentPath.replace(/\\/g, '/').replace(/\/$/, '').split('/').slice(0, -1).join('/') || '/';
+                            localStorage.setItem('downloadCurrentPath', parent);
+                            loadDir(parent);
+                        };
+                        fileList.appendChild(up);
+                    }
+                    data.items.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'file-item';
+                        if (item.type === 'dir') {
+                            div.innerHTML = `<span class="file-link folder">📁 ${item.name}</span>`;
+                            div.onclick = () => {
+                                const nextPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + item.name;
+                                localStorage.setItem('downloadCurrentPath', nextPath);
+                                loadDir(nextPath);
+                            };
+                        } else {
+                            div.innerHTML = `<span class="file-link">📄 ${item.name}</span>`;
+                            div.onclick = () => window.open(`/api/download?file=${encodeURIComponent(currentPath + (currentPath.endsWith('/') ? '' : '/') + item.name)}`);
+                        }
+                        fileList.appendChild(div);
+                    });
+                })
+                .catch(err => {
+                    const fileList = document.getElementById('fileList');
+                    fileList.innerHTML = `<div style='color:#f00;padding:16px;'>${err.message || 'Error loading directory'}</div>`;
+                });
+        }
+        function renderBreadcrumb(path) {
+            const bc = document.getElementById('breadcrumb');
+            const parts = path.replace(/\\/g, '/').split('/').filter(Boolean);
+            bc.innerHTML = '';
+            const rootLink = document.createElement('span');
+            rootLink.className = 'file-link';
+            rootLink.style.color = '#888';
+            rootLink.style.cursor = 'pointer';
+            rootLink.textContent = 'Root';
+            rootLink.onclick = () => {
+                localStorage.setItem('downloadCurrentPath', '/');
+                loadDir('/');
+            };
+            bc.appendChild(rootLink);
+            let acc = '';
+            parts.forEach((p, i) => {
+                acc += '/' + p;
+                const sep = document.createTextNode(' / ');
+                bc.appendChild(sep);
+                const partLink = document.createElement('span');
+                partLink.className = 'file-link';
+                partLink.style.color = '#888';
+                partLink.style.cursor = 'pointer';
+                partLink.textContent = p;
+                partLink.onclick = () => {
+                    localStorage.setItem('downloadCurrentPath', acc);
+                    loadDir(acc);
+                };
+                bc.appendChild(partLink);
+            });
+        }
+        loadDir(currentPath);
+    </script>
+</body>
+</html>

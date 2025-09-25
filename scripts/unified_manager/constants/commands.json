@@ -1,0 +1,50 @@
+{
+  "ncore-app": {
+    "install": "yarn install",
+    "start": "node ./main.js app={appname}",
+    "stop": "pkill -f \"node ./main.js app={appname}\"",
+    "build": null
+  },
+  "poly-vue": {
+    "install": "npm install",
+    "start": "npm run dev",
+    "stop": "pkill -f \"npm run dev\"",
+    "build": "npm run build"
+  },
+  "poly-laravel": {
+    "install": "composer install && npm install",
+    "start": "php artisan serve",
+    "stop": "pkill -f \"php artisan serve\"",
+    "build": "npm run build && php artisan optimize"
+  },
+  "poly-flutter": {
+    "install": "flutter pub get",
+    "start": "flutter run -d web-server --web-port=8080",
+    "stop": "pkill -f \"flutter run\"",
+    "build": "flutter build web"
+  },
+  "python": {
+    "install": "uv sync",
+    "start": "python main.py",
+    "stop": "pkill -f \"python main.py\"",
+    "build": null
+  },
+  "java": {
+    "install": "mvn install",
+    "start": "java -jar target/*.jar",
+    "stop": "pkill -f \"java -jar\"",
+    "build": "mvn package"
+  },
+  "go": {
+    "install": "go mod tidy",
+    "start": "go run main.go",
+    "stop": "pkill -f \"go run\"",
+    "build": "go build"
+  },
+  "php": {
+    "install": "composer install",
+    "start": "php -S localhost:8000",
+    "stop": "pkill -f \"php -S\"",
+    "build": null
+  }
+}

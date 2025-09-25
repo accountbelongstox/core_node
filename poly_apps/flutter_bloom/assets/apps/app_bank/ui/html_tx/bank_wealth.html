@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>财富页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 375px;
+            margin: 0 auto;
+            background: #fff;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            background: #f8f9fa;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .status-left {
+            color: #333;
+        }
+
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .battery {
+            background: #4CAF50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        /* 搜索区域 */
+        .search-section {
+            background: #fff;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .search-bar {
+            flex: 1;
+            background: #f5f5f5;
+            border-radius: 20px;
+            padding: 8px 16px;
+            border: none;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .voice-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .service-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: #666;
+        }
+
+        .service-icon-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2px;
+        }
+
+        .service-icon-text {
+            font-size: 12px;
+        }
+
+        /* 资产卡片 */
+        .asset-card {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            /* 注意：此处应该使用实际的资产卡片背景图片 */
+            margin: 16px;
+            border-radius: 12px;
+            padding: 20px;
+            color: #8b4513;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .asset-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .asset-title {
+            font-size: 16px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .asset-amount {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        .asset-income {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .income-item {
+            text-align: center;
+        }
+
+        .income-label {
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .income-amount {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* 选项卡 */
+        .tabs-section {
+            background: #fff;
+            padding: 0 16px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 16px 0;
+            color: #666;
+            text-decoration: none;
+            position: relative;
+        }
+
+        .tab.active {
+            color: #ff6b35;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 3px;
+            background: #ff6b35;
+            border-radius: 2px;
+        }
+
+        /* 产品网格 */
+        .products-grid {
+            padding: 20px 16px;
+            background: #fff;
+        }
+
+        .products-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .product-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: #333;
+        }
+
+        .product-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            font-size: 24px;
+            position: relative;
+        }
+
+        .product-icon.deposit { background: #e3f2fd; }
+        .product-icon.wealth { background: #fff3e0; }
+        .product-icon.fund { background: #f3e5f5; }
+        .product-icon.insurance { background: #e8f5e8; }
+        .product-icon.gold { background: #fce4ec; }
+        .product-icon.bank { background: #fff8e1; }
+        .product-icon.dragon1 { background: #e1f5fe; }
+        .product-icon.dragon2 { background: #ffebee; }
+        .product-icon.news { background: #f1f8e9; }
+        .product-icon.more { background: #e0f2f1; }
+
+        .product-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: #ff4757;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
+        }
+
+        .product-name {
+            font-size: 12px;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        /* 财富优选区域 */
+        .wealth-section {
+            background: #fff;
+            margin: 8px 16px;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .follow-link {
+            color: #666;
+            font-size: 14px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .category-tabs {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .category-tab {
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            padding: 8px 0;
+            position: relative;
+        }
+
+        .category-tab.active {
+            color: #333;
+            font-weight: 500;
+        }
+
+        .category-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #ff6b35;
+            border-radius: 1px;
+        }
+
+        /* 理财产品卡片 */
+        .wealth-products {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .wealth-card {
+            background: #fff;
+            border: 1px solid #f0f0f0;
+            border-radius: 12px;
+            padding: 16px;
+            text-decoration: none;
+            color: #333;
+        }
+
+        .wealth-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .wealth-card-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .wealth-card-subtitle {
+            font-size: 12px;
+            color: #ff6b35;
+            background: #fff3e0;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .wealth-card-rate {
+            font-size: 20px;
+            font-weight: 600;
+            color: #ff6b35;
+            margin-bottom: 4px;
+        }
+
+        .wealth-card-desc {
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* 底部导航 */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 375px;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0 20px;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: #666;
+            padding: 8px;
+        }
+
+        .nav-item.active {
+            color: #ff6b35;
+        }
+
+        .nav-item-icon {
+            width: 24px;
+            height: 24px;
+            margin-bottom: 4px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-item.active .nav-item-icon {
+            background: #ff6b35;
+            color: white;
+        }
+
+        .nav-item-text {
+            font-size: 12px;
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 320px) {
+            .products-row {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-left">1:28</div>
+            <div class="status-right">
+                <span>🔗</span>
+                <span>🌙</span>
+                <span>📶</span>
+                <span>📶</span>
+                <span>📶</span>
+                <span>📶</span>
+                <span>📶</span>
+                <span>📶</span>
+                <span class="battery">73%</span>
+            </div>
+        </div>
+
+        <!-- 搜索区域 -->
+        <div class="search-section">
+            <input type="text" class="search-bar" placeholder="零花钱好去处">
+            <div class="voice-icon">🎤</div>
+            <a href="#" class="service-icon">
+                <div class="service-icon-circle">🎧</div>
+                <div class="service-icon-text">客服</div>
+            </a>
+        </div>
+
+        <!-- 资产卡片 -->
+        <div class="asset-card">
+            <!-- 注意：此处应该使用实际的资产卡片背景图片 -->
+            <div class="asset-header">
+                <div class="asset-title">
+                    总资产 👁️
+                    <!-- 注意：此处应该使用实际的眼睛图标 -->
+                </div>
+                <div>昨日收益</div>
+            </div>
+            <div class="asset-amount">* * * * * *</div>
+            <div class="asset-income">
+                <div class="income-item">
+                    <div class="income-label">建行/代销资</div>
+                </div>
+                <div class="income-item">
+                    <div class="income-amount">* * * * * *</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 选项卡 -->
+        <div class="tabs-section">
+            <div class="tabs">
+                <a href="#" class="tab active">活期</a>
+                <a href="#" class="tab">理财</a>
+            </div>
+        </div>
+
+        <!-- 产品网格 -->
+        <div class="products-grid">
+            <div class="products-row">
+                <a href="#" class="product-item">
+                    <div class="product-icon deposit">📊</div>
+                    <!-- 注意：此处应该使用实际的存款产品图标 -->
+                    <div class="product-name">存款产品</div>
+                </a>
+                <a href="#" class="product-item">
+                    <div class="product-icon wealth">📈</div>
+                    <!-- 注意：此处应该使用实际的理财产品图标 -->
+                    <div class="product-name">理财产品</div>
+                </a>
+                <a href="#" class="product-item">
+                    <div class="product-icon fund">📊</div>
+                    <!-- 注意：此处应该使用实际的基金投资图标 -->
+                    <div class="product-name">基金投资</div>
+                </a>
+                <a href="#" class="product-item">
+                    <div class="product-icon insurance">✅</div>
+                    <!-- 注意：此处应该使用实际的保险图标 -->
+                    <div class="product-name">保险</div>
+                </a>
+                <a href="#" class="product-item">
+                    <div class="product-icon gold">🎲</div>
+                    <!-- 注意：此处应该使用实际的黄金属图标 -->
+                    <div class="product-name">黄金属</div>
+                </a>
+            </div>
+
+            <div class="products-row">
+                <a href="#" class="product-item">
+                    <div class="product-icon bank">💎</div>
+                    <!-- 注意：此处应该使用实际的建行产品图标 -->
+                    <div class="product-name">建行产品</div>
+                </a>
+                <a href="#" class="product-item">
+                    <div class="product-icon dragon1">🏠</div>
+                    <!-- 注意：此处应该使用实际的龙钱宝1号图标 -->
+                    <div class="product-name">龙钱宝1号</div>
+                </a>
+                <a href="#" class="product-item">
+                    <div class="product-icon dragon2">🏠</div>
+                    <!-- 注意：此处应该使用实际的龙钱宝2号图标 -->
+                    <div class="product-name">龙钱宝2号</div>
+                </a>
+                <a href="#" class="product-item">
+                    <div class="product-icon news">📺</div>
+                    <!-- 注意：此处应该使用实际的新享通图标 -->
+                    <div class="product-name">新享通</div>
+                    <div class="product-badge">新上线</div>
+                </a>
+                <a href="#" class="product-item">
+                    <div class="product-icon more">⭕</div>
+                    <!-- 注意：此处应该使用实际的更多图标 -->
+                    <div class="product-name">更多</div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 财富优选区域 -->
+        <div class="wealth-section">
+            <div class="section-header">
+                <h2 class="section-title">财富优选</h2>
+                <a href="#" class="follow-link">
+                    ❤️ 我的关注
+                    <!-- 注意：此处应该使用实际的关注图标 -->
+                </a>
+            </div>
+
+            <div class="category-tabs">
+                <a href="#" class="category-tab active">多享系列</a>
+                <a href="#" class="category-tab">零钱管理</a>
+                <a href="#" class="category-tab">稳健投资</a>
+                <a href="#" class="category-tab">追求回报</a>
+                <a href="#" class="category-tab">保险</a>
+            </div>
+
+            <div class="wealth-products">
+                <a href="#" class="wealth-card">
+                    <div class="wealth-card-header">
+                        <div>
+                            <div class="wealth-card-title">日日享</div>
+                            <div class="wealth-card-subtitle">按日申购</div>
+                        </div>
+                    </div>
+                    <div class="wealth-card-rate">2.58 %</div>
+                    <div class="wealth-card-desc">成立以来年化</div>
+                </a>
+
+                <a href="#" class="wealth-card">
+                    <div class="wealth-card-header">
+                        <div>
+                            <div class="wealth-card-title">周周享</div>
+                            <div class="wealth-card-subtitle">短期闲钱</div>
+                        </div>
+                    </div>
+                    <div class="wealth-card-rate">2.36 %</div>
+                    <div class="wealth-card-desc">成立以来年化</div>
+                </a>
+
+                <a href="#" class="wealth-card">
+                    <div class="wealth-card-header">
+                        <div>
+                            <div class="wealth-card-title">月月享</div>
+                            <div class="wealth-card-subtitle">稳健投资</div>
+                        </div>
+                    </div>
+                    <div class="wealth-card-rate">3.76 %</div>
+                    <div class="wealth-card-desc">成立以来年化</div>
+                </a>
+
+                <a href="#" class="wealth-card">
+                    <div class="wealth-card-header">
+                        <div>
+                            <div class="wealth-card-title">年年享</div>
+                            <div class="wealth-card-subtitle">长线优选</div>
+                        </div>
+                    </div>
+                    <div class="wealth-card-rate">3.06 %</div>
+                    <div class="wealth-card-desc">成立以来年化</div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <div class="bottom-nav">
+            <a href="#" class="nav-item">
+                <div class="nav-item-icon">🏠</div>
+                <div class="nav-item-text">首页</div>
+            </a>
+            <a href="#" class="nav-item">
+                <div class="nav-item-icon">💳</div>
+                <div class="nav-item-text">信用卡</div>
+            </a>
+            <a href="#" class="nav-item active">
+                <div class="nav-item-icon">💰</div>
+                <div class="nav-item-text">财富</div>
+            </a>
+            <a href="#" class="nav-item">
+                <div class="nav-item-icon">🏪</div>
+                <div class="nav-item-text">生活</div>
+            </a>
+            <a href="#" class="nav-item">
+                <div class="nav-item-icon">👤</div>
+                <div class="nav-item-text">我的</div>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

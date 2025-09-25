@@ -1,0 +1,37 @@
+从dd.cmd开始分析，结合开发规范，你是否发现一个git push的菜单的相关脚本，现在扩展一个脚本在 D:\programing\core_node\scripts\git，并允许 你更新相关文档，使用10以内以  │
+│   内的描述说明规范：1，在本地开发环境中将有一个本地目录，用来存入敏感字符，比如key,2:在git提交前，会调用附加脚本，使用D:\programing\core_node\scripts\disguise.js      │
+│   disguised.template.js 等脚本进行加密，加密时在git提前前，如果存在未加密的文件，则由提交开发本人输入密码，密码不记入任何文件，3：在global                             │
+│   var中支持读取任何一个key，如果key是加密的，则会提示输入密码，加密后修改文件名在文件名上体现，如果还没有加密（也就是git提交前，可以直接解密），4，在gitignore中会屏   │
+│   蔽未加密的文件，但任何加密内容解密 后可以保存，这样在使用globalvar ps1读的时候 就不用每次都输密码了。5：在本项目提交                                                 │
+│   git后，如果又在全新的电脑上clone，那在dd.ps1中会检测未解密的脚本，输入密码后解密一份不一样的文件名，当然解密文件已经在gitignore中屏蔽了，6：给ALIBABA_CLOUD_ACCESS_  │
+│   KEY_ID创建几个示例key，达到本地未加密时直接调用，提前git前会要求输入密码（需要两个密码确认）加密，加密文件如果被调用将要求输入密码，7：有共公的加密、解密方法，根据  │
+│   传入key读取一个值，或根据文件读取一个内容，在dd.ps1和 GlobalVars.ps1 中均独立 实现两份逻辑一样的。  
+
+你是否注意到了liunx dd.sh的菜单中的  Unified App Manager                     [start]，请你阅读开发文档，同时按我的要求：1，增加一个部署选项，当选择部署时，会自动调用app的deploy脚本
+ ，如果不存在则使用start.sh脚本，然后直接安装到系统服务，2：查看文档中的系统服务安装规范，3显示需要一个功能强大的系统安装类库，你可以移到serviceManager.py 
+ 到合适的位置并转写为更强大的sh工具类，需要能给出sh路径就能自动生成服务器`ncore-开头`+文件名basename，并自动安装到系统，设置开机启动，对已经存在的，则更新脚本位置，默认root权限 
+ ，你先全面分析，并告诉我你将如何执行脚本开发，以及现有文档是否还有不满足你的地方，将你的分析输出到 scprits/unified_manager/analyze.md中，我批准了你就可以开始执行开发。
+
+ › 请再核对一遍，无误后，给dd.sh扩展一个功能。dd.sh可以接收参数。如果参数存在，则自动运行参数中的程序（如果参数有多个，则依次将参数传递），并限制 使用系统                                                        │
+│   的30%cup/内存，可以借助第三软件实现，但同时你要确保自动安装第三方软件，/www/wwwroot/core_node/scripts/unified_manager/common/debian_service_manager.sh 不知道你是否在其中添加了限制 服务使用资源的逻辑，请继续在common添加一个类库。供dd.sh调用。
+
+
+ /www/wwwroot/core_node/scripts/unified_manager/common/resource_limiter.sh 参考 该脚本，当然你要读一下文档   
+ /www/wwwroot/core_node/development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md，然后在 /www/wwwroot/core_node/scripts/shells/linux/common 其中完成公共脚本，然后在 
+ /www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/85_install_code_server.sh 
+ 对进行封装，限制内存的使用和CPU的使用。/www/wwwroot/core_node/scripts/unified_manager/common/debian_service_manager.sh
+
+ 
+ 基于你之前的任务  /www/wwwroot/core_node/test_task.txt ，你还记得几个关联脚本吗，安装nginx的 .sh(/www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/25_install_nginx.sh), 安装cerbot的sh(/www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh)，以及laravel中基于nginx/cerbot的 nginx管理(/www/wwwroot/core_node/poly_apps/laravel_main/app/Apps/ServerManagerV1)。现在有以下任务                                                  │
+，问题1：/www/wwwroot/core_node/test_promble_1.txt 为什么 在set mirror里有inginx的内容，且出现了报错，2，确保 nginx                                                                 │
+  /cerbot在安装时，配置文件被修改到/www/nginxconfig目录，如果不能移动的目录比如/etc等不用管，但ngxin的网站配置，ssh,反代配置等需要 全部在/                                                │
+www目录，这是防止系统 重装后丢失，同时这个目录laraval的 Nginx管理能检索到，要一至性。    3，所有网站目录均要放在/www/wwwroot下，不要放在/var/wwwroot/html等，不要自作主张，这里已经说过了。除非指定绝对路径，否则任何域名和相对路径，都要连接到 /www/wwwroot目录。
+4：cerbot 和 nginx和laravel的nginx 服务器管理需要共享一个数据目录，用来交换ssh证书的申请和更新数据。主要交换的是domain dns provodir dns token 等。5：nginx安装脚本出现了大堆问题，/www/wwwroot/core_node/test_problem_2.txt ，能否在nginx安装脚本中使用强力的复原机制，未安装安装，安装后修复，修复失败强力删 除再安装装，注意因为网站ssl配置均要求放以/www/wwwroot/nginxconfig目录，所以配置不会丢失。这是一个很长的任务 ，你需要仔细完成。
+
+写一个解决git冲突的py文件，放在D:\programing\core_node\scripts\git  你直接重新完成一个全新的版本，扫塔../../路径，跳过不必要的目录，和文件扩展名，主要针对代码，扫描有冲突标识的文件，跳过读取错误的文件，然后智能保留
+   远程和本地，默认保留 本地，打印替换的预览效果，按Y后一键替换，被替换的文件先备份保存（时间错+.backup文件扩展名），同时文件名也保存到../../tmp/git
+  merge的临时文件集备份中，扫描时忽略该文件本身（因为文件中有标识字符串）
+
+  根据D:\programing\core_node\.prompt\anlyze.txt该文档作为参数（注意仅仅是作为参考，不能照抄），检测系统的所有网卡，列出所有网卡，使用上下箭头和左右 剪头选择每个网卡的功能，比如 th0[功能]，下下剪头选择网卡，左右箭头toglle，选择后保存到临时文件。如果网卡不足时提示，并60秒或按Y跳过。如果选择的不足也跳过，比如没有选输出等则提示 后跳过。当再次运行脚本时，载入已经选择的网卡的名字在菜单上设置为指定值（仍然可以toggle），toggle一个值后立即更新缓存文件。
+  然后使用2张网卡组成一个虚拟路由器在ubuntu,对于不存在的包，自动先前置安装，脚本完成成D:\programing\core_node\scripts\shells\linux\debian\install_shells 按标准完成。
+

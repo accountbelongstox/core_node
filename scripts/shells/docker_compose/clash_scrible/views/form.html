@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit URL</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/layout.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/modal.css">
+    <link rel="stylesheet" href="/static/css/utilities.css">
+    <link rel="stylesheet" href="/static/css/subscription.css">
+</head>
+
+<body>
+    <div class="header-container">
+        <div class="header-row"><code id="subscriptionUrl" class="subscription-code basecode"></code>
+            <button id="copySubscriptionBtn" class="copy-btn">Copy</button>
+        </div>
+    </div>
+    <div class="command-display">
+        <div class="command-header">
+            <div id="commandOutputSummary" class="single-line-summary"></div>
+            <div class="tab-buttons">
+                <button class="tab-button active" data-type="all">All</button>
+                <button class="tab-button" data-type="log">Log</button>
+                <button class="tab-button" data-type="image">Image</button>
+                <button class="tab-button" data-type="data">Data Info</button>
+            </div>
+            <button id="toggleCommandOutput">▼</button>
+        </div>
+        <pre id="commandOutput" class="command-output-area collapsed"></pre>
+    </div>
+    <div class="header-container">
+        <div class="header-row">
+            <button id="loginBtn">Login to Router</button>
+            <button id="openOpenClashBtn">Open OpenClash</button>
+            <button id="openYacdBtn">Open Yacd</button>
+            <button id="getProxyInfoBtn">Get Proxy Info</button>
+            <button id="nodeInfoBtn">Node Info</button>
+        </div> 
+        <div class="header-row">
+            <button id="exportDataBtn">Export Data</button>
+            <button id="importDataBtn">Import Data</button>
+            <button id="editClashTemplateBtn">Edit Clash Template</button>
+            <button id="editConfigBtn" onclick="openConfigModal()">Edit Configuration</button>
+            <button id="checkUpdateBtn" onclick="checkForUpdates()">Check for Updates</button>
+        </div>
+    </div>
+
+    <!-- Upper Section for Group Management (displayed in one row) -->
+    <div class="group-management">
+        <div class="group-section">
+            <div class="group-display">
+                <strong><span id="currentGroup">{{currentGroup}}</span> :{{currentGroupMD5}}</strong>
+            </div>
+        </div>
+
+        <div class="group-section">
+            <!-- New Group Form -->
+            <form onsubmit="createGroup(event)" class="form-section">
+                <label for="newGroup">AddGroup:</label>
+                <input type="text" name="newGroup" id="newGroup" placeholder="Enter new group name" required>
+                <button type="submit">Create</button>
+            </form>
+        </div>
+
+        <!-- Select Group Form (on change, it switches to the selected group) -->
+        <div class="group-section">
+            <label for="group">SelectGroup:</label>
+            <select name="group" id="group" onchange="changeGroup()">
+                {{groupOptions}}
+            </select>
+            <button onclick="changeGroup()">Switch</button>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Lower Section for URL Submission -->
+    <div class="url-submission">
+        <h3>Submit URL</h3>
+        <form onsubmit="submitUrl(event)" method="post">
+            <textarea name="urlSubscribleText" id="urlSubscribleText" placeholder="Enter a URL..." required></textarea>
+            <button type="submit">Submit URL</button>
+        </form>
+
+        <br>
+
+        <h2>Current Airport Subscription Links</h2>
+        <div class="list-container">
+
+            <div id="json-list-header"></div>
+
+            <!-- List Container -->
+            <ul id="json-list"></ul>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Edit Entry</h2>
+            <form id="editForm">
+                <label for="editUrl">URL:</label>
+                <input type="text" id="editUrl" name="editUrl" required>
+
+                <label for="editSubmissionTime">Submission Time:</label>
+                <input type="text" id="editSubmissionTime" name="editSubmissionTime" readonly>
+
+                <label for="editExpiryTime">Expiry Time:</label>
+                <input type="text" id="editExpiryTime" name="editExpiryTime" required>
+
+                <input type="hidden" id="editId" name="editId">
+                <input type="hidden" id="editMd5" name="editMd5">
+                <button type="submit">Save Changes</button>
+            </form>
+            <button onclick="closeModal()">Cancel</button>
+        </div>
+    </div>
+
+    <div class="system-info">
+        <h2>System Information</h2>
+        <div id="systemInfoContent">Loading...</div>
+    </div>
+
+    <div class="puppeteer-results">
+        <h2>Puppeteer Action Results</h2>
+        <div id="puppeteerResultContent"></div>
+        <div id="puppeteerScreenshot"></div>
+    </div>
+
+    <!-- Link to external JavaScript files -->
+    <script src="/static/js/websocket-client.js"></script>
+    <script src="/static/js/formscript.js"></script>
+    <script src="/static/js/config-editor.js"></script>
+    <script src="/static/js/update_script.js"></script>
+    <script src="/static/js/subscription.js"></script>
+    <script src="/static/js/clash-template-editor.js"></script>
+    <script src="/static/js/data-transfer.js"></script>
+
+    <div id="jsonDisplay">
+        <h3>Subscribed URLs:</h3>
+        <ul id="urlList">
+        </ul>
+    </div>
+
+    <div id="clashTemplateModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Edit Clash Template</h2>
+            <textarea id="clashTemplateContent" class="b600px" rows="20" cols="80"></textarea>
+            <button id="saveClashTemplateBtn">Save</button>
+            <button onclick="closeClashTemplateModal()">Cancel</button>
+        </div>
+    </div>
+
+    <input type="file" id="importFileInput" style="display: none;" accept=".zip">
+
+    <!-- 添加节点信息模态框 -->
+    <div id="nodeInfoModal" class="modal">
+        <div class="modal-content">
+            <h2>Node Information</h2>
+            <div id="nodeInfoContent"></div>
+            <button id="closeNodeInfoBtn">Close</button>
+        </div>
+    </div>
+
+    <script src="/static/js/proxy-node-info.js"></script>
+
+</body>
+
+</html>
