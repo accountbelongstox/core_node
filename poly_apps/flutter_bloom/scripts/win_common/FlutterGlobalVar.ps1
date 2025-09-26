@@ -23,9 +23,9 @@ $Global:BUILD_SCRIPTS_DIR = Join-Path $Global:SCRIPT_ROOT_DIR "scripts\build_scr
 $Global:BUILD_DIR = "D:\programing\.build_dir"
 $Global:FLUTTER_PROJECT_DIR = $Global:SCRIPT_ROOT_DIR
 
-# FTemp Directory Configuration - Using .cache namespace
-$Global:FTEMP_BASE_DIR = Join-Path $Global:SCRIPT_ROOT_DIR ".cache"
-$Global:FTEMP_FLUTTER_DIR = Join-Path $Global:FTEMP_BASE_DIR "flutter_bloom"
+# FTemp Directory Configuration - Using user home .core_node cache
+$Global:CORE_NODE_USER_CACHE = Join-Path $env:USERPROFILE ".core_node\.flutter_build\.cache"
+$Global:FTEMP_FLUTTER_DIR = Join-Path $Global:CORE_NODE_USER_CACHE "flutter_bloom"
 
 # Use home directory for cross-session cache
 $Global:CACHE_BASE_DIR = Join-Path $env:USERPROFILE ".flutter_bloom_cache"
@@ -42,12 +42,25 @@ $Global:DEBUG_MODE = $false
 $Global:CORE_NODE_BASE_DIR = Join-Path $env:USERPROFILE ".core_node"
 $Global:FLUTTER_BUILD_BASE_DIR = Join-Path $Global:CORE_NODE_BASE_DIR ".flutter_build"
 $Global:GVAR_EXCHANGE_DIR = Join-Path $Global:FLUTTER_BUILD_BASE_DIR "global_vars"
-$Global:GVAR_EXCHANGE_FILE = Join-Path $Global:GVAR_EXCHANGE_DIR "variables.txt"
-$Global:GVAR_TYPES_FILE = Join-Path $Global:GVAR_EXCHANGE_DIR "types.txt"
-$Global:GVAR_LOCK_FILE = Join-Path $Global:GVAR_EXCHANGE_DIR "gvar.lock"
 
 # Build cache directory constants - Added for temp_build_dir.txt
 $Global:TEMP_BUILD_DIR_FILE = "temp_build_dir.txt"
+
+# Logging system directory constants
+$Global:LOG_BASE_DIR = Join-Path $env:USERPROFILE ".core_node\.flutter_build\logs"
+
+# Step 4 extended shared variables for complete image processing information
+$Global:STEP4_PROCESSED_PATH_PREFIX = "STEP4_PROCESSED_PATH_"
+$Global:STEP4_FILENAME_PREFIX = "STEP4_FILENAME_"
+$Global:STEP4_FILE_SIZE_PREFIX = "STEP4_FILE_SIZE_"
+$Global:STEP4_FORMAT_PREFIX = "STEP4_FORMAT_"
+$Global:STEP4_COMPRESSION_MODE_PREFIX = "STEP4_COMPRESSION_MODE_"
+$Global:STEP4_SOURCE_TYPE_PREFIX = "STEP4_SOURCE_TYPE_"
+$Global:STEP4_IS_FALLBACK_PREFIX = "STEP4_IS_FALLBACK_"
+$Global:STEP4_FALLBACK_FROM_PREFIX = "STEP4_FALLBACK_FROM_"
+$Global:STEP4_FALLBACK_REASON_PREFIX = "STEP4_FALLBACK_REASON_"
+$Global:STEP4_PROCESSING_TIMESTAMP_PREFIX = "STEP4_PROCESSING_TIMESTAMP_"
+$Global:STEP4_ORIGINAL_PATH_PREFIX = "STEP4_ORIGINAL_PATH_"
 
 # Platform Detection
 $Global:IS_WINDOWS = $PSVersionTable.Platform -eq "Win32NT" -or $null -eq $PSVersionTable.Platform
@@ -58,47 +71,59 @@ $Global:IS_MACOS = $PSVersionTable.OS -like "*Darwin*"
 $Global:ORIGINAL_CONFIG_FILE = Join-Path $Global:DEV_SCRIPT_DIR "original_config.ini"
 $Global:BUILD_OPTIONS_FILE = Join-Path $Global:DEV_SCRIPT_DIR "build_option.ini"
 
-# Key Constants - All keys in UPPERCASE for consistency
-$Global:KEY_APP_NAME = "APP_NAME"
-$Global:KEY_BUILD_ACTION = "BUILD_ACTION"
-$Global:KEY_BUILD_PLATFORM = "BUILD_PLATFORM"
-$Global:KEY_LAST_SELECTED_APP = "LAST_SELECTED_APP"
-$Global:KEY_LAST_BUILD_ACTION = "LAST_BUILD_ACTION"
-$Global:KEY_LAST_SELECTION_TIME = "LAST_SELECTION_TIME"
-$Global:KEY_APP_DISPLAY_NAME = "APP_DISPLAY_NAME"
-$Global:KEY_APP_ID = "APP_ID"
-$Global:KEY_BUILD_OPTIONS = "BUILD_OPTIONS"
-$Global:KEY_IMAGE_COMPRESSION = "IMAGE_COMPRESSION"
-$Global:KEY_DECRYPT_RESOURCES = "DECRYPT_RESOURCES"
-$Global:KEY_START_BUILD = "START_BUILD"
-$Global:KEY_DEBUG_MODE = "DEBUG_MODE"
-$Global:KEY_EXTERNAL_BUILD_ACTIVE = "EXTERNAL_BUILD_ACTIVE"
-$Global:KEY_FLUTTER_PROJECT_DIR_BY_GVAR = "FLUTTER_PROJECT_DIR_BY_GVAR"
-$Global:KEY_BUILD_COMPLETED = "BUILD_COMPLETED"
-$Global:KEY_BUILD_CONFIRMED = "BUILD_CONFIRMED"
-$Global:KEY_FINAL_WORKING_DIRECTORY = "FINAL_WORKING_DIRECTORY"
-$Global:KEY_LARAVEL_SERVER_STATUS = "LARAVEL_SERVER_STATUS"
-$Global:KEY_LARAVEL_ENVIRONMENT = "LARAVEL_ENVIRONMENT"
-$Global:KEY_LARAVEL_PORT = "LARAVEL_PORT"
-$Global:KEY_LARAVEL_INTEGRATION = "LARAVEL_INTEGRATION"
-$Global:KEY_APP_ACTION_MODE_PREFIX = "APP_ACTION_MODE_"
-$Global:KEY_APP_PLATFORM_MODE_PREFIX = "APP_PLATFORM_MODE_"
-$Global:KEY_LAST_SELECTED_APP_INDEX = "LAST_SELECTED_APP_INDEX"
-$Global:KEY_CURRENT_ACTIVE_APP = "CURRENT_ACTIVE_APP"
-$Global:KEY_CURRENT_ACTIVE_ACTION = "CURRENT_ACTIVE_ACTION"
-$Global:KEY_CURRENT_ACTIVE_PLATFORM = "CURRENT_ACTIVE_PLATFORM"
-$Global:KEY_APP_INDEX = "APP_INDEX"
-$Global:KEY_SELECTED_APP = "SELECTED_APP"
-$Global:KEY_SELECTED_ACTION = "SELECTED_ACTION"
-$Global:KEY_SELECTED_PLATFORM = "SELECTED_PLATFORM"
-$Global:KEY_SELECTED_ENTRY_FILE = "SELECTED_ENTRY_FILE"
-$Global:KEY_DEBUG_PORT = "DEBUG_PORT"
+# Key Constants - All keys in KEY_ UPPERCASE format for consistency
+$Global:KEY_APP_NAME = "KEY_APP_NAME"
+$Global:KEY_BUILD_ACTION = "KEY_BUILD_ACTION"
+$Global:KEY_BUILD_PLATFORM = "KEY_BUILD_PLATFORM"
+$Global:KEY_LAST_SELECTED_APP = "KEY_LAST_SELECTED_APP"
+$Global:KEY_LAST_BUILD_ACTION = "KEY_LAST_BUILD_ACTION"
+$Global:KEY_LAST_SELECTION_TIME = "KEY_LAST_SELECTION_TIME"
+$Global:KEY_APP_DISPLAY_NAME = "KEY_APP_DISPLAY_NAME"
+$Global:KEY_APP_ID = "KEY_APP_ID"
+$Global:KEY_BUILD_OPTIONS = "KEY_BUILD_OPTIONS"
+$Global:KEY_IMAGE_COMPRESSION = "KEY_IMAGE_COMPRESSION"
+$Global:KEY_DECRYPT_RESOURCES = "KEY_DECRYPT_RESOURCES"
+$Global:KEY_START_BUILD = "KEY_START_BUILD"
+$Global:KEY_DEBUG_MODE = "KEY_DEBUG_MODE"
+$Global:KEY_EXTERNAL_BUILD_ACTIVE = "KEY_EXTERNAL_BUILD_ACTIVE"
+$Global:KEY_FLUTTER_PROJECT_DIR_BY_GVAR = "KEY_FLUTTER_PROJECT_DIR_BY_GVAR"
+$Global:KEY_BUILD_COMPLETED = "KEY_BUILD_COMPLETED"
+$Global:KEY_BUILD_CONFIRMED = "KEY_BUILD_CONFIRMED"
+$Global:KEY_FINAL_WORKING_DIRECTORY = "KEY_FINAL_WORKING_DIRECTORY"
+$Global:KEY_LARAVEL_SERVER_STATUS = "KEY_LARAVEL_SERVER_STATUS"
+$Global:KEY_LARAVEL_ENVIRONMENT = "KEY_LARAVEL_ENVIRONMENT"
+$Global:KEY_LARAVEL_PORT = "KEY_LARAVEL_PORT"
+$Global:KEY_LARAVEL_INTEGRATION = "KEY_LARAVEL_INTEGRATION"
+$Global:KEY_APP_ACTION_MODE_PREFIX = "KEY_APP_ACTION_MODE_"
+$Global:KEY_APP_PLATFORM_MODE_PREFIX = "KEY_APP_PLATFORM_MODE_"
+$Global:KEY_LAST_SELECTED_APP_INDEX = "KEY_LAST_SELECTED_APP_INDEX"
+$Global:KEY_CURRENT_ACTIVE_APP = "KEY_CURRENT_ACTIVE_APP"
+$Global:KEY_CURRENT_ACTIVE_ACTION = "KEY_CURRENT_ACTIVE_ACTION"
+$Global:KEY_CURRENT_ACTIVE_PLATFORM = "KEY_CURRENT_ACTIVE_PLATFORM"
+$Global:KEY_APP_INDEX = "KEY_APP_INDEX"
+$Global:KEY_SELECTED_APP = "KEY_SELECTED_APP"
+$Global:KEY_SELECTED_ACTION = "KEY_SELECTED_ACTION"
+$Global:KEY_SELECTED_PLATFORM = "KEY_SELECTED_PLATFORM"
+$Global:KEY_SELECTED_ENTRY_FILE = "KEY_SELECTED_ENTRY_FILE"
+$Global:KEY_DEBUG_PORT = "KEY_DEBUG_PORT"
+$Global:KEY_SCRIPT_PATH = "KEY_SCRIPT_PATH"
 
 # New compilation menu keys
-$Global:KEY_COMPILATION_MENU_TYPE = "COMPILATION_MENU_TYPE"
-$Global:KEY_SELECTED_COMPILATION_OPTION = "SELECTED_COMPILATION_OPTION"
-$Global:KEY_BUILD_PHASE = "BUILD_PHASE"
-$Global:KEY_LAST_COMPILATION_MENU_SELECTION = "LAST_COMPILATION_MENU_SELECTION"
+$Global:KEY_COMPILATION_MENU_TYPE = "KEY_COMPILATION_MENU_TYPE"
+$Global:KEY_SELECTED_COMPILATION_OPTION = "KEY_SELECTED_COMPILATION_OPTION"
+$Global:KEY_BUILD_PHASE = "KEY_BUILD_PHASE"
+$Global:KEY_LAST_COMPILATION_MENU_SELECTION = "KEY_LAST_COMPILATION_MENU_SELECTION"
+
+# Additional backup and build keys
+$Global:KEY_LAST_PUBSPEC_BACKUP_PATH = "KEY_LAST_PUBSPEC_BACKUP_PATH"
+$Global:KEY_LAST_PUBSPEC_BACKUP_TIME = "KEY_LAST_PUBSPEC_BACKUP_TIME"
+$Global:KEY_DEV_SCRIPT_DIR = "KEY_DEV_SCRIPT_DIR"
+$Global:KEY_CURRENT_APP_NAME = "KEY_CURRENT_APP_NAME"
+$Global:KEY_LAST_BUILD_APP_NAME = "KEY_LAST_BUILD_APP_NAME"
+$Global:KEY_LAST_BUILD_ACTION = "KEY_LAST_BUILD_ACTION"
+$Global:KEY_LAST_BUILD_PLATFORM = "KEY_LAST_BUILD_PLATFORM"
+$Global:KEY_LAST_BUILD_TIMESTAMP = "KEY_LAST_BUILD_TIMESTAMP"
+$Global:KEY_LAST_BUILD_SUCCESS = "KEY_LAST_BUILD_SUCCESS"
 
 # Compilation Options
 $Global:COMPILATION_OPTIONS = @(
@@ -132,7 +157,7 @@ $Global:PLATFORM_DIRS = @(
 function Initialize-GvarSystem {
     <#
     .SYNOPSIS
-    Initialize the Gvar exchange system
+    Initialize the Gvar exchange system - simplified for file-based storage
     #>
 
     if ($Global:DEBUG_MODE) {
@@ -179,232 +204,12 @@ function Initialize-GvarSystem {
         }
     }
 
-    # Initialize empty variables file if it doesn't exist
-    if (-not (Test-Path $Global:GVAR_EXCHANGE_FILE)) {
-        "" | Set-Content -Path $Global:GVAR_EXCHANGE_FILE -Encoding UTF8
-        if ($Global:DEBUG_MODE) {
-            Write-Host "Initialized Gvar exchange file: $Global:GVAR_EXCHANGE_FILE" -ForegroundColor Green
-        }
-    }
-
-    # Initialize empty types file if it doesn't exist
-    if (-not (Test-Path $Global:GVAR_TYPES_FILE)) {
-        "" | Set-Content -Path $Global:GVAR_TYPES_FILE -Encoding UTF8
-        if ($Global:DEBUG_MODE) {
-            Write-Host "Initialized Gvar types file: $Global:GVAR_TYPES_FILE" -ForegroundColor Green
-        }
-    }
-
     if ($Global:DEBUG_MODE) {
         Write-Host "Gvar system initialized successfully" -ForegroundColor Green
     }
 }
 
-function Wait-GvarLock {
-    <#
-    .SYNOPSIS
-    Wait for Gvar lock to be released (thread safety)
-    #>
-    
-    $timeout = 30 # seconds
-    $elapsed = 0
-    
-    while ((Test-Path $Global:GVAR_LOCK_FILE) -and ($elapsed -lt $timeout)) {
-        Start-Sleep -Milliseconds 100
-        $elapsed += 0.1
-    }
-    
-    if ($elapsed -ge $timeout) {
-        throw "Gvar lock timeout exceeded"
-    }
-}
-
-function Set-GvarLock {
-    <#
-    .SYNOPSIS
-    Create Gvar lock file
-    #>
-    
-    New-Item -ItemType File -Path $Global:GVAR_LOCK_FILE -Force | Out-Null
-}
-
-function Remove-GvarLock {
-    <#
-    .SYNOPSIS
-    Remove Gvar lock file
-    #>
-    
-    if (Test-Path $Global:GVAR_LOCK_FILE) {
-        Remove-Item -Path $Global:GVAR_LOCK_FILE -Force
-    }
-}
-
-function Set-GvarValue {
-    <#
-    .SYNOPSIS
-    Set a variable in the Gvar exchange system
-
-    .PARAMETER Name
-    Variable name
-
-    .PARAMETER Value
-    Variable value
-    #>
-
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Name,
-
-        [Parameter(Mandatory=$true)]
-        $Value
-    )
-
-    try {
-        Wait-GvarLock
-        Set-GvarLock
-
-        # Read current variables
-        $variables = @{}
-        if (Test-Path $Global:GVAR_EXCHANGE_FILE) {
-            $content = Get-Content -Path $Global:GVAR_EXCHANGE_FILE -Raw -Encoding UTF8
-            if ($content -and $content.Trim()) {
-                foreach ($line in $content -split "`r?`n") {
-                    if ($line -match '^([^=]+)=(.*)$') {
-                        $varName = $matches[1].Trim()
-                        $varValue = $matches[2].Trim()
-                        $variables[$varName] = $varValue
-                    }
-                }
-            }
-        }
-
-        # Set new variable
-        $variables[$Name] = $Value
-
-        # Write back to file
-        $outputLines = @()
-        foreach ($kvp in $variables.GetEnumerator()) {
-            $outputLines += "$($kvp.Key)=$($kvp.Value)"
-        }
-        $outputLines -join "`n" | Set-Content -Path $Global:GVAR_EXCHANGE_FILE -Encoding UTF8
-
-        if ($Global:DEBUG_MODE) {
-            Write-Host "Set Gvar: $Name = $Value" -ForegroundColor Cyan
-        }
-    }
-    finally {
-        Remove-GvarLock
-    }
-}
-
-function Get-GvarValue {
-    <#
-    .SYNOPSIS
-    Get a variable from the Gvar exchange system
-    
-    .PARAMETER Name
-    Variable name
-    
-    .PARAMETER DefaultValue
-    Default value if variable doesn't exist
-    #>
-    
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Name,
-        
-        [Parameter(Mandatory=$false)]
-        $DefaultValue = $null
-    )
-    
-    try {
-        Wait-GvarLock
-        Set-GvarLock
-        
-        if (-not (Test-Path $Global:GVAR_EXCHANGE_FILE)) {
-            return $DefaultValue
-        }
-        
-        $content = Get-Content -Path $Global:GVAR_EXCHANGE_FILE -Raw -Encoding UTF8
-        if (-not $content -or -not $content.Trim()) {
-            return $DefaultValue
-        }
-        
-        foreach ($line in $content -split "`r?`n") {
-            if ($line -match '^([^=]+)=(.*)$') {
-                $varName = $matches[1].Trim()
-                $varValue = $matches[2].Trim()
-                if ($varName -eq $Name) {
-                    if ($Global:DEBUG_MODE) {
-                        Write-Host "Get Gvar: $Name = $varValue" -ForegroundColor Cyan
-                    }
-                    return $varValue
-                }
-            }
-        }
-        
-        return $DefaultValue
-    }
-    finally {
-        Remove-GvarLock
-    }
-}
-
-function Get-AllGvarValues {
-    <#
-    .SYNOPSIS
-    Get all variables from the Gvar exchange system
-    #>
-    
-    try {
-        Wait-GvarLock
-        Set-GvarLock
-        
-        if (-not (Test-Path $Global:GVAR_EXCHANGE_FILE)) {
-            return @{}
-        }
-        
-        $content = Get-Content -Path $Global:GVAR_EXCHANGE_FILE -Raw -Encoding UTF8
-        if (-not $content -or -not $content.Trim()) {
-            return @{}
-        }
-        
-        $variables = @{}
-        foreach ($line in $content -split "`r?`n") {
-            if ($line -match '^([^=]+)=(.*)$') {
-                $varName = $matches[1].Trim()
-                $varValue = $matches[2].Trim()
-                $variables[$varName] = $varValue
-            }
-        }
-        
-        return $variables
-    }
-    finally {
-        Remove-GvarLock
-    }
-}
-
-function Clear-GvarExchange {
-    <#
-    .SYNOPSIS
-    Clear all variables from the Gvar exchange system
-    #>
-    
-    try {
-        Wait-GvarLock
-        Set-GvarLock
-        
-        "" | Set-Content -Path $Global:GVAR_EXCHANGE_FILE -Encoding UTF8
-        
-        if ($Global:DEBUG_MODE) {
-            Write-Host "Cleared Gvar exchange" -ForegroundColor Yellow
-        }
-    }
-    finally {
-        Remove-GvarLock
-    }
-}
+# Removed complex Gvar functions - now using simple file-based KEY=filename, VALUE=content approach
 
 function Get-FlutterApps {
     <#
@@ -496,7 +301,7 @@ function Get-AppInfoByName {
 function Set-FileVariable {
     <#
     .SYNOPSIS
-    Set a variable using file-based storage in FTemp directory
+    Set a variable using file-based storage in global_vars directory
 
     .PARAMETER Name
     Variable name (will be used as filename)
@@ -513,12 +318,12 @@ function Set-FileVariable {
         [string]$Value
     )
 
-    # Ensure the temp directory exists
-    if (-not (Test-Path $Global:FTEMP_FLUTTER_DIR)) {
-        New-Item -ItemType Directory -Path $Global:FTEMP_FLUTTER_DIR -Force | Out-Null
+    # Ensure the global_vars directory exists
+    if (-not (Test-Path $Global:GVAR_EXCHANGE_DIR)) {
+        New-Item -ItemType Directory -Path $Global:GVAR_EXCHANGE_DIR -Force | Out-Null
     }
 
-    $filePath = Join-Path $Global:FTEMP_FLUTTER_DIR $Name
+    $filePath = Join-Path $Global:GVAR_EXCHANGE_DIR $Name
     # Use UTF8 without BOM to avoid encoding issues
     [System.IO.File]::WriteAllText($filePath, $Value, [System.Text.UTF8Encoding]::new($false))
 
@@ -530,7 +335,7 @@ function Set-FileVariable {
 function Get-FileVariable {
     <#
     .SYNOPSIS
-    Get a variable from file-based storage in FTemp directory
+    Get a variable from file-based storage in global_vars directory
 
     .PARAMETER Name
     Variable name (filename)
@@ -547,7 +352,7 @@ function Get-FileVariable {
         [string]$DefaultValue = ""
     )
 
-    $filePath = Join-Path $Global:FTEMP_FLUTTER_DIR $Name
+    $filePath = Join-Path $Global:GVAR_EXCHANGE_DIR $Name
 
     if (Test-Path $filePath) {
         $value = Get-Content -Path $filePath -Raw -Encoding UTF8

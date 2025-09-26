@@ -18,6 +18,7 @@
 # Import required modules
 $WinCommonDir = $PSScriptRoot
 . (Join-Path $WinCommonDir "FlutterGlobalVar.ps1")
+. (Join-Path $WinCommonDir "FlutterLogManager.ps1")
 
 # Import Python package installer
 $packageInstallerDir = Join-Path $WinCommonDir "python_package_installer"

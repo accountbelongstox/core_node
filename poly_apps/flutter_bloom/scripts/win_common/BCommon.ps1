@@ -18,6 +18,7 @@
 # Import Gvar system and common utilities
 . "$PSScriptRoot\FlutterGlobalVar.ps1"
 . "$PSScriptRoot\CommonUtilities.ps1"
+. "$PSScriptRoot\FlutterLogManager.ps1"
 
 function Invoke-SafeCommand {
     <#
@@ -472,5 +473,97 @@ function Clean-StaticResourceString {
 
 # Removed Set-StaticResourceVar and Get-StaticResourceVar wrapper functions
 # Use file operations directly or Set-FileVariable/Get-FileVariable from FlutterGlobalVar.ps1
+
+function Invoke-DebugScriptSelection {
+    <#
+    .SYNOPSIS
+    Handle debug script selection and execution based on Python variables
+
+    .DESCRIPTION
+    Reads variables saved by Python main.py and executes appropriate debug script
+    Handles both debug and build modes with minimal output
+    #>
+
+    try {
+        # Read variables saved by Python
+        $selectedApp = Get-FileVariable -Name $Global:KEY_SELECTED_APP -DefaultValue ""
+        $selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue ""
+        $selectedPlatform = Get-FileVariable -Name $Global:KEY_SELECTED_PLATFORM -DefaultValue ""
+        $selectedEntryFile = Get-FileVariable -Name $Global:KEY_SELECTED_ENTRY_FILE -DefaultValue ""
+        $appIndex = Get-FileVariable -Name $Global:KEY_APP_INDEX -DefaultValue ""
+        $debugPort = Get-FileVariable -Name $Global:KEY_DEBUG_PORT -DefaultValue ""
+        $scriptPath = Get-FileVariable -Name $Global:KEY_SCRIPT_PATH -DefaultValue ""
+
+        # Debug: Print all loaded variables
+        Write-Host "[DEBUG] Loaded variables from Python:" -ForegroundColor Magenta
+        Write-Host "[DEBUG]   Selected App: '$selectedApp'" -ForegroundColor Magenta
+        Write-Host "[DEBUG]   Selected Action: '$selectedAction'" -ForegroundColor Magenta
+        Write-Host "[DEBUG]   Selected Platform: '$selectedPlatform'" -ForegroundColor Magenta
+        Write-Host "[DEBUG]   Entry File: '$selectedEntryFile'" -ForegroundColor Magenta
+        Write-Host "[DEBUG]   App Index: '$appIndex'" -ForegroundColor Magenta
+        Write-Host "[DEBUG]   Debug Port: '$debugPort'" -ForegroundColor Magenta
+        Write-Host "[DEBUG]   Script Path: '$scriptPath'" -ForegroundColor Magenta
+
+        # Validate required variables
+        if (-not $selectedApp -or -not $selectedAction) {
+            Write-ErrorMsg "[ERROR] Missing required variables from Python selection"
+            return $false
+        }
+
+        # Display minimal configuration
+        Write-Host "[INFO] $selectedApp [$selectedAction/$selectedPlatform]" -ForegroundColor Cyan
+
+        # Route based on action
+        if ($selectedAction.ToLower() -eq "debug") {
+            Write-Host "[DEBUG] Debug mode detected, checking script path..." -ForegroundColor Magenta
+            Write-Host "[DEBUG] Script path exists check: $(Test-Path $scriptPath)" -ForegroundColor Magenta
+            Write-Host "[DEBUG] Script path value: '$scriptPath'" -ForegroundColor Magenta
+
+            if ($scriptPath -and (Test-Path $scriptPath)) {
+                Write-Host "[INFO] Starting debug mode..." -ForegroundColor Yellow
+
+                # Get debug script directory and execute from there
+                $scriptDir = Split-Path -Parent $scriptPath
+                $scriptName = Split-Path -Leaf $scriptPath
+
+                Write-Host "[DEBUG] Script directory: '$scriptDir'" -ForegroundColor Magenta
+                Write-Host "[DEBUG] Script name: '$scriptName'" -ForegroundColor Magenta
+
+                # Change to project root (two levels up from script directory)
+                $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
+                Write-Host "[DEBUG] Switching to project root: '$projectRoot'" -ForegroundColor Magenta
+
+                Push-Location $projectRoot
+                Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
+                Write-Host "[DEBUG] About to execute: powershell -File $scriptPath" -ForegroundColor Magenta
+
+                # Execute the debug script directly (not through new PowerShell process)
+                . $scriptPath
+
+                Pop-Location
+                Write-Host "[DEBUG] Restored working directory: $(Get-Location)" -ForegroundColor Magenta
+
+                Write-Success "[SUCCESS] Debug script execution completed"
+            } else {
+                Write-Host "[DEBUG] Script path validation failed:" -ForegroundColor Magenta
+                Write-Host "[DEBUG]   Script path empty: $(-not $scriptPath)" -ForegroundColor Magenta
+                Write-Host "[DEBUG]   Script path exists: $(if($scriptPath) { Test-Path $scriptPath } else { 'N/A' })" -ForegroundColor Magenta
+                Write-ErrorMsg "[ERROR] Debug script not found: $scriptPath"
+            }
+        }
+        elseif ($selectedAction.ToLower() -eq "build" -or $selectedAction.ToLower() -eq "release") {
+            Write-Host "[INFO] Starting build mode..." -ForegroundColor Yellow
+            Write-Host "[INFO] Platform: $selectedPlatform | Entry: $selectedEntryFile" -ForegroundColor Gray
+            Write-Success "[SUCCESS] Build mode configured"
+        }
+        else {
+            Write-ErrorMsg "[ERROR] Unknown action: $selectedAction"
+        }
+
+    } catch {
+        Write-ErrorMsg "[ERROR] Debug script selection failed: $_"
+    }
+}
+
 
 #endregion

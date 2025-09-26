@@ -38,7 +38,8 @@ function Test-AdminPrivileges {
 function Set-EnvironmentVariable {
     param(
         [Parameter(Mandatory=$true)] [string]$VariableName,
-        [Parameter(Mandatory=$true)] [string]$VariableValue
+        [Parameter(Mandatory=$false)] [string]$VariableValue = "",
+        [Parameter(Mandatory=$false)] [switch]$Delete
     )
     
     if (-not (Test-Path $script:WINDOWS_PATH_FUNCTION_PATH)) {
@@ -46,7 +47,13 @@ function Set-EnvironmentVariable {
         return $false
     }
     
-    & $script:WINDOWS_PATH_FUNCTION_PATH "setvar" $VariableName $VariableValue
+    if ($Delete) {
+        # Delete the environment variable
+        & $script:WINDOWS_PATH_FUNCTION_PATH "delvar" $VariableName
+    } else {
+        # Set the environment variable
+        & $script:WINDOWS_PATH_FUNCTION_PATH "setvar" $VariableName $VariableValue
+    }
     return $true
 }
 
@@ -177,6 +184,7 @@ function Set-EnvironmentVariables {
     # Get user input for each variable
     $newValues = @{}
     $emptyVariables = @()
+    $temporarilyCleared = @()  # Track variables that were temporarily cleared
     
     foreach ($var in $config.Variables) {
         $hasCurrentValue = $currentValues[$var.Name]
@@ -196,11 +204,45 @@ function Set-EnvironmentVariables {
         
         if ([string]::IsNullOrWhiteSpace($userInput)) {
             if ($hasCurrentValue) {
-                $newValues[$var.Name] = $currentValues[$var.Name]
-                if ($var.IsSecret) {
-                    Write-ColorMessage -Message "Keeping current value: [HIDDEN]" -Type "Info"
-                } else {
-                    Write-ColorMessage -Message "Keeping current value: $($currentValues[$var.Name])" -Type "Info"
+                # Show options for variables that have current values
+                Write-ColorMessage -Message "Variable has current value. Choose action:" -Type "Info"
+                Write-ColorMessage -Message "1. Keep current value" -Type "Info"
+                Write-ColorMessage -Message "2. Set to empty (delete key)" -Type "Info"
+                Write-ColorMessage -Message "3. Set to empty (keep key)" -Type "Info"
+                Write-ColorMessage -Message "4. Temporarily clear (current session only)" -Type "Info"
+                
+                $choice = Read-Host "Enter choice (1-4, default: 1)"
+                
+                # Handle empty input as default choice
+                if ([string]::IsNullOrWhiteSpace($choice)) {
+                    $choice = "1"
+                }
+                
+                switch ($choice) {
+                    "2" {
+                        $newValues[$var.Name] = "__DELETE__"
+                        Write-ColorMessage -Message "Setting $($var.DisplayName) to empty (deleting key)" -Type "Info"
+                    }
+                    "3" {
+                        $newValues[$var.Name] = ""
+                        Write-ColorMessage -Message "Setting $($var.DisplayName) to empty (keeping key)" -Type "Info"
+                    }
+                    "4" {
+                        # Temporarily clear in current session only
+                        $temporarilyCleared += $var.Name
+                        Write-ColorMessage -Message "Marked $($var.DisplayName) for temporary clearing" -Type "Success"
+                        Write-ColorMessage -Message "System environment variable unchanged" -Type "Info"
+                        Write-ColorMessage -Message "Command to clear: `$env:$($var.Name) = `"`"" -Type "Info"
+                        # Don't add to newValues, so it won't be processed in the system update
+                    }
+                    default {
+                        $newValues[$var.Name] = $currentValues[$var.Name]
+                        if ($var.IsSecret) {
+                            Write-ColorMessage -Message "Keeping current value: [HIDDEN]" -Type "Info"
+                        } else {
+                            Write-ColorMessage -Message "Keeping current value: $($currentValues[$var.Name])" -Type "Info"
+                        }
+                    }
                 }
             } else {
                 Write-ColorMessage -Message "Skipping $($var.DisplayName) - no value entered" -Type "Warning"
@@ -217,9 +259,13 @@ function Set-EnvironmentVariables {
         }
     }
     
-    # Check if multiple variables are empty and show selection menu
-    if ($emptyVariables.Count -gt 1) {
-        Write-ColorMessage -Message "Multiple variables were left empty. Please choose how to handle them:" -Type "Warning"
+    # Check if any variables are empty and show selection menu
+    if ($emptyVariables.Count -gt 0) {
+        if ($emptyVariables.Count -eq 1) {
+            Write-ColorMessage -Message "One variable was left empty. Please choose how to handle it:" -Type "Warning"
+        } else {
+            Write-ColorMessage -Message "Multiple variables were left empty. Please choose how to handle them:" -Type "Warning"
+        }
         Write-ColorMessage -Message "Empty variables:" -Type "Info"
         foreach ($var in $emptyVariables) {
             Write-ColorMessage -Message "  - $($var.DisplayName)" -Type "Info"
@@ -258,38 +304,125 @@ function Set-EnvironmentVariables {
     }
     
     # Set environment variables
-    Write-ColorMessage -Message "Setting environment variables..." -Type "Info"
-    
-    $successCount = 0
-    $totalCount = $config.Variables.Count
-    
-    foreach ($var in $config.Variables) {
-        $success = Set-EnvironmentVariable -VariableName $var.Name -VariableValue $newValues[$var.Name]
-        if ($success) {
-            $successCount++
+    if ($newValues.Count -gt 0) {
+        Write-ColorMessage -Message "Setting environment variables..." -Type "Info"
+        
+        $successCount = 0
+        $totalCount = $newValues.Count  # Only count variables that need to be set
+        
+        foreach ($var in $config.Variables) {
+            if ($newValues.ContainsKey($var.Name)) {
+                if ($newValues[$var.Name] -eq "__DELETE__") {
+                    # Delete the environment variable
+                    $success = Set-EnvironmentVariable -VariableName $var.Name -Delete
+                    if ($success) {
+                        $successCount++
+                        Write-ColorMessage -Message "Deleted $($var.DisplayName)" -Type "Success"
+                    }
+                } else {
+                    # Set the environment variable
+                    $success = Set-EnvironmentVariable -VariableName $var.Name -VariableValue $newValues[$var.Name]
+                    if ($success) {
+                        $successCount++
+                        if ($var.IsSecret) {
+                            Write-ColorMessage -Message "Set $($var.DisplayName): [HIDDEN]" -Type "Success"
+                        } else {
+                            Write-ColorMessage -Message "Set $($var.DisplayName): $($newValues[$var.Name])" -Type "Success"
+                        }
+                    }
+                }
+            }
         }
+    } else {
+        Write-ColorMessage -Message "No system environment variables to set (all variables were temporarily cleared or skipped)" -Type "Info"
+        $successCount = 0
+        $totalCount = 0
     }
     
     if ($successCount -eq $totalCount) {
-        Write-ColorMessage -Message "Environment variables set successfully!" -Type "Success"
+        Write-ColorMessage -Message "Environment variables processed successfully!" -Type "Success"
         foreach ($var in $config.Variables) {
-            if ($var.IsSecret) {
-                Write-ColorMessage -Message "$($var.DisplayName): [HIDDEN]" -Type "Info"
-            } else {
-                Write-ColorMessage -Message "$($var.DisplayName): $($newValues[$var.Name])" -Type "Info"
+            if ($newValues.ContainsKey($var.Name)) {
+                if ($newValues[$var.Name] -eq "__DELETE__") {
+                    Write-ColorMessage -Message "$($var.DisplayName): [DELETED]" -Type "Info"
+                } else {
+                    if ($var.IsSecret) {
+                        Write-ColorMessage -Message "$($var.DisplayName): [HIDDEN]" -Type "Info"
+                    } else {
+                        Write-ColorMessage -Message "$($var.DisplayName): $($newValues[$var.Name])" -Type "Info"
+                    }
+                }
+            } elseif ($temporarilyCleared -contains $var.Name) {
+                Write-ColorMessage -Message "$($var.DisplayName): [TEMPORARILY CLEARED]" -Type "Info"
             }
         }
         
         # Refresh environment variables in current session
-        Write-ColorMessage -Message "Refreshing environment variables in current session..." -Type "Info"
-        foreach ($var in $config.Variables) {
-            $refreshResult = & $script:WINDOWS_PATH_FUNCTION_PATH "refreshvar" $var.Name
-            if ($refreshResult) {
-                Write-ColorMessage -Message "Refreshed $($var.DisplayName)" -Type "Success"
+        # Always refresh if there are any changes (system changes or temporary clearing)
+        if ($newValues.Count -gt 0 -or $temporarilyCleared.Count -gt 0) {
+            Write-ColorMessage -Message "Refreshing environment variables in current session..." -Type "Info"
+            
+            # Refresh all environment variables (including deleted ones)
+            & $script:WINDOWS_PATH_FUNCTION_PATH "refreshvar" | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-ColorMessage -Message "All environment variables have been refreshed in the current session." -Type "Success"
+                
+                # Re-apply temporary clearing for variables that were temporarily cleared
+                # This must be done after refresh to override the refreshed values
+                if ($temporarilyCleared.Count -gt 0) {
+                    Write-ColorMessage -Message "Attempting to clear environment variables..." -Type "Info"
+                    
+                    # Try to clear the variables directly
+                    $clearedCount = 0
+                    foreach ($varName in $temporarilyCleared) {
+                        try {
+                            Set-Item -Path "env:$varName" -Value ""
+                            $clearedCount++
+                            Write-ColorMessage -Message "Cleared $varName" -Type "Success"
+                        } catch {
+                            $errorMsg = $_.Exception.Message
+                            Write-ColorMessage -Message "Failed to clear ${varName}: $errorMsg" -Type "Error"
+                        }
+                    }
+                    
+                    # Always provide manual commands as backup
+                    Write-ColorMessage -Message "Manual commands to clear variables (copy and paste):" -Type "Warning"
+                    Write-Host ""
+                    foreach ($varName in $temporarilyCleared) {
+                        $clearCommand = "`$env:$varName = `"`""
+                        Write-Host "  $clearCommand" -ForegroundColor Cyan
+                    }
+                    Write-Host ""
+                    Write-ColorMessage -Message "Or run this single command:" -Type "Info"
+                    $allClearCommands = $temporarilyCleared | ForEach-Object { "`$env:$_ = `"`"" }
+                    Write-Host "  $($allClearCommands -join '; ')" -ForegroundColor Yellow
+                    Write-Host ""
+                    
+                    if ($clearedCount -lt $temporarilyCleared.Count) {
+                        Write-ColorMessage -Message "Some variables could not be cleared automatically." -Type "Warning"
+                    } else {
+                        Write-ColorMessage -Message "Variables marked for clearing. Use commands above if needed." -Type "Info"
+                    }
+                }
+                
+                # Show specific status for each variable that was modified
+                foreach ($var in $config.Variables) {
+                    if ($newValues.ContainsKey($var.Name)) {
+                        if ($newValues[$var.Name] -eq "__DELETE__") {
+                            Write-ColorMessage -Message "Refreshed $($var.DisplayName) (deleted)" -Type "Success"
+                        } else {
+                            Write-ColorMessage -Message "Refreshed $($var.DisplayName)" -Type "Success"
+                        }
+                    } elseif ($temporarilyCleared -contains $var.Name) {
+                        Write-ColorMessage -Message "Refreshed $($var.DisplayName) (temporarily cleared)" -Type "Info"
+                    }
+                }
+            } else {
+                Write-ColorMessage -Message "Failed to refresh environment variables in current session." -Type "Error"
             }
+        } else {
+            Write-ColorMessage -Message "No environment variables to refresh." -Type "Info"
         }
-        
-        Write-ColorMessage -Message "Environment variables have been refreshed in the current session." -Type "Success"
         Write-ColorMessage -Message "Note: You may need to restart your applications to use the new environment variables." -Type "Warning"
     } else {
         Write-ColorMessage -Message "Failed to set some environment variables. Please check the errors above." -Type "Error"
@@ -365,6 +498,62 @@ function Show-AllEnvironmentVariables {
     Write-ColorMessage -Message "Press any key to continue..." -Type "Info"
     $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
+
+function Refresh-CurrentTerminalEnvironment {
+    Clear-Host
+    Write-ColorMessage -Message "Refresh Current Terminal Environment" -Type "Info"
+    Write-ColorMessage -Message "====================================" -Type "Info"
+    Write-ColorMessage -Message "This will refresh all environment variables in the current terminal session." -Type "Info"
+    Write-ColorMessage -Message "No system changes will be made - only current terminal will be updated." -Type "Info"
+    Write-Host ""
+    
+    Write-ColorMessage -Message "Refreshing all environment variables..." -Type "Info"
+    
+    try {
+        # Call the refreshvar function from WindowsPathFunction.ps1
+        if (Test-Path $script:WINDOWS_PATH_FUNCTION_PATH) {
+            & $script:WINDOWS_PATH_FUNCTION_PATH "refreshvar" | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-ColorMessage -Message "All environment variables refreshed successfully!" -Type "Success"
+                Write-ColorMessage -Message "Current terminal session now has the latest environment variables." -Type "Success"
+                
+                # Show status of all configured environment variables
+                Write-Host ""
+                Write-ColorMessage -Message "Current status of configured environment variables:" -Type "Info"
+                Write-ColorMessage -Message "=================================================" -Type "Info"
+                
+                foreach ($configName in $script:EnvironmentConfigs.Keys) {
+                    $config = $script:EnvironmentConfigs[$configName]
+                    Write-ColorMessage -Message "$($config.Title):" -Type "Info"
+                    
+                    foreach ($var in $config.Variables) {
+                        $currentValue = Get-EnvironmentVariable -VariableName $var.Name
+                        if ($currentValue) {
+                            if ($var.IsSecret) {
+                                Write-ColorMessage -Message "  $($var.DisplayName): [HIDDEN - Set]" -Type "Success"
+                            } else {
+                                Write-ColorMessage -Message "  $($var.DisplayName): $currentValue" -Type "Success"
+                            }
+                        } else {
+                            Write-ColorMessage -Message "  $($var.DisplayName): [Not set]" -Type "Warning"
+                        }
+                    }
+                    Write-Host ""
+                }
+            } else {
+                Write-ColorMessage -Message "Failed to refresh environment variables." -Type "Error"
+            }
+        } else {
+            Write-ColorMessage -Message "Error: WindowsPathFunction.ps1 not found at: $script:WINDOWS_PATH_FUNCTION_PATH" -Type "Error"
+        }
+    } catch {
+        Write-ColorMessage -Message "Error occurred while refreshing environment variables: $($_.Exception.Message)" -Type "Error"
+    }
+    
+    Write-Host ""
+    Write-ColorMessage -Message "Press any key to continue..." -Type "Info"
+    $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
 #endregion
 
 #region Empty Variables Menu Function
@@ -414,6 +603,7 @@ function Show-SpecialSoftwareEnvMenu {
         @{ Text = "Set Claude AI Environment Variables"; Action = "claude" },
         @{ Text = "Set Alibaba Cloud Environment Variables"; Action = "alibaba" },
         @{ Text = "View All Environment Variables"; Action = "viewall" },
+        @{ Text = "Refresh Current Terminal Environment"; Action = "refresh" },
         @{ Text = "Back to Main Menu"; Action = "back" },
         @{ Text = "Exit"; Action = "exit" }
     )
@@ -449,6 +639,7 @@ function Show-SpecialSoftwareEnvMenu {
                     'claude' { Set-EnvironmentVariables -ConfigName "Claude AI" }
                     'alibaba' { Set-EnvironmentVariables -ConfigName "Alibaba Cloud" }
                     'viewall' { Show-AllEnvironmentVariables }
+                    'refresh' { Refresh-CurrentTerminalEnvironment }
                     'back' { return }
                     'exit' { exit }
                 }

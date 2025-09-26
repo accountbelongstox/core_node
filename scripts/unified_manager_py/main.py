@@ -4,8 +4,14 @@ import os
 import sys
 import json
 import platform
+import io
+import atexit
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional, Tuple
+
+
+ACTION_SEQUENCE: Tuple[str, ...] = ("start", "install", "build", "deploy", "stop")
 
 class UnifiedManagerCore:
     def __init__(self):
@@ -15,15 +21,21 @@ class UnifiedManagerCore:
         self.is_linux = not self.is_windows
         self.data_dir = self._setup_data_directory()
 
+        self._input_stream = sys.stdin
+        self._input_fd: Optional[int] = None
+        self._input_stream_needs_close = False
+        self._prepare_input_stream()
+
         # Initialize paths
         self.apps_dir = self.project_root / "apps"
         self.poly_apps_dir = self.project_root / "poly_apps"
         self.ncore_dir = self.project_root / "ncore"
         self.scripts_dir = self.project_root / "scripts"
         self.unified_manager_dir = self.scripts_dir / "unified_manager"
+        self.unified_manager_py_dir = self.scripts_dir / "unified_manager_py"
 
-        # Registry file
-        self.registry_file = self.unified_manager_dir / "app_registry.json"
+        # Registry file - use the Python version directory
+        self.registry_file = self.unified_manager_py_dir / "app_registry.json"
 
         # Load app registry
         self.registry = self._load_app_registry()
@@ -31,6 +43,148 @@ class UnifiedManagerCore:
         # Main executable
         self.main_js = self.project_root / "main.js"
 
+    def _clear_screen(self) -> None:
+        """Clear the console screen in a cross-platform way."""
+        os.system('cls' if self.is_windows else 'clear')
+
+    def _read_key(self) -> str:
+        """Read a single key press and normalise it to a semantic token."""
+        if self.is_windows:
+            return self._read_key_windows()
+        return self._read_key_posix()
+
+    def _prepare_input_stream(self) -> None:
+        if self.is_windows:
+            try:
+                self._input_fd = sys.stdin.fileno()
+            except (io.UnsupportedOperation, AttributeError):
+                self._input_fd = None
+            return
+
+        stream = self._input_stream
+
+        if hasattr(stream, "isatty") and stream.isatty():
+            try:
+                self._input_fd = stream.fileno()
+            except (io.UnsupportedOperation, AttributeError):
+                self._input_fd = None
+            return
+
+        try:
+            tty_stream = open('/dev/tty', 'r', encoding='utf-8', errors='ignore')
+        except OSError:
+            try:
+                self._input_stream = sys.stdin
+                self._input_fd = sys.stdin.fileno()
+            except (io.UnsupportedOperation, AttributeError):
+                self._input_fd = None
+            return
+
+        self._input_stream = tty_stream
+        try:
+            self._input_fd = tty_stream.fileno()
+        except (io.UnsupportedOperation, AttributeError):
+            self._input_fd = None
+
+        if self._input_stream_needs_close is False:
+            self._input_stream_needs_close = True
+            atexit.register(tty_stream.close)
+
+    def _can_use_interactive_controls(self) -> bool:
+        if self.is_windows:
+            try:
+                import msvcrt  # type: ignore
+                return True
+            except ImportError:
+                return False
+
+        if self._input_fd is None:
+            return False
+
+        if not sys.stdout.isatty():
+            return False
+
+        term_value = os.environ.get('TERM') or ''
+        if term_value.lower() == 'dumb':
+            return False
+
+        try:
+            import termios  # type: ignore
+        except ImportError:
+            return False
+
+        try:
+            termios.tcgetattr(self._input_fd)
+        except (termios.error, OSError):
+            return False
+
+        return True
+
+    def _read_key_windows(self) -> str:
+        import msvcrt  # type: ignore
+
+        while True:
+            key = msvcrt.getwch()
+            if key == '\r':
+                return "ENTER"
+            if key == '\x1b':
+                return "ESC"
+            if key == '\xe0':
+                extended = msvcrt.getwch()
+                mapping = {
+                    'H': "UP",
+                    'P': "DOWN",
+                    'K': "LEFT",
+                    'M': "RIGHT",
+                }
+                if extended in mapping:
+                    return mapping[extended]
+            elif key in ('\x03', '\x1a'):  # Ctrl+C / Ctrl+Z
+                raise KeyboardInterrupt
+
+    def _read_key_posix(self) -> str:
+        import termios
+        import tty
+
+        if self._input_fd is None:
+            raise RuntimeError("Interactive input stream is not available")
+
+        fd = self._input_fd
+        stream = self._input_stream
+
+        try:
+            old_settings = termios.tcgetattr(fd)
+        except termios.error as exc:
+            raise RuntimeError("Terminal does not support raw mode") from exc
+
+        try:
+            tty.setraw(fd)
+            ch = stream.read(1)
+            if not ch:
+                return "OTHER"
+            if ch == '\x1b':
+                next1 = stream.read(1)
+                if next1 == '[':
+                    next2 = stream.read(1)
+                    mapping = {
+                        'A': "UP",
+                        'B': "DOWN",
+                        'C': "RIGHT",
+                        'D': "LEFT",
+                    }
+                    if next2 in mapping:
+                        return mapping[next2]
+                return "ESC"
+            if ch in ('\r', '\n'):
+                return "ENTER"
+            if ch == '\x03':
+                raise KeyboardInterrupt
+            return "OTHER"
+        finally:
+            try:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            except termios.error:
+                pass
     def _find_project_root(self) -> Path:
         """Find the project root by looking for specific markers"""
         current = self.script_dir
@@ -89,72 +243,153 @@ class UnifiedManagerCore:
         else:
             return f"apps/{app_name}"
 
-    def build_script_command(self, app_name: str, script_type: str, script_name: str) -> Optional[str]:
-        """Build the command to execute a script for an app"""
-        app_config = self.registry["apps"].get(app_name)
-        if not app_config:
-            return None
-
-        app_path = self.get_app_path(app_name, app_config)
-        script_path = self.get_app_script_path(app_path, script_name)
-
-        if not script_path.exists():
-            return None
-
-        # Generate PowerShell script based on script type and platform
+    def _script_priority_extensions(self) -> Tuple[str, ...]:
         if self.is_windows:
-            if script_type == "start_cmd":
-                return f'start "" "{script_path}"'
-            elif script_type == "deploy_cmd":
-                return f'explorer "{script_path}"'
-            else:
-                return f'& "{script_path}"'
-        else:
-            if script_type == "start_cmd":
-                return f'bash "{script_path}" &'
-            else:
-                return f'bash "{script_path}"'
+            return (".ps1", ".bat", ".cmd", ".sh")
+        return (".sh", ".ps1", ".bat", ".cmd")
+
+    def _locate_app_script(self, app_name: str, app_config: Dict[str, Any], action: str) -> Optional[Path]:
+        app_path = self.get_app_path(app_name, app_config)
+        for ext in self._script_priority_extensions():
+            script_path = self.get_app_script_path(app_path, f"{action}{ext}")
+            if script_path.exists():
+                return script_path
+        return None
+
+    def _build_command_for_script(self, script_path: Path) -> str:
+        ext = script_path.suffix.lower()
+        quoted = f'"{script_path}"'
+        if self.is_windows:
+            if ext == ".ps1":
+                return f'powershell -NoProfile -ExecutionPolicy Bypass -File {quoted}'
+            if ext in {".bat", ".cmd"}:
+                return quoted
+            if ext == ".sh":
+                return f'bash {quoted}'
+            return quoted
+        # Linux / others
+        if ext == ".sh":
+            return f'bash {quoted}'
+        if ext == ".ps1":
+            return f'powershell -NoProfile -ExecutionPolicy Bypass -File {quoted}'
+        if ext in {".bat", ".cmd"}:
+            return f'bash {quoted}'
+        return quoted
+
+    def _collect_app_action_targets(self, app_name: str, app_config: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        targets: Dict[str, Dict[str, Any]] = {}
+
+        for action in ACTION_SEQUENCE:
+            script_path = self._locate_app_script(app_name, app_config, action)
+            if script_path:
+                targets[action] = {
+                    "kind": "script",
+                    "path": script_path,
+                }
+                continue
+
+            if action == "start":
+                app_type = app_config.get("type")
+                if app_type == "poly-app":
+                    targets[action] = {
+                        "kind": "command",
+                        "command": self._get_node_command_poly(app_name),
+                    }
+                elif app_type == "ncore-app":
+                    targets[action] = {
+                        "kind": "command",
+                        "command": self._get_node_command_ncore(app_name),
+                    }
+
+        return targets
+
+    def _collect_preset_available_actions(self, preset_config: Dict[str, Any]) -> List[str]:
+        app_names = preset_config.get("app_names", [])
+        if not app_names:
+            return []
+
+        apps = self.registry.get("apps", {})
+        available: List[str] = []
+        action_to_command = {
+            "start": "start_cmd",
+            "install": "install_cmd",
+            "build": "build_cmd",
+            "deploy": "deploy_cmd",
+            "stop": "stop_cmd",
+        }
+
+        for action in ACTION_SEQUENCE:
+            command_key = action_to_command.get(action, "start_cmd")
+            found = False
+            for app_name in app_names:
+                app_config = apps.get(app_name)
+                if not app_config:
+                    continue
+                commands = self.get_available_commands(app_name)
+                if command_key in commands:
+                    found = True
+                    break
+                if action == "start":
+                    targets = self._collect_app_action_targets(app_name, app_config)
+                    if "start" in targets:
+                        found = True
+                        break
+            if found:
+                available.append(action)
+
+        if not available and app_names:
+            available.append("start")
+
+        return available
+
+    def _create_windows_ps1_wrapper(self, script_path: Path, app_name: str, action: str) -> Path:
+        safe_app = app_name.replace(' ', '_')
+        wrapper_name = f"{safe_app}_{action}_wrapper.bat"
+        wrapper_path = self.cache_dir / wrapper_name
+        with open(wrapper_path, 'w', encoding='utf-8') as f:
+            f.write('@echo off\n')
+            f.write(f'powershell -NoProfile -ExecutionPolicy Bypass -File "{script_path}"\n')
+        return wrapper_path
+
+    def _prepare_script_for_execution(self, script_path: Path, app_name: str, action: str) -> str:
+        if not script_path.exists():
+            print(f"Error: Script not found: {script_path}")
+            input("Press Enter to continue...")
+            return ""
+
+        execution_path = script_path
+        if self.is_windows and script_path.suffix.lower() == ".ps1":
+            execution_path = self._create_windows_ps1_wrapper(script_path, app_name, action)
+
+        if not self.is_windows:
+            try:
+                current_mode = execution_path.stat().st_mode
+                execution_path.chmod(current_mode | 0o111)
+            except OSError:
+                pass
+
+        params = {
+            "app": app_name,
+            "action": action,
+            "original_script": str(script_path),
+            "execution_script": str(execution_path),
+        }
+        return self.write_action_result("execute_script", str(execution_path), params)
 
     def get_available_commands(self, app_name: str) -> Dict[str, str]:
         """Get all available commands for an app"""
-        commands = {}
-
-        # Try multiple script extensions
-        script_extensions = []
-        if self.is_windows:
-            script_extensions = [".bat", ".cmd", ".ps1", ".sh"]
-        else:
-            script_extensions = [".sh", ".bat", ".cmd"]
-
-        script_types = ["start", "install", "deploy", "stop", "build"]
-
+        commands: Dict[str, str] = {}
         app_config = self.registry["apps"].get(app_name)
         if not app_config:
             return commands
 
-        app_path = self.get_app_path(app_name, app_config)
-
-        for script_type in script_types:
-            found_script = False
-            for ext in script_extensions:
-                script_name = f"{script_type}{ext}"
-                script_path = self.get_app_script_path(app_path, script_name)
-
-                if script_path.exists():
-                    command = self.build_script_command(app_name, f"{script_type}_cmd", script_name)
-                    if command:
-                        commands[f"{script_type}_cmd"] = command
-                        found_script = True
-                        break
-
-            # If no script found, add a default command anyway
-            if not found_script and script_type == "start":
-                # For poly apps, we can always start them with node main.js
-                if app_config.get("type") == "poly-app":
-                    commands["start_cmd"] = self._get_node_command_poly(app_name)
-                # For ncore apps, use node main.js app=AppName
-                elif app_config.get("type") == "ncore-app":
-                    commands["start_cmd"] = self._get_node_command_ncore(app_name)
+        targets = self._collect_app_action_targets(app_name, app_config)
+        for action, info in targets.items():
+            key = f"{action}_cmd"
+            if info["kind"] == "script":
+                commands[key] = self._build_command_for_script(info["path"])
+            elif info["kind"] == "command":
+                commands[key] = info["command"]
 
         return commands
 
@@ -166,7 +401,7 @@ class UnifiedManagerCore:
         """Get node command for ncore apps"""
         return f'node "{self.main_js}" app={app_name}'
 
-    def _load_cache(self) -> Dict[str, str]:
+    def _load_cache(self) -> Dict[str, Any]:
         """Load cached app action selections"""
         cache_file = self.cache_dir / "app_actions.json"
         try:
@@ -177,7 +412,7 @@ class UnifiedManagerCore:
             print(f"Warning: Could not load cache: {e}")
         return {}
 
-    def _save_cache(self, cache_data: Dict[str, str]):
+    def _save_cache(self, cache_data: Dict[str, Any]) -> None:
         """Save app action selections to cache"""
         cache_file = self.cache_dir / "app_actions.json"
         try:
@@ -186,15 +421,54 @@ class UnifiedManagerCore:
         except Exception as e:
             print(f"Warning: Could not save cache: {e}")
 
-    def write_action_result(self, action: str, script_path: str = None, params: Dict[str, Any] = None) -> str:
-        """Write action result to data directory and return the path"""
+
+
+    def _get_cached_action(self, cache_data: Dict[str, Any], item_type: str, name: str) -> Optional[str]:
+
+        """Retrieve cached action for an item, supporting legacy formats."""
+
+        key = f"app_{name}" if item_type == "app" else f"preset_{name}"
+
+        cached = cache_data.get(key)
+
+        if isinstance(cached, str) and cached:
+
+            return cached
+
+        legacy_key = "app_actions" if item_type == "app" else "preset_actions"
+
+        legacy_map = cache_data.get(legacy_key)
+
+        if isinstance(legacy_map, dict):
+
+            legacy_value = legacy_map.get(name)
+
+            if isinstance(legacy_value, str) and legacy_value:
+
+                return legacy_value
+
+        return None
+
+
+
+
+
+
+
+
+
+
+    def write_action_result(self, action: str, script_path: Optional[str] = None, params: Optional[Dict[str, Any]] = None) -> str:
+        """Persist the last selected script so wrapper scripts can trigger it."""
         result_file = self.data_dir / "action_result.json"
 
         result = {
             "action": action,
             "script_path": script_path,
             "params": params or {},
-            "timestamp": str(Path().resolve())  # Current timestamp marker
+            "timestamp": datetime.now().isoformat(),
+            "platform": "windows" if self.is_windows else "linux",
+            "cache_dir": str(self.cache_dir),
         }
 
         with open(result_file, 'w', encoding='utf-8') as f:
@@ -215,41 +489,14 @@ class UnifiedManagerCore:
 
         selected_index = 0
 
-        # Check if we can use arrow keys (Windows with msvcrt)
-        try:
-            import msvcrt
-            can_use_arrows = True
-        except ImportError:
-            can_use_arrows = False
+        if not self._can_use_interactive_controls():
+            return self._handle_menu_fallback(menu_items)
 
-        if not can_use_arrows:
-            # Fallback to number selection
-            print("=== Unified App Manager ===")
-            print("Select an option:")
-            for i, item in enumerate(menu_items, 1):
-                print(f"{i}. {item['text']}")
-
-            print()
-            try:
-                choice = input(f"Enter your choice (1-{len(menu_items)}): ").strip()
-                choice_num = int(choice)
-                if 1 <= choice_num <= len(menu_items):
-                    return menu_items[choice_num - 1]["action"]()
-                else:
-                    print("Invalid selection.")
-                    return ""
-            except (EOFError, ValueError):
-                print("\nExiting...")
-                return ""
-
-        # Arrow key navigation for Windows
-        import msvcrt
-        import os
-
+        # Arrow key navigation for both Windows and Linux
         def draw_menu():
-            os.system('cls' if os.name == 'nt' else 'clear')
+            self._clear_screen()
             print("=== Unified App Manager ===")
-            print("Use ↑↓ arrows to navigate, Enter to select")
+            print("Use ↑↓ arrows to navigate, Enter to select, Esc to exit")
             print()
 
             for i, item in enumerate(menu_items):
@@ -261,21 +508,43 @@ class UnifiedManagerCore:
         while True:
             draw_menu()
 
-            key = msvcrt.getch()
+            try:
+                key = self._read_key()
+            except KeyboardInterrupt:
+                self._clear_screen()
+                return ""
+            except RuntimeError:
+                return self._handle_menu_fallback(menu_items)
 
-            if key == b'\xe0':  # Special key prefix
-                key = msvcrt.getch()
-                if key == b'H':  # Up arrow
-                    selected_index = (selected_index - 1) % len(menu_items)
-                elif key == b'P':  # Down arrow
-                    selected_index = (selected_index + 1) % len(menu_items)
-            elif key == b'\r':  # Enter
-                os.system('cls' if os.name == 'nt' else 'clear')
+            if key == "UP":
+                selected_index = (selected_index - 1) % len(menu_items)
+            elif key == "DOWN":
+                selected_index = (selected_index + 1) % len(menu_items)
+            elif key == "ENTER":
+                self._clear_screen()
                 return menu_items[selected_index]["action"]()
-            elif key == b'\x1b':  # Escape
-                os.system('cls' if os.name == 'nt' else 'clear')
+            elif key == "ESC":
+                self._clear_screen()
                 print("Exiting...")
                 return ""
+
+    def _handle_menu_fallback(self, menu_items: List[Dict[str, Any]]) -> str:
+        print("=== Unified App Manager ===")
+        print("Select an option:")
+        for i, item in enumerate(menu_items, 1):
+            print(f"{i}. {item['text']}")
+
+        print()
+        try:
+            choice = input(f"Enter your choice (1-{len(menu_items)}): ").strip()
+            choice_num = int(choice)
+            if 1 <= choice_num <= len(menu_items):
+                return menu_items[choice_num - 1]["action"]()
+            print("Invalid selection.")
+            return ""
+        except (EOFError, ValueError):
+            print("\nExiting...")
+            return ""
 
     def show_applications_list(self):
         """Display all available applications and presets"""
@@ -355,68 +624,68 @@ class UnifiedManagerCore:
 
         return ""
 
-    def _show_app_start_interactive(self) -> str:
+    def _show_app_start_interactive(self, wait_for_input: bool = True) -> str:
         """Show interactive app start menu with toggle functionality"""
         apps = self.registry.get("apps", {})
         presets = self.registry.get("presets", {})
 
         if not apps and not presets:
             print("No applications or presets found in registry.")
-            input("Press Enter to continue...")
+            if wait_for_input:
+                input("Press Enter to continue...")
             return ""
 
         # Load cached selections
         cache_data = self._load_cache()
 
-        # Prepare app items with available actions
-        app_items = []
+        app_items: List[Dict[str, Any]] = []
         sorted_apps = sorted(apps.items(), key=lambda x: x[1].get("id", 0))
 
         for app_name, app_config in sorted_apps:
-            available_commands = self.get_available_commands(app_name)
+            action_targets = self._collect_app_action_targets(app_name, app_config)
+            if not action_targets:
+                continue
 
-            if available_commands:
-                # Map command types to display names - always include all actions
-                action_types = ["start", "install", "build", "deploy"]
+            available_actions = [action for action in ACTION_SEQUENCE if action in action_targets]
+            if not available_actions:
+                continue
 
-                if action_types:
-                    # Get cached selection or default to first available
-                    cache_key = f"app_{app_name}"
-                    current_action = cache_data.get(cache_key, action_types[0])
-                    if current_action not in action_types:
-                        current_action = action_types[0]
+            cache_key = f"app_{app_name}"
+            current_action = cache_data.get(cache_key, available_actions[0])
+            if current_action not in available_actions:
+                current_action = available_actions[0]
 
-                    app_items.append({
-                        "type": "app",
-                        "name": app_name,
-                        "config": app_config,
-                        "available_actions": action_types,
-                        "current_action": current_action,
-                        "commands": available_commands
-                    })
+            app_items.append({
+                "type": "app",
+                "name": app_name,
+                "config": app_config,
+                "available_actions": available_actions,
+                "current_action": current_action,
+                "action_targets": action_targets,
+                "display_label": f"A{len(app_items) + 1}",
+            })
 
-        # Prepare preset items with actions
-        preset_items = []
+        preset_items: List[Dict[str, Any]] = []
         sorted_presets = sorted(presets.items(), key=lambda x: x[1].get("id", 0))
         for preset_name, preset_config in sorted_presets:
-            # Presets can have start, install, build, deploy actions
-            preset_actions = ["start", "install", "build", "deploy"]
+            available_actions = self._collect_preset_available_actions(preset_config)
+            if not available_actions:
+                continue
 
-            # Get cached selection or default to start
             cache_key = f"preset_{preset_name}"
-            current_action = cache_data.get(cache_key, "start")
-            if current_action not in preset_actions:
-                current_action = "start"
+            current_action = cache_data.get(cache_key, available_actions[0])
+            if current_action not in available_actions:
+                current_action = available_actions[0]
 
             preset_items.append({
                 "type": "preset",
                 "name": preset_name,
                 "config": preset_config,
-                "available_actions": preset_actions,
-                "current_action": current_action
+                "available_actions": available_actions,
+                "current_action": current_action,
+                "display_label": f"P{len(preset_items) + 1}",
             })
 
-        # Combine all items
         all_items = app_items + preset_items
 
         if not all_items:
@@ -424,331 +693,237 @@ class UnifiedManagerCore:
             input("Press Enter to continue...")
             return ""
 
-        return self._show_toggle_menu(all_items, cache_data)
+        last_index = cache_data.get("__last_selection_index__", 0)
+        if not 0 <= last_index < len(all_items):
+            last_index = 0
 
-    def _show_toggle_menu(self, items: List[Dict], cache_data: Dict[str, str]) -> str:
-        """Show menu with toggle functionality"""
-        selected_index = 0
+        return self._show_toggle_menu(all_items, cache_data, last_index, wait_for_input)
 
-        # Check if we can use arrow keys
-        try:
-            import msvcrt
-            can_use_arrows = True
-        except ImportError:
-            can_use_arrows = False
+    def _show_toggle_menu(self, items: List[Dict[str, Any]], cache_data: Dict[str, Any], selected_index: int, wait_for_input: bool = True) -> str:
+        """Show menu with toggle functionality, supporting both Windows and Linux arrows."""
+        if not self._can_use_interactive_controls():
+            return self._show_simple_toggle_menu(items, cache_data, selected_index, wait_for_input)
 
-        if not can_use_arrows:
-            # Fallback for non-Windows systems
-            return self._show_simple_toggle_menu(items, cache_data)
-
-        # Arrow key navigation for Windows
-        import msvcrt
-        import os
-
-        def draw_toggle_menu():
-            os.system('cls' if os.name == 'nt' else 'clear')
-            print("=== Available Applications ===")
-            print("Use ↑↓ arrows to navigate, ←→ to toggle actions, Enter to select")
+        def draw_menu(current_index: int) -> None:
+            self._clear_screen()
+            system_name = platform.system()
+            print("=== Unified Application Manager ===")
+            print(f"System: {system_name} | Cache: {self.cache_dir}")
+            print("Use ↑↓ to navigate, ←→ to toggle, Enter to run, Esc to exit")
             print()
 
-            # Show apps
-            app_count = 0
-            for i, item in enumerate(items):
+            printed_preset_header = False
+            for idx, item in enumerate(items):
+                if item["type"] == "preset" and not printed_preset_header:
+                    print()
+                    print("--- Presets ---")
+                    printed_preset_header = True
+                elif idx == 0:
+                    print("--- Applications ---")
+
+                prefix = ">" if idx == current_index else " "
+                name = item["name"]
+                label = item.get("display_label", str(idx + 1))
+                actions = item.get("available_actions", [])
+                current = item.get("current_action", "start")
+                action_display = " ".join(
+                    f"[{act.upper()}]" if act == current else act
+                    for act in actions
+                )
+
                 if item["type"] == "app":
-                    app_count += 1
-                    prefix = ">" if i == selected_index else " "
-                    app_config = item["config"]
+                    app_type = item["config"].get("type", "unknown")
+                    app_id = item["config"].get("id", "-")
+                    print(f"{prefix} [{label}] {name} (#{app_id}, {app_type}) :: {action_display}")
+                else:
+                    preset_id = item["config"].get("id", "-")
+                    print(f"{prefix} [{label}] {name} (P{preset_id}) :: {action_display}")
 
-                    if len(item["available_actions"]) > 1:
-                        action_display = f"[{item['current_action']}]"
-                    else:
-                        action_display = f"[{item['current_action']}]"
-
-                    print(f"{prefix} {app_config.get('id', 0)}: {item['name']} ({app_config.get('type', 'unknown')}) {action_display}")
-
-            if app_count > 0:
-                print("\n=== Available Presets ===")
-
-            # Show presets
-            for i, item in enumerate(items):
-                if item["type"] == "preset":
-                    prefix = ">" if i == selected_index else " "
-                    preset_config = item["config"]
-                    action_display = f"[{item['current_action']}]"
-                    print(f"{prefix} P{preset_config.get('id', 0)}: {item['name']} {action_display}")
+        index = selected_index
 
         while True:
-            draw_toggle_menu()
+            draw_menu(index)
+            try:
+                key = self._read_key()
+            except KeyboardInterrupt:
+                self._clear_screen()
+                return ""
+            except RuntimeError:
+                return self._show_simple_toggle_menu(items, cache_data, index, wait_for_input)
 
-            key = msvcrt.getch()
+            if key == "UP":
+                index = (index - 1) % len(items)
+            elif key == "DOWN":
+                index = (index + 1) % len(items)
+            elif key in {"LEFT", "RIGHT"}:
+                current_item = items[index]
+                actions = current_item.get("available_actions", [])
+                if len(actions) > 1:
+                    current = current_item.get("current_action", actions[0])
+                    current_idx = actions.index(current)
+                    if key == "LEFT":
+                        current_idx = (current_idx - 1) % len(actions)
+                    else:
+                        current_idx = (current_idx + 1) % len(actions)
+                    current_item["current_action"] = actions[current_idx]
+            elif key == "ENTER":
+                self._clear_screen()
+                selected_item = items[index]
 
-            # Debug: Show key codes (remove this after testing)
-            if key not in [b'\xe0', b'\r', b'\x1b']:
-                continue  # Ignore non-special keys for now
-
-            if key == b'\xe0':  # Special key prefix
-                key = msvcrt.getch()
-                if key == b'H':  # Up arrow
-                    selected_index = (selected_index - 1) % len(items)
-                elif key == b'P':  # Down arrow
-                    selected_index = (selected_index + 1) % len(items)
-                elif key == b'K':  # Left arrow
-                    current_item = items[selected_index]
-                    if "available_actions" in current_item:
-                        current_idx = current_item["available_actions"].index(current_item["current_action"])
-                        new_idx = (current_idx - 1) % len(current_item["available_actions"])
-                        current_item["current_action"] = current_item["available_actions"][new_idx]
-                elif key == b'M':  # Right arrow
-                    current_item = items[selected_index]
-                    if "available_actions" in current_item:
-                        current_idx = current_item["available_actions"].index(current_item["current_action"])
-                        new_idx = (current_idx + 1) % len(current_item["available_actions"])
-                        current_item["current_action"] = current_item["available_actions"][new_idx]
-            elif key == b'\r':  # Enter
-                os.system('cls' if os.name == 'nt' else 'clear')
-                selected_item = items[selected_index]
-
-                # Save current selections to cache
-                new_cache_data = cache_data.copy()
+                new_cache = cache_data.copy()
+                new_cache["__last_selection_index__"] = index
                 for item in items:
-                    if item["type"] == "app":
-                        cache_key = f"app_{item['name']}"
-                        new_cache_data[cache_key] = item["current_action"]
-                    elif item["type"] == "preset":
-                        cache_key = f"preset_{item['name']}"
-                        new_cache_data[cache_key] = item["current_action"]
-                self._save_cache(new_cache_data)
+                    cache_key = f"app_{item['name']}" if item["type"] == "app" else f"preset_{item['name']}"
+                    new_cache[cache_key] = item.get("current_action", "start")
+                self._save_cache(new_cache)
 
-                # Execute selected item
                 if selected_item["type"] == "app":
                     return self._execute_app_action(selected_item)
-                else:  # preset
-                    return self._execute_preset_action(selected_item)
-            elif key == b'\x1b':  # Escape
-                os.system('cls' if os.name == 'nt' else 'clear')
+                return self._execute_preset_action(selected_item)
+            elif key == "ESC":
+                self._clear_screen()
                 return ""
 
-    def _show_simple_toggle_menu(self, items: List[Dict], cache_data: Dict[str, str]) -> str:
-        """Simple menu fallback for non-Windows systems"""
-        print("\n=== Available Applications ===")
+    def _show_simple_toggle_menu(self, items: List[Dict[str, Any]], cache_data: Dict[str, Any], selected_index: int, wait_for_input: bool = True) -> str:
+        """Simple menu fallback when interactive arrows are unavailable."""
+        print("=== Unified Application Manager ===")
+        print(f"System: {platform.system()} | Cache: {self.cache_dir}")
+        print("Input format: <label> [action]. Example: A1 install")
+        print()
 
-        app_items = [item for item in items if item["type"] == "app"]
-        preset_items = [item for item in items if item["type"] == "preset"]
+        printed_preset_header = False
+        for idx, item in enumerate(items):
+            # Print section headers
+            if item["type"] == "preset" and not printed_preset_header:
+                print()
+                print("--- Presets ---")
+                printed_preset_header = True
+            elif idx == 0:
+                print("--- Applications ---")
 
-        for item in app_items:
-            app_config = item["config"]
-            action_display = f"[{item['current_action']}]"
-            print(f"{app_config.get('id', 0)}: {item['name']} ({app_config.get('type', 'unknown')}) {action_display}")
+            label = item.get("display_label", f"#{idx + 1}")
+            actions = item.get("available_actions", [])
+            current = item.get("current_action", "start")
+            action_display = " ".join(
+                f"[{act.upper()}]" if act == current else act
+                for act in actions
+            )
+            prefix = "*" if idx == selected_index else " "
+            if item["type"] == "app":
+                app_type = item["config"].get("type", "unknown")
+                app_id = item["config"].get("id", "-")
+                print(f"{prefix} [{label}] {item['name']} (#{app_id}, {app_type}) :: {action_display}")
+            else:
+                preset_id = item["config"].get("id", "-")
+                print(f"{prefix} [{label}] {item['name']} (P{preset_id}) :: {action_display}")
 
-        if preset_items:
-            print("\n=== Available Presets ===")
-            for item in preset_items:
-                preset_config = item["config"]
-                action_display = f"[{item['current_action']}]"
-                print(f"P{preset_config.get('id', 0)}: {item['name']} {action_display}")
+        if not wait_for_input:
+            return ""
 
-        print("\nEnter app ID, app name, or preset name (Pxx):")
         try:
-            choice = input("Selection: ").strip()
+            raw_choice = input("Selection: ").strip()
         except EOFError:
             return ""
 
-        if not choice:
+        if not raw_choice:
             return ""
 
-        # Handle preset selection
-        if choice.upper().startswith('P'):
-            preset_id = choice[1:] if len(choice) > 1 else ""
-            for item in preset_items:
-                if str(item["config"].get("id", 0)) == preset_id:
-                    return self._execute_preset_action(item)
-            print(f"Preset P{preset_id} not found")
+        parts = raw_choice.split()
+        selection_token = parts[0]
+        requested_action = parts[1].lower() if len(parts) > 1 else None
+
+        selection_upper = selection_token.upper()
+        selected_item: Optional[Dict[str, Any]] = None
+
+        for idx, item in enumerate(items):
+            label = item.get("display_label", f"#{idx + 1}").upper()
+            if selection_upper == label:
+                selected_item = item
+                break
+            if item["type"] == "preset" and selection_upper.startswith('P'):
+                preset_id = selection_upper[1:]
+                if str(item["config"].get("id", "")) == preset_id:
+                    selected_item = item
+                    break
+            if item["type"] == "app":
+                try:
+                    app_id = int(selection_token)
+                    if item["config"].get("id") == app_id:
+                        selected_item = item
+                        break
+                except ValueError:
+                    pass
+                if item["name"].lower() == selection_token.lower():
+                    selected_item = item
+                    break
+
+        if not selected_item:
+            print(f"Selection '{selection_token}' not recognised")
             input("Press Enter to continue...")
             return ""
 
-        # Handle app selection by ID or name
-        selected_item = None
-        try:
-            app_id = int(choice)
-            for item in app_items:
-                if item["config"].get("id") == app_id:
-                    selected_item = item
-                    break
-        except ValueError:
-            for item in app_items:
-                if item["name"] == choice:
-                    selected_item = item
-                    break
+        if requested_action:
+            actions = selected_item.get("available_actions", [])
+            if requested_action not in actions:
+                print(f"Action '{requested_action}' not available for {selected_item['name']}")
+                input("Press Enter to continue...")
+                return ""
+            selected_item["current_action"] = requested_action
 
-        if selected_item:
-            # Save cache
-            new_cache_data = cache_data.copy()
-            for item in app_items + preset_items:
-                if item["type"] == "app":
-                    cache_key = f"app_{item['name']}"
-                    new_cache_data[cache_key] = item["current_action"]
-                elif item["type"] == "preset":
-                    cache_key = f"preset_{item['name']}"
-                    new_cache_data[cache_key] = item["current_action"]
-            self._save_cache(new_cache_data)
+        new_cache = cache_data.copy()
+        new_cache["__last_selection_index__"] = items.index(selected_item)
+        for item in items:
+            cache_key = f"app_{item['name']}" if item["type"] == "app" else f"preset_{item['name']}"
+            new_cache[cache_key] = item.get("current_action", "start")
+        self._save_cache(new_cache)
 
+        if selected_item["type"] == "app":
             return self._execute_app_action(selected_item)
-        else:
-            print(f"App '{choice}' not found")
+        return self._execute_preset_action(selected_item)
+
+    def _execute_app_action(self, item: Dict[str, Any]) -> str:
+        """Execute the selected action for an app."""
+        app_name = item["name"]
+        action = item.get("current_action", "start")
+        app_config = item["config"]
+        targets = item.get("action_targets") or self._collect_app_action_targets(app_name, app_config)
+        target = targets.get(action)
+
+        if not target:
+            print(f"No '{action}' action available for {app_name}")
             input("Press Enter to continue...")
             return ""
 
-    def _execute_app_action(self, item: Dict) -> str:
-        """Execute the selected action for an app"""
-        app_name = item["name"]
-        action = item["current_action"]
-        app_config = item["config"]
+        if target["kind"] == "script":
+            return self._prepare_script_for_execution(target["path"], app_name, action)
 
-        print(f"\n=== Debug Info for {app_name} ===")
-        print(f"Action: {action}")
-        print(f"Type: {app_config.get('type', 'unknown')}")
+        command = target.get("command")
+        if not command:
+            print(f"No command defined for {app_name}::{action}")
+            input("Press Enter to continue...")
+            return ""
 
-        # Get app path
-        app_path = self.get_app_path(app_name, app_config)
-        print(f"App path: {app_path}")
+        script_identifier = f"{action}_{app_name.replace(' ', '_')}"
+        return self._create_execute_script(command, script_identifier)
 
-        # Check for script files with priority
-        if self.is_windows:
-            priority_extensions = [".ps1", ".bat", ".cmd"]
-            secondary_extensions = [".sh"]
-        else:
-            priority_extensions = [".sh"]
-            secondary_extensions = [".ps1", ".bat", ".cmd"]
-
-        script_found = False
-        found_priority = False
-
-        # Check priority extensions first
-        for ext in priority_extensions:
-            script_name = f"{action}{ext}"
-            script_path = self.get_app_script_path(app_path, script_name)
-            exists = script_path.exists()
-            if exists:
-                if ext == ".ps1" and not found_priority:
-                    # .ps1 is highest priority on Windows
-                    print(f"Script: {script_path} - EXISTS")
-                    script_found = True
-                    found_priority = True
-                elif ext in [".bat", ".cmd"] and not found_priority:
-                    # .bat/.cmd only if no .ps1 found
-                    print(f"Script: {script_path} - EXISTS")
-                    script_found = True
-                    found_priority = True
-                elif ext == ".sh" and not self.is_windows:
-                    # .sh on Linux
-                    print(f"Script: {script_path} - EXISTS")
-                    script_found = True
-                    found_priority = True
-                else:
-                    # Gray out lower priority options
-                    print(f"\033[90mScript: {script_path} - EXISTS (lower priority)\033[0m")
-
-        # Check secondary extensions (gray out)
-        for ext in secondary_extensions:
-            script_name = f"{action}{ext}"
-            script_path = self.get_app_script_path(app_path, script_name)
-            exists = script_path.exists()
-            if exists:
-                print(f"\033[90mScript: {script_path} - EXISTS (cross-platform)\033[0m")
-            else:
-                print(f"\033[90mScript: {script_path} - NOT FOUND\033[0m")
-
-        if not script_found:
-            print(f"No {action} scripts found for {app_name}")
-            if app_config.get("type") == "poly-app":
-                print(f"For poly-app, would use: node \"{self.main_js}\" poly_app={app_name}")
-            elif app_config.get("type") == "ncore-app":
-                print(f"For ncore-app, would use: node \"{self.main_js}\" app={app_name}")
-
-        input("\nPress Enter to continue...")
-        return ""
-
-    def _execute_preset_action(self, item: Dict) -> str:
-        """Execute the selected action for a preset"""
+    def _execute_preset_action(self, item: Dict[str, Any]) -> str:
+        """Execute the selected action for a preset."""
         preset_name = item["name"]
-        action = item["current_action"]
+        action = item.get("current_action", "start")
         preset_config = item["config"]
         app_names = preset_config.get("app_names", [])
 
-        print(f"\n=== Debug Info for Preset {preset_name} ===")
-        print(f"Action: {action}")
-        print(f"Apps in preset: {', '.join(app_names)}")
-
         if not app_names:
-            print(f"No apps defined in preset '{preset_name}'")
+            print(f"Preset '{preset_name}' has no applications configured")
             input("Press Enter to continue...")
             return ""
 
-        # Check each app in the preset
-        apps = self.registry.get("apps", {})
-        for app_name in app_names:
-            if app_name in apps:
-                app_config = apps[app_name]
-                app_path = self.get_app_path(app_name, app_config)
-                print(f"\nApp: {app_name}")
-                print(f"  Path: {app_path}")
-
-                # Check for script files with priority
-                if self.is_windows:
-                    priority_extensions = [".ps1", ".bat", ".cmd"]
-                    secondary_extensions = [".sh"]
-                else:
-                    priority_extensions = [".sh"]
-                    secondary_extensions = [".ps1", ".bat", ".cmd"]
-
-                script_found = False
-                found_priority = False
-
-                # Check priority extensions first
-                for ext in priority_extensions:
-                    script_name = f"{action}{ext}"
-                    script_path = self.get_app_script_path(app_path, script_name)
-                    exists = script_path.exists()
-                    if exists:
-                        if ext == ".ps1" and not found_priority:
-                            # .ps1 is highest priority on Windows
-                            print(f"  Script: {script_path} - EXISTS")
-                            script_found = True
-                            found_priority = True
-                        elif ext in [".bat", ".cmd"] and not found_priority:
-                            # .bat/.cmd only if no .ps1 found
-                            print(f"  Script: {script_path} - EXISTS")
-                            script_found = True
-                            found_priority = True
-                        elif ext == ".sh" and not self.is_windows:
-                            # .sh on Linux
-                            print(f"  Script: {script_path} - EXISTS")
-                            script_found = True
-                            found_priority = True
-                        else:
-                            # Gray out lower priority options
-                            print(f"  \033[90mScript: {script_path} - EXISTS (lower priority)\033[0m")
-
-                # Check secondary extensions (gray out)
-                for ext in secondary_extensions:
-                    script_name = f"{action}{ext}"
-                    script_path = self.get_app_script_path(app_path, script_name)
-                    exists = script_path.exists()
-                    if exists:
-                        print(f"  \033[90mScript: {script_path} - EXISTS (cross-platform)\033[0m")
-                    else:
-                        print(f"  \033[90mScript: {script_path} - NOT FOUND\033[0m")
-
-                if not script_found:
-                    if app_config.get("type") == "poly-app":
-                        print(f"  For poly-app, would use: node \"{self.main_js}\" poly_app={app_name}")
-                    elif app_config.get("type") == "ncore-app":
-                        print(f"  For ncore-app, would use: node \"{self.main_js}\" app={app_name}")
-            else:
-                print(f"\nApp: {app_name} - NOT FOUND IN REGISTRY")
-
-        input("\nPress Enter to continue...")
-        return ""
+        script_name = f"preset_{preset_config.get('id', preset_name)}_{action}"
+        result = self._create_preset_action_script(app_names, action, script_name)
+        if not result:
+            print(f"Failed to create preset script for {preset_name}")
+            input("Press Enter to continue...")
+        return result
 
     def _execute_preset_by_name(self, preset_name: str) -> str:
         """Execute preset by name (for backward compatibility)"""
@@ -1242,13 +1417,326 @@ class UnifiedManagerCore:
         print()
 
         try:
-            return self._show_app_start_interactive()
+            # Check if we have command line arguments
+            if len(sys.argv) > 1:
+                # Command line mode - process arguments
+                return self._process_command_line_args()
+            elif not sys.stdin.isatty():
+                # Non-interactive mode - show menu without waiting for input
+                return self._show_app_start_interactive(wait_for_input=False)
+            else:
+                # Interactive mode - show menu and wait for input
+                return self._show_app_start_interactive()
         except KeyboardInterrupt:
             print("\nExiting...")
             return ""
         except Exception as e:
             print(f"Error: {e}")
             return ""
+
+    def _process_command_line_args(self) -> str:
+        """Process command line arguments"""
+        if len(sys.argv) < 2:
+            return ""
+        
+        selection = sys.argv[1]
+        action = sys.argv[2] if len(sys.argv) > 2 else None
+        
+        return self._process_selection(selection, action)
+    
+    def _process_stdin_input(self) -> str:
+        """Process input from stdin"""
+        try:
+            # Read input from stdin
+            line = sys.stdin.readline().strip()
+            if not line:
+                return ""
+            
+            parts = line.split()
+            selection = parts[0] if parts else ""
+            action = parts[1] if len(parts) > 1 else None
+            
+            return self._process_selection(selection, action)
+        except (EOFError, KeyboardInterrupt):
+            return ""
+    
+    def _process_selection(self, selection: str, action: Optional[str] = None) -> str:
+
+        """Process a selection string and optional action"""
+
+        if not selection:
+
+            return ""
+
+
+
+        cache_data = self._load_cache()
+
+        if not isinstance(cache_data, dict):
+
+            cache_data = {}
+
+
+
+        requested_action = action.lower() if isinstance(action, str) else None
+
+
+
+        # Get all items (apps and presets)
+
+        apps = self.registry.get("apps", {})
+
+        presets = self.registry.get("presets", {})
+
+
+
+        # Build items list
+
+        app_items: List[Dict[str, Any]] = []
+
+        sorted_apps = sorted(apps.items(), key=lambda x: x[1].get("id", 0))
+
+        for app_name, app_config in sorted_apps:
+
+            action_targets = self._collect_app_action_targets(app_name, app_config)
+
+            if not action_targets:
+
+                continue
+
+
+
+            available_actions = [act for act in ACTION_SEQUENCE if act in action_targets]
+
+            if not available_actions:
+
+                continue
+
+
+
+            cached_action = self._get_cached_action(cache_data, "app", app_name)
+
+            if cached_action not in available_actions:
+
+                cached_action = None
+
+
+
+            current_action = cached_action or available_actions[0]
+
+
+
+            app_items.append({
+
+                "type": "app",
+
+                "name": app_name,
+
+                "config": app_config,
+
+                "available_actions": available_actions,
+
+                "current_action": current_action,
+
+                "action_targets": action_targets,
+
+                "display_label": f"A{len(app_items) + 1}",
+
+            })
+
+
+
+        preset_items: List[Dict[str, Any]] = []
+
+        sorted_presets = sorted(presets.items(), key=lambda x: x[1].get("id", 0))
+
+        for preset_name, preset_config in sorted_presets:
+
+            available_actions = self._collect_preset_available_actions(preset_config)
+
+            if not available_actions:
+
+                continue
+
+
+
+            cached_action = self._get_cached_action(cache_data, "preset", preset_name)
+
+            if cached_action not in available_actions:
+
+                cached_action = None
+
+
+
+            current_action = cached_action or available_actions[0]
+
+
+
+            preset_items.append({
+
+                "type": "preset",
+
+                "name": preset_name,
+
+                "config": preset_config,
+
+                "available_actions": available_actions,
+
+                "current_action": current_action,
+
+                "display_label": f"P{len(preset_items) + 1}",
+
+            })
+
+
+
+        all_items = app_items + preset_items
+
+
+
+        # Find the selected item
+
+        selected_item: Optional[Dict[str, Any]] = None
+
+        selection_upper = selection.upper()
+
+
+
+        for item in all_items:
+
+            label = item.get("display_label", "").upper()
+
+            if selection_upper == label:
+
+                selected_item = item
+
+                break
+
+            if item["type"] == "preset" and selection_upper.startswith('P'):
+
+                preset_id = selection_upper[1:]
+
+                if str(item["config"].get("id", "")) == preset_id:
+
+                    selected_item = item
+
+                    break
+
+            if item["type"] == "app":
+
+                try:
+
+                    app_id = int(selection)
+
+                    if item["config"].get("id") == app_id:
+
+                        selected_item = item
+
+                        break
+
+                except ValueError:
+
+                    pass
+
+                if item["name"].lower() == selection.lower():
+
+                    selected_item = item
+
+                    break
+
+
+
+        if not selected_item:
+
+            print(f"Selection '{selection}' not recognised")
+
+            return ""
+
+
+
+        available_actions = selected_item.get("available_actions", [])
+
+
+
+        if requested_action:
+
+            if requested_action not in available_actions:
+
+                print(f"Action '{requested_action}' not available for {selected_item['name']}")
+
+                return ""
+
+            selected_item["current_action"] = requested_action
+
+
+
+        current_action = selected_item.get("current_action")
+
+        if current_action not in available_actions and available_actions:
+
+            current_action = available_actions[0]
+
+            selected_item["current_action"] = current_action
+
+
+
+        if selected_item["type"] == "app":
+
+            result = self._execute_app_action(selected_item)
+
+        else:
+
+            result = self._execute_preset_action(selected_item)
+
+
+
+        selected_index = all_items.index(selected_item) if selected_item in all_items else 0
+
+        selected_action = selected_item.get("current_action") or (available_actions[0] if available_actions else "start")
+
+
+
+        new_cache: Dict[str, Any] = dict(cache_data)
+
+        cache_key = f"app_{selected_item['name']}" if selected_item["type"] == "app" else f"preset_{selected_item['name']}"
+
+        new_cache[cache_key] = selected_action
+
+
+
+        map_key = "app_actions" if selected_item["type"] == "app" else "preset_actions"
+
+        existing_map = new_cache.get(map_key)
+
+        if isinstance(existing_map, dict):
+
+            updated_map = dict(existing_map)
+
+        else:
+
+            updated_map = {}
+
+        updated_map[selected_item["name"]] = selected_action
+
+        new_cache[map_key] = updated_map
+
+
+
+        new_cache["__last_selection_index__"] = selected_index
+
+        new_cache["last_selected_index"] = selected_index
+
+        new_cache["last_selected_type"] = selected_item["type"]
+
+
+
+        self._save_cache(new_cache)
+
+
+
+        return result
+
+
 
 def main():
     manager = UnifiedManagerCore()

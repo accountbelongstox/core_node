@@ -19,37 +19,20 @@ Implements intelligent image selection logic with directory priority
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-# Handle import based on execution context
-try:
-    from asset_scanner import AssetScanner
-except ImportError:
-    try:
-        from .asset_scanner import AssetScanner
-    except ImportError:
-        # Fallback - create minimal interface
-        class AssetScanner:
-            def __init__(self):
-                self.supported_image_formats = ['.png', '.jpg', '.webp']
-            def _get_directory_type(self, *args):
-                return "UNKNOWN"
-            def show_image_selection_menu(self, *args):
-                return None
-            def apply_fallback_rules(self, *args):
-                return {}
-        print("Warning: AssetScanner not fully available")
+from utils.asset_scanner import AssetScanner
+from utils.print_helper import PrintHelper
 
 class SmartImageSelector:
-    def __init__(self, asset_scanner: AssetScanner):
+    def __init__(self, asset_scanner: AssetScanner, step_prefix: str = "STEP-2"):
         self.asset_scanner = asset_scanner
+        self.step_prefix = step_prefix
 
     def select_all_images(self, menu_helper: Any, resource_dirs: List[Path], temp_build_root: Path, app_name: str) -> Dict:
         """
         Smart image selection with paired search logic
         Returns dict with selected images for all types
         """
-        print("[STEP-2] " + "=" * 80)
-        print("[STEP-2] SMART IMAGE SELECTION WITH PAIRED SEARCH")
-        print("[STEP-2] " + "=" * 80)
+        PrintHelper.header("SMART IMAGE SELECTION WITH PAIRED SEARCH", source=self.step_prefix)
 
         selected_images = {}
 
@@ -63,21 +46,21 @@ class SmartImageSelector:
             primary_type, primary_subdir, primary_prefix = primary_info
             secondary_type, secondary_subdir, secondary_prefix = secondary_info
 
-            print(f"\n[STEP-2] [PAIRED SEARCH] {primary_type.upper()} -> {secondary_type.upper()}")
-            print("[STEP-2] " + "-" * 60)
+            PrintHelper.info(f"[PAIRED SEARCH] {primary_type.upper()} -> {secondary_type.upper()}", source=self.step_prefix)
+            PrintHelper.info("-" * 60, source=self.step_prefix)
 
             primary_selected = None
             primary_found_dir = None
             secondary_selected = None
 
             # Search for primary image
-            print(f"[STEP-2] [SEARCH] Looking for {primary_type.upper()} images (prefix: '{primary_prefix}')...")
+            PrintHelper.info(f"[SEARCH] Looking for {primary_type.upper()} images (prefix: '{primary_prefix}')...", source=self.step_prefix)
             for resource_dir in resource_dirs:
                 dir_type = self.asset_scanner._get_directory_type(resource_dir, temp_build_root, app_name)
                 search_dir = resource_dir / primary_subdir
 
                 if not search_dir.exists():
-                    print(f"[STEP-2]   [{dir_type}] MISSING: {search_dir}")
+                    PrintHelper.warning(f"[{dir_type}] MISSING: {search_dir}", source=self.step_prefix)
                     continue
 
                 # Find primary images in this directory
@@ -93,28 +76,28 @@ class SmartImageSelector:
                         })
 
                 if images_in_dir:
-                    print(f"[STEP-2]   [{dir_type}] FOUND {len(images_in_dir)} {primary_type} image(s) in: {search_dir}")
+                    PrintHelper.info(f"[{dir_type}] FOUND {len(images_in_dir)} {primary_type} image(s) in: {search_dir}", source=self.step_prefix)
 
                     if len(images_in_dir) == 1:
                         primary_selected = images_in_dir[0]
                         primary_selected['compression_mode'] = 'compressed'
-                        print(f"[STEP-2]     AUTO-SELECTED: {primary_selected['name']}")
+                        PrintHelper.success(f"AUTO-SELECTED: {primary_selected['name']}", source=self.step_prefix)
                     else:
-                        print(f"[STEP-2]     Multiple {primary_type} images found, showing selection menu...")
+                        PrintHelper.info(f"Multiple {primary_type} images found, showing selection menu...", source=self.step_prefix)
                         primary_selected = self.asset_scanner.show_image_selection_menu(menu_helper, images_in_dir, primary_type)
 
                     if primary_selected:
                         primary_found_dir = resource_dir
                         break
                 else:
-                    print(f"[STEP-2]   [{dir_type}] NO {primary_type} images found in: {search_dir}")
+                    PrintHelper.warning(f"[{dir_type}] NO {primary_type} images found in: {search_dir}", source=self.step_prefix)
 
             # Search for secondary image
-            print(f"\n[STEP-2] [SEARCH] Looking for {secondary_type.upper()} images (prefix: '{secondary_prefix}')...")
+            PrintHelper.info(f"[SEARCH] Looking for {secondary_type.upper()} images (prefix: '{secondary_prefix}')...", source=self.step_prefix)
 
             if primary_found_dir:
                 # Primary found, search secondary only in same directory
-                print(f"[STEP-2]   Primary {primary_type} found in directory, searching {secondary_type} in same directory only...")
+                PrintHelper.info(f"Primary {primary_type} found in directory, searching {secondary_type} in same directory only...", source=self.step_prefix)
                 search_dir = primary_found_dir / secondary_subdir
                 dir_type = self.asset_scanner._get_directory_type(primary_found_dir, temp_build_root, app_name)
 
@@ -131,28 +114,28 @@ class SmartImageSelector:
                             })
 
                     if images_in_dir:
-                        print(f"[STEP-2]   [{dir_type}] FOUND {len(images_in_dir)} {secondary_type} image(s) in: {search_dir}")
+                        PrintHelper.info(f"[{dir_type}] FOUND {len(images_in_dir)} {secondary_type} image(s) in: {search_dir}", source=self.step_prefix)
 
                         if len(images_in_dir) == 1:
                             secondary_selected = images_in_dir[0]
                             secondary_selected['compression_mode'] = 'compressed'
-                            print(f"[STEP-2]     AUTO-SELECTED: {secondary_selected['name']}")
+                            PrintHelper.success(f"AUTO-SELECTED: {secondary_selected['name']}", source=self.step_prefix)
                         else:
-                            print(f"[STEP-2]     Multiple {secondary_type} images found, showing selection menu...")
+                            PrintHelper.info(f"Multiple {secondary_type} images found, showing selection menu...", source=self.step_prefix)
                             secondary_selected = self.asset_scanner.show_image_selection_menu(menu_helper, images_in_dir, secondary_type)
                     else:
-                        print(f"[STEP-2]   [{dir_type}] NO {secondary_type} images found in same directory")
+                        PrintHelper.warning(f"[{dir_type}] NO {secondary_type} images found in same directory", source=self.step_prefix)
                 else:
-                    print(f"[STEP-2]   [{dir_type}] MISSING: {search_dir}")
+                    PrintHelper.warning(f"[{dir_type}] MISSING: {search_dir}", source=self.step_prefix)
             else:
                 # Primary not found, search secondary in all directories
-                print(f"[STEP-2]   Primary {primary_type} not found, searching {secondary_type} in all directories...")
+                PrintHelper.info(f"Primary {primary_type} not found, searching {secondary_type} in all directories...", source=self.step_prefix)
                 for resource_dir in resource_dirs:
                     dir_type = self.asset_scanner._get_directory_type(resource_dir, temp_build_root, app_name)
                     search_dir = resource_dir / secondary_subdir
 
                     if not search_dir.exists():
-                        print(f"[STEP-2]   [{dir_type}] MISSING: {search_dir}")
+                        PrintHelper.warning(f"[{dir_type}] MISSING: {search_dir}", source=self.step_prefix)
                         continue
 
                     images_in_dir = []
@@ -167,33 +150,33 @@ class SmartImageSelector:
                             })
 
                     if images_in_dir:
-                        print(f"[STEP-2]   [{dir_type}] FOUND {len(images_in_dir)} {secondary_type} image(s) in: {search_dir}")
+                        PrintHelper.info(f"[{dir_type}] FOUND {len(images_in_dir)} {secondary_type} image(s) in: {search_dir}", source=self.step_prefix)
 
                         if len(images_in_dir) == 1:
                             secondary_selected = images_in_dir[0]
                             secondary_selected['compression_mode'] = 'compressed'
-                            print(f"[STEP-2]     AUTO-SELECTED: {secondary_selected['name']}")
+                            PrintHelper.success(f"AUTO-SELECTED: {secondary_selected['name']}", source=self.step_prefix)
                         else:
-                            print(f"[STEP-2]     Multiple {secondary_type} images found, showing selection menu...")
+                            PrintHelper.info(f"Multiple {secondary_type} images found, showing selection menu...", source=self.step_prefix)
                             secondary_selected = self.asset_scanner.show_image_selection_menu(menu_helper, images_in_dir, secondary_type)
 
                         if secondary_selected:
                             break
                     else:
-                        print(f"[STEP-2]   [{dir_type}] NO {secondary_type} images found in: {search_dir}")
+                        PrintHelper.warning(f"[{dir_type}] NO {secondary_type} images found in: {search_dir}", source=self.step_prefix)
 
             # Store results for this pair
             if primary_selected:
                 selected_images[primary_type] = primary_selected
-                print(f"[STEP-2] [SELECTED] {primary_type}: {primary_selected['name']} from {primary_selected['source']}")
+                PrintHelper.success(f"[SELECTED] {primary_type}: {primary_selected['name']} from {primary_selected['source']}", source=self.step_prefix)
             else:
-                print(f"[STEP-2] [NOT FOUND] No {primary_type} images found")
+                PrintHelper.warning(f"[NOT FOUND] No {primary_type} images found", source=self.step_prefix)
 
             if secondary_selected:
                 selected_images[secondary_type] = secondary_selected
-                print(f"[STEP-2] [SELECTED] {secondary_type}: {secondary_selected['name']} from {secondary_selected['source']}")
+                PrintHelper.success(f"[SELECTED] {secondary_type}: {secondary_selected['name']} from {secondary_selected['source']}", source=self.step_prefix)
             else:
-                print(f"[STEP-2] [NOT FOUND] No {secondary_type} images found")
+                PrintHelper.warning(f"[NOT FOUND] No {secondary_type} images found", source=self.step_prefix)
 
         return selected_images
 
@@ -206,9 +189,7 @@ class SmartImageSelector:
         # Apply intelligent icon finding logic
         selected_images = self._apply_intelligent_icon_finding(selected_images)
 
-        print("\n" + "=" * 80)
-        print("FINAL IMAGE SELECTION SUMMARY")
-        print("=" * 80)
+        PrintHelper.header("FINAL IMAGE SELECTION SUMMARY")
 
         # Show summary of all found and missing images
         # Icon group: ic_icon, notification_icon, transa_launcher, ic_launcher
@@ -224,21 +205,19 @@ class SmartImageSelector:
                 compression_text = "COMPRESSED" if image_data.get('compression_mode') == 'compressed' else "ORIGINAL"
                 fallback_text = f" (fallback from {image_data.get('fallback_from', '')})" if image_data.get('is_fallback') else ""
                 final_filename = self._get_final_filename(image_type)
-                print(f"  {image_type.upper()}({final_filename}): {image_data['name']} [{image_data['source']}] - {compression_text}{fallback_text}")
-                print(f"    Path: {image_data['path']}")
+                PrintHelper.info(f"  {image_type.upper()}({final_filename}): {image_data['name']} [{image_data['source']}] - {compression_text}{fallback_text}")
+                PrintHelper.info(f"    Path: {image_data['path']}")
             else:
                 missing_images.append(image_type)
                 final_filename = self._get_final_filename(image_type)
-                print(f"  {image_type.upper()}({final_filename}): [NOT FOUND]")
+                PrintHelper.info(f"  {image_type.upper()}({final_filename}): [NOT FOUND]")
 
         # Show comprehensive compression selection menu for ALL image types
-        print("\n" + "=" * 80)
-        print("COMPRESSION SETTINGS CONFIGURATION")
-        print("=" * 80)
-        print("Configure compression settings for each image type:")
-        print("Found images can be compressed or kept original.")
-        print("Missing images will be noted but not processed.")
-        print()
+        PrintHelper.header("COMPRESSION SETTINGS CONFIGURATION")
+        PrintHelper.info("Configure compression settings for each image type:")
+        PrintHelper.info("Found images can be compressed or kept original.")
+        PrintHelper.info("Missing images will be noted but not processed.")
+        PrintHelper.info("")
 
         # Create comprehensive menu with all image types (both found and missing)
         menu_items = []
@@ -346,9 +325,12 @@ class SmartImageSelector:
                     'cancel_message': '[COMPRESSION-CANCELLED] Using default compression settings'
                 }
 
-                print("=" * 60)
-                print("INTERACTIVE COMPRESSION SELECTION MENU")
-                print("=" * 60)
+                PrintHelper.header("INTERACTIVE COMPRESSION SELECTION MENU")
+
+                # Pause before showing the menu
+                print()
+                input("Press any key to continue...")
+                print()
 
                 # Use the universal menu system from menu_helper
                 result = menu_helper.show_interactive_menu(compression_config)
@@ -360,32 +342,30 @@ class SmartImageSelector:
                         if not item['is_missing'] and image_type in selected_images:
                             selected_images[image_type]['compression_mode'] = item['compression_mode']
 
-                    print("\n[COMPRESSION SETTINGS APPLIED] Final settings:")
+                    PrintHelper.info("\n[COMPRESSION SETTINGS APPLIED] Final settings:")
                     for image_type in all_image_types:
                         if image_type in selected_images:
                             mode = selected_images[image_type]['compression_mode']
                             mode_text = "COMPRESSED" if mode == 'compressed' else "ORIGINAL"
-                            print(f"  {image_type.upper()}: {mode_text}")
+                            PrintHelper.info(f"  {image_type.upper()}: {mode_text}")
                         else:
-                            print(f"  {image_type.upper()}: MISSING - Will be skipped")
+                            PrintHelper.info(f"  {image_type.upper()}: MISSING - Will be skipped")
                 else:
-                    print("\n[DEFAULT SETTINGS] Using default compression settings (all compressed)")
+                    PrintHelper.info("\n[DEFAULT SETTINGS] Using default compression settings (all compressed)")
                     # Apply default compression to all found images
                     for image_type in all_image_types:
                         if image_type in selected_images:
                             selected_images[image_type]['compression_mode'] = 'compressed'
 
         except Exception as e:
-            print(f"[WARNING] Could not show compression menu: {e}")
-            print("[DEFAULT] Using compressed mode for all found images")
+            PrintHelper.info(f"[WARNING] Could not show compression menu: {e}")
+            PrintHelper.info("[DEFAULT] Using compressed mode for all found images")
             # Apply default compression
             for image_type in all_image_types:
                 if image_type in selected_images:
                     selected_images[image_type]['compression_mode'] = 'compressed'
 
-        print("\n" + "=" * 80)
-        print("IMAGE PROCESSING PHASE")
-        print("=" * 80)
+        PrintHelper.header("IMAGE PROCESSING PHASE")
 
         # Process each found image with final compression settings
         processed_count = 0
@@ -394,7 +374,7 @@ class SmartImageSelector:
                 image_data = selected_images[image_type]
                 compression_mode = image_data.get('compression_mode', 'compressed')
                 compression_text = "COMPRESSED" if compression_mode == 'compressed' else "ORIGINAL"
-                print(f"\n[PROCESSING] {image_type.upper()}: {image_data['name']} - Mode: {compression_text}")
+                PrintHelper.info(f"\n[PROCESSING] {image_type.upper()}: {image_data['name']} - Mode: {compression_text}")
 
                 # Process the image (including non-compressed ones for PNG conversion)
                 try:
@@ -414,28 +394,28 @@ class SmartImageSelector:
                             image_data['processed_path'] = result['processed_path']
                             image_data['processed_size'] = result['processed_size']
                             image_data['compression_ratio'] = result['compression_ratio']
-                            print(f"  Status: SUCCESS - Converted to PNG")
+                            PrintHelper.success(f"  Status: SUCCESS - Converted to PNG")
                             if compress:
-                                print(f"  Compression: Applied (ratio: {result.get('compression_ratio', 'N/A')})")
+                                PrintHelper.info(f"  Compression: Applied (ratio: {result.get('compression_ratio', 'N/A')})")
                             else:
-                                print(f"  Compression: Skipped (original quality preserved)")
-                            print(f"  Output: {result['processed_path']}")
+                                PrintHelper.info(f"  Compression: Skipped (original quality preserved)")
+                            PrintHelper.info(f"  Output: {result['processed_path']}")
                         else:
                             image_data['processing_error'] = result['error']
-                            print(f"  Status: FAILED - {result['error']}")
+                            PrintHelper.error(f"  Status: FAILED - {result['error']}")
                     else:
-                        print(f"  Status: SKIPPED - Image processor not available")
+                        PrintHelper.warning(f"  Status: SKIPPED - Image processor not available")
 
                     processed_count += 1
 
                 except Exception as e:
-                    print(f"  Status: ERROR - {e}")
+                    PrintHelper.error(f"  Status: ERROR - {e}")
                     image_data['processing_error'] = str(e)
             else:
-                print(f"\n[SKIPPED] {image_type.upper()}: Not found - Missing from all directories")
+                PrintHelper.info(f"\n[SKIPPED] {image_type.upper()}: Not found - Missing from all directories")
 
-        print(f"\n[PROCESSING SUMMARY] Successfully processed {processed_count} out of {len(selected_images)} found images")
-        print(f"[PROCESSING SUMMARY] All processed images converted to PNG format in temporary directories")
+        PrintHelper.info(f"\n[PROCESSING SUMMARY] Successfully processed {processed_count} out of {len(selected_images)} found images")
+        PrintHelper.info(f"[PROCESSING SUMMARY] All processed images converted to PNG format in temporary directories")
 
         return selected_images
 
@@ -461,9 +441,7 @@ class SmartImageSelector:
 
     def _apply_fallback_rules(self, selected_images: Dict) -> Dict:
         """Apply fallback rules for missing images with detailed logging"""
-        print("\n" + "=" * 60)
-        print("APPLYING FALLBACK RULES")
-        print("=" * 60)
+        PrintHelper.header("APPLYING FALLBACK RULES")
 
         # Show what we found initially
         found_images = []
@@ -475,9 +453,9 @@ class SmartImageSelector:
             else:
                 missing_images.append(image_type)
 
-        print(f"Found images: {', '.join(found_images) if found_images else 'None'}")
-        print(f"Missing images: {', '.join(missing_images) if missing_images else 'None'}")
-        print()
+        PrintHelper.info(f"Found images: {', '.join(found_images) if found_images else 'None'}")
+        PrintHelper.info(f"Missing images: {', '.join(missing_images) if missing_images else 'None'}")
+        PrintHelper.info("")
 
         # Apply ic_icon fallback to logo
         if not selected_images.get('ic_icon') and selected_images.get('logo'):
@@ -485,10 +463,10 @@ class SmartImageSelector:
             logo_data['is_fallback'] = True
             logo_data['fallback_from'] = 'logo'
             selected_images['ic_icon'] = logo_data
-            print(f"[FALLBACK] IC_ICON ← LOGO")
-            print(f"  Using: {logo_data['name']} from [{logo_data['source']}]")
-            print(f"  Reason: No dedicated ic_*.png files found, using logo as Android app icon")
-            print()
+            PrintHelper.info(f"[FALLBACK] IC_ICON ← LOGO")
+            PrintHelper.info(f"  Using: {logo_data['name']} from [{logo_data['source']}]")
+            PrintHelper.info(f"  Reason: No dedicated ic_*.png files found, using logo as Android app icon")
+            PrintHelper.info("")
 
         # Apply splash fallback to background
         if not selected_images.get('splash') and selected_images.get('background'):
@@ -496,10 +474,10 @@ class SmartImageSelector:
             background_data['is_fallback'] = True
             background_data['fallback_from'] = 'background'
             selected_images['splash'] = background_data
-            print(f"[FALLBACK] SPLASH ← BACKGROUND")
-            print(f"  Using: {background_data['name']} from [{background_data['source']}]")
-            print(f"  Reason: No dedicated splash*.png files found, using background as splash screen")
-            print()
+            PrintHelper.info(f"[FALLBACK] SPLASH ← BACKGROUND")
+            PrintHelper.info(f"  Using: {background_data['name']} from [{background_data['source']}]")
+            PrintHelper.info(f"  Reason: No dedicated splash*.png files found, using background as splash screen")
+            PrintHelper.info("")
 
         # Show final status
         final_found = []
@@ -510,43 +488,41 @@ class SmartImageSelector:
             else:
                 still_missing.append(image_type)
 
-        print("FALLBACK RESULTS:")
-        print(f"  Available after fallback: {', '.join(final_found) if final_found else 'None'}")
+        PrintHelper.info("FALLBACK RESULTS:")
+        PrintHelper.info(f"  Available after fallback: {', '.join(final_found) if final_found else 'None'}")
         if still_missing:
-            print(f"  Still missing: {', '.join(still_missing)}")
-            print("\n[SUGGESTIONS] To add missing images:")
+            PrintHelper.info(f"  Still missing: {', '.join(still_missing)}")
+            PrintHelper.info("\n[SUGGESTIONS] To add missing images:")
             for missing_type in still_missing:
                 if missing_type in ['logo', 'ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher']:
-                    print(f"  • {missing_type.upper()}: Add {missing_type}*.png/jpg/webp to icons/ directories")
+                    PrintHelper.info(f"  • {missing_type.upper()}: Add {missing_type}*.png/jpg/webp to icons/ directories")
                 else:  # background, splash
-                    print(f"  • {missing_type.upper()}: Add {missing_type}*.png/jpg/webp to launch/ directories")
+                    PrintHelper.info(f"  • {missing_type.upper()}: Add {missing_type}*.png/jpg/webp to launch/ directories")
 
         return selected_images
 
     def _apply_intelligent_icon_finding(self, selected_images: Dict) -> Dict:
         """Apply intelligent icon finding logic with logo-based directory prioritization"""
-        print("\n" + "=" * 60)
-        print("APPLYING INTELLIGENT ICON FINDING")
-        print("=" * 60)
+        PrintHelper.header("APPLYING INTELLIGENT ICON FINDING")
 
         icon_types = ['ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher']
         logo_data = selected_images.get('logo')
 
-        print(f"Logo found: {'Yes' if logo_data else 'No'}")
+        PrintHelper.info(f"Logo found: {'Yes' if logo_data else 'No'}")
         if logo_data:
             logo_dir = Path(logo_data['path']).parent
-            print(f"Logo directory: {logo_dir}")
-            print("Strategy: Search for icons in logo's directory first, then fallback to logo")
+            PrintHelper.info(f"Logo directory: {logo_dir}")
+            PrintHelper.info("Strategy: Search for icons in logo's directory first, then fallback to logo")
         else:
-            print("Strategy: Search for each icon from extended to common directories")
-        print()
+            PrintHelper.info("Strategy: Search for each icon from extended to common directories")
+        PrintHelper.info("")
 
         for icon_type in icon_types:
             if selected_images.get(icon_type):
-                print(f"[SKIP] {icon_type.upper()}: Already found")
+                PrintHelper.info(f"[SKIP] {icon_type.upper()}: Already found")
                 continue
 
-            print(f"[SEARCH] {icon_type.upper()}:")
+            PrintHelper.info(f"[SEARCH] {icon_type.upper()}:")
 
             if logo_data:
                 # Strategy 1: Logo found - search only in logo's directory
@@ -555,7 +531,7 @@ class SmartImageSelector:
 
                 if found_icon:
                     selected_images[icon_type] = found_icon
-                    print(f"  ✓ Found {icon_type}: {found_icon['name']} in logo's directory")
+                    PrintHelper.info(f"  ✓ Found {icon_type}: {found_icon['name']} in logo's directory")
                 else:
                     # Use logo as fallback
                     logo_fallback = logo_data.copy()
@@ -563,25 +539,25 @@ class SmartImageSelector:
                     logo_fallback['fallback_from'] = 'logo'
                     logo_fallback['fallback_reason'] = f'No {icon_type} found in logo directory'
                     selected_images[icon_type] = logo_fallback
-                    print(f"  → Fallback: Using logo as {icon_type}")
+                    PrintHelper.info(f"  → Fallback: Using logo as {icon_type}")
             else:
                 # Strategy 2: No logo - search from extended to common directories
                 found_icon = self._search_icon_comprehensive(icon_type)
 
                 if found_icon:
                     selected_images[icon_type] = found_icon
-                    print(f"  ✓ Found {icon_type}: {found_icon['name']} in {found_icon['source']} directory")
+                    PrintHelper.info(f"  ✓ Found {icon_type}: {found_icon['name']} in {found_icon['source']} directory")
                 else:
-                    print(f"  ✗ Not found: {icon_type}")
+                    PrintHelper.info(f"  ✗ Not found: {icon_type}")
 
-        print("\nICON FINDING RESULTS:")
+        PrintHelper.info("\nICON FINDING RESULTS:")
         for icon_type in icon_types:
             icon_data = selected_images.get(icon_type)
             if icon_data:
                 fallback_info = f" (fallback from {icon_data.get('fallback_from')})" if icon_data.get('is_fallback') else ""
-                print(f"  {icon_type.upper()}: {icon_data['name']}{fallback_info}")
+                PrintHelper.info(f"  {icon_type.upper()}: {icon_data['name']}{fallback_info}")
             else:
-                print(f"  {icon_type.upper()}: [NOT FOUND]")
+                PrintHelper.info(f"  {icon_type.upper()}: [NOT FOUND]")
 
         return selected_images
 
@@ -679,15 +655,13 @@ class SmartImageSelector:
         available_images = {k: v for k, v in selected_images.items() if v}
 
         if not available_images:
-            print("\n[SKIP] No images available for compression selection")
+            PrintHelper.info("\n[SKIP] No images available for compression selection")
             return selected_images
 
-        print("\n" + "=" * 80)
-        print("INDIVIDUAL IMAGE COMPRESSION SELECTION")
-        print("=" * 80)
-        print("Each image usage has independent compression settings:")
-        print("Use UP/DOWN arrows to navigate, LEFT/RIGHT to toggle compression, ENTER to confirm selection")
-        print()
+        PrintHelper.header("INDIVIDUAL IMAGE COMPRESSION SELECTION")
+        PrintHelper.info("Each image usage has independent compression settings:")
+        PrintHelper.info("Use UP/DOWN arrows to navigate, LEFT/RIGHT to toggle compression, ENTER to confirm selection")
+        PrintHelper.info("")
 
         # Process each image type individually with clear usage labels
         processed_images = {}
@@ -706,16 +680,16 @@ class SmartImageSelector:
                 item['fallback_info'] = usage_info['fallback_info']
                 item['final_filename'] = usage_info['final_filename']
 
-                print("=" * 60)
-                print(f"CONFIGURING {image_type.upper()}({usage_info['final_filename']}) IMAGE")
-                print("=" * 60)
-                print(f"Usage: {usage_info['description']}")
+                PrintHelper.info("=" * 60)
+                PrintHelper.info(f"CONFIGURING {image_type.upper()}({usage_info['final_filename']}) IMAGE")
+                PrintHelper.info("=" * 60)
+                PrintHelper.info(f"Usage: {usage_info['description']}")
                 if usage_info['fallback_info']:
-                    print(f"Source: {usage_info['fallback_info']}")
-                print(f"File: {image_data['name']} ({image_data.get('format', '').upper()}, {self._format_file_size(image_data.get('size_bytes', 0))})")
-                print(f"Final output: {usage_info['final_filename']}")
-                print(f"Path: {image_data['path']}")
-                print()
+                    PrintHelper.info(f"Source: {usage_info['fallback_info']}")
+                PrintHelper.info(f"File: {image_data['name']} ({image_data.get('format', '').upper()}, {self._format_file_size(image_data.get('size_bytes', 0))})")
+                PrintHelper.info(f"Final output: {usage_info['final_filename']}")
+                PrintHelper.info(f"Path: {image_data['path']}")
+                PrintHelper.info("")
 
                 # Show individual compression menu for this usage
                 try:
@@ -730,25 +704,25 @@ class SmartImageSelector:
                             # Store the individually selected compression mode
                             processed_images[image_type] = selected_item
                             mode_text = "COMPRESSED" if selected_item['compression_mode'] == 'compressed' else "ORIGINAL"
-                            print(f"[SELECTED] {image_type.upper()} compression: {mode_text}")
+                            PrintHelper.info(f"[SELECTED] {image_type.upper()} compression: {mode_text}")
                         else:
                             # User cancelled or no selection, keep original with default compression
                             item['compression_mode'] = 'compressed'
                             processed_images[image_type] = item
-                            print(f"[DEFAULT] {image_type.upper()} compression: COMPRESSED (default)")
+                            PrintHelper.info(f"[DEFAULT] {image_type.upper()} compression: COMPRESSED (default)")
                     else:
                         # Fallback: use default compression
                         item['compression_mode'] = 'compressed'
                         processed_images[image_type] = item
-                        print(f"[DEFAULT] {image_type.upper()} compression: COMPRESSED (fallback)")
+                        PrintHelper.info(f"[DEFAULT] {image_type.upper()} compression: COMPRESSED (fallback)")
 
                 except Exception as e:
-                    print(f"[ERROR] Could not configure {image_type}: {e}")
+                    PrintHelper.info(f"[ERROR] Could not configure {image_type}: {e}")
                     # Use default compression on error
                     item['compression_mode'] = 'compressed'
                     processed_images[image_type] = item
 
-                print()
+                PrintHelper.info("")
 
         # Return the processed images with individual compression settings
         return processed_images

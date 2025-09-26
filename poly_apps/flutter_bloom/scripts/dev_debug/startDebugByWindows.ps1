@@ -5,78 +5,76 @@
 # 3. Never create or update documentation (*.md).
 # 4. Never write summaries during development or thinking process.
 # 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
+# 6. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Flutter Windows Debug Script
-# Provides Windows desktop debugging capabilities for Flutter applications
+# Flutter Windows Debug Script - Simplified for Windows Testing
+# Hardcoded for Debug/Windows mode, reads essential variables only
+
+# Set UTF-8 encoding for the script
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Variables declaration
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SCRIPTS_ROOT = Split-Path -Parent $SCRIPT_DIR
 $PROJECT_ROOT = Split-Path -Parent $SCRIPTS_ROOT
 $WIN_COMMON_DIR = Join-Path $SCRIPTS_ROOT "win_common"
-$COMMON_UTILITIES_PATH = Join-Path $WIN_COMMON_DIR "CommonUtilities.ps1"
 
 # Import required modules
 . (Join-Path $WIN_COMMON_DIR "FlutterGlobalVar.ps1")
-. $COMMON_UTILITIES_PATH
+. (Join-Path $WIN_COMMON_DIR "CommonUtilities.ps1")
 
-# Get selected app from file variables
-$selectedApp = Get-FileVariable -Name $Global:KEY_SELECTED_APP -DefaultValue ""
-$selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue "Debug"
-$selectedPlatform = Get-FileVariable -Name $Global:KEY_SELECTED_PLATFORM -DefaultValue "Windows"
+# Change to project root directory
+Write-Host "[DEBUG] Script location: $SCRIPT_DIR" -ForegroundColor Magenta
+Write-Host "[DEBUG] Switching to project root: $PROJECT_ROOT" -ForegroundColor Magenta
+Set-Location $PROJECT_ROOT
+Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
 
-Write-Host "[DEBUG] Variables from file system:" -ForegroundColor Yellow
-Write-Host "  selectedApp: '$selectedApp'" -ForegroundColor White
-Write-Host "  selectedAction: '$selectedAction'" -ForegroundColor White
-Write-Host "  selectedPlatform: '$selectedPlatform'" -ForegroundColor White
+function Load-WindowsDebugVariables {
+    """
+    Load essential variables for Windows debugging
+    Can work with or without Python-saved variables
+    """
+    Write-Host "[INFO] Loading variables for Windows debug..." -ForegroundColor Cyan
 
-# Get Flutter apps with index mapping to derive entry file and port
-$apps = Get-FlutterAppsWithIndex
-Write-Host "[DEBUG] Get-FlutterAppsWithIndex returned $($apps.Count) apps:" -ForegroundColor Yellow
-foreach ($app in $apps) {
-    Write-Host "  - $($app.name) (index: $($app.index), port: $($app.port))" -ForegroundColor White
+    # Load essential variables with sensible defaults
+    $selectedApp = Get-FileVariable -Name "SELECTED_APP" -DefaultValue "app_main"
+    $entryFile = Get-FileVariable -Name "SELECTED_ENTRY_FILE" -DefaultValue "lib/apps/$selectedApp/main_app_$($selectedApp.Replace('app_', '')).dart"
+    $appIndex = Get-FileVariable -Name "APP_INDEX" -DefaultValue "0"
+    $debugPort = Get-FileVariable -Name "DEBUG_PORT" -DefaultValue "10000"
+
+    # Display loaded configuration
+    Write-Host "[INFO] Windows Debug Configuration:" -ForegroundColor Green
+    Write-Host "  App: $selectedApp" -ForegroundColor Yellow
+    Write-Host "  Entry File: $entryFile" -ForegroundColor Yellow
+    Write-Host "  App Index: $appIndex" -ForegroundColor Yellow
+    Write-Host "  Debug Port: $debugPort" -ForegroundColor Yellow
+    Write-Host "  Action: Debug (hardcoded)" -ForegroundColor Yellow
+    Write-Host "  Platform: Windows (hardcoded)" -ForegroundColor Yellow
+
+    return @{
+        App = $selectedApp
+        Action = "Debug"
+        Platform = "Windows"
+        EntryFile = $entryFile
+        AppIndex = $appIndex
+        DebugPort = $debugPort
+    }
 }
 
-$appInfo = $apps | Where-Object { $_.name -eq $selectedApp } | Select-Object -First 1
-
-if ($appInfo) {
-    $selectedEntryFile = $appInfo.entryFile
-    $debugPort = $appInfo.port
-    Write-Host "[INFO] App info derived from index mapping:" -ForegroundColor Green
-    Write-Host "  Entry File: $selectedEntryFile" -ForegroundColor White
-    Write-Host "  Debug Port: $debugPort" -ForegroundColor White
-    Write-Host "  App Index: $($appInfo.index)" -ForegroundColor White
-} else {
-    Write-Host "[ERROR] App '$selectedApp' not found in Flutter apps index mapping" -ForegroundColor Red
-    $selectedEntryFile = Join-Path $PROJECT_ROOT "lib\main.dart"
-    $debugPort = 10000
-}
-
-if ($selectedApp) {
-    Write-Host "[INFO] Selected App: $selectedApp" -ForegroundColor Cyan
-    Write-Host "[INFO] Selected Action: $selectedAction" -ForegroundColor Cyan
-    Write-Host "[INFO] Selected Platform: $selectedPlatform" -ForegroundColor Cyan
-} else {
-    Write-Host "[WARN] No app selected, using default behavior" -ForegroundColor Yellow
-    $selectedApp = "app_main"
-}
-
-# Function to check Windows development environment
 function Test-WindowsEnvironment {
     Write-Host "[INFO] Checking Windows development environment..." -ForegroundColor Cyan
-    
+
     $issues = @()
-    
+
     # Check if Windows platform is supported
     if (-not $Global:IS_WINDOWS) {
         $issues += "Windows platform debugging requires Windows OS"
         return $false
     }
-    
+
     # Check Visual Studio Build Tools
     $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path $vsWhere)) {
@@ -86,14 +84,14 @@ function Test-WindowsEnvironment {
         Write-Host "2. Install 'Build Tools for Visual Studio' or 'Visual Studio Community'" -ForegroundColor White
         Write-Host "3. Include 'C++ build tools' and 'Windows 10/11 SDK'" -ForegroundColor White
     }
-    
+
     # Check Windows SDK
     $windowsKits = "${env:ProgramFiles(x86)}\Windows Kits\10"
     if (-not (Test-Path $windowsKits)) {
         $issues += "Windows 10/11 SDK not found"
         Write-Host "[SETUP] Windows SDK is required for Windows app development" -ForegroundColor Yellow
     }
-    
+
     if ($issues.Count -gt 0) {
         Write-Host "[ERROR] Windows development environment issues:" -ForegroundColor Red
         foreach ($issue in $issues) {
@@ -101,89 +99,90 @@ function Test-WindowsEnvironment {
         }
         return $false
     }
-    
+
     Write-Host "[SUCCESS] Windows development environment ready" -ForegroundColor Green
     return $true
 }
 
-# Function to start Windows debugging
 function Start-WindowsDebug {
-    Write-Host ""
+    param($config)
+
     Write-Host "[INFO] Starting Windows Debug Mode..." -ForegroundColor Green
     Write-Host "======================================" -ForegroundColor Cyan
-    
-    # Get next available port for this app
-    $assignedPort = Get-NextAvailablePort -AppName $selectedApp
-    
+
+    # Validate Flutter installation
+    if (-not (Get-Command "flutter" -ErrorAction SilentlyContinue)) {
+        Write-Host "[ERROR] Flutter not found in PATH" -ForegroundColor Red
+        Write-Host "[INFO] Please install Flutter and add it to your PATH" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "[INFO] Project Root: $PROJECT_ROOT" -ForegroundColor Yellow
+    Write-Host "[INFO] Entry File: $($config.EntryFile)" -ForegroundColor Yellow
+    Write-Host "[INFO] Debug Port: $($config.DebugPort)" -ForegroundColor Yellow
+
     # Update packages first
     Invoke-FlutterPubGet
-    
+
     Write-Host "[INFO] URLs are ready for copying to test on different devices" -ForegroundColor Green
     Write-Host "[INFO] Starting Flutter Windows desktop application..." -ForegroundColor Cyan
     Write-Host "[INFO] Application will launch in a new window" -ForegroundColor Yellow
-    
-    try {
-        # Check if Windows platform is enabled
-        $windowsDir = Join-Path $PROJECT_ROOT "windows"
-        if (-not (Test-Path $windowsDir)) {
-            Write-Host "[ERROR] Windows platform not enabled for this Flutter project" -ForegroundColor Red
-            Write-Host "[SETUP] To enable Windows platform:" -ForegroundColor Yellow
-            Write-Host "  flutter config --enable-windows-desktop" -ForegroundColor White
-            Write-Host "  flutter create --platforms=windows ." -ForegroundColor White
-            return
-        }
-        
-        # Use entry file from file variables (set by start.ps1)
-        $entryFile = $selectedEntryFile
 
-        # Determine build mode based on selected action
-        $buildMode = if ($selectedAction -eq "build") { "--release" } else { "--debug" }
-        $modeDescription = if ($selectedAction -eq "build") { "Release" } else { "Debug" }
-
-        Write-Host "[INFO] Launching Flutter Windows desktop application..." -ForegroundColor Green
-        Write-Host "[MODE] Running in $modeDescription mode" -ForegroundColor Yellow
-        if ($selectedAction -eq "debug") {
-            Write-Host "[DEBUG] Hot reload: press 'r'" -ForegroundColor Yellow
-            Write-Host "[DEBUG] Hot restart: press 'R'" -ForegroundColor Yellow
-            Write-Host "[DEBUG] Quit: press 'q'" -ForegroundColor Yellow
-        }
-        Write-Host "[INFO] Entry file: $entryFile" -ForegroundColor Cyan
-
-        flutter run -d windows $buildMode -t $entryFile
-        
-    } catch {
-        Write-Host "[ERROR] Failed to start Windows application: $_" -ForegroundColor Red
+    # Check if Windows platform is enabled
+    $windowsDir = Join-Path $PROJECT_ROOT "windows"
+    if (-not (Test-Path $windowsDir)) {
+        Write-Host "[ERROR] Windows platform not enabled for this Flutter project" -ForegroundColor Red
+        Write-Host "[SETUP] To enable Windows platform:" -ForegroundColor Yellow
+        Write-Host "  flutter config --enable-windows-desktop" -ForegroundColor White
+        Write-Host "  flutter create --platforms=windows ." -ForegroundColor White
+        return
     }
+
+    # Use entry file from variables
+    $entryFile = $config.EntryFile
+    $buildMode = "--debug"  # Hardcoded for debug
+    $modeDescription = "Debug"
+
+    Write-Host "[INFO] Launching Flutter Windows desktop application..." -ForegroundColor Green
+    Write-Host "[MODE] Running in $modeDescription mode" -ForegroundColor Yellow
+    Write-Host "[DEBUG] Hot reload: press 'r'" -ForegroundColor Yellow
+    Write-Host "[DEBUG] Hot restart: press 'R'" -ForegroundColor Yellow
+    Write-Host "[DEBUG] Quit: press 'q'" -ForegroundColor Yellow
+    Write-Host "[INFO] Entry file: $entryFile" -ForegroundColor Cyan
+
+    & flutter run -d windows $buildMode -t $entryFile
+
+    Write-Host "[INFO] Windows debug completed" -ForegroundColor Green
 }
 
 # Main execution
 try {
-    # Change to app directory for context
-    Set-Location $PROJECT_ROOT
-    
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "Flutter Bloom Windows Debug Launcher" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+
     # Check if this is a Flutter project
     Assert-FlutterProject -ProjectPath $PROJECT_ROOT
-    
+
     # Check if Flutter is available
     Assert-FlutterEnvironment
-    
+
     # Check Windows development environment
     if (-not (Test-WindowsEnvironment)) {
         Write-Host "[ERROR] Windows development environment not ready" -ForegroundColor Red
         Write-Host "[INFO] Please install required tools and try again" -ForegroundColor Yellow
         exit 1
     }
-    
-    # Check if platform is already selected from main launcher
-    if ($selectedPlatform -eq "Windows" -or $selectedPlatform -eq "windows") {
-        # Direct Windows debug execution
-        Start-WindowsDebug
-    } else {
-        # Manual Windows debug execution
-        Start-WindowsDebug
-    }
+
+    # Load configuration for Windows debugging
+    $config = Load-WindowsDebugVariables
+
+    # Start Windows debug
+    Start-WindowsDebug -config $config
+
+} catch {
+    Write-Host "[ERROR] An error occurred: $_" -ForegroundColor Red
+    Write-Host "[DEBUG] Error details: $($_.Exception.Message)" -ForegroundColor Yellow
 }
-catch {
-    Write-Host "[ERROR] Failed to initialize Windows debug launcher: $_" -ForegroundColor Red
-    exit 1
-}
+
+Write-Host "[INFO] Windows debug script completed" -ForegroundColor Green

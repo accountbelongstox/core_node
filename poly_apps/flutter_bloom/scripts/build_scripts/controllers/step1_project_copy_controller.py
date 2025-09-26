@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 import sys
 
 # Import using relative path from build_scripts root
-from core.gvar.flutter_global_var import flutter_gvar
+from shared.data_exchange.unified_variable_system import unified_vars
 from utils.file_operations import FileOperations
 from utils.factory_analyzer import FactoryAnalyzer
 
@@ -106,25 +106,33 @@ class Step1ProjectCopyController:
 
             if menu_helper:
                 # Use menu helper to let user choose
-                result = menu_helper.show_directory_menu(existing_dirs, app_name)
+                while True:  # Loop to handle refresh action
+                    result = menu_helper.show_directory_menu(existing_dirs, app_name)
 
-                if result:
-                    action = result.get('action')
-                    directory = result.get('directory')
+                    if result:
+                        action = result.get('action')
+                        directory = result.get('directory')
 
-                    if action == 'continue' and directory:
-                        target_dir = directory
-                        overwrite_mode = True
-                        print(f"[STEP-1] User selected existing directory: {target_dir}")
-                    elif action == 'refresh':
-                        # Refresh and try again
-                        existing_dirs = self._find_existing_temp_dirs(app_name)
-                        if existing_dirs:
-                            target_dir = existing_dirs[0]  # Use first one as fallback
+                        if action == 'continue' and directory:
+                            target_dir = directory
                             overwrite_mode = True
+                            print(f"[STEP-1] User selected existing directory: {target_dir}")
+                            break
+                        elif action == 'refresh':
+                            # Refresh directory list and show menu again
+                            print(f"[STEP-1] Refreshing directory list for {app_name}...")
+                            existing_dirs = self._find_existing_temp_dirs(app_name)
+                            # Always continue to show menu again, even if no directories found
+                            # If no directories, menu will show "Create new directory" option
+                            continue  # Show menu again with refreshed list
+                        else:
+                            # Create new directory
+                            target_dir = None
+                            break
                     else:
-                        # Create new directory
+                        # User cancelled or error
                         target_dir = None
+                        break
             else:
                 # No menu helper, use first existing directory
                 target_dir = existing_dirs[0]

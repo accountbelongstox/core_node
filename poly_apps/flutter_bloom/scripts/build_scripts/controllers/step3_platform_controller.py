@@ -4,38 +4,19 @@ Step 3 Platform Controller
 Orchestrates platform-specific image scanning and analysis
 """
 
+import sys
 from pathlib import Path
 from typing import Dict, Optional, Any
-import sys
 
 # Import using relative path from build_scripts root
-from core.gvar.flutter_global_var import flutter_gvar
-from utils.platform_image_scanner import PlatformImageScanner
+from shared.data_exchange.unified_variable_system import unified_vars, PlatformTargetInfo
 from utils.image_classifier import ImageClassifier
+from utils.platform_image_scanner import PlatformImageScanner
+from utils.platform_specs.platform_specs_manager import PlatformSpecsManager
+from utils.print_helper import PrintHelper
 
-try:
-    from utils.platform_specs.platform_specs_manager import PlatformSpecsManager
-    PlatformSpecsMap = PlatformSpecsManager  # Compatibility alias
-except ImportError as e:
-    print(f"[STEP-3] [ERROR] Failed to import PlatformSpecsManager: {e}")
-    # Try fallback to old system
-    try:
-        from utils.platform_specs_map import PlatformSpecsMap
-    except ImportError as e2:
-        print(f"[STEP-3] [ERROR] Failed to import legacy PlatformSpecsMap: {e2}")
-        # Create fallback class
-        class PlatformSpecsMap:
-            def get_platform_specs(self, platform):
-                return {}
-
-            def get_recommended_size(self, platform, file_path, filename):
-                return None
-
-            def get_best_size_recommendation(self, platform, image_type, current_size):
-                return None
-
-            def calculate_size_difference(self, actual_size, recommended_size):
-                return {'status': 'unknown', 'message': 'PlatformSpecsMap not available'}
+# Compatibility alias
+PlatformSpecsMap = PlatformSpecsManager
 
 
 class Step3PlatformController:
@@ -52,6 +33,7 @@ class Step3PlatformController:
         self.image_classifier = ImageClassifier()
         self.results = {}
         self.target_platform = None
+        self.data_exchange = None
 
     def initialize(self, temp_build_root: Path, app_name: str) -> bool:
         """
@@ -65,21 +47,24 @@ class Step3PlatformController:
             bool: True if initialization successful, False otherwise
         """
         try:
-            print(f"[{self.step_name}] [INIT] Initializing {self.step_description}")
-            print(f"[{self.step_name}] [INIT] Build Root: {temp_build_root}")
-            print(f"[{self.step_name}] [INIT] App Name: {app_name}")
+            PrintHelper.info(f"Initializing {self.step_description}", source=self.step_name)
+            PrintHelper.info(f"Build Root: {temp_build_root}", source=self.step_name)
+            PrintHelper.info(f"App Name: {app_name}", source=self.step_name)
 
             self.temp_build_root = temp_build_root
             self.app_name = app_name
 
-            # Get target platform from build configuration
-            build_info = flutter_gvar.get_build_info()
-            self.target_platform = build_info.get("platform", "").lower()
-            print(f"[{self.step_name}] [INIT] Target Platform: {self.target_platform or 'Not specified'}")
+            # Initialize unified data exchange system
+            self.data_exchange = unified_vars
+            PrintHelper.info(f"Data exchange system initialized", source=self.step_name)
+
+            # Get target platform from build configuration (direct file variable access)
+            self.target_platform = unified_vars.get_file_variable(unified_vars.KEY_BUILD_PLATFORM, "").lower()
+            PrintHelper.info(f"Target Platform: {self.target_platform or 'Not specified'}", source=self.step_name)
 
             # Validate build root exists
             if not temp_build_root.exists():
-                print(f"[{self.step_name}] [ERROR] Build root directory does not exist: {temp_build_root}")
+                PrintHelper.error(f"Build root directory does not exist: {temp_build_root}", source=self.step_name)
                 return False
 
             # Check for platform directories
@@ -91,16 +76,16 @@ class Step3PlatformController:
                 if platform_path.exists():
                     existing_platforms.append(platform)
 
-            print(f"[{self.step_name}] [INIT] Found {len(existing_platforms)} platform directories: {', '.join(existing_platforms)}")
+            PrintHelper.info(f"Found {len(existing_platforms)} platform directories: {', '.join(existing_platforms)}", source=self.step_name)
 
             if not existing_platforms:
-                print(f"[{self.step_name}] [WARNING] No platform directories found, but continuing...")
+                PrintHelper.warning(f"No platform directories found, but continuing...", source=self.step_name)
 
-            print(f"[{self.step_name}] [INIT] Step 3 controller initialized successfully")
+            PrintHelper.info(f"Step 3 controller initialized successfully", source=self.step_name)
             return True
 
         except Exception as e:
-            print(f"[{self.step_name}] [ERROR] Failed to initialize Step 3 controller: {e}")
+            PrintHelper.error(f"Failed to initialize Step 3 controller: {e}", source=self.step_name)
             return False
 
     def execute_step3_scanning(self) -> Dict[str, Any]:
@@ -111,18 +96,18 @@ class Step3PlatformController:
             Dict containing scan results and metadata
         """
         try:
-            print(f"\n[{self.step_name}] {'=' * 80}")
-            print(f"[{self.step_name}] {self.step_description.upper()}")
-            print(f"[{self.step_name}] {'=' * 80}")
+            PrintHelper.info("\n" + "=" * 80, source=self.step_name)
+            PrintHelper.info(f" {self.step_description.upper()}")
+            PrintHelper.info(f" {'=' * 80}")
 
-            print(f"[{self.step_name}] [EXECUTE] Starting platform-specific images analysis...")
+            PrintHelper.info(f" [EXECUTE] Starting platform-specific images analysis...")
 
             # Execute platform scanning
-            print(f"[{self.step_name}] [STEP-3-1] Scanning platform directories for images...")
+            PrintHelper.info(f" [STEP-3-1] Scanning platform directories for images...")
             platform_results = self.platform_scanner.scan_all_platforms(self.temp_build_root)
 
             # Enhanced platform display with target highlighting
-            print(f"\n[{self.step_name}] [STEP-3-2] Enhanced platform analysis with target highlighting...")
+            PrintHelper.info(f"\n[STEP-3-2] Enhanced platform analysis with target highlighting...", source=self.step_name)
             self._enhance_platform_display(platform_results)
 
             # Store results
@@ -138,13 +123,19 @@ class Step3PlatformController:
                 'summary': self._generate_summary(platform_results)
             }
 
-            print(f"[{self.step_name}] [COMPLETE] Platform images scanning completed successfully")
+            # Save results to unified data exchange
+            if self.save_results_to_unified_data():
+                PrintHelper.success(f"Results saved to unified data exchange", source=self.step_name)
+            else:
+                PrintHelper.error(f"Failed to save results to unified data exchange", source=self.step_name)
+
+            PrintHelper.info(f" [COMPLETE] Platform images scanning completed successfully")
 
             return self.results
 
         except Exception as e:
             error_message = f"Step 3 execution failed: {e}"
-            print(f"[{self.step_name}] [ERROR] {error_message}")
+            PrintHelper.error(f"{error_message}", source=self.step_name)
 
             self.results = {
                 'step': 3,
@@ -165,11 +156,11 @@ class Step3PlatformController:
         Enhanced platform display with target platform highlighting and specifications
         """
         try:
-            print(f"\n[{self.step_name}] [PLATFORM-ANALYSIS] ENHANCED PLATFORM DISPLAY")
-            print(f"[{self.step_name}] {'=' * 80}")
+            PrintHelper.info(f"\n[PLATFORM-ANALYSIS] ENHANCED PLATFORM DISPLAY", source=self.step_name)
+            PrintHelper.info(f" {'=' * 80}")
 
             if 'platforms' not in platform_results:
-                print(f"[{self.step_name}] [ERROR] No platform data available")
+                PrintHelper.error(f"No platform data available", source=self.step_name)
                 return
 
             platforms = platform_results['platforms']
@@ -195,23 +186,23 @@ class Step3PlatformController:
 
                 if is_target and is_available:
                     # Highlight target platform - focused attention
-                    print(f"[{self.step_name}] [PLATFORM-TREE] >>> {info['name']} <<< (TARGET PLATFORM)")
-                    print(f"[{self.step_name}] {'*' * 60}")
+                    PrintHelper.info(f" [PLATFORM-TREE] >>> {info['name']} <<< (TARGET PLATFORM)")
+                    PrintHelper.info(f" {'*' * 60}")
                     self._display_platform_details(platform_name, platforms.get(platform_name, {}), True)
-                    print(f"[{self.step_name}] {'*' * 60}")
+                    PrintHelper.info(f" {'*' * 60}")
                 elif is_available:
                     # Available but not target - reduced emphasis
-                    print(f"[{self.step_name}] [PLATFORM-TREE] {info['name']} (Available)")
-                    print(f"[{self.step_name}] {'-' * 40}")
+                    PrintHelper.info(f" [PLATFORM-TREE] {info['name']} (Available)")
+                    PrintHelper.info(f" {'-' * 40}")
                     self._display_platform_details(platform_name, platforms.get(platform_name, {}), False)
                 else:
                     # Not available - grayed out effect with ASCII
-                    print(f"[{self.step_name}] [PLATFORM-TREE] {info['name']} (Not Available)")
+                    PrintHelper.info(f" [PLATFORM-TREE] {info['name']} (Not Available)")
 
-                print()
+                PrintHelper.info("")
 
         except Exception as e:
-            print(f"[{self.step_name}] [ERROR] Failed to display enhanced platform info: {e}")
+            PrintHelper.error(f"Failed to display enhanced platform info: {e}", source=self.step_name)
 
     def _display_platform_details(self, platform_name: str, platform_data: Dict, is_target: bool) -> None:
         """
@@ -222,10 +213,10 @@ class Step3PlatformController:
             total_size = platform_data.get('total_size', 0)
 
             if not images:
-                print(f"[{self.step_name}]   No images found")
+                PrintHelper.info(f"   No images found")
                 return
 
-            print(f"[{self.step_name}]   Images Found: {len(images)} | Total Size: {total_size / 1024:.1f}KB")
+            PrintHelper.info(f"   Images Found: {len(images)} | Total Size: {total_size / 1024:.1f}KB")
 
             # Get platform specifications
             platform_specs = self.platform_specs.get_platform_specs(platform_name)
@@ -252,10 +243,10 @@ class Step3PlatformController:
                 # Prefix for target platform emphasis
                 prefix = "   >>>" if is_target else "      "
 
-                print(f"[{self.step_name}]{prefix} {name}")
-                print(f"[{self.step_name}]{prefix}     Type: {image_type.title()}")
+                PrintHelper.info(f"{prefix} {name}")
+                PrintHelper.info(f"{prefix}     Type: {image_type.title()}")
                 if subtype and subtype != image_type:
-                    print(f"[{self.step_name}]{prefix}     Subtype: {subtype.replace('_', ' ').title()}")
+                    PrintHelper.info(f"{prefix}     Subtype: {subtype.replace('_', ' ').title()}")
                 # Show platform-specific size recommendations for all platforms
                 if platform_specs and image_type in ['icon', 'background', 'splash'] and width > 0 and height > 0:
                     best_spec = self.platform_specs.get_best_size_recommendation(
@@ -287,40 +278,40 @@ class Step3PlatformController:
                                 diff_text = f" (diff: {width_diff:+}w, {height_diff:+}h, {width_pct:+.1f}%w, {height_pct:+.1f}%h)"
 
                             # Display size and recommendation on adjacent lines
-                            print(f"[{self.step_name}]{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
-                            print(f"[{self.step_name}]{prefix} Recommended: {spec_size[0]}x{spec_size[1]} {status_indicator}{diff_text}")
+                            PrintHelper.info(f"{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
+                            PrintHelper.info(f"{prefix} Recommended: {spec_size[0]}x{spec_size[1]} {status_indicator}{diff_text}")
                         else:
                             # Standard display without recommendations
-                            print(f"[{self.step_name}]{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
-                            print(f"[{self.step_name}]{prefix} Recommended: No standard spec found")
+                            PrintHelper.info(f"{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
+                            PrintHelper.info(f"{prefix} Recommended: No standard spec found")
                     else:
                         # Standard display without recommendations
-                        print(f"[{self.step_name}]{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
-                        print(f"[{self.step_name}]{prefix} Recommended: No standard spec found")
+                        PrintHelper.info(f"{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
+                        PrintHelper.info(f"{prefix} Recommended: No standard spec found")
                 elif width <= 0 or height <= 0:
                     # Dimensions not available (e.g., for ICO files)
-                    print(f"[{self.step_name}]{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
-                    print(f"[{self.step_name}]{prefix} Recommended: Dimensions unavailable for this file type")
+                    PrintHelper.info(f"{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
+                    PrintHelper.info(f"{prefix} Recommended: Dimensions unavailable for this file type")
                 else:
                     # Standard display for non-supported image types
-                    print(f"[{self.step_name}]{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
+                    PrintHelper.info(f"{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
 
-                print(f"[{self.step_name}]{prefix}     Path: {file_path}")
+                PrintHelper.info(f"{prefix}     Path: {file_path}")
 
                 # Show recommendations for target platform
                 if is_target and classification.get('recommendations'):
                     recommendations = classification.get('recommendations', [])[:2]  # Limit recommendations
                     for rec in recommendations:
-                        print(f"[{self.step_name}]{prefix}     Recommendation: {rec}")
+                        PrintHelper.info(f"{prefix}     Recommendation: {rec}")
 
-                print()
+                PrintHelper.info("")
 
             # Show missing expected files for Android platform
             if platform_name == 'android' and self.platform_specs:
                 self._show_missing_expected_files(platform_name, platform_data, is_target)
 
         except Exception as e:
-            print(f"[{self.step_name}] [ERROR] Failed to display platform details: {e}")
+            PrintHelper.error(f"Failed to display platform details: {e}", source=self.step_name)
 
     def _show_missing_expected_files(self, platform_name: str, platform_data: Dict, is_target: bool) -> None:
         """Show missing expected files based on platform specifications"""
@@ -363,15 +354,15 @@ class Step3PlatformController:
             # Display missing expected files
             if missing_directories:
                 prefix = "   >>>" if is_target else "      "
-                print(f"[{self.step_name}]{prefix} MISSING EXPECTED FILES:")
+                PrintHelper.info(f"{prefix} MISSING EXPECTED FILES:")
                 for missing in missing_directories:
                     expected_path = f"android/app/src/main/res/{missing['dir']}/background.png"
-                    print(f"[{self.step_name}]{prefix}     Expected: {expected_path}")
-                    print(f"[{self.step_name}]{prefix}     Purpose: {missing['desc']}")
-                print()
+                    PrintHelper.info(f"{prefix}     Expected: {expected_path}")
+                    PrintHelper.info(f"{prefix}     Purpose: {missing['desc']}")
+                PrintHelper.info("")
 
         except Exception as e:
-            print(f"[{self.step_name}] [ERROR] Failed to show missing expected files: {e}")
+            PrintHelper.error(f"Failed to show missing expected files: {e}", source=self.step_name)
 
     def _generate_summary(self, platform_results: Dict) -> Dict[str, Any]:
         """
@@ -433,7 +424,7 @@ class Step3PlatformController:
             return summary
 
         except Exception as e:
-            print(f"[{self.step_name}] [WARNING] Failed to generate summary: {e}")
+            PrintHelper.warning(f"Failed to generate summary: {e}", source=self.step_name)
             return {'error': str(e)}
 
     def get_results(self) -> Dict[str, Any]:
@@ -449,23 +440,23 @@ class Step3PlatformController:
         """Print a concise summary of Step 3 results"""
         try:
             if not self.results:
-                print(f"[{self.step_name}] [SUMMARY] No results available")
+                PrintHelper.info(f" [SUMMARY] No results available")
                 return
 
-            print(f"\n[{self.step_name}] [SUMMARY] STEP 3 COMPLETION SUMMARY")
-            print(f"[{self.step_name}] {'-' * 60}")
+            PrintHelper.info(f"\n[SUMMARY] STEP 3 COMPLETION SUMMARY", source=self.step_name)
+            PrintHelper.info(f" {'-' * 60}")
 
             if self.results.get('success', False):
                 summary = self.results.get('summary', {})
                 platform_results = self.results.get('platform_results', {})
 
-                print(f"[{self.step_name}] Status: SUCCESS")
-                print(f"[{self.step_name}] Platforms Found: {summary.get('total_platforms_found', 0)}/4")
-                print(f"[{self.step_name}] Total Images: {summary.get('total_images_found', 0)}")
+                PrintHelper.info(f" Status: SUCCESS")
+                PrintHelper.info(f" Platforms Found: {summary.get('total_platforms_found', 0)}/4")
+                PrintHelper.info(f" Total Images: {summary.get('total_images_found', 0)}")
 
                 if summary.get('total_size_bytes', 0) > 0:
                     size_mb = summary['total_size_bytes'] / (1024 * 1024)
-                    print(f"[{self.step_name}] Total Size: {size_mb:.2f}MB")
+                    PrintHelper.info(f" Total Size: {size_mb:.2f}MB")
 
                 # Platform breakdown with ASCII-only display
                 breakdown = summary.get('platform_breakdown', {})
@@ -475,24 +466,124 @@ class Step3PlatformController:
                     is_target = platform == self.target_platform
 
                     if is_target:
-                        print(f"[{self.step_name}] >>> {platform.upper()}: {status} ({info['image_count']} images) <<< TARGET")
+                        PrintHelper.info(f" >>> {platform.upper()}: {status} ({info['image_count']} images) <<< TARGET")
                     else:
-                        print(f"[{self.step_name}]     {platform.upper()}: {status} ({info['image_count']} images)")
+                        PrintHelper.info(f"     {platform.upper()}: {status} ({info['image_count']} images)")
 
                 # Image categories
                 categories = summary.get('image_categories', {})
                 total_categorized = sum(categories.values())
                 if total_categorized > 0:
-                    print(f"[{self.step_name}] Image Types: Icons({categories.get('app_icons', 0)}), Launchers({categories.get('launchers', 0)}), Backgrounds({categories.get('backgrounds', 0)}), Others({categories.get('others', 0)})")
+                    PrintHelper.info(f" Image Types: Icons({categories.get('app_icons', 0)}), Launchers({categories.get('launchers', 0)}), Backgrounds({categories.get('backgrounds', 0)}), Others({categories.get('others', 0)})")
 
             else:
-                print(f"[{self.step_name}] Status: FAILED")
-                print(f"[{self.step_name}] Error: {self.results.get('error', 'Unknown error')}")
+                PrintHelper.info(f" Status: FAILED")
+                PrintHelper.info(f" Error: {self.results.get('error', 'Unknown error')}")
 
-            print(f"[{self.step_name}] {'-' * 60}")
+            PrintHelper.info(f" {'-' * 60}")
 
         except Exception as e:
-            print(f"[{self.step_name}] [ERROR] Failed to print summary: {e}")
+            PrintHelper.error(f"Failed to print summary: {e}", source=self.step_name)
+
+    def save_results_to_unified_data(self) -> bool:
+        """
+        Save Step 3 results to unified data exchange for use by subsequent steps
+
+        Returns:
+            bool: True if saved successfully, False otherwise
+        """
+        try:
+            if not self.data_exchange:
+                PrintHelper.error("Data exchange not initialized", source=self.step_name)
+                return False
+
+            if not self.results or not self.results.get('success'):
+                PrintHelper.error("No successful results to save", source=self.step_name)
+                return False
+
+            platform_results = self.results.get('platform_results', {})
+            if 'platforms' not in platform_results:
+                PrintHelper.error("No platform data to save", source=self.step_name)
+                return False
+
+            # Convert results to PlatformTargetInfo format
+            platform_targets = []
+
+            for platform_name, platform_info in platform_results['platforms'].items():
+                for image in platform_info.get('images', []):
+                    target_info = PlatformTargetInfo(
+                        platform=platform_name,
+                        image_type=self._classify_image_type(image.get('name', '')),
+                        target_path=image.get('path', ''),
+                        target_filename=image.get('name', ''),
+                        file_size_bytes=image.get('size_bytes', 0),
+                        format=image.get('format', ''),
+                        dimensions=(image.get('width', 0), image.get('height', 0)),
+                        classification_score=1.0,  # Default high confidence
+                        file_hash=image.get('hash', ''),
+                        last_modified=image.get('last_modified', ''),
+                        permissions=image.get('permissions', '')
+                    )
+                    platform_targets.append(target_info)
+
+            # Save to unified data exchange (direct file variable access)
+            try:
+                import json
+                from datetime import datetime
+                from dataclasses import asdict
+
+                # Group by platform
+                platforms_data = {}
+                for target in platform_targets:
+                    platform = target.platform
+                    if platform not in platforms_data:
+                        platforms_data[platform] = []
+                    platforms_data[platform].append(asdict(target))
+
+                # Create JSON data structure
+                data = {
+                    "timestamp": datetime.now().isoformat(),
+                    "step": 3,
+                    "platform_targets": platforms_data
+                }
+
+                # Save JSON data as string to file variable
+                json_str = json.dumps(data, indent=2, ensure_ascii=False)
+                success = self.data_exchange.set_file_variable(self.data_exchange.KEY_PLATFORM_TARGETS_JSON, json_str)
+
+                if success:
+                    PrintHelper.info(f"Platform results saved to file variable: {len(platform_targets)} targets across {len(platform_results['platforms'])} platforms", source=self.step_name)
+                    return True
+                else:
+                    PrintHelper.error(f"Failed to save platform results to file variable", source=self.step_name)
+                    return False
+            except Exception as e:
+                PrintHelper.error(f"Failed to save platform results: {e}", source=self.step_name)
+                return False
+
+        except Exception as e:
+            PrintHelper.error(f"Failed to save results to unified data exchange: {e}", source=self.step_name)
+            return False
+
+    def _classify_image_type(self, filename: str) -> str:
+        """Classify image type based on filename"""
+        filename_lower = filename.lower()
+
+        if 'icon' in filename_lower:
+            if 'launcher' in filename_lower:
+                return 'ic_launcher'
+            elif 'notification' in filename_lower:
+                return 'notification_icon'
+            else:
+                return 'ic_icon'
+        elif 'background' in filename_lower:
+            return 'background'
+        elif 'splash' in filename_lower:
+            return 'splash'
+        elif 'logo' in filename_lower:
+            return 'logo'
+        else:
+            return 'unknown'
 
     def save_results_to_cache(self, cache_dir: Path) -> bool:
         """
@@ -521,17 +612,17 @@ class Step3PlatformController:
                         for image in platform_info.get('images', []):
                             f.write(f"{platform_name}|{image['path']}|{image['name']}|{image['size_bytes']}|{image['format']}\n")
 
-            print(f"[{self.step_name}] [CACHE] Platform results saved to: {platform_results_file}")
+            PrintHelper.info(f" [CACHE] Platform results saved to: {platform_results_file}")
             return True
 
         except Exception as e:
-            print(f"[{self.step_name}] [ERROR] Failed to save results to cache: {e}")
+            PrintHelper.error(f"Failed to save results to cache: {e}", source=self.step_name)
             return False
 
 
 def main():
     """Main function for testing Step 3 controller"""
-    print("[STEP-3] [TEST] Step 3 Platform Controller - Standalone Test")
+    PrintHelper.info("[TEST] Step 3 Platform Controller - Standalone Test", source="STEP-3")
 
     # Test with current directory
     current_dir = Path.cwd()
@@ -545,7 +636,7 @@ def main():
         cache_dir = current_dir / ".cache"
         controller.save_results_to_cache(cache_dir)
     else:
-        print("[STEP-3] [TEST] Initialization failed")
+        PrintHelper.info("[TEST] Initialization failed", source="STEP-3")
 
 
 if __name__ == "__main__":

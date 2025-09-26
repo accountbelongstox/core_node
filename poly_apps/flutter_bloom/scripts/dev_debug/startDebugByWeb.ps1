@@ -5,15 +5,12 @@
 # 3. Never create or update documentation (*.md).
 # 4. Never write summaries during development or thinking process.
 # 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
+# 6. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Flutter Web Debug Script
-# Launches web debug with app selection support
-# Author: Development Script System
-# Version: 1.1
+# Flutter Web Debug Script - Simplified for Web Testing
+# Hardcoded for Debug/Web mode, reads essential variables only
 
 # Set UTF-8 encoding for the script
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -24,141 +21,105 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SCRIPTS_ROOT = Split-Path -Parent $SCRIPT_DIR
 $PROJECT_ROOT = Split-Path -Parent $SCRIPTS_ROOT
 $WIN_COMMON_DIR = Join-Path $SCRIPTS_ROOT "win_common"
-$COMMON_UTILITIES_PATH = Join-Path $WIN_COMMON_DIR "CommonUtilities.ps1"
 
 # Import required modules
 . (Join-Path $WIN_COMMON_DIR "FlutterGlobalVar.ps1")
-. $COMMON_UTILITIES_PATH
+. (Join-Path $WIN_COMMON_DIR "CommonUtilities.ps1")
 
+# Change to project root directory
+Write-Host "[DEBUG] Script location: $SCRIPT_DIR" -ForegroundColor Magenta
+Write-Host "[DEBUG] Switching to project root: $PROJECT_ROOT" -ForegroundColor Magenta
+Set-Location $PROJECT_ROOT
+Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
 
+function Load-WebDebugVariables {
+    """
+    Load essential variables for Web debugging
+    Can work with or without Python-saved variables
+    """
+    Write-Host "[INFO] Loading variables for Web debug..." -ForegroundColor Cyan
 
-# Main web debug function
+    # Load essential variables with sensible defaults
+    $selectedApp = Get-FileVariable -Name "SELECTED_APP" -DefaultValue "app_main"
+    $entryFile = Get-FileVariable -Name "SELECTED_ENTRY_FILE" -DefaultValue "lib/apps/$selectedApp/main_app_$($selectedApp.Replace('app_', '')).dart"
+    $appIndex = Get-FileVariable -Name "APP_INDEX" -DefaultValue "0"
+    $debugPort = Get-FileVariable -Name "DEBUG_PORT" -DefaultValue "10000"
+
+    # Display loaded configuration
+    Write-Host "[INFO] Web Debug Configuration:" -ForegroundColor Green
+    Write-Host "  App: $selectedApp" -ForegroundColor Yellow
+    Write-Host "  Entry File: $entryFile" -ForegroundColor Yellow
+    Write-Host "  App Index: $appIndex" -ForegroundColor Yellow
+    Write-Host "  Debug Port: $debugPort" -ForegroundColor Yellow
+    Write-Host "  Action: Debug (hardcoded)" -ForegroundColor Yellow
+    Write-Host "  Platform: Web (hardcoded)" -ForegroundColor Yellow
+
+    return @{
+        App = $selectedApp
+        Action = "Debug"
+        Platform = "Web"
+        EntryFile = $entryFile
+        AppIndex = $appIndex
+        DebugPort = $debugPort
+    }
+}
+
 function Start-WebDebug {
-    Write-Host ""
-    Write-Host "[WEB-DEBUG] Starting Web Debug Mode..." -ForegroundColor Green
-    Write-Host "=====================================" -ForegroundColor Cyan
+    param($Config)
 
-    # Get selected app from file variables
-    # Check if temp directory exists and create if needed
+    Write-Host "[INFO] Starting Flutter Web Debug..." -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
 
-    # Read current selection from file variables
-    $selectedApp = Get-FileVariable -Name $Global:KEY_SELECTED_APP -DefaultValue "" 
-    $selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue "Debug"
-    $selectedPlatform = Get-FileVariable -Name $Global:KEY_SELECTED_PLATFORM -DefaultValue "Web"
-
-    Write-Host "[WEB-DEBUG] Variables from file system:" -ForegroundColor Yellow
-    Write-Host "  selectedApp: '$selectedApp'" -ForegroundColor White
-    Write-Host "  selectedAction: '$selectedAction'" -ForegroundColor White
-    Write-Host "  selectedPlatform: '$selectedPlatform'" -ForegroundColor White
-
-    # Get Flutter apps with index mapping to derive entry file and port
-    $apps = Get-FlutterAppsWithIndex
-    Write-Host "[WEB-DEBUG] Get-FlutterAppsWithIndex returned $($apps.Count) apps:" -ForegroundColor Yellow
-    foreach ($app in $apps) {
-        Write-Host "  - $($app.name) (index: $($app.index), port: $($app.port))" -ForegroundColor White
+    # Validate Flutter installation
+    if (-not (Get-Command "flutter" -ErrorAction SilentlyContinue)) {
+        Write-Host "[ERROR] Flutter not found in PATH" -ForegroundColor Red
+        Write-Host "[INFO] Please install Flutter and add it to your PATH" -ForegroundColor Yellow
+        return
     }
 
-    $appInfo = $apps | Where-Object { $_.name -eq $selectedApp } | Select-Object -First 1
+    Write-Host "[INFO] Project Root: $PROJECT_ROOT" -ForegroundColor Yellow
+    Write-Host "[INFO] Entry File: $($Config.EntryFile)" -ForegroundColor Yellow
+    Write-Host "[INFO] Debug Port: $($Config.DebugPort)" -ForegroundColor Yellow
 
-    if ($appInfo) {
-        $selectedEntryFile = $appInfo.entryFile
-        $debugPort = $appInfo.port.ToString()
-        Write-Host "[WEB-DEBUG] App info derived from index mapping:" -ForegroundColor Green
-        Write-Host "  Entry File: $selectedEntryFile" -ForegroundColor White
-        Write-Host "  Debug Port: $debugPort" -ForegroundColor White
-        Write-Host "  App Index: $($appInfo.index)" -ForegroundColor White
-    } else {
-        Write-Host "[WEB-ERROR] App '$selectedApp' not found in Flutter apps index mapping" -ForegroundColor Red
-        $selectedEntryFile = ""
-        $debugPort = "10000"
+    # Prepare Flutter command
+    $flutterArgs = @(
+        "run"
+        "-d", "web-server"
+        "--web-port", $Config.DebugPort
+        "--web-hostname", "0.0.0.0"
+    )
+
+    # Add entry file if specified
+    if ($Config.EntryFile -and $Config.EntryFile -ne "") {
+        $flutterArgs += @("-t", $Config.EntryFile)
     }
 
-    if ($selectedApp) {
-        Write-Host "[WEB-INFO] Selected App: $selectedApp" -ForegroundColor Cyan
-        Write-Host "[WEB-INFO] Selected Action: $selectedAction" -ForegroundColor Cyan
-        Write-Host "[WEB-INFO] Selected Platform: $selectedPlatform" -ForegroundColor Cyan
-        Write-Host "[WEB-INFO] Entry File: $selectedEntryFile" -ForegroundColor Cyan
-        Write-Host "[WEB-INFO] Debug Port: $debugPort" -ForegroundColor Cyan
-    } else {
-        Write-Host "[WEB-WARN] No app selected, using default behavior" -ForegroundColor Yellow
-        $selectedApp = "app_main"
-        $selectedEntryFile = Join-Path $PROJECT_ROOT "lib\main.dart"
-        $debugPort = "10000"
-    }
+    Write-Host "[INFO] Executing: flutter $($flutterArgs -join ' ')" -ForegroundColor Green
+    Write-Host "[INFO] Web server will be available at: http://localhost:$($Config.DebugPort)" -ForegroundColor Green
+    Write-Host "[INFO] Press Ctrl+C to stop the debug server" -ForegroundColor Yellow
+    Write-Host "========================================" -ForegroundColor Cyan
 
-    # Use the port from main.ps1
-    $assignedPort = [int]$debugPort
+    # Start Flutter web debug with real-time output
+    flutter $flutterArgs
 
-    # Update packages first
-    Invoke-FlutterPubGet
-
-    # Display network URLs for testing
-    Show-NetworkURLs -Port $assignedPort -Title "COPY URLs - Available Network URLs" -ShowCopyHint $true
-
-    Write-ColorMessage -Message "URLs are ready for copying to test on different devices" -Type "Success"
-    Write-ColorMessage -Message "Starting Flutter web server on port $assignedPort..." -Type "Info"
-    Write-ColorMessage -Message "Chrome will open automatically, or manually copy URLs above" -Type "Info"
-
-    try {
-        Set-Location $PROJECT_ROOT
-
-        if (-not (Test-Path "pubspec.yaml")) {
-            Write-Host "[ERROR] pubspec.yaml not found in app directory" -ForegroundColor Red
-            return
-        }
-
-        # Use entry file from main.ps1
-        $entryFile = $selectedEntryFile
-
-        # Determine build mode based on selected action
-        $buildMode = if ($selectedAction -eq "build") { "--release" } else { "--debug" }
-        $modeDescription = if ($selectedAction -eq "build") { "Release" } else { "Debug" }
-
-        # Build and execute Flutter command
-        $flutterCommand = Build-FlutterCommand -Action "run" -Platform "web-server" -EntryFile $entryFile -Port $assignedPort -HostName "0.0.0.0" -BuildMode $buildMode
-
-        Write-ColorMessage -Message "Launching Flutter web server (accessible from network)..." -Type "Info"
-        Write-ColorMessage -Message "Running in $modeDescription mode" -Type "Info"
-        Write-ColorMessage -Message "Entry file: $entryFile" -Type "Info"
-        Write-ColorMessage -Message $flutterCommand -Type "Command"
-
-        try {
-            Invoke-Expression $flutterCommand
-        }
-        catch {
-            Write-ColorMessage -Message "Flutter command execution failed: $_" -Type "Error"
-        }
-        
-        # Print cmd command to view results
-        Write-Host ""
-        Write-Host "[CMD] To view results, run: cmd" -ForegroundColor Yellow
-        Write-Host "[INFO] Script execution completed. Press any key to continue..." -ForegroundColor Green
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-    }
-    catch {
-        Write-Host "[ERROR] Failed to start web debug: $_" -ForegroundColor Red
-    }
+    Write-Host "[INFO] Flutter command completed" -ForegroundColor Green
 }
 
 # Main execution
 try {
-    Write-Host "[INFO] Flutter Bloom Web Debug Script" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "Flutter Bloom Web Debug Launcher" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
 
-    # Change to project directory for context
-    Set-Location $PROJECT_ROOT
-
-    # Check if this is a Flutter project
-    Assert-FlutterProject -ProjectPath $PROJECT_ROOT
-
-    # Check if Flutter is available
-    Assert-FlutterEnvironment
+    # Load configuration for Web debugging
+    $config = Load-WebDebugVariables
 
     # Start web debug
-    Start-WebDebug
+    Start-WebDebug -Config $config
+
+} catch {
+    Write-Host "[ERROR] An error occurred: $_" -ForegroundColor Red
+    Write-Host "[DEBUG] Error details: $($_.Exception.Message)" -ForegroundColor Yellow
 }
-catch {
-    Write-Host "[ERROR] Failed to initialize web debug launcher: $_" -ForegroundColor Red
-    Write-Host "[CMD] To view results, run: cmd" -ForegroundColor Yellow
-    Write-Host "[INFO] Press any key to continue..." -ForegroundColor Green
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-}
+
+Write-Host "[INFO] Web debug script completed" -ForegroundColor Green

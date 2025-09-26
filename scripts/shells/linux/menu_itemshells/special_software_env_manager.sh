@@ -34,6 +34,14 @@ set_env_variable() {
     local var_value="$2"
     # Use the set_global_var function from dd.sh
     set_global_var "$var_name" "$var_value"
+    local status=$?
+
+    if [[ $status -eq 0 ]]; then
+        # Persist in current shell session as well
+        export "$var_name=$var_value"
+    fi
+
+    return $status
 }
 
 get_env_variable() {
@@ -154,20 +162,56 @@ set_environment_variables() {
     
     # Set environment variables
     print_color green "Setting environment variables..."
-    
-    local success_count=0
-    local total_count=${#var_names[@]}
-    
+
+    local total_updates=0
+    local verified_updates=0
+    declare -A verification_status
+
     for var_name in "${var_names[@]}"; do
-        if [[ -n "${new_values[$var_name]}" ]]; then
-            set_env_variable "$var_name" "${new_values[$var_name]}"
-            success_count=$((success_count + 1))
+        local desired_value="${new_values[$var_name]}"
+        if [[ -z "$desired_value" ]]; then
+            continue
+        fi
+
+        total_updates=$((total_updates + 1))
+
+        if set_env_variable "$var_name" "$desired_value"; then
+            local persisted_value="$(get_env_variable "$var_name")"
+            local session_value="${!var_name-}"
+
+            local persisted_ok=0
+            local session_ok=0
+            [[ "$persisted_value" == "$desired_value" ]] && persisted_ok=1
+            [[ "$session_value" == "$desired_value" ]] && session_ok=1
+
+            if [[ $persisted_ok -eq 1 && $session_ok -eq 1 ]]; then
+                verification_status["$var_name"]="success"
+                verified_updates=$((verified_updates + 1))
+            else
+                local issues=()
+                if [[ $persisted_ok -ne 1 ]]; then
+                    issues+=("persist")
+                fi
+                if [[ $session_ok -ne 1 ]]; then
+                    issues+=("session")
+                fi
+                verification_status["$var_name"]="$(IFS=,; echo "${issues[*]}")"
+            fi
+        else
+            verification_status["$var_name"]="error"
         fi
     done
-    
-    if [[ "$success_count" -eq "$total_count" ]]; then
-        print_color green "Environment variables set successfully!"
+
+    if [[ $total_updates -eq 0 ]]; then
+        print_color yellow "No environment variables were updated."
+    else
         for var_name in "${var_names[@]}"; do
+            local desired_value="${new_values[$var_name]}"
+            if [[ -z "$desired_value" ]]; then
+                continue
+            fi
+
+            local status="${verification_status[$var_name]}"
             local is_secret=0
             for secret_var in "${secret_vars[@]}"; do
                 if [[ "$var_name" == "$secret_var" ]]; then
@@ -175,18 +219,43 @@ set_environment_variables() {
                     break
                 fi
             done
-            if [[ "$is_secret" -eq 1 ]]; then
-                print_color green "$var_name: [HIDDEN]"
-            else
-                print_color green "$var_name: ${new_values[$var_name]}"
-            fi
+
+            case "$status" in
+                success)
+                    if [[ "$is_secret" -eq 1 ]]; then
+                        print_color green "$var_name: [HIDDEN] (verified)"
+                    else
+                        print_color green "$var_name: $desired_value (verified)"
+                    fi
+                    ;;
+                error)
+                    print_color red "$var_name: Failed to write value (permission denied or IO error)."
+                    ;;
+                *)
+                    local details=()
+                    if [[ "$status" == *persist* ]]; then
+                        details+=("persist to registry")
+                    fi
+                    if [[ "$status" == *session* ]]; then
+                        details+=("load into current session")
+                    fi
+                    local detail_msg
+                    detail_msg=$(IFS=' and '; echo "${details[*]}")
+                    if [[ -z "$detail_msg" ]]; then
+                        detail_msg="complete the update"
+                    fi
+                    print_color red "$var_name: Unable to $detail_msg."
+                    ;;
+            esac
         done
-        
-        print_color green "Environment variables have been saved."
-        print_color yellow "Note: You may need to restart your terminal or applications to use the new environment variables."
-    else
-        print_color red "Failed to set some environment variables. Please check the errors above."
-        print_color yellow "This might be due to insufficient permissions or system restrictions."
+
+        if [[ $verified_updates -eq $total_updates ]]; then
+            print_color green "Environment variables have been saved and verified."
+            print_color yellow "Note: You may need to restart your terminal or applications to use the new environment variables."
+        else
+            print_color red "Some environment variables could not be fully verified."
+            print_color yellow "Please check permissions or retry setting the values."
+        fi
     fi
     
     print_color green "Press any key to continue..."
@@ -304,7 +373,7 @@ main_special_env_menu() {
     # Save current terminal settings
     local old_settings=$(stty -g)
     stty -icanon -echo
-    trap 'stty "$old_settings"; exit' EXIT
+    trap 'stty "$old_settings"' EXIT
 
     while true; do
         clear
@@ -320,18 +389,41 @@ main_special_env_menu() {
             fi
         done
         
-        local key_input
-        read -s -n 3 key_input # Read 3 characters for arrow keys
-        
-        case "$key_input" in
-            $'\x1b[A') # Up arrow
-                selected_index=$(( (selected_index - 1 + num_options) % num_options ))
+        local key
+        if ! IFS= read -rsn1 key; then
+            continue
+        fi
+
+        case "$key" in
+            $'\x1b')
+                local seq=""
+                local next
+                if IFS= read -rsn1 -t 0.05 next; then
+                    if [[ "$next" == "[" ]]; then
+                        local final
+                        if IFS= read -rsn1 -t 0.05 final; then
+                            seq="[${final}"
+                        else
+                            seq="["
+                        fi
+                    else
+                        seq="$next"
+                    fi
+                fi
+
+                case "$seq" in
+                    '[A')
+                        selected_index=$(( (selected_index - 1 + num_options) % num_options ))
+                        ;;
+                    '[B')
+                        selected_index=$(( (selected_index + 1) % num_options ))
+                        ;;
+                esac
                 ;;
-            $'\x1b[B') # Down arrow
-                selected_index=$(( (selected_index + 1) % num_options ))
-                ;;
-            '') # Enter key (empty string from read -s -n 3)
-                case "${menu_options[$selected_index]}" in
+            $'\n')
+                local selected_option="${menu_options[$selected_index]}"
+                stty "$old_settings"
+                case "$selected_option" in
                     "Set Claude AI Environment Variables")
                         set_environment_variables "Claude AI"
                         ;;
@@ -342,14 +434,21 @@ main_special_env_menu() {
                         show_all_environment_variables
                         ;;
                     "Back to Main Menu")
-                        stty "$old_settings"
+                        trap - EXIT
                         return
                         ;;
                     "Exit")
-                        stty "$old_settings"
+                        trap - EXIT
                         exit 0
                         ;;
                 esac
+                stty -icanon -echo
+                trap 'stty "$old_settings"' EXIT
+                ;;
+            $'\x03'|$'\x1a')
+                trap - EXIT
+                stty "$old_settings"
+                exit 0
                 ;;
         esac
     done

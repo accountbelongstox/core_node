@@ -18,6 +18,7 @@
 # Import required modules
 $WinCommonDir = $PSScriptRoot
 . (Join-Path $WinCommonDir "FlutterGlobalVar.ps1")
+. (Join-Path $WinCommonDir "FlutterLogManager.ps1")
 
 function Show-MainMenu {
     <#
@@ -545,12 +546,12 @@ function Show-SystemInfo {
 
     # Project information
     Write-Host "Project:" -ForegroundColor Cyan
-    $projectRoot = Get-GvarValue -Name "flutter_project_dir"
+    $projectRoot = Get-FileVariable -Name $Global:KEY_FLUTTER_PROJECT_DIR_BY_GVAR -DefaultValue ""
     if ($projectRoot) {
         Write-Host "  Root: $projectRoot" -ForegroundColor White
     }
 
-    $debugMode = Get-GvarValue -Name "debug_mode"
+    $debugMode = Get-FileVariable -Name $Global:KEY_DEBUG_MODE -DefaultValue ""
     Write-Host "  Debug Mode: $debugMode" -ForegroundColor White
 
     Write-Host ""
