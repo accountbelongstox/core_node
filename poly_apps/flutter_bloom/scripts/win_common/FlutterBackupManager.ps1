@@ -18,6 +18,7 @@
 # Import required modules
 $WinCommonDir = $PSScriptRoot
 . (Join-Path $WinCommonDir "FlutterGlobalVar.ps1")
+. (Join-Path $WinCommonDir "FlutterLogManager.ps1")
 
 function Initialize-BackupSystem {
     <#
@@ -29,9 +30,9 @@ function Initialize-BackupSystem {
     #>
 
     try {
-        $projectRoot = Get-GvarValue -Name "flutter_project_dir"
+        $projectRoot = Get-FileVariable -Name $Global:KEY_FLUTTER_PROJECT_DIR_BY_GVAR -DefaultValue ""
         if (-not $projectRoot) {
-            Write-Error "Project root not set in Gvar system"
+            Write-Error "Project root not set in file variable system"
             return $false
         }
 
@@ -68,7 +69,7 @@ function Backup-PubspecYaml {
     #>
 
     try {
-        $projectRoot = Get-GvarValue -Name "flutter_project_dir"
+        $projectRoot = Get-FileVariable -Name $Global:KEY_FLUTTER_PROJECT_DIR_BY_GVAR -DefaultValue ""
         $pubspecPath = Join-Path $projectRoot "pubspec.yaml"
 
         if (-not (Test-Path $pubspecPath)) {
@@ -86,9 +87,9 @@ function Backup-PubspecYaml {
             Write-Host "Backed up pubspec.yaml to: $backupPath" -ForegroundColor Cyan
         }
 
-        # Store backup info in Gvar
-        Set-GvarValue -Name "last_pubspec_backup_path" -Value $backupPath -Type "string"
-        Set-GvarValue -Name "last_pubspec_backup_time" -Value (Get-Date -Format "yyyy-MM-dd HH:mm:ss") -Type "string"
+        # Store backup info in file variables
+        Set-FileVariable -Name "KEY_LAST_PUBSPEC_BACKUP_PATH" -Value $backupPath
+        Set-FileVariable -Name "KEY_LAST_PUBSPEC_BACKUP_TIME" -Value (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
         return $backupPath
 
@@ -117,7 +118,7 @@ function Backup-OriginalConfig {
     )
 
     try {
-        $devScriptDir = Get-GvarValue -Name "dev_script_dir"
+        $devScriptDir = Get-FileVariable -Name "KEY_DEV_SCRIPT_DIR" -DefaultValue ""
         $originalConfigPath = Join-Path $devScriptDir "original_config.ini"
 
         if (-not (Test-Path $originalConfigPath)) {
@@ -125,7 +126,7 @@ function Backup-OriginalConfig {
             return $false
         }
 
-        $backupDir = Join-Path (Get-GvarValue -Name "flutter_project_dir") ".tmp\config_backups"
+        $backupDir = Join-Path (Get-FileVariable -Name $Global:KEY_FLUTTER_PROJECT_DIR_BY_GVAR -DefaultValue "") ".tmp\config_backups"
         $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
         $backupPath = Join-Path $backupDir "original_config_${AppName}_$timestamp.ini"
 
@@ -168,7 +169,7 @@ function Get-LatestBackup {
     )
 
     try {
-        $projectRoot = Get-GvarValue -Name "flutter_project_dir"
+        $projectRoot = Get-FileVariable -Name $Global:KEY_FLUTTER_PROJECT_DIR_BY_GVAR -DefaultValue ""
         $backupDir = Join-Path $projectRoot ".tmp\${BackupType}_backups"
 
         if (-not (Test-Path $backupDir)) {
@@ -280,7 +281,7 @@ function Invoke-CleanupRestore {
     )
 
     try {
-        $devScriptDir = Get-GvarValue -Name "dev_script_dir"
+        $devScriptDir = Get-FileVariable -Name "KEY_DEV_SCRIPT_DIR" -DefaultValue ""
         $cleanupScript = Join-Path $devScriptDir "py_helper\cleanup_restore.py"
 
         if (-not (Test-Path $cleanupScript)) {
@@ -311,7 +312,7 @@ function Show-BackupStatus {
     #>
 
     try {
-        $projectRoot = Get-GvarValue -Name "flutter_project_dir"
+        $projectRoot = Get-FileVariable -Name $Global:KEY_FLUTTER_PROJECT_DIR_BY_GVAR -DefaultValue ""
         $backupBaseDir = Join-Path $projectRoot ".tmp"
 
         Write-Host ""
@@ -386,7 +387,7 @@ function Clear-OldBackups {
     }
 
     try {
-        $projectRoot = Get-GvarValue -Name "flutter_project_dir"
+        $projectRoot = Get-FileVariable -Name $Global:KEY_FLUTTER_PROJECT_DIR_BY_GVAR -DefaultValue ""
         $backupBaseDir = Join-Path $projectRoot ".tmp"
 
         if (-not (Test-Path $backupBaseDir)) {

@@ -3,35 +3,24 @@
 Interactive Menu Helper
 Provides interactive menu functionality for build system
 """
-import sys
+
 import os
-from typing import List, Optional, Dict, Any
+import sys
 from pathlib import Path
+from typing import List, Optional, Dict, Any
 
-# Import image processor
-try:
-    from image_processor import ImageProcessor
-except ImportError:
-    # Fallback for different import contexts
-    try:
-        from .image_processor import ImageProcessor
-    except ImportError:
-        # Create a dummy processor if import fails
-        class ImageProcessor:
-            def __init__(self, flutter_root_dir=None):
-                pass
-            def process_image(self, *args, **kwargs):
-                return {'success': False, 'error': 'ImageProcessor not available'}
-            def print_processing_result(self, result):
-                print(f"Error: {result.get('error', 'Unknown error')}")
-        print("Warning: ImageProcessor not available")
+from utils.image_processor import ImageProcessor
 
-# Windows specific imports for keyboard input
+# Platform-specific imports for keyboard input
 if os.name == 'nt':
     import msvcrt
 else:
-    import termios
-    import tty
+    try:
+        import termios
+        import tty
+    except ImportError:
+        termios = None
+        tty = None
 
 class MenuHelper:
     """Interactive menu helper for console applications"""
@@ -102,8 +91,7 @@ class MenuHelper:
             sys.path.append(str(ImportPath(__file__).parent))
             from commander import commander
 
-        if not directories:
-            return {'action': 'continue', 'directory': None}
+        # Always show menu, even if no directories exist (user can create new)
 
         # Prepare menu items
         menu_items = []
@@ -230,7 +218,10 @@ class MenuHelper:
                         success = commander.remove_directory(selected_item['value'], force=True)
                         if success:
                             print(f"[DELETE-SUCCESS] Directory deleted: {selected_item['value'].name}")
-                            input("[DELETE-INFO] Press Enter to refresh directory list...")
+                            print("[DELETE-INFO] Returning to directory selection menu...")
+                            # Give user a moment to see the success message
+                            import time
+                            time.sleep(1)
                             handle_directory_action._result = {'action': 'refresh', 'directory': None}
                             return 'return'
                         else:
@@ -316,7 +307,7 @@ class MenuHelper:
             {'display': 'No - Keep the directory', 'value': False}
         ]
 
-        self.selected_index = 0  # Default to "Yes" (Delete)
+        self.selected_index = 1  # Default to "No" (Keep) for safety
 
         while True:
             self.clear_screen()
@@ -334,9 +325,14 @@ class MenuHelper:
 
             # Display options
             for i, option in enumerate(options):
-                prefix = ">>>" if i == self.selected_index else "   "
-                color = "[DELETE]" if option['value'] else "[KEEP]"
-                print(f"{prefix} {color} {option['display']}")
+                if i == self.selected_index:
+                    prefix = ">>>"
+                    color = "[SELECTED]"
+                else:
+                    prefix = "   "
+                    color = "[OPTION]"
+                action_type = "DELETE" if option['value'] else "KEEP"
+                print(f"{prefix} {color} {option['display']} ({action_type})")
 
             # Handle key input
             key = self.get_key()
@@ -490,7 +486,9 @@ class MenuHelper:
             print(f"{auto_message}: {config.get('item_formatter')(selected_item, 0)}")
             return selected_item
 
-        self.selected_index = 0
+        # Don't reset selected_index if it's already set (for caching support)
+        if not hasattr(self, 'selected_index') or self.selected_index is None:
+            self.selected_index = 0
         item_formatter = config.get('item_formatter')
         detail_formatter = config.get('detail_formatter')
         key_handlers = config.get('key_handlers', {})

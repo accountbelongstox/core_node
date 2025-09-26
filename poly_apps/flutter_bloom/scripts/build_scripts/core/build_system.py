@@ -10,14 +10,17 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 # Import using relative path from build_scripts root
-from core.gvar.flutter_global_var import flutter_gvar
+from shared.data_exchange.unified_variable_system import unified_vars
+from shared.directory_manager import DirectoryManager
 from utils.file_operations import FileOperations
 from utils.factory_analyzer import FactoryAnalyzer
 from utils.menu_helper import MenuHelper
+from utils.print_helper import PrintHelper
 from controllers.step1_project_copy_controller import Step1ProjectCopyController
 from controllers.step2_asset_controller import Step2AssetController
 from controllers.step3_platform_controller import Step3PlatformController
 from controllers.step4_image_replacement_controller import Step4ImageReplacementController
+from core.compilation_menu import CompilationMenuSelector
 
 
 class FlutterBloomBuildSystem:
@@ -27,11 +30,13 @@ class FlutterBloomBuildSystem:
 
     def __init__(self):
         """Initialize the build system"""
-        self.current_dir = Path.cwd()
+        self.dir_manager = DirectoryManager()
         self.file_operations = FileOperations()
         self.factory_analyzer = FactoryAnalyzer()
         self.menu_helper = None
-        self.is_in_temp = False
+
+        # Set factory analyzer for the directory manager
+        self.dir_manager.set_factory_analyzer(self.factory_analyzer)
 
         # Controllers
         self.step1_controller = None
@@ -43,10 +48,7 @@ class FlutterBloomBuildSystem:
         """Initialize the build system and determine execution context"""
         try:
             # Initialize menu helper
-            self.menu_helper = MenuHelper(self.current_dir)
-
-            # Check if we're in a temporary directory
-            self.is_in_temp = self.factory_analyzer.is_in_temp_directory(str(self.current_dir))
+            self.menu_helper = MenuHelper(self.dir_manager.current_dir)
 
             # Initialize controllers
             self.step1_controller = Step1ProjectCopyController()
@@ -65,31 +67,81 @@ class FlutterBloomBuildSystem:
         print("[BUILD-MAIN] Flutter Bloom Build System - Python Implementation")
         print("===========================================================")
         print(f"[BUILD-DEBUG] Python script path: {Path(__file__).absolute()}")
-        print(f"[BUILD-DEBUG] Python working directory: {self.current_dir}")
-        print(f"[BUILD-DEBUG] Flutter temp directory: {flutter_gvar.temp_dir}")
+        print(f"[BUILD-DEBUG] Python working directory: {self.dir_manager.current_dir}")
+        print(f"[BUILD-DEBUG] Flutter temp directory: {unified_vars.temp_dir}")
 
+        # Print directory status
+        self.dir_manager.print_status()
+
+        # Step 1: If not in temp, execute copy operations
+        if not self.dir_manager.is_in_temp:
+            copy_result = self._no_tmp_copy()
+            if not copy_result['success']:
+                return copy_result
+
+            # Switch to temp directory
+            target_dir = Path(copy_result['target_directory'])
+            if not self.dir_manager.switch_to_temp_dir(target_dir):
+                return {'success': False, 'error': 'Failed to switch to temp directory'}
+
+        # Step 2: Always execute build operations
+        return self._is_tmp_build()
+
+    def _no_tmp_copy(self) -> Dict[str, Any]:
+        """Handle execution when not in temporary directory"""
         # Initialize the build system
         if not self.initialize():
             return {'success': False, 'error': 'Initialization failed'}
 
-        print(f"[BUILD-INFO] Current directory: {self.current_dir}")
-        print(f"[BUILD-INFO] In temporary directory: {'Yes' if self.is_in_temp else 'No'}")
+        print(f"[BUILD-INFO] Current directory: {self.dir_manager.current_dir}")
+        print(f"[BUILD-INFO] In temporary directory: {'Yes' if self.dir_manager.is_in_temp else 'No'}")
 
         # Debug: Print all available file variables
         self._print_debug_variables()
 
-        # Route execution based on context
-        if self.is_in_temp:
-            return self._run_asset_and_platform_steps()
-        else:
-            return self._run_project_copy_step()
+        # Run project copy step first
+        project_copy_result = self._run_project_copy_step()
+        if not project_copy_result['success']:
+            return project_copy_result
+
+        # Return the result with target_directory for caller to handle directory switching
+        return project_copy_result
+
+    def _is_tmp_build(self) -> Dict[str, Any]:
+        """Handle execution when in temporary directory"""
+        # Show compilation menu at the very beginning (before any processing)
+        print()
+        print("[BUILD-PHASE] Phase 1 - Build Configuration Selection")
+        print("=" * 60)
+
+        # Show compilation menu before project copy
+        compilation_selector = CompilationMenuSelector()
+        selected_option = compilation_selector.show_menu_with_fallback()
+
+        print(f"\n[BUILD-INFO] Selected compilation option: {selected_option['name']}")
+        print(f"[BUILD-INFO] Compilation mode: {selected_option['value']}")
+        print(f"[BUILD-INFO] Proceeding with project copy and build...")
+        print()
+
+        # Initialize the build system if not already done
+        if self.dir_manager.is_in_temp and not self.initialize():
+            return {'success': False, 'error': 'Initialization failed'}
+
+        print(f"[BUILD-INFO] Current directory: {self.dir_manager.current_dir}")
+        print(f"[BUILD-INFO] In temporary directory: {'Yes' if self.dir_manager.is_in_temp else 'No'}")
+
+        # Debug: Print all available file variables
+        self._print_debug_variables()
+
+        # Always run asset and platform steps at this point
+        return self._run_asset_and_platform_steps()
 
     def _print_debug_variables(self):
         """Print debug information about available variables"""
-        print(f"[BUILD-DEBUG] Reading file variables from: {flutter_gvar.temp_dir}")
-        if flutter_gvar.temp_dir.exists():
+        print(f"[BUILD-DEBUG] Reading file variables from: {unified_vars.temp_dir}")
+        if unified_vars.temp_dir.exists():
             print(f"[BUILD-DEBUG] Temp directory contents:")
-            for item in flutter_gvar.temp_dir.iterdir():
+            for item in unified_vars.temp_dir.iterdir():
                 if item.is_file():
                     try:
                         content = item.read_text(encoding='utf-8').strip()
@@ -97,7 +149,7 @@ class FlutterBloomBuildSystem:
                     except:
                         print(f"  {item.name}: <unable to read>")
         else:
-            print(f"[BUILD-DEBUG] Temp directory does not exist: {flutter_gvar.temp_dir}")
+            print(f"[BUILD-DEBUG] Temp directory does not exist: {unified_vars.temp_dir}")
 
     def _run_asset_and_platform_steps(self) -> Dict[str, Any]:
         """Run Step 2 and Step 3 when in temporary directory"""
@@ -105,16 +157,15 @@ class FlutterBloomBuildSystem:
         print("[BUILD-CONTINUE] Starting second phase - asset scanning and compilation...")
 
         try:
-            # Get build info from PowerShell global variables
-            build_info = flutter_gvar.get_build_info()
-            app_name = build_info.get("app_name", "")
+            # Get build info from PowerShell global variables (direct file variable access)
+            app_name = unified_vars.get_file_variable(unified_vars.KEY_APP_NAME, "")
 
-            # Get compilation option from PowerShell global variables
-            compilation_option = flutter_gvar.get_file_variable("SELECTED_COMPILATION_OPTION", "debug")
+            # Get compilation option from our menu selection (with fallback)
+            compilation_option = unified_vars.get_file_variable("KEY_SELECTED_COMPILATION_OPTION", "debug")
             print(f"[BUILD-INFO] Selected compilation option: {compilation_option}")
 
             # Set temp build root as current directory
-            temp_build_root = Path(self.current_dir)
+            temp_build_root = Path(self.dir_manager.current_dir)
             print(f"[BUILD-INFO] Using temporary build root: {temp_build_root}")
 
             # Find app name if not available from build info
@@ -159,12 +210,11 @@ class FlutterBloomBuildSystem:
     def _run_project_copy_step(self) -> Dict[str, Any]:
         """Run Step 1 when in project directory"""
         try:
-            # Get build information from file variables
-            build_info = flutter_gvar.get_build_info()
-            app_name = build_info["app_name"]
-            action = build_info["action"]
-            platform = build_info["platform"]
-            entry_file = build_info["entry_file"]
+            # Get build information from file variables (direct access)
+            app_name = unified_vars.get_file_variable(unified_vars.KEY_APP_NAME, "")
+            action = unified_vars.get_file_variable(unified_vars.KEY_BUILD_ACTION, "")
+            platform = unified_vars.get_file_variable(unified_vars.KEY_BUILD_PLATFORM, "")
+            entry_file = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_ENTRY_FILE, "")
 
             print(f"[BUILD-INFO] Build configuration loaded:")
             print(f"  App: {app_name}")
@@ -182,7 +232,7 @@ class FlutterBloomBuildSystem:
             self.factory_analyzer.print_factory_analysis(analysis)
 
             # Get Flutter project root
-            flutter_project_root = flutter_gvar.flutter_bloom_root
+            flutter_project_root = unified_vars.flutter_bloom_root
             print(f"[BUILD-INFO] Flutter project root: {flutter_project_root}")
 
             # Step 1: Project Copy and Directory Management
@@ -256,10 +306,7 @@ class FlutterBloomBuildSystem:
         step3_result = self.step3_controller.execute_step3_scanning()
 
         if step3_result and step3_result.get('success'):
-            # Save results to cache
-            cache_dir = Path.cwd() / ".cache"
-            cache_dir.mkdir(exist_ok=True)
-            self.step3_controller.save_results_to_cache(cache_dir)
+            # Results are already saved to unified data exchange in controller
             print(f"[STEP-3] [STEP-3-COMPLETE] Platform images scanning completed")
             return {'success': True, 'results': step3_result}
         else:
@@ -328,7 +375,7 @@ class FlutterBloomBuildSystem:
         cache_dir = user_home / ".core_node" / ".flutter_build" / ".cache" / "copy_flag_dir"
         cache_dir.mkdir(parents=True, exist_ok=True)
 
-        temp_file = cache_dir / flutter_gvar.TEMP_BUILD_DIR_FILE
+        temp_file = cache_dir / unified_vars.TEMP_BUILD_DIR_FILE
         with open(temp_file, "w") as f:
             f.write(str(target_dir))
 
@@ -337,9 +384,8 @@ class FlutterBloomBuildSystem:
     def get_system_info(self) -> Dict[str, Any]:
         """Get build system information"""
         return {
-            'current_directory': str(self.current_dir),
-            'is_in_temp_directory': self.is_in_temp,
-            'flutter_temp_dir': str(flutter_gvar.temp_dir),
+            'directory_info': self.dir_manager.get_current_info(),
+            'flutter_temp_dir': str(unified_vars.temp_dir),
             'controllers': {
                 'step1': self.step1_controller is not None,
                 'step2': self.step2_controller is not None,

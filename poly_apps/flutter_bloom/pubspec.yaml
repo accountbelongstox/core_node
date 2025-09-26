@@ -77,8 +77,8 @@ flutter:
     - assets/apps/app_achat/images/
     - assets/apps/app_achat/launch/
     # - assets/.extra_achat/icons
-    - assets/.extra_achat/images/
-    - assets/.extra_achat/launch/
+    # - assets/.extra_achat/images/
+    # - assets/.extra_achat/launch/
 
     # - assets/apps/app_wuy/icons/
     # - assets/apps/app_wuy/images/

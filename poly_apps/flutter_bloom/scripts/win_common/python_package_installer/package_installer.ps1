@@ -1,6 +1,14 @@
 # Python Package Installer for Flutter Bloom Build System
 # Handles automated detection and installation of required Python packages
 
+# Variables declaration
+$PACKAGE_INSTALLER_DIR = $PSScriptRoot
+$WIN_COMMON_DIR = Split-Path -Parent $PACKAGE_INSTALLER_DIR
+
+# Import required modules
+. (Join-Path $WIN_COMMON_DIR "FlutterGlobalVar.ps1")
+. (Join-Path $WIN_COMMON_DIR "FlutterLogManager.ps1")
+
 function Invoke-PythonPackageDetectionAndInstall {
     <#
     .SYNOPSIS

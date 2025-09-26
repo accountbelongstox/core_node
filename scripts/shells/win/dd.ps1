@@ -310,10 +310,37 @@ $script:MenuItems = @(
         Values            = @("default")
         CurrentValueIndex = 0
         Action            = {
-            $unifiedManagerScript = Join-Path $script:SCRIPT_DIR "unified_manager\unified_manager.ps1"
+            $unifiedManagerScript = Join-Path $script:SCRIPT_DIR "unified_manager_py\unified_manager.ps1"
             if (Test-Path $unifiedManagerScript) {
-                Write-ColorMessage -Message "Launching Unified App Manager..." -Type "Info"
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $unifiedManagerScript
+                $shellCandidates = @('pwsh', 'powershell')
+                $shellExecutable = $null
+
+                foreach ($candidateShell in $shellCandidates) {
+                    if (Get-Command $candidateShell -ErrorAction SilentlyContinue) {
+                        $shellExecutable = $candidateShell
+                        break
+                    }
+                }
+
+                if ($null -eq $shellExecutable) {
+                    Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager.ps1" -Type "Error"
+                    Write-ColorMessage -Message "Please ensure PowerShell (pwsh or powershell) is installed and available in PATH" -Type "Info"
+                    Read-Host "Press Enter to continue"
+                    return
+                }
+
+                $previousPythonUnbuffered = $env:PYTHONUNBUFFERED
+                $env:PYTHONUNBUFFERED = "1"
+
+                try {
+                    & $shellExecutable -NoLogo -NoProfile -ExecutionPolicy Bypass -File $unifiedManagerScript
+                } finally {
+                    if ($null -eq $previousPythonUnbuffered) {
+                        Remove-Item Env:PYTHONUNBUFFERED -ErrorAction SilentlyContinue
+                    } else {
+                        $env:PYTHONUNBUFFERED = $previousPythonUnbuffered
+                    }
+                }
             } else {
                 Write-ColorMessage -Message "Error: unified_manager.ps1 script not found at: $unifiedManagerScript" -Type "Error"
                 Write-ColorMessage -Message "Please check if the unified manager is properly installed" -Type "Info"
@@ -1178,198 +1205,6 @@ function Run-ByStart {
     return $exitCode
 }
 
-function Show-AppScripts {
-    param(
-        [string]$AppPath,
-        [string]$AppName
-    )
-    
-    # Scan for script files in the app directory
-    $scriptFiles = @()
-    
-    # Get .bat files
-    $batFiles = Get-ChildItem -Path $AppPath -Filter "*.bat" -File | Select-Object Name, FullName
-    foreach ($file in $batFiles) {
-        $scriptFiles += @{
-            Type = "BAT"
-            Name = $file.Name
-            FullPath = $file.FullName
-        }
-    }
-    
-    # Get .cmd files
-    $cmdFiles = Get-ChildItem -Path $AppPath -Filter "*.cmd" -File | Select-Object Name, FullName
-    foreach ($file in $cmdFiles) {
-        $scriptFiles += @{
-            Type = "CMD"
-            Name = $file.Name
-            FullPath = $file.FullName
-        }
-    }
-    
-    # Get .ps1 files
-    $ps1Files = Get-ChildItem -Path $AppPath -Filter "*.ps1" -File | Select-Object Name, FullName
-    foreach ($file in $ps1Files) {
-        $scriptFiles += @{
-            Type = "PowerShell"
-            Name = $file.Name
-            FullPath = $file.FullName
-        }
-    }
-    
-    if ($scriptFiles.Count -eq 0) {
-        Write-ColorMessage -Message "No .bat, .cmd, or .ps1 files found in $AppName" -Type "Warning"
-        Read-Host "Press Enter to continue"
-        return
-    }
-    
-    # Create menu items for interactive menu
-    $menuItems = @()
-    
-    # Add return option
-    $menuItems += @{
-        Text = "Return to previous menu"
-        Values = @("default")
-        CurrentValueIndex = 0
-        Key = ""
-        Action = { return }
-    }
-    
-    # Add explorer option
-        $menuItems += @{
-        Text = "Open directory in Explorer"
-            Values = @("default")
-            CurrentValueIndex = 0
-            Key = ""
-            Action = {
-                Clear-Host
-            Write-ColorMessage -Message "Opening directory in Explorer: $AppPath" -Type "Info"
-                Write-ColorMessage -Message "----------------------------------------" -Type "Info"
-                
-                try {
-                # Use Run-ByStart function to open explorer
-                $exitCode = Run-ByStart -FilePath "explorer" -WorkingDirectory $AppPath
-                
-                if ($exitCode -eq "back") {
-                    return
-                }
-                
-                Write-ColorMessage -Message "Explorer opened successfully" -Type "Success"
-                
-            } catch {
-                Write-ColorMessage -Message "Error opening explorer: $_" -Type "Error"
-            }
-            
-            Write-ColorMessage -Message "`nPress any key to return to the menu..." -Type "Info"
-            $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        }
-    }
-    
-    # Add script files to menu
-    foreach ($script in $scriptFiles) {
-        $scriptCopy = $script  # Create a copy for closure
-        $menuItems += @{
-            Text = "$($script.Type): $($script.Name)"
-            Values = @("default")
-            CurrentValueIndex = 0
-            Key = ""
-            Action = {
-                Clear-Host
-                Write-ColorMessage -Message "Executing $($scriptCopy.Type) script: $($scriptCopy.Name)" -Type "Info"
-                        Write-ColorMessage -Message "----------------------------------------" -Type "Info"
-                        
-                try {
-                    # Use Run-ByStart function to execute the script
-                    $exitCode = Run-ByStart -FilePath $scriptCopy.FullPath
-                    
-                    if ($exitCode -eq "back") {
-                        return
-                    }
-                    
-                    Write-ColorMessage -Message "Script execution completed with exit code: $exitCode" -Type "Success"
-                    
-                } catch {
-                    Write-ColorMessage -Message "Error executing script: $_" -Type "Error"
-                }
-                
-                Write-ColorMessage -Message "`nPress any key to return to the menu..." -Type "Info"
-                $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            }
-        }
-    }
-    
-    # Add exit option
-    $menuItems += @{
-        Text = "Exit"
-        Values = @("default")
-        CurrentValueIndex = 0
-        Key = ""
-        Action = { 
-            Write-ColorMessage -Message "Exiting the script." -Type "Info"
-            exit 
-        }
-    }
-    
-    # Store menu items in script scope for action access
-    $script:MenuItems = $menuItems
-    
-    while ($true) {
-        $selectedIndex = Invoke-InteractiveMenu -Items $menuItems -Title "Available scripts in ${AppName}" -EnableValueToggle $false
-        
-        if ($selectedIndex -ge 0 -and $selectedIndex -lt $menuItems.Count) {
-            $script:selectedIndex = $selectedIndex
-            $menuItems[$selectedIndex].Action.Invoke()
-        }
-    }
-}
-
-function Execute-AppScript {
-    param(
-        [string]$ScriptPath,
-        [string]$ScriptName,
-        [string]$ScriptType,
-        [string]$AppPath
-    )
-    
-    # Save current working directory
-    $originalWorkingDir = Get-Location
-    
-    try {
-        Write-ColorMessage -Message "Executing script: $ScriptName" -Type "Info"
-        Write-ColorMessage -Message "Script type: $ScriptType" -Type "Info"
-        Write-ColorMessage -Message "App directory: $AppPath" -Type "Info"
-        Write-ColorMessage -Message "Original working directory: $originalWorkingDir" -Type "Info"
-        
-        # Change to app directory
-        Set-Location $AppPath
-        Write-ColorMessage -Message "Changed working directory to: $(Get-Location)" -Type "Success"
-        
-        # Execute the script using Run-ByStart function
-        $exitCode = Run-ByStart -FilePath $ScriptPath -WorkingDirectory $AppPath
-        
-        if ($exitCode -eq "back") {
-            return
-        }
-        
-        Write-ColorMessage -Message "Script execution completed with exit code: $exitCode" -Type "Success"
-    }
-    catch {
-        Write-ColorMessage -Message "Error executing script: $($_.Exception.Message)" -Type "Error"
-    }
-    finally {
-        # Restore original working directory
-        Set-Location $originalWorkingDir
-        Write-ColorMessage -Message "Restored working directory to: $originalWorkingDir" -Type "Info"
-    }
-    
-    # Wait for user input before returning to menu
-    Write-ColorMessage -Message "Press Y to return to menu, or any other key to continue" -Type "Info"
-    $userInput = Read-Host
-    if ($userInput -eq "Y" -or $userInput -eq "y") {
-        return
-    }
-}
-
 function Get-GlobalVariables {
     if (-not (Test-Path $script:GLOBAL_VAR_DIR)) {
         New-Item -ItemType Directory -Path $script:GLOBAL_VAR_DIR -Force | Out-Null
@@ -1567,3 +1402,4 @@ if (-not $SkipInitialization) {
 
 Initialize-MenuItems
 Start-MainLoop
+
