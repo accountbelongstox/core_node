@@ -15,10 +15,13 @@ import 'package:provider/provider.dart';
 import 'package:qyflutter/common/widgets/bank_scaffold.dart';
 import 'package:qyflutter/common/widgets/custom_image_icon_label.dart';
 import 'package:qyflutter/common/widgets/custom_image_icon_label_group.dart';
-import 'package:qyflutter/common/provider_status/bank_user_provider.dart';
+import '../../../providers_app_bank/bank_user_provider.dart';
 import '../../../resources_app_bank/assets_images_app_bank.dart';
 import '../../../resources_app_bank/gradients_app_bank.dart';
 import '../../../config_app_bank/theme_config_app_bank.dart';
+import '../../../services_app_bank/bank_network_service.dart';
+import '../../../../../common/network/network_framework.dart';
+import '../../../../../common/provider_status/user_provider.dart';
 
 class BankDashboardScreen extends StatefulWidget {
   const BankDashboardScreen({super.key});
@@ -29,6 +32,42 @@ class BankDashboardScreen extends StatefulWidget {
 
 class _BankDashboardScreenState extends State<BankDashboardScreen> {
   int _selectedWealthTab = 0;
+  final BankNetworkService _networkService = BankNetworkService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeNetworkFramework();
+  }
+
+  Future<void> _initializeNetworkFramework() async {
+    try {
+      await NetworkFramework.initialize(
+        baseUrl: 'https://api.si.12gm.com',
+        authType: AuthType.jwt,
+        enableCache: true,
+        enableQueue: true,
+        enableGlobalLoading: true,
+        enableLogging: true,
+        logLevel: LogLevel.debug,
+      );
+
+      await _networkService.initialize();
+
+      // Report app open event
+      final authManager = AuthManager.instance;
+      if (authManager.deviceId != null && authManager.appSignature != null) {
+        await _networkService.appOpen(
+          deviceId: authManager.deviceId!,
+          appSignature: authManager.appSignature!,
+          appVersion: '1.0.0',
+          platform: 'flutter',
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to initialize network framework: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

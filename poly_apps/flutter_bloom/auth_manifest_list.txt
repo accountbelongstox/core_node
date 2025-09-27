@@ -1,0 +1,276 @@
+Flutter Bloom 项目权限配置文件清单
+=====================================
+
+生成时间: 2025-01-27
+项目路径: D:\programing\core_node\poly_apps\flutter_bloom
+
+## Android 权限配置文件
+======================
+
+### 1. 主要权限配置文件
+文件: android/app/src/main/AndroidManifest.xml
+路径: D:\programing\core_node\poly_apps\flutter_bloom\android\app\src\main\AndroidManifest.xml
+权限类型: 主要权限声明
+配置的权限:
+- INTERNET (网络访问)
+- ACCESS_FINE_LOCATION (精确位置)
+- ACCESS_COARSE_LOCATION (粗略位置)
+- ACCESS_BACKGROUND_LOCATION (后台位置)
+- READ_PHONE_STATE (读取手机状态)
+- READ_PHONE_NUMBERS (读取手机号码)
+- READ_EXTERNAL_STORAGE (读取外部存储)
+- WRITE_EXTERNAL_STORAGE (写入外部存储)
+- MANAGE_EXTERNAL_STORAGE (管理外部存储)
+- CAMERA (相机权限)
+- RECORD_AUDIO (录音权限)
+
+硬件特性:
+- android.hardware.camera (相机硬件)
+- android.hardware.camera.autofocus (自动对焦)
+- android.hardware.microphone (麦克风硬件)
+
+应用配置:
+- requestLegacyExternalStorage="true" (传统存储模式)
+- Firebase消息通知配置
+
+### 2. Debug模式权限配置
+文件: android/app/src/debug/AndroidManifest.xml
+路径: D:\programing\core_node\poly_apps\flutter_bloom\android\app\src\debug\AndroidManifest.xml
+权限类型: 调试模式权限
+配置的权限:
+- INTERNET (开发调试网络访问)
+
+### 3. Profile模式权限配置
+文件: android/app/src/profile/AndroidManifest.xml
+路径: D:\programing\core_node\poly_apps\flutter_bloom\android\app\src\profile\AndroidManifest.xml
+权限类型: 性能分析模式权限
+配置的权限:
+- INTERNET (性能分析网络访问)
+
+### 4. Android构建配置
+文件: android/app/build.gradle
+路径: D:\programing\core_node\poly_apps\flutter_bloom\android\app\build.gradle
+配置内容:
+- 应用ID: com.ddsj.qyapp
+- 最小SDK版本: 21
+- 目标SDK版本: 36
+- 编译SDK版本: 36
+- 代码混淆和资源压缩: 启用
+- Firebase集成
+- Google Play Core依赖
+
+### 5. Gradle属性配置
+文件: android/gradle.properties
+路径: D:\programing\core_node\poly_apps\flutter_bloom\android\gradle.properties
+配置内容:
+- AndroidX支持
+- Jetifier支持
+- JVM内存配置: 4GB
+- Java工具链自动检测
+
+### 6. ProGuard混淆规则
+文件: android/app/proguard-rules.pro
+路径: D:\programing\core_node\poly_apps\flutter_bloom\android\app\proguard-rules.pro
+配置内容:
+- Flutter相关类保护
+- Google Play Core类保护
+- 应用包名类保护
+- 日志移除规则
+
+## iOS 权限配置文件
+==================
+
+### 1. 主要权限配置文件
+文件: ios/Runner/Info.plist
+路径: D:\programing\core_node\poly_apps\flutter_bloom\ios\Runner\Info.plist
+权限类型: iOS权限声明
+配置的权限:
+- NSCameraUsageDescription (相机使用说明)
+- NSMicrophoneUsageDescription (麦克风使用说明)
+- NSLocationWhenInUseUsageDescription (使用时位置权限)
+- NSLocationAlwaysAndWhenInUseUsageDescription (始终和使用时位置权限)
+- NSLocationAlwaysUsageDescription (始终位置权限)
+- NSPhotoLibraryUsageDescription (相册访问权限)
+- NSPhotoLibraryAddUsageDescription (相册添加权限)
+- NSContactsUsageDescription (通讯录权限)
+- NSDocumentsFolderUsageDescription (文档文件夹权限)
+- NSDownloadsFolderUsageDescription (下载文件夹权限)
+- NSDesktopFolderUsageDescription (桌面文件夹权限)
+- NSUserTrackingUsageDescription (用户跟踪权限)
+- NSAppleMusicUsageDescription (Apple Music权限)
+
+网络安全配置:
+- NSAppTransportSecurity (允许任意加载和本地网络)
+
+后台模式:
+- location (后台位置)
+- audio (后台音频)
+- fetch (后台获取)
+- remote-notification (远程通知)
+
+应用配置:
+- Bundle ID: com.ddsj.qyapp
+- 显示名称: qianyu
+- 支持的界面方向: 竖屏、横屏左、横屏右
+- iPad额外支持: 竖屏倒置
+
+### 2. iOS依赖配置
+文件: ios/Podfile
+路径: D:\programing\core_node\poly_apps\flutter_bloom\ios\Podfile
+配置内容:
+- iOS最低版本: 13.0
+- 使用框架和模块化头文件
+- Flutter插件自动安装
+
+## Web 权限配置文件
+==================
+
+### 1. Web应用清单
+文件: web/manifest.json
+路径: D:\programing\core_node\poly_apps\flutter_bloom\web\manifest.json
+配置内容:
+- 应用名称: Flutter Bloom
+- 显示模式: standalone
+- 主题颜色: #667eea
+- 方向: portrait-primary
+- 图标配置: 192x192, 512x512, maskable图标
+
+### 2. Web入口文件
+文件: web/index.html
+路径: D:\programing\core_node\poly_apps\flutter_bloom\web\index.html
+配置内容:
+- PWA支持
+- iOS Web App配置
+- 启动画面配置
+- 深色模式支持
+
+## 依赖插件权限需求
+==================
+
+基于pubspec.yaml中的依赖分析，以下插件可能需要权限:
+
+### 文件和存储相关
+- file_picker: 文件选择权限
+- path_provider: 存储路径访问
+- shared_preferences: 本地存储
+- cached_network_image: 网络图片缓存
+
+### 网络相关
+- http: 网络访问
+- connectivity_plus: 网络状态检测
+- url_launcher: URL启动
+
+### 媒体相关
+- image_picker: 相机和相册权限
+- vibration: 震动权限
+- flutter_local_notifications: 通知权限
+
+### 位置和设备相关
+- 可能需要位置权限的功能
+
+## 权限风险评估
+==============
+
+### 高风险权限
+- MANAGE_EXTERNAL_STORAGE: 管理所有文件权限
+- ACCESS_BACKGROUND_LOCATION: 后台位置权限
+- READ_PHONE_STATE: 读取设备状态
+- READ_PHONE_NUMBERS: 读取手机号码
+
+### 中等风险权限
+- CAMERA: 相机权限
+- RECORD_AUDIO: 录音权限
+- ACCESS_FINE_LOCATION: 精确位置权限
+
+### 低风险权限
+- INTERNET: 网络访问
+- READ_EXTERNAL_STORAGE: 读取存储
+- WRITE_EXTERNAL_STORAGE: 写入存储
+
+## 建议优化
+============
+
+1. 考虑移除不必要的高风险权限
+2. 实现运行时权限请求
+3. 添加权限使用说明
+4. 定期审查权限需求
+5. 考虑权限的最小化原则
+
+## 完整文件清单
+==============
+
+### Android平台 (7个文件)
+1. android/app/src/main/AndroidManifest.xml - 主要权限配置
+2. android/app/src/debug/AndroidManifest.xml - 调试权限配置
+3. android/app/src/profile/AndroidManifest.xml - 性能分析权限配置
+4. android/app/build.gradle - 应用构建配置
+5. android/build.gradle - 项目构建配置
+6. android/gradle.properties - Gradle属性配置
+7. android/app/proguard-rules.pro - 代码混淆规则
+
+### iOS平台 (3个文件)
+1. ios/Runner/Info.plist - 主要权限配置
+2. ios/Podfile - 依赖管理配置
+3. ios/Runner.xcodeproj/project.pbxproj - Xcode项目配置
+
+### Web平台 (2个文件)
+1. web/manifest.json - Web应用清单
+2. web/index.html - Web入口文件
+
+### 项目配置 (2个文件)
+1. pubspec.yaml - Flutter项目配置
+2. flutter_native_splash.yaml - 启动画面配置
+
+## 权限统计分析
+==============
+
+### Android权限总计: 11个权限 + 3个硬件特性
+- 网络权限: 1个 (INTERNET)
+- 位置权限: 3个 (FINE_LOCATION, COARSE_LOCATION, BACKGROUND_LOCATION)
+- 设备权限: 2个 (READ_PHONE_STATE, READ_PHONE_NUMBERS)
+- 存储权限: 3个 (READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE, MANAGE_EXTERNAL_STORAGE)
+- 媒体权限: 2个 (CAMERA, RECORD_AUDIO)
+- 硬件特性: 3个 (camera, camera.autofocus, microphone)
+
+### iOS权限总计: 13个权限 + 4个后台模式
+- 媒体权限: 2个 (Camera, Microphone)
+- 位置权限: 3个 (WhenInUse, Always, AlwaysAndWhenInUse)
+- 相册权限: 2个 (PhotoLibrary, PhotoLibraryAdd)
+- 文件权限: 3个 (Documents, Downloads, Desktop)
+- 其他权限: 3个 (Contacts, UserTracking, AppleMusic)
+- 后台模式: 4个 (location, audio, fetch, remote-notification)
+
+## 文件总数统计
+==============
+
+Android配置文件: 7个
+iOS配置文件: 3个
+Web配置文件: 2个
+项目配置文件: 2个
+总计: 14个权限相关配置文件
+
+## 搜索脚本使用说明
+==================
+
+已创建Python搜索脚本: search_auth_files.py
+
+### 基本用法:
+```bash
+# 显示所有权限配置文件
+python search_auth_files.py
+
+# 搜索特定文件
+python search_auth_files.py AndroidManifest
+python search_auth_files.py Info.plist
+python search_auth_files.py build.gradle
+
+# 显示文件内容
+python search_auth_files.py AndroidManifest --content
+```
+
+### 脚本功能:
+- 自动搜索所有权限配置文件
+- 解析Android和iOS权限
+- 显示文件路径和权限列表
+- 可选显示文件内容
+- 支持关键词搜索
