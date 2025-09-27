@@ -134,7 +134,8 @@ class CompilationMenuSelector:
             'allow_quick_select': True,
             'select_message': '[COMPILATION-SELECTED]',
             'quick_select_message': '[COMPILATION-QUICK-SELECT] Debug',
-            'cancel_message': '[BUILD-CANCELLED] Build cancelled by user'
+            'cancel_message': '[BUILD-CANCELLED] Build cancelled by user',
+            'cache_key': 'compilation_menu_selection'  # Enable unified caching
         }
 
         try:

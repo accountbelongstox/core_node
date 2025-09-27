@@ -13,411 +13,105 @@
 #!/usr/bin/env python3
 """
 Smart Image Selector
-Implements intelligent image selection logic with directory priority
+Implements intelligent image selection logic with constraint-based search delegation
 """
 
+import os
+import shutil
+import tempfile
+import traceback
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+from datetime import datetime
 
-from utils.asset_scanner import AssetScanner
+from utils.flutter_to_android_asset_scanner import FlutterToAndroidAssetScanner
 from utils.print_helper import PrintHelper
+from utils.image_processor import ImageProcessor
+from shared.standard_image_data import ImageResourceManager, ANDROID_IMAGE_DATA
+from shared.data_exchange.unified_variable_system import unified_vars
 
 class SmartImageSelector:
-    def __init__(self, asset_scanner: AssetScanner, step_prefix: str = "STEP-2"):
+    def __init__(self, asset_scanner: FlutterToAndroidAssetScanner, step_prefix: str = "STEP-2"):
         self.asset_scanner = asset_scanner
         self.step_prefix = step_prefix
 
     def select_all_images(self, menu_helper: Any, resource_dirs: List[Path], temp_build_root: Path, app_name: str) -> Dict:
         """
-        Smart image selection with paired search logic
-        Returns dict with selected images for all types
+        Smart image selection using new constraint-based search logic
+        Returns dict with selected images for all types - synced with ANDROID_IMAGE_DATA
         """
-        PrintHelper.header("SMART IMAGE SELECTION WITH PAIRED SEARCH", source=self.step_prefix)
+        PrintHelper.header("SMART IMAGE SELECTION WITH CONSTRAINT-BASED SEARCH", source=self.step_prefix)
 
+        # Use the new constraint-based search logic from FlutterToAndroidAssetScanner
+        PrintHelper.info("Delegating to FlutterToAndroidAssetScanner constraint-based search...", source=self.step_prefix)
+        scanner_results = self.asset_scanner.scan_all_required_images()
+
+        # Ensure selected_images is fully synchronized with ANDROID_IMAGE_DATA
+        PrintHelper.info("Synchronizing selected_images with ANDROID_IMAGE_DATA...", source=self.step_prefix)
+        selected_images = self._sync_selected_images_with_android_data(scanner_results)
+
+        PrintHelper.success(f"Constraint-based search completed. Found {len([img for img in selected_images.values() if img and img.get('status') != 'missing'])} images.", source=self.step_prefix)
+
+        return selected_images
+
+    def _sync_selected_images_with_android_data(self, scanner_results: Dict) -> Dict:
+        """
+        Synchronize selected_images with ANDROID_IMAGE_DATA to ensure data consistency.
+        ANDROID_IMAGE_DATA is the single source of truth.
+        """
         selected_images = {}
 
-        # Process paired image types: logo->ic_icon, background->splash
-        paired_searches = [
-            (('logo', 'icons', 'logo'), ('ic_icon', 'icons', 'ic_')),
-            (('background', 'launch', 'background'), ('splash', 'launch', 'splash'))
-        ]
+        # Copy data from ANDROID_IMAGE_DATA (single source of truth) to selected_images
+        for image_type in ANDROID_IMAGE_DATA:
+            android_data = ANDROID_IMAGE_DATA[image_type]
 
-        for primary_info, secondary_info in paired_searches:
-            primary_type, primary_subdir, primary_prefix = primary_info
-            secondary_type, secondary_subdir, secondary_prefix = secondary_info
+            # Create selected_images entry based on ANDROID_IMAGE_DATA
+            selected_images[image_type] = {
+                'image_type': image_type,
+                'file_path': android_data.get('original_path', ''),
+                'processed_path': android_data.get('processed_path', ''),
+                'filename': android_data.get('filename', android_data.get('final_filename', f"{image_type}.png")),
+                'final_filename': android_data.get('final_filename', f"{image_type}.png"),
+                'original_size': android_data.get('original_size', 0),
+                'processed_size': android_data.get('processed_size', 0),
+                'status': android_data.get('status', 'missing'),
+                'source': android_data.get('source', 'unknown'),
+                'compression_mode': android_data.get('compression_mode', 'compressed'),
+                'format': android_data.get('format', ''),
+                'directory': android_data.get('directory', ''),
+                'is_fallback': android_data.get('is_fallback', False),
+                'fallback_from': android_data.get('fallback_from', ''),
+                'fallback_reason': android_data.get('fallback_reason', ''),
+                'priority': android_data.get('priority', 95)
+            }
 
-            PrintHelper.info(f"[PAIRED SEARCH] {primary_type.upper()} -> {secondary_type.upper()}", source=self.step_prefix)
-            PrintHelper.info("-" * 60, source=self.step_prefix)
+            # If scanner found additional data, merge it but keep ANDROID_IMAGE_DATA as primary
+            if image_type in scanner_results:
+                scanner_data = scanner_results[image_type]
+                # Only add scanner-specific fields that don't exist in ANDROID_IMAGE_DATA
+                if 'matched_pattern' in scanner_data:
+                    selected_images[image_type]['matched_pattern'] = scanner_data['matched_pattern']
+                if 'format_priority' in scanner_data:
+                    selected_images[image_type]['format_priority'] = scanner_data['format_priority']
+                if 'source_type' in scanner_data:
+                    selected_images[image_type]['source_type'] = scanner_data['source_type']
 
-            primary_selected = None
-            primary_found_dir = None
-            secondary_selected = None
+        PrintHelper.info(f"Synchronized {len(selected_images)} images with ANDROID_IMAGE_DATA", source=self.step_prefix)
+        return selected_images
 
-            # Search for primary image
-            PrintHelper.info(f"[SEARCH] Looking for {primary_type.upper()} images (prefix: '{primary_prefix}')...", source=self.step_prefix)
-            for resource_dir in resource_dirs:
-                dir_type = self.asset_scanner._get_directory_type(resource_dir, temp_build_root, app_name)
-                search_dir = resource_dir / primary_subdir
-
-                if not search_dir.exists():
-                    PrintHelper.warning(f"[{dir_type}] MISSING: {search_dir}", source=self.step_prefix)
-                    continue
-
-                # Find primary images in this directory
-                images_in_dir = []
-                for file_path in search_dir.rglob(f"{primary_prefix}*"):
-                    if file_path.is_file() and file_path.suffix.lower() in self.asset_scanner.supported_image_formats:
-                        images_in_dir.append({
-                            'name': file_path.name,
-                            'path': str(file_path),
-                            'format': file_path.suffix.lower(),
-                            'size_bytes': file_path.stat().st_size,
-                            'source': dir_type
-                        })
-
-                if images_in_dir:
-                    PrintHelper.info(f"[{dir_type}] FOUND {len(images_in_dir)} {primary_type} image(s) in: {search_dir}", source=self.step_prefix)
-
-                    if len(images_in_dir) == 1:
-                        primary_selected = images_in_dir[0]
-                        primary_selected['compression_mode'] = 'compressed'
-                        PrintHelper.success(f"AUTO-SELECTED: {primary_selected['name']}", source=self.step_prefix)
-                    else:
-                        PrintHelper.info(f"Multiple {primary_type} images found, showing selection menu...", source=self.step_prefix)
-                        primary_selected = self.asset_scanner.show_image_selection_menu(menu_helper, images_in_dir, primary_type)
-
-                    if primary_selected:
-                        primary_found_dir = resource_dir
-                        break
-                else:
-                    PrintHelper.warning(f"[{dir_type}] NO {primary_type} images found in: {search_dir}", source=self.step_prefix)
-
-            # Search for secondary image
-            PrintHelper.info(f"[SEARCH] Looking for {secondary_type.upper()} images (prefix: '{secondary_prefix}')...", source=self.step_prefix)
-
-            if primary_found_dir:
-                # Primary found, search secondary only in same directory
-                PrintHelper.info(f"Primary {primary_type} found in directory, searching {secondary_type} in same directory only...", source=self.step_prefix)
-                search_dir = primary_found_dir / secondary_subdir
-                dir_type = self.asset_scanner._get_directory_type(primary_found_dir, temp_build_root, app_name)
-
-                if search_dir.exists():
-                    images_in_dir = []
-                    for file_path in search_dir.rglob(f"{secondary_prefix}*"):
-                        if file_path.is_file() and file_path.suffix.lower() in self.asset_scanner.supported_image_formats:
-                            images_in_dir.append({
-                                'name': file_path.name,
-                                'path': str(file_path),
-                                'format': file_path.suffix.lower(),
-                                'size_bytes': file_path.stat().st_size,
-                                'source': dir_type
-                            })
-
-                    if images_in_dir:
-                        PrintHelper.info(f"[{dir_type}] FOUND {len(images_in_dir)} {secondary_type} image(s) in: {search_dir}", source=self.step_prefix)
-
-                        if len(images_in_dir) == 1:
-                            secondary_selected = images_in_dir[0]
-                            secondary_selected['compression_mode'] = 'compressed'
-                            PrintHelper.success(f"AUTO-SELECTED: {secondary_selected['name']}", source=self.step_prefix)
-                        else:
-                            PrintHelper.info(f"Multiple {secondary_type} images found, showing selection menu...", source=self.step_prefix)
-                            secondary_selected = self.asset_scanner.show_image_selection_menu(menu_helper, images_in_dir, secondary_type)
-                    else:
-                        PrintHelper.warning(f"[{dir_type}] NO {secondary_type} images found in same directory", source=self.step_prefix)
-                else:
-                    PrintHelper.warning(f"[{dir_type}] MISSING: {search_dir}", source=self.step_prefix)
-            else:
-                # Primary not found, search secondary in all directories
-                PrintHelper.info(f"Primary {primary_type} not found, searching {secondary_type} in all directories...", source=self.step_prefix)
-                for resource_dir in resource_dirs:
-                    dir_type = self.asset_scanner._get_directory_type(resource_dir, temp_build_root, app_name)
-                    search_dir = resource_dir / secondary_subdir
-
-                    if not search_dir.exists():
-                        PrintHelper.warning(f"[{dir_type}] MISSING: {search_dir}", source=self.step_prefix)
-                        continue
-
-                    images_in_dir = []
-                    for file_path in search_dir.rglob(f"{secondary_prefix}*"):
-                        if file_path.is_file() and file_path.suffix.lower() in self.asset_scanner.supported_image_formats:
-                            images_in_dir.append({
-                                'name': file_path.name,
-                                'path': str(file_path),
-                                'format': file_path.suffix.lower(),
-                                'size_bytes': file_path.stat().st_size,
-                                'source': dir_type
-                            })
-
-                    if images_in_dir:
-                        PrintHelper.info(f"[{dir_type}] FOUND {len(images_in_dir)} {secondary_type} image(s) in: {search_dir}", source=self.step_prefix)
-
-                        if len(images_in_dir) == 1:
-                            secondary_selected = images_in_dir[0]
-                            secondary_selected['compression_mode'] = 'compressed'
-                            PrintHelper.success(f"AUTO-SELECTED: {secondary_selected['name']}", source=self.step_prefix)
-                        else:
-                            PrintHelper.info(f"Multiple {secondary_type} images found, showing selection menu...", source=self.step_prefix)
-                            secondary_selected = self.asset_scanner.show_image_selection_menu(menu_helper, images_in_dir, secondary_type)
-
-                        if secondary_selected:
-                            break
-                    else:
-                        PrintHelper.warning(f"[{dir_type}] NO {secondary_type} images found in: {search_dir}", source=self.step_prefix)
-
-            # Store results for this pair
-            if primary_selected:
-                selected_images[primary_type] = primary_selected
-                PrintHelper.success(f"[SELECTED] {primary_type}: {primary_selected['name']} from {primary_selected['source']}", source=self.step_prefix)
-            else:
-                PrintHelper.warning(f"[NOT FOUND] No {primary_type} images found", source=self.step_prefix)
-
-            if secondary_selected:
-                selected_images[secondary_type] = secondary_selected
-                PrintHelper.success(f"[SELECTED] {secondary_type}: {secondary_selected['name']} from {secondary_selected['source']}", source=self.step_prefix)
-            else:
-                PrintHelper.warning(f"[NOT FOUND] No {secondary_type} images found", source=self.step_prefix)
-
+    def _apply_fallback_rules(self, selected_images: Dict) -> Dict:
+        """Apply fallback rules for missing images - delegated to FlutterToAndroidAssetScanner"""
+        PrintHelper.info("Applying fallback rules via FlutterToAndroidAssetScanner...", source=self.step_prefix)
+        # The constraint-based search in FlutterToAndroidAssetScanner already handles fallbacks
+        # So we just return the images as-is
         return selected_images
 
     def show_final_summary_and_process(self, selected_images: Dict, menu_helper: Any) -> Dict:
-        """Show final summary with fallback rules and comprehensive compression menu"""
+        """Show final summary and compression selection menu"""
+        PrintHelper.header("FINAL IMAGE SELECTION SUMMARY", source=self.step_prefix)
 
-        # Apply fallback rules first
-        selected_images = self._apply_fallback_rules(selected_images)
-
-        # Apply intelligent icon finding logic
-        selected_images = self._apply_intelligent_icon_finding(selected_images)
-
-        PrintHelper.header("FINAL IMAGE SELECTION SUMMARY")
-
-        # Show summary of all found and missing images
-        # Icon group: ic_icon, notification_icon, transa_launcher, ic_launcher
-        all_image_types = ['logo', 'background', 'splash', 'ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher']
-        icon_types = ['ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher']
-        found_images = {}
-        missing_images = []
-
-        for image_type in all_image_types:
-            image_data = selected_images.get(image_type)
-            if image_data:
-                found_images[image_type] = image_data
-                compression_text = "COMPRESSED" if image_data.get('compression_mode') == 'compressed' else "ORIGINAL"
-                fallback_text = f" (fallback from {image_data.get('fallback_from', '')})" if image_data.get('is_fallback') else ""
-                final_filename = self._get_final_filename(image_type)
-                PrintHelper.info(f"  {image_type.upper()}({final_filename}): {image_data['name']} [{image_data['source']}] - {compression_text}{fallback_text}")
-                PrintHelper.info(f"    Path: {image_data['path']}")
-            else:
-                missing_images.append(image_type)
-                final_filename = self._get_final_filename(image_type)
-                PrintHelper.info(f"  {image_type.upper()}({final_filename}): [NOT FOUND]")
-
-        # Show comprehensive compression selection menu for ALL image types
-        PrintHelper.header("COMPRESSION SETTINGS CONFIGURATION")
-        PrintHelper.info("Configure compression settings for each image type:")
-        PrintHelper.info("Found images can be compressed or kept original.")
-        PrintHelper.info("Missing images will be noted but not processed.")
-        PrintHelper.info("")
-
-        # Create comprehensive menu with all image types (both found and missing)
-        menu_items = []
-
-        for image_type in all_image_types:
-            if image_type in found_images:
-                image_data = found_images[image_type]
-                # Create menu item for found image
-                item = image_data.copy()
-                item['image_type'] = image_type
-                item['usage_description'] = self._get_usage_description(image_type)
-                item['fallback_info'] = self._get_fallback_info(image_data)
-                item['final_filename'] = self._get_final_filename(image_type)
-                item['is_missing'] = False
-
-                # Ensure compression mode is set
-                if 'compression_mode' not in item:
-                    item['compression_mode'] = 'compressed'
-
-                menu_items.append(item)
-            else:
-                # Create placeholder for missing image
-                final_filename = self._get_final_filename(image_type)
-                missing_item = {
-                    'name': f'[MISSING {image_type.upper()}]',
-                    'path': 'Not found',
-                    'format': 'N/A',
-                    'size_bytes': 0,
-                    'source': 'MISSING',
-                    'image_type': image_type,
-                    'usage_description': self._get_usage_description(image_type),
-                    'fallback_info': f'No {image_type} files found in any directory',
-                    'final_filename': final_filename,
-                    'is_missing': True,
-                    'compression_mode': 'compressed'  # Default for display, but won't be processed
-                }
-                menu_items.append(missing_item)
-
-        # Show the comprehensive toggle menu using universal menu system
-        try:
-            if menu_items:
-                def format_compression_item(item: Dict, index: int) -> str:
-                    """Format each menu item with compression toggle info"""
-                    final_filename = item.get('final_filename', self._get_final_filename(item['image_type']))
-
-                    if item['is_missing']:
-                        status = "[MISSING]"
-                        compression_display = ""
-                    else:
-                        status = f"[{item['source']}]"
-                        compression_display = " - [Compressed]" if item['compression_mode'] == 'compressed' else " - [Original]"
-
-                    fallback_info = ""
-                    if item.get('is_fallback'):
-                        fallback_info = f" (fallback from {item.get('fallback_from', '')})"
-
-                    return f"{item['image_type'].upper()}({final_filename}): {item['name']} {status}{compression_display}{fallback_info}"
-
-                def format_compression_details(item: Dict) -> str:
-                    """Format detailed info for each image type"""
-                    final_filename = item.get('final_filename', self._get_final_filename(item['image_type']))
-                    details = f"Image Type Details:\n"
-                    details += f"  Usage: {item['usage_description']}\n"
-                    details += f"  Final output: {final_filename}\n"
-
-                    if item['is_missing']:
-                        details += f"  Status: {item['fallback_info']}\n"
-                        details += f"  Action: Will be skipped during processing"
-                    else:
-                        details += f"  File: {item['name']}\n"
-                        details += f"  Path: {item['path']}\n"
-                        details += f"  Format: {item['format']}\n"
-                        details += f"  Size: {self._format_file_size(item['size_bytes'])}\n"
-                        details += f"  Source: {item['source']}\n"
-                        details += f"  Info: {item['fallback_info']}\n"
-                        compression_text = "Compressed (will be compressed)" if item['compression_mode'] == 'compressed' else "Original (keep original format)"
-                        details += f"  Mode: {compression_text}"
-
-                    return details
-
-                def toggle_compression_mode(items: List[Dict], selected_index: int) -> str:
-                    """Toggle compression mode for current item (only for found images)"""
-                    current_item = items[selected_index]
-                    if not current_item['is_missing']:
-                        if current_item['compression_mode'] == 'compressed':
-                            current_item['compression_mode'] = 'original'
-                        else:
-                            current_item['compression_mode'] = 'compressed'
-                    return 'continue'
-
-                compression_config = {
-                    'title': 'COMPRESSION SETTINGS FOR ALL IMAGE TYPES',
-                    'items': menu_items,
-                    'instructions': 'Use UP/DOWN arrows to navigate, LEFT/RIGHT to toggle compression for found images\nENTER to confirm all settings, ESC to use defaults',
-                    'legend': 'Found images: Toggle LEFT/RIGHT to change compression mode\nMissing images: Will be skipped during processing\n[Compressed] = Will compress | [Original] = Keep original',
-                    'item_formatter': format_compression_item,
-                    'detail_formatter': format_compression_details,
-                    'key_handlers': {
-                        'left': toggle_compression_mode,
-                        'right': toggle_compression_mode
-                    },
-                    'allow_quick_select': True,
-                    'select_message': '[COMPRESSION-SETTINGS-CONFIRMED]',
-                    'quick_select_message': '[COMPRESSION-QUICK-CONFIRM] Using default settings',
-                    'cancel_message': '[COMPRESSION-CANCELLED] Using default compression settings'
-                }
-
-                PrintHelper.header("INTERACTIVE COMPRESSION SELECTION MENU")
-
-                # Pause before showing the menu
-                print()
-                input("Press any key to continue...")
-                print()
-
-                # Use the universal menu system from menu_helper
-                result = menu_helper.show_interactive_menu(compression_config)
-
-                if result:
-                    # Apply the compression settings back to the selected_images
-                    for item in menu_items:
-                        image_type = item['image_type']
-                        if not item['is_missing'] and image_type in selected_images:
-                            selected_images[image_type]['compression_mode'] = item['compression_mode']
-
-                    PrintHelper.info("\n[COMPRESSION SETTINGS APPLIED] Final settings:")
-                    for image_type in all_image_types:
-                        if image_type in selected_images:
-                            mode = selected_images[image_type]['compression_mode']
-                            mode_text = "COMPRESSED" if mode == 'compressed' else "ORIGINAL"
-                            PrintHelper.info(f"  {image_type.upper()}: {mode_text}")
-                        else:
-                            PrintHelper.info(f"  {image_type.upper()}: MISSING - Will be skipped")
-                else:
-                    PrintHelper.info("\n[DEFAULT SETTINGS] Using default compression settings (all compressed)")
-                    # Apply default compression to all found images
-                    for image_type in all_image_types:
-                        if image_type in selected_images:
-                            selected_images[image_type]['compression_mode'] = 'compressed'
-
-        except Exception as e:
-            PrintHelper.info(f"[WARNING] Could not show compression menu: {e}")
-            PrintHelper.info("[DEFAULT] Using compressed mode for all found images")
-            # Apply default compression
-            for image_type in all_image_types:
-                if image_type in selected_images:
-                    selected_images[image_type]['compression_mode'] = 'compressed'
-
-        PrintHelper.header("IMAGE PROCESSING PHASE")
-
-        # Process each found image with final compression settings
-        processed_count = 0
-        for image_type in all_image_types:
-            if image_type in selected_images:
-                image_data = selected_images[image_type]
-                compression_mode = image_data.get('compression_mode', 'compressed')
-                compression_text = "COMPRESSED" if compression_mode == 'compressed' else "ORIGINAL"
-                PrintHelper.info(f"\n[PROCESSING] {image_type.upper()}: {image_data['name']} - Mode: {compression_text}")
-
-                # Process the image (including non-compressed ones for PNG conversion)
-                try:
-                    if hasattr(menu_helper, '_process_selected_image'):
-                        menu_helper._process_selected_image(image_data)
-                    elif hasattr(menu_helper, 'image_processor'):
-                        # Process with explicit settings
-                        compress = image_data.get('compression_mode') == 'compressed'
-                        from pathlib import Path
-                        input_path = Path(image_data['path'])
-                        result = menu_helper.image_processor.process_image(
-                            input_path=input_path,
-                            output_format='.png',  # Always convert to PNG
-                            compress=compress
-                        )
-                        if result['success']:
-                            image_data['processed_path'] = result['processed_path']
-                            image_data['processed_size'] = result['processed_size']
-                            image_data['compression_ratio'] = result['compression_ratio']
-                            PrintHelper.success(f"  Status: SUCCESS - Converted to PNG")
-                            if compress:
-                                PrintHelper.info(f"  Compression: Applied (ratio: {result.get('compression_ratio', 'N/A')})")
-                            else:
-                                PrintHelper.info(f"  Compression: Skipped (original quality preserved)")
-                            PrintHelper.info(f"  Output: {result['processed_path']}")
-                        else:
-                            image_data['processing_error'] = result['error']
-                            PrintHelper.error(f"  Status: FAILED - {result['error']}")
-                    else:
-                        PrintHelper.warning(f"  Status: SKIPPED - Image processor not available")
-
-                    processed_count += 1
-
-                except Exception as e:
-                    PrintHelper.error(f"  Status: ERROR - {e}")
-                    image_data['processing_error'] = str(e)
-            else:
-                PrintHelper.info(f"\n[SKIPPED] {image_type.upper()}: Not found - Missing from all directories")
-
-        PrintHelper.info(f"\n[PROCESSING SUMMARY] Successfully processed {processed_count} out of {len(selected_images)} found images")
-        PrintHelper.info(f"[PROCESSING SUMMARY] All processed images converted to PNG format in temporary directories")
-
-        return selected_images
+        # Show compression selection menu for all found images
+        return self._show_compression_selection_menu(selected_images, menu_helper)
 
     def _get_usage_description(self, image_type: str) -> str:
         """Get usage description for an image type"""
@@ -439,323 +133,314 @@ class SmartImageSelector:
             return f"Using {fallback_from} as fallback"
         return "Dedicated image found"
 
-    def _apply_fallback_rules(self, selected_images: Dict) -> Dict:
-        """Apply fallback rules for missing images with detailed logging"""
-        PrintHelper.header("APPLYING FALLBACK RULES")
+    def _show_compression_selection_menu(self, selected_images: Dict, menu_helper: Any) -> Dict:
+        """Show interactive compression selection menu for all found images"""
+        # Filter out missing images
+        found_images = {k: v for k, v in selected_images.items() if v and v.get('status') != 'missing'}
 
-        # Show what we found initially
-        found_images = []
-        missing_images = []
-        all_types = ['logo', 'background', 'splash', 'ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher']
-        for image_type in all_types:
-            if selected_images.get(image_type):
-                found_images.append(image_type)
-            else:
-                missing_images.append(image_type)
-
-        PrintHelper.info(f"Found images: {', '.join(found_images) if found_images else 'None'}")
-        PrintHelper.info(f"Missing images: {', '.join(missing_images) if missing_images else 'None'}")
-        PrintHelper.info("")
-
-        # Apply ic_icon fallback to logo
-        if not selected_images.get('ic_icon') and selected_images.get('logo'):
-            logo_data = selected_images['logo'].copy()
-            logo_data['is_fallback'] = True
-            logo_data['fallback_from'] = 'logo'
-            selected_images['ic_icon'] = logo_data
-            PrintHelper.info(f"[FALLBACK] IC_ICON ← LOGO")
-            PrintHelper.info(f"  Using: {logo_data['name']} from [{logo_data['source']}]")
-            PrintHelper.info(f"  Reason: No dedicated ic_*.png files found, using logo as Android app icon")
-            PrintHelper.info("")
-
-        # Apply splash fallback to background
-        if not selected_images.get('splash') and selected_images.get('background'):
-            background_data = selected_images['background'].copy()
-            background_data['is_fallback'] = True
-            background_data['fallback_from'] = 'background'
-            selected_images['splash'] = background_data
-            PrintHelper.info(f"[FALLBACK] SPLASH ← BACKGROUND")
-            PrintHelper.info(f"  Using: {background_data['name']} from [{background_data['source']}]")
-            PrintHelper.info(f"  Reason: No dedicated splash*.png files found, using background as splash screen")
-            PrintHelper.info("")
-
-        # Show final status
-        final_found = []
-        still_missing = []
-        for image_type in all_types:
-            if selected_images.get(image_type):
-                final_found.append(image_type)
-            else:
-                still_missing.append(image_type)
-
-        PrintHelper.info("FALLBACK RESULTS:")
-        PrintHelper.info(f"  Available after fallback: {', '.join(final_found) if final_found else 'None'}")
-        if still_missing:
-            PrintHelper.info(f"  Still missing: {', '.join(still_missing)}")
-            PrintHelper.info("\n[SUGGESTIONS] To add missing images:")
-            for missing_type in still_missing:
-                if missing_type in ['logo', 'ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher']:
-                    PrintHelper.info(f"  • {missing_type.upper()}: Add {missing_type}*.png/jpg/webp to icons/ directories")
-                else:  # background, splash
-                    PrintHelper.info(f"  • {missing_type.upper()}: Add {missing_type}*.png/jpg/webp to launch/ directories")
-
-        return selected_images
-
-    def _apply_intelligent_icon_finding(self, selected_images: Dict) -> Dict:
-        """Apply intelligent icon finding logic with logo-based directory prioritization"""
-        PrintHelper.header("APPLYING INTELLIGENT ICON FINDING")
-
-        icon_types = ['ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher']
-        logo_data = selected_images.get('logo')
-
-        PrintHelper.info(f"Logo found: {'Yes' if logo_data else 'No'}")
-        if logo_data:
-            logo_dir = Path(logo_data['path']).parent
-            PrintHelper.info(f"Logo directory: {logo_dir}")
-            PrintHelper.info("Strategy: Search for icons in logo's directory first, then fallback to logo")
-        else:
-            PrintHelper.info("Strategy: Search for each icon from extended to common directories")
-        PrintHelper.info("")
-
-        for icon_type in icon_types:
-            if selected_images.get(icon_type):
-                PrintHelper.info(f"[SKIP] {icon_type.upper()}: Already found")
-                continue
-
-            PrintHelper.info(f"[SEARCH] {icon_type.upper()}:")
-
-            if logo_data:
-                # Strategy 1: Logo found - search only in logo's directory
-                logo_dir = Path(logo_data['path']).parent
-                found_icon = self._search_icon_in_directory(icon_type, logo_dir)
-
-                if found_icon:
-                    selected_images[icon_type] = found_icon
-                    PrintHelper.info(f"  ✓ Found {icon_type}: {found_icon['name']} in logo's directory")
-                else:
-                    # Use logo as fallback
-                    logo_fallback = logo_data.copy()
-                    logo_fallback['is_fallback'] = True
-                    logo_fallback['fallback_from'] = 'logo'
-                    logo_fallback['fallback_reason'] = f'No {icon_type} found in logo directory'
-                    selected_images[icon_type] = logo_fallback
-                    PrintHelper.info(f"  → Fallback: Using logo as {icon_type}")
-            else:
-                # Strategy 2: No logo - search from extended to common directories
-                found_icon = self._search_icon_comprehensive(icon_type)
-
-                if found_icon:
-                    selected_images[icon_type] = found_icon
-                    PrintHelper.info(f"  ✓ Found {icon_type}: {found_icon['name']} in {found_icon['source']} directory")
-                else:
-                    PrintHelper.info(f"  ✗ Not found: {icon_type}")
-
-        PrintHelper.info("\nICON FINDING RESULTS:")
-        for icon_type in icon_types:
-            icon_data = selected_images.get(icon_type)
-            if icon_data:
-                fallback_info = f" (fallback from {icon_data.get('fallback_from')})" if icon_data.get('is_fallback') else ""
-                PrintHelper.info(f"  {icon_type.upper()}: {icon_data['name']}{fallback_info}")
-            else:
-                PrintHelper.info(f"  {icon_type.upper()}: [NOT FOUND]")
-
-        return selected_images
-
-    def _search_icon_in_directory(self, icon_type: str, directory: Path) -> Optional[Dict]:
-        """Search for a specific icon type in a specific directory"""
-        icon_patterns = self._get_icon_search_patterns(icon_type)
-
-        for pattern in icon_patterns:
-            for ext in ['.png', '.jpg', '.jpeg', '.webp']:
-                icon_path = directory / f"{pattern}{ext}"
-                if icon_path.exists():
-                    return self._create_image_data(icon_path, 'CUSTOM')
-        return None
-
-    def _search_icon_comprehensive(self, icon_type: str) -> Optional[Dict]:
-        """Search for icon comprehensively from extended to common directories"""
-        icon_patterns = self._get_icon_search_patterns(icon_type)
-
-        # Get all resource directories from asset scanner
-        # We'll search through common directory structure
-        search_dirs = [
-            Path.cwd() / 'lib' / 'apps',  # Current app specific
-            Path.cwd() / 'lib' / 'common',  # Common resources
-            Path.cwd() / 'lib' / 'shared',  # Shared resources
-            Path.cwd() / 'assets',  # Root assets
-            Path.cwd() / 'assets' / 'icons',  # Root icons
-        ]
-
-        # Search in order of priority: extended -> common
-        for search_dir in search_dirs:
-            if not search_dir.exists():
-                continue
-
-            # Search recursively in this directory
-            for pattern in icon_patterns:
-                for ext in ['.png', '.jpg', '.jpeg', '.webp']:
-                    # Search for direct matches
-                    icon_files = list(search_dir.rglob(f"{pattern}{ext}"))
-                    if icon_files:
-                        # Use the first match found
-                        icon_path = icon_files[0]
-                        source_type = self._determine_source_type(icon_path, search_dir)
-                        return self._create_image_data(icon_path, source_type)
-
-        return None
-
-    def _determine_source_type(self, icon_path: Path, base_dir: Path) -> str:
-        """Determine the source type based on the directory structure"""
-        relative_path = str(icon_path.relative_to(Path.cwd())).lower()
-
-        if 'common' in relative_path:
-            return 'COMMON'
-        elif 'shared' in relative_path:
-            return 'SHARED'
-        elif 'apps' in relative_path:
-            return 'BUILTIN'
-        else:
-            return 'CUSTOM'
-
-    def _get_icon_search_patterns(self, icon_type: str) -> List[str]:
-        """Get search patterns for different icon types"""
-        patterns = {
-            'ic_icon': ['ic_icon', 'ic_launcher', 'icon'],
-            'notification_icon': ['notification_icon', 'notification', 'notify_icon', 'notify'],
-            'transa_launcher': ['transa_launcher', 'transa', 'launcher_transa'],
-            'ic_launcher': ['ic_launcher', 'launcher', 'app_launcher']
-        }
-        return patterns.get(icon_type, [icon_type])
-
-    def _create_image_data(self, image_path: Path, source: str) -> Dict:
-        """Create image data dictionary from path"""
-        return {
-            'name': image_path.name,
-            'path': str(image_path),
-            'format': image_path.suffix.upper()[1:],  # Remove dot and uppercase
-            'size_bytes': image_path.stat().st_size,
-            'source': source
-        }
-
-    def _get_final_filename(self, image_type: str) -> str:
-        """Get the final converted filename for each image type"""
-        final_filenames = {
-            'logo': 'logo.png',
-            'background': 'background.png',
-            'splash': 'splash.png',
-            'ic_icon': 'ic_icon.png',
-            'notification_icon': 'notification_icon.png',
-            'transa_launcher': 'transa_launcher.png',
-            'ic_launcher': 'ic_launcher.png'
-        }
-        return final_filenames.get(image_type, f'{image_type}.png')
-
-    def _show_compression_menu(self, selected_images: Dict, menu_helper: Any) -> Dict:
-        """Show compression options menu for all selected images with individual usage labels"""
-        available_images = {k: v for k, v in selected_images.items() if v}
-
-        if not available_images:
-            PrintHelper.info("\n[SKIP] No images available for compression selection")
+        if not found_images:
+            PrintHelper.warning("No images found for compression selection", source=self.step_prefix)
             return selected_images
 
-        PrintHelper.header("INDIVIDUAL IMAGE COMPRESSION SELECTION")
-        PrintHelper.info("Each image usage has independent compression settings:")
-        PrintHelper.info("Use UP/DOWN arrows to navigate, LEFT/RIGHT to toggle compression, ENTER to confirm selection")
+        PrintHelper.header("COMPRESSION SETTINGS CONFIGURATION", source=self.step_prefix)
+        PrintHelper.info("Configure compression settings for each found image:", source=self.step_prefix)
+        PrintHelper.info("Use LEFT/RIGHT arrows to toggle compression mode", source=self.step_prefix)
         PrintHelper.info("")
 
-        # Process each image type individually with clear usage labels
-        processed_images = {}
-        all_image_types = ['logo', 'background', 'splash', 'ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher']
-        for image_type in all_image_types:
-            if image_type in available_images:
-                image_data = available_images[image_type]
+        # Pause before showing menu
+        print()
+        input("Press any key to continue...")
+        print()
 
-                # Create a copy with usage-specific information
-                item = image_data.copy()
+        # Prepare menu items for compression selection
+        menu_items = []
+        image_order = ['logo', 'ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher', 'background', 'splash']
 
-                # Add usage-specific labels and descriptions
-                usage_info = self._get_usage_info(image_type, image_data)
-                item['usage_type'] = image_type
-                item['usage_description'] = usage_info['description']
-                item['fallback_info'] = usage_info['fallback_info']
-                item['final_filename'] = usage_info['final_filename']
+        for image_type in image_order:
+            if image_type in found_images:
+                image_data = found_images[image_type]
 
-                PrintHelper.info("=" * 60)
-                PrintHelper.info(f"CONFIGURING {image_type.upper()}({usage_info['final_filename']}) IMAGE")
-                PrintHelper.info("=" * 60)
-                PrintHelper.info(f"Usage: {usage_info['description']}")
-                if usage_info['fallback_info']:
-                    PrintHelper.info(f"Source: {usage_info['fallback_info']}")
-                PrintHelper.info(f"File: {image_data['name']} ({image_data.get('format', '').upper()}, {self._format_file_size(image_data.get('size_bytes', 0))})")
-                PrintHelper.info(f"Final output: {usage_info['final_filename']}")
-                PrintHelper.info(f"Path: {image_data['path']}")
-                PrintHelper.info("")
+                # Get current compression mode from ANDROID_IMAGE_DATA, default to compressed if not set
+                current_compression = ANDROID_IMAGE_DATA.get(image_type, {}).get('compression_mode', '')
+                default_compression = 'compressed' if not current_compression else current_compression
 
-                # Show individual compression menu for this usage
+                # Get pattern and priority from ANDROID_IMAGE_DATA (single source of truth)
+                android_data = ANDROID_IMAGE_DATA.get(image_type, {})
+
+                # Create menu item with compression state
+                menu_item = {
+                    'image_type': image_type,
+                    'filename': image_data.get('filename', 'unknown'),
+                    'source_type': image_data.get('source', 'unknown'),
+                    'pattern': android_data.get('matched_pattern', android_data.get('pattern', 'unknown')),  # Use matched_pattern if available
+                    'priority': android_data.get('format_priority', android_data.get('priority', 'unknown')),  # Use format_priority if available
+                    'compression_mode': default_compression,
+                    'file_path': image_data.get('file_path', ''),
+                    'is_fallback': image_data.get('is_fallback', False),
+                    'fallback_from': image_data.get('fallback_from', '')
+                }
+                menu_items.append(menu_item)
+
+        if not menu_items:
+            return selected_images
+
+        # Create interactive menu configuration
+        def format_menu_item(item: Dict, index: int) -> str:
+            """Format each menu item with compression toggle info"""
+            compression_display = "[Compressed]" if item['compression_mode'] == 'compressed' else "[Original]"
+            fallback_info = f" (fallback from {item['fallback_from']})" if item['is_fallback'] else ""
+
+            return f"✓ {item['image_type'].upper()}: {item['filename']} [{item['source_type']}] {compression_display}{fallback_info}"
+
+        def format_item_details(item: Dict) -> str:
+            """Format detailed info for each image"""
+
+            image_type = item['image_type']
+            final_filename = ANDROID_IMAGE_DATA.get(image_type, {}).get('final_filename', 'unknown')
+
+            # Format pattern as a readable string
+            pattern_data = item.get('pattern', 'unknown')
+            if isinstance(pattern_data, list) and pattern_data:
+                # If it's a list (from ImagePatterns.NAME_PATTERNS)
+                pattern_display = ', '.join(pattern_data[:3])  # Show first 3 patterns
+                if len(pattern_data) > 3:
+                    pattern_display += f" (and {len(pattern_data) - 3} more)"
+            elif isinstance(pattern_data, str) and pattern_data and pattern_data != 'unknown':
+                # If it's a matched_pattern string
+                pattern_display = pattern_data
+            else:
+                pattern_display = 'unknown'
+
+            details = f"Image Details:\n"
+            details += f"  Type: {item['image_type'].upper()}\n"
+            details += f"  File: {item['filename']}\n"
+            details += f"  Final Filename: {final_filename}\n"
+            details += f"  Source: {item['source_type']}\n"
+            details += f"  Pattern: {pattern_display}\n"
+            details += f"  Priority: {item['priority']}\n"
+            details += f"  Path: {item['file_path']}\n"
+
+            if item['is_fallback']:
+                details += f"  Fallback: Using {item['fallback_from']} as fallback\n"
+
+            compression_text = "Will be compressed during processing" if item['compression_mode'] == 'compressed' else "Will keep original quality"
+            details += f"  Compression: {compression_text}"
+
+            return details
+
+        def toggle_compression(items: List[Dict], selected_index: int) -> str:
+            """Toggle compression mode for current item"""
+            current_item = items[selected_index]
+            if current_item['compression_mode'] == 'compressed':
+                current_item['compression_mode'] = 'original'
+            else:
+                current_item['compression_mode'] = 'compressed'
+            return 'continue'
+
+        menu_config = {
+            'title': 'ANDROID IMAGE COMPRESSION SETTINGS',
+            'items': menu_items,
+            'instructions': 'Use UP/DOWN arrows to navigate, LEFT/RIGHT to toggle compression\nENTER to confirm settings, ESC to use defaults',
+            'legend': '[Compressed] = Apply compression | [Original] = Keep original quality\nLEFT/RIGHT to toggle | ENTER to confirm | ESC for defaults',
+            'item_formatter': format_menu_item,
+            'detail_formatter': format_item_details,
+            'key_handlers': {
+                'left': toggle_compression,
+                'right': toggle_compression
+            },
+            'allow_quick_select': True,
+            'select_message': '[COMPRESSION-SETTINGS-CONFIRMED]',
+            'quick_select_message': '[COMPRESSION-QUICK-CONFIRM] Using default settings',
+            'cancel_message': '[COMPRESSION-CANCELLED] Using default compression settings',
+            'cache_key': 'image_compression_settings'  # Enable caching
+        }
+
+        # Show interactive menu
+        result = menu_helper.show_interactive_menu(menu_config)
+
+        # Apply compression settings to ANDROID_IMAGE_DATA and selected_images
+        self._apply_compression_settings(menu_items, selected_images, result is not None)
+
+        # Process images based on compression settings and final filename
+        try:
+            PrintHelper.info("Starting image processing...", source=self.step_prefix)
+            self._process_images_after_menu_selection(selected_images)
+        except Exception as e:
+            PrintHelper.error(f"Error in image processing: {e}", source=self.step_prefix)
+            traceback.print_exc()
+
+        return selected_images
+
+    def _apply_compression_settings(self, menu_items: List[Dict], selected_images: Dict, confirmed: bool) -> None:
+        """Apply compression settings to ANDROID_IMAGE_DATA first, then sync to selected_images"""
+
+        PrintHelper.info("Applying compression settings...", source=self.step_prefix)
+
+        for item in menu_items:
+            image_type = item['image_type']
+            compression_mode = item['compression_mode']
+
+            # Update ANDROID_IMAGE_DATA first (single source of truth)
+            if image_type in ANDROID_IMAGE_DATA:
+                ANDROID_IMAGE_DATA[image_type]['compression_mode'] = compression_mode
+
+            # Sync selected_images from ANDROID_IMAGE_DATA
+            if image_type in selected_images:
+                selected_images[image_type]['compression_mode'] = ANDROID_IMAGE_DATA[image_type]['compression_mode']
+
+            # Show applied setting
+            mode_text = "COMPRESSED" if compression_mode == 'compressed' else "ORIGINAL"
+            PrintHelper.info(f"  {image_type.upper()}: {mode_text}", source=self.step_prefix)
+
+        status_text = "confirmed" if confirmed else "using defaults"
+        PrintHelper.success(f"Compression settings applied ({status_text})", source=self.step_prefix)
+
+    def _process_images_after_menu_selection(self, selected_images: Dict) -> None:
+        """Process images after compression menu selection, handling original vs processed paths"""
+
+        PrintHelper.header("PROCESSING IMAGES BASED ON COMPRESSION SETTINGS", source=self.step_prefix)
+
+        # Create cache directory for processed images using unified variable system
+        cache_dir = unified_vars.temp_dir / "processed_images"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        PrintHelper.info(f"Processing images to cache directory: {cache_dir}", source=self.step_prefix)
+
+        for image_type, image_data in selected_images.items():
+            if not image_data or image_data.get('status') == 'missing':
+                continue
+
+            # Get original path from ANDROID_IMAGE_DATA (single source of truth)
+            android_data = ANDROID_IMAGE_DATA.get(image_type, {})
+            original_path = android_data.get('original_path', image_data.get('file_path', ''))
+
+            if not original_path or not os.path.exists(original_path):
+                PrintHelper.warning(f"Original path not found for {image_type}: {original_path}", source=self.step_prefix)
+                PrintHelper.warning(f"  ANDROID_IMAGE_DATA path: {android_data.get('original_path', 'N/A')}", source=self.step_prefix)
+                PrintHelper.warning(f"  selected_images path: {image_data.get('file_path', 'N/A')}", source=self.step_prefix)
+                continue
+
+            # Get final filename from ANDROID_IMAGE_DATA
+            final_filename = ANDROID_IMAGE_DATA.get(image_type, {}).get('final_filename', f"{image_type}.png")
+            compression_mode = image_data.get('compression_mode', 'compressed')
+
+            # Get file extensions
+            original_ext = Path(original_path).suffix.lower()
+            final_ext = Path(final_filename).suffix.lower()
+
+            # Determine if we can use original as processed
+            # Can use original if: same extension AND not compressing
+            can_use_original = (original_ext == final_ext and compression_mode == 'original')
+
+            if can_use_original:
+                # Use original path as processed path (no processing needed)
+                processed_path = original_path
+                processing_action = "Using original (same extension, no compression)"
+                PrintHelper.info(f"  {image_type.upper()}: {processing_action}", source=self.step_prefix)
+                PrintHelper.info(f"    Path: {original_path}", source=self.step_prefix)
+
+                # Set processed size to original size
+                processed_size = image_data.get('original_size', 0)
+                if processed_size == 0:
+                    processed_size = Path(original_path).stat().st_size if Path(original_path).exists() else 0
+                image_data['processed_size'] = processed_size
+            else:
+                # Need to process the image (compress or convert format)
+                processed_path = str(cache_dir / final_filename)
+
+                if compression_mode == 'compressed':
+                    processing_action = f"Compressing and converting to {final_ext}"
+                else:
+                    processing_action = f"Converting format to {final_ext} (no compression)"
+
+                PrintHelper.info(f"  {image_type.upper()}: {processing_action}", source=self.step_prefix)
+                PrintHelper.info(f"    Original: {original_path} ({original_ext})", source=self.step_prefix)
+                PrintHelper.info(f"    Output: {final_filename} ({final_ext})", source=self.step_prefix)
+
+                # Process the image using ImageProcessor
                 try:
-                    if hasattr(self.asset_scanner, 'show_image_selection_menu'):
-                        # Create single-item list for individual selection
-                        single_item_list = [item]
-                        selected_item = self.asset_scanner.show_image_selection_menu(
-                            menu_helper, single_item_list, f"{image_type} usage"
+                    # Initialize ImageProcessor with the current working directory to pass safety checks
+                    current_dir = Path.cwd()
+                    image_processor = ImageProcessor(flutter_root_dir=current_dir)
+                    if compression_mode == 'compressed':
+                        # Apply compression
+                        success = image_processor.process_image_with_compression(
+                            original_path, processed_path, final_ext
+                        )
+                    else:
+                        # Just convert format without compression
+                        success = image_processor.convert_image_format(
+                            original_path, processed_path, final_ext
                         )
 
-                        if selected_item and 'compression_mode' in selected_item:
-                            # Store the individually selected compression mode
-                            processed_images[image_type] = selected_item
-                            mode_text = "COMPRESSED" if selected_item['compression_mode'] == 'compressed' else "ORIGINAL"
-                            PrintHelper.info(f"[SELECTED] {image_type.upper()} compression: {mode_text}")
-                        else:
-                            # User cancelled or no selection, keep original with default compression
-                            item['compression_mode'] = 'compressed'
-                            processed_images[image_type] = item
-                            PrintHelper.info(f"[DEFAULT] {image_type.upper()} compression: COMPRESSED (default)")
+                    if success:
+                        # Update processed size
+                        processed_size = Path(processed_path).stat().st_size if Path(processed_path).exists() else 0
+                        image_data['processed_size'] = processed_size
+                        if image_type in ANDROID_IMAGE_DATA:
+                            ANDROID_IMAGE_DATA[image_type]['processed_size'] = processed_size
+                        PrintHelper.success(f"    Processed successfully: {Path(processed_path).name}", source=self.step_prefix)
                     else:
-                        # Fallback: use default compression
-                        item['compression_mode'] = 'compressed'
-                        processed_images[image_type] = item
-                        PrintHelper.info(f"[DEFAULT] {image_type.upper()} compression: COMPRESSED (fallback)")
+                        PrintHelper.warning(f"    Processing failed, using original", source=self.step_prefix)
+                        processed_path = original_path
 
                 except Exception as e:
-                    PrintHelper.info(f"[ERROR] Could not configure {image_type}: {e}")
-                    # Use default compression on error
-                    item['compression_mode'] = 'compressed'
-                    processed_images[image_type] = item
+                    PrintHelper.warning(f"    Processing error: {e}, using original", source=self.step_prefix)
+                    processed_path = original_path
 
-                PrintHelper.info("")
+            # Update ANDROID_IMAGE_DATA first (single source of truth)
+            if image_type in ANDROID_IMAGE_DATA:
+                ANDROID_IMAGE_DATA[image_type]['processed_path'] = processed_path
+                ANDROID_IMAGE_DATA[image_type]['needs_processing'] = not can_use_original
+                ANDROID_IMAGE_DATA[image_type]['processed_size'] = image_data.get('processed_size', 0)
+                ANDROID_IMAGE_DATA[image_type]['processing_action'] = processing_action
 
-        # Return the processed images with individual compression settings
-        return processed_images
+            # Sync selected_images from ANDROID_IMAGE_DATA (single source of truth)
+            image_data['processed_path'] = ANDROID_IMAGE_DATA[image_type]['processed_path']
+            image_data['processing_action'] = ANDROID_IMAGE_DATA[image_type]['processing_action']
+            image_data['needs_processing'] = ANDROID_IMAGE_DATA[image_type]['needs_processing']
+            image_data['processed_size'] = ANDROID_IMAGE_DATA[image_type]['processed_size']
 
-    def _get_usage_info(self, image_type: str, image_data: Dict) -> Dict:
-        """Get usage information and fallback details for an image type"""
-        is_fallback = image_data.get('is_fallback', False)
-        fallback_from = image_data.get('fallback_from', '')
+            # Show paths
+            PrintHelper.info(f"    Original: {original_path}", source=self.step_prefix)
+            PrintHelper.info(f"    Processed: {processed_path}", source=self.step_prefix)
 
-        usage_descriptions = {
-            'logo': 'Application logo and branding',
-            'background': 'Launch screen background image',
-            'splash': 'Splash screen image',
-            'ic_icon': 'Main application icon for Android',
-            'notification_icon': 'Notification icon for Android system notifications',
-            'transa_launcher': 'Transaction launcher icon for financial operations',
-            'ic_launcher': 'Alternative launcher icon for Android'
-        }
+        PrintHelper.success("Image processing completed", source=self.step_prefix)
 
-        description = usage_descriptions.get(image_type, f'{image_type} image')
-        final_filename = self._get_final_filename(image_type)
+        # Show final processing results in standard format
+        print()
+        self._print_final_image_data_summary()
 
-        fallback_info = ""
-        if is_fallback and fallback_from:
-            fallback_info = f"Using {fallback_from} image as fallback (no dedicated {image_type} found)"
-        elif not is_fallback:
-            fallback_info = f"Dedicated {image_type} image found"
+        # Validate data consistency between selected_images and ANDROID_IMAGE_DATA
+        print()
+        self.validate_data_consistency(selected_images)
 
-        return {
-            'description': description,
-            'fallback_info': fallback_info,
-            'final_filename': final_filename
-        }
+    def _show_processing_results_summary(self, selected_images: Dict) -> None:
+        """Show summary of image processing results"""
+        PrintHelper.header("IMAGE PROCESSING RESULTS SUMMARY", source=self.step_prefix)
+
+        for image_type, image_data in selected_images.items():
+            if not image_data or image_data.get('status') == 'missing':
+                continue
+
+            compression_mode = image_data.get('compression_mode', 'original')
+            original_size = image_data.get('original_size', 0)
+            processed_size = image_data.get('processed_size', 0)
+            original_path = image_data.get('file_path', '')
+            processed_path = image_data.get('processed_path', '')
+
+            # Calculate size difference
+            if processed_size > 0 and original_size > 0:
+                size_diff = ((processed_size - original_size) / original_size) * 100
+                size_info = f"{self._format_file_size(processed_size)} ({size_diff:+.1f}%)"
+            else:
+                size_info = f"{self._format_file_size(processed_size)}"
+
+            # Show result
+            mode_text = "COMPRESSED" if compression_mode == 'compressed' else "ORIGINAL"
+            same_file = (original_path == processed_path)
+            path_info = "Same as original" if same_file else f"New file: {Path(processed_path).name}"
+
+            PrintHelper.info(f"  {image_type.upper()}: {mode_text} - {size_info} - {path_info}", source=self.step_prefix)
 
     def _format_file_size(self, size_bytes: int) -> str:
         """Format file size in human readable format"""
@@ -765,3 +450,115 @@ class SmartImageSelector:
             return f"{size_bytes / 1024:.1f}KB"
         else:
             return f"{size_bytes / (1024 * 1024):.1f}MB"
+
+    def _print_final_image_data_summary(self) -> None:
+        """Print final processed image data summary in standard format"""
+        print()
+        print("7 REQUIRED IMAGES DATA SUMMARY")
+        print("=" * 80)
+
+        # Define the image types in the order they should appear
+        image_types = ['LOGO', 'BACKGROUND', 'SPLASH', 'IC_ICON', 'NOTIFICATION_ICON', 'TRANSA_LAUNCHER', 'IC_LAUNCHER']
+
+        for image_type in image_types:
+            if image_type in ANDROID_IMAGE_DATA:
+                image_data = ANDROID_IMAGE_DATA[image_type]
+
+                # Get all the required information
+                final_filename = image_data.get('final_filename', f"{image_type.lower()}.png")
+                original_path = image_data.get('original_path', '')
+                processed_path = image_data.get('processed_path', '')
+                original_size = image_data.get('original_size', 0)
+                processed_size = image_data.get('processed_size', 0)
+                status = image_data.get('status', 'UNKNOWN').upper()
+                source = image_data.get('source', 'UNKNOWN').upper()
+                compression_mode = image_data.get('compression_mode', 'compressed').upper()
+
+                # Format sizes
+                original_size_str = self._format_file_size(original_size) if original_size > 0 else "0B"
+                processed_size_str = self._format_file_size(processed_size) if processed_size > 0 else "0B"
+
+                print(f"{image_type}:")
+                print(f"  File: {final_filename}")
+                print(f"  Original Path: {original_path}")
+                print(f"  Processed Path: {processed_path}")
+                print(f"  Original Size: {original_size_str}")
+                print(f"  Processed Size: {processed_size_str}")
+                print(f"  Status: {status}")
+                print(f"  Source: [{source}] - [{compression_mode}]")
+                print()
+
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] [SUCCESS] [STEP-2] Image processing completed. All 7 images processed.")
+        print()
+
+        # Pause for user to review the results
+        print("=" * 80)
+        print("ANDROID_IMAGE_DATA PROCESSING COMPLETED")
+        print("=" * 80)
+        print("Please review the processed image data above.")
+        input("Press any key to continue...")
+        print()
+
+    def validate_data_consistency(self, selected_images: Dict) -> bool:
+        """
+        Validate data consistency between selected_images and ANDROID_IMAGE_DATA
+        Returns True if data is consistent, False otherwise
+        """
+        PrintHelper.header("DATA CONSISTENCY VALIDATION", source=self.step_prefix)
+
+        validation_errors = []
+        validation_warnings = []
+
+        # Check each image type
+        for image_type in ANDROID_IMAGE_DATA:
+            android_data = ANDROID_IMAGE_DATA[image_type]
+            selected_data = selected_images.get(image_type, {})
+
+            # Check if both have the same status
+            android_status = android_data.get('status', 'missing')
+            selected_status = selected_data.get('status', 'missing')
+
+            if android_status != selected_status:
+                validation_errors.append(f"{image_type}: Status mismatch - ANDROID_IMAGE_DATA={android_status}, selected_images={selected_status}")
+
+            # For non-missing images, check path consistency
+            if android_status != 'missing':
+                android_original = android_data.get('original_path', '')
+                selected_file_path = selected_data.get('file_path', '')
+
+                if android_original != selected_file_path:
+                    validation_errors.append(f"{image_type}: Original path mismatch - ANDROID_IMAGE_DATA={android_original}, selected_images={selected_file_path}")
+
+                # Check compression mode consistency
+                android_compression = android_data.get('compression_mode', 'compressed')
+                selected_compression = selected_data.get('compression_mode', 'compressed')
+
+                if android_compression != selected_compression:
+                    validation_errors.append(f"{image_type}: Compression mode mismatch - ANDROID_IMAGE_DATA={android_compression}, selected_images={selected_compression}")
+
+                # Check processed paths
+                android_processed = android_data.get('processed_path', '')
+                selected_processed = selected_data.get('processed_path', '')
+
+                if android_processed != selected_processed:
+                    validation_warnings.append(f"{image_type}: Processed path mismatch - ANDROID_IMAGE_DATA={android_processed}, selected_images={selected_processed}")
+
+        # Print validation results
+        if validation_errors:
+            PrintHelper.error(f"Found {len(validation_errors)} critical data consistency errors:", source=self.step_prefix)
+            for error in validation_errors:
+                PrintHelper.error(f"  {error}", source=self.step_prefix)
+
+        if validation_warnings:
+            PrintHelper.warning(f"Found {len(validation_warnings)} data consistency warnings:", source=self.step_prefix)
+            for warning in validation_warnings:
+                PrintHelper.warning(f"  {warning}", source=self.step_prefix)
+
+        if not validation_errors and not validation_warnings:
+            PrintHelper.success("Data consistency validation passed - all data is synchronized", source=self.step_prefix)
+
+        consistency_status = len(validation_errors) == 0
+        PrintHelper.info(f"Validation result: {'PASSED' if consistency_status else 'FAILED'}", source=self.step_prefix)
+
+        return consistency_status

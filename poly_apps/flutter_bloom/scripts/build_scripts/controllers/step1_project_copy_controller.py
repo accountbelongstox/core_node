@@ -107,7 +107,7 @@ class Step1ProjectCopyController:
             if menu_helper:
                 # Use menu helper to let user choose
                 while True:  # Loop to handle refresh action
-                    result = menu_helper.show_directory_menu(existing_dirs, app_name)
+                    result = menu_helper.show_directory_menu(existing_dirs, app_name, cache_key='project_directory_selection')
 
                     if result:
                         action = result.get('action')

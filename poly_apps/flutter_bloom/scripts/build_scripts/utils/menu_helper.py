@@ -6,10 +6,26 @@ Provides interactive menu functionality for build system
 
 import os
 import sys
+import json
+import time
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+from datetime import datetime
 
 from utils.image_processor import ImageProcessor
+from shared.data_exchange.unified_variable_system import unified_vars
+
+# Try to import commander, with fallback for different directory structures
+try:
+    from utils.commander import commander
+except ImportError:
+    try:
+        # Fallback for when running as script
+        script_dir = Path(__file__).parent
+        sys.path.append(str(script_dir))
+        from commander import commander
+    except ImportError:
+        commander = None
 
 # Platform-specific imports for keyboard input
 if os.name == 'nt':
@@ -75,22 +91,58 @@ class MenuHelper:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         return ''
 
+    def _load_menu_cache(self, cache_key: str, items: List) -> Dict:
+        """Load cached menu state if available"""
+        try:
+            cached_json = unified_vars.get_file_variable(f"menu_cache_{cache_key}")
+            if cached_json:
+                print(f"[CACHE] Loading cached menu state for: {cache_key}")
+                cached_data = json.loads(cached_json)
+                if cached_data and isinstance(cached_data, dict):
+                    # Apply cached state to items if the structure matches
+                    cached_items = cached_data.get('items', [])
+                    if len(cached_items) == len(items):
+                        # Merge cached state with current items
+                        for i, cached_item in enumerate(cached_items):
+                            if isinstance(items[i], dict) and isinstance(cached_item, dict):
+                                # Update compression mode and other cached properties
+                                for key, value in cached_item.items():
+                                    if key in ['compression_mode']:
+                                        items[i][key] = value
+                        return {
+                            'items': items,
+                            'selected_index': cached_data.get('selected_index', 0)
+                        }
+        except Exception as e:
+            # Cache loading failed, continue without cache
+            print(f"[CACHE] Failed to load menu cache for {cache_key}: {e}")
+            pass
+        return None
+
+    def _save_menu_cache(self, cache_key: str, items: List, selected_index: int) -> None:
+        """Save current menu state to cache"""
+        try:
+            cache_data = {
+                'items': items,
+                'selected_index': selected_index
+            }
+            cache_json = json.dumps(cache_data, ensure_ascii=False, indent=None)
+            success = unified_vars.set_file_variable(f"menu_cache_{cache_key}", cache_json)
+            if success:
+                print(f"[CACHE] Saved menu state for: {cache_key}")
+            else:
+                print(f"[CACHE] Failed to save menu state for: {cache_key}")
+        except Exception as e:
+            # Cache saving failed, continue silently
+            print(f"[CACHE] Exception saving menu cache for {cache_key}: {e}")
+            pass
+
     def clear_screen(self):
         """Clear the console screen"""
         os.system('cls' if os.name == 'nt' else 'clear')
 
-    def show_directory_menu(self, directories: List[Path], app_name: str) -> Optional[Dict]:
+    def show_directory_menu(self, directories: List[Path], app_name: str, cache_key: str = None) -> Optional[Dict]:
         """Show interactive menu for directory selection with extended options"""
-        # Import commander here to avoid circular imports
-        try:
-            from utils.commander import commander
-        except ImportError:
-            # Fallback for when running as script
-            import sys
-            from pathlib import Path as ImportPath
-            sys.path.append(str(ImportPath(__file__).parent))
-            from commander import commander
-
         # Always show menu, even if no directories exist (user can create new)
 
         # Prepare menu items
@@ -121,7 +173,6 @@ class MenuHelper:
             # Parse timestamp
             try:
                 timestamp_str = dir_path.name.split('_')[-2] + '_' + dir_path.name.split('_')[-1]
-                from datetime import datetime
                 timestamp = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
                 time_display = timestamp.strftime('%m-%d %H:%M')
             except:
@@ -220,7 +271,6 @@ class MenuHelper:
                             print(f"[DELETE-SUCCESS] Directory deleted: {selected_item['value'].name}")
                             print("[DELETE-INFO] Returning to directory selection menu...")
                             # Give user a moment to see the success message
-                            import time
                             time.sleep(1)
                             handle_directory_action._result = {'action': 'refresh', 'directory': None}
                             return 'return'
@@ -287,7 +337,8 @@ class MenuHelper:
             },
             'allow_quick_select': False,  # Disable Y key for directories
             'select_message': '[DIRECTORY-SELECTED]',
-            'cancel_message': f'[MENU-SELECTION] Creating new directory for {app_name}'
+            'cancel_message': f'[MENU-SELECTION] Creating new directory for {app_name}',
+            'cache_key': cache_key  # Enable caching if cache_key is provided
         }
 
         result = self.show_interactive_menu(config)
@@ -347,57 +398,28 @@ class MenuHelper:
             elif key == 'escape':
                 return False
 
-    def show_simple_menu(self, title: str, options: List[Dict[str, Any]], show_legend: bool = True) -> Any:
-        """Show a simple interactive menu"""
+    def show_simple_menu(self, title: str, options: List[Dict[str, Any]], show_legend: bool = True, cache_key: str = None) -> Any:
+        """Show a simple interactive menu using the unified interactive system"""
         if not options:
             return None
 
-        self.selected_index = 0
+        def format_option(item: Dict, index: int) -> str:
+            return item.get('display', str(item.get('value', '')))
 
-        while True:
-            self.clear_screen()
+        instructions = "Use UP/DOWN arrows to navigate, ENTER to select, Y for default, ESC to cancel"
+        legend = "Press Q to quit" if show_legend else None
 
-            print("=" * 80)
-            print(title.upper())
-            print("=" * 80)
-            print()
-            print("Use UP/DOWN arrows to navigate, ENTER to select, Y for default, ESC to cancel")
-            print()
+        config = {
+            'title': title,
+            'items': options,
+            'instructions': instructions,
+            'legend': legend,
+            'item_formatter': format_option,
+            'allow_quick_select': True,
+            'cache_key': cache_key  # Enable caching if cache_key is provided
+        }
 
-            # Display menu items
-            for i, option in enumerate(options):
-                prefix = ">>>" if i == self.selected_index else "   "
-                display = option.get('display', str(option.get('value', '')))
-                print(f"{prefix} {display}")
-
-            if show_legend:
-                print()
-                print("Press Q to quit")
-
-            # Handle key input
-            key = self.get_key()
-
-            if key == 'up':
-                self.selected_index = (self.selected_index - 1) % len(options)
-            elif key == 'down':
-                self.selected_index = (self.selected_index + 1) % len(options)
-            elif key == 'enter':
-                selected_option = options[self.selected_index]
-                self.clear_screen()
-                return selected_option
-            elif key in ['y', 'Y']:
-                # Press Y to select the first option (default)
-                selected_option = options[0]
-                self.clear_screen()
-                print(f"[MENU-QUICK-SELECT] Selected default option: {selected_option.get('display', '')}")
-                return selected_option
-            elif key == 'escape':
-                self.clear_screen()
-                return None
-            elif key in ['q', 'Q']:
-                self.clear_screen()
-                print("[MENU-CANCELLED] Cancelled by user")
-                sys.exit(0)
+        return self.show_interactive_menu(config)
 
     def confirm_selection(self, message: str, default: bool = True) -> bool:
         """Show a yes/no confirmation dialog"""
@@ -448,7 +470,7 @@ class MenuHelper:
 
     def show_interactive_menu(self, config: Dict[str, Any]) -> Any:
         """
-        Universal interactive menu system
+        Universal interactive menu system with dynamic caching and toggle support
         Config structure:
         {
             'title': 'Menu Title',
@@ -458,15 +480,32 @@ class MenuHelper:
             'item_formatter': function to format each item,
             'detail_formatter': function to format item details (optional),
             'key_handlers': dict of custom key handlers (optional),
+                          # Example: {'left': toggle_function, 'right': toggle_function}
             'allow_quick_select': boolean (default True),
             'auto_select_single': boolean (default False),
             'cancel_message': 'Cancellation message',
-            'select_message': 'Selection message template'
+            'select_message': 'Selection message template',
+            'cache_key': 'cache_key_name' (optional) - enables automatic caching of menu state
         }
+
+        Key Handler Functions:
+        - Should accept (items, selected_index) and return 'continue'|'return'|'exit'
+        - 'continue': continue menu loop, 'return': return current item, 'exit': return None
+        - Left/Right arrows are automatically mapped to 'left'/'right' handlers if provided
         """
         items = config.get('items', [])
         if not items:
             return None
+
+        # Handle caching if cache_key is provided
+        cache_key = config.get('cache_key')
+        if cache_key:
+            # Try to load cached menu state
+            cached_state = self._load_menu_cache(cache_key, items)
+            if cached_state:
+                items = cached_state['items']
+                if 'selected_index' in cached_state:
+                    self.selected_index = cached_state['selected_index']
 
         # Auto-select single item if configured
         if config.get('auto_select_single', False) and len(items) == 1:
@@ -537,6 +576,11 @@ class MenuHelper:
             # Handle custom key bindings first (including arrow keys)
             if key in key_handlers:
                 result = key_handlers[key](items, self.selected_index)
+
+                # Save cache after any key handler operation (e.g., compression mode toggle)
+                if cache_key and result == 'continue':
+                    self._save_menu_cache(cache_key, items, self.selected_index)
+
                 if result == 'continue':
                     continue
                 elif result == 'return':
@@ -576,7 +620,7 @@ class MenuHelper:
                 print("[BUILD-CANCELLED] Build cancelled by user")
                 sys.exit(0)
 
-    def show_image_selection_menu(self, title: str, images: List[Dict], image_type: str) -> Optional[Dict]:
+    def show_image_selection_menu(self, title: str, images: List[Dict], image_type: str, cache_key: str = None) -> Optional[Dict]:
         """Show interactive menu for image selection with compression toggle"""
         if not images:
             return None
@@ -641,7 +685,8 @@ class MenuHelper:
             'auto_select_message': f'[AUTO-SELECT] Only one {image_type} image found',
             'select_message': '[IMAGE-SELECTED]',
             'quick_select_message': '[IMAGE-QUICK-SELECT] Default',
-            'cancel_message': f'[IMAGE-CANCELLED] {image_type} selection cancelled'
+            'cancel_message': f'[IMAGE-CANCELLED] {image_type} selection cancelled',
+            'cache_key': cache_key  # Enable caching if cache_key is provided
         }
 
         selected_image = self.show_interactive_menu(config)
@@ -691,3 +736,40 @@ class MenuHelper:
             selected_image['processing_error'] = result['error']
 
         print("=" * 60)
+
+    def print_clean(self, message: str) -> None:
+        """
+        Print message without any prefix (no timestamp, no log level, no source)
+        Used for clean menu displays and user-facing information
+        """
+        print(message)
+
+    def print_clean_header(self, message: str, separator: str = "=") -> None:
+        """
+        Print a clean header without prefixes
+
+        Args:
+            message: Header text
+            separator: Character to use for separator line (default "=")
+        """
+        separator_line = separator * len(message)
+        print(separator_line)
+        print(message)
+        print(separator_line)
+
+    def print_clean_section(self, title: str, items: List[str] = None, separator: str = "-") -> None:
+        """
+        Print a clean section with title and optional items
+
+        Args:
+            title: Section title
+            items: Optional list of items to display under the title
+            separator: Character to use for separator line (default "-")
+        """
+        separator_line = separator * len(title)
+        print(title)
+        print(separator_line)
+        if items:
+            for item in items:
+                print(f"  {item}")
+        print()

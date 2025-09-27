@@ -134,6 +134,23 @@ class UnifiedVariableSystem:
         self.KEY_BUILD_ACTION = "KEY_BUILD_ACTION"
         self.KEY_BUILD_PLATFORM = "KEY_BUILD_PLATFORM"
 
+        # App selector cache keys
+        self.KEY_APP_ACTION_MODE_PREFIX = "KEY_APP_ACTION_MODE_"
+        self.KEY_APP_PLATFORM_MODE_PREFIX = "KEY_APP_PLATFORM_MODE_"
+        self.KEY_LAST_SELECTED_APP_INDEX = "KEY_LAST_SELECTED_APP_INDEX"
+        self.KEY_CURRENT_ACTIVE_APP = "KEY_CURRENT_ACTIVE_APP"
+        self.KEY_CURRENT_ACTIVE_ACTION = "KEY_CURRENT_ACTIVE_ACTION"
+        self.KEY_CURRENT_ACTIVE_PLATFORM = "KEY_CURRENT_ACTIVE_PLATFORM"
+
+        # Unified aliases for consistency - these point to the same values as above
+        self.KEY_SELECTED_APP_NAME = "KEY_APP_NAME"  # Alias for KEY_APP_NAME for consistency
+
+        # Operation mode keys
+        self.KEY_OPERATION_MODE = "OPERATION_MODE"
+        self.KEY_OPERATION_CONTEXT_APP = "OPERATION_CONTEXT_APP"
+        self.KEY_OPERATION_CONTEXT_PLATFORM = "OPERATION_CONTEXT_PLATFORM"
+        self.KEY_OPERATION_CONTEXT_ACTION = "OPERATION_CONTEXT_ACTION"
+
         # Step data exchange keys
         self.KEY_PROCESSED_IMAGES_JSON = "PROCESSED_IMAGES_JSON"
         self.KEY_PLATFORM_TARGETS_JSON = "PLATFORM_TARGETS_JSON"

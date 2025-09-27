@@ -24,9 +24,15 @@ function isStringOnlyNumbersRegtest(str) {
 
 function getCurrentApps() {
     const appsPath = path.join(__dirname, '..', '..', '..', 'apps');
-    return fs.readdirSync(appsPath, { withFileTypes: true })
-        .filter(dirent => dirent.isDirectory())
-        .map(dirent => dirent.name);
+    try {
+        return fs.readdirSync(appsPath, { withFileTypes: true })
+            .filter(dirent => dirent.isDirectory())
+            .map(dirent => dirent.name)
+            .sort();
+    } catch (error) {
+        console.error('Failed to read apps directory:', error.message);
+        return [];
+    }
 }
 const apps = getCurrentApps();
 // Get all subdirectories from apps directory
@@ -36,7 +42,8 @@ function getAppDirectories() {
         if (fs.existsSync(appsPath)) {
             return fs.readdirSync(appsPath, { withFileTypes: true })
                 .filter(dirent => dirent.isDirectory())
-                .map(dirent => dirent.name);
+                .map(dirent => dirent.name)
+                .sort();
         }
     } catch (error) {
         console.error('Error reading apps directory:', error);

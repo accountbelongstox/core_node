@@ -11,6 +11,25 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
+NCORE_ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+
+if str(NCORE_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(NCORE_ROOT_DIR))
+
+for extra_path in (
+    NCORE_ROOT_DIR,
+    NCORE_ROOT_DIR / "ncore",
+    NCORE_ROOT_DIR / "ncore" / "pytools",
+):
+    path_str = str(extra_path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
+
+from pytools.pygvar import GlobalVarManager
+
+UNIFIED_MANAGER_EXECUTION_KEY = "UNIFIED_APP_MANAGER_EXECUTION"
+
+
 ACTION_SEQUENCE: Tuple[str, ...] = ("start", "install", "build", "deploy", "stop")
 
 class UnifiedManagerCore:
@@ -41,7 +60,12 @@ class UnifiedManagerCore:
         self.registry = self._load_app_registry()
 
         # Main executable
-        self.main_js = self.project_root / "main.js"
+        self.main_js = (self.project_root / "main.js").resolve()
+
+        # Global variable manager for command dispatch
+        self.global_vars = GlobalVarManager()
+        self.execution_key = os.environ.get("UNIFIED_MANAGER_EXECUTION_KEY", UNIFIED_MANAGER_EXECUTION_KEY)
+        self.global_vars.clear(self.execution_key)
 
     def _clear_screen(self) -> None:
         """Clear the console screen in a cross-platform way."""
@@ -187,6 +211,9 @@ class UnifiedManagerCore:
                 pass
     def _find_project_root(self) -> Path:
         """Find the project root by looking for specific markers"""
+        if NCORE_ROOT_DIR.exists():
+            return NCORE_ROOT_DIR
+
         current = self.script_dir
         while current != current.parent:
             if (current / ".git").exists() or (current / "main.js").exists():
@@ -196,18 +223,39 @@ class UnifiedManagerCore:
 
     def _setup_data_directory(self) -> Path:
         """Setup data exchange directory"""
+        candidates: List[Path] = []
+
+        home_dir = Path(os.path.expanduser("~"))
         if self.is_windows:
-            data_dir = Path(os.path.expanduser("~")) / ".core_node" / "unified_manager"
+            candidates.append(home_dir / ".core_node" / "unified_manager")
         else:
-            data_dir = Path(os.path.expanduser("~")) / ".core_node" / "unified_manager"
+            candidates.extend(
+                [
+                    Path("/usr/.core_node/unified_manager"),
+                    Path("/usr/core_node/unified_manager"),
+                    Path("/www/core_node/unified_manager"),
+                    home_dir / ".core_node" / "unified_manager",
+                ]
+            )
 
-        data_dir.mkdir(parents=True, exist_ok=True)
+        for candidate in candidates:
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                try:
+                    candidate.chmod(0o755)
+                except OSError:
+                    pass
+                self.cache_dir = candidate / "cache"
+                self.cache_dir.mkdir(exist_ok=True)
+                return candidate
+            except PermissionError:
+                continue
 
-        # Create cache subdirectory
-        self.cache_dir = data_dir / "cache"
+        fallback = home_dir / ".core_node" / "unified_manager"
+        fallback.mkdir(parents=True, exist_ok=True)
+        self.cache_dir = fallback / "cache"
         self.cache_dir.mkdir(exist_ok=True)
-
-        return data_dir
+        return fallback
 
     def _load_app_registry(self) -> Dict[str, Any]:
         """Load application registry from JSON file"""
@@ -236,12 +284,23 @@ class UnifiedManagerCore:
         """Get application path based on configuration"""
         if "path" in app_config:
             return app_config["path"]
-        elif app_config.get("type") == "ncore-app":
-            return f"ncore/{app_name}"
-        elif app_config.get("type") == "poly-app":
+        app_type = app_config.get("type")
+        if app_type == "poly-app":
+            poly_path = Path("poly_apps") / app_name
+            if (self.project_root / poly_path).exists():
+                return str(poly_path)
             return f"poly_apps/{app_name}"
-        else:
+
+        if app_type == "ncore-app":
+            ncore_path = Path("ncore") / app_name
+            apps_path = Path("apps") / app_name
+            if (self.project_root / ncore_path).exists():
+                return str(ncore_path)
+            if (self.project_root / apps_path).exists():
+                return str(apps_path)
             return f"apps/{app_name}"
+
+        return f"apps/{app_name}"
 
     def _script_priority_extensions(self) -> Tuple[str, ...]:
         if self.is_windows:
@@ -253,12 +312,19 @@ class UnifiedManagerCore:
         for ext in self._script_priority_extensions():
             script_path = self.get_app_script_path(app_path, f"{action}{ext}")
             if script_path.exists():
-                return script_path
+                try:
+                    return script_path.resolve()
+                except OSError:
+                    return script_path
         return None
 
     def _build_command_for_script(self, script_path: Path) -> str:
-        ext = script_path.suffix.lower()
-        quoted = f'"{script_path}"'
+        try:
+            absolute_path = script_path.resolve()
+        except OSError:
+            absolute_path = script_path
+        ext = absolute_path.suffix.lower()
+        quoted = f'"{absolute_path}"'
         if self.is_windows:
             if ext == ".ps1":
                 return f'powershell -NoProfile -ExecutionPolicy Bypass -File {quoted}'
@@ -280,6 +346,15 @@ class UnifiedManagerCore:
         targets: Dict[str, Dict[str, Any]] = {}
 
         for action in ACTION_SEQUENCE:
+            app_type = app_config.get("type")
+
+            if action == "start" and app_type == "ncore-app":
+                targets[action] = {
+                    "kind": "command",
+                    "command": self._get_node_command_ncore(app_name),
+                }
+                continue
+
             script_path = self._locate_app_script(app_name, app_config, action)
             if script_path:
                 targets[action] = {
@@ -289,7 +364,6 @@ class UnifiedManagerCore:
                 continue
 
             if action == "start":
-                app_type = app_config.get("type")
                 if app_type == "poly-app":
                     targets[action] = {
                         "kind": "command",
@@ -376,6 +450,22 @@ class UnifiedManagerCore:
         }
         return self.write_action_result("execute_script", str(execution_path), params)
 
+    def _confirm_action_execution(self, app_name: str, action: str, detail: str) -> bool:
+        print("")
+        print(f"[CONFIRM] {app_name} :: {action}")
+        print(f"Will execute: {detail}")
+        response = input("Proceed? (y/N): ").strip().lower()
+        return response in {"y", "yes"}
+
+    def _confirm_preset_execution(self, preset_name: str, action: str, details: List[Tuple[str, str]]) -> bool:
+        print("")
+        print(f"[CONFIRM] Preset {preset_name} :: {action}")
+        print("Will execute:")
+        for app_name, command in details:
+            print(f"  - {app_name}: {command}")
+        response = input("Proceed? (y/N): ").strip().lower()
+        return response in {"y", "yes"}
+
     def get_available_commands(self, app_name: str) -> Dict[str, str]:
         """Get all available commands for an app"""
         commands: Dict[str, str] = {}
@@ -395,11 +485,13 @@ class UnifiedManagerCore:
 
     def _get_node_command_poly(self, app_name: str) -> str:
         """Get node command for poly apps"""
-        return f'node "{self.main_js}" poly_app={app_name}'
+        main_entry = str(self.main_js)
+        return f'node "{main_entry}" poly_app={app_name}'
 
     def _get_node_command_ncore(self, app_name: str) -> str:
         """Get node command for ncore apps"""
-        return f'node "{self.main_js}" app={app_name}'
+        main_entry = str(self.main_js)
+        return f'node "{main_entry}" app={app_name}'
 
     def _load_cache(self) -> Dict[str, Any]:
         """Load cached app action selections"""
@@ -462,10 +554,46 @@ class UnifiedManagerCore:
         """Persist the last selected script so wrapper scripts can trigger it."""
         result_file = self.data_dir / "action_result.json"
 
+        params_copy: Dict[str, Any] = dict(params or {})
+        dispatch_commands: List[str] = []
+        dispatch_scripts: List[str] = []
+
+        def append_unique(collection: List[str], candidate: Optional[str]) -> None:
+            if isinstance(candidate, str):
+                trimmed = candidate.strip()
+                if trimmed and trimmed not in collection:
+                    collection.append(trimmed)
+
+        if script_path:
+            append_unique(dispatch_scripts, str(script_path))
+
+        scripts_field = params_copy.get("scripts")
+        if isinstance(scripts_field, list):
+            for entry in scripts_field:
+                if isinstance(entry, str):
+                    append_unique(dispatch_scripts, entry)
+
+        command_value = params_copy.get("command")
+        append_unique(dispatch_commands, command_value)
+
+        commands_field = params_copy.get("commands")
+        if isinstance(commands_field, list):
+            for entry in commands_field:
+                if isinstance(entry, dict):
+                    append_unique(dispatch_commands, entry.get("command"))
+                else:
+                    append_unique(dispatch_commands, entry)
+
+        dispatch = {
+            "commands": dispatch_commands,
+            "scripts": dispatch_scripts,
+        }
+
         result = {
             "action": action,
             "script_path": script_path,
-            "params": params or {},
+            "params": params_copy,
+            "dispatch": dispatch,
             "timestamp": datetime.now().isoformat(),
             "platform": "windows" if self.is_windows else "linux",
             "cache_dir": str(self.cache_dir),
@@ -473,6 +601,14 @@ class UnifiedManagerCore:
 
         with open(result_file, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
+
+        try:
+            if dispatch_commands or dispatch_scripts:
+                self.global_vars.set_json(self.execution_key, result)
+            else:
+                self.global_vars.clear(self.execution_key)
+        except Exception as exc:
+            print(f"[WARN] Failed to update execution queue: {exc}")
 
         return str(script_path) if script_path else ""
 
@@ -766,6 +902,10 @@ class UnifiedManagerCore:
                     else:
                         current_idx = (current_idx + 1) % len(actions)
                     current_item["current_action"] = actions[current_idx]
+                    cache_key = f"app_{current_item['name']}" if current_item["type"] == "app" else f"preset_{current_item['name']}"
+                    cache_data[cache_key] = current_item["current_action"]
+                    cache_data["__last_selection_index__"] = index
+                    self._save_cache(cache_data)
             elif key == "ENTER":
                 self._clear_screen()
                 selected_item = items[index]
@@ -895,7 +1035,11 @@ class UnifiedManagerCore:
             return ""
 
         if target["kind"] == "script":
-            return self._prepare_script_for_execution(target["path"], app_name, action)
+            script_path = target["path"]
+            if not self._confirm_action_execution(app_name, action, f"script {script_path}"):
+                print("Action cancelled.")
+                return ""
+            return self._prepare_script_for_execution(script_path, app_name, action)
 
         command = target.get("command")
         if not command:
@@ -904,6 +1048,9 @@ class UnifiedManagerCore:
             return ""
 
         script_identifier = f"{action}_{app_name.replace(' ', '_')}"
+        if not self._confirm_action_execution(app_name, action, f"command {command}"):
+            print("Action cancelled.")
+            return ""
         return self._create_execute_script(command, script_identifier)
 
     def _execute_preset_action(self, item: Dict[str, Any]) -> str:
@@ -919,7 +1066,7 @@ class UnifiedManagerCore:
             return ""
 
         script_name = f"preset_{preset_config.get('id', preset_name)}_{action}"
-        result = self._create_preset_action_script(app_names, action, script_name)
+        result = self._create_preset_action_script(preset_name, app_names, action, script_name)
         if not result:
             print(f"Failed to create preset script for {preset_name}")
             input("Press Enter to continue...")
@@ -931,7 +1078,7 @@ class UnifiedManagerCore:
         if preset_name in presets:
             preset_config = presets[preset_name]
             app_names = preset_config.get("app_names", [])
-            return self._create_preset_action_script(app_names, "start", f"preset_{preset_name}")
+            return self._create_preset_action_script(preset_name, app_names, "start", f"preset_{preset_name}")
         else:
             print(f"Preset '{preset_name}' not found")
             input("Press Enter to continue...")
@@ -940,7 +1087,12 @@ class UnifiedManagerCore:
     def _execute_app_node_command(self, app_name: str) -> str:
         """Execute poly app using node main.js"""
         # Create a batch script to execute the node command
-        script_content = f'node "{self.main_js}" poly_app={app_name}'
+        main_entry = str(self.main_js)
+        script_content = f'node "{main_entry}" poly_app={app_name}'
+
+        if not self._confirm_action_execution(app_name, "start", f"command {script_content}"):
+            print("Action cancelled.")
+            return ""
 
         # Create temporary batch/shell script
         if self.is_windows:
@@ -1086,57 +1238,81 @@ class UnifiedManagerCore:
 
         return self.write_action_result("execute_preset", str(temp_script), {"app_names": app_names})
 
-    def _create_preset_action_script(self, app_names: List[str], action: str, script_name: str) -> str:
+    def _create_preset_action_script(self, preset_name: str, app_names: List[str], action: str, script_name: str) -> str:
         """Create a script to execute specific action for multiple apps from a preset"""
         apps = self.registry.get("apps", {})
-        commands = []
-
-        # Map action to command type
-        command_map = {
-            "start": "start_cmd",
-            "install": "install_cmd",
-            "build": "build_cmd",
-            "deploy": "deploy_cmd"
-        }
-
-        command_type = command_map.get(action, "start_cmd")
+        run_entries: List[Tuple[str, str]] = []
 
         for app_name in app_names:
-            if app_name in apps:
-                app_commands = self.get_available_commands(app_name)
-                if command_type in app_commands:
-                    commands.append(f'echo "{action.title()}ing {app_name}..."')
-                    commands.append(app_commands[command_type])
-                    commands.append("timeout /t 2 > nul" if self.is_windows else "sleep 2")
-                else:
-                    commands.append(f'echo "No {action} command available for {app_name}"')
+            app_config = apps.get(app_name)
+            if not app_config:
+                continue
 
-        if not commands:
+            command: Optional[str] = None
+            targets = self._collect_app_action_targets(app_name, app_config)
+            target = targets.get(action)
+            if target:
+                if target["kind"] == "script":
+                    command = self._build_command_for_script(target["path"])
+                elif target["kind"] == "command":
+                    command = target.get("command")
+
+            if not command:
+                app_commands = self.get_available_commands(app_name)
+                command = app_commands.get(f"{action}_cmd")
+
+            if not command:
+                print(f"Warning: No {action} command found for {app_name}")
+                continue
+
+            run_entries.append((app_name, command))
+
+        if not run_entries:
             print(f"No valid {action} commands found for preset apps")
             input("Press Enter to continue...")
+            return ""
+
+        if not self._confirm_preset_execution(preset_name, action, run_entries):
+            print("Action cancelled.")
             return ""
 
         if self.is_windows:
             temp_script = self.data_dir / f"{script_name}.bat"
             with open(temp_script, 'w', encoding='utf-8') as f:
-                f.write(f'@echo off\n')
+                f.write('@echo off\n')
                 f.write(f'cd /d "{self.project_root}"\n')
-                f.write(f'echo {action.title()}ing preset apps: {", ".join(app_names)}\n')
-                for command in commands:
-                    f.write(f'{command}\n')
+                f.write(f'echo Launching {action} for preset apps: {", ".join(app for app, _ in run_entries)}\n')
+                for app_name, command in run_entries:
+                    escaped = command.replace('"', '""')
+                    f.write(f'echo Starting {app_name} ({action})...\n')
+                    f.write(f'start "" /B cmd /c "{escaped}"\n')
+                f.write('echo All commands dispatched.\n')
                 f.write('pause\n')
         else:
             temp_script = self.data_dir / f"{script_name}.sh"
             with open(temp_script, 'w', encoding='utf-8') as f:
-                f.write(f'#!/bin/bash\n')
+                f.write('#!/bin/bash\n')
+                f.write('set -e\n')
                 f.write(f'cd "{self.project_root}"\n')
-                f.write(f'echo "{action.title()}ing preset apps: {", ".join(app_names)}"\n')
-                for command in commands:
-                    f.write(f'{command}\n')
+                f.write(f'echo "Launching {action} for preset apps: {", ".join(app for app, _ in run_entries)}"\n')
+                for app_name, command in run_entries:
+                    f.write(f'echo "Starting {app_name} ({action})..."\n')
+                    f.write(f'({command}) &\n')
+                f.write('echo "All commands dispatched in background."\n')
                 f.write('read -p "Press Enter to continue..."\n')
             temp_script.chmod(0o755)
 
-        return self.write_action_result(f"execute_preset_{action}", str(temp_script), {"app_names": app_names, "action": action})
+        params = {
+            "preset": preset_name,
+            "app_names": app_names,
+            "action": action,
+            "commands": [
+                {"app": app_name, "command": command}
+                for app_name, command in run_entries
+            ],
+        }
+
+        return self.write_action_result(f"execute_preset_{action}", str(temp_script), params)
 
     def _handle_install_dependencies(self) -> str:
         """Handle install dependencies menu choice"""

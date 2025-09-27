@@ -10,13 +10,13 @@ from typing import Dict, Optional, Any
 
 # Import using relative path from build_scripts root
 from shared.data_exchange.unified_variable_system import unified_vars, PlatformTargetInfo
+from shared.standard_image_data import platform_image_manager
 from utils.image_classifier import ImageClassifier
 from utils.platform_image_scanner import PlatformImageScanner
 from utils.platform_specs.platform_specs_manager import PlatformSpecsManager
 from utils.print_helper import PrintHelper
 
-# Compatibility alias
-PlatformSpecsMap = PlatformSpecsManager
+# Use PlatformSpecsManager as the unified platform specifications manager
 
 
 class Step3PlatformController:
@@ -29,7 +29,7 @@ class Step3PlatformController:
         self.step_name = "STEP-3"
         self.step_description = "Platform Images Scanning"
         self.platform_scanner = PlatformImageScanner()
-        self.platform_specs = PlatformSpecsMap()
+        self.platform_specs = PlatformSpecsManager()
         self.image_classifier = ImageClassifier()
         self.results = {}
         self.target_platform = None
@@ -156,6 +156,10 @@ class Step3PlatformController:
         Enhanced platform display with target platform highlighting and specifications
         """
         try:
+            # Clear platform image manager before collecting new data
+            for platform in platform_image_manager.get_all_platforms():
+                platform_image_manager.clear_platform(platform)
+
             PrintHelper.info(f"\n[PLATFORM-ANALYSIS] ENHANCED PLATFORM DISPLAY", source=self.step_name)
             PrintHelper.info(f" {'=' * 80}")
 
@@ -201,6 +205,10 @@ class Step3PlatformController:
 
                 PrintHelper.info("")
 
+            # Show platform image manager summary and verify data binding
+            self._show_platform_manager_summary()
+            self._verify_data_binding(platform_results)
+
         except Exception as e:
             PrintHelper.error(f"Failed to display enhanced platform info: {e}", source=self.step_name)
 
@@ -240,6 +248,11 @@ class Step3PlatformController:
                 image_type = classification.get('primary_type', 'unknown')
                 subtype = classification.get('subtype', '')
 
+                # Determine size status and recommendations
+                size_status = 'unknown'
+                size_difference = {}
+                recommended_size = (0, 0)
+
                 # Prefix for target platform emphasis
                 prefix = "   >>>" if is_target else "      "
 
@@ -249,11 +262,11 @@ class Step3PlatformController:
                     PrintHelper.info(f"{prefix}     Subtype: {subtype.replace('_', ' ').title()}")
                 # Show platform-specific size recommendations for all platforms
                 if platform_specs and image_type in ['icon', 'background', 'splash'] and width > 0 and height > 0:
-                    best_spec = self.platform_specs.get_best_size_recommendation(
-                        platform_name, image_type, (width, height)
+                    # Use path-based recommendation for better accuracy
+                    spec_size = self.platform_specs.get_recommended_size_for_path(
+                        platform_name, file_path, image_type
                     )
-                    if best_spec:
-                        spec_size = best_spec.get('size', (0, 0))
+                    if spec_size:
                         if spec_size != (0, 0):
                             # Calculate size difference
                             width_diff = width - spec_size[0]
@@ -266,16 +279,30 @@ class Step3PlatformController:
 
                             if max_diff_pct == 0:
                                 status_indicator = "[OK] PERFECT"
+                                size_status = "PERFECT"
                                 diff_text = ""
                             elif max_diff_pct <= 5:
                                 status_indicator = "[OK] GOOD"
+                                size_status = "GOOD"
                                 diff_text = f" (diff: {width_diff:+}w, {height_diff:+}h)"
                             elif max_diff_pct <= 20:
                                 status_indicator = "[WARN] WARNING"
+                                size_status = "WARNING"
                                 diff_text = f" (diff: {width_diff:+}w, {height_diff:+}h, {width_pct:+.1f}%w, {height_pct:+.1f}%h)"
                             else:
                                 status_indicator = "[ERR] ERROR"
+                                size_status = "ERROR"
                                 diff_text = f" (diff: {width_diff:+}w, {height_diff:+}h, {width_pct:+.1f}%w, {height_pct:+.1f}%h)"
+
+                            # Store size difference information
+                            recommended_size = spec_size
+                            size_difference = {
+                                'width_diff': width_diff,
+                                'height_diff': height_diff,
+                                'width_pct': width_pct,
+                                'height_pct': height_pct,
+                                'max_diff_pct': max_diff_pct
+                            }
 
                             # Display size and recommendation on adjacent lines
                             PrintHelper.info(f"{prefix}     Size: {dimensions} ({size_kb:.1f}KB)")
@@ -304,6 +331,25 @@ class Step3PlatformController:
                     for rec in recommendations:
                         PrintHelper.info(f"{prefix}     Recommendation: {rec}")
 
+                # Add image data to platform image manager
+                from datetime import datetime
+                image_data_for_manager = {
+                    'name': name,
+                    'path': file_path,
+                    'width': width,
+                    'height': height,
+                    'size_bytes': size_bytes,
+                    'format': image.get('format', ''),
+                    'classification': classification,
+                    'recommended_size': recommended_size,
+                    'size_status': size_status,
+                    'size_difference': size_difference,
+                    'scan_timestamp': datetime.now().isoformat(),
+                    'relative_path': image.get('relative_path', '')
+                }
+
+                platform_image_manager.add_scanned_image(platform_name, image_data_for_manager)
+
                 PrintHelper.info("")
 
             # Show missing expected files for Android platform
@@ -312,6 +358,71 @@ class Step3PlatformController:
 
         except Exception as e:
             PrintHelper.error(f"Failed to display platform details: {e}", source=self.step_name)
+
+    def _show_platform_manager_summary(self) -> None:
+        """Show summary of data collected in platform image manager"""
+        try:
+            PrintHelper.info("\n[PLATFORM-IMAGE-MANAGER] COLLECTED DATA SUMMARY", source=self.step_name)
+            PrintHelper.info("=" * 80)
+
+            for platform in platform_image_manager.get_all_platforms():
+                summary = platform_image_manager.get_platform_summary(platform)
+
+                if summary['total_images'] > 0:
+                    PrintHelper.info(f"Platform: {platform.upper()}")
+                    PrintHelper.info(f"  Total Images: {summary['total_images']}")
+                    PrintHelper.info(f"  Total Size: {summary['total_size'] / 1024:.1f}KB")
+                    PrintHelper.info(f"  Types: {dict(summary['types'])}")
+                    PrintHelper.info(f"  Size Analysis: {summary['perfect_sizes']} Perfect, {summary['error_sizes']} Errors, {summary['warning_sizes']} Warnings")
+
+                    # Show some sample images
+                    sample_images = platform_image_manager.get_platform_images(platform)[:3]
+                    for img in sample_images:
+                        PrintHelper.info(f"    Sample: {img['filename']} ({img['image_type']}) - {img['size_status']}")
+
+                    PrintHelper.info("")
+
+        except Exception as e:
+            PrintHelper.error(f"Failed to show platform manager summary: {e}", source=self.step_name)
+
+    def _verify_data_binding(self, platform_results: Dict) -> None:
+        """Verify data binding between scanning results and platform image manager"""
+        try:
+            PrintHelper.info("\n[DATA-BINDING] VERIFICATION ANALYSIS", source=self.step_name)
+            PrintHelper.info("=" * 80)
+
+            platforms = platform_results.get('platforms', {})
+
+            for platform_name, platform_data in platforms.items():
+                if not platform_data.get('exists', False):
+                    continue
+
+                # Count images from original scan
+                original_count = len(platform_data.get('images', []))
+
+                # Count images in platform manager
+                manager_summary = platform_image_manager.get_platform_summary(platform_name)
+                manager_count = manager_summary['total_images']
+
+                # Verify data consistency
+                status = "✓ SYNCED" if original_count == manager_count else "✗ MISMATCH"
+
+                PrintHelper.info(f"Platform: {platform_name.upper()}")
+                PrintHelper.info(f"  Original Scan: {original_count} images")
+                PrintHelper.info(f"  Manager Store: {manager_count} images")
+                PrintHelper.info(f"  Status: {status}")
+
+                if original_count != manager_count:
+                    PrintHelper.warning(f"  ⚠ Data binding issue detected for {platform_name}", source=self.step_name)
+                else:
+                    PrintHelper.success(f"  ✓ Data successfully bound to standard_image_data.py", source=self.step_name)
+
+                PrintHelper.info("")
+
+            PrintHelper.info("Data binding verification complete", source=self.step_name)
+
+        except Exception as e:
+            PrintHelper.error(f"Failed to verify data binding: {e}", source=self.step_name)
 
     def _show_missing_expected_files(self, platform_name: str, platform_data: Dict, is_target: bool) -> None:
         """Show missing expected files based on platform specifications"""

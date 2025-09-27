@@ -168,10 +168,10 @@ class FlutterDecisionEngine:
         }
 
         # Store in unified variables for other systems to access
-        unified_vars.set_file_variable("OPERATION_MODE", operation_mode)
-        unified_vars.set_file_variable("OPERATION_CONTEXT_APP", context["app"])
-        unified_vars.set_file_variable("OPERATION_CONTEXT_PLATFORM", context["platform"])
-        unified_vars.set_file_variable("OPERATION_CONTEXT_ACTION", context["action"])
+        unified_vars.set_file_variable(unified_vars.KEY_OPERATION_MODE, operation_mode)
+        unified_vars.set_file_variable(unified_vars.KEY_OPERATION_CONTEXT_APP, context["app"])
+        unified_vars.set_file_variable(unified_vars.KEY_OPERATION_CONTEXT_PLATFORM, context["platform"])
+        unified_vars.set_file_variable(unified_vars.KEY_OPERATION_CONTEXT_ACTION, context["action"])
 
         return context
 
@@ -227,18 +227,18 @@ class FlutterDecisionEngine:
             Dictionary of verification information
         """
         verification_keys = [
-            "KEY_SELECTED_APP",
-            "KEY_SELECTED_ACTION",
-            "KEY_SELECTED_PLATFORM",
-            "KEY_CURRENT_ACTIVE_APP",
-            "KEY_CURRENT_ACTIVE_ACTION",
-            "KEY_CURRENT_ACTIVE_PLATFORM",
-            "KEY_APP_NAME",
-            "KEY_BUILD_ACTION",
-            "KEY_BUILD_PLATFORM",
-            "KEY_SELECTED_ENTRY_FILE",
-            "KEY_APP_INDEX",
-            "KEY_DEBUG_PORT"
+            unified_vars.KEY_SELECTED_APP,
+            unified_vars.KEY_SELECTED_ACTION,
+            unified_vars.KEY_SELECTED_PLATFORM,
+            unified_vars.KEY_CURRENT_ACTIVE_APP,
+            unified_vars.KEY_CURRENT_ACTIVE_ACTION,
+            unified_vars.KEY_CURRENT_ACTIVE_PLATFORM,
+            unified_vars.KEY_APP_NAME,
+            unified_vars.KEY_BUILD_ACTION,
+            unified_vars.KEY_BUILD_PLATFORM,
+            unified_vars.KEY_SELECTED_ENTRY_FILE,
+            unified_vars.KEY_APP_INDEX,
+            unified_vars.KEY_DEBUG_PORT
         ]
 
         verification_data = {}

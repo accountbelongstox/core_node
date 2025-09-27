@@ -621,8 +621,8 @@ initialize_menu_items() {
     menu_items["Display system information"]="text=Display system information;values=basic,detailed,network;current=0;key=SYSINFO_TYPE;action=show_system_info"
     menu_order+=("Display system information")
 
-    menu_items["Run Apps"]="text=Run Apps;values=default;current=0;key=RUN_APPS_TYPE;action=run_apps"
-    menu_order+=("Run Apps")
+    menu_items["Run Ncore"]="text=Run Ncore;values=default;current=0;key=RUN_NCORE_TYPE;action=run_ncore"
+    menu_order+=("Run Ncore")
 
     menu_items["Unified App Manager"]="text=Unified App Manager;values=default;current=0;key=UNIFIED_MANAGER_TYPE;action=unified_manager"
     menu_order+=("Unified App Manager")
@@ -717,18 +717,23 @@ handle_menu_action() {
                     ;;
             esac
             ;;
-        "run_apps")
-            echo "Running Apps Management..."
-            local run_app_script="$SHELLS_DIR/linux/debian/run_apps/run_app.sh"
-            if [ -f "$run_app_script" ]; then
-                bash "$run_app_script" "$@"
-            else
-                echo "Error: run_app.sh script not found at $run_app_script"
-                echo "Please ensure the script exists and try again."
-            fi
-            ;;
         "show_special_software_env_menu")
             show_special_software_env_menu
+            ;;
+        "run_ncore")
+            local main_entry="$CORE_NODE_ROOT_DIR/main.js"
+            if [ -f "$main_entry" ]; then
+                echo "Starting ncore using $main_entry"
+                (
+                    cd "$CORE_NODE_ROOT_DIR"
+                    node "./main.js"
+                )
+            else
+                echo "Error: main.js not found at $main_entry"
+            fi
+            echo ""
+            echo "Press Enter to continue..."
+            read
             ;;
         "unified_manager")
             local unified_manager_py_script="$SCRIPT_DIR/unified_manager_py/unified_manager.sh"

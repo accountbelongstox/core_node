@@ -18,8 +18,9 @@ from utils.source_scanner import SourceScanner
 class SourceViewerServer:
     """Web server for viewing Flutter project source resources"""
 
-    def __init__(self, port: int = 8081):
+    def __init__(self, port: int = 8081, project_root: Path = None):
         self.port = port
+        self.project_root = project_root or Path.cwd()  # Use provided root or current working directory
         self.app = Flask(__name__)
         self.scanner = SourceScanner()
         self.scan_results = None
@@ -36,9 +37,8 @@ class SourceViewerServer:
         def api_scan():
             """Scan project and return results"""
             try:
-                # Find project root (go up two levels from script directory)
-                script_dir = Path(__file__).parent.parent
-                project_root = self.scanner.find_project_root(script_dir)
+                # Use the provided project root (current working directory when server was initialized)
+                project_root = self.project_root
 
                 self.scan_results = self.scanner.get_comprehensive_scan_results(project_root)
                 return jsonify(self.scan_results)
@@ -48,45 +48,99 @@ class SourceViewerServer:
 
         @self.app.route('/api/open-directory')
         def api_open_directory():
-            """Open directory in Windows Explorer"""
+            """Open directory in Windows Explorer or file manager"""
             try:
                 file_path = request.args.get('path')
                 if not file_path:
                     return jsonify({'error': 'No path provided'}), 400
 
-                # Convert to Path and get parent directory
-                path_obj = Path(file_path)
+                # Clean the path - remove URL encoding artifacts and whitespace
+                import urllib.parse
+                clean_path = urllib.parse.unquote(file_path).strip()
+
+                # Remove any carriage return or newline characters
+                clean_path = clean_path.replace('\r', '').replace('\n', '')
+
+                # Convert to Path object
+                path_obj = Path(clean_path)
+
+                # If it's a relative path, make it relative to project root
+                if not path_obj.is_absolute():
+                    path_obj = self.project_root / path_obj
+
+                # Get parent directory if it's a file
                 if path_obj.is_file():
                     directory = path_obj.parent
                 else:
                     directory = path_obj
 
+                # Resolve to absolute path
+                directory = directory.resolve()
+
                 # Ensure directory exists
                 if not directory.exists():
                     return jsonify({'error': f'Directory does not exist: {directory}'}), 404
 
-                # Convert to Windows format - use absolute path
-                windows_path = str(directory.resolve()).replace('/', '\\')
+                # Convert to proper platform format
+                if os.name == 'nt':  # Windows
+                    windows_path = str(directory).replace('/', '\\')
+                    # Use explorer to open the directory
+                    subprocess.run(['explorer', windows_path], shell=False)
+                else:  # Linux/Mac
+                    unix_path = str(directory)
+                    # Try common file managers
+                    try:
+                        # Try xdg-open (most Linux distributions)
+                        subprocess.run(['xdg-open', unix_path], shell=False)
+                    except FileNotFoundError:
+                        try:
+                            # Try nautilus (GNOME)
+                            subprocess.run(['nautilus', unix_path], shell=False)
+                        except FileNotFoundError:
+                            try:
+                                # Try dolphin (KDE)
+                                subprocess.run(['dolphin', unix_path], shell=False)
+                            except FileNotFoundError:
+                                return jsonify({'error': 'No file manager found'}), 500
 
-                # Use explorer with proper Windows path format
-                subprocess.run(['explorer', '/select,', windows_path], shell=False)
-
-                return jsonify({'success': True, 'opened': str(directory)})
+                display_path = str(directory).replace('/', '\\') if os.name == 'nt' else str(directory)
+                return jsonify({'success': True, 'opened': display_path})
 
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
 
         @self.app.route('/api/copy-path')
         def api_copy_path():
-            """Return Windows-formatted path for copying"""
+            """Return properly formatted path for copying"""
             try:
                 file_path = request.args.get('path')
                 if not file_path:
                     return jsonify({'error': 'No path provided'}), 400
 
-                # Convert to Windows format
-                windows_path = str(Path(file_path)).replace('/', '\\')
-                return jsonify({'windows_path': windows_path})
+                # Clean the path - remove URL encoding artifacts and whitespace
+                import urllib.parse
+                clean_path = urllib.parse.unquote(file_path).strip()
+
+                # Remove any carriage return or newline characters
+                clean_path = clean_path.replace('\r', '').replace('\n', '')
+
+                # Convert to Path object and resolve to absolute path
+                path_obj = Path(clean_path)
+
+                # If it's a relative path, make it relative to project root
+                if not path_obj.is_absolute():
+                    path_obj = self.project_root / path_obj
+
+                # Resolve to absolute path
+                absolute_path = path_obj.resolve()
+
+                # Convert to platform-appropriate format
+                if os.name == 'nt':  # Windows
+                    formatted_path = str(absolute_path).replace('/', '\\')
+                else:  # Unix/Linux/Mac
+                    formatted_path = str(absolute_path)
+
+                return jsonify({'windows_path': formatted_path})
 
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
@@ -662,12 +716,12 @@ class SourceViewerServer:
             background: #e0e7ff;
         }
 
-        .tree-directory.collapsed::before {
-            content: "▶ ";
+        .tree-directory.collapsed {
+            color: #64748b;
         }
 
-        .tree-directory.expanded::before {
-            content: "▼ ";
+        .tree-directory.expanded {
+            color: #3730a3;
         }
 
         .tree-file {
@@ -1036,9 +1090,9 @@ class SourceViewerServer:
                                 <td>
                                     <div class="action-buttons">
                                         <button class="action-btn" onclick="downloadImage('${img.path}')">Download</button>
-                                        <button class="action-btn" onclick="openDirectory('${img.directory_path}')">Open Dir</button>
-                                        <button class="action-btn" onclick="copyDir('${img.directory_path}')">Copy Dir</button>
-                                        <button class="action-btn" onclick="copyPath('${img.path}')">Copy Path</button>
+                                        <button class="action-btn" data-dir-path="${img.directory_path}" onclick="openDirectoryFromData(this)">Open Dir</button>
+                                        <button class="action-btn" data-dir-path="${img.directory_path}" onclick="copyDirFromData(this)">Copy Dir</button>
+                                        <button class="action-btn" data-file-path="${img.path}" onclick="copyPathFromData(this)">Copy Path</button>
                                     </div>
                                 </td>
                             </tr>
@@ -1074,8 +1128,8 @@ class SourceViewerServer:
                             <td><div class="path-display" title="${id.file_path}">${id.relative_path}</div></td>
                             <td>
                                 <div class="action-buttons">
-                                    <button class="action-btn" onclick="openDirectory('${id.file_path}')">Open Dir</button>
-                                    <button class="action-btn" onclick="copyPath('${id.file_path}')">Copy Path</button>
+                                    <button class="action-btn" data-file-path="${id.file_path}" onclick="openDirectoryFromData(this)">Open Dir</button>
+                                    <button class="action-btn" data-file-path="${id.file_path}" onclick="copyPathFromData(this)">Copy Path</button>
                                 </div>
                             </td>
                         </tr>
@@ -1201,12 +1255,58 @@ class SourceViewerServer:
             });
         }
 
-        function copyPath(path) {
-            copyToClipboard(path, 'path');
+        async function copyPath(path) {
+            try {
+                const response = await fetch(`/api/copy-path?path=${encodeURIComponent(path)}`);
+                const result = await response.json();
+
+                if (result.windows_path) {
+                    copyToClipboard(result.windows_path, 'path');
+                } else {
+                    copyToClipboard(path, 'path');
+                }
+            } catch (error) {
+                console.error('Failed to get Windows path:', error);
+                copyToClipboard(path, 'path'); // Fallback to original path
+            }
         }
 
-        function copyDir(dirPath) {
-            copyToClipboard(dirPath, 'dir');
+        async function copyDir(dirPath) {
+            try {
+                const response = await fetch(`/api/copy-path?path=${encodeURIComponent(dirPath)}`);
+                const result = await response.json();
+
+                if (result.windows_path) {
+                    copyToClipboard(result.windows_path, 'dir');
+                } else {
+                    copyToClipboard(dirPath, 'dir');
+                }
+            } catch (error) {
+                console.error('Failed to get Windows path:', error);
+                copyToClipboard(dirPath, 'dir'); // Fallback to original path
+            }
+        }
+
+        // Functions to handle paths from data attributes
+        function openDirectoryFromData(button) {
+            const dirPath = button.getAttribute('data-dir-path') || button.getAttribute('data-file-path');
+            if (dirPath) {
+                openDirectory(dirPath);
+            }
+        }
+
+        function copyDirFromData(button) {
+            const dirPath = button.getAttribute('data-dir-path');
+            if (dirPath) {
+                copyDir(dirPath);
+            }
+        }
+
+        function copyPathFromData(button) {
+            const filePath = button.getAttribute('data-file-path');
+            if (filePath) {
+                copyPath(filePath);
+            }
         }
 
         // Enhanced tree view and file table functions
@@ -1246,9 +1346,9 @@ class SourceViewerServer:
                                 <td>
                                     <div class="action-buttons">
                                         ${file.is_image ? `<button class="action-btn" onclick="downloadImage('${file.path}')">Download</button>` : ''}
-                                        <button class="action-btn" onclick="openDirectory('${file.directory_path}')">Open Dir</button>
-                                        <button class="action-btn" onclick="copyDir('${file.directory_path}')">Copy Dir</button>
-                                        <button class="action-btn" onclick="copyPath('${file.path}')">Copy Path</button>
+                                        <button class="action-btn" data-dir-path="${file.directory_path}" onclick="openDirectoryFromData(this)">Open Dir</button>
+                                        <button class="action-btn" data-dir-path="${file.directory_path}" onclick="copyDirFromData(this)">Copy Dir</button>
+                                        <button class="action-btn" data-file-path="${file.path}" onclick="copyPathFromData(this)">Copy Path</button>
                                     </div>
                                 </td>
                             </tr>
@@ -1308,10 +1408,10 @@ class SourceViewerServer:
                     const hasChildren = item.children && Object.keys(item.children).length > 0;
                     html += `
                         <div class="tree-item" style="margin-left: ${depth * 20}px;">
-                            <div class="tree-directory collapsed" onclick="toggleTreeNode(this)">
-                                ${name}/
+                            <div class="tree-directory expanded" onclick="toggleTreeNode(this)">
+                                📂 ${name}/
                             </div>
-                            <div class="tree-children collapsed">
+                            <div class="tree-children">
                                 ${hasChildren ? buildTreeItems(item.children, 0) : '<div style="color: #94a3b8; font-style: italic;">Empty directory</div>'}
                             </div>
                         </div>
@@ -1320,20 +1420,27 @@ class SourceViewerServer:
                     const file = item.file_info;
                     const isImage = file.is_image || file.base64_preview;
 
+                    // Generate thumbnail for images
+                    let thumbnailHtml = '';
+                    if (isImage && file.base64_preview) {
+                        thumbnailHtml = `<img src="data:image/png;base64,${file.base64_preview}" alt="${name}" style="width: 24px; height: 24px; object-fit: cover; border-radius: 4px; margin-right: 8px; vertical-align: middle;" />`;
+                    }
+
                     html += `
                         <div class="tree-item" style="margin-left: ${depth * 20}px;">
                             <div class="tree-file">
-                                <div class="tree-file-info">
-                                    ${isImage ? '🖼️' : getFileIcon(file.file_type || file.extension)}
-                                    <span>${name}</span>
-                                    ${file.size_text ? `<span style="color: #64748b; font-size: 0.8rem;">(${file.size_text})</span>` : ''}
+                                <div class="tree-file-info" style="display: flex; align-items: center;">
+                                    ${thumbnailHtml}
+                                    ${!thumbnailHtml ? (isImage ? '🖼️' : getFileIcon(file.file_type || file.extension)) : ''}
+                                    <span style="margin-left: ${thumbnailHtml ? '0' : '4px'};">${name}</span>
+                                    ${file.size_text ? `<span style="color: #64748b; font-size: 0.8rem; margin-left: 8px;">(${file.size_text})</span>` : ''}
                                     ${file.file_type ? `<span class="file-type-badge file-type-${file.file_type}" style="margin-left: 8px;">${file.file_type}</span>` : ''}
                                 </div>
                                 <div class="tree-file-actions">
                                     ${isImage ? `<button class="action-btn" onclick="downloadImage('${file.path}')">⬇️</button>` : ''}
-                                    <button class="action-btn" onclick="openDirectory('${file.directory_path || file.path}')">📁</button>
-                                    <button class="action-btn" onclick="copyDir('${file.directory_path || file.path}')">📂</button>
-                                    <button class="action-btn" onclick="copyPath('${file.directory_path || file.path}')">📋</button>
+                                    <button class="action-btn" data-file-path="${file.directory_path || file.path}" onclick="openDirectoryFromData(this)">📁</button>
+                                    <button class="action-btn" data-dir-path="${file.directory_path || file.path}" onclick="copyDirFromData(this)">📂</button>
+                                    <button class="action-btn" data-file-path="${file.directory_path || file.path}" onclick="copyPathFromData(this)">📋</button>
                                 </div>
                             </div>
                         </div>
@@ -1360,16 +1467,20 @@ class SourceViewerServer:
 
         function toggleTreeNode(element) {
             const children = element.nextElementSibling;
-            const isExpanded = element.classList.contains('expanded');
+            const isCollapsed = children.classList.contains('collapsed');
 
-            if (isExpanded) {
-                element.classList.remove('expanded');
-                element.classList.add('collapsed');
-                children.classList.add('collapsed');
-            } else {
+            if (isCollapsed) {
+                // Expand
                 element.classList.remove('collapsed');
                 element.classList.add('expanded');
                 children.classList.remove('collapsed');
+                element.textContent = element.textContent.replace('📁', '📂');
+            } else {
+                // Collapse
+                element.classList.remove('expanded');
+                element.classList.add('collapsed');
+                children.classList.add('collapsed');
+                element.textContent = element.textContent.replace('📂', '📁');
             }
         }
 

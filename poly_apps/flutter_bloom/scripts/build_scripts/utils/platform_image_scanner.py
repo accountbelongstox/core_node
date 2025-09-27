@@ -88,14 +88,14 @@ class PlatformImageScanner:
         print(f"[PLATFORM-SCAN] Scanning {platform.upper()} platform directory...")
 
         try:
-            # Recursively find all image files
-            image_files = []
+            # Recursively find all image files (case-insensitive using set to avoid duplicates)
+            image_files_set = set()
             for ext in self.supported_formats:
-                image_files.extend(platform_path.rglob(f"*{ext}"))
-                image_files.extend(platform_path.rglob(f"*{ext.upper()}"))
+                image_files_set.update(platform_path.rglob(f"*{ext}"))
+                image_files_set.update(platform_path.rglob(f"*{ext.upper()}"))
 
-            # Sort files by path for consistent output
-            image_files.sort(key=lambda x: str(x))
+            # Convert to sorted list for consistent output
+            image_files = sorted(list(image_files_set), key=lambda x: str(x))
 
             # Process each image file
             for image_file in image_files:

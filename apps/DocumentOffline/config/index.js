@@ -17,6 +17,7 @@ const fs = require('fs');
 
 // Default configuration
 const defaultConfig = {
+  debug: true,
   download: {
     timeout: 30000,
     maxRetries: 3,

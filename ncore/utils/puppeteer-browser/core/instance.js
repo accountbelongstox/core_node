@@ -59,10 +59,20 @@ class PuppeteerSpiderInstance {
             
             // Create initial page
             await this.createPuppeteerPage();
-            
+
             this.isInitialized = true;
             logger.info('Puppeteer spider instance initialized successfully with stealth protection');
-            
+            const executable = launchOptions.executablePath || 'bundled Chromium';
+            logger.info(
+                `Puppeteer launch details: headless=${launchOptions.headless}, ` +
+                `viewport=${this.config.width}x${this.config.height} (scale ${this.config.deviceScaleFactor}), ` +
+                `executable=${executable}`
+            );
+            if (this.config.proxy) {
+                logger.info(`Puppeteer proxy: ${this.config.proxy}`);
+            }
+            logger.info(`Puppeteer user agent: ${this.config.userAgent}`);
+
         } catch (error) {
             logger.error(`Failed to initialize Puppeteer spider instance: ${error.message}`);
             throw error;

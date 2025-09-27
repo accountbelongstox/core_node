@@ -56,54 +56,6 @@ class PlatformSpecsManager:
             return platform_spec.get_recommended_size_for_path(file_path, image_type)
         return None
 
-    def get_best_size_recommendation(self, platform: str, image_type: str, current_size: Tuple[int, int]) -> Optional[Dict]:
-        """Get the best size recommendation for current image based on platform"""
-        platform_spec = self.get_platform_specs(platform)
-        if not platform_spec:
-            return None
-
-        # Get all recommendations for this platform and image type
-        all_recommendations = self.get_all_recommendations(platform)
-        if not all_recommendations:
-            return None
-
-        # Map image types to recommendation categories
-        type_mapping = {
-            'icon': ['icons', 'app_icons'],
-            'background': ['backgrounds', 'splash'],
-            'splash': ['splash', 'backgrounds', 'launch'],
-            'launch': ['launch', 'splash', 'backgrounds'],
-            'notification': ['notifications'],
-            'pwa': ['pwa'],
-            'favicon': ['favicon']
-        }
-
-        # Find matching recommendations
-        potential_recommendations = []
-        categories_to_check = type_mapping.get(image_type, ['icons'])
-
-        for category in categories_to_check:
-            if category in all_recommendations:
-                if isinstance(all_recommendations[category], list):
-                    potential_recommendations.extend(all_recommendations[category])
-
-        if not potential_recommendations:
-            return None
-
-        # Find the recommendation closest to current size
-        best_match = None
-        min_diff = float('inf')
-
-        for rec in potential_recommendations:
-            rec_size = rec.get('size', (0, 0))
-            if isinstance(rec_size, (list, tuple)) and len(rec_size) >= 2:
-                size_diff = abs(rec_size[0] - current_size[0]) + abs(rec_size[1] - current_size[1])
-
-                if size_diff < min_diff:
-                    min_diff = size_diff
-                    best_match = rec
-
-        return best_match
 
     def get_platform_info(self, platform: str) -> Dict:
         """Get platform information"""
