@@ -326,6 +326,78 @@ class ImageProcessor:
 
         print("-" * 50)
 
+    def process_image_with_compression(self, input_path: str, output_path: str, output_format: str) -> bool:
+        """
+        Process image with compression enabled - wrapper for SmartImageSelector compatibility
+
+        Args:
+            input_path: Path to input image
+            output_path: Path for output image
+            output_format: Target format (.png, .jpg, etc.)
+
+        Returns:
+            bool: True if processing succeeded, False otherwise
+        """
+        try:
+            # Convert string paths to Path objects
+            input_path = Path(input_path)
+            output_path = Path(output_path)
+
+            # Ensure output directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Use process_image with compression enabled
+            result = self.process_image(input_path, output_format, compress=True)
+
+            if result['success'] and result['processed_path']:
+                # Copy the processed image to the desired output location
+                processed_file = Path(result['processed_path'])
+                if processed_file.exists():
+                    shutil.copy2(processed_file, output_path)
+                    return True
+
+            return False
+
+        except Exception as e:
+            print(f"[IMAGE-PROCESSOR] Error in process_image_with_compression: {e}")
+            return False
+
+    def convert_image_format(self, input_path: str, output_path: str, output_format: str) -> bool:
+        """
+        Convert image format without compression - wrapper for SmartImageSelector compatibility
+
+        Args:
+            input_path: Path to input image
+            output_path: Path for output image
+            output_format: Target format (.png, .jpg, etc.)
+
+        Returns:
+            bool: True if conversion succeeded, False otherwise
+        """
+        try:
+            # Convert string paths to Path objects
+            input_path = Path(input_path)
+            output_path = Path(output_path)
+
+            # Ensure output directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Use process_image with compression disabled
+            result = self.process_image(input_path, output_format, compress=False)
+
+            if result['success'] and result['processed_path']:
+                # Copy the processed image to the desired output location
+                processed_file = Path(result['processed_path'])
+                if processed_file.exists():
+                    shutil.copy2(processed_file, output_path)
+                    return True
+
+            return False
+
+        except Exception as e:
+            print(f"[IMAGE-PROCESSOR] Error in convert_image_format: {e}")
+            return False
+
 # Convenience functions for common operations
 def convert_to_png(input_path: Path, compress: bool = False, flutter_root_dir: Optional[Path] = None) -> Dict:
     """Convert image to PNG format"""

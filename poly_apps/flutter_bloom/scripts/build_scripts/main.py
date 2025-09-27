@@ -7,7 +7,7 @@ Handles both debug routing and build system execution
 import sys
 import traceback
 from core.flutter_launcher import FlutterBloomLauncher
-from core.build_system import FlutterBloomBuildSystem
+from core.modern_build_system import ModernFlutterBuildSystem
 from shared.directory_manager import DirectoryManager
 
 
@@ -35,7 +35,7 @@ def main():
             print("=" * 50)
 
             # Run build system from new architecture
-            build_system = FlutterBloomBuildSystem()
+            build_system = ModernFlutterBuildSystem()
             build_result = build_system.run()
 
             if not build_result['success']:

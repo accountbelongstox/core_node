@@ -35,13 +35,7 @@ class FlutterAppSelector:
         # PrintHelper is now a static class
         self.platforms = ["Web", "Android", "Windows", "All"]
 
-        # Cache keys
-        self.KEY_APP_ACTION_MODE_PREFIX = "KEY_APP_ACTION_MODE_"
-        self.KEY_APP_PLATFORM_MODE_PREFIX = "KEY_APP_PLATFORM_MODE_"
-        self.KEY_LAST_SELECTED_APP_INDEX = "KEY_LAST_SELECTED_APP_INDEX"
-        self.KEY_CURRENT_ACTIVE_APP = "KEY_CURRENT_ACTIVE_APP"
-        self.KEY_CURRENT_ACTIVE_ACTION = "KEY_CURRENT_ACTIVE_ACTION"
-        self.KEY_CURRENT_ACTIVE_PLATFORM = "KEY_CURRENT_ACTIVE_PLATFORM"
+        # All keys are now defined in unified_variable_system.py for consistency
 
     def get_user_input_key(self) -> Dict[str, Any]:
         """Get a single key input from user with support for arrow keys"""
@@ -85,7 +79,7 @@ class FlutterAppSelector:
             return {"success": False, "error": "No applications found"}
 
         # Load last selected app index from cache
-        current_selection_str = unified_vars.get_file_variable(self.KEY_LAST_SELECTED_APP_INDEX, "1")
+        current_selection_str = unified_vars.get_file_variable(unified_vars.KEY_LAST_SELECTED_APP_INDEX, "1")
         try:
             current_selection = int(current_selection_str)
         except:
@@ -109,8 +103,8 @@ class FlutterAppSelector:
 
             # Display "All Apps" option (app_main)
             all_highlight = " -> " if current_selection == 0 else "    "
-            all_action_mode = unified_vars.get_file_variable(self.KEY_APP_ACTION_MODE_PREFIX + "app_main", "Debug")
-            all_platform_mode = unified_vars.get_file_variable(self.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", "Android")
+            all_action_mode = unified_vars.get_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + "app_main", "Debug")
+            all_platform_mode = unified_vars.get_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", "Android")
             color_prefix = "\033[92m" if current_selection == 0 else "\033[97m"  # Green if selected, white otherwise
             color_suffix = "\033[0m"
             print(f"{color_prefix}{all_highlight} 0. app_main (Main Entry Point) [{all_action_mode}/{all_platform_mode}]{color_suffix}")
@@ -118,8 +112,8 @@ class FlutterAppSelector:
             # Display individual apps with highlighting and platform info
             for i, app in enumerate(filtered_apps):
                 app_index = i + 1
-                action_mode = unified_vars.get_file_variable(self.KEY_APP_ACTION_MODE_PREFIX + app["name"], "Debug")
-                platform_mode = unified_vars.get_file_variable(self.KEY_APP_PLATFORM_MODE_PREFIX + app["name"], "Android")
+                action_mode = unified_vars.get_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + app["name"], "Debug")
+                platform_mode = unified_vars.get_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + app["name"], "Android")
                 display_name = app["name"]
                 display_name += f" [{action_mode}/{platform_mode}]"
 
@@ -157,42 +151,42 @@ class FlutterAppSelector:
         """Toggle Debug/Build mode for current selection"""
         if current_selection == 0:
             # Handle app_main toggle
-            current_action = unified_vars.get_file_variable(self.KEY_APP_ACTION_MODE_PREFIX + "app_main", "Debug")
+            current_action = unified_vars.get_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + "app_main", "Debug")
             new_action = "Build" if current_action == "Debug" else "Debug"
-            unified_vars.set_file_variable(self.KEY_APP_ACTION_MODE_PREFIX + "app_main", new_action)
+            unified_vars.set_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + "app_main", new_action)
         elif current_selection > 0:
             selected_app = filtered_apps[current_selection - 1]
-            current_action = unified_vars.get_file_variable(self.KEY_APP_ACTION_MODE_PREFIX + selected_app["name"], "Debug")
+            current_action = unified_vars.get_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + selected_app["name"], "Debug")
             new_action = "Build" if current_action == "Debug" else "Debug"
-            unified_vars.set_file_variable(self.KEY_APP_ACTION_MODE_PREFIX + selected_app["name"], new_action)
+            unified_vars.set_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + selected_app["name"], new_action)
 
     def _toggle_platform_mode(self, current_selection: int, filtered_apps: List[Dict[str, Any]]):
         """Toggle platform mode for current selection"""
         if current_selection == 0:
             # Handle app_main platform toggle
-            current_platform = unified_vars.get_file_variable(self.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", "Android")
+            current_platform = unified_vars.get_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", "Android")
             try:
                 current_index = self.platforms.index(current_platform)
             except ValueError:
                 current_index = 0
             new_index = 0 if current_index == len(self.platforms) - 1 else current_index + 1
-            unified_vars.set_file_variable(self.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", self.platforms[new_index])
+            unified_vars.set_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", self.platforms[new_index])
         elif current_selection > 0:
             selected_app = filtered_apps[current_selection - 1]
-            current_platform = unified_vars.get_file_variable(self.KEY_APP_PLATFORM_MODE_PREFIX + selected_app["name"], "Android")
+            current_platform = unified_vars.get_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + selected_app["name"], "Android")
             try:
                 current_index = self.platforms.index(current_platform)
             except ValueError:
                 current_index = 0
             new_index = 0 if current_index == len(self.platforms) - 1 else current_index + 1
-            unified_vars.set_file_variable(self.KEY_APP_PLATFORM_MODE_PREFIX + selected_app["name"], self.platforms[new_index])
+            unified_vars.set_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + selected_app["name"], self.platforms[new_index])
 
     def _confirm_selection(self, current_selection: int, filtered_apps: List[Dict[str, Any]], all_apps: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Confirm and return the current selection"""
         if current_selection == 0:
             # Get current action and platform for app_main
-            current_action = unified_vars.get_file_variable(self.KEY_APP_ACTION_MODE_PREFIX + "app_main", "Debug")
-            current_platform = unified_vars.get_file_variable(self.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", "Android")
+            current_action = unified_vars.get_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + "app_main", "Debug")
+            current_platform = unified_vars.get_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", "Android")
 
             # Calculate correct entry file (relative path)
             entry_file = f"lib/apps/app_main/main_app_main.dart"
@@ -212,15 +206,15 @@ class FlutterAppSelector:
             self._save_selection_to_variables(selection_data)
 
             # Save current selection index for next time
-            unified_vars.set_file_variable(self.KEY_LAST_SELECTED_APP_INDEX, "0")
+            unified_vars.set_file_variable(unified_vars.KEY_LAST_SELECTED_APP_INDEX, "0")
 
             return {"success": True, "selection": selection_data}
         else:
             selected_app = filtered_apps[current_selection - 1]
 
             # Get current action and platform for the selected app
-            current_action = unified_vars.get_file_variable(self.KEY_APP_ACTION_MODE_PREFIX + selected_app["name"], "Debug")
-            current_platform = unified_vars.get_file_variable(self.KEY_APP_PLATFORM_MODE_PREFIX + selected_app["name"], "Android")
+            current_action = unified_vars.get_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + selected_app["name"], "Debug")
+            current_platform = unified_vars.get_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + selected_app["name"], "Android")
 
             # Calculate correct entry file (relative path) and port based on index
             app_name = selected_app["name"]
@@ -245,29 +239,29 @@ class FlutterAppSelector:
             self._save_selection_to_variables(selection_data)
 
             # Save current selection index for next time
-            unified_vars.set_file_variable(self.KEY_LAST_SELECTED_APP_INDEX, str(current_selection))
+            unified_vars.set_file_variable(unified_vars.KEY_LAST_SELECTED_APP_INDEX, str(current_selection))
 
             return {"success": True, "selection": selection_data}
 
     def _save_selection_to_variables(self, selection_data: Dict[str, Any]):
         """Save selection data to unified variables for PowerShell compatibility"""
         # Set current active variables
-        unified_vars.set_file_variable(self.KEY_CURRENT_ACTIVE_APP, selection_data["app"])
-        unified_vars.set_file_variable(self.KEY_CURRENT_ACTIVE_ACTION, selection_data["action"])
-        unified_vars.set_file_variable(self.KEY_CURRENT_ACTIVE_PLATFORM, selection_data["platform"])
+        unified_vars.set_file_variable(unified_vars.KEY_CURRENT_ACTIVE_APP, selection_data["app"])
+        unified_vars.set_file_variable(unified_vars.KEY_CURRENT_ACTIVE_ACTION, selection_data["action"])
+        unified_vars.set_file_variable(unified_vars.KEY_CURRENT_ACTIVE_PLATFORM, selection_data["platform"])
 
         # Set selected variables for backward compatibility
-        unified_vars.set_file_variable("KEY_SELECTED_APP", selection_data["app"])
-        unified_vars.set_file_variable("KEY_SELECTED_ACTION", selection_data["action"])
-        unified_vars.set_file_variable("KEY_SELECTED_PLATFORM", selection_data["platform"])
-        unified_vars.set_file_variable("KEY_SELECTED_ENTRY_FILE", selection_data["entry_file"])
-        unified_vars.set_file_variable("KEY_APP_INDEX", selection_data["index"])
-        unified_vars.set_file_variable("KEY_DEBUG_PORT", selection_data["port"])
+        unified_vars.set_file_variable(unified_vars.KEY_SELECTED_APP, selection_data["app"])
+        unified_vars.set_file_variable(unified_vars.KEY_SELECTED_ACTION, selection_data["action"])
+        unified_vars.set_file_variable(unified_vars.KEY_SELECTED_PLATFORM, selection_data["platform"])
+        unified_vars.set_file_variable(unified_vars.KEY_SELECTED_ENTRY_FILE, selection_data["entry_file"])
+        unified_vars.set_file_variable(unified_vars.KEY_APP_INDEX, selection_data["index"])
+        unified_vars.set_file_variable(unified_vars.KEY_DEBUG_PORT, selection_data["port"])
 
         # Set app variables for PowerShell scripts
-        unified_vars.set_file_variable("KEY_APP_NAME", selection_data["app"])
-        unified_vars.set_file_variable("KEY_BUILD_ACTION", selection_data["action"])
-        unified_vars.set_file_variable("KEY_BUILD_PLATFORM", selection_data["platform"])
+        unified_vars.set_file_variable(unified_vars.KEY_APP_NAME, selection_data["app"])
+        unified_vars.set_file_variable(unified_vars.KEY_BUILD_ACTION, selection_data["action"])
+        unified_vars.set_file_variable(unified_vars.KEY_BUILD_PLATFORM, selection_data["platform"])
 
         # Additional PowerShell compatibility variables (without KEY_ prefix)
         unified_vars.set_file_variable("SELECTED_APP", selection_data["app"])
@@ -284,15 +278,15 @@ class FlutterAppSelector:
         Returns:
             Cached selection data or None
         """
-        app_name = unified_vars.get_file_variable(self.KEY_CURRENT_ACTIVE_APP, "")
+        app_name = unified_vars.get_file_variable(unified_vars.KEY_CURRENT_ACTIVE_APP, "")
         if not app_name:
             return None
 
         return {
             "app": app_name,
-            "action": unified_vars.get_file_variable(self.KEY_CURRENT_ACTIVE_ACTION, "Debug"),
-            "platform": unified_vars.get_file_variable(self.KEY_CURRENT_ACTIVE_PLATFORM, "Web"),
-            "entry_file": unified_vars.get_file_variable("KEY_SELECTED_ENTRY_FILE", ""),
-            "port": unified_vars.get_file_variable("KEY_DEBUG_PORT", "10000"),
-            "index": unified_vars.get_file_variable("KEY_APP_INDEX", "0")
+            "action": unified_vars.get_file_variable(unified_vars.KEY_CURRENT_ACTIVE_ACTION, "Debug"),
+            "platform": unified_vars.get_file_variable(unified_vars.KEY_CURRENT_ACTIVE_PLATFORM, "Web"),
+            "entry_file": unified_vars.get_file_variable(unified_vars.KEY_SELECTED_ENTRY_FILE, ""),
+            "port": unified_vars.get_file_variable(unified_vars.KEY_DEBUG_PORT, "10000"),
+            "index": unified_vars.get_file_variable(unified_vars.KEY_APP_INDEX, "0")
         }

@@ -12,7 +12,18 @@ import json
 
 # Import using relative path from build_scripts root
 from shared.data_exchange.unified_variable_system import unified_vars
+from shared.standard_image_data import ANDROID_IMAGE_DATA, platform_image_manager
+from shared.image_patterns import ImagePatterns
 from utils.smart_image_resizer import SmartImageResizer
+from utils.menu_helper import MenuHelper
+from utils.print_helper import PrintHelper
+from utils.backup_manager import BackupManager
+# Import AndroidSpecs for unified target definitions
+import sys
+from pathlib import Path
+build_debug_scripts_path = Path(__file__).parent.parent.parent / "build_debug_scripts"
+sys.path.insert(0, str(build_debug_scripts_path))
+from utils.platform_specs.android_specs import AndroidSpecs
 
 
 class Step4ImageReplacementController:
@@ -25,45 +36,55 @@ class Step4ImageReplacementController:
         self.step_name = "STEP-4"
         self.step_description = "Platform Image Replacement"
         self.smart_resizer = SmartImageResizer()
+        self.menu_helper = MenuHelper()
         self.results = {}
         self.temp_build_root = None
         self.app_name = None
+        self.backup_manager = None
 
-        # Platform-specific target definitions
-        self.android_targets = {
-            'ic_launcher': {
-                'mipmap-mdpi': (48, 48),        # 160 dpi
-                'mipmap-hdpi': (72, 72),        # 240 dpi
-                'mipmap-xhdpi': (96, 96),       # 320 dpi
-                'mipmap-xxhdpi': (144, 144),    # 480 dpi
-                'mipmap-xxxhdpi': (192, 192),   # 640 dpi
-                'mipmap': (48, 48)              # default/fallback
-            },
-            'notification_icon': {
-                'mipmap-mdpi': (24, 24),        # 160 dpi
-                'mipmap-hdpi': (36, 36),        # 240 dpi
-                'mipmap-xhdpi': (48, 48),       # 320 dpi
-                'mipmap-xxhdpi': (72, 72),      # 480 dpi
-                'mipmap-xxxhdpi': (96, 96),     # 640 dpi
-                'mipmap': (24, 24)              # default/fallback
-            },
-            'transa_launcher': {
-                'mipmap-mdpi': (48, 48),        # 160 dpi
-                'mipmap-hdpi': (72, 72),        # 240 dpi
-                'mipmap-xhdpi': (96, 96),       # 320 dpi
-                'mipmap-xxhdpi': (144, 144),    # 480 dpi
-                'mipmap-xxxhdpi': (192, 192),   # 640 dpi
-                'mipmap': (48, 48)              # default/fallback
-            },
-            'background': {
-                'drawable-mdpi': (320, 480),    # 160 dpi
-                'drawable-hdpi': (480, 800),    # 240 dpi
-                'drawable-xhdpi': (720, 1280),  # 320 dpi
-                'drawable-xxhdpi': (1080, 1920), # 480 dpi
-                'drawable-xxxhdpi': (1440, 2560), # 640 dpi
-                'drawable': (320, 480)          # default/fallback
-            }
-        }
+        # Initialize AndroidSpecs for unified target definitions
+        self.android_specs = AndroidSpecs()
+        # Build android_targets from AndroidSpecs for backward compatibility
+        self.android_targets = self._build_android_targets_from_specs()
+
+    def _build_android_targets_from_specs(self) -> Dict[str, Dict[str, Tuple[int, int]]]:
+        """Build android_targets structure from AndroidSpecs for backward compatibility"""
+        targets = {}
+
+        # Get all recommendations from AndroidSpecs
+        all_recommendations = self.android_specs.get_all_recommendations()
+
+        # Build ic_launcher targets from icons recommendations
+        targets['ic_launcher'] = {}
+        for icon_rec in all_recommendations['icons']:
+            density = icon_rec['density']
+            size = icon_rec['size']
+            targets['ic_launcher'][f'mipmap-{density}'] = size
+        targets['ic_launcher']['mipmap'] = (48, 48)  # Default fallback
+
+        # Build notification_icon targets
+        targets['notification_icon'] = {}
+        for notif_rec in all_recommendations['notifications']:
+            density = notif_rec['density']
+            size = notif_rec['size']
+            targets['notification_icon'][f'mipmap-{density}'] = size
+        targets['notification_icon']['mipmap'] = (24, 24)  # Default fallback
+
+        # transa_launcher uses same as ic_launcher
+        targets['transa_launcher'] = targets['ic_launcher'].copy()
+
+        # Build background targets
+        targets['background'] = {}
+        for bg_rec in all_recommendations['backgrounds']:
+            density = bg_rec['density']
+            size = bg_rec['size']
+            targets['background'][f'drawable-{density}'] = size
+        targets['background']['drawable'] = (320, 480)  # Default fallback
+
+        # splash uses same as background
+        targets['splash'] = targets['background'].copy()
+
+        return targets
 
     def initialize(self, temp_build_root: Path, app_name: str) -> bool:
         """
@@ -83,6 +104,10 @@ class Step4ImageReplacementController:
 
             self.temp_build_root = temp_build_root
             self.app_name = app_name
+
+            # Initialize backup manager
+            self.backup_manager = BackupManager(temp_build_root)
+            print(f"[{self.step_name}] [INIT] Backup manager initialized: {self.backup_manager.android_backup_dir}")
 
             # Validate build root exists
             if not temp_build_root.exists():
@@ -126,6 +151,9 @@ class Step4ImageReplacementController:
 
             print(f"[{self.step_name}] [EXECUTE] Starting intelligent image replacement...")
 
+            # Show smart resize configuration menu before proceeding
+            self._show_smart_resize_menu()
+
             # Load Step 2 processed images information
             processed_images = self._load_processed_images_info()
             if not processed_images:
@@ -153,6 +181,9 @@ class Step4ImageReplacementController:
                 'summary': self._generate_summary(android_results)
             }
 
+            # Show backup summary
+            self._show_backup_summary()
+
             print(f"[{self.step_name}] [COMPLETE] Platform image replacement completed successfully")
             return self.results
 
@@ -175,51 +206,68 @@ class Step4ImageReplacementController:
             return self.results
 
     def _load_processed_images_info(self) -> Dict[str, Dict[str, Any]]:
-        """Load processed images information from Step 2 cache"""
+        """Load processed images information from ANDROID_IMAGE_DATA (single source of truth)"""
         try:
-            # Look for processed images in the cache directory
+            # Import ANDROID_IMAGE_DATA from the standard location
+            from shared.standard_image_data import ANDROID_IMAGE_DATA
+
+            print(f"[{self.step_name}] [INFO] Loading processed images from ANDROID_IMAGE_DATA...")
+
             processed_images = {}
 
-            # Try to find processed images by examining the cache structure
-            if self.processed_images_dir.exists():
-                for image_file in self.processed_images_dir.rglob("*.png"):
-                    # Extract image type from path structure
-                    relative_path = image_file.relative_to(self.processed_images_dir)
-                    path_parts = relative_path.parts
+            # Use ANDROID_IMAGE_DATA as the single source of truth for processed images
+            for image_type, image_data in ANDROID_IMAGE_DATA.items():
+                # Only include images that have been processed and have paths
+                processed_path = image_data.get('processed_path', '')
+                original_path = image_data.get('original_path', '')
+                status = image_data.get('status', 'missing')
 
-                    # Try to determine image type from filename or path
-                    filename = image_file.stem.lower()
+                if status != 'missing' and (processed_path or original_path):
+                    # Determine the actual file path to use
+                    actual_path = processed_path if processed_path and os.path.exists(processed_path) else original_path
 
-                    # Map common image types
-                    image_type = None
-                    if 'logo' in filename:
-                        # This could be used for ic_launcher, notification_icon, transa_launcher
-                        image_type = 'IC_LAUNCHER'  # Primary mapping
-                    elif 'background' in filename:
-                        image_type = 'BACKGROUND'
-                    elif 'icon' in filename:
-                        image_type = 'IC_ICON'
+                    if actual_path and os.path.exists(actual_path):
+                        # Map image types to Step4 format
+                        step4_image_type = self._map_android_to_step4_type(image_type)
 
-                    if image_type:
-                        processed_images[image_type] = {
-                            'processed_path': str(image_file),
-                            'filename': image_file.name,
-                            'size_bytes': image_file.stat().st_size
+                        processed_images[step4_image_type] = {
+                            'source_path': actual_path,
+                            'original_path': original_path,
+                            'processed_path': processed_path,
+                            'final_filename': image_data.get('final_filename', f"{image_type.lower()}.png"),
+                            'compression_mode': image_data.get('compression_mode', 'compressed'),
+                            'android_image_type': image_type,  # Store original android type for matching
+                            'original_size': image_data.get('original_size', 0),
+                            'processed_size': image_data.get('processed_size', 0),
+                            'format': image_data.get('format', '.png'),
+                            'is_processed': bool(processed_path and processed_path != original_path)
                         }
-                        print(f"[{self.step_name}] [CACHE] Found processed image: {image_type} -> {image_file}")
 
-            # Alternative: try to parse from build logs if available
-            if not processed_images:
-                # Look for task.txt or similar log files
-                task_file = self.temp_build_root.parent / "task.txt"
-                if task_file.exists():
-                    processed_images = self._parse_processed_images_from_log(task_file)
+                        print(f"[{self.step_name}] [INFO] Loaded {step4_image_type}: {Path(actual_path).name}")
+                    else:
+                        print(f"[{self.step_name}] [WARNING] File not found for {image_type}: {actual_path}")
+                else:
+                    print(f"[{self.step_name}] [INFO] Skipping {image_type}: status={status}, no valid path")
 
+            print(f"[{self.step_name}] [INFO] Loaded {len(processed_images)} processed images from ANDROID_IMAGE_DATA")
             return processed_images
 
         except Exception as e:
-            print(f"[{self.step_name}] [ERROR] Failed to load processed images info: {e}")
+            print(f"[{self.step_name}] [ERROR] Failed to load processed images from ANDROID_IMAGE_DATA: {e}")
             return {}
+
+    def _map_android_to_step4_type(self, android_type: str) -> str:
+        """Map ANDROID_IMAGE_DATA types to Step4 processing types"""
+        mapping = {
+            'logo': 'IC_LAUNCHER',  # Primary mapping for logos
+            'ic_icon': 'IC_LAUNCHER',
+            'ic_launcher': 'IC_LAUNCHER',
+            'notification_icon': 'NOTIFICATION_ICON',
+            'transa_launcher': 'TRANSA_LAUNCHER',
+            'background': 'BACKGROUND',
+            'splash': 'SPLASH'  # Splash is separate from background
+        }
+        return mapping.get(android_type.lower(), android_type.upper())
 
     def _parse_processed_images_from_log(self, log_file: Path) -> Dict[str, Dict[str, Any]]:
         """Parse processed images information from log file"""
@@ -328,8 +376,17 @@ class Step4ImageReplacementController:
                 print(f"[{self.step_name}] [ANDROID] [WARNING] IC_LAUNCHER not found in processed images")
                 android_results['skipped_count'] += 1
 
-            # TODO: Add other image types (notification_icon, transa_launcher, background)
-            # This provides a framework for future expansion
+            # Process all other image types
+            for image_type, image_info in processed_images.items():
+                if image_type != 'IC_LAUNCHER':  # Already processed above
+                    print(f"[{self.step_name}] [ANDROID] Processing {image_type} images...")
+                    result = self._process_generic_android_images(image_type, image_info)
+                    android_results['replacements'][image_type.lower()] = result
+
+                    if result.get('success', False):
+                        android_results['processed_count'] += result.get('replaced_count', 0)
+                    else:
+                        android_results['error_count'] += 1
 
             return android_results
 
@@ -348,11 +405,21 @@ class Step4ImageReplacementController:
         try:
             print(f"[{self.step_name}] [IC_LAUNCHER] Processing ic_launcher images...")
 
-            source_image_path = Path(ic_launcher_info['processed_path'])
+            # Use source_path which contains the actual path to use (processed or original)
+            source_image_path = Path(ic_launcher_info['source_path'])
             if not source_image_path.exists():
                 return {'success': False, 'error': f'Source image not found: {source_image_path}'}
 
+            # Get smart resize setting from ANDROID_IMAGE_DATA
+            android_image_type = ic_launcher_info.get('android_image_type', 'ic_launcher')
+            smart_resize_enabled = ANDROID_IMAGE_DATA.get(android_image_type, {}).get('smart_resize', True)
+
             print(f"[{self.step_name}] [IC_LAUNCHER] Source image: {source_image_path}")
+            print(f"[{self.step_name}] [IC_LAUNCHER] Smart Resize: {'ENABLED' if smart_resize_enabled else 'DISABLED'}")
+            if ic_launcher_info.get('is_processed', False):
+                print(f"[{self.step_name}] [IC_LAUNCHER] Using processed image (compression: {ic_launcher_info.get('compression_mode', 'unknown')})")
+            else:
+                print(f"[{self.step_name}] [IC_LAUNCHER] Using original image")
 
             results = {
                 'success': True,
@@ -370,38 +437,65 @@ class Step4ImageReplacementController:
                 target_dir = android_base_path / density_dir
                 target_file = target_dir / "ic_launcher.png"
 
-                print(f"[{self.step_name}] [IC_LAUNCHER] Processing {density_dir}: {target_size[0]}x{target_size[1]}")
+                # Enhance target_size with AndroidSpecs if available
+                android_specs_size = self.android_specs.get_recommended_size_for_path(str(target_file), 'icon')
+                if android_specs_size and android_specs_size != (0, 0):
+                    target_size = android_specs_size
+                    print(f"[{self.step_name}] [IC_LAUNCHER] Processing {density_dir}: {target_size[0]}x{target_size[1]} (AndroidSpecs enhanced)")
+                else:
+                    print(f"[{self.step_name}] [IC_LAUNCHER] Processing {density_dir}: {target_size[0]}x{target_size[1]}")
 
                 if not target_file.exists():
                     print(f"[{self.step_name}] [IC_LAUNCHER] [SKIP] Target file not found: {target_file}")
                     results['skipped_count'] += 1
                     continue
 
-                # Create backup of original
-                backup_file = target_file.with_suffix('.png.backup')
-                if not backup_file.exists():
-                    shutil.copy2(target_file, backup_file)
-                    print(f"[{self.step_name}] [IC_LAUNCHER] Created backup: {backup_file.name}")
-
-                # Use smart resizer to create appropriately sized image
-                resize_result = self.smart_resizer.resize_and_crop_to_target(
-                    source_image_path=source_image_path,
-                    target_size=target_size,
-                    output_path=target_file,
-                    quality=95
-                )
-
-                if resize_result.get('success', False):
-                    results['replaced_count'] += 1
-                    results['replacements'][density_dir] = {
-                        'target_file': str(target_file),
-                        'target_size': target_size,
-                        'resize_result': resize_result
-                    }
-                    print(f"[{self.step_name}] [IC_LAUNCHER] ✓ Replaced: {target_file}")
+                # Create backup using backup manager
+                backup_path = self.backup_manager.backup_android_file(target_file)
+                if backup_path:
+                    print(f"[{self.step_name}] [IC_LAUNCHER] Created backup: {backup_path.relative_to(self.backup_manager.android_backup_dir)}")
                 else:
-                    results['skipped_count'] += 1
-                    print(f"[{self.step_name}] [IC_LAUNCHER] ✗ Failed: {resize_result.get('error', 'Unknown error')}")
+                    print(f"[{self.step_name}] [IC_LAUNCHER] [WARNING] Failed to create backup for: {target_file.name}")
+
+                # Choose processing method based on smart_resize setting
+                if smart_resize_enabled:
+                    # Use smart resizer to create appropriately sized image
+                    print(f"[{self.step_name}] [IC_LAUNCHER] Using Smart Resize for {target_size[0]}x{target_size[1]}")
+                    resize_result = self.smart_resizer.resize_and_crop_to_target(
+                        source_image_path=source_image_path,
+                        target_size=target_size,
+                        output_path=target_file,
+                        quality=95
+                    )
+
+                    if resize_result.get('success', False):
+                        results['replaced_count'] += 1
+                        results['replacements'][density_dir] = {
+                            'target_file': str(target_file),
+                            'target_size': target_size,
+                            'resize_result': resize_result,
+                            'method': 'smart_resize'
+                        }
+                        print(f"[{self.step_name}] [IC_LAUNCHER] ✓ Smart Resized: {target_file}")
+                    else:
+                        results['skipped_count'] += 1
+                        print(f"[{self.step_name}] [IC_LAUNCHER] ✗ Smart Resize Failed: {resize_result.get('error', 'Unknown error')}")
+                else:
+                    # Direct copy without resizing
+                    try:
+                        print(f"[{self.step_name}] [IC_LAUNCHER] Direct copy (no resize) to {target_file.name}")
+                        shutil.copy2(source_image_path, target_file)
+                        results['replaced_count'] += 1
+                        results['replacements'][density_dir] = {
+                            'target_file': str(target_file),
+                            'target_size': target_size,
+                            'resize_result': {'success': True, 'method': 'direct_copy'},
+                            'method': 'direct_copy'
+                        }
+                        print(f"[{self.step_name}] [IC_LAUNCHER] ✓ Direct Copy: {target_file}")
+                    except Exception as copy_error:
+                        results['skipped_count'] += 1
+                        print(f"[{self.step_name}] [IC_LAUNCHER] ✗ Copy Failed: {copy_error}")
 
             print(f"[{self.step_name}] [IC_LAUNCHER] Completed: {results['replaced_count']} replaced, {results['skipped_count']} skipped")
             return results
@@ -435,6 +529,110 @@ class Step4ImageReplacementController:
     def get_results(self) -> Dict[str, Any]:
         """Get the results of Step 4 execution"""
         return self.results
+
+    def _process_generic_android_images(self, step4_image_type: str, image_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Process generic Android images with Smart Resize support"""
+        try:
+            print(f"[{self.step_name}] [{step4_image_type}] Processing {step4_image_type.lower()} images...")
+
+            # Use source_path which contains the actual path to use (processed or original)
+            source_image_path = Path(image_info['source_path'])
+            if not source_image_path.exists():
+                return {'success': False, 'error': f'Source image not found: {source_image_path}'}
+
+            # Get smart resize setting from ANDROID_IMAGE_DATA using the android_image_type
+            android_image_type = image_info.get('android_image_type', step4_image_type.lower())
+            smart_resize_enabled = ANDROID_IMAGE_DATA.get(android_image_type, {}).get('smart_resize', True)
+
+            print(f"[{self.step_name}] [{step4_image_type}] Source image: {source_image_path}")
+            print(f"[{self.step_name}] [{step4_image_type}] Smart Resize: {'ENABLED' if smart_resize_enabled else 'DISABLED'}")
+
+            # Find matching platform targets
+            android_platform_images = platform_image_manager.get_platform_images('android')
+            matching_targets = self._find_matching_platform_targets(android_image_type, image_info.get('final_filename', ''), android_platform_images)
+
+            results = {
+                'success': True,
+                'source_image': str(source_image_path),
+                'replaced_count': 0,
+                'skipped_count': 0,
+                'replacements': {}
+            }
+
+            if not matching_targets:
+                print(f"[{self.step_name}] [{step4_image_type}] No matching platform targets found")
+                return results
+
+            for target in matching_targets:
+                target_path = Path(target.get('target_path', ''))
+                if not target_path.exists():
+                    print(f"[{self.step_name}] [{step4_image_type}] [SKIP] Target file not found: {target_path}")
+                    results['skipped_count'] += 1
+                    continue
+
+                # Create backup using backup manager
+                backup_path = self.backup_manager.backup_android_file(target_path)
+                if backup_path:
+                    print(f"[{self.step_name}] [{step4_image_type}] Created backup: {backup_path.relative_to(self.backup_manager.android_backup_dir)}")
+                else:
+                    print(f"[{self.step_name}] [{step4_image_type}] [WARNING] Failed to create backup for: {target_path.name}")
+
+                # Get recommended size, use AndroidSpecs for better accuracy
+                recommended_size = target.get('recommended_size', (0, 0))
+
+                # If AndroidSpecs can provide better size recommendation, use it
+                target_path_str = str(target_path)
+                android_specs_size = self.android_specs.get_recommended_size_for_path(target_path_str, 'icon' if 'icon' in android_image_type or 'launcher' in android_image_type else android_image_type)
+                if android_specs_size and android_specs_size != (0, 0):
+                    recommended_size = android_specs_size
+                    print(f"[{self.step_name}] [{step4_image_type}] AndroidSpecs recommended size: {recommended_size[0]}x{recommended_size[1]}")
+
+                # Choose processing method based on smart_resize setting
+                if smart_resize_enabled and recommended_size[0] > 0 and recommended_size[1] > 0:
+                    # Use smart resizer
+                    print(f"[{self.step_name}] [{step4_image_type}] Using Smart Resize for {recommended_size[0]}x{recommended_size[1]}")
+                    resize_result = self.smart_resizer.resize_and_crop_to_target(
+                        source_image_path=source_image_path,
+                        target_size=recommended_size,
+                        output_path=target_path,
+                        quality=95
+                    )
+
+                    if resize_result.get('success', False):
+                        results['replaced_count'] += 1
+                        results['replacements'][str(target_path)] = {
+                            'target_file': str(target_path),
+                            'target_size': recommended_size,
+                            'resize_result': resize_result,
+                            'method': 'smart_resize'
+                        }
+                        print(f"[{self.step_name}] [{step4_image_type}] ✓ Smart Resized: {target_path.name}")
+                    else:
+                        results['skipped_count'] += 1
+                        print(f"[{self.step_name}] [{step4_image_type}] ✗ Smart Resize Failed: {resize_result.get('error', 'Unknown error')}")
+                else:
+                    # Direct copy without resizing
+                    try:
+                        print(f"[{self.step_name}] [{step4_image_type}] Direct copy (no resize) to {target_path.name}")
+                        shutil.copy2(source_image_path, target_path)
+                        results['replaced_count'] += 1
+                        results['replacements'][str(target_path)] = {
+                            'target_file': str(target_path),
+                            'target_size': recommended_size,
+                            'resize_result': {'success': True, 'method': 'direct_copy'},
+                            'method': 'direct_copy'
+                        }
+                        print(f"[{self.step_name}] [{step4_image_type}] ✓ Direct Copy: {target_path.name}")
+                    except Exception as copy_error:
+                        results['skipped_count'] += 1
+                        print(f"[{self.step_name}] [{step4_image_type}] ✗ Copy Failed: {copy_error}")
+
+            print(f"[{self.step_name}] [{step4_image_type}] Completed: {results['replaced_count']} replaced, {results['skipped_count']} skipped")
+            return results
+
+        except Exception as e:
+            print(f"[{self.step_name}] [ERROR] Failed to process {step4_image_type} images: {e}")
+            return {'success': False, 'error': str(e)}
 
     def print_step4_summary(self) -> None:
         """Print a concise summary of Step 4 results"""
@@ -480,6 +678,355 @@ class Step4ImageReplacementController:
 
         except Exception as e:
             print(f"[{self.step_name}] [ERROR] Failed to print summary: {e}")
+
+    def _show_smart_resize_menu(self) -> None:
+        """Show smart resize configuration menu for ANDROID_IMAGE_DATA items"""
+        try:
+            # Show smart resize configuration menu FIRST
+            print()
+            print("=" * 80)
+            print("SMART RESIZE CONFIGURATION")
+            print("=" * 80)
+            print("Configure smart resize settings for each processed image.")
+            print("Smart resize will create multiple sizes for different density targets.")
+            print()
+            input("Press any key to continue to smart resize configuration...")
+            print()
+
+            # Create menu items for each ANDROID_IMAGE_DATA entry
+            menu_items = []
+            image_order = ['logo', 'ic_icon', 'notification_icon', 'transa_launcher', 'ic_launcher', 'background', 'splash']
+
+            for image_type in image_order:
+                if image_type in ANDROID_IMAGE_DATA:
+                    android_data = ANDROID_IMAGE_DATA[image_type]
+                    if android_data.get('status') == 'found':
+                        menu_item = {
+                            'image_type': image_type,
+                            'smart_resize': android_data.get('smart_resize', True),
+                            'processed_path': android_data.get('processed_path', ''),
+                            'final_filename': android_data.get('final_filename', ''),
+                            'compression_mode': android_data.get('compression_mode', 'compressed')
+                        }
+                        menu_items.append(menu_item)
+
+            if not menu_items:
+                PrintHelper.warning("No processed images found for smart resize configuration", source=self.step_name)
+                return
+
+            # Format menu item display
+            def format_menu_item(item: Dict, index: int) -> str:
+                resize_display = "[Smart Resize ON]" if item['smart_resize'] else "[Smart Resize OFF]"
+                compression_display = f"[{item['compression_mode'].upper()}]"
+
+                # Count targets for this image type
+                android_platform_images = platform_image_manager.get_platform_images('android')
+                matching_targets = self._find_matching_platform_targets(item['image_type'], item['final_filename'], android_platform_images)
+                target_count = len(matching_targets)
+                target_info = f"({target_count} targets)" if target_count > 0 else "(no targets)"
+
+                return f"✓ {item['image_type'].upper()}: {item['final_filename']} {compression_display} {resize_display} {target_info}"
+
+            def format_item_details(item: Dict) -> str:
+                # Get target information for details
+                android_platform_images = platform_image_manager.get_platform_images('android')
+                matching_targets = self._find_matching_platform_targets(item['image_type'], item['final_filename'], android_platform_images)
+
+                details = f"Smart Resize Configuration for {item['image_type'].upper()}:\n"
+                details += f"  Source File: {item['final_filename']}\n"
+                details += f"  Processed Path: {item['processed_path']}\n"
+                details += f"  Compression: {item['compression_mode'].upper()}\n"
+                details += f"  Replacement Targets: {len(matching_targets)} found\n"
+
+                if item['smart_resize']:
+                    details += f"  Smart Resize: ON - Will create optimized sizes for each target\n"
+                    if matching_targets:
+                        details += f"  Target sizes will be: "
+                        sizes = [f"{t.get('recommended_size', (0,0))[0]}x{t.get('recommended_size', (0,0))[1]}" for t in matching_targets]
+                        details += ", ".join(set(sizes))  # Remove duplicates
+                else:
+                    details += f"  Smart Resize: OFF - Will use original size for all targets"
+
+                return details
+
+            def toggle_smart_resize(items: List[Dict], selected_index: int) -> str:
+                current_item = items[selected_index]
+                current_item['smart_resize'] = not current_item['smart_resize']
+                return 'continue'
+
+            # Create interactive menu configuration
+            menu_config = {
+                'title': 'SMART RESIZE CONFIGURATION MENU',
+                'items': menu_items,
+                'instructions': 'Configure smart resize for each processed image\\nUse UP/DOWN arrows to navigate, LEFT/RIGHT to toggle smart resize\\nENTER to confirm settings, ESC to use defaults',
+                'legend': '[Smart Resize ON] = Create optimized sizes for each target | [Smart Resize OFF] = Use original size\\n(#targets) shows how many platform targets will be replaced\\nLEFT/RIGHT to toggle | ENTER to confirm | ESC for defaults',
+                'item_formatter': format_menu_item,
+                'detail_formatter': format_item_details,
+                'key_handlers': {
+                    'left': toggle_smart_resize,
+                    'right': toggle_smart_resize
+                },
+                'allow_quick_select': True,
+                'select_message': '[SMART-RESIZE-CONFIRMED] Smart resize configuration applied',
+                'quick_select_message': '[SMART-RESIZE-QUICK-CONFIRM] Using default smart resize settings',
+                'cancel_message': '[SMART-RESIZE-CANCELLED] Using default smart resize settings',
+                'cache_key': 'smart_resize_settings'  # Enable caching
+            }
+
+            # Show interactive menu
+            result = self.menu_helper.show_interactive_menu(menu_config)
+
+            # Apply smart resize settings to ANDROID_IMAGE_DATA
+            self._apply_smart_resize_settings(menu_items, result is not None)
+
+            # AFTER menu is complete, show replacement targets analysis
+            self._show_replacement_targets_analysis()
+
+        except Exception as e:
+            PrintHelper.error(f"Failed to show smart resize menu: {e}", source=self.step_name)
+
+    def _apply_smart_resize_settings(self, menu_items: List[Dict], confirmed: bool) -> None:
+        """Apply smart resize settings to ANDROID_IMAGE_DATA"""
+        try:
+            PrintHelper.info("Applying smart resize settings...", source=self.step_name)
+
+            for item in menu_items:
+                image_type = item['image_type']
+                smart_resize = item['smart_resize']
+
+                # Update ANDROID_IMAGE_DATA
+                if image_type in ANDROID_IMAGE_DATA:
+                    ANDROID_IMAGE_DATA[image_type]['smart_resize'] = smart_resize
+
+                # Show applied setting
+                resize_text = "ENABLED" if smart_resize else "DISABLED"
+                PrintHelper.info(f"  {image_type.upper()}: Smart Resize {resize_text}", source=self.step_name)
+
+            status_text = "confirmed" if confirmed else "using defaults"
+            PrintHelper.success(f"Smart resize settings applied ({status_text})", source=self.step_name)
+
+        except Exception as e:
+            PrintHelper.error(f"Failed to apply smart resize settings: {e}", source=self.step_name)
+
+    def _show_replacement_targets_analysis(self) -> None:
+        """Show analysis of replacement targets using ANDROID_IMAGE_DATA and PlatformImageManager"""
+        try:
+            PrintHelper.header("REPLACEMENT TARGETS ANALYSIS", source=self.step_name)
+            print("Analyzing which platform targets will be replaced by your processed images...")
+            print("This analysis shows the actual replacement that will occur based on your smart resize settings.")
+            print()
+
+            # Get Android platform images from PlatformImageManager
+            android_platform_images = platform_image_manager.get_platform_images('android')
+
+            if not android_platform_images:
+                PrintHelper.warning("No Android platform images found in PlatformImageManager", source=self.step_name)
+                return
+
+            PrintHelper.info("Analyzing ANDROID_IMAGE_DATA against PlatformImageManager targets...", source=self.step_name)
+            print()
+
+            # Process each ANDROID_IMAGE_DATA item
+            for image_type, android_data in ANDROID_IMAGE_DATA.items():
+                if android_data.get('status') != 'found':
+                    continue
+
+                processed_path = android_data.get('processed_path', '')
+                final_filename = android_data.get('final_filename', '')
+                smart_resize = android_data.get('smart_resize', True)
+
+                if not processed_path:
+                    continue
+
+                PrintHelper.info(f"SOURCE: {image_type.upper()}")
+                PrintHelper.info(f"  Processed Path: {processed_path}")
+                PrintHelper.info(f"  Type: {image_type}")
+                PrintHelper.info(f"  Smart Resize: {'YES' if smart_resize else 'NO'}")
+
+                # Find matching targets in PlatformImageManager
+                matching_targets = self._find_matching_platform_targets(image_type, final_filename, android_platform_images)
+
+                if matching_targets:
+                    PrintHelper.info(f"  REPLACEMENT TARGETS ({len(matching_targets)} found):")
+                    for i, target in enumerate(matching_targets, 1):
+                        target_path = target.get('target_path', '')
+                        recommended_size = target.get('recommended_size', (0, 0))
+                        subtype = target.get('image_subtype', '')
+                        current_size = target.get('current_size', (0, 0))
+
+                        PrintHelper.info(f"    {i}. Target Path: {target_path}")
+                        PrintHelper.info(f"       Recommended: {recommended_size[0]}x{recommended_size[1]}")
+                        PrintHelper.info(f"       Subtype: {subtype}")
+                        PrintHelper.info(f"       Current Size: {current_size[0]}x{current_size[1]}")
+                else:
+                    PrintHelper.warning(f"  ⚠ No matching platform targets found", source=self.step_name)
+
+                print()
+
+        except Exception as e:
+            PrintHelper.error(f"Failed to show replacement targets analysis: {e}", source=self.step_name)
+
+    def _find_matching_platform_targets(self, image_type: str, final_filename: str, android_platform_images: List[Dict]) -> List[Dict]:
+        """Find matching platform targets based on image type and filename patterns with precise matching"""
+        matching_targets = []
+
+        try:
+            # Define precise matching rules for each image type to avoid conflicts
+            matching_rules = {
+                'logo': {
+                    'exact_filenames': ['logo.png', 'app_logo.png', 'brand.png', 'company.png'],
+                    'filename_patterns': [r'^logo', r'^app_logo', r'^brand', r'^company'],
+                    'platform_types': ['logo', 'brand']
+                },
+                'ic_icon': {
+                    'exact_filenames': ['ic_icon.png', 'app_icon.png', 'main_icon.png'],
+                    'filename_patterns': [r'^ic_icon$', r'^app_icon$', r'^main_icon$'],  # Strict: exact match only
+                    'platform_types': ['ic_icon', 'app_icon'],
+                    'exclude_patterns': [r'ic_launcher', r'launcher', r'notification']  # Exclude these patterns
+                },
+                'ic_launcher': {
+                    'exact_filenames': ['ic_launcher.png', 'launcher.png', 'app_launcher.png', 'android_launcher.png'],
+                    'filename_patterns': [r'^ic_launcher(?!_)', r'^launcher(?!_)', r'^app_launcher(?!_)', r'^android_launcher(?!_)'],
+                    'platform_types': ['ic_launcher', 'launcher'],
+                    'directory_patterns': ['mipmap-']  # ic_launcher is typically in mipmap directories
+                },
+                'notification_icon': {
+                    'exact_filenames': ['notification_icon.png', 'notification.png', 'notify_icon.png', 'notify.png', 'status_icon.png'],
+                    'filename_patterns': [r'^notification_icon', r'^notification(?!_icon)', r'^notify_icon', r'^notify(?!_)', r'^status_icon'],
+                    'platform_types': ['notification_icon', 'notification', 'status_icon']
+                },
+                'transa_launcher': {
+                    'exact_filenames': ['transa_launcher.png', 'transa.png', 'launcher_transa.png', 'trans_launcher.png'],
+                    'filename_patterns': [r'^transa_launcher', r'^transa(?!_)', r'^launcher_transa', r'^trans_launcher'],
+                    'platform_types': ['transa_launcher', 'transa']
+                },
+                'background': {
+                    'exact_filenames': ['background.png', 'launch_background.png', 'bg.png', 'launch_bg.png', 'app_background.png'],
+                    'filename_patterns': [r'^background', r'^launch_background', r'^bg(?!_)', r'^launch_bg', r'^app_background'],
+                    'platform_types': ['background', 'launch_background'],
+                    'directory_patterns': ['drawable-']  # background is typically in drawable directories
+                },
+                'splash': {
+                    'exact_filenames': ['splash.png', 'launch_image.png', 'startup.png', 'launch_screen.png', 'boot_screen.png'],
+                    'filename_patterns': [r'^splash', r'^launch_image', r'^startup', r'^launch_screen', r'^boot_screen'],
+                    'platform_types': ['splash', 'launch_image', 'startup']
+                }
+            }
+
+            rules = matching_rules.get(image_type, {})
+            if not rules:
+                PrintHelper.warning(f"No matching rules defined for image type: {image_type}", source=self.step_name)
+                return matching_targets
+
+            import re
+
+            for platform_image in android_platform_images:
+                platform_filename = platform_image.get('filename', '').lower()
+                platform_type = platform_image.get('image_type', '').lower()
+                target_path = platform_image.get('target_path', '').lower()
+
+                # Remove file extension for pattern matching
+                platform_filename_stem = platform_filename.replace('.png', '').replace('.jpg', '').replace('.jpeg', '').replace('.webp', '')
+
+                is_match = False
+                match_reason = ""
+
+                # 0. First check exclude patterns - if matched, skip this target
+                exclude_patterns = rules.get('exclude_patterns', [])
+                is_excluded = False
+                for exclude_pattern in exclude_patterns:
+                    if re.search(exclude_pattern, platform_filename_stem, re.IGNORECASE):
+                        is_excluded = True
+                        break
+
+                if is_excluded:
+                    continue  # Skip this target
+
+                # 1. Check exact filename matches (highest priority)
+                exact_filenames = rules.get('exact_filenames', [])
+                for exact_name in exact_filenames:
+                    exact_stem = exact_name.replace('.png', '').replace('.jpg', '').replace('.jpeg', '').replace('.webp', '')
+                    if platform_filename_stem == exact_stem:
+                        is_match = True
+                        match_reason = f"exact_filename:{exact_name}"
+                        break
+
+                # 2. Check filename patterns (medium priority)
+                if not is_match:
+                    filename_patterns = rules.get('filename_patterns', [])
+                    for pattern in filename_patterns:
+                        if re.match(pattern, platform_filename_stem, re.IGNORECASE):
+                            is_match = True
+                            match_reason = f"filename_pattern:{pattern}"
+                            break
+
+                # 3. Check platform type matches (lower priority)
+                if not is_match:
+                    platform_types = rules.get('platform_types', [])
+                    if platform_type in platform_types:
+                        is_match = True
+                        match_reason = f"platform_type:{platform_type}"
+
+                # 4. Check directory patterns (for ic_launcher and background specificity)
+                if not is_match:
+                    directory_patterns = rules.get('directory_patterns', [])
+                    for dir_pattern in directory_patterns:
+                        if dir_pattern in target_path:
+                            # Additional check: ensure this is actually the right file type in the right directory
+                            if ((image_type == 'ic_launcher' and 'ic_launcher' in platform_filename_stem) or
+                                (image_type == 'background' and 'background' in platform_filename_stem)):
+                                is_match = True
+                                match_reason = f"directory_pattern:{dir_pattern}"
+                                break
+
+                if is_match:
+                    matching_targets.append(platform_image)
+                    PrintHelper.info(f"  Match: {image_type} -> {platform_filename} (reason: {match_reason})", source=self.step_name)
+
+        except Exception as e:
+            PrintHelper.error(f"Error finding matching targets: {e}", source=self.step_name)
+
+        return matching_targets
+
+    def _show_backup_summary(self) -> None:
+        """Show summary of backup operations"""
+        try:
+            if not self.backup_manager:
+                return
+
+            PrintHelper.info(f"\\n[BACKUP-SUMMARY] BACKUP OPERATION SUMMARY", source=self.step_name)
+            PrintHelper.info(f"{'=' * 80}")
+
+            backup_summary = self.backup_manager.get_backup_summary()
+
+            if 'error' in backup_summary:
+                PrintHelper.error(f"Failed to get backup summary: {backup_summary['error']}", source=self.step_name)
+                return
+
+            backup_count = backup_summary['backup_count']
+            total_size_mb = backup_summary['total_size_mb']
+            backup_dir = backup_summary['backup_directory']
+
+            PrintHelper.info(f"Backup Directory: {backup_dir}")
+            PrintHelper.info(f"Files Backed Up: {backup_count}")
+            PrintHelper.info(f"Total Backup Size: {total_size_mb}MB")
+
+            if backup_count > 0:
+                PrintHelper.info(f"\\nBacked Up Files:")
+                for i, backup_file in enumerate(backup_summary['files'][:10], 1):  # Show first 10 files
+                    PrintHelper.info(f"  {i}. {backup_file}")
+
+                if backup_count > 10:
+                    PrintHelper.info(f"  ... and {backup_count - 10} more files")
+
+                PrintHelper.success(f"✓ All original files have been safely backed up", source=self.step_name)
+            else:
+                PrintHelper.info("No files were backed up during this operation")
+
+            PrintHelper.info(f"{'=' * 80}")
+
+        except Exception as e:
+            PrintHelper.error(f"Failed to show backup summary: {e}", source=self.step_name)
 
 
 def main():

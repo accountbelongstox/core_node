@@ -325,6 +325,9 @@ class EnvManager {
 }
 
 function normalizePath(path) {
+    if (typeof path !== 'string') {
+        return '';
+    }
     return path.replace(/\\/g, '/');
 }
 

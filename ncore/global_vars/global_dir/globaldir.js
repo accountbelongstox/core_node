@@ -14,7 +14,13 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { getAppName } = require('../libs/app_parameter.js');
-let appname = getAppName();
+let appname = getAppName() || '';
+const hasAppName = typeof appname === 'string' && appname.trim().length > 0;
+const effectiveAppName = hasAppName ? appname : 'default_app';
+
+if (!hasAppName) {
+    console.warn('[GLOBAL_DIR] App name not detected, falling back to default_app context.');
+}
 const homeDir = os.homedir();
 const isWinodws = os.platform() === 'win32';
 const isLinux = os.platform() === 'linux';
@@ -80,14 +86,15 @@ if (os.platform() === 'win32') {
     }
 }
 
-const LANG_COMPILER_DIR = path.join(DATA_DRIVER, LANG_COMPILER_DIRNAME);
-
+const LANG_COMPILER_DIR = DATA_DRIVER
+    ? path.join(DATA_DRIVER, LANG_COMPILER_DIRNAME)
+    : path.join(LOCAL_DIR, LANG_COMPILER_DIRNAME);
 const BASEDIR = getCwd();
 const CWD = BASEDIR;
 const APPS_DIR = path.join(BASEDIR, 'apps');
-const APP_DIR = path.join(BASEDIR, 'apps', appname);
+const APP_DIR = path.join(BASEDIR, 'apps', effectiveAppName);
 const CACHE_DIR = path.join(BASEDIR, '.cache');
-const APP_CACHE_DIR = path.join(CACHE_DIR, appname);
+const APP_CACHE_DIR = path.join(CACHE_DIR, effectiveAppName);
 const LOG_DIR = path.join(CACHE_DIR, '.logs');
 const SCRIPT_NAME = `core_node`
 const USER_DIR = isWinodws
@@ -99,9 +106,9 @@ const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
 const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
 
 const PUBLIC_DIR = path.join(BASEDIR, 'public');
-const ROOT_APP_STATIC_DIR = path.join(DATA_DRIVER, `static_${appname.toLowerCase()}`);
-const ROOT_APP_CACHE_DIR = path.join(ROOT_APP_STATIC_DIR, `cache`);
-const APP_PUBLIC_DIR = path.join(PUBLIC_DIR, appname);
+const ROOT_APP_STATIC_DIR = DATA_DRIVER ? path.join(DATA_DRIVER, `static_${effectiveAppName.toLowerCase()}`) : null;
+const ROOT_APP_CACHE_DIR = ROOT_APP_STATIC_DIR ? path.join(ROOT_APP_STATIC_DIR, `cache`) : null;
+const APP_PUBLIC_DIR = path.join(PUBLIC_DIR, effectiveAppName);
 const APP_DATA_DIR = path.join(APP_PUBLIC_DIR, 'data');
 const APP_METADATA_DIR = path.join(APP_PUBLIC_DIR, 'metadata');
 const APP_METADATA_SQLITE_DIR = path.join(APP_METADATA_DIR, 'sqlite');
@@ -137,7 +144,7 @@ mkdir(APP_STATIC_DIR);
 mkdir(APP_OUTPUT_DIR);
 mkdir(APP_METADATA_DIR);
 mkdir(APP_TEMPLATE_STATIC_DIR);
-mkdir(APP_METADATA_SQLITE_DIR)
+mkdir(APP_METADATA_SQLITE_DIR);
 mkdir(COMMON_CACHE_DIR);
 mkdir(APP_DATA_DIR);
 mkdir(ROOT_APP_STATIC_DIR);
@@ -146,6 +153,9 @@ mkdir(LANG_COMPILER_DIR);
 
 // Directory creation
 function mkdir(path) {
+    if (!path) {
+        return null;
+    }
     return fs.mkdirSync(path, { recursive: true });
 }
 
@@ -155,6 +165,8 @@ module.exports = {
     rootdir,
     BASEDIR,
     CWD,
+    appname,
+    effectiveAppName,
     APP_DIR,
     APPS_DIR,
     CACHE_DIR,

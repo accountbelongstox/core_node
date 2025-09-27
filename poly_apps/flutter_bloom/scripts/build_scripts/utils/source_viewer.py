@@ -16,8 +16,9 @@ def main():
     print("[INFO] Features: Images, All Files, Package IDs")
     print("[INFO] Views: Table View & Tree View for easy navigation")
     print("[INFO] Actions: Download, Open Directory (Windows Explorer), Copy Path")
+    print(f"[INFO] Scanning directory: {Path.cwd()}")
     print("[INFO] Server starting on http://localhost:8081")
-    SourceViewerServer(port=8081).run_standalone()
+    SourceViewerServer(port=8081, project_root=Path.cwd()).run_standalone()
 
 if __name__ == "__main__":
     main()

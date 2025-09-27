@@ -125,7 +125,7 @@ class AndroidSpecs:
         if 'mipmap' in dir_lower:
             if 'anydpi' in dir_lower and 'v26' in dir_lower:
                 return 'mipmap-anydpi-v26'
-            return 'mipmap-xhdpi'
+            return 'mipmap-mdpi'
         elif 'drawable' in dir_lower:
             if 'night' in dir_lower:
                 return 'drawable-night-xhdpi'
@@ -145,7 +145,7 @@ class AndroidSpecs:
             return None
 
         spec_info = self.specs[spec_key]
-        density = spec_info.get('density', 'xhdpi')
+        density = spec_info.get('density', 'mdpi')
 
         # Get base sizes and scale by density
         if image_type == 'icon':

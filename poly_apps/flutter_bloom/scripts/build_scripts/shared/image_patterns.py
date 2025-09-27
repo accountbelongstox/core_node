@@ -23,62 +23,61 @@ class ImagePatterns:
         'splash'
     ]
 
-    # Search patterns for each image type
+    # Search patterns for each image type (updated for precise matching to avoid conflicts)
     NAME_PATTERNS = {
         # Logo patterns - search in icons subdirectory first
         'logo': [
-            r'logo.*',
-            r'app_logo.*',
-            r'brand.*',
-            r'company.*'
+            r'^logo(?!_).*',        # logo but not logo_xxx
+            r'^app_logo.*',
+            r'^brand(?!_).*',       # brand but not brand_xxx
+            r'^company.*'
         ],
 
-        # Icon patterns - search in same directory as logo if logo found
+        # Icon patterns - search in same directory as logo if logo found (strict matching)
         'ic_icon': [
-            r'ic_icon.*',
-            r'ic_app.*',
-            r'app_icon.*',
-            r'main_icon.*'
+            r'^ic_icon$',                # Only exact ic_icon (no suffix)
+            r'^app_icon$',               # Only exact app_icon (no suffix)
+            r'^main_icon$'               # Only exact main_icon (no suffix)
         ],
 
         'ic_launcher': [
-            r'ic_launcher.*',
-            r'launcher.*',
-            r'app_launcher.*',
-            r'android_launcher.*'
+            r'^ic_launcher.*',           # Only exact ic_launcher matches
+            r'^launcher(?!_).*',         # launcher but not launcher_xxx
+            r'^app_launcher.*',
+            r'^android_launcher.*'
         ],
 
         'notification_icon': [
-            r'notification_icon.*',
-            r'notification.*',
-            r'notify_icon.*',
-            r'notify.*',
-            r'status_icon.*'
+            r'^notification_icon.*',
+            r'^notification(?!_icon).*', # notification but not notification_icon
+            r'^notify_icon.*',
+            r'^notify(?!_icon).*',       # notify but not notify_icon
+            r'^status_icon.*'
         ],
 
         'transa_launcher': [
-            r'transa_launcher.*',
-            r'transa.*',
-            r'launcher_transa.*',
-            r'trans_launcher.*'
+            r'^transa_launcher.*',
+            r'^transa(?!_launcher).*',   # transa but not transa_launcher
+            r'^launcher_transa.*',
+            r'^trans_launcher.*'
         ],
 
         # Background patterns - search in launch subdirectory first
         'background': [
-            r'background.*',
-            r'launch_background.*',
-            r'bg.*',
-            r'launch_bg.*',
-            r'app_background.*'
+            r'^background(?!_splash).*', # background but not background_splash
+            r'^launch_background.*',
+            r'^bg(?!_splash).*',         # bg but not bg_splash
+            r'^launch_bg.*',
+            r'^app_background.*'
         ],
 
         # Splash patterns - search in same directory as background if background found
         'splash': [
-            r'splash.*',
-            r'launch_image.*',
-            r'startup.*',
-            r'launch_screen.*',
-            r'boot_screen.*'
+            r'^splash.*',
+            r'^launch_image.*',
+            r'^startup.*',
+            r'^launch_screen.*',
+            r'^boot_screen.*'
         ]
     }
 

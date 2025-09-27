@@ -82,7 +82,7 @@ class SourceScanner:
 
                                 identifiers.append({
                                     'identifier': identifier,
-                                    'file_path': str(file_path),
+                                    'file_path': str(file_path).replace('/', '\\') if os.name == 'nt' else str(file_path),
                                     'platform': platform_dir,
                                     'relative_path': str(file_path.relative_to(project_root))
                                 })
@@ -104,7 +104,7 @@ class SourceScanner:
     def get_image_info(self, image_path: Path) -> Dict:
         """Get comprehensive information about an image file"""
         info = {
-            'path': str(image_path),
+            'path': str(image_path).replace('/', '\\') if os.name == 'nt' else str(image_path),
             'name': image_path.name,
             'size_bytes': 0,
             'size_text': '0 B',
@@ -303,7 +303,11 @@ class SourceScanner:
                     image_info = self.get_image_info(file_path)
                     image_info['platform'] = platform
                     image_info['relative_path'] = str(file_path.relative_to(project_root))
-                    image_info['directory_path'] = str(file_path.parent)
+                    # Convert to platform-appropriate path format
+                    if os.name == 'nt':  # Windows
+                        image_info['directory_path'] = str(file_path.parent).replace('/', '\\')
+                    else:  # Unix/Linux/Mac
+                        image_info['directory_path'] = str(file_path.parent)
                     platform_images[platform].append(image_info)
 
             # Sort by file path for consistent ordering
@@ -327,14 +331,15 @@ class SourceScanner:
                 if file_path.is_file():
                     try:
                         file_info = {
-                            'path': str(file_path),
+                            'path': str(file_path).replace('/', '\\') if os.name == 'nt' else str(file_path),
                             'name': file_path.name,
                             'size_bytes': file_path.stat().st_size,
                             'size_text': self.format_file_size(file_path.stat().st_size),
                             'extension': file_path.suffix.lower(),
                             'platform': platform,
                             'relative_path': str(file_path.relative_to(project_root)),
-                            'directory_path': str(file_path.parent),
+                            # Convert to platform-appropriate path format
+                            'directory_path': str(file_path.parent).replace('/', '\\') if os.name == 'nt' else str(file_path.parent),
                             'is_image': file_path.suffix.lower() in self.image_extensions,
                             'file_type': self.classify_file_type(file_path)
                         }

@@ -91,6 +91,11 @@ class ExplorerLauncher {
      * @returns {Promise<boolean>} - Success status
      */
     async searchAndLaunchAppExecutables(appDirectory, appName) {
+        if (!isWindows) {
+            logger.info('Skipping launcher discovery: automatic explorer start is only available on Windows environments.');
+            return false;
+        }
+
         if (!fs.existsSync(appDirectory)) {
             logger.warn(`App directory not found: ${appDirectory}`);
             return false;

@@ -10,7 +10,7 @@ import sys
 
 # Import using relative path from build_scripts root
 from shared.data_exchange.unified_variable_system import unified_vars
-from utils.asset_scanner import AssetScanner
+from utils.flutter_to_android_asset_scanner import FlutterToAndroidAssetScanner
 from utils.smart_image_selector import SmartImageSelector
 
 class Step2AssetController:
@@ -18,7 +18,7 @@ class Step2AssetController:
 
     def __init__(self):
         """Initialize Step 2 Controller"""
-        self.asset_scanner = AssetScanner()
+        self.asset_scanner = FlutterToAndroidAssetScanner()
         self.smart_selector = SmartImageSelector(self.asset_scanner)
 
     def execute_step2(self, temp_build_root: Path, app_name: str, menu_helper: Any) -> Dict[str, Any]:
@@ -93,9 +93,10 @@ class Step2AssetController:
             return {}
 
     def _apply_fallback_rules(self, selected_images: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply fallback rules using AssetScanner"""
+        """Apply fallback rules using SmartImageSelector"""
         try:
-            selected_images = self.asset_scanner.apply_fallback_rules(selected_images, {})
+            # Use SmartImageSelector's internal fallback rules method
+            selected_images = self.smart_selector._apply_fallback_rules(selected_images)
             return selected_images
         except Exception as e:
             print(f"[STEP-2] [ERROR] Failed to apply fallback rules: {e}")

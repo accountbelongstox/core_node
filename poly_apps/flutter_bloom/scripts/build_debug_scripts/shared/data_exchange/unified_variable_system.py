@@ -120,15 +120,40 @@ class UnifiedVariableSystem:
         self.gvar_exchange_file = self.gvar_exchange_dir / "variables.txt"
         self.gvar_lock_file = self.gvar_exchange_dir / "gvar.lock"
 
-        # Constants
-        self.KEY_SELECTED_APP = "SELECTED_APP"
-        self.KEY_SELECTED_ACTION = "SELECTED_ACTION"
-        self.KEY_SELECTED_PLATFORM = "SELECTED_PLATFORM"
-        self.KEY_SELECTED_ENTRY_FILE = "SELECTED_ENTRY_FILE"
-        self.KEY_APP_INDEX = "APP_INDEX"
-        self.KEY_DEBUG_PORT = "DEBUG_PORT"
-        self.KEY_SELECTED_COMPILATION_OPTION = "SELECTED_COMPILATION_OPTION"
-        self.KEY_BUILD_PHASE = "BUILD_PHASE"
+        # Constants - Match build_scripts version exactly for consistency
+        self.KEY_SELECTED_APP = "KEY_SELECTED_APP"
+        self.KEY_SELECTED_ACTION = "KEY_SELECTED_ACTION"
+        self.KEY_SELECTED_PLATFORM = "KEY_SELECTED_PLATFORM"
+        self.KEY_SELECTED_ENTRY_FILE = "KEY_SELECTED_ENTRY_FILE"
+        self.KEY_APP_INDEX = "KEY_APP_INDEX"
+        self.KEY_DEBUG_PORT = "KEY_DEBUG_PORT"
+        self.KEY_SELECTED_COMPILATION_OPTION = "KEY_SELECTED_COMPILATION_OPTION"
+        self.KEY_LAST_COMPILATION_MENU_SELECTION = "KEY_LAST_COMPILATION_MENU_SELECTION"
+        self.KEY_BUILD_PHASE = "KEY_BUILD_PHASE"
+        self.KEY_SCRIPT_PATH = "KEY_SCRIPT_PATH"  # New: for debug script path
+        self.KEY_DEBUG_SCRIPT_PATH = "KEY_DEBUG_SCRIPT_PATH"  # New: specific debug script path based on platform
+
+        # Build info keys
+        self.KEY_APP_NAME = "KEY_APP_NAME"
+        self.KEY_BUILD_ACTION = "KEY_BUILD_ACTION"
+        self.KEY_BUILD_PLATFORM = "KEY_BUILD_PLATFORM"
+
+        # App selector cache keys
+        self.KEY_APP_ACTION_MODE_PREFIX = "KEY_APP_ACTION_MODE_"
+        self.KEY_APP_PLATFORM_MODE_PREFIX = "KEY_APP_PLATFORM_MODE_"
+        self.KEY_LAST_SELECTED_APP_INDEX = "KEY_LAST_SELECTED_APP_INDEX"
+        self.KEY_CURRENT_ACTIVE_APP = "KEY_CURRENT_ACTIVE_APP"
+        self.KEY_CURRENT_ACTIVE_ACTION = "KEY_CURRENT_ACTIVE_ACTION"
+        self.KEY_CURRENT_ACTIVE_PLATFORM = "KEY_CURRENT_ACTIVE_PLATFORM"
+
+        # Unified aliases for consistency - these point to the same values as above
+        self.KEY_SELECTED_APP_NAME = "KEY_APP_NAME"  # Alias for KEY_APP_NAME for consistency
+
+        # Step data exchange keys
+        self.KEY_PROCESSED_IMAGES_JSON = "PROCESSED_IMAGES_JSON"
+        self.KEY_PLATFORM_TARGETS_JSON = "PLATFORM_TARGETS_JSON"
+
+        # Build system constants
         self.TEMP_BUILD_DIR_FILE = "temp_build_dir.txt"
 
     def _find_flutter_project_root(self) -> Path:

@@ -21,7 +21,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from core.build_system import FlutterBloomBuildSystem
+from core.modern_build_system import ModernFlutterBuildSystem as FlutterBloomBuildSystem
 from shared.data_exchange.unified_variable_system import unified_vars
 from utils.print_helper import PrintHelper
 
@@ -121,8 +121,8 @@ class BuildEntryPoint:
                 return {"success": True, "cancelled": True}
 
             # Store selected option
-            unified_vars.set_file_variable("SELECTED_COMPILATION_OPTION", selected_option["value"])
-            unified_vars.set_file_variable("BUILD_PHASE", "compilation")
+            unified_vars.set_file_variable(unified_vars.KEY_SELECTED_COMPILATION_OPTION, selected_option["value"])
+            unified_vars.set_file_variable(unified_vars.KEY_BUILD_PHASE, "compilation")
 
             PrintHelper.info(f"Selected: {selected_option['name']}", "BUILD-INFO")
             PrintHelper.info("Starting compilation process...", "BUILD-INFO")
