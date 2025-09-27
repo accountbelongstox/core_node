@@ -11,16 +11,28 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'dart:async';
+import 'dart:collection';
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:crypto/crypto.dart';
 import '../storage/storage_manager.dart';
+import '../network/core/network_types.dart';
 
-/// Cache entry with expiration and metadata
+/// Enhanced cache entry with network response integration
 class CacheEntry<T> {
   final T data;
   final DateTime createdAt;
   final DateTime? expiresAt;
   final String? etag;
   final Map<String, dynamic>? metadata;
+  final String? cacheKey;
+  final CacheStrategy strategy;
+  final List<String> tags;
+  int accessCount;
+  DateTime lastAccessed;
+  final Duration? latency;
+  final bool isFromNetwork;
 
   CacheEntry({
     required this.data,
@@ -28,11 +40,24 @@ class CacheEntry<T> {
     this.expiresAt,
     this.etag,
     this.metadata,
-  });
+    this.cacheKey,
+    this.strategy = CacheStrategy.cacheFirst,
+    this.tags = const [],
+    this.accessCount = 0,
+    DateTime? lastAccessed,
+    this.latency,
+    this.isFromNetwork = false,
+  }) : lastAccessed = lastAccessed ?? createdAt;
 
   bool get isExpired {
     if (expiresAt == null) return false;
     return DateTime.now().isAfter(expiresAt!);
+  }
+
+  bool get isStale {
+    if (expiresAt == null) return false;
+    final staleDuration = Duration(minutes: 5);
+    return DateTime.now().isAfter(expiresAt!.subtract(staleDuration));
   }
 
   Duration? get timeToExpiry {
@@ -42,6 +67,16 @@ class CacheEntry<T> {
     return expiresAt!.difference(now);
   }
 
+  Duration get age => DateTime.now().difference(createdAt);
+
+  int get estimatedSize {
+    try {
+      return utf8.encode(jsonEncode(data)).length;
+    } catch (e) {
+      return 1024; // Default estimate
+    }
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'data': data,
@@ -49,6 +84,13 @@ class CacheEntry<T> {
       'expiresAt': expiresAt?.toIso8601String(),
       'etag': etag,
       'metadata': metadata,
+      'cacheKey': cacheKey,
+      'strategy': strategy.index,
+      'tags': tags,
+      'accessCount': accessCount,
+      'lastAccessed': lastAccessed.toIso8601String(),
+      'latency': latency?.inMilliseconds,
+      'isFromNetwork': isFromNetwork,
     };
   }
 
@@ -64,23 +106,120 @@ class CacheEntry<T> {
           : null,
       etag: json['etag'],
       metadata: json['metadata'],
+      cacheKey: json['cacheKey'],
+      strategy: json['strategy'] != null
+          ? CacheStrategy.values[json['strategy']]
+          : CacheStrategy.cacheFirst,
+      tags: List<String>.from(json['tags'] ?? []),
+      accessCount: json['accessCount'] ?? 0,
+      lastAccessed: json['lastAccessed'] != null
+          ? DateTime.parse(json['lastAccessed'])
+          : DateTime.now(),
+      latency: json['latency'] != null
+          ? Duration(milliseconds: json['latency'])
+          : null,
+      isFromNetwork: json['isFromNetwork'] ?? false,
+    );
+  }
+
+  /// Create from NetworkResponse
+  static CacheEntry<T> fromNetworkResponse<T>(
+    NetworkResponse<T> response,
+    String cacheKey,
+    {Duration? customTtl,
+     CacheStrategy? strategy,
+     List<String>? tags}
+  ) {
+    final now = DateTime.now();
+    final ttl = customTtl ?? Duration(minutes: 5);
+
+    return CacheEntry<T>(
+      data: response.data!,
+      createdAt: response.timestamp,
+      expiresAt: now.add(ttl),
+      etag: response.headers?['etag'],
+      metadata: response.metadata,
+      cacheKey: cacheKey,
+      strategy: strategy ?? CacheStrategy.cacheFirst,
+      tags: tags ?? [],
+      accessCount: 0,
+      lastAccessed: now,
+      latency: response.latency,
+      isFromNetwork: true,
+    );
+  }
+
+  /// Convert to NetworkResponse
+  NetworkResponse<T> toNetworkResponse() {
+    return NetworkResponse<T>(
+      data: data,
+      statusCode: 200,
+      message: 'Retrieved from cache',
+      headers: etag != null ? {'etag': etag!} : null,
+      isFromCache: true,
+      isStale: isStale,
+      timestamp: createdAt,
+      latency: latency,
+      metadata: metadata,
     );
   }
 }
 
-/// Cache configuration for different cache types
+/// Enhanced cache configuration with network support
 class CacheConfig {
   final Duration? defaultTtl;
   final int? maxSize;
   final bool persistToDisk;
   final String? customBoxName;
+  final CacheStrategy defaultStrategy;
+  final bool enableCompression;
+  final bool enableEncryption;
+  final Duration staleWhileRevalidateWindow;
+  final int maxMemorySize;
+  final double compressionThreshold;
+  final List<String> defaultTags;
 
   const CacheConfig({
     this.defaultTtl,
     this.maxSize,
     this.persistToDisk = true,
     this.customBoxName,
+    this.defaultStrategy = CacheStrategy.cacheFirst,
+    this.enableCompression = false,
+    this.enableEncryption = false,
+    this.staleWhileRevalidateWindow = const Duration(minutes: 5),
+    this.maxMemorySize = 50,
+    this.compressionThreshold = 1024.0,
+    this.defaultTags = const [],
   });
+
+  CacheConfig copyWith({
+    Duration? defaultTtl,
+    int? maxSize,
+    bool? persistToDisk,
+    String? customBoxName,
+    CacheStrategy? defaultStrategy,
+    bool? enableCompression,
+    bool? enableEncryption,
+    Duration? staleWhileRevalidateWindow,
+    int? maxMemorySize,
+    double? compressionThreshold,
+    List<String>? defaultTags,
+  }) {
+    return CacheConfig(
+      defaultTtl: defaultTtl ?? this.defaultTtl,
+      maxSize: maxSize ?? this.maxSize,
+      persistToDisk: persistToDisk ?? this.persistToDisk,
+      customBoxName: customBoxName ?? this.customBoxName,
+      defaultStrategy: defaultStrategy ?? this.defaultStrategy,
+      enableCompression: enableCompression ?? this.enableCompression,
+      enableEncryption: enableEncryption ?? this.enableEncryption,
+      staleWhileRevalidateWindow: staleWhileRevalidateWindow ?? this.staleWhileRevalidateWindow,
+      maxMemorySize: maxMemorySize ?? this.maxMemorySize,
+      compressionThreshold: compressionThreshold ?? this.compressionThreshold,
+      defaultTags: defaultTags ?? this.defaultTags,
+    );
+  }
 }
 
 /// Cache invalidation strategies
@@ -91,26 +230,56 @@ enum CacheInvalidationStrategy {
   mixed,
 }
 
-/// Multi-level cache manager with memory and persistent storage
+/// Unified multi-level cache manager with network integration
 class CacheManager {
   static CacheManager? _instance;
   static CacheManager get instance => _instance ??= CacheManager._internal();
 
   CacheManager._internal();
 
-  final Map<String, Map<String, CacheEntry<dynamic>>> _memoryCache = {};
+  // Memory cache with LRU eviction
+  final LinkedHashMap<String, Map<String, CacheEntry<dynamic>>> _memoryCache = LinkedHashMap();
   final Map<String, CacheConfig> _cacheConfigs = {};
   final Map<String, Timer> _cleanupTimers = {};
   final StorageManager _storage = StorageManager.instance;
 
-  static const String _defaultBoxName = 'app_cache';
-  static const Duration _defaultCleanupInterval = Duration(minutes: 30);
+  // Network cache specific
+  final Map<String, Future<dynamic>> _pendingRequests = {};
+  final Map<String, int> _hitCounts = {};
+  final Map<String, int> _missCounts = {};
+  final Map<String, Duration> _averageLatencies = {};
 
-  /// Initialize cache manager
+  // Performance monitoring
+  Timer? _metricsTimer;
+  int _totalRequests = 0;
+  int _totalHits = 0;
+
+  static const String _defaultBoxName = 'app_cache';
+  static const String _networkCacheBoxName = 'network_cache';
+  static const Duration _defaultCleanupInterval = Duration(minutes: 30);
+  static const Duration _metricsInterval = Duration(minutes: 5);
+
+  /// Initialize cache manager with network support
   Future<void> initialize() async {
     await _storage.init();
     await _storage.openBox(_defaultBoxName);
+    await _storage.openBox(_networkCacheBoxName);
     _scheduleCleanup();
+    _scheduleMetricsCollection();
+
+    // Register default network cache config
+    registerCacheConfig('network', const CacheConfig(
+      defaultTtl: Duration(minutes: 5),
+      maxSize: 200,
+      customBoxName: _networkCacheBoxName,
+      defaultStrategy: CacheStrategy.cacheFirst,
+      enableCompression: true,
+      maxMemorySize: 100,
+    ));
+
+    if (kDebugMode) {
+      print('🚀 Unified Cache Manager initialized with network support');
+    }
   }
 
   /// Register cache configuration for a specific cache type
@@ -441,12 +610,339 @@ class CacheManager {
     });
   }
 
+  /// Network-specific cache methods
+
+  /// Store NetworkResponse in cache
+  Future<void> storeNetworkResponse<T>(
+    String cacheKey,
+    NetworkResponse<T> response, {
+    Duration? ttl,
+    CacheStrategy? strategy,
+    List<String>? tags,
+  }) async {
+    if (response.data == null) return;
+
+    final entry = CacheEntry.fromNetworkResponse(
+      response,
+      cacheKey,
+      customTtl: ttl,
+      strategy: strategy,
+      tags: tags,
+    );
+
+    await put('network', cacheKey, response.data!,
+        ttl: ttl,
+        metadata: {
+          'statusCode': response.statusCode,
+          'headers': response.headers,
+          'isFromNetwork': true,
+          'latency': response.latency?.inMilliseconds,
+        });
+  }
+
+  /// Get NetworkResponse from cache
+  Future<NetworkResponse<T>?> getNetworkResponse<T>(String cacheKey) async {
+    final entry = await getEntry('network', cacheKey);
+    if (entry == null) {
+      _recordCacheMiss(cacheKey);
+      return null;
+    }
+
+    _recordCacheHit(cacheKey);
+
+    // Convert cache entry to NetworkResponse
+    return NetworkResponse<T>(
+      data: entry.data as T,
+      statusCode: entry.metadata?['statusCode'] ?? 200,
+      message: 'Retrieved from cache',
+      headers: entry.metadata?['headers'],
+      isFromCache: true,
+      isStale: entry.isExpired,
+      timestamp: entry.createdAt,
+      latency: entry.metadata?['latency'] != null
+          ? Duration(milliseconds: entry.metadata!['latency'])
+          : null,
+      metadata: entry.metadata,
+    );
+  }
+
+  /// Cache-first strategy implementation
+  Future<NetworkResponse<T>> executeWithCacheFirst<T>(
+    String cacheKey,
+    Future<NetworkResponse<T>> Function() networkRequest, {
+    Duration? staleTime,
+    bool allowStaleOnError = true,
+  }) async {
+    // Step 1: Try to get from cache
+    final cachedResponse = await getNetworkResponse<T>(cacheKey);
+    if (cachedResponse != null) {
+      final isStale = staleTime != null &&
+          DateTime.now().difference(cachedResponse.timestamp) > staleTime;
+
+      if (!isStale) {
+        if (kDebugMode) {
+          print('Cache hit (fresh): $cacheKey');
+        }
+        return cachedResponse.copyWith(isFromCache: true);
+      }
+
+      // Cache is stale, try network but keep stale as fallback
+      if (kDebugMode) {
+        print('Cache hit (stale): $cacheKey, trying network...');
+      }
+
+      try {
+        final networkResponse = await networkRequest();
+        await storeNetworkResponse(cacheKey, networkResponse);
+        return networkResponse;
+      } catch (e) {
+        if (allowStaleOnError) {
+          if (kDebugMode) {
+            print('Network failed, returning stale cache: $cacheKey');
+          }
+          return cachedResponse.copyWith(
+            isFromCache: true,
+            isStale: true,
+            error: 'Network error: $e',
+          );
+        }
+        rethrow;
+      }
+    }
+
+    // Step 2: No cache, try network
+    try {
+      final networkResponse = await networkRequest();
+      await storeNetworkResponse(cacheKey, networkResponse);
+      return networkResponse;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Cache miss and network failed: $cacheKey');
+      }
+      rethrow;
+    }
+  }
+
+  /// Request deduplication for identical network requests
+  Future<T> deduplicate<T>(
+    String key,
+    Future<T> Function() request,
+  ) async {
+    if (_pendingRequests.containsKey(key)) {
+      return await _pendingRequests[key] as T;
+    }
+
+    final future = request();
+    _pendingRequests[key] = future;
+
+    try {
+      final result = await future;
+      return result;
+    } finally {
+      _pendingRequests.remove(key);
+    }
+  }
+
+  /// Invalidate cache by tags (useful for related data)
+  Future<void> invalidateByTags(List<String> tags) async {
+    final keysToInvalidate = <String>[];
+
+    // Check memory cache
+    for (final cacheTypeEntry in _memoryCache.entries) {
+      for (final cacheEntry in cacheTypeEntry.value.entries) {
+        final entry = cacheEntry.value;
+        if (entry.tags.any((tag) => tags.contains(tag))) {
+          keysToInvalidate.add('${cacheTypeEntry.key}:${cacheEntry.key}');
+        }
+      }
+    }
+
+    // Remove found entries
+    for (final key in keysToInvalidate) {
+      final parts = key.split(':');
+      if (parts.length >= 2) {
+        final cacheType = parts[0];
+        final cacheKey = parts.sublist(1).join(':');
+        await remove(cacheType, cacheKey);
+      }
+    }
+
+    if (kDebugMode) {
+      print('🗑️ Invalidated ${keysToInvalidate.length} entries by tags: $tags');
+    }
+  }
+
+  /// Invalidate cache by pattern
+  Future<void> invalidateByPattern(String pattern) async {
+    final regex = RegExp(pattern);
+    final keysToInvalidate = <String>[];
+
+    // Check memory cache
+    for (final cacheTypeEntry in _memoryCache.entries) {
+      for (final cacheEntry in cacheTypeEntry.value.entries) {
+        if (regex.hasMatch(cacheEntry.key)) {
+          keysToInvalidate.add('${cacheTypeEntry.key}:${cacheEntry.key}');
+        }
+      }
+    }
+
+    // Remove found entries
+    for (final key in keysToInvalidate) {
+      final parts = key.split(':');
+      if (parts.length >= 2) {
+        final cacheType = parts[0];
+        final cacheKey = parts.sublist(1).join(':');
+        await remove(cacheType, cacheKey);
+      }
+    }
+
+    if (kDebugMode) {
+      print('🗑️ Invalidated ${keysToInvalidate.length} entries by pattern: $pattern');
+    }
+  }
+
+  /// Get comprehensive cache statistics including network metrics
+  Future<Map<String, dynamic>> getDetailedStats() async {
+    final basicStats = await getStats();
+    final hitRate = _totalRequests > 0 ? (_totalHits / _totalRequests * 100) : 0.0;
+
+    return {
+      ...basicStats,
+      'network': {
+        'totalRequests': _totalRequests,
+        'totalHits': _totalHits,
+        'hitRate': hitRate,
+        'pendingRequests': _pendingRequests.length,
+        'averageLatency': _calculateAverageLatency(),
+      },
+      'performance': {
+        'memoryPressure': _calculateMemoryPressure(),
+        'diskUtilization': await _calculateDiskUtilization(),
+        'cacheEfficiency': _calculateCacheEfficiency(),
+      },
+    };
+  }
+
+  /// Preload critical network responses
+  Future<void> preloadNetworkData(Map<String, Future<NetworkResponse> Function()> loaders) async {
+    final futures = <Future<void>>[];
+
+    for (final entry in loaders.entries) {
+      futures.add(_preloadSingle(entry.key, entry.value));
+    }
+
+    await Future.wait(futures);
+    if (kDebugMode) {
+      print('📦 Preloaded ${loaders.length} network cache entries');
+    }
+  }
+
+  // Private helper methods for network cache
+
+  void _recordCacheHit(String key) {
+    _totalRequests++;
+    _totalHits++;
+    _hitCounts[key] = (_hitCounts[key] ?? 0) + 1;
+  }
+
+  void _recordCacheMiss(String key) {
+    _totalRequests++;
+    _missCounts[key] = (_missCounts[key] ?? 0) + 1;
+  }
+
+  void _scheduleMetricsCollection() {
+    _metricsTimer = Timer.periodic(_metricsInterval, (_) {
+      _collectMetrics();
+    });
+  }
+
+  void _collectMetrics() {
+    if (kDebugMode) {
+      final hitRate = _totalRequests > 0 ? (_totalHits / _totalRequests * 100) : 0.0;
+      print('📊 Cache Metrics: ${_totalRequests} requests, ${hitRate.toStringAsFixed(1)}% hit rate');
+    }
+  }
+
+  Duration _calculateAverageLatency() {
+    if (_averageLatencies.isEmpty) return Duration.zero;
+    final total = _averageLatencies.values.fold<int>(0, (sum, duration) => sum + duration.inMilliseconds);
+    return Duration(milliseconds: total ~/ _averageLatencies.length);
+  }
+
+  double _calculateMemoryPressure() {
+    int totalEntries = 0;
+    int maxEntries = 0;
+
+    for (final cacheType in _memoryCache.keys) {
+      final config = _cacheConfigs[cacheType] ?? const CacheConfig();
+      totalEntries += _memoryCache[cacheType]?.length ?? 0;
+      maxEntries += config.maxMemorySize;
+    }
+
+    return maxEntries > 0 ? (totalEntries / maxEntries) : 0.0;
+  }
+
+  Future<double> _calculateDiskUtilization() async {
+    try {
+      // Simple estimation based on number of cache entries
+      final keys = await _storage.getKeys(_defaultBoxName);
+      const estimatedSizePerEntry = 1024; // 1KB per entry estimate
+      final totalSize = keys.length * estimatedSizePerEntry;
+      const maxSize = 100 * 1024 * 1024; // 100MB default limit
+      return totalSize / maxSize;
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  double _calculateCacheEfficiency() {
+    if (_totalRequests == 0) return 0.0;
+    return (_totalHits / _totalRequests) * 100;
+  }
+
+  Future<void> _preloadSingle(String key, Future<NetworkResponse> Function() loader) async {
+    try {
+      final response = await loader();
+      await storeNetworkResponse(key, response);
+    } catch (error) {
+      if (kDebugMode) {
+        print('❌ Failed to preload network cache for key $key: $error');
+      }
+    }
+  }
+
+  /// Generate secure cache key for network requests
+  String generateCacheKey(NetworkRequest request) {
+    final buffer = StringBuffer();
+    buffer.write(request.methodString);
+    buffer.write('|');
+    buffer.write(request.endpoint);
+
+    if (request.parameters != null && request.parameters!.isNotEmpty) {
+      final sortedKeys = request.parameters!.keys.toList()..sort();
+      buffer.write('|');
+      for (final key in sortedKeys) {
+        buffer.write('$key=${request.parameters![key]}&');
+      }
+    }
+
+    // Create secure hash
+    final bytes = utf8.encode(buffer.toString());
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
   /// Dispose cache manager
   void dispose() {
     for (final timer in _cleanupTimers.values) {
       timer.cancel();
     }
     _cleanupTimers.clear();
+    _metricsTimer?.cancel();
     _memoryCache.clear();
+    _pendingRequests.clear();
+    _hitCounts.clear();
+    _missCounts.clear();
+    _averageLatencies.clear();
   }
 }
