@@ -773,3 +773,72 @@ class MenuHelper:
             for item in items:
                 print(f"  {item}")
         print()
+
+    def show_compilation_menu(self) -> Optional[str]:
+        """Show compilation options menu and return selected option"""
+
+        options = [
+            {
+                'value': 'analyze',
+                'display': 'Analyze Code - Run static analysis',
+                'description': 'Run static analysis on the codebase'
+            },
+            {
+                'value': 'clean',
+                'display': 'Clean Build - Remove build cache and rebuild',
+                'description': 'Remove all build cache and perform clean rebuild'
+            },
+            {
+                'value': 'debug',
+                'display': 'Debug Build - Development version with debugging',
+                'description': 'Build development version with debugging symbols'
+            },
+            {
+                'value': 'profile',
+                'display': 'Profile Build - Performance profiling version',
+                'description': 'Build with performance profiling enabled'
+            },
+            {
+                'value': 'release',
+                'display': 'Release Build - Production optimized version',
+                'description': 'Build production-ready optimized version'
+            },
+            {
+                'value': 'test',
+                'display': 'Run Tests - Execute test suite',
+                'description': 'Run the complete test suite'
+            }
+        ]
+
+        title = "BUILD COMPILATION MENU"
+        cache_key = "compilation_option"
+
+        # Check if there's a cached selection
+        cached_selection = unified_vars.get_file_variable(unified_vars.KEY_COMPILATION_OPTION, '')
+        if cached_selection:
+            # Find the cached option index
+            for i, option in enumerate(options):
+                if option['value'] == cached_selection:
+                    self.default_index = i
+                    break
+
+        # Use show_simple_menu with caching
+        selected_item = self.show_simple_menu(
+            title=title,
+            options=options,
+            show_legend=True,
+            cache_key=cache_key
+        )
+
+        if selected_item:
+            selected_value = selected_item.get('value')
+            # Cache the selection
+            unified_vars.set_file_variable(unified_vars.KEY_COMPILATION_OPTION, selected_value)
+
+            print(f"\n✓ Selected compilation option: {selected_item.get('display')}")
+            return selected_value
+
+        # Default to debug if nothing selected
+        print("\n✓ No selection made, defaulting to Debug Build")
+        unified_vars.set_file_variable(unified_vars.KEY_COMPILATION_OPTION, 'debug')
+        return 'debug'

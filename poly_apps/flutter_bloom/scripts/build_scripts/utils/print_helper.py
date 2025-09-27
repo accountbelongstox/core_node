@@ -179,5 +179,5 @@ class PrintHelper:
             for result in results:
                 if result.get('status') != 'success':
                     print(f"    - {result.get('description', 'Unknown')}: {result.get('error', 'Unknown error')}")
-        
+
         PrintHelper.separator()
