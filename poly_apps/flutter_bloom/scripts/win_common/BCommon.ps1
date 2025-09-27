@@ -474,14 +474,39 @@ function Clean-StaticResourceString {
 # Removed Set-StaticResourceVar and Get-StaticResourceVar wrapper functions
 # Use file operations directly or Set-FileVariable/Get-FileVariable from FlutterGlobalVar.ps1
 
-function Invoke-DebugScriptSelection {
+function Test-IsDebugMode {
     <#
     .SYNOPSIS
-    Handle debug script selection and execution based on Python variables
+    Check if current action is DEBUG mode
+
+    .DESCRIPTION
+    Reads the action variable and determines if it's debug mode
+    Returns $true for debug, $false for build/release modes
+    #>
+
+    try {
+        $selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue ""
+
+        if (-not $selectedAction) {
+            Write-Warning "[WARNING] No action selected, defaulting to debug mode"
+            return $true
+        }
+
+        return ($selectedAction.ToLower() -eq "debug")
+    }
+    catch {
+        Write-Warning "[WARNING] Error checking debug mode: $_"
+        return $true  # Default to debug mode on error
+    }
+}
+
+function Invoke-DebugMode {
+    <#
+    .SYNOPSIS
+    Handle DEBUG mode execution based on Python variables
 
     .DESCRIPTION
     Reads variables saved by Python main.py and executes appropriate debug script
-    Handles both debug and build modes with minimal output
     #>
 
     try {
@@ -513,55 +538,200 @@ function Invoke-DebugScriptSelection {
         # Display minimal configuration
         Write-Host "[INFO] $selectedApp [$selectedAction/$selectedPlatform]" -ForegroundColor Cyan
 
+        Write-Host "[DEBUG] Debug mode detected, checking script path..." -ForegroundColor Magenta
+        Write-Host "[DEBUG] Script path exists check: $(Test-Path $scriptPath)" -ForegroundColor Magenta
+        Write-Host "[DEBUG] Script path value: '$scriptPath'" -ForegroundColor Magenta
+
+        if ($scriptPath -and (Test-Path $scriptPath)) {
+            Write-Host "[INFO] Starting debug mode..." -ForegroundColor Yellow
+
+            # Get debug script directory and execute from there
+            $scriptDir = Split-Path -Parent $scriptPath
+            $scriptName = Split-Path -Leaf $scriptPath
+
+            Write-Host "[DEBUG] Script directory: '$scriptDir'" -ForegroundColor Magenta
+            Write-Host "[DEBUG] Script name: '$scriptName'" -ForegroundColor Magenta
+
+            # Change to project root (two levels up from script directory)
+            $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
+            Write-Host "[DEBUG] Switching to project root: '$projectRoot'" -ForegroundColor Magenta
+
+            Push-Location $projectRoot
+            Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
+            Write-Host "[DEBUG] About to execute: powershell -File $scriptPath" -ForegroundColor Magenta
+
+            # Execute the debug script directly (not through new PowerShell process)
+            . $scriptPath
+
+            Pop-Location
+            Write-Host "[DEBUG] Restored working directory: $(Get-Location)" -ForegroundColor Magenta
+
+            Write-Success "[SUCCESS] Debug script execution completed"
+            return $true
+        } else {
+            Write-Host "[DEBUG] Script path validation failed:" -ForegroundColor Magenta
+            Write-Host "[DEBUG]   Script path empty: $(-not $scriptPath)" -ForegroundColor Magenta
+            Write-Host "[DEBUG]   Script path exists: $(if($scriptPath) { Test-Path $scriptPath } else { 'N/A' })" -ForegroundColor Magenta
+            Write-ErrorMsg "[ERROR] Debug script not found: $scriptPath"
+            return $false
+        }
+
+    } catch {
+        Write-ErrorMsg "[ERROR] Debug mode execution failed: $_"
+        return $false
+    }
+}
+
+function Invoke-BuildMode {
+    <#
+    .SYNOPSIS
+    Handle BUILD mode execution based on step20 variables
+
+    .DESCRIPTION
+    Reads variables prepared by step20 compilation controller and executes build commands
+    #>
+
+    try {
+        # Read variables saved by Python step20
+        $selectedApp = Get-FileVariable -Name $Global:KEY_SELECTED_APP -DefaultValue ""
+        $selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue ""
+        $compilationCommand = Get-FileVariable -Name $Global:KEY_COMPILATION_COMMAND -DefaultValue ""
+        $buildRoot = Get-FileVariable -Name $Global:KEY_BUILD_ROOT -DefaultValue ""
+        $buildOutputDir = Get-FileVariable -Name $Global:KEY_BUILD_OUTPUT_DIR -DefaultValue ""
+        $apkOutputPath = Get-FileVariable -Name $Global:KEY_APK_OUTPUT_PATH -DefaultValue ""
+        $compilationPlatform = Get-FileVariable -Name $Global:KEY_COMPILATION_PLATFORM -DefaultValue ""
+        $cleanCommand = Get-FileVariable -Name $Global:KEY_CLEAN_COMMAND -DefaultValue ""
+        $buildTimestamp = Get-FileVariable -Name $Global:KEY_BUILD_TIMESTAMP -DefaultValue ""
+        $apkFileName = Get-FileVariable -Name $Global:KEY_APK_FILE_NAME -DefaultValue ""
+
+        # Debug: Print all loaded variables
+        Write-Host "[BUILD] Loaded variables from step20:" -ForegroundColor Green
+        Write-Host "[BUILD]   Selected App: '$selectedApp'" -ForegroundColor Green
+        Write-Host "[BUILD]   Selected Action: '$selectedAction'" -ForegroundColor Green
+        Write-Host "[BUILD]   Compilation Command: '$compilationCommand'" -ForegroundColor Green
+        Write-Host "[BUILD]   Build Root: '$buildRoot'" -ForegroundColor Green
+        Write-Host "[BUILD]   Build Output Dir: '$buildOutputDir'" -ForegroundColor Green
+        Write-Host "[BUILD]   APK Output Path: '$apkOutputPath'" -ForegroundColor Green
+        Write-Host "[BUILD]   Platform: '$compilationPlatform'" -ForegroundColor Green
+        Write-Host "[BUILD]   Clean Command: '$cleanCommand'" -ForegroundColor Green
+        Write-Host "[BUILD]   Build Timestamp: '$buildTimestamp'" -ForegroundColor Green
+        Write-Host "[BUILD]   APK File Name: '$apkFileName'" -ForegroundColor Green
+
+        # Validate required variables
+        if (-not $selectedApp -or -not $compilationCommand -or -not $buildRoot) {
+            Write-ErrorMsg "[ERROR] Missing required variables from step20 compilation preparation"
+            return $false
+        }
+
+        # Validate build root directory exists
+        if (-not (Test-Path $buildRoot)) {
+            Write-ErrorMsg "[ERROR] Build root directory does not exist: $buildRoot"
+            return $false
+        }
+
+        # Display build configuration
+        Write-Host "[INFO] $selectedApp [$selectedAction/$compilationPlatform] - Build Mode" -ForegroundColor Cyan
+        Write-Host "[INFO] Build Root: $buildRoot" -ForegroundColor Gray
+        Write-Host "[INFO] Expected Output: $apkFileName" -ForegroundColor Gray
+
+        # Change to build root directory
+        Write-Host "[BUILD] Switching to build root: '$buildRoot'" -ForegroundColor Yellow
+        Push-Location $buildRoot
+        Write-Host "[BUILD] Current working directory: $(Get-Location)" -ForegroundColor Yellow
+
+        try {
+            # Execute clean command if available
+            $cleanCommandVar = Get-FileVariable -Name "clean_command" -DefaultValue ""
+            $cleanScriptPath = Get-FileVariable -Name "clean_script_path" -DefaultValue ""
+
+            if ($cleanCommandVar -and $cleanCommandVar.Trim() -ne "") {
+                Write-Host "[BUILD] Executing clean command..." -ForegroundColor Yellow
+
+                if ($cleanScriptPath -and (Test-Path $cleanScriptPath)) {
+                    Write-Host "[BUILD] Clean Script: $cleanScriptPath" -ForegroundColor Gray
+                    & powershell -File $cleanScriptPath
+                } else {
+                    Write-Host "[BUILD] Clean Command: $cleanCommandVar" -ForegroundColor Gray
+                    Invoke-Expression $cleanCommandVar
+                }
+
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "[BUILD] Clean command failed but continuing with build..."
+                }
+            }
+
+            # Execute main compilation command
+            Write-Host "[BUILD] Executing compilation command..." -ForegroundColor Yellow
+
+            $buildScriptPath = Get-FileVariable -Name "script_path" -DefaultValue ""
+            $buildCommand = Get-FileVariable -Name "command" -DefaultValue ""
+
+            if ($buildScriptPath -and (Test-Path $buildScriptPath)) {
+                Write-Host "[BUILD] Build Script: $buildScriptPath" -ForegroundColor Gray
+                & powershell -File $buildScriptPath
+            } elseif ($buildCommand -and $buildCommand.Trim() -ne "") {
+                Write-Host "[BUILD] Build Command: $buildCommand" -ForegroundColor Gray
+                Invoke-Expression $buildCommand
+            } else {
+                Write-Host "[BUILD] Compilation Command: $compilationCommand" -ForegroundColor Gray
+                Invoke-Expression $compilationCommand
+            }
+
+            Write-Host "[DEBUG] Command execution completed with exit code: $LASTEXITCODE" -ForegroundColor Magenta
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "[BUILD] Compilation completed successfully"
+                return $true
+            } else {
+                Write-ErrorMsg "[BUILD] Compilation failed with exit code: $LASTEXITCODE"
+                return $false
+            }
+
+        } finally {
+            Pop-Location
+            Write-Host "[BUILD] Restored working directory: $(Get-Location)" -ForegroundColor Yellow
+        }
+
+    } catch {
+        Write-ErrorMsg "[ERROR] Build mode execution failed: $_"
+        return $false
+    }
+}
+
+function Invoke-DebugScriptSelection {
+    <#
+    .SYNOPSIS
+    Handle debug script selection and execution based on Python variables
+
+    .DESCRIPTION
+    Reads variables saved by Python main.py and routes to appropriate mode function
+    Routes to Invoke-DebugMode or Invoke-BuildMode based on action
+    #>
+
+    try {
+        # Read action to determine mode
+        $selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue ""
+
+        if (-not $selectedAction) {
+            Write-ErrorMsg "[ERROR] No action selected from Python"
+            return $false
+        }
+
         # Route based on action
         if ($selectedAction.ToLower() -eq "debug") {
-            Write-Host "[DEBUG] Debug mode detected, checking script path..." -ForegroundColor Magenta
-            Write-Host "[DEBUG] Script path exists check: $(Test-Path $scriptPath)" -ForegroundColor Magenta
-            Write-Host "[DEBUG] Script path value: '$scriptPath'" -ForegroundColor Magenta
-
-            if ($scriptPath -and (Test-Path $scriptPath)) {
-                Write-Host "[INFO] Starting debug mode..." -ForegroundColor Yellow
-
-                # Get debug script directory and execute from there
-                $scriptDir = Split-Path -Parent $scriptPath
-                $scriptName = Split-Path -Leaf $scriptPath
-
-                Write-Host "[DEBUG] Script directory: '$scriptDir'" -ForegroundColor Magenta
-                Write-Host "[DEBUG] Script name: '$scriptName'" -ForegroundColor Magenta
-
-                # Change to project root (two levels up from script directory)
-                $projectRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
-                Write-Host "[DEBUG] Switching to project root: '$projectRoot'" -ForegroundColor Magenta
-
-                Push-Location $projectRoot
-                Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
-                Write-Host "[DEBUG] About to execute: powershell -File $scriptPath" -ForegroundColor Magenta
-
-                # Execute the debug script directly (not through new PowerShell process)
-                . $scriptPath
-
-                Pop-Location
-                Write-Host "[DEBUG] Restored working directory: $(Get-Location)" -ForegroundColor Magenta
-
-                Write-Success "[SUCCESS] Debug script execution completed"
-            } else {
-                Write-Host "[DEBUG] Script path validation failed:" -ForegroundColor Magenta
-                Write-Host "[DEBUG]   Script path empty: $(-not $scriptPath)" -ForegroundColor Magenta
-                Write-Host "[DEBUG]   Script path exists: $(if($scriptPath) { Test-Path $scriptPath } else { 'N/A' })" -ForegroundColor Magenta
-                Write-ErrorMsg "[ERROR] Debug script not found: $scriptPath"
-            }
+            return Invoke-DebugMode
         }
         elseif ($selectedAction.ToLower() -eq "build" -or $selectedAction.ToLower() -eq "release") {
-            Write-Host "[INFO] Starting build mode..." -ForegroundColor Yellow
-            Write-Host "[INFO] Platform: $selectedPlatform | Entry: $selectedEntryFile" -ForegroundColor Gray
-            Write-Success "[SUCCESS] Build mode configured"
+            return Invoke-BuildMode
         }
         else {
             Write-ErrorMsg "[ERROR] Unknown action: $selectedAction"
+            return $false
         }
 
     } catch {
         Write-ErrorMsg "[ERROR] Debug script selection failed: $_"
+        return $false
     }
 }
 

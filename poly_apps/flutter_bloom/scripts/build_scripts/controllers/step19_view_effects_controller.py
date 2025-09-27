@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Step 8 View Effects Controller
+Step 19 View Effects Controller
 Opens source viewer for viewing image replacement effects via web interface
 """
 
@@ -21,14 +21,14 @@ from utils.print_helper import PrintHelper
 from utils.source_viewer_server import SourceViewerServer
 
 
-class Step8ViewEffectsController:
+class Step19ViewEffectsController:
     """
-    Step 8 Controller: View Replacement Effects
+    Step 19 Controller: View Replacement Effects
     Opens web interface to view image replacement effects and project resources
     """
 
     def __init__(self):
-        self.step_name = "STEP-8"
+        self.step_name = "STEP-19"
         self.step_description = "View Replacement Effects"
         self.results = {}
         self.temp_build_root = None
@@ -39,7 +39,7 @@ class Step8ViewEffectsController:
 
     def initialize(self, temp_build_root: Path, app_name: str) -> bool:
         """
-        Initialize Step 8 controller with build parameters
+        Initialize Step 19 controller with build parameters
 
         Args:
             temp_build_root: Path to temporary build directory
@@ -61,16 +61,16 @@ class Step8ViewEffectsController:
                 PrintHelper.error(f"Build root directory does not exist: {temp_build_root}", source=self.step_name)
                 return False
 
-            PrintHelper.info(f"Step 8 controller initialized successfully", source=self.step_name)
+            PrintHelper.info(f"Step 19 controller initialized successfully", source=self.step_name)
             return True
 
         except Exception as e:
-            PrintHelper.error(f"Failed to initialize Step 8 controller: {e}", source=self.step_name)
+            PrintHelper.error(f"Failed to initialize Step 19 controller: {e}", source=self.step_name)
             return False
 
-    def execute_step8_view_effects(self) -> Dict[str, Any]:
+    def execute_step19_view_effects(self) -> Dict[str, Any]:
         """
-        Execute Step 8: View Replacement Effects
+        Execute Step 19: View Replacement Effects
 
         Returns:
             Dict containing view results and metadata
@@ -113,7 +113,7 @@ class Step8ViewEffectsController:
 
                 # Store results
                 self.results = {
-                    'step': 8,
+                    'step': 19,
                     'step_name': self.step_name,
                     'step_description': self.step_description,
                     'success': True,
@@ -143,11 +143,11 @@ class Step8ViewEffectsController:
                 os.chdir(original_cwd)
 
         except Exception as e:
-            error_message = f"Step 8 execution failed: {e}"
+            error_message = f"Step 19 execution failed: {e}"
             PrintHelper.error(f"{error_message}", source=self.step_name)
 
             self.results = {
-                'step': 8,
+                'step': 19,
                 'step_name': self.step_name,
                 'step_description': self.step_description,
                 'success': False,
@@ -183,14 +183,20 @@ class Step8ViewEffectsController:
             print("1. Open web interface automatically in browser")
             print("2. Keep server running - manual browser access")
             print("3. Stop server and continue build process")
-            print("4. Stop server and exit build")
+            print("4. Stop server and continue to final compilation step (default)")
             print("=" * 60)
 
             while True:
                 try:
-                    choice = input("Select option (1-4): ").strip()
+                    choice = input("Select option (1-4, or ENTER for default): ").strip()
 
-                    if choice == '1':
+                    # Handle empty input (Enter key) as default option 4
+                    if choice == '' or choice == '4':
+                        PrintHelper.info(f"[ACTION] Stopping server and continuing to compilation step...", source=self.step_name)
+                        self._stop_server()
+                        return 'continue_to_compilation'
+
+                    elif choice == '1':
                         PrintHelper.info(f"[ACTION] Opening web browser...", source=self.step_name)
                         webbrowser.open(web_url)
                         print("\nBrowser opened. Press ENTER when you're finished viewing...")
@@ -211,14 +217,8 @@ class Step8ViewEffectsController:
                         self._stop_server()
                         return 'continue_build'
 
-                    elif choice == '4':
-                        PrintHelper.info(f"[ACTION] Stopping server and exiting build...", source=self.step_name)
-                        self._stop_server()
-                        PrintHelper.info(f"[BUILD-EXIT] Build process terminated by user", source=self.step_name)
-                        sys.exit(0)
-
                     else:
-                        print("Invalid choice. Please select 1-4.")
+                        print("Invalid choice. Please select 1-4 or press ENTER for default.")
 
                 except KeyboardInterrupt:
                     PrintHelper.info(f"\n[INTERRUPTED] User interrupted. Stopping server...", source=self.step_name)
@@ -367,17 +367,17 @@ class Step8ViewEffectsController:
             return False
 
     def get_results(self) -> Dict[str, Any]:
-        """Get the results of Step 8 execution"""
+        """Get the results of Step 19 execution"""
         return self.results
 
-    def print_step8_summary(self) -> None:
-        """Print a concise summary of Step 8 results"""
+    def print_step19_summary(self) -> None:
+        """Print a concise summary of Step 19 results"""
         try:
             if not self.results:
                 PrintHelper.info(f"[SUMMARY] No results available", source=self.step_name)
                 return
 
-            PrintHelper.info(f"\n[SUMMARY] STEP 6 COMPLETION SUMMARY", source=self.step_name)
+            PrintHelper.info(f"\n[SUMMARY] STEP 19 COMPLETION SUMMARY", source=self.step_name)
             PrintHelper.info(f"{'-' * 60}")
 
             if self.results.get('success', False):
@@ -401,18 +401,18 @@ class Step8ViewEffectsController:
 
 
 def main():
-    """Main function for testing Step 8 controller"""
-    PrintHelper.info("[TEST] Step 8 View Effects Controller - Standalone Test", source="STEP-8")
+    """Main function for testing Step 19 controller"""
+    PrintHelper.info("[TEST] Step 19 View Effects Controller - Standalone Test", source="STEP-19")
 
     # Test with current directory
     current_dir = Path.cwd()
-    controller = Step6ViewEffectsController()
+    controller = Step19ViewEffectsController()
 
     if controller.initialize(current_dir, "app_bank"):
-        results = controller.execute_step8_view_effects()
-        controller.print_step8_summary()
+        results = controller.execute_step19_view_effects()
+        controller.print_step19_summary()
     else:
-        PrintHelper.info("[TEST] Initialization failed", source="STEP-6")
+        PrintHelper.info("[TEST] Initialization failed", source="STEP-19")
 
 
 if __name__ == "__main__":

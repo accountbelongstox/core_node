@@ -14,7 +14,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../../common/network/websocket_client.dart';
-import '../../../common/cache/cache_manager.dart';
+import '../../../common/cache_manager/cache_manager.dart';
 import '../models/message_models.dart';
 import '../models/chat_models.dart';
 import '../models/user_models.dart';

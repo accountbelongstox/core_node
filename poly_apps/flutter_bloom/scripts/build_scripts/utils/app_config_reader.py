@@ -31,20 +31,30 @@ from shared.directory_manager import DirectoryManager
 class AppConfigReader:
     """Reader for app build configuration files"""
 
-    def __init__(self, app_name: str):
+    def __init__(self, app_name: str, build_root: Optional[Path] = None):
         self.app_name = app_name
         self.directory_manager = DirectoryManager()
 
-        # Build config path dynamically using current_dir
-        flutter_apps_dir = self.directory_manager.current_dir / "lib" / "apps"
-        self.config_path = flutter_apps_dir / f"app_{app_name}" / "build_config.ini"
+        # Build config path - prefer build_root if provided, otherwise use current_dir
+        if build_root:
+            # Use build directory path
+            flutter_apps_dir = build_root / "lib" / "apps"
+            self.config_path = flutter_apps_dir / app_name / "build_config.ini"
+            print(f"[CONFIG] Using build root path: {build_root}")
+        else:
+            # Use source directory path (original behavior)
+            flutter_apps_dir = self.directory_manager.current_dir / "lib" / "apps"
+            self.config_path = flutter_apps_dir / app_name / "build_config.ini"
+            print(f"[CONFIG] Using source directory path: {self.directory_manager.current_dir}")
         self.config = configparser.ConfigParser()
         self.config_data = {}
 
     def load_config(self) -> Dict[str, Any]:
         """Load and parse the build configuration file"""
         try:
+            print(f"[CONFIG] Looking for config file: {self.config_path}")
             if self.config_path.exists():
+                print(f"[CONFIG] ✓ Config file found and loaded: {self.config_path}")
                 self.config.read(self.config_path, encoding='utf-8')
                 self._parse_config()
             else:
@@ -223,7 +233,7 @@ class AppConfigReader:
     def print_config_summary(self):
         """Print a summary of the loaded configuration"""
         try:
-            print(f"\n[CONFIG] Configuration Summary for app_{self.app_name}:")
+            print(f"\n[CONFIG] Configuration Summary for {self.app_name}:")
             print(f"[CONFIG] {'='*50}")
 
             app_info = self.config_data.get('app_info', {})

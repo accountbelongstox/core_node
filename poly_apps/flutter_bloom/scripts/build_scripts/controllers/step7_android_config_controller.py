@@ -27,7 +27,12 @@ from shared.data_exchange.unified_variable_system import unified_vars
 from shared.directory_manager import DirectoryManager
 from utils.app_config_reader import AppConfigReader
 from utils.print_helper import PrintHelper
-from core.constants.build_constants import DEFAULT_PACKAGE_ID
+from core.constants.build_constants import (
+    DEFAULT_PACKAGE_ID,
+    PLACEHOLDER_PACKAGE_ID,
+    PLACEHOLDER_APP_NAME_CN,
+    PLACEHOLDER_APP_NAME_EN
+)
 
 
 class Step7AndroidConfigController:
@@ -57,24 +62,22 @@ class Step7AndroidConfigController:
                 PrintHelper.error("No app name found in unified variables", source=self.step_name)
                 return {'success': False, 'error': 'No app name provided'}
 
+            PrintHelper.info(f"DEBUG: app_name from unified_vars: '{self.app_name}'", source=self.step_name)
+            PrintHelper.info(f"DEBUG: kwargs app_name: '{kwargs.get('app_name', 'NOT_PROVIDED')}'", source=self.step_name)
             PrintHelper.info(f"Processing Android configuration for app: {self.app_name}", source=self.step_name)
 
-            # Load app configuration
-            self.config_reader = AppConfigReader(self.app_name)
-            config_data = self.config_reader.load_config()
-            self.config_reader.print_config_summary()
-
-            # Get build directory
-            build_dir = self._get_build_directory()
+            # Get build directory from parameters or current directory first
+            build_dir = self._get_build_directory(**kwargs)
             if not build_dir:
                 return {'success': False, 'error': 'Build directory not found'}
 
-            # Scan for Android configuration files
-            android_files = self._scan_android_files(build_dir)
-            self._print_file_inventory(android_files)
+            # Load app configuration from build directory (not source directory)
+            self.config_reader = AppConfigReader(self.app_name, build_root=build_dir.parent)
+            config_data = self.config_reader.load_config()
+            self.config_reader.print_config_summary()
 
-            # Perform replacements
-            replacement_results = self._perform_replacements(android_files, config_data)
+            # Perform global text replacement on all text files
+            replacement_results = self._perform_global_replacement(build_dir, config_data)
 
             # Generate summary
             summary = self._generate_summary(replacement_results)
@@ -83,7 +86,7 @@ class Step7AndroidConfigController:
                 'success': True,
                 'app_name': self.app_name,
                 'config_data': config_data,
-                'files_processed': len(android_files),
+                'files_processed': replacement_results.get('stats', {}).get('files_modified', 0),
                 'replacements_made': self.replacements_made,
                 'summary': summary
             }
@@ -96,11 +99,31 @@ class Step7AndroidConfigController:
             PrintHelper.error(error_msg, source=self.step_name)
             return {'success': False, 'error': error_msg}
 
-    def _get_build_directory(self) -> Optional[Path]:
-        """Get the current build directory using directory manager"""
-        # Use directory manager to get current directory info
+    def _get_build_directory(self, **kwargs) -> Optional[Path]:
+        """Get the current build directory from parameters or directory manager"""
+        # First, try to get from kwargs (passed from modern_build_system)
+        if 'temp_build_root' in kwargs:
+            build_root = Path(kwargs['temp_build_root'])
+            android_path = build_root / 'android'
+            PrintHelper.info(f"Build root parameter: {build_root}", source=self.step_name)
+            PrintHelper.info(f"Android path: {android_path}", source=self.step_name)
+            if android_path.exists():
+                PrintHelper.info(f"✓ Android directory found: {android_path}", source=self.step_name)
+                return android_path
+            else:
+                PrintHelper.error(f"✗ Android directory not found: {android_path}", source=self.step_name)
+
+        # Second, try build_root parameter
+        if 'build_root' in kwargs:
+            build_root = Path(kwargs['build_root'])
+            android_path = build_root / 'android'
+            if android_path.exists():
+                PrintHelper.info(f"Using build root: {android_path}", source=self.step_name)
+                return android_path
+
+        # Third, use directory manager to get current directory info
         dir_info = self.directory_manager.get_current_info()
-        
+
         # Check if we're in temp directory
         if self.directory_manager.is_in_temp:
             current_dir = Path(dir_info['current_dir'])
@@ -108,7 +131,7 @@ class Step7AndroidConfigController:
             if android_path.exists():
                 PrintHelper.info(f"Using temp directory: {android_path}", source=self.step_name)
                 return android_path
-        
+
         # Fallback: look for compile_factory directories
         compile_factory = Path(r'D:\programing\.build_dir\compile_factory')
         if compile_factory.exists():
@@ -124,6 +147,160 @@ class Step7AndroidConfigController:
         PrintHelper.error("No valid build directory found", source=self.step_name)
         return None
 
+    def _perform_global_replacement(self, build_dir: Path, config_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Perform global text replacement on all text files in the build directory"""
+        package_id = self.config_reader.get_package_id()
+        display_name_cn = self.config_reader.get_display_name_chinese()
+        display_name_en = self.config_reader.get_display_name_english()
+
+        PrintHelper.info(f"Starting global text replacement:", source=self.step_name)
+        print(f"[{self.step_name}] Replacement mappings:")
+        print(f"[{self.step_name}]   Package ID: '{PLACEHOLDER_PACKAGE_ID}' -> '{package_id}'")
+        print(f"[{self.step_name}]   Chinese Name: '{PLACEHOLDER_APP_NAME_CN}' -> '{display_name_cn}'")
+        print(f"[{self.step_name}]   English Name: '{PLACEHOLDER_APP_NAME_EN}' -> '{display_name_en}'")
+        print()
+
+        # Define replacement mappings
+        replacements = {
+            PLACEHOLDER_PACKAGE_ID: package_id,
+            PLACEHOLDER_APP_NAME_CN: display_name_cn,
+            PLACEHOLDER_APP_NAME_EN: display_name_en
+        }
+
+        # Define text file extensions to process
+        text_extensions = {
+            '.xml', '.java', '.kt', '.gradle', '.json', '.properties',
+            '.txt', '.md', '.yml', '.yaml', '.sh', '.bat', '.py'
+        }
+
+        # Statistics
+        stats = {
+            'files_scanned': 0,
+            'files_modified': 0,
+            'text_files_found': 0,
+            'utf8_errors': 0,
+            'other_errors': 0,
+            'replacements_made': {
+                PLACEHOLDER_PACKAGE_ID: 0,
+                PLACEHOLDER_APP_NAME_CN: 0,
+                PLACEHOLDER_APP_NAME_EN: 0
+            }
+        }
+
+        # Scan all files recursively
+        PrintHelper.info(f"Scanning all files in: {build_dir}", source=self.step_name)
+        for file_path in build_dir.rglob('*'):
+            if not file_path.is_file():
+                continue
+
+            stats['files_scanned'] += 1
+
+            # Skip binary files and cache directories
+            if self._should_skip_file(file_path):
+                continue
+
+            # Check if it's a text file we should process
+            if file_path.suffix.lower() not in text_extensions:
+                continue
+
+            stats['text_files_found'] += 1
+
+            try:
+                # Try to read file with UTF-8 encoding
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                except UnicodeDecodeError as utf8_error:
+                    relative_path = file_path.relative_to(build_dir)
+                    print(f"[{self.step_name}]   ⚠ UTF-8 decode error in {relative_path}: {utf8_error}")
+                    print(f"[{self.step_name}]     Skipping file (likely binary or non-UTF-8 text)")
+                    stats['utf8_errors'] += 1
+                    continue
+                except Exception as read_error:
+                    relative_path = file_path.relative_to(build_dir)
+                    print(f"[{self.step_name}]   ✗ Read error in {relative_path}: {read_error}")
+                    stats['other_errors'] += 1
+                    continue
+
+                original_content = content
+                file_modified = False
+
+                # Apply all replacements
+                for old_text, new_text in replacements.items():
+                    if old_text in content:
+                        content = content.replace(old_text, new_text)
+                        replacement_count = original_content.count(old_text)
+                        stats['replacements_made'][old_text] += replacement_count
+                        file_modified = True
+
+                        relative_path = file_path.relative_to(build_dir)
+                        print(f"[{self.step_name}]   ✓ {relative_path}: {replacement_count}x '{old_text}' -> '{new_text}'")
+
+                # Write back if modified
+                if file_modified:
+                    try:
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            f.write(content)
+                        stats['files_modified'] += 1
+                    except UnicodeEncodeError as utf8_write_error:
+                        relative_path = file_path.relative_to(build_dir)
+                        print(f"[{self.step_name}]   ✗ UTF-8 write error in {relative_path}: {utf8_write_error}")
+                        stats['utf8_errors'] += 1
+                        continue
+                    except Exception as write_error:
+                        relative_path = file_path.relative_to(build_dir)
+                        print(f"[{self.step_name}]   ✗ Write error in {relative_path}: {write_error}")
+                        stats['other_errors'] += 1
+                        continue
+
+            except Exception as e:
+                relative_path = file_path.relative_to(build_dir)
+                print(f"[{self.step_name}]   ✗ Unexpected error processing {relative_path}: {e}")
+                stats['other_errors'] += 1
+
+        # Print summary
+        print(f"[{self.step_name}] Global Replacement Summary:")
+        print(f"[{self.step_name}]   Files scanned: {stats['files_scanned']}")
+        print(f"[{self.step_name}]   Text files found: {stats['text_files_found']}")
+        print(f"[{self.step_name}]   Files modified: {stats['files_modified']}")
+        print(f"[{self.step_name}]   UTF-8 errors: {stats['utf8_errors']}")
+        print(f"[{self.step_name}]   Other errors: {stats['other_errors']}")
+        print(f"[{self.step_name}]   Package ID replacements: {stats['replacements_made'][PLACEHOLDER_PACKAGE_ID]}")
+        print(f"[{self.step_name}]   Chinese name replacements: {stats['replacements_made'][PLACEHOLDER_APP_NAME_CN]}")
+        print(f"[{self.step_name}]   English name replacements: {stats['replacements_made'][PLACEHOLDER_APP_NAME_EN]}")
+
+        # Update class statistics for summary
+        self.replacements_made = {
+            'package_id': stats['replacements_made'][PLACEHOLDER_PACKAGE_ID],
+            'display_name_cn': stats['replacements_made'][PLACEHOLDER_APP_NAME_CN],
+            'display_name_en': stats['replacements_made'][PLACEHOLDER_APP_NAME_EN],
+            'files_modified': stats['files_modified']
+        }
+
+        return {
+            'success': True,
+            'stats': stats,
+            'replacements': replacements
+        }
+
+    def _should_skip_file(self, file_path: Path) -> bool:
+        """Determine if a file should be skipped during replacement"""
+        # Skip files in cache/build directories
+        skip_dirs = {'.gradle', 'build', 'node_modules', '.git', '__pycache__'}
+        if any(skip_dir in file_path.parts for skip_dir in skip_dirs):
+            return True
+
+        # Skip binary files
+        binary_extensions = {
+            '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp',
+            '.so', '.dll', '.exe', '.bin', '.jar', '.zip',
+            '.tar', '.gz', '.7z', '.rar', '.class', '.dex'
+        }
+        if file_path.suffix.lower() in binary_extensions:
+            return True
+
+        return False
+
     def _scan_android_files(self, build_dir: Path) -> Dict[str, List[Path]]:
         """Scan for Android configuration files that need package ID replacement"""
         android_files = {
@@ -137,21 +314,69 @@ class Step7AndroidConfigController:
 
         # Define file patterns to search for
         patterns = {
-            'manifest_files': ['**/AndroidManifest.xml'],
-            'gradle_files': ['**/build.gradle', '**/build.gradle.kts'],
-            'xml_files': ['**/res/**/*.xml'],
-            'kotlin_files': ['**/*.kt'],
-            'java_files': ['**/*.java'],
-            'strings_files': ['**/res/values/strings.xml', '**/res/values-*/strings.xml']
+            'manifest_files': ['AndroidManifest.xml'],
+            'gradle_files': ['build.gradle', 'build.gradle.kts'],
+            'xml_files': ['*.xml'],
+            'kotlin_files': ['*.kt'],
+            'java_files': ['*.java'],
+            'strings_files': ['strings.xml']
         }
 
         PrintHelper.info("Scanning Android configuration files...", source=self.step_name)
+        PrintHelper.info(f"Scanning in directory: {build_dir}", source=self.step_name)
+
+        # First, let's see what's actually in the android directory
+        if build_dir.exists():
+            print(f"[{self.step_name}] Directory contents:")
+            for item in build_dir.rglob('*'):
+                if item.is_file():
+                    relative_path = item.relative_to(build_dir)
+                    print(f"[{self.step_name}]   FILE: {relative_path}")
+                elif item.is_dir():
+                    relative_path = item.relative_to(build_dir)
+                    print(f"[{self.step_name}]   DIR:  {relative_path}/")
+
+        print(f"[{self.step_name}] {'='*60}")
 
         for category, pattern_list in patterns.items():
+            print(f"[{self.step_name}] Searching for {category}:")
             for pattern in pattern_list:
-                files = list(build_dir.glob(pattern))
-                # Filter out backup and cache files
-                files = [f for f in files if not any(part.startswith('.') for part in f.parts)]
+                print(f"[{self.step_name}]   Pattern: {pattern}")
+
+                # Try both rglob (recursive) and glob
+                files_rglob = list(build_dir.rglob(pattern.replace('**/', '')))
+                files_glob = list(build_dir.glob(pattern))
+
+                # Combine and deduplicate
+                all_files = list(set(files_rglob + files_glob))
+
+                # Filter out only .gradle cache files, but keep important files
+                files_before_filter = all_files
+                files = [f for f in all_files if not (
+                    '.gradle' in str(f) and any(cache_dir in str(f) for cache_dir in [
+                        'checksums', 'executionHistory', 'fileChanges', 'fileHashes',
+                        'buildOutputCleanup', 'kotlin', 'noVersion', 'vcs-1'
+                    ])
+                )]
+
+                print(f"[{self.step_name}]   Found with rglob: {len(files_rglob)} files")
+                print(f"[{self.step_name}]   Found with glob: {len(files_glob)} files")
+                print(f"[{self.step_name}]   Before filter: {len(files_before_filter)} files")
+                print(f"[{self.step_name}]   Final filtered: {len(files)} files")
+
+                # Show filtered out files for debugging
+                filtered_out = [f for f in files_before_filter if f not in files]
+                if filtered_out:
+                    print(f"[{self.step_name}]   Filtered out: {len(filtered_out)} files")
+                    for f in filtered_out[:3]:  # Show first 3
+                        print(f"[{self.step_name}]     FILTERED: {f.relative_to(build_dir)}")
+                    if len(filtered_out) > 3:
+                        print(f"[{self.step_name}]     ... and {len(filtered_out) - 3} more")
+
+                # Show kept files
+                for file in files:
+                    relative_path = file.relative_to(build_dir)
+                    print(f"[{self.step_name}]     ✓ KEPT: {relative_path}")
                 android_files[category].extend(files)
 
         return android_files
@@ -196,9 +421,12 @@ class Step7AndroidConfigController:
         display_name_en = self.config_reader.get_display_name_english()
 
         PrintHelper.info(f"Starting replacements with:", source=self.step_name)
-        print(f"[{self.step_name}] Package ID: {DEFAULT_PACKAGE_ID} -> {package_id}")
-        print(f"[{self.step_name}] Display Name (CN): -> {display_name_cn}")
-        print(f"[{self.step_name}] Display Name (EN): -> {display_name_en}")
+        print(f"[{self.step_name}] Package ID Replacement:")
+        print(f"[{self.step_name}]   FROM: {DEFAULT_PACKAGE_ID}")
+        print(f"[{self.step_name}]   TO:   {package_id}")
+        print(f"[{self.step_name}] Display Names:")
+        print(f"[{self.step_name}]   Chinese (CN): '{display_name_cn}'")
+        print(f"[{self.step_name}]   English (EN): '{display_name_en}'")
         print()
 
         self.replacements_made = {
@@ -319,50 +547,77 @@ class Step7AndroidConfigController:
         return results
 
     def _process_strings_files(self, strings_files: List[Path], display_name_cn: str, display_name_en: str) -> List[Dict]:
-        """Process strings.xml files"""
+        """Process strings.xml files with detailed analysis"""
         results = []
+
+        PrintHelper.info(f"Processing {len(strings_files)} strings.xml files", source=self.step_name)
+        print(f"[{self.step_name}] Target Display Names:")
+        print(f"[{self.step_name}]   Chinese (CN): '{display_name_cn}'")
+        print(f"[{self.step_name}]   English (EN): '{display_name_en}'")
 
         for strings_file in strings_files:
             try:
-                PrintHelper.info(f"Processing strings: {strings_file.name}", source=self.step_name)
-
-                # Determine if this is Chinese or English strings
-                is_chinese = 'values-zh' in str(strings_file) or 'values-cn' in str(strings_file)
+                # Determine language based on parent directory
+                parent_dir = strings_file.parent.name
+                is_chinese = 'values-zh' in parent_dir or 'values-cn' in parent_dir
                 target_name = display_name_cn if is_chinese else display_name_en
+                language_label = "Chinese" if is_chinese else "English"
 
-                # Parse XML
+                PrintHelper.info(f"Processing strings file: {strings_file}", source=self.step_name)
+                print(f"[{self.step_name}]   Directory: {parent_dir}")
+                print(f"[{self.step_name}]   Language: {language_label}")
+                print(f"[{self.step_name}]   Target name: '{target_name}'")
+
+                # Parse XML and show current content
                 tree = ET.parse(strings_file)
                 root = tree.getroot()
                 changes_made = []
 
+                # Show all string entries in the file
+                print(f"[{self.step_name}]   Current string entries:")
+                for string_elem in root.findall('.//string'):
+                    name = string_elem.get('name', 'UNNAMED')
+                    value = string_elem.text or 'EMPTY'
+                    print(f"[{self.step_name}]     <string name=\"{name}\">{value}</string>")
+
                 # Look for app_name string resource
-                for string_elem in root.findall('.//string[@name="app_name"]'):
-                    old_value = string_elem.text
+                app_name_elements = root.findall('.//string[@name="app_name"]')
+                print(f"[{self.step_name}]   Found {len(app_name_elements)} app_name elements")
+
+                for string_elem in app_name_elements:
+                    old_value = string_elem.text or 'EMPTY'
                     string_elem.text = target_name
-                    changes_made.append(f"app_name: {old_value} -> {target_name}")
+                    changes_made.append(f"app_name: '{old_value}' -> '{target_name}'")
                     if is_chinese:
                         self.replacements_made['display_name_cn'] += 1
                     else:
                         self.replacements_made['display_name_en'] += 1
 
                 # Look for other common app title strings
-                title_names = ['title', 'app_title', 'application_name']
+                title_names = ['title', 'app_title', 'application_name', 'launcher_name']
                 for name in title_names:
-                    for string_elem in root.findall(f'.//string[@name="{name}"]'):
-                        old_value = string_elem.text
-                        string_elem.text = target_name
-                        changes_made.append(f"{name}: {old_value} -> {target_name}")
+                    elements = root.findall(f'.//string[@name="{name}"]')
+                    if elements:
+                        print(f"[{self.step_name}]   Found {len(elements)} '{name}' elements")
+                        for string_elem in elements:
+                            old_value = string_elem.text or 'EMPTY'
+                            string_elem.text = target_name
+                            changes_made.append(f"{name}: '{old_value}' -> '{target_name}'")
 
                 # Write back if changes were made
                 if changes_made:
                     tree.write(str(strings_file), encoding='utf-8', xml_declaration=True)
                     self.replacements_made['files_modified'] += 1
-                    print(f"[{self.step_name}]   ✓ Modified: {', '.join(changes_made)}")
+                    print(f"[{self.step_name}]   ✓ MODIFIED: {len(changes_made)} changes")
+                    for change in changes_made:
+                        print(f"[{self.step_name}]     - {change}")
                 else:
-                    print(f"[{self.step_name}]   - No changes needed")
+                    print(f"[{self.step_name}]   - NO CHANGES NEEDED")
 
                 results.append({
                     'file': str(strings_file),
+                    'language': language_label,
+                    'directory': parent_dir,
                     'changes': changes_made,
                     'success': True
                 })
@@ -434,15 +689,18 @@ class Step7AndroidConfigController:
             'success_rate': 0
         }
 
-        # Calculate success rate
-        total_operations = sum(len(results) for results in replacement_results.values())
-        successful_operations = sum(
-            sum(1 for result in results if result.get('success', False))
-            for results in replacement_results.values()
-        )
+        # Calculate success rate based on files processed
+        stats = replacement_results.get('stats', {})
+        files_scanned = stats.get('files_scanned', 0)
+        files_modified = stats.get('files_modified', 0)
+        utf8_errors = stats.get('utf8_errors', 0)
+        other_errors = stats.get('other_errors', 0)
 
-        if total_operations > 0:
-            summary['success_rate'] = (successful_operations / total_operations) * 100
+        if files_scanned > 0:
+            success_rate = ((files_scanned - utf8_errors - other_errors) / files_scanned) * 100
+            summary['success_rate'] = success_rate
+        else:
+            summary['success_rate'] = 0
 
         # Print summary
         PrintHelper.info("Replacement Summary:", source=self.step_name)

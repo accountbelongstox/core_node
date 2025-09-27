@@ -18,7 +18,7 @@ import 'package:http/http.dart' as http;
 import '../../../common/network/api_client.dart';
 import '../../../common/network/models/api_response.dart';
 import '../../../common/network/models/enhanced_api_response.dart';
-import '../../../common/cache/cache_manager.dart';
+import '../../../common/cache_manager/cache_manager.dart';
 import '../models/chat_models.dart';
 import '../models/user_models.dart';
 import '../models/message_models.dart';

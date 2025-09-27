@@ -49,15 +49,43 @@ try {
 
     & python $MAIN_PY
 
+    Write-Host "[DEBUG] Python script exit code: $LASTEXITCODE" -ForegroundColor Magenta
+
     if ($LASTEXITCODE -ne 0) {
         Write-ErrorMsg "[ERROR] App selection failed"
         exit 1
     }
 
-    # Handle debug script selection and execution
+    Write-Host "[DEBUG] Python script completed successfully, continuing to PowerShell execution..." -ForegroundColor Magenta
+
+    # Handle mode selection and execution
     $initialWorkingDir = Get-Location
     try {
-        Invoke-DebugScriptSelection
+        # Read action to determine mode
+        $selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue ""
+
+        Write-Host "[DEBUG] Selected action from Python: '$selectedAction'" -ForegroundColor Magenta
+
+        if (-not $selectedAction) {
+            Write-ErrorMsg "[ERROR] No action selected from Python"
+            exit 1
+        }
+
+        # Route based on action
+        Write-Host "[DEBUG] Routing to appropriate mode..." -ForegroundColor Magenta
+        if ($selectedAction.ToLower() -eq "debug") {
+            Write-Host "[DEBUG] Calling Invoke-DebugMode" -ForegroundColor Magenta
+            Invoke-DebugMode
+        }
+        elseif ($selectedAction.ToLower() -eq "build" -or $selectedAction.ToLower() -eq "release") {
+            Write-Host "[DEBUG] Calling Invoke-BuildMode" -ForegroundColor Magenta
+            Invoke-BuildMode
+        }
+        else {
+            Write-ErrorMsg "[ERROR] Unknown action: $selectedAction"
+            exit 1
+        }
+
         Write-Success "[SUCCESS] Flutter Bloom completed"
     }
     finally {

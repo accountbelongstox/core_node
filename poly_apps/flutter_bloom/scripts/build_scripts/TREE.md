@@ -1,11 +1,12 @@
 # Directory tree for `D:\programing\core_node\poly_apps\flutter_bloom\scripts\build_scripts`
 
-_Generated: 2025-09-27T03:49:56.096638Z_
+_Generated: 2025-09-27T05:51:57.868761Z_
 
 ```
 build_scripts/
 ├── controllers/
 │   ├── step1_project_copy_controller.py
+│   ├── step20_compilation_controller.py
 │   ├── step2_asset_controller.py
 │   ├── step3_platform_controller.py
 │   ├── step4_image_replacement_controller.py
@@ -81,7 +82,6 @@ build_scripts/
 │   └── build_monitor.html
 ├── build_app.ps1
 ├── build_main.ps1
-├── log.txt
 ├── main.py
 ├── print.py
 └── TREE.md

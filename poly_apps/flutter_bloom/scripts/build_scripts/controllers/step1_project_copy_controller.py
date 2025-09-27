@@ -64,12 +64,18 @@ class Step1ProjectCopyController:
 
             print(f"\n[STEP-1] [STEP-1-COMPLETE] Project copy and directory management completed")
 
+            # Show compilation menu after successful project copy
+            print(f"\n[STEP-1] [COMPILATION-MENU] Showing compilation options...")
+            compilation_option = menu_helper.show_compilation_menu()
+            print(f"\n[STEP-1] [COMPILATION-OPTION] Selected: {compilation_option}")
+
             return {
                 'success': True,
                 'target_directory': target_dir,
                 'overwrite_mode': overwrite_mode,
                 'copy_stats': copy_stats,
-                'should_change_directory': True
+                'should_change_directory': True,
+                'compilation_option': compilation_option
             }
 
         except Exception as e:

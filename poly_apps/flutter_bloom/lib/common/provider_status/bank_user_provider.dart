@@ -13,7 +13,7 @@
 import 'package:flutter/foundation.dart';
 import '../model/bank_user_model.dart';
 import '../storage/storage_manager.dart';
-import '../cache/cache_manager.dart';
+import '../cache_manager/cache_manager.dart';
 import 'user_provider.dart';
 
 /// Bank User Provider

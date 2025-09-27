@@ -155,6 +155,19 @@ class UnifiedVariableSystem:
         self.KEY_PROCESSED_IMAGES_JSON = "PROCESSED_IMAGES_JSON"
         self.KEY_PLATFORM_TARGETS_JSON = "PLATFORM_TARGETS_JSON"
 
+        # Compilation option keys
+        self.KEY_COMPILATION_OPTION = "KEY_COMPILATION_OPTION"
+        self.KEY_COMPILATION_COMMAND = "KEY_COMPILATION_COMMAND"
+        self.KEY_BUILD_OUTPUT_DIR = "KEY_BUILD_OUTPUT_DIR"
+        self.KEY_APK_OUTPUT_PATH = "KEY_APK_OUTPUT_PATH"
+        self.KEY_COMPILATION_PLATFORM = "KEY_COMPILATION_PLATFORM"
+
+        # Additional build information keys
+        self.KEY_BUILD_ROOT = "KEY_BUILD_ROOT"
+        self.KEY_CLEAN_COMMAND = "KEY_CLEAN_COMMAND"
+        self.KEY_BUILD_TIMESTAMP = "KEY_BUILD_TIMESTAMP"
+        self.KEY_APK_FILE_NAME = "KEY_APK_FILE_NAME"
+
         # Build system constants
         self.TEMP_BUILD_DIR_FILE = "temp_build_dir.txt"
 

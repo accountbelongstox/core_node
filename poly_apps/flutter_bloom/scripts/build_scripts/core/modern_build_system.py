@@ -25,9 +25,10 @@ from controllers.step2_asset_controller import Step2AssetController
 from controllers.step3_platform_controller import Step3PlatformController
 from controllers.step4_image_replacement_controller import Step4ImageReplacementController
 from controllers.step5_multiplatform_controller import Step5MultiPlatformController
-from controllers.step8_view_effects_controller import Step8ViewEffectsController
+from controllers.step8_pubspec_controller import Step8PubspecController
+from controllers.step19_view_effects_controller import Step19ViewEffectsController
 from controllers.step7_android_config_controller import Step7AndroidConfigController
-from core.compilation_menu import CompilationMenuSelector
+from controllers.step20_compilation_controller import Step20CompilationController
 
 
 class BuildMode(Enum):
@@ -93,7 +94,7 @@ class ModernFlutterBuildSystem:
         self.file_operations = FileOperations()
         self.factory_analyzer = FactoryAnalyzer()
         self.menu_helper: Optional[MenuHelper] = None
-        self.compilation_selector: Optional[CompilationMenuSelector] = None
+        # Compilation menu is now handled by step1 and menu_helper
 
         # Build context
         self.context = BuildContext(
@@ -108,8 +109,10 @@ class ModernFlutterBuildSystem:
             'step3': Step3PlatformController(),
             'step4': Step4ImageReplacementController(),
             'step5': Step5MultiPlatformController(),
-            'step8': Step8ViewEffectsController(),
-            'step7': Step7AndroidConfigController()
+            'step8': Step8PubspecController(),
+            'step19': Step19ViewEffectsController(),
+            'step7': Step7AndroidConfigController(),
+            'step20': Step20CompilationController()
         }
 
         # Execution results
@@ -127,7 +130,7 @@ class ModernFlutterBuildSystem:
 
         # Initialize components
         self.menu_helper = MenuHelper(self.context.current_dir)
-        self.compilation_selector = CompilationMenuSelector()
+        # Compilation selection is now handled in step1 via menu_helper
 
         # Determine build mode
         self.context.mode = self._determine_build_mode()
@@ -315,13 +318,28 @@ class ModernFlutterBuildSystem:
         if not step7_result.success:
             return self._create_error_result(step7_result.error)
 
-        # Phase 8: View Replacement Effects
+        # Phase 8: Pubspec Asset Management
         step8_result = self._execute_step('step8', self.context.temp_build_root, self.context.app_name)
         if not step8_result.success:
             return self._create_error_result(step8_result.error)
 
-        # Phase 8: Compilation
-        self._execute_compilation_phase(compilation_option, selected_images)
+        # Phase 19: View Replacement Effects
+        step19_result = self._execute_step('step19', self.context.temp_build_root, self.context.app_name)
+        if not step19_result.success:
+            return self._create_error_result(step19_result.error)
+
+        # Phase 20: Final Compilation Preparation
+        step20_result = self._execute_step('step20', self.context.temp_build_root, self.context.app_name)
+        if not step20_result.success:
+            return self._create_error_result(step20_result.error)
+
+        # Transfer compilation control to external trigger
+        print("\n" + "="*60)
+        print("BUILD SYSTEM COMPLETED - TRANSFERRING TO COMPILATION TRIGGER")
+        print("="*60)
+        print("Build preparation completed successfully.")
+        print("Compilation will be handled by external PowerShell trigger.")
+        print("="*60)
 
         return {
             'success': True,
@@ -330,6 +348,7 @@ class ModernFlutterBuildSystem:
             'step4_result': step4_result.data,
             'step5_result': step5_result.data,
             'step8_result': step8_result.data,
+            'step19_result': step19_result.data,
             'step7_result': step7_result.data,
             'compilation_option': compilation_option,
             'context': {
@@ -375,11 +394,17 @@ class ModernFlutterBuildSystem:
                 # Step5 has initialize, call without additional params
                 result = controller.execute_step5_multiplatform_replacement()
             elif step_key == 'step8':
-                # Step8 has initialize, call without additional params
-                result = controller.execute_step8_view_effects()
+                # Step8 has execute method, pass build parameters
+                result = controller.execute(temp_build_root=args[0], app_name=args[1])
+            elif step_key == 'step19':
+                # Step19 has initialize, call without additional params
+                result = controller.execute_step19_view_effects()
             elif step_key == 'step7':
-                # Step7 has execute method, call without additional params
-                result = controller.execute()
+                # Step7 has execute method, pass build parameters
+                result = controller.execute(temp_build_root=args[0], app_name=args[1])
+            elif step_key == 'step20':
+                # Step20 has execute method, pass build parameters
+                result = controller.execute(temp_build_root=args[0], app_name=args[1])
 
             # Calculate execution time
             execution_time = (datetime.now() - step_start).total_seconds()

@@ -26,8 +26,13 @@ COMPILE_FACTORY_DIR = os.path.join(PROGRAMING_DIR, 'compile_factory')
 
 # Default package information
 DEFAULT_PACKAGE_ID = "com.ddsj.qyapp"
-DEFAULT_APP_DISPLAY_NAME_CN = "企业应用"
-DEFAULT_APP_DISPLAY_NAME_EN = "Enterprise App"
+DEFAULT_APP_DISPLAY_NAME_CN = "我的应用"
+DEFAULT_APP_DISPLAY_NAME_EN = "AppQy"
+
+# Placeholder constants for global replacement
+PLACEHOLDER_PACKAGE_ID = "com.ddsj.qyapp"
+PLACEHOLDER_APP_NAME_CN = "应用程序"
+PLACEHOLDER_APP_NAME_EN = "App-QY"
 
 
 # Ensure required directories exist
