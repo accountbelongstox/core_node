@@ -27,7 +27,7 @@ import hashlib
 import hmac
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 class DNSPodDDNS:
     """DNSPod Dynamic DNS Update Tool"""
@@ -381,6 +381,29 @@ class DNSPodDDNS:
         self.logger.warning(f"Record not found for any subdomain format: {self.api_config['subdomain']}.{self.api_config['domain']}")
         return None
     
+    def get_all_target_records(self) -> List[Dict[str, Any]]:
+        """Get all DNS records matching subdomain formats"""
+        params = {
+            'domain': self.api_config['domain']
+        }
+        
+        result = self._make_api_request('Record.List', params)
+        if result:
+            records = result.get('records', [])
+            target_records = []
+            subdomain_formats = self._get_subdomain_formats()
+            
+            for record in records:
+                if record.get('type') == self.api_config['record_type']:
+                    record_name = record.get('name', '')
+                    # Check if record name matches any of our target formats
+                    if record_name in subdomain_formats:
+                        target_records.append(record)
+            
+            return target_records
+        
+        return []
+    
     def _get_subdomain_formats(self):
         """Get possible subdomain formats to search for"""
         base_subdomain = self.api_config['subdomain']
@@ -447,6 +470,26 @@ class DNSPodDDNS:
             print(f"ERROR: Update failed")
             return False
     
+    def update_specific_record(self, record_id: str, record_name: str, ip: str) -> bool:
+        """Update a specific DNS record by ID"""
+        params = {
+            'domain': self.api_config['domain'],
+            'record_id': record_id,
+            'sub_domain': record_name,
+            'record_type': self.api_config['record_type'],
+            'record_line': '默认',
+            'value': ip,
+            'ttl': 600
+        }
+        
+        result = self._make_api_request('Record.Modify', params)
+        if result:
+            self.logger.info(f"Updated DNS record {record_name} to IP: {ip}")
+            return True
+        else:
+            print(f"ERROR: Failed to update record {record_name}")
+            return False
+    
     def update_dns_if_needed(self) -> bool:
         """Check and update DNS record if needed"""
         print("\n" + "="*60)
@@ -464,58 +507,74 @@ class DNSPodDDNS:
         self.current_ip = current_ip
         print(f"Current public IP: {current_ip}")
         
-        # Get remote DNS record to check current value
-        print("Checking remote DNS record...")
-        record = self.get_domain_records()
-        remote_ip = None
-        if record:
-            remote_ip = record.get('value')
-            print(f"Remote DNS IP: {remote_ip}")
+        # Get all target DNS records
+        print("Checking remote DNS records...")
+        target_records = self.get_all_target_records()
         
-        # Check if IP changed (local cache or remote)
+        # Check if any local record needs updating
+        needs_update = False
         local_changed = self.current_ip != self.last_ip
-        remote_changed = self.current_ip != remote_ip
-        
-        if not local_changed and not remote_changed:
-            print(f"OK: IP unchanged: {self.current_ip}")
-            print("INFO: No DNS update needed")
-            print("="*60)
-            self.logger.debug(f"IP unchanged: {self.current_ip}")
-            return True
         
         if local_changed:
             print(f"CHANGE: Local IP changed: {self.last_ip} -> {self.current_ip}")
-        if remote_changed:
-            print(f"CHANGE: Remote IP differs: {remote_ip} -> {self.current_ip}")
+            needs_update = True
+        
+        for record in target_records:
+            record_name = record.get('name', '')
+            record_ip = record.get('value', '')
+            print(f"Remote DNS record {record_name}: {record_ip}")
+            
+            if record_ip != self.current_ip:
+                print(f"CHANGE: Record {record_name} differs: {record_ip} -> {self.current_ip}")
+                needs_update = True
+        
+        if not needs_update:
+            print(f"OK: All target records up to date: {self.current_ip}")
+            print("INFO: No DNS update needed")
+            print("="*60)
+            self.logger.debug(f"All records up to date: {self.current_ip}")
+            return True
+        
         print("INFO: DNS update required")
         
-        # Get or create record
-        if not self.record_id:
-            print("Checking DNS record...")
-            record = self.get_domain_records()
-            if not record:
-                print("Creating new DNS record...")
-                if self.create_dns_record(self.current_ip):
-                    print(f"SUCCESS: Created DNS record: {self.api_config['subdomain']}.{self.api_config['domain']} -> {self.current_ip}")
-                    self.last_ip = self.current_ip
-                    self._save_config()
-                    print("INFO: Configuration saved")
-                    print("="*60)
-                    return True
-                print("ERROR: Failed to create DNS record")
-                return False
+        # Update all target records that need updating
+        success_count = 0
+        total_records = len(target_records)
         
-        # Update existing record
-        print(f"Updating DNS record (ID: {self.record_id})...")
-        if self.update_dns_record(self.current_ip):
-            print(f"SUCCESS: Updated DNS record: {self.api_config['subdomain']}.{self.api_config['domain']} -> {self.current_ip}")
+        for record in target_records:
+            record_id = record.get('id')
+            record_name = record.get('name', '')
+            record_ip = record.get('value', '')
+            
+            if record_ip != self.current_ip:
+                print(f"Updating DNS record {record_name} (ID: {record_id})...")
+                if self.update_specific_record(record_id, record_name, self.current_ip):
+                    print(f"SUCCESS: Updated {record_name} -> {self.current_ip}")
+                    success_count += 1
+                else:
+                    print(f"ERROR: Failed to update {record_name}")
+        
+        # Also update the main record if it exists
+        if self.record_id:
+            main_record = self.get_domain_records()
+            if main_record and main_record.get('value') != self.current_ip:
+                print(f"Updating main DNS record (ID: {self.record_id})...")
+                if self.update_dns_record(self.current_ip):
+                    print(f"SUCCESS: Updated main record -> {self.current_ip}")
+                    success_count += 1
+                else:
+                    print(f"ERROR: Failed to update main record")
+        
+        if success_count > 0:
             self.last_ip = self.current_ip
             self._save_config()
+            print(f"SUCCESS: Updated {success_count} DNS record(s)")
             print("INFO: Configuration saved")
             print("="*60)
             return True
-        print("ERROR: Failed to update DNS record")
-        return False
+        else:
+            print("ERROR: No records were updated")
+            return False
     
     def start_monitoring(self, interval: int = 60):
         """Start monitoring"""
