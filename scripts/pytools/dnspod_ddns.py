@@ -672,6 +672,33 @@ pause
             self.logger.error(f"Failed to install Windows autostart: {e}")
             return False
     
+    def update_startup_bat(self):
+        """Update startup batch file if it exists"""
+        if platform.system() != 'Windows':
+            return False
+        
+        try:
+            startup_dir = Path.home() / 'AppData' / 'Roaming' / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
+            startup_bat = startup_dir / 'DNSPod_DDNS.bat'
+            
+            if startup_bat.exists():
+                # Get current script path
+                script_path = Path(__file__).resolve()
+                
+                # Update the batch file with correct parameters
+                with open(startup_bat, 'w', encoding='utf-8') as f:
+                    f.write(f'@echo off\n')
+                    f.write(f'cd /d "{script_path.parent}"\n')
+                    f.write(f'"{sys.executable}" "{script_path}"\n')
+                
+                self.logger.info(f"Updated startup batch file: {startup_bat}")
+                return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to update startup batch file: {e}")
+        
+        return False
+    
     def uninstall_windows_autostart(self):
         """Uninstall Windows autostart"""
         if platform.system() != 'Windows':
@@ -881,6 +908,8 @@ def main():
                 if bat_file.exists():
                     print(f"   Windows autostart: {bat_file}")
                     print(f"   Startup directory: {startup_dir}")
+                    # Auto-update startup batch file
+                    ddns.update_startup_bat()
             else:
                 service_file = Path('/etc/systemd/system/dnspod-ddns.service')
                 if service_file.exists():
