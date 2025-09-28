@@ -442,14 +442,12 @@ class DNSPodDDNS:
             'ttl': 600
         }
         
-        print(f"DEBUG: Updating record with params: {params}")
         result = self._make_api_request('Record.Modify', params)
         if result:
             self.logger.info(f"Updated DNS record to IP: {ip}")
-            print(f"DEBUG: Update successful, result: {result}")
             return True
         else:
-            print(f"ERROR: Update failed, result: {result}")
+            print(f"ERROR: Update failed")
             return False
     
     def update_dns_if_needed(self) -> bool:
