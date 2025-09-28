@@ -601,7 +601,7 @@ pause
             with open(startup_bat, 'w', encoding='utf-8') as f:
                 f.write(f'@echo off\n')
                 f.write(f'cd /d "{script_path.parent}"\n')
-                f.write(f'"{sys.executable}" "{script_path}" --daemon\n')
+                f.write(f'"{sys.executable}" "{script_path}"\n')
             
             self.logger.info(f"Windows autostart installed: {startup_bat}")
             return True
@@ -649,7 +649,7 @@ After=network.target
 Type=simple
 User={user}
 WorkingDirectory={script_path.parent}
-ExecStart={python_path} {script_path} --daemon
+ExecStart={python_path} {script_path}
 Restart=always
 RestartSec=10
 
@@ -777,11 +777,12 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='DNSPod Dynamic DNS Update Tool')
-    parser.add_argument('--daemon', action='store_true', help='Run as daemon')
+    parser.add_argument('--once', action='store_true', help='Run once only (default: continuous monitoring)')
     parser.add_argument('--install-service', action='store_true', help='Install system service')
     parser.add_argument('--uninstall-service', action='store_true', help='Uninstall system service')
     parser.add_argument('--interval', type=int, default=60, help='Check interval in seconds')
     parser.add_argument('--skip-install-check', action='store_true', help='Skip installation check')
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     
     # API configuration parameters
     parser.add_argument('--secret-id', help='DNSPod Secret ID')
@@ -853,17 +854,28 @@ def main():
             ddns.uninstall_linux_service()
         return 0
     
-    if args.daemon:
-        # Daemon mode
-        ddns.start_monitoring(args.interval)
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            ddns.stop_monitoring()
-    else:
+    if args.once:
         # Single execution mode
         ddns.update_dns_if_needed()
+    else:
+        # Continuous monitoring mode (default)
+        print("\n" + "="*60)
+        print("Starting Continuous DDNS Monitoring")
+        print("="*60)
+        print(f"Check interval: {args.interval} seconds")
+        print("Press Ctrl+C to stop monitoring")
+        if args.debug:
+            print("DEBUG: Debug mode enabled")
+        print("="*60)
+        
+        try:
+            while True:
+                ddns.update_dns_if_needed()
+                print(f"\nWaiting {args.interval} seconds for next check...")
+                time.sleep(args.interval)
+        except KeyboardInterrupt:
+            print("\n\nMonitoring stopped by user")
+            print("="*60)
     
     return 0
 
