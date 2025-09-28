@@ -2,16 +2,18 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../core/network_config.dart';
 import '../core/network_models.dart';
-import '../core/unified_network_client.dart';
+import '../client/network_client.dart';
 import '../endpoints/endpoint_config.dart';
-import '../auth/unified_auth_manager.dart';
-import '../ui/global_loading_system.dart';
+import '../auth/auth_manager.dart';
+import '../cache/cache_manager.dart';
+import '../loading/loading_manager.dart';
 
 /// Advanced network service base class for sub-applications
 abstract class AdvancedNetworkService extends ChangeNotifier {
-  final RobustNetworkClient _client = RobustNetworkClient();
-  final UnifiedAuthManager _authManager = UnifiedAuthManager.instance;
-  final GlobalLoadingSystem _loadingManager = GlobalLoadingSystem.instance;
+  final NetworkClient _client = NetworkClient.instance;
+  final AuthManager _authManager = AuthManager.instance;
+  final CacheManager _cacheManager = CacheManager.instance;
+  final LoadingManager _loadingManager = LoadingManager.instance;
 
   /// Endpoint configuration for this service
   EndpointConfig get endpointConfig;
@@ -308,22 +310,20 @@ abstract class AdvancedNetworkService extends ChangeNotifier {
     );
   }
 
-  /// Get cached response (using network client cache)
+  /// Get cached response
   Future<T?> getCached<T>(String cacheKey) async {
-    // Using network client's internal cache management
-    return null; // Placeholder - cache is handled by network client
+    return await _cacheManager.retrieve<T>(cacheKey);
   }
 
   /// Clear cache for specific key
   Future<void> clearCache(String cacheKey) async {
-    // Cache management is handled by the network client
-    debugPrint('Cache clear requested for key: $cacheKey');
+    await _cacheManager.remove(cacheKey);
   }
 
   /// Clear all cache for this service
   Future<void> clearAllCache() async {
-    // Cache management is handled by the network client
-    debugPrint('All cache clear requested for service: $serviceName');
+    // Implementation would need service-specific cache key patterns
+    await _cacheManager.clear();
   }
 
   /// Check authentication status
@@ -339,6 +339,7 @@ abstract class AdvancedNetworkService extends ChangeNotifier {
       'endpointCount': endpointConfig.endpoints.length,
       'groupCount': endpointConfig.groups.length,
       'isAuthenticated': isAuthenticated,
+      'cache': await _cacheManager.getStats(),
       'loading': _loadingManager.getStats(),
     };
   }
