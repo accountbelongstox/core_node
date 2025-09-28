@@ -1,12 +1,5 @@
 {
     "mcpServers": {
-        "CunzhiCli": {
-            "command": "D:\\.dev_win11\\mcp_service\\CunzhiCli\\cunzhi.exe",
-            "env": {
-                "MCP_AI_CLIENT": "augment"
-            },
-            "timeout": 600000
-        },
         "promptx": {
             "command": "cmd",
             "args": [
@@ -76,6 +69,25 @@
             },
             "disabled": false,
             "autoApprove": []
+        },
+        "PlaceholderImageGenerator": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "python",
+                "D:\\programing\\core_node\\ncore\\mcp_server\\placeholder_image_generator\\main.py"
+            ],
+            "env": {
+                "PYTHONPATH": "D:\\programing\\core_node\\ncore\\mcp_server\\placeholder_image_generator",
+                "MCP_ALLOW_ALL_PATHS": "true"
+            },
+            "disabled": false,
+            "autoApprove": [
+                "generate_placeholder",
+                "list_placeholders",
+                "check_path_access",
+                "health_check"
+            ]
         }
     }
 }
