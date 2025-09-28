@@ -88,6 +88,36 @@
                 "check_path_access",
                 "health_check"
             ]
+        },
+        "DocumentParser": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "python",
+                "D:\\programing\\core_node\\ncore\\mcp_server\\document_parser\\main.py"
+            ],
+            "env": {
+                "PYTHONPATH": "D:\\programing\\core_node\\ncore\\mcp_server\\document_parser",
+                "MCP_ALLOW_ALL_PATHS": "true"
+            },
+            "disabled": false,
+            "autoApprove": [
+                "parse_document",
+                "convert_document",
+                "write_document",
+                "batch_convert",
+                "list_supported_formats",
+                "list_conversion_formats",
+                "initialize_packages",
+                "ocr_recognize",
+                "configure_ocr",
+                "list_ocr_engines",
+                "smart_ocr_recognize",
+                "get_ocr_task_status",
+                "get_ocr_batch_status",
+                "get_ocr_system_status",
+                "health_check"
+            ]
         }
     }
 }
