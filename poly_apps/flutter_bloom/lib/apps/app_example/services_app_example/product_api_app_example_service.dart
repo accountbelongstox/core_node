@@ -12,7 +12,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../common/controller/auth_controller.dart';
-import '../../../common/network/api_client.dart';
+import '../../../common/network/models/api_response.dart';
 import '../config_app_example/api_config_app_example.dart';
 import '../config_app_example/api_endpoints_app_example.dart';
 import '../config_app_example/api_data_models_app_example.dart';

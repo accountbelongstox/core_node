@@ -17,8 +17,7 @@ network/
 │   ├── network_types.dart
 │   └── unified_network_client.dart
 ├── endpoints/
-│   ├── endpoint_config.dart
-│   └── laravel_endpoints.dart
+│   └── endpoint_config.dart
 ├── integration/
 │   └── network_user_integration.dart
 ├── interceptors/
@@ -46,8 +45,19 @@ network/
 │   └── network_utils.dart
 ├── widgets/
 │   └── adaptive_loading_widgets.dart
-├── legacy_bridge.dart
-└── network_framework.dart
+├── api_checker.dart
+├── api_client.dart
+├── api_group.dart
+├── authenticated_client.dart
+├── enhanced_network_example.dart
+├── error_response.dart
+├── laravel_apis.dart
+├── laravel_auth_apis.dart
+├── network_framework.dart
+├── network_tree.md
+├── public_client.dart
+├── unified_architecture.md
+└── websocket_client.dart
 ```
 
 ---

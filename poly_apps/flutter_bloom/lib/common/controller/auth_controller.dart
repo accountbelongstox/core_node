@@ -12,9 +12,9 @@
 
 import 'package:flutter/material.dart';
 import '../network/models/api_config.dart';
-import '../network/authenticated_client.dart';
-import '../network/public_client.dart';
-import '../network/api_client.dart';
+import '../network/client/enhanced_http_client.dart';
+import '../network/auth/unified_auth_manager.dart';
+import '../network/models/api_response.dart';
 import '../utils/database/cache_operations.dart';
 
 /// Universal authentication controller factory
@@ -59,8 +59,8 @@ class AuthObject extends ChangeNotifier {
   final String? Function(Map<String, dynamic>) errorExtractor;
   final BuildContext? context;
 
-  late final AuthenticatedClient _authenticatedClient;
-  late final PublicClient _publicClient;
+  late final EnhancedHttpClient _httpClient;
+  late final UnifiedAuthManager _authManager;
 
   bool _isLoading = false;
   String? _lastError;
@@ -80,8 +80,8 @@ class AuthObject extends ChangeNotifier {
     required this.errorExtractor,
     this.context,
   }) {
-    _authenticatedClient = AuthenticatedClient(config: apiConfig, context: context);
-    _publicClient = PublicClient(config: apiConfig);
+    _httpClient = EnhancedHttpClient.create(config: apiConfig);
+    _authManager = UnifiedAuthManager.instance;
     _loadPersistedData();
   }
 
@@ -92,8 +92,8 @@ class AuthObject extends ChangeNotifier {
   String? get currentToken => _currentToken;
   String? get tokenType => _tokenType;
   DateTime? get tokenExpiration => _tokenExpiration;
-  AuthenticatedClient get authenticatedClient => _authenticatedClient;
-  PublicClient get publicClient => _publicClient;
+  EnhancedHttpClient get httpClient => _httpClient;
+  UnifiedAuthManager get authManager => _authManager;
 
 
   /// Check if user is currently logged in

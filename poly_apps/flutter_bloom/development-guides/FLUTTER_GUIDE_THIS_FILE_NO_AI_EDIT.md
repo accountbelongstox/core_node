@@ -166,32 +166,50 @@ Hive存储特性:
 - 错误恢复: 存储失败时自动降级到默认值 ✅
 ```
 
-## 网络类库模块设计规范 ✅ COMPLETED
-```
-规范: lib/common/network/
-      ├── client/              # HTTP客户端
-      │   ├── api_client.dart  (保留)
-      │   └── interceptors/    # 拦截器 ✅
-      │       ├── auth_interceptor.dart      ✅ 认证拦截器 (Token管理/刷新)
-      │       ├── error_interceptor.dart     ✅ 错误拦截器 (重试/错误分类)
-      │       └── logging_interceptor.dart   ✅ 日志拦截器 (请求响应日志)
-      ├── models/              # 网络模型 ✅
-      │   ├── api_response.dart              ✅ API响应模型 (泛型/分页)
-      │   └── error_response.dart (保留)
-      ├── services/            # 基础服务 ✅
-      │   └── base_service.dart              ✅ 基础服务类 (HTTP方法/拦截器集成)
-      └── utils/               # 网络工具 ✅
-          └── network_utils.dart             ✅ 网络工具类 (连接检测/URL处理)
-
-功能特性:
-- 拦截器: 认证管理/错误处理/请求日志/自动重试
-- 响应模型: 泛型支持/分页响应/错误封装
-- 基础服务: RESTful API/拦截器集成/Mock支持
-- 网络工具: 连接监测/URL验证/平台检测
-- 安全性: 敏感信息脱敏/Token自动刷新
-
-迁移: 重构现有网络模块，添加拦截器和基础服务 ✅
-```
+ ## 网络类库模块设计规范 ✅ COMPLETED
+  规范: lib/common/network/
+        ├── auth/                # 统一认证管理 ✅
+        │   └── unified_auth_manager.dart     ✅ 认证管理器 (Token/刷新/状态)
+        ├── client/              # HTTP客户端 ✅
+        │   └── enhanced_http_client.dart     ✅ 增强HTTP客户端 (连接池/重试)
+        ├── core/                # 网络核心架构 ✅
+        │   ├── network_config.dart           ✅ 网络配置管理
+        │   ├── network_models.dart           ✅ 核心数据模型
+        │   ├── network_queue_and_offline.dart ✅ 队列/离线管理
+        │   ├── network_retry_manager.dart    ✅ 重试策略管理
+        │   ├── network_service_locator.dart  ✅ 服务定位器
+        │   ├── network_types.dart            ✅ 类型定义
+        │   └── unified_network_client.dart   ✅ 统一网络客户端
+        ├── endpoints/           # 端点配置 ✅
+        │   └── endpoint_config.dart          ✅ API端点管理
+        ├── integration/         # 集成服务 ✅
+        │   └── network_user_integration.dart ✅ 用户集成服务
+        ├── interceptors/        # 拦截器系统 ✅
+        │   ├── auth_interceptor.dart         ✅ 认证拦截器
+        │   ├── error_interceptor.dart        ✅ 错误拦截器
+        │   ├── logging_interceptor.dart      ✅ 日志拦截器
+        │   └── network_interceptors.dart     ✅ 拦截器管理
+        ├── models/              # 网络模型 ✅
+        │   ├── api_config.dart               ✅ API配置模型
+        │   ├── api_response.dart             ✅ API响应模型
+        │   └── enhanced_api_response.dart    ✅ 增强响应模型
+        ├── parsers/             # 数据解析 ✅
+        │   └── adaptive_data_parser.dart     ✅ 自适应数据解析器
+        ├── security/            # 安全管理 ✅
+        │   └── device_security_manager.dart  ✅ 设备安全管理
+        ├── services/            # 基础服务 ✅
+        │   ├── advanced_network_service.dart ✅ 高级网络服务
+        │   ├── base_service.dart             ✅ 基础服务类
+        │   └── enhanced_base_service.dart    ✅ 增强基础服务
+        ├── storage/             # 安全存储 ✅
+        │   └── secure_storage.dart           ✅ 安全存储服务
+        ├── ui/                  # UI集成 ✅
+        │   └── global_loading_system.dart    ✅ 全局加载系统
+        ├── utils/               # 网络工具 ✅
+        │   └── network_utils.dart            ✅ 网络工具类
+        └── widgets/             # 网络组件 ✅
+            └── adaptive_loading_widgets.dart ✅ 自适应加载组件
+            
 
 ## 配置管理模块 应用于多入口设计规范
 ```
