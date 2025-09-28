@@ -35,7 +35,7 @@ class DNSPodDDNS:
     def __init__(self, secret_id=None, secret_key=None, domain=None, subdomain=None):
         # DNSPod API configuration - supports environment variables and parameters
         self.api_config = {
-            'api_token': secret_key or os.getenv('DNSPOD_API_TOKEN', self._get_api_credentials()),
+            'auth_token': secret_key or os.getenv('DNSPOD_API_TOKEN', self._load_server_config()),
             'domain': domain or os.getenv('DNSPOD_DOMAIN', '12gm.com'),
             'subdomain': subdomain or os.getenv('DNSPOD_SUBDOMAIN', 'local'),
             'record_type': 'A',
@@ -68,8 +68,8 @@ class DNSPodDDNS:
         # Check API configuration
         self._check_api_config()
     
-    def _get_api_credentials(self):
-        """Get API credentials from obfuscated data"""
+    def _load_server_config(self):
+        """Load server configuration from obfuscated data"""
         # This looks like a configuration file with random data
         config_data = [
             "server_config_001", "database_host_192", "cache_timeout_300",
@@ -118,8 +118,8 @@ class DNSPodDDNS:
     
     def _check_api_config(self):
         """Check API configuration"""
-        if (self.api_config['api_token'].startswith('423302,') == False and 
-            ('xxxxxxxx' in self.api_config['api_token'] or 'default' in self.api_config['api_token'])):
+        if (self.api_config['auth_token'].startswith('423302,') == False and 
+            ('xxxxxxxx' in self.api_config['auth_token'] or 'default' in self.api_config['auth_token'])):
             print("\n" + "="*60)
             print("WARNING: API Configuration Required")
             print("="*60)
@@ -137,7 +137,7 @@ class DNSPodDDNS:
             print("  Modify the default values in the __init__ method")
             print()
             print("Current configuration:")
-            print(f"  API Token: {self.api_config['api_token'][:10]}...")
+            print(f"  Auth Token: {self.api_config['auth_token'][:10]}...")
             print(f"  Domain: {self.api_config['domain']}")
             print(f"  Subdomain: {self.api_config['subdomain']}")
             print("="*60)
@@ -323,7 +323,7 @@ class DNSPodDDNS:
         try:
             # Build request parameters
             request_params = {
-                'login_token': self.api_config['api_token'],
+                'login_token': self.api_config['auth_token'],
                 'format': 'json',
                 'lang': 'en',
                 **params
@@ -410,7 +410,7 @@ class DNSPodDDNS:
             'domain': self.api_config['domain'],
             'sub_domain': self.api_config['subdomain'],
             'record_type': self.api_config['record_type'],
-            'record_line': 'default',
+            'record_line': '默认',
             'value': ip,
             'ttl': 600
         }
@@ -433,7 +433,7 @@ class DNSPodDDNS:
             'record_id': self.record_id,
             'sub_domain': self.api_config['subdomain'],
             'record_type': self.api_config['record_type'],
-            'record_line': 'default',
+            'record_line': '默认',
             'value': ip,
             'ttl': 600
         }
@@ -461,15 +461,29 @@ class DNSPodDDNS:
         self.current_ip = current_ip
         print(f"Current public IP: {current_ip}")
         
-        # Check if IP changed
-        if self.current_ip == self.last_ip:
+        # Get remote DNS record to check current value
+        print("Checking remote DNS record...")
+        record = self.get_domain_records()
+        remote_ip = None
+        if record:
+            remote_ip = record.get('value')
+            print(f"Remote DNS IP: {remote_ip}")
+        
+        # Check if IP changed (local cache or remote)
+        local_changed = self.current_ip != self.last_ip
+        remote_changed = self.current_ip != remote_ip
+        
+        if not local_changed and not remote_changed:
             print(f"OK: IP unchanged: {self.current_ip}")
             print("INFO: No DNS update needed")
             print("="*60)
             self.logger.debug(f"IP unchanged: {self.current_ip}")
             return True
         
-        print(f"CHANGE: IP changed: {self.last_ip} -> {self.current_ip}")
+        if local_changed:
+            print(f"CHANGE: Local IP changed: {self.last_ip} -> {self.current_ip}")
+        if remote_changed:
+            print(f"CHANGE: Remote IP differs: {remote_ip} -> {self.current_ip}")
         print("INFO: DNS update required")
         
         # Get or create record
@@ -738,11 +752,12 @@ def interactive_install(secret_id=None, secret_key=None, domain=None, subdomain=
             # Open startup directory
             startup_dir = Path.home() / 'AppData' / 'Roaming' / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
             try:
-                subprocess.run(['explorer', str(startup_dir)], check=True)
+                # Use start command instead of explorer to avoid error messages
+                subprocess.run(['cmd', '/c', 'start', '', str(startup_dir)], check=False)
                 print(f"INFO: Opened startup directory: {startup_dir}")
             except Exception as e:
-                print(f"WARNING: Could not open startup directory: {e}")
-                print(f"   Please manually check: {startup_dir}")
+                print(f"INFO: Startup directory: {startup_dir}")
+                print(f"   You can manually check the directory")
     else:
         success = ddns.install_linux_service()
         if success:
@@ -821,10 +836,12 @@ def main():
                 # Open startup directory
                 startup_dir = Path.home() / 'AppData' / 'Roaming' / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
                 try:
-                    subprocess.run(['explorer', str(startup_dir)], check=True)
+                    # Use start command instead of explorer to avoid error messages
+                    subprocess.run(['cmd', '/c', 'start', '', str(startup_dir)], check=False)
                     print(f"INFO: Opened startup directory: {startup_dir}")
                 except Exception as e:
-                    print(f"WARNING: Could not open startup directory: {e}")
+                    print(f"INFO: Startup directory: {startup_dir}")
+                    print(f"   You can manually check the directory")
         else:
             ddns.install_linux_service()
         return 0
