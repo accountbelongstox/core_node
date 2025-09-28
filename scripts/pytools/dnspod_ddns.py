@@ -342,17 +342,14 @@ class DNSPodDDNS:
             
             if response.status_code == 200:
                 result = response.json()
-                print(f"DEBUG: API response: {result}")
                 if result.get('status', {}).get('code') != '1':
                     error_msg = result.get('status', {}).get('message', 'Unknown error')
                     error_code = result.get('status', {}).get('code', 'Unknown code')
                     self.logger.error(f"API Error: {error_code} - {error_msg}")
-                    print(f"ERROR: API Error: {error_code} - {error_msg}")
                     return None
                 return result
             else:
                 self.logger.error(f"HTTP Error: {response.status_code} - {response.text}")
-                print(f"ERROR: HTTP Error: {response.status_code} - {response.text}")
                 return None
                 
         except Exception as e:
