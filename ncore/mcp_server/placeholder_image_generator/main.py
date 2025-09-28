@@ -207,46 +207,164 @@ class PlaceholderImageGenerator:
             filename_text = filename
             dimension_text = f"{width}x{height}"
 
-            # Try to use a default font, fallback to default if not available
-            try:
-                font_size = min(width, height) // 20
-                font_size = max(12, min(font_size, 48))  # Clamp between 12 and 48
-                font = ImageFont.truetype("arial.ttf", font_size)
-            except (OSError, IOError):
-                font = ImageFont.load_default()
+            # Smart font sizing with minimum readable size
+            MIN_FONT_SIZE = 8  # Minimum readable font size
+            MAX_FONT_SIZE = 72  # Maximum font size
+            MIN_IMAGE_SIZE_FOR_TEXT = 30  # Minimum image dimension to draw text
 
-            # Calculate text positions
-            bbox_filename = draw.textbbox((0, 0), filename_text, font=font)
-            bbox_dimension = draw.textbbox((0, 0), dimension_text, font=font)
+            # Check if image is too small for any text
+            if min(width, height) < MIN_IMAGE_SIZE_FOR_TEXT:
+                print(f"[INFO] Image too small ({width}x{height}) for text, skipping text rendering")
+                should_draw_text = False
+            else:
+                should_draw_text = True
 
-            filename_width = bbox_filename[2] - bbox_filename[0]
-            filename_height = bbox_filename[3] - bbox_filename[1]
-            dimension_width = bbox_dimension[2] - bbox_dimension[0]
-            dimension_height = bbox_dimension[3] - bbox_dimension[1]
+            if should_draw_text:
+                # Find maximum font size that fits within the image bounds
+                # Start with a reasonable initial guess and iteratively find the best fit
 
-            # Center filename text
-            filename_x = (width - filename_width) // 2
-            filename_y = (height - filename_height) // 2 - 20
+                def get_text_dimensions(font_size):
+                    """Get text dimensions for given font size with proper line height"""
+                    try:
+                        test_font = ImageFont.truetype("arial.ttf", int(font_size))
+                    except (OSError, IOError):
+                        test_font = ImageFont.load_default()
 
-            # Center dimension text below filename
-            dimension_x = (width - dimension_width) // 2
-            dimension_y = filename_y + filename_height + 10
+                    filename_bbox = draw.textbbox((0, 0), filename_text, font=test_font)
+                    dimension_bbox = draw.textbbox((0, 0), dimension_text, font=test_font)
 
-            # Draw background rectangles for better text visibility
-            padding = 5
-            draw.rectangle([
-                filename_x - padding, filename_y - padding,
-                filename_x + filename_width + padding, filename_y + filename_height + padding
-            ], fill='#ffffff', outline='#cccccc')
+                    filename_w = filename_bbox[2] - filename_bbox[0]
+                    filename_h = filename_bbox[3] - filename_bbox[1]
+                    dimension_w = dimension_bbox[2] - dimension_bbox[0]
+                    dimension_h = dimension_bbox[3] - dimension_bbox[1]
 
-            draw.rectangle([
-                dimension_x - padding, dimension_y - padding,
-                dimension_x + dimension_width + padding, dimension_y + dimension_height + padding
-            ], fill='#ffffff', outline='#cccccc')
+                    max_text_width = max(filename_w, dimension_w)
 
-            # Draw text
-            draw.text((filename_x, filename_y), filename_text, fill='#333333', font=font)
-            draw.text((dimension_x, dimension_y), dimension_text, fill='#666666', font=font)
+                    # Calculate proper line spacing - use 1.2x line height (typography standard)
+                    line_spacing = max(int(font_size * 0.3), 6)  # At least 30% of font size, minimum 6px
+
+                    # Total height = filename + line spacing + dimension
+                    total_text_height = filename_h + line_spacing + dimension_h
+
+                    return max_text_width, total_text_height, test_font, line_spacing
+
+                # Binary search for the optimal font size
+                min_size = MIN_FONT_SIZE
+                max_size = min(MAX_FONT_SIZE, min(width, height))  # Don't exceed image size
+                optimal_font_size = min_size
+                optimal_font = None
+
+                # Reserve some margin (5% on each side)
+                target_width = width * 0.9
+                target_height = height * 0.9
+
+                # Use binary search to find the largest font that fits
+                optimal_line_spacing = 6  # Default minimum spacing
+                while min_size <= max_size:
+                    test_size = (min_size + max_size) // 2
+                    text_width, text_height, test_font, line_spacing = get_text_dimensions(test_size)
+
+                    if text_width <= target_width and text_height <= target_height:
+                        # This size fits, try larger
+                        optimal_font_size = test_size
+                        optimal_font = test_font
+                        optimal_line_spacing = line_spacing
+                        min_size = test_size + 1
+                    else:
+                        # This size is too large, try smaller
+                        max_size = test_size - 1
+
+                # Use the optimal font we found
+                font_size = optimal_font_size
+                if optimal_font:
+                    font = optimal_font
+                else:
+                    # Fallback to minimum size
+                    try:
+                        font = ImageFont.truetype("arial.ttf", int(font_size))
+                    except (OSError, IOError):
+                        font = ImageFont.load_default()
+
+                # Get final text dimensions
+                bbox_filename = draw.textbbox((0, 0), filename_text, font=font)
+                bbox_dimension = draw.textbbox((0, 0), dimension_text, font=font)
+
+                filename_width = bbox_filename[2] - bbox_filename[0]
+                filename_height = bbox_filename[3] - bbox_filename[1]
+                dimension_width = bbox_dimension[2] - bbox_dimension[0]
+                dimension_height = bbox_dimension[3] - bbox_dimension[1]
+
+                # Calculate total text area needed using the optimized line spacing
+                total_text_height = filename_height + optimal_line_spacing + dimension_height
+                max_text_width = max(filename_width, dimension_width)
+
+                # Final check - should always pass since we optimized for it
+                text_fits_width = max_text_width <= target_width
+                text_fits_height = total_text_height <= target_height
+                font_is_readable = font_size >= MIN_FONT_SIZE
+
+                if text_fits_width and text_fits_height and font_is_readable:
+                    # Calculate centered positions with proper line height
+                    filename_x = (width - filename_width) // 2
+                    filename_y = (height - total_text_height) // 2
+
+                    dimension_x = (width - dimension_width) // 2
+                    dimension_y = filename_y + filename_height + optimal_line_spacing
+
+                    # Draw background rectangles for better text visibility
+                    padding = max(3, int(font_size * 0.2))  # Adaptive padding
+
+                    # Only draw backgrounds if there's enough space
+                    if padding * 2 < min(width, height) // 4:
+                        draw.rectangle([
+                            max(0, filename_x - padding), max(0, filename_y - padding),
+                            min(width, filename_x + filename_width + padding),
+                            min(height, filename_y + filename_height + padding)
+                        ], fill='#ffffff', outline='#cccccc')
+
+                        draw.rectangle([
+                            max(0, dimension_x - padding), max(0, dimension_y - padding),
+                            min(width, dimension_x + dimension_width + padding),
+                            min(height, dimension_y + dimension_height + padding)
+                        ], fill='#ffffff', outline='#cccccc')
+
+                    # Draw text
+                    draw.text((filename_x, filename_y), filename_text, fill='#333333', font=font)
+                    draw.text((dimension_x, dimension_y), dimension_text, fill='#666666', font=font)
+
+                    print(f"[INFO] Text rendered with font size {font_size}, line spacing {optimal_line_spacing}px for {width}x{height} image")
+                else:
+                    print(f"[INFO] Text too large for {width}x{height} image (font: {font_size}, fits: {text_fits_width}/{text_fits_height})")
+                    should_draw_text = False
+
+            if not should_draw_text:
+                # Draw a simple pattern or just dimensions in corner when text doesn't fit
+                if min(width, height) >= 20:  # Only if there's minimal space
+                    # Draw small dimension text in corner
+                    try:
+                        corner_font_size = max(8, min(width, height) // 8)
+                        corner_font = ImageFont.truetype("arial.ttf", corner_font_size)
+                    except:
+                        corner_font = ImageFont.load_default()
+
+                    corner_text = f"{width}x{height}"
+                    corner_bbox = draw.textbbox((0, 0), corner_text, font=corner_font)
+                    corner_width = corner_bbox[2] - corner_bbox[0]
+                    corner_height = corner_bbox[3] - corner_bbox[1]
+
+                    # Place in bottom-right corner if it fits
+                    if corner_width < width * 0.8 and corner_height < height * 0.3:
+                        corner_x = width - corner_width - 5
+                        corner_y = height - corner_height - 5
+
+                        # Small background
+                        draw.rectangle([
+                            corner_x - 2, corner_y - 2,
+                            corner_x + corner_width + 2, corner_y + corner_height + 2
+                        ], fill='#ffffff', outline='#dddddd')  # Light background
+
+                        draw.text((corner_x, corner_y), corner_text, fill='#666666', font=corner_font)
+                        print(f"[INFO] Small corner text rendered for {width}x{height} image")
 
             # Add border
             draw.rectangle([0, 0, width-1, height-1], outline='#cccccc', width=2)
