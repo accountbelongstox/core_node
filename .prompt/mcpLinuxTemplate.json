@@ -69,6 +69,23 @@
             },
             "disabled": false,
             "autoApprove": []
+        },
+        "PlaceholderImageGenerator": {
+            "command": "python3",
+            "args": [
+                "/path/to/core_node/ncore/mcp_server/placeholder_image_generator/main.py"
+            ],
+            "env": {
+                "PYTHONPATH": "/path/to/core_node/ncore/mcp_server/placeholder_image_generator",
+                "MCP_ALLOW_ALL_PATHS": "true"
+            },
+            "disabled": false,
+            "autoApprove": [
+                "generate_placeholder",
+                "list_placeholders",
+                "check_path_access",
+                "health_check"
+            ]
         }
     }
 }

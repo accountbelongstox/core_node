@@ -80,7 +80,9 @@
       "Bash(LC_ALL=C grep -n '[^\\x00-\\x7F]' \"D:\\programing\\core_node\\poly_apps\\flutter_bloom\\scripts\\start.py\")",
       "Bash(do echo \"Adding PrintHelper import to $file\")",
       "Read(//c/Users/MPC/.core_node/unified_manager/**)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Read(//d/temp/**)",
+      "Read(//c/Users/MPC/.core_node/mcp_server/placeholder_images/**)"
     ],
     "deny": [],
     "ask": [],
