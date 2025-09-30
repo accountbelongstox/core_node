@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(LC_ALL=C grep -n '[^\\x00-\\x7F]' \"D:\\programing\\core_node\\ncore\\mcp_server\\document_parser\\main.py\")"
+      "Bash(LC_ALL=C grep -n '[^\\x00-\\x7F]' \"D:\\programing\\core_node\\ncore\\mcp_server\\document_parser\\main.py\")",
+      "Bash(cat:*)",
+      "Read(//c/Users/MPC/.core_node/pytools/tmp/**)",
+      "WebFetch(domain:www.paddleocr.ai)",
+      "Bash(python:*)",
+      "Bash(grep:*)",
+      "Bash(/dev/null)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": [],

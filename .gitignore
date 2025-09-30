@@ -249,7 +249,6 @@ app.*.symbols
 **/*.pyc
 **/*.pyo
 **/*.pyd
-**/d3check/
 
 # Node.js specific
 **/.node_repl_history

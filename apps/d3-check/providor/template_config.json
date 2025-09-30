@@ -1,0 +1,295 @@
+{
+  "general": {
+    "description": "Configuration file for D3Check application",
+    "version": "1.0"
+  },
+  "global_timeout": {
+    "loop_timeout_seconds": 300,
+    "loop_timeout_description": "Global timeout for loop state in seconds",
+    "description": "Global timeout settings for various states"
+  },
+  "hotkey": {
+    "rotkey": "F1",
+    "description": "Hotkey for activating the application"
+  },
+  "anti_stuck": {
+    "enabled": true,
+    "enabled_description": "Whether to enable anti-stuck functionality",
+    "keys": [
+      {"type": "key", "value": 2}
+    ],
+    "description": "Anti-stuck keys and combinations to prevent game from getting stuck",
+    "key_interval": 1.5,
+    "description_interval": "Interval between key presses in seconds",
+    "click_mode": "all",
+    "click_mode_description": "Window activation click mode: 'first', 'second', 'third', 'fourth', 'all'",
+    "supported_modifiers": ["shift", "ctrl", "alt"],
+    "supported_keys": ["mouse_left", "mouse_right", "mouse_middle", 1, 2, 3, 4, 5, 6, 7, 8, 9, 0],
+    "timer_timeout_seconds": 1,
+    "timer_timeout_description": "Timeout in seconds for pickup timer before triggering anti-stuck"
+  },
+  "map_status": {
+    "rift_start_triggers": ["Open Rift", "Do Rift", "Open Greater Rift"],
+    "rift_end_triggers": ["Rift ended", "UpdateGem Success BackTown"],
+    "rift_timer_interval": 3,
+    "start_picking_items": "Finish picking up items dropped",
+    "rift_normal_pickup_items": "Finish picking up items dropped(rift)",
+    "inventory_full": "Inventory full",
+    "gem_upgrade_action_count": 3,
+    "gem_upgrade_random_min": 1.0,
+    "gem_upgrade_random_max": 3.0,
+    "description": "Map status detection and rift mode configuration"
+  },
+  "ros_settings": {
+    "auto_enable_latest_ros": true,
+    "description": "Whether to automatically enable the latest ROS version",
+    "ros_directory": "D:\\applications\\GamesBot\\ros-bot7.18\\ros-bot7.18",
+    "directory_description": "ROS directory path",
+    "auto_start_rosbot": true,
+    "auto_start_rosbot_description": "Automatically start RoS-BoT.exe after Diablo III launches",
+    "auto_start_other_exe": true,
+    "auto_start_other_exe_description": "Automatically start other exe files found in RoS directory",
+    "rosbot_exe_name": "RoS-BoT.exe",
+    "rosbot_exe_description": "Name of the main RoS-BoT executable",
+    "other_exe_search_patterns": ["*.exe"],
+    "other_exe_search_description": "Patterns to search for other executable files",
+    "other_exe_exclude_patterns": ["RoS-BoT.exe", "Uninstall*.exe", "setup*.exe"],
+    "other_exe_exclude_description": "Patterns to exclude when searching for other executables",
+    "startup_delay_seconds": 3,
+    "startup_delay_description": "Delay between starting RoS-BoT and searching for other exe",
+    "process_detection_timeout": 30,
+    "process_detection_timeout_description": "Timeout for detecting started processes",
+    "force_cleanup_restart": true,
+    "force_cleanup_restart_description": "Always cleanup and restart RoS-BoT processes even if running",
+    "delayed_startup_config": 0,
+    "delayed_startup_config_description": "Delayed startup configuration in seconds (0 = immediate)",
+    "single_run_time_limit": 0,
+    "single_run_time_limit_description": "Single run time limit in seconds (0 = unlimited)",
+    "restart_after_time_limit": false,
+    "restart_after_time_limit_description": "Whether to restart after time limit is reached",
+    "auto_configure_ui": true,
+    "auto_configure_ui_description": "Automatically configure UI after other exe starts",
+    "tab_item_names": ["主档案"],
+    "tab_item_names_description": "Tab item names to search for and click",
+    "profile_combobox_text": "火鸟",
+    "profile_combobox_description": "Text to search for in profile combobox",
+    "sequence_combobox_names": ["大小秘境"],
+    "sequence_combobox_names_description": "Sequence combobox option names to search for",
+    "ui_operation_delay": 1.0,
+    "ui_operation_delay_description": "Delay between UI operations in seconds",
+    "max_retry_attempts": 3,
+    "max_retry_attempts_description": "Maximum number of retry attempts for UI operations",
+    "element_search_timeout": 10,
+    "element_search_timeout_description": "Timeout in seconds for finding UI elements",
+    "auto_refresh_mapping": true,
+    "auto_refresh_mapping_description": "Automatically refresh window mapping if elements not found",
+    "use_live_controls": true,
+    "use_live_controls_description": "Prefer live UI automation controls over coordinate clicking",
+    "coordinate_click_fallback": true,
+    "coordinate_click_fallback_description": "Use coordinate clicking as fallback when live controls fail",
+    "click_verification": false,
+    "click_verification_description": "Verify that clicks were successful (experimental)",
+    "detailed_logging": true,
+    "detailed_logging_description": "Enable detailed logging for UI automation operations"
+  },
+  "server_settings": {
+    "server_region": "US",
+    "available_options": ["CN", "US", "EU", "KR", "TW"]
+  },
+  "daily_schedule": {
+    "rest_time_range": [6],
+    "rest_time_description": "Maximum total rest time in hours",
+    "debug": false,
+    "debug_description": "If true, always generate new schedule for testing randomness",
+    "description": "Daily schedule generation settings"
+  },
+  "battlenet": {
+    "battlenet_path": "D:\\applications\\Games\\Battle.net\\Battle.net.exe",
+    "description": "Battle.net client installation path",
+    "timeout_restart": true,
+    "force_restart": false,
+    "timeout_seconds": 30,
+    "window_titles": ["Battle.net", "战网"],
+    "window_titles_description": "Battle.net window titles for detection",
+    "program_name": "BattleNet",
+    "program_name_description": "Program name for analysis and logging",
+    "diablo_iii_tab_auto_id": "",
+    "diablo_iii_tab_auto_id_description": "Automation ID for Diablo III tab/button",
+    "auto_launch_diablo": true,
+    "auto_launch_diablo_description": "Automatically launch Diablo III when Battle.net is ready",
+    "diablo_button_search_strategies": ["automation_id", "name_contains", "advanced_search"],
+    "diablo_button_search_strategies_description": "Search strategies for finding Diablo button",
+    "play_button_timeout": 10,
+    "play_button_timeout_description": "Timeout for finding and clicking Play button",
+    "launch_verification_delay": 5,
+    "launch_verification_delay_description": "Delay before verifying Diablo III launch"
+  },
+  "monitoring": {
+    "enabled": true,
+    "enabled_description": "Enable continuous monitoring mode",
+    "check_interval_seconds": 5,
+    "check_interval_description": "Interval between checks in seconds",
+    "force_start_diablo": false,
+    "force_start_diablo_description": "Force start Diablo III even if already running",
+    "force_start_battlenet": false,
+    "force_start_battlenet_description": "Force start Battle.net even if already running",
+    "startup_timeout_seconds": 120,
+    "startup_timeout_description": "Maximum time to wait for startup process completion"
+  },
+  "system_settings": {
+    "user_temp_dir": "D:\\.tmp\\d3check",
+    "screenshot_dir": "D:\\.tmp\\d3check\\screenshots",
+    "ui_analysis_dir": "D:\\.tmp\\d3check\\ui_analysis",
+    "enable_ui_analysis": true,
+    "save_ui_screenshots": true,
+    "game_log_directory": "",
+    "game_log_directory_description": "Game log directory path for monitoring (for future use)",
+    "annotate_ui_elements": true,
+    "bag_offset": {
+      "left": 9,
+      "right": 22,
+      "top": 0,
+      "bottom": 0,
+      "description": "Bag rectangle offset values (in pixels). Positive values: shrink inward, Negative values: expand outward"
+    }
+  },
+  "performance": {
+    "enable_anti_lag": true,
+    "description": "Enable anti-lag features",
+    "enable_auto_time_period": true,
+    "auto_time_description": "Enable automatic time period management",
+    "enable_accelerator": false,
+    "accelerator_description": "Enable accelerator/booster",
+    "cache_window_mappings": true,
+    "cache_window_mappings_description": "Cache window mappings to improve performance",
+    "mapping_cache_timeout": 300,
+    "mapping_cache_timeout_description": "Window mapping cache timeout in seconds",
+    "batch_ui_operations": false,
+    "batch_ui_operations_description": "Batch multiple UI operations for better performance",
+    "parallel_analysis": false,
+    "parallel_analysis_description": "Enable parallel window analysis (experimental)"
+  },
+  "error_handling": {
+    "max_error_retries": 3,
+    "max_error_retries_description": "Maximum number of retries for failed operations",
+    "error_recovery_delay": 2.0,
+    "error_recovery_delay_description": "Delay before retrying failed operations",
+    "detailed_error_logging": true,
+    "detailed_error_logging_description": "Enable detailed error logging with stack traces",
+    "error_notification": false,
+    "error_notification_description": "Show error notifications to user",
+    "graceful_degradation": true,
+    "graceful_degradation_description": "Continue operation with reduced functionality on errors",
+    "auto_error_recovery": true,
+    "auto_error_recovery_description": "Automatically attempt to recover from errors"
+  },
+  "paths": {
+    "rosbot_relative": "RoS-BoT",
+    "rosbot_logs_relative": "RoS-BoT/Logs",
+    "d3check_temp_relative": ".d3check",
+    "annotated_screenshots_relative": ".d3check/annotated_screenshots",
+    "logs_file_relative": "RoS-BoT/Logs/logs.txt",
+    "history_file_relative": "RoS-BoT/Logs/history.txt",
+    "bot_program_absolute": "D:\\applications\\GamesBot",
+    "keys_ini_absolute": "D:\\applications\\GamesBot\\Keys.ini"
+  },
+  "filenames": {
+    "logs_filename": "logs.txt",
+    "bot_program_name": "RoS-BoT.exe"
+  },
+  "process_names": {
+    "rbassist_prefix": "RBAssist"
+  },
+  "log_detection": {
+    "start_picking_items": "Finish picking up items dropped",
+    "town_portal_success": "UpdateGem Success",
+    "start_loop": "Start a loop",
+    "login_try": "Login try"
+  },
+  "macro_configs": {
+    "description": "Diablo 3 Macro configuration with namespace support",
+    "skill_configs": {
+      "config1": {
+        "skills": {
+          "skill1": {"key": "1", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
+          "skill2": {"key": "2", "strategy": "按住不放", "interval": 300, "delay": 10, "random": false},
+          "skill3": {"key": "3", "strategy": "连点", "interval": 300, "delay": 10, "random": true},
+          "skill4": {"key": "4", "strategy": "保持Buff", "interval": 5000, "delay": 10, "random": true},
+          "left_click": {"key": "LButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
+          "right_click": {"key": "RButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false}
+        },
+        "quick_switch": {"key": "无", "auto_start": false},
+        "macro_start": {"method": "懒人模式", "single_thread": false, "queue_delay": 200},
+        "quick_pause": {"enabled": false, "key": "鼠标左键", "delay": 1500},
+        "movement": {"strategy": "强制走位 (连点)", "interval": 100},
+        "potion": {"strategy": "保持药水CD", "interval": 500}
+      },
+      "config2": {
+        "skills": {
+          "skill1": {"key": "1", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
+          "skill2": {"key": "2", "strategy": "按住不放", "interval": 300, "delay": 10, "random": false},
+          "skill3": {"key": "3", "strategy": "连点", "interval": 300, "delay": 10, "random": true},
+          "skill4": {"key": "4", "strategy": "保持Buff", "interval": 5000, "delay": 10, "random": true},
+          "left_click": {"key": "LButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
+          "right_click": {"key": "RButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false}
+        },
+        "quick_switch": {"key": "无", "auto_start": false},
+        "macro_start": {"method": "懒人模式", "single_thread": false, "queue_delay": 200},
+        "quick_pause": {"enabled": false, "key": "鼠标左键", "delay": 1500},
+        "movement": {"strategy": "强制走位 (连点)", "interval": 100},
+        "potion": {"strategy": "保持药水CD", "interval": 500}
+      },
+      "config3": {
+        "skills": {
+          "skill1": {"key": "1", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
+          "skill2": {"key": "2", "strategy": "按住不放", "interval": 300, "delay": 10, "random": false},
+          "skill3": {"key": "3", "strategy": "连点", "interval": 300, "delay": 10, "random": true},
+          "skill4": {"key": "4", "strategy": "保持Buff", "interval": 5000, "delay": 10, "random": true},
+          "left_click": {"key": "LButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
+          "right_click": {"key": "RButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false}
+        },
+        "quick_switch": {"key": "无", "auto_start": false},
+        "macro_start": {"method": "懒人模式", "single_thread": false, "queue_delay": 200},
+        "quick_pause": {"enabled": false, "key": "鼠标左键", "delay": 1500},
+        "movement": {"strategy": "强制走位 (连点)", "interval": 100},
+        "potion": {"strategy": "保持药水CD", "interval": 500}
+      },
+      "config4": {
+        "skills": {
+          "skill1": {"key": "1", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
+          "skill2": {"key": "2", "strategy": "按住不放", "interval": 300, "delay": 10, "random": false},
+          "skill3": {"key": "3", "strategy": "连点", "interval": 300, "delay": 10, "random": true},
+          "skill4": {"key": "4", "strategy": "保持Buff", "interval": 5000, "delay": 10, "random": true},
+          "left_click": {"key": "LButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
+          "right_click": {"key": "RButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false}
+        },
+        "quick_switch": {"key": "无", "auto_start": false},
+        "macro_start": {"method": "懒人模式", "single_thread": false, "queue_delay": 200},
+        "quick_pause": {"enabled": false, "key": "鼠标左键", "delay": 1500},
+        "movement": {"strategy": "强制走位 (连点)", "interval": 100},
+        "potion": {"strategy": "保持药水CD", "interval": 500}
+      }
+    },
+    "auxiliary_config": {
+      "macro_start_hotkey": "F9",
+      "macro_pause_hotkey": "F10",
+      "combat_hotkey": "F11",
+      "assistant_hotkey": "F12",
+      "animation_speed": "中等",
+      "game_language": "繁体中文",
+      "log_level": "INFO",
+      "blood_shard": {"enabled": true, "count": 15},
+      "quick_pickup": {"enabled": true, "count": 30},
+      "blacksmith": {"enabled": false, "strategy": "快速分解"},
+      "kanai_reforge": {"enabled": false, "strategy": "重铸一次"},
+      "kanai_upgrade": {"enabled": false},
+      "kanai_convert": {"enabled": false},
+      "drop_equipment": {"enabled": false},
+      "sound_feedback": true,
+      "smart_pause": true,
+      "custom_stand": {"enabled": false, "key": "Shift"},
+      "custom_move": {"enabled": false, "key": "E"},
+      "custom_potion": {"enabled": false, "key": "Q"}
+    }
+  }
+} 
