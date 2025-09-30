@@ -1,0 +1,22 @@
+# D3Check - Diablo III Bot Auto Control System
+# Python dependencies
+
+# Process management
+psutil>=5.8.0
+
+# Windows API access
+pywin32>=227
+
+# Image processing for UI analysis
+Pillow>=8.0.0
+
+# UI automation for window activation and button clicking
+pywinauto>=0.6.8
+uiautomation>=2.0.15
+
+# Optional: Enhanced automation (if needed)
+# pyautogui>=0.9.52
+
+# Optional: OCR capabilities (if needed)
+# easyocr>=1.6.0
+# opencv-python>=4.5.0

@@ -5,7 +5,19 @@ import platform
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-__all__ = ["GlobalVarManager"]
+# Calculate paths
+_system = platform.system().lower()
+_home = Path.home()
+
+# Global directory paths (all uppercase)
+GLOBAL_VARS_DIR = _home / ".core_node" / ".global_vars"
+PYTOOLS_TMP_DIR = _home / ".core_node" / "pytools" / "tmp"
+
+# Ensure directories exist
+GLOBAL_VARS_DIR.mkdir(parents=True, exist_ok=True)
+PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+__all__ = ["GlobalVarManager", "GLOBAL_VARS_DIR", "PYTOOLS_TMP_DIR"]
 
 
 class GlobalVarManager:
@@ -17,11 +29,8 @@ class GlobalVarManager:
         self._namespace = self._sanitize(namespace) if namespace else None
 
     def _discover_base_dir(self) -> Path:
-        system = platform.system().lower()
-        home = Path.home()
-
-        if system == "windows":
-            return self._ensure_directory(home / ".core_node" / ".global_vars")
+        if _system == "windows":
+            return GLOBAL_VARS_DIR
 
         wsl_users = Path("/mnt/c/Users")
         if wsl_users.exists():
