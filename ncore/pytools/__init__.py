@@ -81,3 +81,10 @@ def check_and_install_dependencies():
 # This allows the check to be run if needed, but it's primarily called by __main__.py
 if __name__ == '__main__':
     check_and_install_dependencies()
+
+# Auto-check dependencies when pytools package is imported
+# This ensures dependencies are available for all pytools modules
+try:
+    check_and_install_dependencies()
+except Exception as e:
+    print(f"[WARNING] Failed to check dependencies during import: {e}")

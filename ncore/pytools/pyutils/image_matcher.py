@@ -7,11 +7,21 @@ Uses ORB features for fast, robust matching with perspective transformation
 """
 
 import os
-import cv2
+import sys
 import numpy as np
 from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 from datetime import datetime
+
+# Add parent directory to path for dependency checking
+pytools_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(pytools_dir))
+
+# Check and install dependencies before importing cv2
+from pytools import check_and_install_dependencies
+check_and_install_dependencies()
+
+import cv2
 
 
 class ImageMatcher:
