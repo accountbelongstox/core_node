@@ -7,13 +7,18 @@ Handles window activation and focus management
 
 import sys
 import time
-import win32gui
-import win32con
 from pathlib import Path
 
-# Get pytools directory (parent of current directory)
+# Add parent directory to path for dependency checking
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
+
+# Check and install dependencies before importing third-party packages
+from pytools import check_and_install_dependencies
+check_and_install_dependencies()
+
+import win32gui
+import win32con
 
 from pyfoundations.color_print import ColorPrint
 from pyfoundations.encyclopedia import ENCYCLOPEDIA

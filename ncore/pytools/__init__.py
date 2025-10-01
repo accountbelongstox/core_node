@@ -27,6 +27,18 @@ DEPENDENCY_MAP = {
     
     # For computer vision tasks
     "cv2": "opencv-python",
+    
+    # For window automation and screenshots
+    "pyautogui": "pyautogui",
+    
+    # For process management
+    "psutil": "psutil",
+    
+    # For window management
+    "pygetwindow": "pygetwindow",
+    
+    # For UI automation
+    "uiautomation": "uiautomation",
 }
 
 def check_and_install_dependencies():

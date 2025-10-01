@@ -9,9 +9,19 @@ import os
 import sys
 import time
 import subprocess
-import psutil
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
+from pathlib import Path
+
+# Add parent directory to path for dependency checking
+pytools_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(pytools_dir))
+
+# Check and install dependencies before importing third-party packages
+from pytools import check_and_install_dependencies
+check_and_install_dependencies()
+
+import psutil
 import win32gui
 import win32con
 import win32api
@@ -21,14 +31,6 @@ import pyautogui
 import pygetwindow as gw
 import uiautomation as auto
 
-# Add parent directory to path for imports
-from pathlib import Path
-
-# Get pytools directory (parent of current directory)
-pytools_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(pytools_dir))
-
-from providor.providor_second import CONFIG, DEBUG_DIR, PLAY_BUTTON_AUTO_ID, PLAY_BUTTON_MAIN_AUTO_ID, PLAY_BUTTON_AUTOMATION_IDS
 from pyfoundations.color_print import ColorPrint
 
 
@@ -36,8 +38,6 @@ class ClickHandler:
     """Handles all click-related operations for Battle.net interface"""
 
     def __init__(self):
-        self.battlenet_path = CONFIG.get('battlenet', {}).get('battlenet_path', '')
-        self.debug_dir = DEBUG_DIR
         self.battle_net_window = None
 
     def move_mouse_to(self, x: int, y: int, duration: float = 0.0) -> bool:
