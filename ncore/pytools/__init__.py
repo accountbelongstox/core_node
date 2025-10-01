@@ -24,6 +24,9 @@ DEPENDENCY_MAP = {
     
     # PIL is a common name for the Pillow package
     "PIL": "Pillow",
+    
+    # For computer vision tasks
+    "cv2": "opencv-python",
 }
 
 def check_and_install_dependencies():
