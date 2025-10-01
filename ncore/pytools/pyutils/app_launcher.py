@@ -1,9 +1,19 @@
 import os
 import subprocess
+import sys
+import time
+from pathlib import Path
+
+# Add parent directory to path for dependency checking
+pytools_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(pytools_dir))
+
+# Check and install dependencies before importing third-party packages
+from pytools import check_and_install_dependencies
+check_and_install_dependencies()
+
 import psutil
 from pywinauto import Application
-
-import time
 
 class AppLauncher:
     """Utility class for launching and connecting to applications."""

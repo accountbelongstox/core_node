@@ -19,7 +19,16 @@ from pathlib import Path
 ncore_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ncore")
 sys.path.insert(0, ncore_path)
 from pytools.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG, save_config
+from providor.providor_index import CONFIG, save_config, CONFIG_USER_PATH
+
+# Import panels
+from .panels.main_functions_panel import MainFunctionsPanel
+from .panels.auxiliary_functions_panel import AuxiliaryFunctionsPanel
+from .panels.log_panel import LogPanel
+from .log_output_widget import LogOutputWidget
+
+# Import screenshot controller
+from screenshot_controller import main as screenshot_main
 
 
 class Diablo3MacroUI:
@@ -94,8 +103,7 @@ class Diablo3MacroUI:
         self.table1_frame = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.table1_frame, text="主要功能")
         
-        # Import and create main functions panel
-        from .panels.main_functions_panel import MainFunctionsPanel
+        # Create main functions panel
         self.main_functions_panel = MainFunctionsPanel(self.table1_frame, self.current_config)
         
         # Set callbacks
@@ -107,8 +115,7 @@ class Diablo3MacroUI:
         self.table2_frame = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.table2_frame, text="辅助功能")
         
-        # Import and create auxiliary functions panel
-        from .panels.auxiliary_functions_panel import AuxiliaryFunctionsPanel
+        # Create auxiliary functions panel
         self.auxiliary_functions_panel = AuxiliaryFunctionsPanel(self.table2_frame)
         
         # Set callbacks
@@ -119,12 +126,11 @@ class Diablo3MacroUI:
         self.table3_frame = ttk.Frame(self.main_notebook)
         self.main_notebook.add(self.table3_frame, text="测试日志")
         
-        # Import and create test log panel
-        from .panels.test_log_panel import TestLogPanel
-        self.test_log_panel = TestLogPanel(self.table3_frame)
+        # Create log panel
+        self.log_panel = LogPanel(self.table3_frame)
         
         # Set callbacks
-        self.test_log_panel.set_test_function_callback(self._on_test_function)
+        self.log_panel.set_test_function_callback(self._on_test_function)
     
     def _on_test_function(self, test_number):
         """Handle test function callback"""
@@ -294,8 +300,6 @@ class Diablo3MacroUI:
         """Update configuration info display"""
         try:
             if hasattr(self, 'config_info_text'):
-                from providor.providor_index import CONFIG_USER_PATH
-                from pathlib import Path
                 
                 config_file = Path(CONFIG_USER_PATH)
                 info_text = f"""当前配置信息:
@@ -863,8 +867,6 @@ class Diablo3MacroUI:
             controller_path = os.path.join(os.path.dirname(__file__), '..', 'controller')
             sys.path.insert(0, controller_path)
             
-            from screenshot_controller import main as screenshot_main
-            
             # Run screenshot test
             screenshot_main()
             
@@ -988,12 +990,6 @@ class Diablo3MacroUI:
     
     def _test_performance(self):
         """Test performance"""
-        import sys
-        import os
-        import time
-        ncore_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ncore")
-        sys.path.insert(0, ncore_path)
-        from pytools.pyfoundations.color_print import ColorPrint
         
         try:
             ColorPrint.blue("[TEST] 性能测试开始")
@@ -1031,7 +1027,6 @@ class Diablo3MacroUI:
             parent = self.root
             
         try:
-            from .log_output_widget import LogOutputWidget
             self.log_widget = LogOutputWidget(parent, self.config_manager)
             
             # Test callback registration
