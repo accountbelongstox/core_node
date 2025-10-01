@@ -9,17 +9,25 @@ Analyzes UI elements, takes screenshots, and generates JSON data with annotation
 import json
 import os
 import time
+import argparse
+import sys
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+
+# Add parent directory to path for dependency checking
+pytools_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(pytools_dir))
+
+# Check and install dependencies before importing third-party packages
+from pytools import check_and_install_dependencies
+check_and_install_dependencies()
+
 import win32gui
 import win32con
 import win32ui
 from PIL import Image, ImageDraw, ImageFont
-
-import argparse
-import sys
-import shutil
 
 
 # --- Embedded ColorPrint Class for rich console output ---

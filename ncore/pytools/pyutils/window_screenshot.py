@@ -7,21 +7,23 @@ Handles window searching, activation, and screenshot capture
 
 import os
 import time
-import win32gui
-import win32con
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
-from PIL import ImageGrab
-import pyautogui
 
-# Add parent directory to path for imports
-import sys
-from pathlib import Path
-
-# Get pytools directory (parent of current directory)
+# Add parent directory to path for dependency checking
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
+
+# Check and install dependencies before importing third-party packages
+from pytools import check_and_install_dependencies
+check_and_install_dependencies()
+
+import win32gui
+import win32con
+from PIL import ImageGrab
+import pyautogui
 
 from pyfoundations.color_print import ColorPrint
 from pyfoundations.encyclopedia import ENCYCLOPEDIA
