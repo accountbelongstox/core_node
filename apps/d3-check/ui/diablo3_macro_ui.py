@@ -28,7 +28,7 @@ from .panels.log_panel import LogPanel
 from .log_output_widget import LogOutputWidget
 
 # Import screenshot controller
-from screenshot_controller import main as screenshot_main
+from controller.screenshot_controller import main as screenshot_main
 
 
 class Diablo3MacroUI:
