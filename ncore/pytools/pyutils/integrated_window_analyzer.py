@@ -11,13 +11,15 @@ import sys
 import time
 import json
 from typing import Dict, List, Optional, Any, Tuple
-
-# Add parent directory to path for imports
 from pathlib import Path
 
-# Get pytools directory (parent of current directory)
+# Add parent directory to path for dependency checking
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
+
+# Check and install dependencies before importing third-party packages
+from pytools import check_and_install_dependencies
+check_and_install_dependencies()
 
 from pyfoundations.color_print import ColorPrint
 from providor.window_mapping_provider import WINDOW_MAPPING_PROVIDER, UIElementMapping

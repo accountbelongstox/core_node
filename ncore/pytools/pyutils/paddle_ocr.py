@@ -26,14 +26,10 @@ from typing import Dict, List, Any, Optional, Tuple
 from threading import Thread
 from queue import Queue
 
-# Add parent directory to path for imports
-import sys
-import os
-from pathlib import Path
-
-# Get pytools directory (parent of current directory)
+# Add parent directory to path for dependency checking
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
+
 
 from pyfoundations.color_print import ColorPrint
 from pyfoundations.encyclopedia import ENCYCLOPEDIA

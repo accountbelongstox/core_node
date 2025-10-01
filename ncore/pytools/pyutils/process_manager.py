@@ -8,14 +8,19 @@ Handles process management including starting, stopping, and monitoring processe
 import os
 import subprocess
 import sys
-import psutil
 import time
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
-# Get pytools directory (parent of current directory)
+# Add parent directory to path for dependency checking
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
+
+# Check and install dependencies before importing third-party packages
+from pytools import check_and_install_dependencies
+check_and_install_dependencies()
+
+import psutil
 
 from pyfoundations.color_print import ColorPrint
 
