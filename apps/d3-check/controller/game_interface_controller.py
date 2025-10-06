@@ -16,15 +16,11 @@ from pathlib import Path
 current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, current_dir)
 
-# Add ncore path for pytools
-ncore_path = os.path.join(os.path.dirname(os.path.dirname(current_dir)), "ncore")
-sys.path.insert(0, ncore_path)
-
-from pytools.pyfoundations.color_print import ColorPrint
-from pytools.pyutils.hotkey_listener import get_global_hotkey_listener, register_global_hotkey, unregister_global_hotkey
+# Import from common_imports (unified public library imports)
+from providor.common_imports import ColorPrint
+from d3utils.global_hotkey_manager import get_global_hotkey_manager, register_hotkey, unregister_hotkey
 from providor.providor_index import CONFIG
 from controller.game_assistant_controller import GameAssistantController
-
 
 class GameInterfaceController:
     """
@@ -33,7 +29,7 @@ class GameInterfaceController:
     
     def __init__(self):
         """Initialize game interface controller"""
-        self.hotkey_listener = get_global_hotkey_listener()
+        self.hotkey_manager = get_global_hotkey_manager()
         self.registered_hotkeys: Dict[str, str] = {}  # hotkey -> description mapping
         self.initialized = False
         self.macro_running = False
@@ -52,26 +48,18 @@ class GameInterfaceController:
         try:
             # Get current configuration
             auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
-            
+
             # Extract hotkey settings
             self.macro_start_hotkey = auxiliary_config.get('macro_start_hotkey', 'F9')
-            self.macro_pause_hotkey = auxiliary_config.get('macro_pause_hotkey', 'F10')
-            self.combat_hotkey = auxiliary_config.get('combat_hotkey', 'F11')
-            self.assistant_hotkey = auxiliary_config.get('assistant_hotkey', 'F12')
-            
+            self.assistant_hotkey = auxiliary_config.get('assistant_hotkey', 'F10')
+
             ColorPrint.blue(f"[CONFIG] Loaded hotkeys:")
             ColorPrint.blue(f"  Macro Start: {self.macro_start_hotkey}")
-            ColorPrint.blue(f"  Macro Pause: {self.macro_pause_hotkey}")
-            ColorPrint.blue(f"  Combat: {self.combat_hotkey}")
             ColorPrint.blue(f"  Assistant: {self.assistant_hotkey}")
-            
+
         except Exception as e:
             ColorPrint.red(f"[ERROR] Failed to load hotkey config: {e}")
-            # Use default hotkeys
-            self.macro_start_hotkey = 'F9'
-            self.macro_pause_hotkey = 'F10'
-            self.combat_hotkey = 'F11'
-            self.assistant_hotkey = 'F12'
+            raise e  # Re-raise the error since we don't want defaults
     
     def initialize_game_interface(self) -> bool:
         """
@@ -88,10 +76,9 @@ class GameInterfaceController:
             ColorPrint.blue("[INIT] Initializing game interface...")
             
             # Register hotkeys
-            self._register_hotkeys()
             
             # Start hotkey listening
-            if not self.hotkey_listener.start_listening():
+            if not self.hotkey_manager.hotkey_listener.start_listening():
                 ColorPrint.red("[ERROR] Failed to start hotkey listening")
                 return False
             
@@ -125,7 +112,7 @@ class GameInterfaceController:
             self._unregister_hotkeys()
             
             # Stop hotkey listening
-            self.hotkey_listener.stop_listening()
+            self.hotkey_manager.hotkey_listener.stop_listening()
             
             self.initialized = False
             ColorPrint.green("[SUCCESS] Game interface shutdown successfully")
@@ -135,85 +122,12 @@ class GameInterfaceController:
             ColorPrint.red(f"[ERROR] Failed to shutdown game interface: {e}")
             return False
     
-    def update_hotkeys(self) -> bool:
-        """
-        Update hotkey bindings from configuration
-        
-        Returns:
-            True if updated successfully, False otherwise
-        """
-        try:
-            ColorPrint.blue("[UPDATE] Updating hotkey bindings...")
-            
-            # Load new configuration
-            self._load_hotkey_config()
-            
-            # Unregister old hotkeys
-            self._unregister_hotkeys()
-            
-            # Register new hotkeys
-            self._register_hotkeys()
-            
-            ColorPrint.green("[SUCCESS] Hotkey bindings updated")
-            return True
-            
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Failed to update hotkeys: {e}")
-            return False
-    
-    def _register_hotkeys(self):
-        """Register all hotkeys with the listener"""
-        try:
-            # Register macro start hotkey
-            register_global_hotkey(
-                self.macro_start_hotkey,
-                self._on_macro_start,
-                "Start/Stop Macro",
-                priority=10,
-                enabled=True
-            )
-            self.registered_hotkeys[self.macro_start_hotkey] = "Start/Stop Macro"
-            
-            # Register macro pause hotkey
-            register_global_hotkey(
-                self.macro_pause_hotkey,
-                self._on_macro_pause,
-                "Pause/Resume Macro",
-                priority=9,
-                enabled=True
-            )
-            self.registered_hotkeys[self.macro_pause_hotkey] = "Pause/Resume Macro"
-            
-            # Register combat hotkey
-            register_global_hotkey(
-                self.combat_hotkey,
-                self._on_combat_trigger,
-                "Combat Functions",
-                priority=8,
-                enabled=True
-            )
-            self.registered_hotkeys[self.combat_hotkey] = "Combat Functions"
-            
-            # Register assistant hotkey
-            register_global_hotkey(
-                self.assistant_hotkey,
-                self._on_assistant_trigger,
-                "Assistant Functions",
-                priority=7,
-                enabled=True
-            )
-            self.registered_hotkeys[self.assistant_hotkey] = "Assistant Functions"
-            
-            ColorPrint.green(f"[REGISTER] Registered {len(self.registered_hotkeys)} hotkey(s)")
-            
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Failed to register hotkeys: {e}")
     
     def _unregister_hotkeys(self):
-        """Unregister all hotkeys from the listener"""
+        """Unregister all hotkeys from the global manager"""
         try:
             for hotkey in list(self.registered_hotkeys.keys()):
-                unregister_global_hotkey(hotkey)
+                unregister_hotkey(hotkey, "game_interface_controller")
             
             self.registered_hotkeys.clear()
             ColorPrint.blue("[UNREGISTER] Unregistered all hotkeys")
@@ -249,15 +163,6 @@ class GameInterfaceController:
             self._execute_combat_functions()
         except Exception as e:
             ColorPrint.red(f"[ERROR] Combat functions error: {e}")
-    
-    def _on_assistant_trigger(self):
-        """Handle assistant functions hotkey"""
-        try:
-            ColorPrint.blue("[HOTKEY] Assistant functions triggered")
-            # TODO: Implement assistant functions
-            self._execute_assistant_functions()
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Assistant functions error: {e}")
     
     def start_macro(self) -> bool:
         """
@@ -382,38 +287,6 @@ class GameInterfaceController:
         except Exception as e:
             ColorPrint.red(f"[ERROR] Skill sequence execution error: {e}")
     
-    def _execute_assistant_functions(self):
-        """Execute assistant-related functions using GameAssistantController"""
-        try:
-            ColorPrint.blue("[ASSISTANT] Executing assistant functions...")
-
-            # Create assistant controller if needed
-            if self.assistant_controller is None:
-                ColorPrint.blue("[ASSISTANT] Creating GameAssistantController...")
-                self.assistant_controller = GameAssistantController()
-
-            # Execute assistant functions
-            success = self.assistant_controller.execute_assistant_functions()
-
-            if success:
-                ColorPrint.green("[ASSISTANT] Assistant functions executed successfully")
-            else:
-                ColorPrint.yellow("[ASSISTANT] Assistant functions execution incomplete")
-
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Assistant functions error: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def _execute_combat_functions(self):
-        """Execute combat-related functions"""
-        try:
-            # TODO: Implement combat functions
-            ColorPrint.blue("[COMBAT] Executing combat functions...")
-            # Placeholder for combat logic
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Combat functions error: {e}")
-    
     def get_status(self) -> Dict:
         """
         Get current controller status
@@ -427,7 +300,6 @@ class GameInterfaceController:
             "registered_hotkeys": len(self.registered_hotkeys),
             "hotkeys": self.registered_hotkeys.copy()
         }
-
 
 def main():
     """Main function for testing"""
@@ -446,7 +318,6 @@ def main():
         
         # Test hotkey update
         ColorPrint.blue("[TEST] Testing hotkey update...")
-        controller.update_hotkeys()
         
         ColorPrint.blue("[TEST] Press registered hotkeys to test functionality")
         ColorPrint.blue("[TEST] Press Ctrl+C to exit...")
@@ -460,7 +331,6 @@ def main():
             ColorPrint.green("[TEST] Test completed")
     else:
         ColorPrint.red("[TEST] Failed to initialize game interface")
-
 
 if __name__ == "__main__":
     main()

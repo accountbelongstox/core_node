@@ -3,6 +3,25 @@
     "description": "Configuration file for D3Check application",
     "version": "1.0"
   },
+  "ui_settings": {
+    "current_language": "zh",
+    "supported_languages": [
+      "zh",
+      "en"
+    ],
+    "description": "UI language settings"
+  },
+  "log_settings": {
+    "log_level": "INFO",
+    "log_levels": [
+      "DEBUG",
+      "INFO",
+      "WARNING",
+      "ERROR",
+      "CRITICAL"
+    ],
+    "description": "Log level settings for filtering log output"
+  },
   "global_timeout": {
     "loop_timeout_seconds": 300,
     "loop_timeout_description": "Global timeout for loop state in seconds",
@@ -16,21 +35,49 @@
     "enabled": true,
     "enabled_description": "Whether to enable anti-stuck functionality",
     "keys": [
-      {"type": "key", "value": 2}
+      {
+        "type": "key",
+        "value": 2
+      }
     ],
     "description": "Anti-stuck keys and combinations to prevent game from getting stuck",
     "key_interval": 1.5,
     "description_interval": "Interval between key presses in seconds",
     "click_mode": "all",
     "click_mode_description": "Window activation click mode: 'first', 'second', 'third', 'fourth', 'all'",
-    "supported_modifiers": ["shift", "ctrl", "alt"],
-    "supported_keys": ["mouse_left", "mouse_right", "mouse_middle", 1, 2, 3, 4, 5, 6, 7, 8, 9, 0],
+    "supported_modifiers": [
+      "shift",
+      "ctrl",
+      "alt"
+    ],
+    "supported_keys": [
+      "mouse_left",
+      "mouse_right",
+      "mouse_middle",
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      0
+    ],
     "timer_timeout_seconds": 1,
     "timer_timeout_description": "Timeout in seconds for pickup timer before triggering anti-stuck"
   },
   "map_status": {
-    "rift_start_triggers": ["Open Rift", "Do Rift", "Open Greater Rift"],
-    "rift_end_triggers": ["Rift ended", "UpdateGem Success BackTown"],
+    "rift_start_triggers": [
+      "Open Rift",
+      "Do Rift",
+      "Open Greater Rift"
+    ],
+    "rift_end_triggers": [
+      "Rift ended",
+      "UpdateGem Success BackTown"
+    ],
     "rift_timer_interval": 3,
     "start_picking_items": "Finish picking up items dropped",
     "rift_normal_pickup_items": "Finish picking up items dropped(rift)",
@@ -51,9 +98,15 @@
     "auto_start_other_exe_description": "Automatically start other exe files found in RoS directory",
     "rosbot_exe_name": "RoS-BoT.exe",
     "rosbot_exe_description": "Name of the main RoS-BoT executable",
-    "other_exe_search_patterns": ["*.exe"],
+    "other_exe_search_patterns": [
+      "*.exe"
+    ],
     "other_exe_search_description": "Patterns to search for other executable files",
-    "other_exe_exclude_patterns": ["RoS-BoT.exe", "Uninstall*.exe", "setup*.exe"],
+    "other_exe_exclude_patterns": [
+      "RoS-BoT.exe",
+      "Uninstall*.exe",
+      "setup*.exe"
+    ],
     "other_exe_exclude_description": "Patterns to exclude when searching for other executables",
     "startup_delay_seconds": 3,
     "startup_delay_description": "Delay between starting RoS-BoT and searching for other exe",
@@ -69,11 +122,15 @@
     "restart_after_time_limit_description": "Whether to restart after time limit is reached",
     "auto_configure_ui": true,
     "auto_configure_ui_description": "Automatically configure UI after other exe starts",
-    "tab_item_names": ["主档案"],
+    "tab_item_names": [
+      "主档案"
+    ],
     "tab_item_names_description": "Tab item names to search for and click",
     "profile_combobox_text": "火鸟",
     "profile_combobox_description": "Text to search for in profile combobox",
-    "sequence_combobox_names": ["大小秘境"],
+    "sequence_combobox_names": [
+      "大小秘境"
+    ],
     "sequence_combobox_names_description": "Sequence combobox option names to search for",
     "ui_operation_delay": 1.0,
     "ui_operation_delay_description": "Delay between UI operations in seconds",
@@ -94,10 +151,18 @@
   },
   "server_settings": {
     "server_region": "US",
-    "available_options": ["CN", "US", "EU", "KR", "TW"]
+    "available_options": [
+      "CN",
+      "US",
+      "EU",
+      "KR",
+      "TW"
+    ]
   },
   "daily_schedule": {
-    "rest_time_range": [6],
+    "rest_time_range": [
+      6
+    ],
     "rest_time_description": "Maximum total rest time in hours",
     "debug": false,
     "debug_description": "If true, always generate new schedule for testing randomness",
@@ -109,7 +174,10 @@
     "timeout_restart": true,
     "force_restart": false,
     "timeout_seconds": 30,
-    "window_titles": ["Battle.net", "战网"],
+    "window_titles": [
+      "Battle.net",
+      "战网"
+    ],
     "window_titles_description": "Battle.net window titles for detection",
     "program_name": "BattleNet",
     "program_name_description": "Program name for analysis and logging",
@@ -117,7 +185,11 @@
     "diablo_iii_tab_auto_id_description": "Automation ID for Diablo III tab/button",
     "auto_launch_diablo": true,
     "auto_launch_diablo_description": "Automatically launch Diablo III when Battle.net is ready",
-    "diablo_button_search_strategies": ["automation_id", "name_contains", "advanced_search"],
+    "diablo_button_search_strategies": [
+      "automation_id",
+      "name_contains",
+      "advanced_search"
+    ],
     "diablo_button_search_strategies_description": "Search strategies for finding Diablo button",
     "play_button_timeout": 10,
     "play_button_timeout_description": "Timeout for finding and clicking Play button",
@@ -206,90 +278,282 @@
     "start_loop": "Start a loop",
     "login_try": "Login try"
   },
+  "rosbot": {
+    "description": "ROSBOT extension configuration",
+    "pickup_blood_shards": false,
+    "pickup_blood_shards_description": "是否开启捡血岩碎片 (当ROSBOT关闭只捡太古后，在消灭BOSS后自动捡身边的血岩)",
+    "prevent_stuck": false,
+    "prevent_stuck_description": "是否开启防止卡住 (当击杀BOSS后有可能卡住导致没法点开升级宝石页)",
+    "blue_portal_priority": false,
+    "blue_portal_priority_description": "蓝门优先捡材料 (当蓝门结束时有可能背包满导致没有捡材料就回城)",
+    "startup": false,
+    "startup_description": "开机启动",
+    "monitor_start_rosbot": false,
+    "monitor_start_rosbot_description": "启动监控时启动ROSBOT",
+    "path": "",
+    "path_description": "ROSBOT可执行文件路径",
+    "timeout_minutes": 30,
+    "timeout_minutes_description": "超时X分钟自动重启ROSBOT/暗黑"
+  },
   "macro_configs": {
     "description": "Diablo 3 Macro configuration with namespace support",
+    "current_skill_config": "config1",
+    "auto_save": {
+      "enabled": true,
+      "save_on_change": true,
+      "save_interval_seconds": 5,
+      "description": "自动保存配置设置"
+    },
     "skill_configs": {
       "config1": {
         "skills": {
-          "skill1": {"key": "1", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
-          "skill2": {"key": "2", "strategy": "按住不放", "interval": 300, "delay": 10, "random": false},
-          "skill3": {"key": "3", "strategy": "连点", "interval": 300, "delay": 10, "random": true},
-          "skill4": {"key": "4", "strategy": "保持Buff", "interval": 5000, "delay": 10, "random": true},
-          "left_click": {"key": "LButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
-          "right_click": {"key": "RButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false}
+          "skill1": {
+            "key": "1",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill2": {
+            "key": "2",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill3": {
+            "key": "3",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill4": {
+            "key": "4",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "left_click": {
+            "key": "",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "right_click": {
+            "key": "",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          }
         },
-        "quick_switch": {"key": "无", "auto_start": false},
-        "macro_start": {"method": "懒人模式", "single_thread": false, "queue_delay": 200},
-        "quick_pause": {"enabled": false, "key": "鼠标左键", "delay": 1500},
-        "movement": {"strategy": "强制走位 (连点)", "interval": 100},
-        "potion": {"strategy": "保持药水CD", "interval": 500}
+        "quick_switch": "F",
+        "movement": "Space",
+        "potion": "Q",
+        "potion_interval": 500
       },
       "config2": {
         "skills": {
-          "skill1": {"key": "1", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
-          "skill2": {"key": "2", "strategy": "按住不放", "interval": 300, "delay": 10, "random": false},
-          "skill3": {"key": "3", "strategy": "连点", "interval": 300, "delay": 10, "random": true},
-          "skill4": {"key": "4", "strategy": "保持Buff", "interval": 5000, "delay": 10, "random": true},
-          "left_click": {"key": "LButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
-          "right_click": {"key": "RButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false}
+          "skill1": {
+            "key": "1",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill2": {
+            "key": "2",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill3": {
+            "key": "3",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill4": {
+            "key": "4",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "left_click": {
+            "key": "",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "right_click": {
+            "key": "",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          }
         },
-        "quick_switch": {"key": "无", "auto_start": false},
-        "macro_start": {"method": "懒人模式", "single_thread": false, "queue_delay": 200},
-        "quick_pause": {"enabled": false, "key": "鼠标左键", "delay": 1500},
-        "movement": {"strategy": "强制走位 (连点)", "interval": 100},
-        "potion": {"strategy": "保持药水CD", "interval": 500}
+        "quick_switch": "F",
+        "movement": "Space",
+        "potion": "Q",
+        "potion_interval": 500
       },
       "config3": {
         "skills": {
-          "skill1": {"key": "1", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
-          "skill2": {"key": "2", "strategy": "按住不放", "interval": 300, "delay": 10, "random": false},
-          "skill3": {"key": "3", "strategy": "连点", "interval": 300, "delay": 10, "random": true},
-          "skill4": {"key": "4", "strategy": "保持Buff", "interval": 5000, "delay": 10, "random": true},
-          "left_click": {"key": "LButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
-          "right_click": {"key": "RButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false}
+          "skill1": {
+            "key": "1",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill2": {
+            "key": "2",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill3": {
+            "key": "3",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill4": {
+            "key": "4",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "left_click": {
+            "key": "",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "right_click": {
+            "key": "",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          }
         },
-        "quick_switch": {"key": "无", "auto_start": false},
-        "macro_start": {"method": "懒人模式", "single_thread": false, "queue_delay": 200},
-        "quick_pause": {"enabled": false, "key": "鼠标左键", "delay": 1500},
-        "movement": {"strategy": "强制走位 (连点)", "interval": 100},
-        "potion": {"strategy": "保持药水CD", "interval": 500}
+        "quick_switch": "F",
+        "movement": "Space",
+        "potion": "Q",
+        "potion_interval": 500
       },
       "config4": {
         "skills": {
-          "skill1": {"key": "1", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
-          "skill2": {"key": "2", "strategy": "按住不放", "interval": 300, "delay": 10, "random": false},
-          "skill3": {"key": "3", "strategy": "连点", "interval": 300, "delay": 10, "random": true},
-          "skill4": {"key": "4", "strategy": "保持Buff", "interval": 5000, "delay": 10, "random": true},
-          "left_click": {"key": "LButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false},
-          "right_click": {"key": "RButton", "strategy": "禁用", "interval": 300, "delay": 10, "random": false}
+          "skill1": {
+            "key": "1",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill2": {
+            "key": "2",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill3": {
+            "key": "3",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill4": {
+            "key": "4",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "left_click": {
+            "key": "",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "right_click": {
+            "key": "",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          }
         },
-        "quick_switch": {"key": "无", "auto_start": false},
-        "macro_start": {"method": "懒人模式", "single_thread": false, "queue_delay": 200},
-        "quick_pause": {"enabled": false, "key": "鼠标左键", "delay": 1500},
-        "movement": {"strategy": "强制走位 (连点)", "interval": 100},
-        "potion": {"strategy": "保持药水CD", "interval": 500}
+        "quick_switch": "F",
+        "movement": "Space",
+        "potion": "Q",
+        "potion_interval": 500
       }
     },
     "auxiliary_config": {
-      "macro_start_hotkey": "F9",
-      "macro_pause_hotkey": "F10",
-      "combat_hotkey": "F11",
-      "assistant_hotkey": "F12",
+      "macro_start_hotkey": "F2",
+      "assistant_hotkey": "F3",
       "animation_speed": "中等",
       "game_language": "繁体中文",
       "log_level": "INFO",
-      "blood_shard": {"enabled": true, "count": 15},
-      "quick_pickup": {"enabled": true, "count": 30},
-      "blacksmith": {"enabled": false, "strategy": "快速分解"},
-      "kanai_reforge": {"enabled": false, "strategy": "重铸一次"},
-      "kanai_upgrade": {"enabled": false},
-      "kanai_convert": {"enabled": false},
-      "drop_equipment": {"enabled": false},
+      "blood_shard": {
+        "enabled": true,
+        "count": 15,
+        "type": "武器"
+      },
+      "quick_pickup": {
+        "enabled": true,
+        "count": 30,
+        "delay": 100
+      },
+      "blacksmith": {
+        "enabled": false,
+        "strategy": "all"
+      },
+      "kanai_reforge": {
+        "enabled": false,
+        "strategy": "reforge_once"
+      },
+      "kanai_upgrade": {
+        "enabled": false
+      },
+      "kanai_convert": {
+        "enabled": false
+      },
+      "drop_equipment": {
+        "enabled": false,
+        "quality": "稀有及以下"
+      },
       "sound_feedback": true,
       "smart_pause": true,
-      "custom_stand": {"enabled": false, "key": "Shift"},
-      "custom_move": {"enabled": false, "key": "E"},
-      "custom_potion": {"enabled": false, "key": "Q"}
+      "custom_stand": {
+        "enabled": false,
+        "key": "Shift"
+      },
+      "custom_move": {
+        "enabled": false,
+        "key": "E"
+      },
+      "custom_potion": {
+        "enabled": false,
+        "key": "Q"
+      }
     }
   }
-} 
+}

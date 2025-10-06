@@ -1,0 +1,7 @@
+{
+  "ui": {
+    "error_messages": {
+      "bag_offset_failed": "Failed to update bag offset configuration"
+    }
+  }
+}

@@ -248,15 +248,200 @@ class WindowActivator:
             ColorPrint.red(f"[ERROR] Error getting active window info: {e}")
             return {"handle": None, "title": None, "class": None, "rect": None}
     
+    def get_window_info(
+        self,
+        titles: list,
+        search_process: bool = False,
+        match_mode: str = "exact",
+        title_mode: str = "startwith"
+    ) -> dict:
+        """
+        Get window information from encyclopedia cache or search process
+
+        Args:
+            titles: List of window titles to search for
+            search_process: If True, search process when not found in cache (default: False)
+            match_mode: How to match titles - "exact", "startwith", "include", "endwith" (default: "exact")
+            title_mode: DEPRECATED - use match_mode instead (kept for backward compatibility)
+
+        Returns:
+            Dictionary with window information:
+            {
+                "found": bool,
+                "hwnd": int or None,
+                "title": str or None,
+                "x": int or None,
+                "y": int or None,
+                "width": int or None,
+                "height": int or None,
+                "left": int or None,
+                "top": int or None,
+                "right": int or None,
+                "bottom": int or None,
+                "class_name": str or None,
+                "source": "cache" or "process" or None
+            }
+        """
+        try:
+            # Use title_mode if match_mode is default (for backward compatibility)
+            if match_mode == "exact" and title_mode != "startwith":
+                match_mode = title_mode
+
+            ColorPrint.blue(f"[GetWindowInfo] Searching for windows: {titles}")
+            ColorPrint.blue(f"[GetWindowInfo] Match mode: {match_mode}, Search process: {search_process}")
+
+            # Step 1: Try to get from encyclopedia cache
+            for title in titles:
+                cache_key = f"window_cache_{title.lower()}"
+                cached_info = ENCYCLOPEDIA.get(cache_key)
+
+                if cached_info:
+                    hwnd = cached_info.get("hwnd")
+                    # Validate cached window
+                    if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
+                        ColorPrint.green(f"[Cache] Found valid cached window: '{cached_info.get('title')}'")
+
+                        # Update position from current window state
+                        try:
+                            rect = win32gui.GetWindowRect(hwnd)
+                            return {
+                                "found": True,
+                                "hwnd": hwnd,
+                                "title": cached_info.get("title"),
+                                "x": rect[0],
+                                "y": rect[1],
+                                "width": rect[2] - rect[0],
+                                "height": rect[3] - rect[1],
+                                "left": rect[0],
+                                "top": rect[1],
+                                "right": rect[2],
+                                "bottom": rect[3],
+                                "class_name": cached_info.get("class_name"),
+                                "source": "cache"
+                            }
+                        except Exception as e:
+                            ColorPrint.yellow(f"[Cache] Error reading window rect: {e}")
+                    else:
+                        ColorPrint.yellow(f"[Cache] Cached window invalid for '{title}'")
+
+            # Step 2: If search_process is True and not found in cache, search process
+            if search_process:
+                ColorPrint.blue("[Process] Searching through visible windows...")
+
+                found_window = None
+
+                def enum_windows_callback(hwnd, lparam):
+                    nonlocal found_window
+                    if win32gui.IsWindowVisible(hwnd):
+                        try:
+                            window_title = win32gui.GetWindowText(hwnd)
+                            if window_title:
+                                # Check if window title matches any of the provided titles
+                                for target_title in titles:
+                                    match_found = False
+
+                                    if match_mode == "exact":
+                                        match_found = window_title == target_title
+                                    elif match_mode == "startwith":
+                                        match_found = window_title.startswith(target_title)
+                                    elif match_mode == "include":
+                                        match_found = target_title.lower() in window_title.lower()
+                                    elif match_mode == "endwith":
+                                        match_found = window_title.endswith(target_title)
+
+                                    if match_found:
+                                        rect = win32gui.GetWindowRect(hwnd)
+                                        found_window = {
+                                            "found": True,
+                                            "hwnd": hwnd,
+                                            "title": window_title,
+                                            "x": rect[0],
+                                            "y": rect[1],
+                                            "width": rect[2] - rect[0],
+                                            "height": rect[3] - rect[1],
+                                            "left": rect[0],
+                                            "top": rect[1],
+                                            "right": rect[2],
+                                            "bottom": rect[3],
+                                            "class_name": win32gui.GetClassName(hwnd),
+                                            "source": "process"
+                                        }
+
+                                        # Cache the found window
+                                        cache_key = f"window_cache_{target_title.lower()}"
+                                        cache_data = {
+                                            "hwnd": hwnd,
+                                            "title": window_title,
+                                            "rect": rect,
+                                            "left": rect[0],
+                                            "top": rect[1],
+                                            "right": rect[2],
+                                            "bottom": rect[3],
+                                            "width": rect[2] - rect[0],
+                                            "height": rect[3] - rect[1],
+                                            "class_name": win32gui.GetClassName(hwnd)
+                                        }
+                                        ENCYCLOPEDIA.add(cache_key, cache_data)
+                                        ColorPrint.blue(f"[Process] Cached found window '{target_title}'")
+
+                                        return False  # Stop enumeration
+                        except Exception as e:
+                            ColorPrint.yellow(f"[Process] Error checking window: {e}")
+                    return True
+
+                win32gui.EnumWindows(enum_windows_callback, None)
+
+                if found_window:
+                    ColorPrint.green(f"[Process] Found window: '{found_window['title']}'")
+                    return found_window
+
+            # Step 3: Not found
+            ColorPrint.yellow("[GetWindowInfo] No matching window found")
+            return {
+                "found": False,
+                "hwnd": None,
+                "title": None,
+                "x": None,
+                "y": None,
+                "width": None,
+                "height": None,
+                "left": None,
+                "top": None,
+                "right": None,
+                "bottom": None,
+                "class_name": None,
+                "source": None
+            }
+
+        except Exception as e:
+            ColorPrint.red(f"[ERROR] Error in get_window_info: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "found": False,
+                "hwnd": None,
+                "title": None,
+                "x": None,
+                "y": None,
+                "width": None,
+                "height": None,
+                "left": None,
+                "top": None,
+                "right": None,
+                "bottom": None,
+                "class_name": None,
+                "source": None
+            }
+
     def list_visible_windows(self) -> list:
         """
         List all visible windows
-        
+
         Returns:
             List of window information dictionaries
         """
         windows = []
-        
+
         def enum_windows_callback(hwnd, lparam):
             if win32gui.IsWindowVisible(hwnd):
                 try:
@@ -264,7 +449,7 @@ class WindowActivator:
                     if window_title:  # Only include windows with titles
                         window_class = win32gui.GetClassName(hwnd)
                         rect = win32gui.GetWindowRect(hwnd)
-                        
+
                         windows.append({
                             "handle": hwnd,
                             "title": window_title,
@@ -276,7 +461,7 @@ class WindowActivator:
                 except Exception:
                     pass
             return True
-        
+
         try:
             win32gui.EnumWindows(enum_windows_callback, None)
             return windows

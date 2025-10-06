@@ -1,0 +1,72 @@
+{
+  "ui": {
+    "main_window": {
+      "title": "Diablo 3 Macro Assistant",
+      "back_button": "←",
+      "language": "Language",
+      "menu": {
+        "file": "File",
+        "edit": "Edit",
+        "view": "View",
+        "help": "Help",
+        "language": "Language",
+        "exit": "Exit"
+      }
+    },
+    "tabs": {
+      "main_functions": "Main Functions",
+      "auxiliary_functions": "Auxiliary Functions",
+      "log": "Log",
+      "rosbot_extension": "Rosbot Extension"
+    },
+    "macro_controls": {
+      "start_macro": "Start Macro",
+      "stop_macro": "Stop Macro",
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "status_bar": {
+      "game_status": "Game Status",
+      "window_size": "Window Size",
+      "main_log": "Main Log Area",
+      "diablo_running": "Diablo Running",
+      "diablo_not_running": "Diablo Not Running",
+      "window_detected": "Window Detected",
+      "window_not_detected": "Window Not Detected",
+      "size_format": "{width}x{height}",
+      "status": "Status",
+      "ready": "Ready",
+      "working": "Working",
+      "error": "Error",
+      "multiple_logs_note": "Note: This program has multiple log outputs"
+    },
+    "main_functions_panel": {
+      "quick_switch": "Quick Switch",
+      "animation_speed_label": "Animation Speed:",
+      "animation_speed_slow": "Slow",
+      "animation_speed_medium": "Medium",
+      "animation_speed_fast": "Fast",
+      "game_language_label": "Game Language:",
+      "game_language_simplified": "Simplified Chinese",
+      "game_language_traditional": "Traditional Chinese",
+      "game_language_english": "English",
+      "log_level_label": "Log Level:",
+      "macro_start_hotkey_label": "Macro Start Hotkey:",
+      "macro_pause_hotkey_label": "Macro Pause Hotkey:",
+      "current_config": "Current Config",
+      "config_file_path": "Config File Path",
+      "skill_config": "Skill Configuration",
+      "skill1": "Skill 1",
+      "skill2": "Skill 2",
+      "skill3": "Skill 3",
+      "skill4": "Skill 4",
+      "additional_settings": "Additional Settings",
+      "quick_switch_key": "Quick Switch",
+      "movement_key": "Movement Key",
+      "potion_key": "Potion Key",
+      "potion_interval": "Potion Interval",
+      "status_config_loaded": "Configuration Loaded",
+      "space_key": "Space"
+    }
+  }
+}

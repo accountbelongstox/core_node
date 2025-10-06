@@ -1,0 +1,48 @@
+# Dataset configuration for D3 UI Detection
+# YOLO format dataset structure
+
+# Dataset root path (absolute path will be set automatically)
+path: .
+
+# Relative paths from dataset root
+train: images/train
+val: images/val
+test: images/test
+
+# Class names (detection targets)
+names:
+  0: d3_ui_region
+  1: d3_anchor_bottom_right
+  2: d3_bag_border
+  3: d3_button_material
+  4: d3_button_convert_enabled
+  5: d3_button_convert_disabled
+
+# Dataset statistics (will be updated after data collection)
+# nc: 6  # Number of classes
+
+# Training notes:
+# ===============
+# 1. Collect screenshots with various resolutions
+# 2. Annotate using tools like LabelImg or Roboflow
+# 3. Export in YOLO format (txt files)
+# 4. Organize as:
+#    images/
+#      train/
+#        image1.jpg
+#        image2.jpg
+#      val/
+#        image1.jpg
+#        image2.jpg
+#    labels/
+#      train/
+#        image1.txt
+#        image2.txt
+#      val/
+#        image1.txt
+#        image2.txt
+
+# Label format (YOLO):
+# class_id center_x center_y width height
+# All values normalized to [0, 1]
+# Example: 0 0.5 0.5 0.8 0.6

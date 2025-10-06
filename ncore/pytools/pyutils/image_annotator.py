@@ -36,18 +36,30 @@ class ImageAnnotator:
     - Multiple colors and styles
     """
 
-    def __init__(self, image_path: Optional[Union[str, Path]] = None):
+    def __init__(self, image_input: Optional[Union[str, Path, np.ndarray, PILImage.Image]] = None):
         """
         Initialize annotator
 
         Args:
-            image_path: Optional path to image file (can load later)
+            image_input: Optional image source - can be:
+                - str/Path: path to image file
+                - np.ndarray: image array (BGR format)
+                - PILImage.Image: PIL Image object
+                - None: no image (load later)
         """
         self.image = None
         self.image_path = None
 
-        if image_path:
-            self.load_image(image_path)
+        if image_input is not None:
+            # Check if input is numpy array
+            if isinstance(image_input, np.ndarray):
+                self.set_image(image_input)
+            # Check if input is PIL Image
+            elif isinstance(image_input, PILImage.Image):
+                self.set_image_from_pil(image_input)
+            else:
+                # Treat as path
+                self.load_image(image_input)
 
     def load_image(self, image_path: Union[str, Path]) -> None:
         """
@@ -69,14 +81,53 @@ class ImageAnnotator:
         except Exception as e:
             raise ValueError(f"Failed to load image: {image_path}. Error: {e}")
 
-    def set_image(self, image: np.ndarray) -> None:
+    def set_image(self, image: Union[np.ndarray, PILImage.Image]) -> None:
         """
-        Set image from numpy array
+        Set image from numpy array or PIL Image
 
         Args:
-            image: Image as numpy array (BGR format)
+            image: Image as numpy array (BGR format) or PIL Image
         """
-        self.image = image.copy()
+        if isinstance(image, PILImage.Image):
+            self.set_image_from_pil(image)
+        elif isinstance(image, np.ndarray):
+            # Ensure the array is contiguous in memory for OpenCV
+            self.image = np.ascontiguousarray(image.copy())
+        else:
+            raise TypeError(f"Unsupported image type: {type(image)}")
+
+    def set_image_from_pil(self, pil_image: PILImage.Image) -> None:
+        """
+        Set image from PIL Image
+
+        Args:
+            pil_image: PIL Image object
+        """
+        # Convert PIL Image to numpy array
+        if pil_image.mode == 'RGB':
+            image_array = np.array(pil_image)
+            # Convert RGB to BGR for OpenCV
+            self.image = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+        elif pil_image.mode == 'RGBA':
+            image_array = np.array(pil_image)
+            # Convert RGBA to BGRA for OpenCV
+            self.image = cv2.cvtColor(image_array, cv2.COLOR_RGBA2BGRA)
+        elif pil_image.mode == 'L':
+            # Grayscale
+            self.image = np.array(pil_image)
+        else:
+            # Convert to RGB first, then to BGR
+            pil_image = pil_image.convert('RGB')
+            image_array = np.array(pil_image)
+            self.image = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+
+        # Ensure the array is contiguous in memory for OpenCV
+        self.image = np.ascontiguousarray(self.image)
+
+    def _ensure_contiguous(self) -> None:
+        """Ensure self.image is contiguous in memory for OpenCV operations"""
+        if self.image is not None and not self.image.flags['C_CONTIGUOUS']:
+            self.image = np.ascontiguousarray(self.image)
 
     def draw_rectangle(
         self,
@@ -101,6 +152,7 @@ class ImageAnnotator:
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
+        self._ensure_contiguous()
         cv2.rectangle(self.image, top_left, bottom_right, color, thickness)
 
         if label:
@@ -146,6 +198,7 @@ class ImageAnnotator:
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
+        self._ensure_contiguous()
         thickness_val = -1 if filled else thickness
         cv2.circle(self.image, center, radius, color, thickness_val)
 
@@ -168,6 +221,7 @@ class ImageAnnotator:
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
+        self._ensure_contiguous()
         points = np.int32(points).reshape((-1, 1, 2))
 
         if filled:
@@ -194,6 +248,7 @@ class ImageAnnotator:
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
+        self._ensure_contiguous()
         cv2.line(self.image, start, end, color, thickness)
 
     def draw_text(
@@ -219,6 +274,8 @@ class ImageAnnotator:
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
+        self._ensure_contiguous()
+
         if background_color:
             # Draw background rectangle
             text_size, _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
@@ -239,6 +296,44 @@ class ImageAnnotator:
             color,
             thickness
         )
+
+    def draw_image(
+        self,
+        image: np.ndarray,
+        position: Tuple[int, int],
+        alpha: float = 1.0
+    ) -> None:
+        """
+        Draw another image on top of the current image
+
+        Args:
+            image: Image to draw (BGR format numpy array)
+            position: Top-left position (x, y) where to place the image
+            alpha: Opacity (0.0 to 1.0), 1.0 is fully opaque
+        """
+        if self.image is None:
+            raise ValueError("No image loaded. Use load_image() or set_image() first.")
+
+        x, y = position
+        h, w = image.shape[:2]
+
+        # Check bounds
+        if x < 0 or y < 0:
+            return
+        if x + w > self.image.shape[1] or y + h > self.image.shape[0]:
+            # Crop image if it goes out of bounds
+            w = min(w, self.image.shape[1] - x)
+            h = min(h, self.image.shape[0] - y)
+            image = image[:h, :w]
+
+        # Blend images if alpha < 1.0
+        if alpha < 1.0:
+            roi = self.image[y:y+h, x:x+w]
+            blended = cv2.addWeighted(image, alpha, roi, 1 - alpha, 0)
+            self.image[y:y+h, x:x+w] = blended
+        else:
+            # Direct copy
+            self.image[y:y+h, x:x+w] = image
 
     def draw_grid(
         self,
@@ -263,6 +358,9 @@ class ImageAnnotator:
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
+        # Ensure array is contiguous for OpenCV
+        self._ensure_contiguous()
+
         x1, y1 = top_left
         x2, y2 = bottom_right
 
@@ -279,6 +377,37 @@ class ImageAnnotator:
         for i in range(rows + 1):
             y = int(y1 + i * cell_height)
             cv2.line(self.image, (x1, y), (x2, y), color, thickness)
+
+    def draw_grid_full(
+        self,
+        rows: int,
+        cols: int,
+        color: Tuple[int, int, int] = (0, 255, 0),  # Green in BGR
+        thickness: int = 1
+    ) -> None:
+        """
+        Draw grid covering the entire image
+
+        Args:
+            rows: Number of rows
+            cols: Number of columns
+            color: Grid color in BGR format (default: green)
+            thickness: Line thickness
+        """
+        if self.image is None:
+            raise ValueError("No image loaded. Use load_image() or set_image() first.")
+
+        height, width = self.image.shape[:2]
+
+        # Call draw_grid with full image dimensions
+        self.draw_grid(
+            top_left=(0, 0),
+            bottom_right=(width, height),
+            rows=rows,
+            cols=cols,
+            color=color,
+            thickness=thickness
+        )
 
     def save(self, output_path: Union[str, Path]) -> None:
         """

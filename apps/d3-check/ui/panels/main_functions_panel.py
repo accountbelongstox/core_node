@@ -1,295 +1,741 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Main Functions Panel (TABLE1)
-Contains skill configuration and basic info
+Main Functions Panel (TABLE1) - Unified Style Version
+Contains skill configuration and basic info with unified styling
 """
 
 import tkinter as tk
 from tkinter import ttk
 import sys
 import os
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict, Any, List
 
-# Add ncore path for color_print
-ncore_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ncore")
-sys.path.insert(0, ncore_path)
-from pytools.pyfoundations.color_print import ColorPrint
+# Import from common_imports (unified public library imports)
+from providor.common_imports import ColorPrint
 
+# Import unified styles
+from ..unified_styles import UnifiedStyles
+
+# Import widgets
+from ..widgets import HotkeyInput
+
+# Import i18n (global singleton instance)
+from d3utils.i18n_manager import i18n_manager
+
+# Import CONFIG and ConfigBinding
+from providor.providor_index import CONFIG, CONFIG_USER_PATH, save_config
+from ui.utils.config_binding import ConfigBinding
 
 class MainFunctionsPanel:
-    """Main functions panel for TABLE1"""
-    
-    def __init__(self, parent, initial_config='config1'):
+    """
+    Main Functions Panel for TABLE1
+    Unified styling and layout
+    """
+
+    def __init__(self, parent, initial_config=None, bottom_bar=None):
+        """
+        Initialize main functions panel
+
+        Args:
+            parent: Parent widget
+            initial_config: Initial configuration name (optional, ConfigBinding will load saved value)
+            bottom_bar: BottomBar instance for updating current config display
+        """
         self.parent = parent
-        self.current_config = initial_config
-        
-        # Callbacks
-        self.on_config_change: Optional[Callable] = None
-        self.on_skill_config_switch: Optional[Callable] = None
-        
-        self._create_panel()
-    
-    def _create_panel(self):
-        """Create the main functions panel"""
-        # Main content frame with better spacing
-        main_content_frame = ttk.Frame(self.parent)
-        main_content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Left panel (skill configuration)
-        self._create_skill_panel(main_content_frame)
-        
-        # Right panel (basic info)
-        self._create_basic_info_panel(main_content_frame)
-    
-    def _create_skill_panel(self, parent):
-        """Create skill configuration panel"""
-        skill_frame = ttk.LabelFrame(parent, text="按键宏设置", padding=15)
-        skill_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
-        
-        # Configuration tabs (moved inside panel)
-        self._create_config_tabs(skill_frame)
-        
-        # Separator
-        separator1 = ttk.Separator(skill_frame, orient='horizontal')
-        separator1.pack(fill=tk.X, pady=(10, 15))
-        
-        # Skill settings table
-        self._create_skill_table(skill_frame)
-        
-        # Separator
-        separator2 = ttk.Separator(skill_frame, orient='horizontal')
-        separator2.pack(fill=tk.X, pady=(15, 10))
-        
-        # Additional settings
-        self._create_additional_settings(skill_frame)
-    
-    def _create_config_tabs(self, parent):
-        """Create configuration tabs inside the panel"""
-        # Config tabs frame with better styling
-        config_frame = ttk.Frame(parent)
-        config_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        # Title with better styling
-        title_label = ttk.Label(config_frame, text="配置选择", font=('Arial', 11, 'bold'))
-        title_label.pack(side=tk.LEFT, padx=(0, 15))
-        
-        # Config buttons with better spacing and styling
-        self.tab_buttons = {}
-        for i in range(1, 5):
-            btn = ttk.Button(config_frame, text=f"配置{i}", width=8,
-                           command=lambda c=f'config{i}': self._switch_config(c))
-            btn.pack(side=tk.LEFT, padx=(0, 8))
-            self.tab_buttons[f'config{i}'] = btn
-        
-        # Highlight current config
-        self._update_tab_highlight()
-    
-    def _create_skill_table(self, parent):
-        """Create skill settings table"""
-        # Table headers with better styling
-        header_frame = ttk.Frame(parent)
-        header_frame.pack(fill=tk.X, pady=(0, 8))
-        
-        headers = ["技能", "按键", "策略", "间隔(ms)", "延迟(ms)", "随机延迟(ms)"]
-        for i, header in enumerate(headers):
-            label = ttk.Label(header_frame, text=header, font=('Arial', 9, 'bold'))
-            label.grid(row=0, column=i, padx=3, pady=3, sticky='ew')
-        
-        # Configure column weights
-        for i in range(len(headers)):
-            header_frame.columnconfigure(i, weight=1)
-        
-        # Skill rows
+        self.bottom_bar = bottom_bar  # Store bottom bar reference
+
+        # Use provided initial_config or default
+        # ConfigBinding will automatically load the saved value in _create_config_selection
+        self.current_config = initial_config or "config1"
+        self.config_vars = {}
         self.skill_vars = {}
-        self.strategy_vars = {}
-        self.interval_vars = {}
-        self.delay_vars = {}
-        self.random_delay_vars = {}
+        self.additional_vars = {}
+
+        # Strategy mapping: English key <-> Chinese display
+        self.strategy_en_to_zh = {
+            'continuous': i18n_manager.get_ui_text("skill_config.strategies.continuous"),
+            'single': i18n_manager.get_ui_text("skill_config.strategies.single"),
+            'hold': i18n_manager.get_ui_text("skill_config.strategies.hold")
+        }
+        self.strategy_zh_to_en = {v: k for k, v in self.strategy_en_to_zh.items()}
         
-        skills = ["技能1", "技能2", "技能3", "技能4", "左键", "右键"]
-        for i, skill in enumerate(skills):
-            row_frame = ttk.Frame(parent)
-            row_frame.pack(fill=tk.X, pady=2)
-            
-            # Skill name with better styling
-            skill_label = ttk.Label(row_frame, text=skill, font=('Arial', 9))
-            skill_label.grid(row=0, column=0, padx=3, pady=2, sticky='w')
-            
-            # Key binding
-            key_var = tk.StringVar()
-            key_combo = ttk.Combobox(row_frame, textvariable=key_var, width=8, 
-                                    values=['1', '2', '3', '4', 'Q', 'W', 'E', 'R'])
-            key_combo.grid(row=0, column=1, padx=3, pady=2, sticky='ew')
-            self.skill_vars[skill] = key_var
-            
-            # Strategy
-            strategy_var = tk.StringVar(value="连续")
-            strategy_combo = ttk.Combobox(row_frame, textvariable=strategy_var, width=8, 
-                                        values=['连续', '单次', '按住'])
-            strategy_combo.grid(row=0, column=2, padx=3, pady=2, sticky='ew')
-            self.strategy_vars[skill] = strategy_var
-            
-            # Interval
-            interval_var = tk.StringVar(value="100")
-            interval_spin = ttk.Spinbox(row_frame, from_=50, to=2000, textvariable=interval_var, width=8)
-            interval_spin.grid(row=0, column=3, padx=3, pady=2, sticky='ew')
-            self.interval_vars[skill] = interval_var
-            
-            # Delay
-            delay_var = tk.StringVar(value="0")
-            delay_spin = ttk.Spinbox(row_frame, from_=0, to=1000, textvariable=delay_var, width=8)
-            delay_spin.grid(row=0, column=4, padx=3, pady=2, sticky='ew')
-            self.delay_vars[skill] = delay_var
-            
-            # Random delay
-            random_delay_var = tk.StringVar(value="0")
-            random_delay_spin = ttk.Spinbox(row_frame, from_=0, to=500, textvariable=random_delay_var, width=8)
-            random_delay_spin.grid(row=0, column=5, padx=3, pady=2, sticky='ew')
-            self.random_delay_vars[skill] = random_delay_var
-            
-            # Configure column weights
-            for j in range(6):
-                row_frame.columnconfigure(j, weight=1)
-    
-    def _create_additional_settings(self, parent):
-        """Create additional settings"""
-        settings_frame = ttk.LabelFrame(parent, text="其他设置", padding=10)
-        settings_frame.pack(fill=tk.X, pady=(5, 0))
+        # Configure TTK styles
+        self.style = UnifiedStyles.configure_ttk_styles()
         
-        # Quick switch
-        switch_frame = ttk.Frame(settings_frame)
-        switch_frame.pack(fill=tk.X, pady=3)
+        # Create main container
+        self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
+        self.container.pack(fill=tk.BOTH, expand=True, 
+                           padx=UnifiedStyles.SPACING['md'], 
+                           pady=UnifiedStyles.SPACING['md'])
         
-        ttk.Label(switch_frame, text="快速切换:", font=('Arial', 9)).pack(side=tk.LEFT)
-        self.quick_switch_var = tk.StringVar(value="F1")
-        switch_combo = ttk.Combobox(switch_frame, textvariable=self.quick_switch_var, 
-                                   values=['F1', 'F2', 'F3', 'F4'], width=8)
-        switch_combo.pack(side=tk.LEFT, padx=(10, 0))
+        # Configure grid weights
+        self.container.grid_columnconfigure(0, weight=1)
+        self.container.grid_columnconfigure(1, weight=1)
+        self.container.grid_rowconfigure(0, weight=1)
         
-        # Movement
-        movement_frame = ttk.Frame(settings_frame)
-        movement_frame.pack(fill=tk.X, pady=3)
-        
-        ttk.Label(movement_frame, text="移动键:", font=('Arial', 9)).pack(side=tk.LEFT)
-        self.movement_var = tk.StringVar(value="空格")
-        movement_combo = ttk.Combobox(movement_frame, textvariable=self.movement_var, 
-                                     values=['空格', 'Shift', 'Ctrl'], width=8)
-        movement_combo.pack(side=tk.LEFT, padx=(10, 0))
-        
-        # Potion
-        potion_frame = ttk.Frame(settings_frame)
-        potion_frame.pack(fill=tk.X, pady=3)
-        
-        ttk.Label(potion_frame, text="药水键:", font=('Arial', 9)).pack(side=tk.LEFT)
-        self.potion_var = tk.StringVar(value="Q")
-        potion_combo = ttk.Combobox(potion_frame, textvariable=self.potion_var, 
-                                   values=['Q', 'W', 'E', 'R'], width=8)
-        potion_combo.pack(side=tk.LEFT, padx=(10, 0))
-        
-        ttk.Label(potion_frame, text="间隔:", font=('Arial', 9)).pack(side=tk.LEFT, padx=(20, 0))
-        self.potion_interval_var = tk.StringVar(value="500")
-        potion_interval_spin = ttk.Spinbox(potion_frame, from_=100, to=2000, 
-                                         textvariable=self.potion_interval_var, width=8)
-        potion_interval_spin.pack(side=tk.LEFT, padx=(10, 0))
-    
-    def _create_basic_info_panel(self, parent):
-        """Create basic info panel"""
-        info_frame = ttk.LabelFrame(parent, text="基本信息", padding=15)
-        info_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(10, 0))
-        
-        # Add basic information display with better styling
-        title_label = ttk.Label(info_frame, text="当前配置信息", font=('Arial', 11, 'bold'))
-        title_label.pack(anchor=tk.W, pady=(0, 10))
-        
-        # Configuration info with better styling
-        self.config_info_text = tk.Text(info_frame, height=15, width=35, wrap=tk.WORD,
-                                       font=('Consolas', 9), bg='#f8f8f8', fg='#333333')
-        self.config_info_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
+        # Create content
+        self.create_content()
+
         # Update config info
         self._update_config_info()
-    
+
+        # Initialize bottom bar with current config
+        if self.bottom_bar:
+            self.bottom_bar.update_config_status(self.current_config)
+
+        # Note: Language change is handled by main UI, not individual panels
+
+    def create_content(self):
+        """Create panel content"""
+        # Left panel - Skill configuration
+        self._create_skill_panel()
+
+        # Right panel - Basic info
+        self._create_basic_info_panel()
+
+    def _create_skill_panel(self):
+        """Create skill configuration panel"""
+        # Create left frame for skill configuration
+        skill_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("skill_config.title"), style='TLabelframe')
+        skill_frame.grid(row=0, column=0, sticky="nsew", 
+                        padx=(0, UnifiedStyles.SPACING['sm']), 
+                        pady=UnifiedStyles.SPACING['xs'])
+        
+        # Configure skill frame grid
+        skill_frame.grid_columnconfigure(0, weight=1)
+        skill_frame.grid_rowconfigure(1, weight=1)
+        
+        # Configuration selection
+        self._create_config_selection(skill_frame)
+        
+        # Skill configuration tabs
+        self._create_skill_tabs(skill_frame)
+
+        # Additional settings
+        self._create_additional_settings(skill_frame)
+
+    def _create_config_selection(self, parent):
+        """Create configuration selection section"""
+        config_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
+        config_frame.grid(row=0, column=0, sticky="ew",
+                         padx=UnifiedStyles.SPACING['sm'],
+                         pady=UnifiedStyles.SPACING['sm'])
+        config_frame.grid_columnconfigure(1, weight=1)
+
+        # Config label
+        config_label = tk.Label(config_frame, text=i18n_manager.get_ui_text("main_functions_panel.current_config") + ":",
+                               bg=UnifiedStyles.COLORS['bg_secondary'],
+                               fg=UnifiedStyles.COLORS['text_primary'],
+                               font=UnifiedStyles.FONTS['label'])
+        config_label.grid(row=0, column=0, sticky="w", padx=(0, UnifiedStyles.SPACING['sm']))
+
+        # Get config values
+        skill_configs = CONFIG.get("macro_configs", {}).get("skill_configs", {})
+        config_values = list(skill_configs.keys()) if skill_configs else ["config1", "config2", "config3", "config4"]
+
+        # Config combobox - use ConfigBinding for auto sync
+        config_combo = ConfigBinding.create_combobox_binding(
+            config_frame,
+            "macro_configs.current_skill_config",
+            values=config_values,
+            default_value="config1",
+            width=15
+        )
+        config_combo.grid(row=0, column=1, sticky="w", padx=UnifiedStyles.SPACING['sm'])
+
+        # Store reference
+        self.config_combo = config_combo
+
+        # Update current_config from CONFIG (ConfigBinding has already loaded it)
+        self.current_config = CONFIG.get("macro_configs", {}).get("current_skill_config", "config1")
+
+        # Bind selection change event
+        config_combo.bind('<<ComboboxSelected>>', self._on_config_changed)
+
+    def _create_skill_tabs(self, parent):
+        """Create skill configuration table"""
+        # Create frame for skill configuration
+        skills_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
+        skills_frame.grid(row=1, column=0, sticky="nsew",
+                         padx=UnifiedStyles.SPACING['sm'],
+                         pady=UnifiedStyles.SPACING['sm'])
+
+        # Configure grid
+        skills_frame.grid_columnconfigure(1, weight=1)
+        skills_frame.grid_columnconfigure(2, weight=1)
+        skills_frame.grid_columnconfigure(3, weight=1)
+        skills_frame.grid_columnconfigure(4, weight=1)
+        skills_frame.grid_columnconfigure(5, weight=1)
+
+        # Create header row
+        headers = [
+            i18n_manager.get_ui_text("skill_config.skill"),
+            i18n_manager.get_ui_text("skill_config.key"),
+            i18n_manager.get_ui_text("skill_config.strategy"),
+            i18n_manager.get_ui_text("skill_config.interval"),
+            i18n_manager.get_ui_text("skill_config.delay"),
+            i18n_manager.get_ui_text("skill_config.random_delay")
+        ]
+
+        for col, header in enumerate(headers):
+            header_label = tk.Label(skills_frame, text=header,
+                                   bg=UnifiedStyles.COLORS['bg_secondary'],
+                                   fg=UnifiedStyles.COLORS['text_primary'],
+                                   font=UnifiedStyles.FONTS['label'],
+                                   relief=tk.RIDGE, bd=1)
+            header_label.grid(row=0, column=col, sticky="ew",
+                            padx=1, pady=1)
+
+        # Get current config
+        current_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(self.current_config, {})
+        skills_config = current_config.get("skills", {})
+
+        # Create rows for skill1-4
+        skill_keys = ["skill1", "skill2", "skill3", "skill4"]
+        for i, skill_key in enumerate(skill_keys, start=1):
+            self._create_skill_config_row(skills_frame, skill_key,
+                                         skills_config.get(skill_key, {}), i)
+
+        # Create additional skill settings
+        self._create_additional_skill_settings(skills_frame)
+
+        # Store the frame reference for later updates
+        self.skills_config_frame = skills_frame
+
+    def _create_skill_config_row(self, parent, skill_key, skill_data, row):
+        """Create a skill configuration row with all parameters"""
+        # Skill name label
+        skill_name = i18n_manager.get_ui_text(f"skill_table.skills.{skill_key}")
+        if skill_name == f"skill_table.skills.{skill_key}":
+            skill_name = skill_key.replace("_", " ").title()
+
+        name_label = tk.Label(parent, text=skill_name,
+                             bg=UnifiedStyles.COLORS['bg_primary'],
+                             fg=UnifiedStyles.COLORS['text_primary'],
+                             font=UnifiedStyles.FONTS['label'],
+                             relief=tk.RIDGE, bd=1)
+        name_label.grid(row=row, column=0, sticky="ew", padx=1, pady=1)
+
+        # Key input - use HotkeyInput widget
+        key_value = skill_data.get('key', '')
+        key_input = HotkeyInput(
+            parent,
+            initial_value=key_value,
+            on_change=lambda hotkey: self._on_skill_param_changed(skill_key, 'key', hotkey),
+            width=8
+        )
+        key_input.grid(row=row, column=1, sticky="ew", padx=1, pady=1)
+
+        # Strategy combobox - display Chinese, save English
+        strategy_en = skill_data.get('strategy', 'continuous')
+        strategy_zh = self.strategy_en_to_zh.get(strategy_en, strategy_en)
+        strategy_var = tk.StringVar(value=strategy_zh)
+
+        # Get Chinese strategy values for display
+        strategy_values_zh = list(self.strategy_en_to_zh.values())
+
+        strategy_combo = ttk.Combobox(parent, textvariable=strategy_var,
+                                     values=strategy_values_zh,
+                                     state='readonly', width=10)
+        strategy_combo.grid(row=row, column=2, sticky="ew", padx=1, pady=1)
+        strategy_combo.bind('<<ComboboxSelected>>',
+                          lambda e: self._on_strategy_changed(skill_key, strategy_var.get()))
+
+        # Interval spinbox
+        interval_var = tk.IntVar(value=skill_data.get('interval', 100))
+        interval_spin = tk.Spinbox(parent, from_=0, to=10000, increment=10,
+                                  textvariable=interval_var, width=8,
+                                  bg=UnifiedStyles.COLORS['input_bg'],
+                                  fg=UnifiedStyles.COLORS['input_text'],
+                                  font=UnifiedStyles.FONTS['input'],
+                                  relief=tk.RIDGE, bd=1)
+        interval_spin.grid(row=row, column=3, sticky="ew", padx=1, pady=1)
+        interval_var.trace_add('write', lambda *_: self._on_skill_param_changed(skill_key, 'interval', interval_var.get()))
+
+        # Delay spinbox
+        delay_var = tk.IntVar(value=skill_data.get('delay', 0))
+        delay_spin = tk.Spinbox(parent, from_=0, to=10000, increment=10,
+                               textvariable=delay_var, width=8,
+                               bg=UnifiedStyles.COLORS['input_bg'],
+                               fg=UnifiedStyles.COLORS['input_text'],
+                               font=UnifiedStyles.FONTS['input'],
+                               relief=tk.RIDGE, bd=1)
+        delay_spin.grid(row=row, column=4, sticky="ew", padx=1, pady=1)
+        delay_var.trace_add('write', lambda *_: self._on_skill_param_changed(skill_key, 'delay', delay_var.get()))
+
+        # Random delay spinbox
+        random_delay_var = tk.IntVar(value=skill_data.get('random_delay', 0))
+        random_delay_spin = tk.Spinbox(parent, from_=0, to=10000, increment=10,
+                                       textvariable=random_delay_var, width=8,
+                                       bg=UnifiedStyles.COLORS['input_bg'],
+                                       fg=UnifiedStyles.COLORS['input_text'],
+                                       font=UnifiedStyles.FONTS['input'],
+                                       relief=tk.RIDGE, bd=1)
+        random_delay_spin.grid(row=row, column=5, sticky="ew", padx=1, pady=1)
+        random_delay_var.trace_add('write', lambda *_: self._on_skill_param_changed(skill_key, 'random_delay', random_delay_var.get()))
+
+        # Store variables and widgets
+        self.skill_vars[f"{skill_key}_key"] = key_input  # Store widget instead of var
+        self.skill_vars[f"{skill_key}_strategy"] = strategy_var
+        self.skill_vars[f"{skill_key}_interval"] = interval_var
+        self.skill_vars[f"{skill_key}_delay"] = delay_var
+        self.skill_vars[f"{skill_key}_random_delay"] = random_delay_var
+
+    def _on_strategy_changed(self, skill_key, strategy_zh):
+        """Handle strategy change - convert Chinese display to English key"""
+        # Convert Chinese display to English key
+        strategy_en = self.strategy_zh_to_en.get(strategy_zh, 'continuous')
+        self._on_skill_param_changed(skill_key, 'strategy', strategy_en)
+
+    def _on_skill_param_changed(self, skill_key, param_name, value):
+        """Handle skill parameter change"""
+        try:
+            # Ensure macro_configs structure exists
+            if "macro_configs" not in CONFIG:
+                CONFIG["macro_configs"] = {}
+            if "skill_configs" not in CONFIG["macro_configs"]:
+                CONFIG["macro_configs"]["skill_configs"] = {}
+            if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
+                CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
+            if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
+                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
+            if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
+                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
+
+            # Convert value to appropriate type
+            if param_name in ['interval', 'delay', 'random_delay']:
+                try:
+                    value = int(value)
+                except (ValueError, tk.TclError):
+                    value = 0
+
+            CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key][param_name] = value
+
+            # Save configuration
+            save_config()
+
+            ColorPrint.blue(f"[MainFunctionsPanel] {skill_key}.{param_name} updated to: {value}")
+        except Exception as e:
+            ColorPrint.red(f"[MainFunctionsPanel] Error updating {skill_key}.{param_name}: {e}")
+
+    def _create_additional_skill_settings(self, parent):
+        """Create additional skill settings (quick_switch, movement, potion)"""
+        # Create a frame below the skills table
+        additional_frame = tk.LabelFrame(parent,
+                                        text=i18n_manager.get_ui_text("additional_settings.title"),
+                                        bg=UnifiedStyles.COLORS['bg_secondary'],
+                                        fg=UnifiedStyles.COLORS['text_primary'],
+                                        font=UnifiedStyles.FONTS['subheading'])
+        additional_frame.grid(row=5, column=0, columnspan=6, sticky="ew",
+                            padx=UnifiedStyles.SPACING['sm'],
+                            pady=UnifiedStyles.SPACING['sm'])
+        additional_frame.grid_columnconfigure(1, weight=1)
+        additional_frame.grid_columnconfigure(3, weight=1)
+
+        current_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(self.current_config, {})
+
+        # Quick switch
+        quick_switch_label = tk.Label(additional_frame,
+                                     text=i18n_manager.get_ui_text("additional_settings.quick_switch") + ":",
+                                     bg=UnifiedStyles.COLORS['bg_secondary'],
+                                     fg=UnifiedStyles.COLORS['text_primary'],
+                                     font=UnifiedStyles.FONTS['label'])
+        quick_switch_label.grid(row=0, column=0, sticky="w",
+                               padx=UnifiedStyles.SPACING['sm'],
+                               pady=UnifiedStyles.SPACING['xs'])
+
+        quick_switch_value = current_config.get('quick_switch', 'F1')
+        quick_switch_input = HotkeyInput(
+            additional_frame,
+            initial_value=quick_switch_value,
+            on_change=lambda hotkey: self._on_skill_changed('quick_switch', hotkey),
+            width=10
+        )
+        quick_switch_input.grid(row=0, column=1, sticky="w",
+                               padx=UnifiedStyles.SPACING['sm'],
+                               pady=UnifiedStyles.SPACING['xs'])
+
+        # Movement
+        movement_label = tk.Label(additional_frame,
+                                 text=i18n_manager.get_ui_text("additional_settings.movement") + ":",
+                                 bg=UnifiedStyles.COLORS['bg_secondary'],
+                                 fg=UnifiedStyles.COLORS['text_primary'],
+                                 font=UnifiedStyles.FONTS['label'])
+        movement_label.grid(row=0, column=2, sticky="w",
+                          padx=UnifiedStyles.SPACING['sm'],
+                          pady=UnifiedStyles.SPACING['xs'])
+
+        movement_value = current_config.get('movement', 'Space')
+        movement_input = HotkeyInput(
+            additional_frame,
+            initial_value=movement_value,
+            on_change=lambda hotkey: self._on_skill_changed('movement', hotkey),
+            width=10
+        )
+        movement_input.grid(row=0, column=3, sticky="w",
+                          padx=UnifiedStyles.SPACING['sm'],
+                          pady=UnifiedStyles.SPACING['xs'])
+
+        # Potion
+        potion_label = tk.Label(additional_frame,
+                               text=i18n_manager.get_ui_text("additional_settings.potion") + ":",
+                               bg=UnifiedStyles.COLORS['bg_secondary'],
+                               fg=UnifiedStyles.COLORS['text_primary'],
+                               font=UnifiedStyles.FONTS['label'])
+        potion_label.grid(row=1, column=0, sticky="w",
+                        padx=UnifiedStyles.SPACING['sm'],
+                        pady=UnifiedStyles.SPACING['xs'])
+
+        potion_value = current_config.get('potion', 'Q')
+        potion_input = HotkeyInput(
+            additional_frame,
+            initial_value=potion_value,
+            on_change=lambda hotkey: self._on_skill_changed('potion', hotkey),
+            width=10
+        )
+        potion_input.grid(row=1, column=1, sticky="w",
+                        padx=UnifiedStyles.SPACING['sm'],
+                        pady=UnifiedStyles.SPACING['xs'])
+
+        # Potion interval
+        potion_interval_label = tk.Label(additional_frame,
+                                        text=i18n_manager.get_ui_text("additional_settings.potion_interval") + ":",
+                                        bg=UnifiedStyles.COLORS['bg_secondary'],
+                                        fg=UnifiedStyles.COLORS['text_primary'],
+                                        font=UnifiedStyles.FONTS['label'])
+        potion_interval_label.grid(row=1, column=2, sticky="w",
+                                  padx=UnifiedStyles.SPACING['sm'],
+                                  pady=UnifiedStyles.SPACING['xs'])
+
+        potion_interval_var = tk.IntVar(value=current_config.get('potion_interval', 500))
+        potion_interval_spin = tk.Spinbox(additional_frame, from_=0, to=10000, increment=100,
+                                         textvariable=potion_interval_var, width=10,
+                                         bg=UnifiedStyles.COLORS['input_bg'],
+                                         fg=UnifiedStyles.COLORS['input_text'],
+                                         font=UnifiedStyles.FONTS['input'])
+        potion_interval_spin.grid(row=1, column=3, sticky="w",
+                                 padx=UnifiedStyles.SPACING['sm'],
+                                 pady=UnifiedStyles.SPACING['xs'])
+        potion_interval_var.trace_add('write', lambda *_: self._on_skill_changed('potion_interval', potion_interval_var.get()))
+
+        # Store widgets and variables
+        self.skill_vars['quick_switch'] = quick_switch_input  # Store widget instead of var
+        self.skill_vars['movement'] = movement_input  # Store widget instead of var
+        self.skill_vars['potion'] = potion_input  # Store widget instead of var
+        self.skill_vars['potion_interval'] = potion_interval_var
+
+    def _get_skill_key(self, skill_name):
+        """Convert internationalized skill name to English key"""
+        skill_mapping = {
+            i18n_manager.get_ui_text("main_functions_panel.primary_skill"): "primary_skill",
+            i18n_manager.get_ui_text("main_functions_panel.secondary_skill"): "secondary_skill", 
+            i18n_manager.get_ui_text("main_functions_panel.defensive_skill"): "defensive_skill",
+            i18n_manager.get_ui_text("main_functions_panel.ultimate_skill"): "ultimate_skill",
+            i18n_manager.get_ui_text("skill_config.movement_skill"): "movement_skill",
+            i18n_manager.get_ui_text("skill_config.dodge_skill"): "dodge_skill",
+            i18n_manager.get_ui_text("skill_config.teleport_skill"): "teleport_skill",
+            i18n_manager.get_ui_text("skill_config.healing_potion"): "healing_potion",
+            i18n_manager.get_ui_text("skill_config.mana_potion"): "mana_potion",
+            i18n_manager.get_ui_text("skill_config.town_portal"): "town_portal"
+        }
+        return skill_mapping.get(skill_name, skill_name.lower().replace(" ", "_"))
+
+    def _get_setting_key(self, label_text):
+        """Convert internationalized setting name to English key"""
+        setting_mapping = {
+            i18n_manager.get_ui_text("additional_settings.quick_switch"): "quick_switch",
+            i18n_manager.get_ui_text("additional_settings.movement"): "movement_key",
+            i18n_manager.get_ui_text("additional_settings.potion"): "potion_key"
+        }
+        return setting_mapping.get(label_text, label_text.lower().replace(" ", "_"))
+
+    def _create_additional_settings(self, parent):
+        """Create additional settings section using ConfigBinding"""
+        settings_frame = ttk.LabelFrame(parent, text=i18n_manager.get_ui_text("additional_settings.title"), style='TLabelframe')
+        settings_frame.grid(row=2, column=0, sticky="ew",
+                           padx=UnifiedStyles.SPACING['sm'],
+                           pady=UnifiedStyles.SPACING['sm'])
+        settings_frame.grid_columnconfigure(1, weight=1)
+
+        # Animation speed setting
+        animation_speed_values = [
+            i18n_manager.get_ui_text("main_functions_panel.animation_speed_slow"),
+            i18n_manager.get_ui_text("main_functions_panel.animation_speed_medium"),
+            i18n_manager.get_ui_text("main_functions_panel.animation_speed_fast")
+        ]
+        self._create_config_setting_row(settings_frame, i18n_manager.get_ui_text("main_functions_panel.animation_speed_label"),
+                                       "macro_configs.auxiliary_config.animation_speed",
+                                       animation_speed_values, i18n_manager.get_ui_text("main_functions_panel.animation_speed_medium"), 0)
+
+        # Game language setting
+        game_language_values = [
+            i18n_manager.get_ui_text("main_functions_panel.game_language_simplified"),
+            i18n_manager.get_ui_text("main_functions_panel.game_language_traditional"),
+            i18n_manager.get_ui_text("main_functions_panel.game_language_english")
+        ]
+        self._create_config_setting_row(settings_frame, i18n_manager.get_ui_text("main_functions_panel.game_language_label"),
+                                       "macro_configs.auxiliary_config.game_language",
+                                       game_language_values, i18n_manager.get_ui_text("main_functions_panel.game_language_traditional"), 1)
+
+        # Combat macro hotkey - use HotkeyInput with ConfigBinding
+        self._create_hotkey_input_row(settings_frame,
+                                      i18n_manager.get_ui_text("main_functions_panel.macro_start_hotkey_label"),
+                                      "macro_configs.auxiliary_config.macro_start_hotkey", 2)
+
+        # Auxiliary macro hotkey - use HotkeyInput with ConfigBinding
+        self._create_hotkey_input_row(settings_frame,
+                                      i18n_manager.get_ui_text("main_functions_panel.macro_pause_hotkey_label"),
+                                      "macro_configs.auxiliary_config.assistant_hotkey", 3)
+
+    def _create_setting_row(self, parent, label_text, default_value, values, row):
+        """Create a setting row with label and combobox"""
+        # Label
+        label = tk.Label(parent, text=label_text,
+                        bg=UnifiedStyles.COLORS['bg_secondary'],
+                        fg=UnifiedStyles.COLORS['text_primary'],
+                        font=UnifiedStyles.FONTS['label'])
+        label.grid(row=row, column=0, sticky="w", 
+                  padx=UnifiedStyles.SPACING['sm'], 
+                  pady=UnifiedStyles.SPACING['xs'])
+        
+        # Combobox
+        var = tk.StringVar(value=default_value)
+        combo = ttk.Combobox(parent, textvariable=var, values=values, 
+                            state='readonly', width=10)
+        combo.grid(row=row, column=1, sticky="w", 
+                  padx=UnifiedStyles.SPACING['sm'], 
+                  pady=UnifiedStyles.SPACING['xs'])
+        
+        # Store with English key name
+        setting_key = self._get_setting_key(label_text)
+        self.additional_vars[setting_key] = var
+
+    def _create_config_setting_row(self, parent, label_text, config_key, values, default_value, row):
+        """Create a setting row with ConfigBinding combobox"""
+        # Label
+        label = tk.Label(parent, text=label_text,
+                        bg=UnifiedStyles.COLORS['bg_secondary'],
+                        fg=UnifiedStyles.COLORS['text_primary'],
+                        font=UnifiedStyles.FONTS['label'])
+        label.grid(row=row, column=0, sticky="w",
+                  padx=UnifiedStyles.SPACING['sm'],
+                  pady=UnifiedStyles.SPACING['xs'])
+
+        # Combobox with ConfigBinding
+        combo = ConfigBinding.create_combobox_binding(
+            parent, config_key, values=values, default_value=default_value, width=15
+        )
+        combo.grid(row=row, column=1, sticky="w",
+                  padx=UnifiedStyles.SPACING['sm'],
+                  pady=UnifiedStyles.SPACING['xs'])
+
+    def _create_config_input_row(self, parent, label_text, config_key, default_value, row):
+        """Create a setting row with ConfigBinding input"""
+        # Label
+        label = tk.Label(parent, text=label_text,
+                        bg=UnifiedStyles.COLORS['bg_secondary'],
+                        fg=UnifiedStyles.COLORS['text_primary'],
+                        font=UnifiedStyles.FONTS['label'])
+        label.grid(row=row, column=0, sticky="w",
+                  padx=UnifiedStyles.SPACING['sm'],
+                  pady=UnifiedStyles.SPACING['xs'])
+
+        # Input with ConfigBinding
+        entry = ConfigBinding.create_input_binding(
+            parent, config_key, default_value=default_value, width=15
+        )
+        entry.grid(row=row, column=1, sticky="w",
+                  padx=UnifiedStyles.SPACING['sm'],
+                  pady=UnifiedStyles.SPACING['xs'])
+
+    def _create_hotkey_input_row(self, parent, label_text, config_key, row):
+        """Create a hotkey input row with HotkeyInput widget and ConfigBinding"""
+        # Label
+        label = tk.Label(parent, text=label_text,
+                        bg=UnifiedStyles.COLORS['bg_secondary'],
+                        fg=UnifiedStyles.COLORS['text_primary'],
+                        font=UnifiedStyles.FONTS['label'])
+        label.grid(row=row, column=0, sticky="w",
+                  padx=UnifiedStyles.SPACING['sm'],
+                  pady=UnifiedStyles.SPACING['xs'])
+
+        # Get current value from CONFIG
+        config_parts = config_key.split('.')
+        current_value = CONFIG
+        for part in config_parts:
+            current_value = current_value.get(part, {})
+        # If not found or not a string, use empty string (user will input)
+        if not isinstance(current_value, str):
+            current_value = ""
+
+        # Helper function to save hotkey to CONFIG
+        def on_hotkey_change(hotkey):
+            # Navigate to the config location and set value
+            config_parts = config_key.split('.')
+            config_obj = CONFIG
+            for part in config_parts[:-1]:
+                if part not in config_obj:
+                    config_obj[part] = {}
+                config_obj = config_obj[part]
+            config_obj[config_parts[-1]] = hotkey
+            save_config()
+            ColorPrint.blue(f"[ConfigBinding-Hotkey] {config_key} = {hotkey}")
+
+        # HotkeyInput widget with high contrast styling passed as parameters
+        hotkey_input = HotkeyInput(
+            parent,
+            initial_value=current_value,
+            on_change=on_hotkey_change,
+            width=15,
+            # High contrast styling parameters
+            bg=UnifiedStyles.COLORS['input_bg'],
+            fg=UnifiedStyles.COLORS['input_text'],
+            selectbackground=UnifiedStyles.COLORS['accent'],
+            selectforeground=UnifiedStyles.COLORS['text_primary'],
+            insertbackground=UnifiedStyles.COLORS['text_primary'],
+            relief=tk.RIDGE,
+            bd=2,
+            highlightbackground=UnifiedStyles.COLORS['input_border'],
+            highlightcolor=UnifiedStyles.COLORS['accent'],
+            highlightthickness=2
+        )
+        hotkey_input.grid(row=row, column=1, sticky="w",
+                         padx=UnifiedStyles.SPACING['sm'],
+                         pady=UnifiedStyles.SPACING['xs'])
+
+    def _create_basic_info_panel(self):
+        """Create basic info display panel"""
+        info_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("basic_info.title"), style='TLabelframe')
+        info_frame.grid(row=0, column=1, sticky="nsew", 
+                       padx=(UnifiedStyles.SPACING['sm'], 0), 
+                       pady=UnifiedStyles.SPACING['xs'])
+        
+        # Create text widget for info display
+        self.info_text = tk.Text(info_frame, 
+                                bg=UnifiedStyles.COLORS['bg_secondary'],
+                                fg=UnifiedStyles.COLORS['text_primary'],
+                                font=UnifiedStyles.FONTS['code'],
+                                wrap=tk.WORD,
+            height=15,
+                                width=35)
+        self.info_text.pack(fill=tk.BOTH, expand=True, 
+                           padx=UnifiedStyles.SPACING['sm'], 
+                           pady=UnifiedStyles.SPACING['sm'])
+
     def _update_config_info(self):
         """Update configuration info display"""
         try:
-            if hasattr(self, 'config_info_text'):
-                from providor.providor_index import CONFIG_USER_PATH
-                from pathlib import Path
-                
-                config_file = Path(CONFIG_USER_PATH)
-                info_text = f"""当前配置信息:
-配置文件: {CONFIG_USER_PATH}
-文件存在: {'是' if config_file.exists() else '否'}
-文件大小: {config_file.stat().st_size if config_file.exists() else 0} 字节
-可用配置: config1, config2, config3, config4
+            if hasattr(self, 'info_text'):
+                self.info_text.delete(1.0, tk.END)
 
-当前技能配置: {self.current_config}
+                # Get current config from CONFIG
+                current_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(self.current_config, {})
+                skills_config = current_config.get("skills", {})
+
+                movement_key = current_config.get('movement', 'Space')
+                if movement_key == 'Space':
+                    movement_key = i18n_manager.get_ui_text("main_functions_panel.space_key")
+
+                info_text = f"""{i18n_manager.get_ui_text("main_functions_panel.current_config")}: {self.current_config}
+
+{i18n_manager.get_ui_text("main_functions_panel.config_file_path")}:
+{CONFIG_USER_PATH}
+
+{i18n_manager.get_ui_text("main_functions_panel.skill_config")}:
+- {i18n_manager.get_ui_text("main_functions_panel.skill1")}: {skills_config.get('skill1', {}).get('key', '1')}
+- {i18n_manager.get_ui_text("main_functions_panel.skill2")}: {skills_config.get('skill2', {}).get('key', '2')}
+- {i18n_manager.get_ui_text("main_functions_panel.skill3")}: {skills_config.get('skill3', {}).get('key', '3')}
+- {i18n_manager.get_ui_text("main_functions_panel.skill4")}: {skills_config.get('skill4', {}).get('key', '4')}
+
+{i18n_manager.get_ui_text("main_functions_panel.additional_settings")}:
+- {i18n_manager.get_ui_text("main_functions_panel.quick_switch_key")}: {current_config.get('quick_switch', 'F1')}
+- {i18n_manager.get_ui_text("main_functions_panel.movement_key")}: {movement_key}
+- {i18n_manager.get_ui_text("main_functions_panel.potion_key")}: {current_config.get('potion', 'Q')}
+- {i18n_manager.get_ui_text("main_functions_panel.potion_interval")}: {current_config.get('potion_interval', 500)}ms
+
+{i18n_manager.get_ui_text("status_bar.status")}: {i18n_manager.get_ui_text("main_functions_panel.status_config_loaded")}
 """
-                self.config_info_text.delete(1.0, tk.END)
-                self.config_info_text.insert(1.0, info_text)
+                self.info_text.insert(1.0, info_text)
         except Exception as e:
-            ColorPrint.red(f"[UI] Failed to update config info: {e}")
-    
-    def _switch_config(self, config_name):
-        """Switch to different configuration"""
+            ColorPrint.red(f"[MainFunctionsPanel] Failed to update config info: {e}")
+
+    def _on_skill_changed(self, skill_key, value):
+        """Handle skill configuration change"""
         try:
-            self.current_config = config_name
-            self._update_tab_highlight()
-            
-            # Load configuration data
-            from providor.providor_index import CONFIG
-            skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(config_name, {})
-            if skill_config:
-                self._load_skill_config(skill_config)
-            
-            # Call callback
-            if self.on_skill_config_switch:
-                self.on_skill_config_switch(config_name)
-            
-            ColorPrint.blue(f"[UI] Switched to configuration: {config_name}")
-            
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to switch configuration: {e}")
-    
-    def _load_skill_config(self, config_data):
-        """Load skill configuration data"""
-        try:
-            skills = config_data.get('skills', {})
-            
-            for skill_name, skill_data in skills.items():
-                if skill_name in self.skill_vars:
-                    self.skill_vars[skill_name].set(skill_data.get('key', ''))
-                    self.strategy_vars[skill_name].set(skill_data.get('strategy', '连续'))
-                    self.interval_vars[skill_name].set(str(skill_data.get('interval', 100)))
-                    self.delay_vars[skill_name].set(str(skill_data.get('delay', 0)))
-                    self.random_delay_vars[skill_name].set(str(skill_data.get('random_delay', 0)))
-            
-            # Load additional settings
-            self.quick_switch_var.set(config_data.get('quick_switch', 'F1'))
-            self.movement_var.set(config_data.get('movement', '空格'))
-            self.potion_var.set(config_data.get('potion', 'Q'))
-            self.potion_interval_var.set(str(config_data.get('potion_interval', 500)))
-            
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to load skill configuration: {e}")
-    
-    def _update_tab_highlight(self):
-        """Update tab button highlighting"""
-        for config_name, button in self.tab_buttons.items():
-            if config_name == self.current_config:
-                button.configure(style='Accent.TButton')
+            # Ensure macro_configs structure exists
+            if "macro_configs" not in CONFIG:
+                CONFIG["macro_configs"] = {}
+            if "skill_configs" not in CONFIG["macro_configs"]:
+                CONFIG["macro_configs"]["skill_configs"] = {}
+            if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
+                CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
+
+            # Handle different types of configuration
+            if skill_key in ["movement", "quick_switch", "potion", "potion_interval"]:
+                # Direct config items (not under skills)
+                # Convert potion_interval to int
+                if skill_key == "potion_interval":
+                    try:
+                        value = int(value)
+                    except (ValueError, tk.TclError):
+                        value = 500
+                CONFIG["macro_configs"]["skill_configs"][self.current_config][skill_key] = value
             else:
-                button.configure(style='TButton')
-    
-    def get_current_config(self):
-        """Get current configuration name"""
-        return self.current_config
-    
-    def set_config_change_callback(self, callback):
-        """Set configuration change callback"""
-        self.on_config_change = callback
-    
-    def set_skill_config_switch_callback(self, callback):
-        """Set skill config switch callback"""
-        self.on_skill_config_switch = callback
+                # Skills configuration
+                if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
+                    CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
+                if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
+                    CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
+
+                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key]["key"] = value
+
+            # Save configuration
+            save_config()
+
+            ColorPrint.green(f"[MainFunctionsPanel] {skill_key} updated to: {value}")
+        except Exception as e:
+            ColorPrint.red(f"[MainFunctionsPanel] Error updating {skill_key}: {e}")
+
+    def _on_config_changed(self, event=None):
+        """Handle configuration change"""
+        if hasattr(self, 'config_combo'):
+            new_config = self.config_combo.get()
+            if new_config != self.current_config:
+                self.current_config = new_config
+
+                # ConfigBinding will auto-save, no need to manually save here
+
+                # Update bottom bar with current config
+                if self.bottom_bar:
+                    self.bottom_bar.update_config_status(new_config)
+
+                self._update_config_info()
+                # Recreate skill tabs with new config
+                self._recreate_skill_tabs()
+                ColorPrint.green(f"[MainFunctionsPanel] Configuration changed to: {new_config}")
+
+    def _recreate_skill_tabs(self):
+        """Recreate skill configuration with updated configuration"""
+        try:
+            # Destroy existing skills frame if it exists
+            if hasattr(self, 'skills_config_frame'):
+                self.skills_config_frame.destroy()
+
+            # Clear skill variables to avoid conflicts
+            self.skill_vars.clear()
+
+            # Recreate the skills configuration frame
+            # Find the parent frame (should be the skill_frame in _create_skill_panel)
+            # We need to get the parent from the original container
+            parent = self.container.grid_slaves(row=0, column=0)[0]  # Get the skill_frame
+
+            # Recreate skill configuration
+            self._create_skill_tabs(parent)
+
+            # Update config info display
+            self._update_config_info()
+        except Exception as e:
+            ColorPrint.red(f"[MainFunctionsPanel] Error recreating skill configuration: {e}")
+
+# Language change is now handled by main UI - no individual panel methods needed

@@ -23,6 +23,23 @@ $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "
 $script:COMMON_FUNC_PATH = Join-Path $script:WIN_COMMON_DIR "CommanFunc.ps1"
 $script:WINDOWS_PATH_FUNCTION_PATH = Join-Path $script:WIN_COMMON_DIR "WindowsPathFunction.ps1"
 
+# Global variables for file management
+$script:SelectedFileAction = $null          # "new" or file path for replacement
+$script:SelectedFileText = $null            # Display text of selected option
+$script:SelectedFileIndex = -1              # Index of selected menu item
+$script:IsReplacingFile = $false            # Boolean flag for replacement mode
+$script:TargetFilePath = $null              # Full path of target file for replacement
+
+# Global variables for current operation
+$script:CurrentConfigName = $null           # Current configuration being processed
+$script:CurrentConfig = $null               # Current configuration object
+$script:CurrentCommandPrefix = $null        # Current command prefix (e.g., "claude", "aliyun")
+$script:CurrentFileNumber = 1               # Current file number for auto-increment
+$script:CurrentWinEnvsDir = $null           # Current .winenvs directory path
+$script:CurrentFileName = $null             # Current file name being generated
+$script:CurrentBatchContent = $null         # Current batch file content
+$script:CurrentPsCommand = $null            # Current PowerShell command to execute
+
 # Load common functions
 . $script:COMMON_FUNC_PATH
 . $script:WINDOWS_PATH_FUNCTION_PATH
@@ -73,11 +90,32 @@ function Get-EnvironmentVariable {
 
 #endregion
 
+#region Configuration Mapping
+$script:ActionToConfigMapping = @{
+    'claude' = 'Claude AI'
+    'alibaba' = 'Alibaba Cloud'
+}
+
+function Get-FullConfigName {
+    param(
+        [Parameter(Mandatory=$true)] [string]$Action
+    )
+    
+    if ($script:ActionToConfigMapping.ContainsKey($Action)) {
+        return $script:ActionToConfigMapping[$Action]
+    }
+    return $Action
+}
+#endregion
+
 #region Environment Variables Configuration
 $script:EnvironmentConfigs = @{
     "Claude AI" = @{
         Title = "Claude AI Environment Variables"
         Description = "Set up Claude AI environment variables for API access"
+        Common = "claude"
+        CommandPrefix = "claude"
+        DisplayName = "Claude AI"
         Variables = @(
             @{
                 Name = "ANTHROPIC_BASE_URL"
@@ -96,6 +134,9 @@ $script:EnvironmentConfigs = @{
     "Alibaba Cloud" = @{
         Title = "Alibaba Cloud Environment Variables"
         Description = "Set up Alibaba Cloud environment variables for API access"
+        Common = "alibaba"
+        CommandPrefix = "aliyun"
+        DisplayName = "Alibaba Cloud"
         Variables = @(
             @{
                 Name = "ALIBABA_CLOUD_ACCESS_KEY_ID"
@@ -131,6 +172,771 @@ $script:EnvironmentConfigs = @{
     #     )
     # }
 }
+#endregion
+
+#region Script Generation Functions
+
+function Get-CommonName {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+    
+    if ($script:EnvironmentConfigs.ContainsKey($ConfigName)) {
+        return $script:EnvironmentConfigs[$ConfigName].Common
+    }
+    return $null
+}
+
+function Get-ListScriptName {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+    
+    if ($script:EnvironmentConfigs.ContainsKey($ConfigName)) {
+        $config = $script:EnvironmentConfigs[$ConfigName]
+        # Use CommandPrefix if available, otherwise fall back to Common
+        if ($config.CommandPrefix) {
+            return "${config.CommandPrefix}list"
+        } elseif ($config.Common) {
+            return "${config.Common}list"
+        }
+    }
+    return $null
+}
+
+function Get-ExistingScripts {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+    
+    $listScriptName = Get-ListScriptName -ConfigName $ConfigName
+    if (-not $listScriptName) {
+        return @()
+    }
+    
+    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    if (-not (Test-Path $winEnvsDir)) {
+        return @()
+    }
+    
+    $pattern = "${listScriptName}*"
+    $scripts = Get-ChildItem -Path $winEnvsDir -Filter $pattern -File | Sort-Object Name
+    return $scripts
+}
+
+function Show-ExistingScriptsMenu {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName,
+        [Parameter(Mandatory=$false)] [array]$Scripts = @()
+    )
+    
+    if ($Scripts.Count -eq 0) {
+        return "new"
+    }
+    
+    $menuItems = @(
+        @{ Text = "Create new script"; Action = "new" }
+    )
+    
+    foreach ($script in $Scripts) {
+        $menuItems += @{ Text = "Replace: $($script.Name)"; Action = $script.FullName }
+    }
+    
+    $selectedIndex = 0
+    
+    while ($true) {
+        Clear-Host
+        Write-ColorMessage -Message "Script Management for $ConfigName" -Type "Info"
+        Write-ColorMessage -Message "Use Up/Down arrows to navigate, Enter to select" -Type "Info"
+        Write-ColorMessage -Message "=" -Type "Info"
+        
+        for ($i = 0; $i -lt $menuItems.Count; $i++) {
+            if ($i -eq $selectedIndex) {
+                Write-Host "> $($menuItems[$i].Text)" -ForegroundColor Yellow
+            } else {
+                Write-Host "  $($menuItems[$i].Text)" -ForegroundColor White
+            }
+        }
+        
+        $key = [Console]::ReadKey($true).Key
+        
+        switch ($key) {
+            'UpArrow' {
+                $selectedIndex = if ($selectedIndex -gt 0) { $selectedIndex - 1 } else { $menuItems.Count - 1 }
+            }
+            'DownArrow' {
+                $selectedIndex = if ($selectedIndex -lt $menuItems.Count - 1) { $selectedIndex + 1 } else { 0 }
+            }
+            'Enter' {
+                return $menuItems[$selectedIndex].Action
+            }
+        }
+    }
+}
+
+function Generate-EnvironmentScript {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName,
+        [Parameter(Mandatory=$false)] [string]$TargetScriptPath = $null
+    )
+    
+    if (-not $script:EnvironmentConfigs.ContainsKey($ConfigName)) {
+        Write-ColorMessage -Message "Configuration '$ConfigName' not found." -Type "Error"
+        return $false
+    }
+    
+    $config = $script:EnvironmentConfigs[$ConfigName]
+    
+    Clear-Host
+    Write-ColorMessage -Message "Generate $($config.Title) Script" -Type "Info"
+    Write-ColorMessage -Message $config.Description -Type "Info"
+    Write-ColorMessage -Message ("=" * $config.Title.Length) -Type "Info"
+    
+    # Get user input for each variable
+    $envCommands = @()
+    $envCommands += "# Environment variables for $($config.Title)"
+    $envCommands += "# Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    $envCommands += ""
+    
+    foreach ($var in $config.Variables) {
+        $prompt = "Please enter $($var.DisplayName):"
+        if ($var.Description) {
+            $prompt += "`nDescription: $($var.Description)"
+        }
+        
+        Write-ColorMessage -Message $prompt -Type "Info"
+        $userInput = Read-Host $var.DisplayName
+        
+        if (-not [string]::IsNullOrWhiteSpace($userInput)) {
+            $envCommands += "`$env:$($var.Name) = `"$userInput`""
+        } else {
+            $envCommands += "# `$env:$($var.Name) = `"`"  # Not set"
+        }
+    }
+    
+    # Generate script number
+    $existingScripts = Get-ExistingScripts -ConfigName $ConfigName
+    $scriptNumber = $existingScripts.Count + 1
+    
+    # Generate script filename
+    if (-not $TargetScriptPath) {
+        $listScriptName = Get-ListScriptName -ConfigName $ConfigName
+        $scriptName = "${listScriptName}${scriptNumber}.ps1"
+        $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+        $TargetScriptPath = Join-Path $winEnvsDir $scriptName
+    }
+    
+    # Create PowerShell script content
+    $scriptContent = @"
+# $($config.Title) Environment Script
+# Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+
+# Set environment variables
+$($envCommands -join "`n")
+
+# Display status
+Write-Host "Environment variables set for $($config.Title):" -ForegroundColor Green
+foreach (`$var in @($($config.Variables | ForEach-Object { "`"$($_.Name)`"" } | Join-String -Separator ", "))) {
+    `$value = [Environment]::GetEnvironmentVariable(`$var)
+    if (`$value) {
+        Write-Host "  `$var = [SET]" -ForegroundColor Yellow
+    } else {
+        Write-Host "  `$var = [NOT SET]" -ForegroundColor Red
+    }
+}
+"@
+    
+    try {
+        # Ensure directory exists
+        $scriptDir = Split-Path $TargetScriptPath -Parent
+        if (-not (Test-Path $scriptDir)) {
+            New-Item -ItemType Directory -Path $scriptDir -Force | Out-Null
+        }
+        
+        # Write script file
+        $scriptContent | Out-File -FilePath $TargetScriptPath -Encoding UTF8 -Force
+        
+        # Add to winenvs using the existing function
+        & $script:WINDOWS_PATH_FUNCTION_PATH "addfile" $TargetScriptPath
+        
+        Write-ColorMessage -Message "Script generated successfully: $TargetScriptPath" -Type "Success"
+        Write-ColorMessage -Message "Script has been added to .winenvs directory" -Type "Success"
+        
+        return $true
+    } catch {
+        Write-ColorMessage -Message "Failed to generate script: $($_.Exception.Message)" -Type "Error"
+        return $false
+    }
+}
+
+function Show-ListScripts {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+    
+    $commandPrefix = Get-CommandPrefix -ConfigName $ConfigName
+    if (-not $commandPrefix) {
+        Write-ColorMessage -Message "No command prefix found for $ConfigName" -Type "Error"
+        return
+    }
+    
+    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    if (-not (Test-Path $winEnvsDir)) {
+        Write-ColorMessage -Message ".winenvs directory not found" -Type "Error"
+        return
+    }
+    
+    $files = Get-ExistingFiles -ConfigName $ConfigName
+    $listScriptName = "${commandPrefix}list"
+    
+    Clear-Host
+    Write-ColorMessage -Message "Available Files for $ConfigName" -Type "Info"
+    Write-ColorMessage -Message "Pattern: ${commandPrefix}*" -Type "Info"
+    Write-ColorMessage -Message ("=" * 50) -Type "Info"
+    
+    if ($files.Count -eq 0) {
+        Write-ColorMessage -Message "No files found matching pattern: ${commandPrefix}*" -Type "Warning"
+    } else {
+        foreach ($file in $files) {
+            Write-ColorMessage -Message "  $($file.Name)" -Type "Info"
+        }
+    }
+    
+    Write-ColorMessage -Message "`nList script: ${listScriptName}.bat" -Type "Info"
+    Write-ColorMessage -Message "Press any key to continue..." -Type "Info"
+    $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+
+#endregion
+
+#region Global Command Functions
+
+function Get-ConfigDisplayName {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+    
+    if ($script:EnvironmentConfigs.ContainsKey($ConfigName)) {
+        $config = $script:EnvironmentConfigs[$ConfigName]
+        return $config.DisplayName
+    }
+    return $ConfigName
+}
+
+function Get-CommandPrefix {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+    
+    if ($script:EnvironmentConfigs.ContainsKey($ConfigName)) {
+        $config = $script:EnvironmentConfigs[$ConfigName]
+        # Use CommandPrefix if available, otherwise fall back to Common
+        if ($config.CommandPrefix) {
+            return $config.CommandPrefix
+        } elseif ($config.Common) {
+            return $config.Common
+        }
+    }
+    return $null
+}
+
+function Get-ExistingFiles {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+    
+    # DEBUG: Check global variables
+    Write-ColorMessage -Message "DEBUG: LANG_COMPILER_DIR: $Global:LANG_COMPILER_DIR" -Type "Info"
+    Write-ColorMessage -Message "DEBUG: WINENVS_DIR: $Global:WINENVS_DIR" -Type "Info"
+    
+    $filePrefix = Get-CommandPrefix -ConfigName $ConfigName
+    Write-ColorMessage -Message "DEBUG: filePrefix: $filePrefix" -Type "Info"
+    if (-not $filePrefix) {
+        return @()
+    }
+    
+    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    Write-ColorMessage -Message "DEBUG: winEnvsDir: $winEnvsDir" -Type "Info"
+    if (-not (Test-Path $winEnvsDir)) {
+        return @()
+    }
+    
+    # Scan for existing files to avoid naming conflicts
+    # Look for files like claude1.bat, claude2.bat, aliyun1.bat, aliyun2.bat
+    Write-ColorMessage -Message "Scanning directory: $winEnvsDir" -Type "Info"
+    Write-ColorMessage -Message "Looking for patternA: ${filePrefix}*" -Type "Info"
+    
+    # Get all files matching the prefix pattern
+    $files = Get-ChildItem -Path $winEnvsDir -Filter "${filePrefix}*" -File -ErrorAction SilentlyContinue
+    
+    # DEBUG: Check what Get-ChildItem returns
+    if ($null -eq $files) {
+        Write-ColorMessage -Message "DEBUG: files is null" -Type "Info"
+    } else {
+        Write-ColorMessage -Message "DEBUG: files type: $($files.GetType().Name)" -Type "Info"
+        Write-ColorMessage -Message "DEBUG: files value: $files" -Type "Info"
+    }
+    
+    # Get-ChildItem returns $null when no files found, so we need to handle this
+    if ($null -eq $files) {
+        $allFiles = @()
+    } else {
+        $allFiles = @($files)
+    }
+    
+    # DEBUG: Check what allFiles becomes
+    if ($null -eq $allFiles) {
+        Write-ColorMessage -Message "DEBUG: allFiles is null" -Type "Info"
+    } else {
+        Write-ColorMessage -Message "DEBUG: allFiles type: $($allFiles.GetType().Name)" -Type "Info"
+        Write-ColorMessage -Message "DEBUG: allFiles is null: $($null -eq $allFiles)" -Type "Info"
+        Write-ColorMessage -Message "DEBUG: allFiles has Count: $($allFiles -is [array])" -Type "Info"
+    }
+    
+    Write-ColorMessage -Message "Found $($allFiles.Count) files matching pattern" -Type "Info"
+    
+    # Show all files found
+    foreach ($file in $allFiles) {
+        Write-ColorMessage -Message "  - $($file.Name)" -Type "Info"
+    }
+    
+    # Always return an array of file objects, never null
+    return $allFiles
+}
+
+function Show-ExistingFilesMenu {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName,
+        [Parameter(Mandatory=$false)] [array]$Files = @()
+    )
+    
+    # Ensure Files is always an array
+    $Files = @($Files)
+    
+    # Get file prefix
+    $filePrefix = Get-CommandPrefix -ConfigName $ConfigName
+    if ([string]::IsNullOrWhiteSpace($filePrefix)) {
+        Write-ColorMessage -Message "No file prefix found for $ConfigName" -Type "Error"
+        return "new"
+    }
+    
+    # If no files exist, directly create new file
+    if ($Files.Count -eq 0) {
+        return "new"
+    }
+    
+    # Calculate next available file number - find the first available number starting from 1
+    $nextFileNumber = 1
+    $existingNumbers = @()
+    
+    # Extract existing file numbers
+    foreach ($file in $Files) {
+        if ($null -ne $file -and $file.Name -match "^${filePrefix}(\d+)\.bat$") {
+            $existingNumbers += [int]$matches[1]
+        }
+    }
+    
+    # Find the first available number starting from 1
+    while ($existingNumbers -contains $nextFileNumber) {
+        $nextFileNumber++
+    }
+    
+    $nextFileName = "${filePrefix}${nextFileNumber}.bat"
+    
+    $menuItems = @()
+    
+    # Add option to create new file
+    $menuItems += @{ Text = "Create new file: $nextFileName (auto-increment)"; Action = "new" }
+    
+    # Add options to replace existing files
+    Write-ColorMessage -Message "DEBUG: Processing $($Files.Count) files for replacement options" -Type "Info"
+    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    foreach ($file in $Files) {
+        if ($null -ne $file -and $file.Name) {
+            # Build full path manually since $file.FullName might be empty
+            $fullPath = Join-Path $winEnvsDir $file.Name
+            Write-ColorMessage -Message "DEBUG: File - Name: '$($file.Name)', FullName: '$($file.FullName)', Built Path: '$fullPath'" -Type "Info"
+            $menuItems += @{ Text = "Replace existing: $($file.Name)"; Action = $fullPath }
+        } else {
+            Write-ColorMessage -Message "DEBUG: Skipping file - Name: '$($file.Name)', FullName: '$($file.FullName)'" -Type "Warning"
+        }
+    }
+    
+    $selectedIndex = 0
+    
+    while ($true) {
+        Clear-Host
+        Write-ColorMessage -Message "File Management for $ConfigName Files" -Type "Info"
+        Write-ColorMessage -Message "Use Up/Down arrows to navigate, Enter to select" -Type "Info"
+        Write-ColorMessage -Message "=" -Type "Info"
+        
+        for ($i = 0; $i -lt $menuItems.Count; $i++) {
+            if ($i -eq $selectedIndex) {
+                Write-Host "> $($menuItems[$i].Text)" -ForegroundColor Yellow
+            } else {
+                Write-Host "  $($menuItems[$i].Text)" -ForegroundColor White
+            }
+        }
+        
+        $key = [Console]::ReadKey($true).Key
+        
+        switch ($key) {
+            'UpArrow' {
+                $selectedIndex = if ($selectedIndex -gt 0) { $selectedIndex - 1 } else { $menuItems.Count - 1 }
+            }
+            'DownArrow' {
+                $selectedIndex = if ($selectedIndex -lt $menuItems.Count - 1) { $selectedIndex + 1 } else { 0 }
+            }
+            'Enter' {
+                $script:SelectedFileAction = $menuItems[$selectedIndex].Action
+                $script:SelectedFileText = $menuItems[$selectedIndex].Text
+                $script:SelectedFileIndex = $selectedIndex
+                
+                # Set replacement mode flags
+                if ($script:SelectedFileAction -eq "new") {
+                    $script:IsReplacingFile = $false
+                    $script:TargetFilePath = $null
+                } else {
+                    $script:IsReplacingFile = $true
+                    $script:TargetFilePath = $script:SelectedFileAction
+                }
+                
+                # Debug information
+                Write-ColorMessage -Message "DEBUG: Selected file menu item: '$script:SelectedFileText'" -Type "Info"
+                Write-ColorMessage -Message "DEBUG: Selected file action: '$script:SelectedFileAction'" -Type "Info"
+                Write-ColorMessage -Message "DEBUG: Selected file index: $script:SelectedFileIndex" -Type "Info"
+                Write-ColorMessage -Message "DEBUG: Is replacing file: $script:IsReplacingFile" -Type "Info"
+                Write-ColorMessage -Message "DEBUG: Target file path: '$script:TargetFilePath'" -Type "Info"
+                Write-ColorMessage -Message "Press any key to continue..." -Type "Info"
+                $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                
+                # Return immediately (no need to return value)
+                return
+            }
+        }
+    }
+}
+
+function Generate-ListScript {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+    
+    if (-not $script:EnvironmentConfigs.ContainsKey($ConfigName)) {
+        Write-ColorMessage -Message "Configuration '$ConfigName' not found." -Type "Error"
+        return $false
+    }
+    
+    $config = $script:EnvironmentConfigs[$ConfigName]
+    $commandPrefix = Get-CommandPrefix -ConfigName $ConfigName
+    if (-not $commandPrefix) {
+        Write-ColorMessage -Message "No command prefix found for $ConfigName" -Type "Error"
+        return $false
+    }
+    
+    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    if (-not (Test-Path $winEnvsDir)) {
+        Write-ColorMessage -Message ".winenvs directory not found" -Type "Error"
+        return $false
+    }
+    
+    # Find all existing files
+    $existingFiles = Get-ExistingFiles -ConfigName $ConfigName
+    
+    # Generate list script content
+    $listScriptName = "${commandPrefix}list"
+    $listScriptPath = Join-Path $winEnvsDir "${listScriptName}.bat"
+    
+    $listScriptContent = @"
+@echo off
+setlocal enabledelayedexpansion
+REM $($config.Title) Command List with Delete Function
+REM Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+
+echo.
+echo $($config.Title) Available Commands:
+echo =====================================
+echo.
+
+if not exist "%~dp0${commandPrefix}*.bat" (
+    echo No ${commandPrefix} commands found.
+    echo.
+    pause
+    exit /b
+)
+
+set /a counter=0
+for %%f in ("%~dp0${commandPrefix}*.bat") do (
+    set /a counter+=1
+    echo   !counter!. %%~nf
+)
+
+echo.
+echo Total: $($existingFiles.Count) files available
+echo.
+echo =====================================
+echo File Management Options:
+echo =====================================
+echo 1. Delete a file (enter file number)
+echo 2. Exit
+echo.
+set /p choice="Enter your choice (1-2): "
+
+if "%choice%"=="1" goto :delete_file
+if "%choice%"=="2" goto :end
+echo Invalid choice. Please try again.
+pause
+goto :end
+
+:delete_file
+echo.
+set /p file_num="Enter file number to delete: "
+if "%file_num%"=="" goto :end
+
+set /a counter=0
+for %%f in ("%~dp0${commandPrefix}*.bat") do (
+    set /a counter+=1
+    if !counter!==%file_num% (
+        echo.
+        echo File to delete: %%~nf
+        set /p confirm="Are you sure you want to delete this file? (Y/N): "
+        if /i "%confirm%"=="Y" (
+            del "%%f"
+            echo File deleted successfully: %%~nf
+        ) else (
+            echo Deletion cancelled.
+        )
+        echo.
+        pause
+        goto :end
+    )
+)
+
+echo File number %file_num% not found.
+pause
+goto :end
+
+:end
+echo.
+echo Press any key to exit...
+pause >nul
+"@
+    
+    try {
+        $listScriptContent | Out-File -FilePath $listScriptPath -Encoding ASCII -Force
+        Write-ColorMessage -Message "List script generated: $listScriptPath" -Type "Success"
+        return $true
+    } catch {
+        Write-ColorMessage -Message "Failed to generate list script: $($_.Exception.Message)" -Type "Error"
+        return $false
+    }
+}
+
+function Generate-GlobalCommand {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName,
+        [Parameter(Mandatory=$false)] [string]$TargetCommandPath = $null
+    )
+    
+    # DEBUG: Print function parameters
+    Write-ColorMessage -Message "DEBUG: Generate-GlobalCommand called with ConfigName: '$ConfigName'" -Type "Info"
+    Write-ColorMessage -Message "DEBUG: Generate-GlobalCommand called with TargetCommandPath: '$TargetCommandPath'" -Type "Info"
+    Write-ColorMessage -Message "DEBUG: TargetCommandPath is null: $($null -eq $TargetCommandPath)" -Type "Info"
+    Write-ColorMessage -Message "DEBUG: TargetCommandPath is empty: $([string]::IsNullOrEmpty($TargetCommandPath))" -Type "Info"
+    
+    if (-not $script:EnvironmentConfigs.ContainsKey($ConfigName)) {
+        Write-ColorMessage -Message "Configuration '$ConfigName' not found." -Type "Error"
+        return $false
+    }
+    
+    # Initialize global variables for current operation
+    $script:CurrentConfigName = $ConfigName
+    $script:CurrentConfig = $script:EnvironmentConfigs[$ConfigName]
+    $script:CurrentCommandPrefix = Get-CommandPrefix -ConfigName $ConfigName
+    $script:CurrentFileNumber = 1
+    $script:CurrentWinEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    $script:CurrentFileName = $null
+    $script:CurrentBatchContent = $null
+    $script:CurrentPsCommand = $script:CurrentConfig.Common
+    
+    # Initialize local variables
+    $envCommands = @()
+    $psEnvVars = @()
+    
+    # Validate configuration
+    if ($null -eq $script:CurrentConfig) {
+        Write-ColorMessage -Message "Configuration '$ConfigName' not found." -Type "Error"
+        return $false
+    }
+    
+    # Validate command prefix
+    if ([string]::IsNullOrWhiteSpace($script:CurrentCommandPrefix)) {
+        Write-ColorMessage -Message "No command prefix found for $ConfigName" -Type "Error"
+        return $false
+    }
+    
+    Clear-Host
+    Write-ColorMessage -Message "Generate $($script:CurrentConfig.Title) Global Command" -Type "Info"
+    Write-ColorMessage -Message $script:CurrentConfig.Description -Type "Info"
+    Write-ColorMessage -Message ("=" * $script:CurrentConfig.Title.Length) -Type "Info"
+    
+    # Display operation type using global variables
+    if ($script:IsReplacingFile) {
+        $targetFileName = Split-Path $script:TargetFilePath -Leaf
+        Write-ColorMessage -Message "Operation: Replacing existing file '$targetFileName'" -Type "Warning"
+    } else {
+        Write-ColorMessage -Message "Operation: Creating new file" -Type "Success"
+    }
+    Write-Host ""
+    
+    # Initialize environment variables for PowerShell
+    $envCommands += "REM Environment variables for $($script:CurrentConfig.Title)"
+    $envCommands += "REM Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    $envCommands += ""
+    
+    foreach ($var in $script:CurrentConfig.Variables) {
+        $prompt = "Please enter $($var.DisplayName):"
+        if ($var.Description) {
+            $prompt += "`nDescription: $($var.Description)"
+        }
+        
+        Write-ColorMessage -Message $prompt -Type "Info"
+        $userInput = Read-Host $var.DisplayName
+        
+        if (-not [string]::IsNullOrWhiteSpace($userInput)) {
+            # Add to batch file for display
+            $envCommands += "echo Setting $($var.Name)=$userInput"
+            $envCommands += "set $($var.Name)=$userInput"
+            # Add to PowerShell environment variables
+            $psEnvVars += "`$env:$($var.Name)='$userInput'"
+        } else {
+            $envCommands += "echo Skipping $($var.Name) (not set)"
+            $envCommands += "REM set $($var.Name)=  # Not set"
+        }
+    }
+    
+    # Use the Common value from config as the command to execute
+    if ([string]::IsNullOrWhiteSpace($script:CurrentPsCommand)) {
+        Write-ColorMessage -Message "No command specified in configuration." -Type "Error"
+        return $false
+    }
+    
+    Write-ColorMessage -Message "Command to execute: $script:CurrentPsCommand" -Type "Info"
+    
+    # Generate command filename - always generate to .winenvs directory
+    if (-not (Test-Path $script:CurrentWinEnvsDir)) {
+        New-Item -ItemType Directory -Path $script:CurrentWinEnvsDir -Force | Out-Null
+        Write-ColorMessage -Message "Created .winenvs directory: $script:CurrentWinEnvsDir" -Type "Info"
+    }
+    
+    # Use global variables to determine file generation mode
+    if ($script:IsReplacingFile) {
+        Write-ColorMessage -Message "DEBUG: Replacing existing file using global variables" -Type "Info"
+        # Use the target file path from global variables
+        $script:CurrentFileName = Split-Path $script:TargetFilePath -Leaf
+        $TargetCommandPath = Join-Path $script:CurrentWinEnvsDir $script:CurrentFileName
+        
+        Write-ColorMessage -Message "DEBUG: Target file path: $script:TargetFilePath" -Type "Info"
+        Write-ColorMessage -Message "DEBUG: Extracted filename: $script:CurrentFileName" -Type "Info"
+        Write-ColorMessage -Message "DEBUG: Final target path: $TargetCommandPath" -Type "Info"
+        
+        # Extract file number from filename for display purposes
+        if ($script:CurrentFileName -match "^${script:CurrentCommandPrefix}(\d+)\.bat$") {
+            $script:CurrentFileNumber = [int]$matches[1]
+            Write-ColorMessage -Message "DEBUG: Extracted file number: $script:CurrentFileNumber" -Type "Info"
+        } else {
+            $script:CurrentFileNumber = 1  # fallback
+            Write-ColorMessage -Message "DEBUG: Could not extract file number, using fallback: $script:CurrentFileNumber" -Type "Info"
+        }
+    } else {
+        Write-ColorMessage -Message "DEBUG: Creating new file using global variables" -Type "Info"
+        # Generate new file number - find the first available number starting from 1
+        $existingFiles = Get-ExistingFiles -ConfigName $script:CurrentConfigName
+        $script:CurrentFileNumber = 1
+        $existingNumbers = @()
+        
+        # Extract existing file numbers
+        foreach ($file in $existingFiles) {
+            if ($file.Name -match "^${script:CurrentCommandPrefix}(\d+)\.bat$") {
+                $existingNumbers += [int]$matches[1]
+            }
+        }
+        
+        # Find the first available number starting from 1
+        while ($existingNumbers -contains $script:CurrentFileNumber) {
+            $script:CurrentFileNumber++
+        }
+        
+        $script:CurrentFileName = "${script:CurrentCommandPrefix}${script:CurrentFileNumber}.bat"
+        $TargetCommandPath = Join-Path $script:CurrentWinEnvsDir $script:CurrentFileName
+        Write-ColorMessage -Message "DEBUG: Generated new file: $script:CurrentFileName (number: $script:CurrentFileNumber)" -Type "Info"
+    }
+    
+    # Create batch script content
+    $psEnvVarsString = $psEnvVars -join "; "
+    $script:CurrentBatchContent = @"
+@echo off
+REM $($script:CurrentConfig.Title) Global File #$script:CurrentFileNumber
+REM Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+
+REM Set environment variables
+$($envCommands -join "`n")
+
+REM Execute PowerShell command with environment variables
+echo Executing: $script:CurrentPsCommand
+echo.
+echo PowerShell Command: powershell -NoProfile -ExecutionPolicy Bypass -Command "$psEnvVarsString; $script:CurrentPsCommand"
+echo.
+echo Press any key to continue...
+pause >nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$psEnvVarsString; $script:CurrentPsCommand"
+
+echo.
+pause
+"@
+    
+    # Preview the generated content
+    Write-ColorMessage -Message "`nPreview of generated batch file:" -Type "Info"
+    Write-ColorMessage -Message "File: $TargetCommandPath" -Type "Info"
+    Write-ColorMessage -Message ("=" * 50) -Type "Info"
+    Write-Host $script:CurrentBatchContent -ForegroundColor Cyan
+    Write-ColorMessage -Message ("=" * 50) -Type "Info"
+    
+    # Ask for confirmation
+    Write-ColorMessage -Message "Press Enter to generate, any other key to cancel" -Type "Info"
+    $confirm = Read-Host "Confirm"
+    if ($confirm -ne '') {
+        Write-ColorMessage -Message "Command generation cancelled." -Type "Warning"
+        return $false
+    }
+    
+    # Ensure directory exists
+    $commandDir = Split-Path $TargetCommandPath -Parent
+    if (-not (Test-Path $commandDir)) {
+        New-Item -ItemType Directory -Path $commandDir -Force | Out-Null
+    }
+    
+    # Write batch file using the new addscript method
+    Write-ColorMessage -Message "DEBUG: Calling addscript with filename: '$script:CurrentFileName'" -Type "Info"
+    Write-ColorMessage -Message "DEBUG: TargetCommandPath: '$TargetCommandPath'" -Type "Info"
+    & $script:WINDOWS_PATH_FUNCTION_PATH "addscript" $script:CurrentBatchContent $script:CurrentFileName
+    
+    Write-ColorMessage -Message "Global command generated successfully: $TargetCommandPath" -Type "Success"
+    Write-ColorMessage -Message "File written to .winenvs directory using addscript method" -Type "Success"
+    
+    # Verify file was created
+    if (Test-Path $TargetCommandPath) {
+        Write-ColorMessage -Message "File verification: SUCCESS" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "File verification: FAILED" -Type "Error"
+    }
+    
+    # Generate or update list script
+    Generate-ListScript -ConfigName $script:CurrentConfigName | Out-Null
+    
+    return $true
+}
+
 #endregion
 
 #region Generic Environment Variables Functions
@@ -600,12 +1406,12 @@ function Show-EmptyVariablesMenu {
 #region Main Menu Functions
 function Show-SpecialSoftwareEnvMenu {
     $menuItems = @(
-        @{ Text = "Set Claude AI Environment Variables"; Action = "claude" },
-        @{ Text = "Set Alibaba Cloud Environment Variables"; Action = "alibaba" },
-        @{ Text = "View All Environment Variables"; Action = "viewall" },
-        @{ Text = "Refresh Current Terminal Environment"; Action = "refresh" },
-        @{ Text = "Back to Main Menu"; Action = "back" },
-        @{ Text = "Exit"; Action = "exit" }
+        @{ Text = "Claude AI"; Action = "claude"; HasSubMenu = $true },
+        @{ Text = "Alibaba Cloud"; Action = "alibaba"; HasSubMenu = $true },
+        @{ Text = "View All Environment Variables"; Action = "viewall"; HasSubMenu = $false },
+        @{ Text = "Refresh Current Terminal Environment"; Action = "refresh"; HasSubMenu = $false },
+        @{ Text = "Back to Main Menu"; Action = "back"; HasSubMenu = $false },
+        @{ Text = "Exit"; Action = "exit"; HasSubMenu = $false }
     )
     
     $selectedIndex = 0
@@ -613,6 +1419,74 @@ function Show-SpecialSoftwareEnvMenu {
     while ($true) {
         Clear-Host
         Write-ColorMessage -Message "Special Software Environment Variables Manager" -Type "Info"
+        Write-ColorMessage -Message "Use Up/Down arrows to navigate, Enter to select" -Type "Info"
+        Write-ColorMessage -Message "=" -Type "Info"
+        
+        for ($i = 0; $i -lt $menuItems.Count; $i++) {
+            if ($i -eq $selectedIndex) {
+                if ($menuItems[$i].HasSubMenu) {
+                    Write-Host "> $($menuItems[$i].Text) >" -ForegroundColor Yellow
+                } else {
+                    Write-Host "> $($menuItems[$i].Text)" -ForegroundColor Yellow
+                }
+            } else {
+                if ($menuItems[$i].HasSubMenu) {
+                    Write-Host "  $($menuItems[$i].Text) >" -ForegroundColor White
+                } else {
+                    Write-Host "  $($menuItems[$i].Text)" -ForegroundColor White
+                }
+            }
+        }
+        
+        $key = [Console]::ReadKey($true).Key
+        
+        switch ($key) {
+            'UpArrow' {
+                $selectedIndex = if ($selectedIndex -gt 0) { $selectedIndex - 1 } else { $menuItems.Count - 1 }
+            }
+            'DownArrow' {
+                $selectedIndex = if ($selectedIndex -lt $menuItems.Count - 1) { $selectedIndex + 1 } else { 0 }
+            }
+            'Enter' {
+                $action = $menuItems[$selectedIndex].Action
+                $hasSubMenu = $menuItems[$selectedIndex].HasSubMenu
+                
+                if ($hasSubMenu) {
+                    # Convert action to full config name
+                    $fullConfigName = Get-FullConfigName -Action $action
+                    Show-SubMenu -ConfigName $fullConfigName
+                } else {
+                    switch ($action) {
+                        'viewall' { Show-AllEnvironmentVariables }
+                        'refresh' { Refresh-CurrentTerminalEnvironment }
+                        'back' { return }
+                        'exit' { exit }
+                    }
+                }
+            }
+        }
+    }
+}
+
+function Show-SubMenu {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+    
+    $configDisplayName = Get-ConfigDisplayName -ConfigName $ConfigName
+    
+    $menuItems = @(
+        @{ Text = "Add $configDisplayName Global Command"; Action = "addcommand" },
+        @{ Text = "Set $configDisplayName Environment Variables"; Action = "setenv" },
+        @{ Text = "View $configDisplayName Scripts"; Action = "viewscripts" },
+        @{ Text = "Back to Main Menu"; Action = "back" }
+    )
+    
+    $selectedIndex = 0
+    
+    while ($true) {
+        Clear-Host
+        Write-ColorMessage -Message "$configDisplayName - Sub Menu" -Type "Info"
         Write-ColorMessage -Message "Use Up/Down arrows to navigate, Enter to select" -Type "Info"
         Write-ColorMessage -Message "=" -Type "Info"
         
@@ -636,12 +1510,22 @@ function Show-SpecialSoftwareEnvMenu {
             'Enter' {
                 $action = $menuItems[$selectedIndex].Action
                 switch ($action) {
-                    'claude' { Set-EnvironmentVariables -ConfigName "Claude AI" }
-                    'alibaba' { Set-EnvironmentVariables -ConfigName "Alibaba Cloud" }
-                    'viewall' { Show-AllEnvironmentVariables }
-                    'refresh' { Refresh-CurrentTerminalEnvironment }
+                    'addcommand' { 
+                        $existingFiles = Get-ExistingFiles -ConfigName $ConfigName
+                        Show-ExistingFilesMenu -ConfigName $ConfigName -Files $existingFiles
+                        
+                        # Use global variables to determine action
+                        if ($script:IsReplacingFile) {
+                            Write-ColorMessage -Message "DEBUG: Replacing existing file: $script:TargetFilePath" -Type "Info"
+                            Generate-GlobalCommand -ConfigName $ConfigName -TargetCommandPath $script:TargetFilePath
+                        } else {
+                            Write-ColorMessage -Message "DEBUG: Creating new file" -Type "Info"
+                            Generate-GlobalCommand -ConfigName $ConfigName
+                        }
+                    }
+                    'setenv' { Set-EnvironmentVariables -ConfigName $ConfigName }
+                    'viewscripts' { Show-ListScripts -ConfigName $ConfigName }
                     'back' { return }
-                    'exit' { exit }
                 }
             }
         }
