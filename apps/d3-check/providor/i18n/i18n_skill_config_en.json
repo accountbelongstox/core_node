@@ -1,0 +1,134 @@
+{
+  "ui": {
+    "skill_config": {
+      "title": "Skill Configuration",
+      "skill": "Skill",
+      "key": "Key",
+      "strategy": "Strategy",
+      "interval": "Interval(ms)",
+      "delay": "Delay(ms)",
+      "random_delay": "Random Delay(ms)",
+      "enable": "Enable",
+      "combat_skills": "Combat Skills",
+      "movement_skills": "Movement Skills",
+      "utility_skills": "Utility Skills",
+      "movement_skill": "Movement Skill",
+      "dodge_skill": "Dodge Skill",
+      "teleport_skill": "Teleport Skill",
+      "healing_potion": "Healing Potion",
+      "mana_potion": "Mana Potion",
+      "town_portal": "Town Portal",
+      "strategies": {
+        "continuous": "Continuous",
+        "single": "Single",
+        "hold": "Hold",
+        "drag": "Drag",
+        "disabled": "Disabled",
+        "buff": "Keep Buff"
+      }
+    },
+    "additional_settings": {
+      "title": "Additional Settings",
+      "quick_switch": "Quick Switch",
+      "movement": "Movement",
+      "potion": "Potion",
+      "potion_interval": "Potion Interval(ms)",
+      "quick_switch_title": "Quick Switch to This Config",
+      "auto_start": "Auto Start Macro After Switch",
+      "macro_start_title": "Macro Start Method",
+      "lazy_mode": "Lazy Mode",
+      "manual_mode": "Manual Mode",
+      "single_thread": "Use Single Thread Key Queue (ms)",
+      "quick_pause_title": "Quick Pause",
+      "double_click": "Double Click",
+      "pause_key": "to Pause Macro",
+      "milliseconds": "ms",
+      "movement_assist_title": "Movement Assist",
+      "force_movement": "Force Movement (Continuous)",
+      "smart_movement": "Smart Movement",
+      "disabled": "Disabled",
+      "execution_interval": "Execution Interval (ms)",
+      "potion_assist_title": "Potion Assist",
+      "keep_potion_cd": "Keep Potion CD",
+      "smart_potion": "Smart Potion"
+    },
+    "config_tabs": {
+      "config1": "Config 1",
+      "config2": "Config 2",
+      "config3": "Config 3",
+      "config4": "Config 4"
+    },
+    "main_functions_panel": {
+      "current_config": "Current Config",
+      "config_file_path": "Config File Path",
+      "skill_config": "Skill Config",
+      "primary_skill": "Primary Skill",
+      "secondary_skill": "Secondary Skill",
+      "defensive_skill": "Defensive Skill",
+      "ultimate_skill": "Ultimate Skill",
+      "additional_settings": "Additional Settings",
+      "quick_switch": "Quick Switch",
+      "movement_key": "Movement Key",
+      "potion_key": "Potion Key",
+      "status": "Status",
+      "config_loaded": "Config Loaded"
+    },
+    "basic_info": {
+      "title": "Basic Info",
+      "current_config_info": "Current Config Info",
+      "config_file": "Config File",
+      "file_exists": "File Exists",
+      "file_size": "File Size",
+      "available_configs": "Available Configs",
+      "current_skill_config": "Current Skill Config",
+      "yes": "Yes",
+      "no": "No",
+      "bytes": "bytes"
+    },
+    "skill_table": {
+      "headers": {
+        "key": "Hotkey",
+        "strategy": "Strategy",
+        "interval": "Execution Interval (ms)",
+        "delay": "Delay (ms)",
+        "random_delay": "Random Delay"
+      },
+      "skills": {
+        "skill1": "Skill 1",
+        "skill2": "Skill 2",
+        "skill3": "Skill 3",
+        "skill4": "Skill 4",
+        "left_click": "Left Click",
+        "right_click": "Right Click"
+      },
+      "strategies": {
+        "disabled": "Disabled",
+        "hold": "Hold",
+        "continuous": "Continuous",
+        "buff": "Keep Buff"
+      }
+    },
+    "config_selection": {
+      "title": "Config Selection"
+    },
+    "skill_config_list": {
+      "title": "Skill Configuration List",
+      "config_name": "Config Name",
+      "skill_name": "Skill Name",
+      "key": "Key",
+      "strategy": "Strategy",
+      "interval": "Interval(ms)",
+      "delay": "Delay(ms)",
+      "random_delay": "Random Delay(ms)",
+      "quick_switch": "Quick Switch",
+      "movement": "Movement",
+      "potion": "Potion",
+      "potion_interval": "Potion Interval(ms)",
+      "strategy_options": {
+        "continuous": "Continuous",
+        "single": "Single",
+        "hold": "Hold"
+      }
+    }
+  }
+}

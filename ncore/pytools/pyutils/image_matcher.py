@@ -21,6 +21,9 @@ sys.path.insert(0, str(pytools_dir))
 from pytools import check_and_install_dependencies
 check_and_install_dependencies()
 
+# Import ColorPrint for colored output
+from pyfoundations.color_print import ColorPrint
+
 import cv2
 
 
@@ -32,6 +35,7 @@ class ImageMatcher:
     - ORB feature detection (fast, license-free)
     - RANSAC homography estimation
     - Multi-template matching support
+    - PNG alpha channel support (transparency handling)
     - Visual result output with bounding boxes
     """
 
@@ -40,7 +44,12 @@ class ImageMatcher:
         ratio_thresh: float = 0.75,
         min_inliers: int = 8,
         nfeatures: int = 5000,
-        ransac_threshold: float = 5.0
+        ransac_threshold: float = 5.0,
+        standard_width: Optional[int] = None,
+        standard_height: Optional[int] = None,
+        default_method: int = cv2.TM_CCORR_NORMED,
+        support_alpha: bool = False,
+        feature_detector: str = "ORB"
     ):
         """
         Initialize image matcher
@@ -48,32 +57,103 @@ class ImageMatcher:
         Args:
             ratio_thresh: Lowe's ratio test threshold (0.7-0.8 typical)
             min_inliers: Minimum number of good matches required
-            nfeatures: Maximum ORB features to detect
+            nfeatures: Maximum features to detect (ORB/SIFT)
             ransac_threshold: RANSAC reprojection error threshold
+            standard_width: Standard reference width for auto-scaling (None = use target image width)
+            standard_height: Standard reference height for auto-scaling (None = use target image height)
+            default_method: Default template matching method (cv2.TM_CCORR_NORMED by default)
+            support_alpha: Whether to support PNG alpha channel transparency (False by default)
+            feature_detector: Feature detector type: "ORB", "SIFT", or "AKAZE" (default: "ORB")
         """
         self.ratio_thresh = ratio_thresh
         self.min_inliers = min_inliers
         self.ransac_threshold = ransac_threshold
+        self.standard_width = standard_width
+        self.standard_height = standard_height
+        self.default_method = default_method
+        self.support_alpha = support_alpha
+        self.feature_detector_type = feature_detector.upper()
 
-        # Initialize ORB detector
-        self.orb = cv2.ORB_create(nfeatures=nfeatures)
+        # Initialize feature detector based on type
+        if self.feature_detector_type == "SIFT":
+            self.detector = cv2.SIFT_create(nfeatures=nfeatures)
+            self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
+            ColorPrint.blue(f"[ImageMatcher] Using SIFT feature detector")
+        elif self.feature_detector_type == "AKAZE":
+            self.detector = cv2.AKAZE_create()
+            self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+            ColorPrint.blue(f"[ImageMatcher] Using AKAZE feature detector")
+        else:  # Default to ORB
+            self.detector = cv2.ORB_create(nfeatures=nfeatures)
+            self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+            ColorPrint.blue(f"[ImageMatcher] Using ORB feature detector")
 
-        # Initialize BFMatcher with Hamming distance for ORB
-        self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+        # Keep backward compatibility
+        self.orb = self.detector
+
+        if standard_width is not None and standard_height is not None:
+            ColorPrint.blue(f"[ImageMatcher] Standard resolution: {standard_width}x{standard_height}")
+
+        method_name = self._get_method_name(default_method)
+        ColorPrint.blue(f"[ImageMatcher] Default matching method: {method_name}")
+        ColorPrint.blue(f"[ImageMatcher] Alpha channel support: {'Enabled' if support_alpha else 'Disabled'}")
+
+    @staticmethod
+    def _get_method_name(method: int) -> str:
+        """Get template matching method name"""
+        method_names = {
+            cv2.TM_CCOEFF: "TM_CCOEFF",
+            cv2.TM_CCOEFF_NORMED: "TM_CCOEFF_NORMED",
+            cv2.TM_CCORR: "TM_CCORR",
+            cv2.TM_CCORR_NORMED: "TM_CCORR_NORMED",
+            cv2.TM_SQDIFF: "TM_SQDIFF",
+            cv2.TM_SQDIFF_NORMED: "TM_SQDIFF_NORMED"
+        }
+        return method_names.get(method, f"UNKNOWN({method})")
+
+    def _calculate_auto_scale(self, target_image: np.ndarray) -> Tuple[float, float]:
+        """
+        Calculate auto-scale factors based on target image vs standard resolution
+
+        Args:
+            target_image: Target image (BGR)
+
+        Returns:
+            Tuple (scale_x, scale_y) - non-proportional scaling factors
+        """
+        target_h, target_w = target_image.shape[:2]
+
+        # If no standard resolution set, return 1.0 (100% - no scaling)
+        if self.standard_width is None or self.standard_height is None:
+            ColorPrint.debug(f"[ImageMatcher] Auto-scale: Using target size as standard ({target_w}x{target_h})")
+            return 1.0, 1.0
+
+        # Calculate scale factors (non-proportional)
+        scale_x = target_w / self.standard_width
+        scale_y = target_h / self.standard_height
+
+        ColorPrint.debug(f"[ImageMatcher] Auto-scale: Target {target_w}x{target_h} vs Standard {self.standard_width}x{self.standard_height}")
+        ColorPrint.debug(f"[ImageMatcher] Auto-scale: scale_x={scale_x:.4f}, scale_y={scale_y:.4f}")
+
+        return scale_x, scale_y
 
     def match_single_template(
         self,
         target_image: np.ndarray,
         template_image: np.ndarray,
-        template_name: str = "template"
+        template_name: str = "template",
+        custom_threshold: float = None,
+        use_alpha: bool = None
     ) -> Optional[Dict]:
         """
-        Match a single template image in the target image
+        Match a single template image in the target image with auto-scaling support
 
         Args:
             target_image: Large image to search in (BGR format)
-            template_image: Small template image to find (BGR format)
+            template_image: Small template image to find (BGR or BGRA format)
             template_name: Name identifier for this template
+            custom_threshold: Custom matching threshold for template matching (default: 0.8)
+            use_alpha: Whether to use alpha channel (None = use self.support_alpha)
 
         Returns:
             Dictionary with match results or None if no match found:
@@ -82,18 +162,44 @@ class ImageMatcher:
                 "polygon": np.ndarray,  # 4 corner points in target image
                 "center": np.ndarray,   # Center point (x, y)
                 "num_matches": int,     # Number of good feature matches
+                "match_threshold": float, # Threshold used for matching
+                "auto_scale_x": float,  # Auto-scale factor X
+                "auto_scale_y": float,  # Auto-scale factor Y
                 "success": bool
             }
         """
+        # Calculate auto-scale factors based on target vs standard resolution
+        scale_x, scale_y = self._calculate_auto_scale(target_image)
+
+        # Apply auto-scaling to template if needed (non-proportional)
+        scaled_template = template_image
+        if scale_x != 1.0 or scale_y != 1.0:
+            template_h, template_w = template_image.shape[:2]
+            scaled_w = int(template_w * scale_x)
+            scaled_h = int(template_h * scale_y)
+
+            ColorPrint.debug(f"[ImageMatcher] Auto-scaling template from {template_w}x{template_h} to {scaled_w}x{scaled_h}")
+
+            scaled_template = cv2.resize(template_image, (scaled_w, scaled_h), interpolation=cv2.INTER_LINEAR)
+
         # First try feature-based matching
-        result = self._match_with_features(target_image, template_image, template_name)
+        result = self._match_with_features(target_image, scaled_template, template_name)
 
         if result is not None:
+            result["auto_scale_x"] = scale_x
+            result["auto_scale_y"] = scale_y
             return result
 
         # If feature matching fails, try template matching for simple templates
-        print(f"[DEBUG] {template_name}: Feature matching failed, trying template matching...")
-        return self._match_with_template(target_image, template_image, template_name)
+        ColorPrint.yellow(f"[DEBUG] {template_name}: Feature matching failed, trying template matching...")
+        threshold = custom_threshold if custom_threshold is not None else 0.8
+        result = self._match_with_template(target_image, scaled_template, template_name, threshold, use_alpha)
+
+        if result is not None:
+            result["auto_scale_x"] = scale_x
+            result["auto_scale_y"] = scale_y
+
+        return result
 
     def _match_with_features(
         self,
@@ -107,22 +213,22 @@ class ImageMatcher:
         gray_template = cv2.cvtColor(template_image, cv2.COLOR_BGR2GRAY)
 
         # Detect features and compute descriptors
-        kp_template, des_template = self.orb.detectAndCompute(gray_template, None)
-        kp_target, des_target = self.orb.detectAndCompute(gray_target, None)
+        kp_template, des_template = self.detector.detectAndCompute(gray_template, None)
+        kp_target, des_target = self.detector.detectAndCompute(gray_target, None)
 
-        print(f"[DEBUG] {template_name}: Found {len(kp_template) if kp_template else 0} keypoints in template")
-        print(f"[DEBUG] {template_name}: Found {len(kp_target) if kp_target else 0} keypoints in target")
+        ColorPrint.debug(f"[DEBUG] {template_name}: Found {len(kp_template) if kp_template else 0} keypoints in template")
+        ColorPrint.debug(f"[DEBUG] {template_name}: Found {len(kp_target) if kp_target else 0} keypoints in target")
 
         if des_template is None or des_target is None:
-            print(f"[DEBUG] {template_name}: No descriptors found")
+            ColorPrint.yellow(f"[DEBUG] {template_name}: No descriptors found")
             return None
 
         # Match features using k-NN
         try:
             matches = self.matcher.knnMatch(des_template, des_target, k=2)
-            print(f"[DEBUG] {template_name}: knnMatch returned {len(matches)} match pairs")
+            ColorPrint.debug(f"[DEBUG] {template_name}: knnMatch returned {len(matches)} match pairs")
         except cv2.error:
-            print(f"[DEBUG] {template_name}: knnMatch failed")
+            ColorPrint.red(f"[DEBUG] {template_name}: knnMatch failed")
             return None
 
         # Apply Lowe's ratio test
@@ -133,10 +239,10 @@ class ImageMatcher:
                 if m.distance < self.ratio_thresh * n.distance:
                     good_matches.append(m)
 
-        print(f"[DEBUG] {template_name}: {len(good_matches)} good matches after ratio test (min required: {self.min_inliers})")
+        ColorPrint.debug(f"[DEBUG] {template_name}: {len(good_matches)} good matches after ratio test (min required: {self.min_inliers})")
 
         if len(good_matches) < self.min_inliers:
-            print(f"[DEBUG] {template_name}: Not enough good matches")
+            ColorPrint.yellow(f"[DEBUG] {template_name}: Not enough good matches")
             return None
 
         # Extract point coordinates
@@ -147,10 +253,10 @@ class ImageMatcher:
         homography, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, self.ransac_threshold)
 
         if homography is None:
-            print(f"[DEBUG] {template_name}: Homography estimation failed")
+            ColorPrint.red(f"[DEBUG] {template_name}: Homography estimation failed")
             return None
 
-        print(f"[DEBUG] {template_name}: Homography found successfully!")
+        ColorPrint.green(f"[DEBUG] {template_name}: Homography found successfully!")
 
         # Transform template corners to target image space
         h, w = gray_template.shape
@@ -173,32 +279,52 @@ class ImageMatcher:
         target_image: np.ndarray,
         template_image: np.ndarray,
         template_name: str,
-        threshold: float = 0.8
+        threshold: float = 0.8,
+        use_alpha: bool = None
     ) -> Optional[Dict]:
-        """Template matching using normalized cross-correlation"""
+        """Template matching using normalized cross-correlation
+
+        Args:
+            target_image: Target image (BGR)
+            template_image: Template image (BGR or BGRA)
+            template_name: Template identifier
+            threshold: Matching threshold
+            use_alpha: Whether to use alpha channel (None = use self.support_alpha)
+        """
+        # Determine if alpha channel should be used
+        if use_alpha is None:
+            use_alpha = self.support_alpha
+
+        # Handle alpha channel
+        mask = None
+        if use_alpha and len(template_image.shape) == 3 and template_image.shape[2] == 4:
+            mask = template_image[:, :, 3]  # Extract alpha channel as mask
+            template_image = template_image[:, :, :3]  # Use only BGR channels
+            ColorPrint.debug(f"[DEBUG] {template_name}: Using alpha channel as mask")
+
         # Convert to grayscale
         gray_target = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY)
         gray_template = cv2.cvtColor(template_image, cv2.COLOR_BGR2GRAY)
 
         h, w = gray_template.shape
 
-        # Try multiple methods and pick the best
-        methods = [cv2.TM_CCOEFF_NORMED, cv2.TM_CCORR_NORMED]
-        best_match = None
-        best_val = -1
+        # Use default method or try multiple methods
+        result = cv2.matchTemplate(gray_target, gray_template, self.default_method, mask=mask)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
-        for method in methods:
-            result = cv2.matchTemplate(gray_target, gray_template, method)
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        # For SQDIFF methods, lower is better
+        if self.default_method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
+            match_val = 1 - min_val
+            best_match = min_loc
+        else:
+            match_val = max_val
+            best_match = max_loc
 
-            if max_val > best_val:
-                best_val = max_val
-                best_match = max_loc
+        method_name = self._get_method_name(self.default_method)
+        ColorPrint.debug(f"[DEBUG] {template_name}: Template matching score: {match_val:.3f} (threshold: {threshold}, method: {method_name})")
 
-        print(f"[DEBUG] {template_name}: Template matching score: {best_val:.3f} (threshold: {threshold})")
-
-        if best_val < threshold:
-            print(f"[DEBUG] {template_name}: Template matching score too low")
+        if match_val < threshold:
+            ColorPrint.yellow(f"[DEBUG] {template_name}: Template matching score too low")
             return None
 
         # Calculate bounding box
@@ -216,13 +342,15 @@ class ImageMatcher:
         center = np.array([(top_left[0] + bottom_right[0]) / 2,
                           (top_left[1] + bottom_right[1]) / 2])
 
-        print(f"[DEBUG] {template_name}: Template matching found match at {center}")
+        ColorPrint.green(f"[DEBUG] {template_name}: Template matching found match at {center}")
 
         return {
             "template_name": template_name,
             "polygon": polygon,
             "center": center,
-            "num_matches": int(best_val * 100),  # Convert to percentage-like number
+            "num_matches": int(match_val * 100),  # Convert to percentage-like number
+            "match_score": match_val,  # Add match score
+            "match_threshold": threshold,  # Add threshold used
             "success": True
         }
 
@@ -231,7 +359,8 @@ class ImageMatcher:
         target_image_path: Union[str, Path],
         template_paths: List[Union[str, Path]],
         output_dir: Optional[Union[str, Path]] = None,
-        output_filename: Optional[str] = None
+        output_filename: Optional[str] = None,
+        template_thresholds: Optional[Dict[str, float]] = None
     ) -> Dict:
         """
         Match multiple template images in a target image and draw results
@@ -241,6 +370,7 @@ class ImageMatcher:
             template_paths: List of paths to template images
             output_dir: Directory to save annotated output image
             output_filename: Custom filename for output (auto-generated if None)
+            template_thresholds: Dict mapping template names to custom thresholds
 
         Returns:
             Dictionary containing match results and output path:
@@ -279,35 +409,70 @@ class ImageMatcher:
         # Process each template
         for idx, template_path in enumerate(template_paths):
             template_name = Path(template_path).stem
-            print(f"[DEBUG] Processing template {idx+1}/{len(template_paths)}: {template_name}")
+            ColorPrint.blue(f"[DEBUG] Processing template {idx+1}/{len(template_paths)}: {template_name}")
 
             try:
                 # Load template with PIL to handle Chinese characters
+                # Check if template needs alpha channel support
+                template_config = template_thresholds.get(template_name, {}) if isinstance(template_thresholds, dict) else {}
+                use_alpha = template_config.get('use_alpha', self.support_alpha) if isinstance(template_config, dict) else self.support_alpha
+
                 pil_template = PILImage.open(str(template_path))
-                if pil_template.mode != 'RGB':
-                    pil_template = pil_template.convert('RGB')
-                template_array = np.array(pil_template)
-                # Convert RGB to BGR for OpenCV
-                template_image = cv2.cvtColor(template_array, cv2.COLOR_RGB2BGR)
-                print(f"[DEBUG] Template loaded: {template_name}, size: {template_image.shape}")
+
+                # Load with alpha channel if PNG and alpha is supported
+                if use_alpha and pil_template.mode in ['RGBA', 'LA']:
+                    # Keep alpha channel
+                    if pil_template.mode != 'RGBA':
+                        pil_template = pil_template.convert('RGBA')
+                    template_array = np.array(pil_template)
+                    # Convert RGBA to BGRA for OpenCV
+                    template_image = cv2.cvtColor(template_array, cv2.COLOR_RGBA2BGRA)
+                    ColorPrint.debug(f"[DEBUG] Template loaded with alpha: {template_name}, size: {template_image.shape}")
+                else:
+                    # Load without alpha
+                    if pil_template.mode != 'RGB':
+                        pil_template = pil_template.convert('RGB')
+                    template_array = np.array(pil_template)
+                    # Convert RGB to BGR for OpenCV
+                    template_image = cv2.cvtColor(template_array, cv2.COLOR_RGB2BGR)
+                    ColorPrint.debug(f"[DEBUG] Template loaded: {template_name}, size: {template_image.shape}")
+
             except Exception as e:
-                print(f"[WARN] Failed to load template: {template_path}. Error: {e}")
+                ColorPrint.red(f"[WARN] Failed to load template: {template_path}. Error: {e}")
                 continue
 
             if template_image is None:
-                print(f"[WARN] Failed to load template: {template_path}")
+                ColorPrint.red(f"[WARN] Failed to load template: {template_path}")
                 continue
 
             # Match template
-            print(f"[DEBUG] Attempting to match template: {template_name}")
+            ColorPrint.debug(f"[DEBUG] Attempting to match template: {template_name}")
+
+            # Get custom threshold if provided
+            custom_threshold = None
+            if template_thresholds:
+                if isinstance(template_thresholds, dict):
+                    # Check if it's the new format {name: {threshold: x, use_alpha: y}}
+                    if template_name in template_thresholds:
+                        config = template_thresholds[template_name]
+                        if isinstance(config, dict):
+                            custom_threshold = config.get('threshold')
+                            use_alpha = config.get('use_alpha', use_alpha)
+                        else:
+                            custom_threshold = config
+                if custom_threshold is not None:
+                    ColorPrint.debug(f"[DEBUG] Using custom threshold {custom_threshold} for {template_name}")
+
             match_result = self.match_single_template(
                 target_image,
                 template_image,
-                template_name=template_name
+                template_name=template_name,
+                custom_threshold=custom_threshold,
+                use_alpha=use_alpha
             )
 
             if match_result:
-                print(f"[DEBUG] Match found for {template_name}!")
+                ColorPrint.green(f"[DEBUG] Match found for {template_name}!")
                 matches.append(match_result)
 
                 # Draw bounding polygon (red)
@@ -349,7 +514,7 @@ class ImageMatcher:
                 pil_output = PILImage.fromarray(output_rgb)
                 pil_output.save(str(output_path))
             except Exception as e:
-                print(f"[ERROR] Failed to save output image: {e}")
+                ColorPrint.red(f"[ERROR] Failed to save output image: {e}")
                 output_path = None
 
         return {
@@ -413,6 +578,6 @@ if __name__ == "__main__":
         output_dir="./output"
     )
 
-    print(f"Found {result['total_matches']} matches")
+    ColorPrint.green(f"Found {result['total_matches']} matches")
     for match in result['matches']:
-        print(f"  - {match['template_name']} at center: {match['center']}")
+        ColorPrint.blue(f"  - {match['template_name']} at center: {match['center']}")

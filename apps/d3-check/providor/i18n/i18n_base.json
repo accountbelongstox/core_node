@@ -1,0 +1,5 @@
+{
+  "description": "Internationalization configuration for D3-Check application",
+  "default_language": "zh",
+  "supported_languages": ["zh", "en"]
+}

@@ -1,288 +1,347 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Log Panel (TABLE3)
-Contains test functions and log output
+Log Panel (TABLE4) - Unified Style Version
+Contains log display and control functions with unified styling
 """
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, scrolledtext
 import sys
 import os
-import time
 from typing import Optional, Callable
 
-# Add ncore path for color_print
-ncore_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ncore")
-sys.path.insert(0, ncore_path)
-from pytools.pyfoundations.color_print import ColorPrint
+# Import from common_imports (unified public library imports)
+from providor.common_imports import ColorPrint
 
+# Import unified styles
+from ..unified_styles import UnifiedStyles
+
+# Import i18n manager (global singleton instance)
+from d3utils.i18n_manager import i18n_manager
+from ui.utils.config_binding import ConfigBinding
 
 class LogPanel:
-    """Log panel for TABLE3"""
+    """
+    Log Panel for TABLE4
+    Unified styling and layout
+    """
     
     def __init__(self, parent):
+        """Initialize log panel"""
         self.parent = parent
+        self.log_buffer = []
+        self.max_log_lines = 1000
         
-        # Callbacks
-        self.on_test_function: Optional[Callable] = None
+        # Configure TTK styles
+        self.style = UnifiedStyles.configure_ttk_styles()
         
-        self._create_panel()
-    
-    def _create_panel(self):
-        """Create the test and log panel"""
-        # Main content frame
-        content_frame = ttk.Frame(self.parent)
-        content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Create main container
+        self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
+        self.container.pack(fill=tk.BOTH, expand=True, 
+                           padx=UnifiedStyles.SPACING['md'], 
+                           pady=UnifiedStyles.SPACING['md'])
         
-        # Test functions area
-        self._create_test_buttons_area(content_frame)
+        # Configure grid
+        self.container.grid_columnconfigure(0, weight=1)
+        self.container.grid_rowconfigure(2, weight=1)
         
-        # Log output area
-        self._create_log_output_area(content_frame)
-    
-    def _create_test_buttons_area(self, parent):
-        """Create test buttons area"""
-        # Test buttons frame
-        test_frame = ttk.LabelFrame(parent, text="测试功能区域 (Test Functions)", padding=5)
-        test_frame.pack(fill=tk.X, pady=5)
+        # Create content
+        self.create_content()
+
+        # Register as ColorPrint callback
+        ColorPrint.register_callback(self.add_log_message)
+
+        # Note: Language change is handled by main UI, not individual panels
+
+    def _create_test_panel(self):
+        """Create test functions panel"""
+        test_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("log_panel.test_functions"), style='TLabelframe')
+        test_frame.grid(row=0, column=0, sticky="ew",
+                       padx=UnifiedStyles.SPACING['sm'],
+                       pady=(UnifiedStyles.SPACING['sm'], 0))
+        test_frame.grid_columnconfigure(4, weight=1)
+
+        # Test buttons
+        test_buttons = [
+            ("log_panel.bag_test", self._test_bag),
+            ("log_panel.yellow_upgrade", self._test_yellow_upgrade),
+            ("log_panel.item_reforge", self._test_item_reforge),
+            ("log_panel.test_pathfinding", self._test_pathfinding)
+        ]
+
+        for i, (text_key, command) in enumerate(test_buttons):
+            btn = tk.Button(test_frame, text=i18n_manager.get_ui_text(text_key),
+                           bg=UnifiedStyles.COLORS['btn_primary'],
+                           fg=UnifiedStyles.COLORS['text_primary'],
+                           font=UnifiedStyles.FONTS['button'],
+                           command=command)
+            btn.grid(row=0, column=i, padx=UnifiedStyles.SPACING['xs'],
+                    pady=UnifiedStyles.SPACING['sm'])
+
+    def create_content(self):
+        """Create panel content"""
+        # Test functions panel
+        self._create_test_panel()
+
+        # Control panel
+        self._create_control_panel()
+
+        # Log display
+        self._create_log_display()
+
+    def _create_control_panel(self):
+        """Create log control panel"""
+        control_frame = tk.Frame(self.container, bg=UnifiedStyles.COLORS['bg_secondary'])
+        control_frame.grid(row=1, column=0, sticky="ew",
+                          padx=UnifiedStyles.SPACING['sm'],
+                          pady=(UnifiedStyles.SPACING['sm'], 0))
+        control_frame.grid_columnconfigure(2, weight=1)
         
-        # Create 10 test buttons in 2 rows
-        test_buttons = []
-        for i in range(10):
-            row = i // 5
-            col = i % 5
-            
-            btn = ttk.Button(test_frame, text=f"测试 {i+1}", 
-                           command=lambda idx=i+1: self._on_test_button_click(idx))
-            btn.grid(row=row, column=col, padx=5, pady=5, sticky='ew')
-            test_buttons.append(btn)
+        # Clear button
+        clear_btn = tk.Button(control_frame, text=i18n_manager.get_ui_text("log_panel.clear_logs"),
+                             bg=UnifiedStyles.COLORS['btn_warning'],
+                             fg=UnifiedStyles.COLORS['text_primary'],
+                             font=UnifiedStyles.FONTS['button'],
+                             command=self.clear_logs)
+        clear_btn.grid(row=0, column=0, padx=(UnifiedStyles.SPACING['sm'], UnifiedStyles.SPACING['xs']))
         
-        # Configure grid weights
-        for i in range(5):
-            test_frame.columnconfigure(i, weight=1)
+        # Save button
+        save_btn = tk.Button(control_frame, text=i18n_manager.get_ui_text("log_panel.save_log"),
+                            bg=UnifiedStyles.COLORS['btn_primary'],
+                            fg=UnifiedStyles.COLORS['text_primary'],
+                            font=UnifiedStyles.FONTS['button'],
+                            command=self.save_logs)
+        save_btn.grid(row=0, column=1, padx=UnifiedStyles.SPACING['xs'])
         
-        # Test status frame
-        status_frame = ttk.Frame(test_frame)
-        status_frame.grid(row=2, column=0, columnspan=5, sticky='ew', pady=(10, 0))
+        # Auto-scroll checkbox using ConfigBinding
+        auto_scroll_check = ConfigBinding.create_checkbox_binding(
+            control_frame, "log_settings.auto_scroll",
+            text=i18n_manager.get_ui_text("log_panel.auto_scroll"), default_value=True,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            selectcolor=UnifiedStyles.COLORS['bg_tertiary'],
+            activebackground=UnifiedStyles.COLORS['bg_secondary'],
+            activeforeground=UnifiedStyles.COLORS['text_primary']
+        )
+        auto_scroll_check.grid(row=0, column=3, padx=UnifiedStyles.SPACING['sm'], sticky="e")
+
+        # Log level filter
+        level_label = tk.Label(control_frame, text=i18n_manager.get_ui_text("log_panel.log_level") + ":",
+                              bg=UnifiedStyles.COLORS['bg_secondary'],
+                              fg=UnifiedStyles.COLORS['text_primary'],
+                              font=UnifiedStyles.FONTS['label'])
+        level_label.grid(row=0, column=4, padx=(UnifiedStyles.SPACING['md'], UnifiedStyles.SPACING['xs']), sticky="e")
+
+        # Log level using ConfigBinding
+        self.log_level_var = tk.StringVar(value="INFO")
+        level_combo = ConfigBinding.create_combobox_binding(
+            control_frame, "log_settings.log_level",
+            values=['ALL', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+            default_value="INFO", width=8
+        )
+        level_combo.grid(row=0, column=5, padx=(0, UnifiedStyles.SPACING['sm']), sticky="e")
+        level_combo.bind('<<ComboboxSelected>>', self._filter_logs)
+
+        # Store reference to the combobox for getting current value
+        self.level_combo = level_combo
+
+    def _create_log_display(self):
+        """Create log display area"""
+        log_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("log_panel.log_output"), style='TLabelframe')
+        log_frame.grid(row=2, column=0, sticky="nsew",
+                      padx=UnifiedStyles.SPACING['sm'],
+                      pady=UnifiedStyles.SPACING['sm'])
+        log_frame.grid_columnconfigure(0, weight=1)
+        log_frame.grid_rowconfigure(0, weight=1)
         
-        ttk.Label(status_frame, text="测试状态:").pack(side=tk.LEFT)
-        self.test_status_var = tk.StringVar(value="就绪")
-        status_label = ttk.Label(status_frame, textvariable=self.test_status_var, 
-                                foreground='green')
-        status_label.pack(side=tk.LEFT, padx=5)
-        
-        # Test progress
-        progress_frame = ttk.Frame(test_frame)
-        progress_frame.grid(row=3, column=0, columnspan=5, sticky='ew', pady=5)
-        
-        ttk.Label(progress_frame, text="进度:").pack(side=tk.LEFT)
-        self.test_progress_var = tk.DoubleVar()
-        progress_bar = ttk.Progressbar(progress_frame, variable=self.test_progress_var, 
-                                     maximum=100, length=200)
-        progress_bar.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
-        # Test controls
-        controls_frame = ttk.Frame(test_frame)
-        controls_frame.grid(row=4, column=0, columnspan=5, sticky='ew', pady=5)
-        
-        start_all_btn = ttk.Button(controls_frame, text="开始所有测试", 
-                                  command=self._start_all_tests)
-        start_all_btn.pack(side=tk.LEFT, padx=5)
-        
-        stop_all_btn = ttk.Button(controls_frame, text="停止所有测试", 
-                                 command=self._stop_all_tests)
-        stop_all_btn.pack(side=tk.LEFT, padx=5)
-        
-        clear_btn = ttk.Button(controls_frame, text="清除日志", 
-                              command=self._clear_log)
-        clear_btn.pack(side=tk.LEFT, padx=5)
-    
-    def _create_log_output_area(self, parent):
-        """Create log output area"""
-        try:
-            from .log_output_widget import LogOutputWidget
-            self.log_widget = LogOutputWidget(parent, self.config_manager)
-            
-            # Test callback registration
-            ColorPrint.green("[SUCCESS] 日志输出组件已加载并注册回调")
-            ColorPrint.blue("[INFO] 所有 ColorPrint 输出将显示在此日志框中")
-            
-        except ImportError:
-            # Fallback to simple text widget if log_output_widget is not available
-            ColorPrint.yellow("[WARN] LogOutputWidget not available, using fallback")
-            self._create_fallback_log_widget(parent)
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Failed to create log output area: {e}")
-            self._create_fallback_log_widget(parent)
-    
-    def _create_fallback_log_widget(self, parent):
-        """Create fallback log widget"""
-        log_frame = ttk.LabelFrame(parent, text="日志输出", padding=5)
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
-        # Log text widget
-        self.log_text = tk.Text(log_frame, height=15, wrap=tk.WORD, 
-                               font=('Consolas', 9), bg='#1e1e1e', fg='#ffffff')
-        self.log_text.pack(fill=tk.BOTH, expand=True, pady=5)
+        # Create text widget with scrollbar
+        self.log_text = tk.Text(log_frame,
+                               bg=UnifiedStyles.COLORS['bg_primary'],
+                               fg=UnifiedStyles.COLORS['text_primary'],
+                               font=UnifiedStyles.FONTS['code'],
+                               wrap=tk.WORD,
+                               state=tk.DISABLED)
         
         # Scrollbar
-        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.log_text.yview)
-        scrollbar.pack(side="right", fill="y")
+        scrollbar = tk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=scrollbar.set)
         
-        # Log controls
-        controls_frame = ttk.Frame(log_frame)
-        controls_frame.pack(fill=tk.X, pady=5)
+        # Grid layout
+        self.log_text.grid(row=0, column=0, sticky="nsew", 
+                          padx=(UnifiedStyles.SPACING['sm'], 0), 
+                          pady=UnifiedStyles.SPACING['sm'])
+        scrollbar.grid(row=0, column=1, sticky="ns", 
+                      padx=(0, UnifiedStyles.SPACING['sm']), 
+                      pady=UnifiedStyles.SPACING['sm'])
         
-        clear_btn = ttk.Button(controls_frame, text="清除", command=self._clear_log)
-        clear_btn.pack(side=tk.LEFT, padx=5)
-        
-        save_btn = ttk.Button(controls_frame, text="保存日志", command=self._save_log)
-        save_btn.pack(side=tk.LEFT, padx=5)
-        
-        auto_scroll_var = tk.BooleanVar(value=True)
-        auto_scroll_check = ttk.Checkbutton(controls_frame, text="自动滚动", 
-                                          variable=auto_scroll_var)
-        auto_scroll_check.pack(side=tk.LEFT, padx=5)
-        self.auto_scroll_var = auto_scroll_var
-    
-    def _on_test_button_click(self, test_number):
-        """Handle test button click"""
+        # Configure text tags for different log levels
+        self._configure_log_tags()
+
+    def _configure_log_tags(self):
+        """Configure text tags for different log levels"""
+        self.log_text.tag_configure("DEBUG", foreground=UnifiedStyles.COLORS['text_muted'])
+        self.log_text.tag_configure("INFO", foreground=UnifiedStyles.COLORS['text_primary'])
+        self.log_text.tag_configure("WARNING", foreground=UnifiedStyles.COLORS['warning'])
+        self.log_text.tag_configure("ERROR", foreground=UnifiedStyles.COLORS['error'])
+        self.log_text.tag_configure("SUCCESS", foreground=UnifiedStyles.COLORS['success'])
+        self.log_text.tag_configure("CYAN", foreground=UnifiedStyles.COLORS['accent'])
+
+    def add_log_message(self, message, level="INFO", color=None):
+        """Add a log message to the display"""
         try:
-            self.test_status_var.set(f"运行测试 {test_number}")
-            ColorPrint.blue(f"[TEST] 开始执行测试 {test_number}")
+            # Add to buffer
+            log_entry = {
+                'message': message,
+                'level': level.upper(),
+                'color': color
+            }
+            self.log_buffer.append(log_entry)
             
-            # Simulate test execution
-            self._simulate_test_execution(test_number)
+            # Limit buffer size
+            if len(self.log_buffer) > self.max_log_lines:
+                self.log_buffer = self.log_buffer[-self.max_log_lines:]
             
-            # Call callback if set
-            if self.on_test_function:
-                self.on_test_function(test_number)
+            # Check if message should be displayed based on filter
+            if self._should_display_message(log_entry):
+                self._display_message(log_entry)
+                
+        except Exception as e:
+            print(f"Error adding log message: {e}")
+
+    def _should_display_message(self, log_entry):
+        """Check if message should be displayed based on current filter"""
+        try:
+            current_filter = self.level_combo.get() if hasattr(self, 'level_combo') else "ALL"
+            if current_filter == "ALL":
+                return True
+            return log_entry['level'] == current_filter
+        except:
+            return True  # Show all messages if there's an error
+
+    def _display_message(self, log_entry):
+        """Display a single log message"""
+        try:
+            self.log_text.configure(state=tk.NORMAL)
+            
+            # Determine tag based on level or color
+            tag = log_entry['level']
+            if log_entry['color']:
+                color_map = {
+                    'red': 'ERROR',
+                    'yellow': 'WARNING',
+                    'green': 'SUCCESS',
+                    'cyan': 'CYAN',
+                    'blue': 'INFO'
+                }
+                tag = color_map.get(log_entry['color'], log_entry['level'])
+            
+            # Insert message with tag
+            self.log_text.insert(tk.END, f"{log_entry['message']}\n", tag)
+            
+            # Auto-scroll if enabled
+            if self.auto_scroll_var.get():
+                self.log_text.see(tk.END)
+            
+            self.log_text.configure(state=tk.DISABLED)
             
         except Exception as e:
-            ColorPrint.red(f"[ERROR] 测试 {test_number} 执行失败: {e}")
-            self.test_status_var.set(f"测试 {test_number} 失败")
-    
-    def _simulate_test_execution(self, test_number):
-        """Simulate test execution"""
-        
-        # Update progress
-        for i in range(0, 101, 10):
-            self.test_progress_var.set(i)
-            self.parent.update()
-            time.sleep(0.1)
-        
-        # Reset progress
-        self.test_progress_var.set(0)
-        self.test_status_var.set("就绪")
-        
-        ColorPrint.green(f"[SUCCESS] 测试 {test_number} 执行完成")
-    
-    def _start_all_tests(self):
-        """Start all tests"""
+            print(f"Error displaying log message: {e}")
+
+    def _filter_logs(self, event=None):
+        """Filter logs based on selected level"""
         try:
-            self.test_status_var.set("运行所有测试")
-            ColorPrint.blue("[TEST] 开始执行所有测试")
+            # Clear current display
+            self.log_text.configure(state=tk.NORMAL)
+            self.log_text.delete(1.0, tk.END)
             
-            # Simulate running all tests
-            for i in range(1, 11):
-                self._simulate_test_execution(i)
-                time.sleep(0.5)
+            # Redisplay filtered messages
+            for log_entry in self.log_buffer:
+                if self._should_display_message(log_entry):
+                    self._display_message_without_scroll(log_entry)
             
-            self.test_status_var.set("所有测试完成")
-            ColorPrint.green("[SUCCESS] 所有测试执行完成")
+            self.log_text.configure(state=tk.DISABLED)
             
         except Exception as e:
-            ColorPrint.red(f"[ERROR] 批量测试执行失败: {e}")
-            self.test_status_var.set("测试失败")
-    
-    def _stop_all_tests(self):
-        """Stop all tests"""
+            print(f"Error filtering logs: {e}")
+
+    def _display_message_without_scroll(self, log_entry):
+        """Display message without auto-scroll"""
         try:
-            self.test_status_var.set("已停止")
-            self.test_progress_var.set(0)
-            ColorPrint.yellow("[TEST] 所有测试已停止")
+            # Determine tag
+            tag = log_entry['level']
+            if log_entry['color']:
+                color_map = {
+                    'red': 'ERROR',
+                    'yellow': 'WARNING',
+                    'green': 'SUCCESS',
+                    'cyan': 'CYAN',
+                    'blue': 'INFO'
+                }
+                tag = color_map.get(log_entry['color'], log_entry['level'])
+            
+            # Insert message
+            self.log_text.insert(tk.END, f"{log_entry['message']}\n", tag)
             
         except Exception as e:
-            ColorPrint.red(f"[ERROR] 停止测试失败: {e}")
-    
-    def _clear_log(self):
-        """Clear log output"""
+            print(f"Error displaying message: {e}")
+
+    def clear_logs(self):
+        """Clear all logs"""
         try:
-            if hasattr(self, 'log_widget') and self.log_widget:
-                # Use log widget's clear method if available
-                if hasattr(self.log_widget, 'clear'):
-                    self.log_widget.clear()
-                else:
-                    # Fallback to text widget
-                    if hasattr(self.log_widget, 'text_widget'):
-                        self.log_widget.text_widget.delete(1.0, tk.END)
-            elif hasattr(self, 'log_text'):
-                self.log_text.delete(1.0, tk.END)
-            
-            ColorPrint.blue("[LOG] 日志已清除")
-            
+            self.log_buffer.clear()
+            self.log_text.configure(state=tk.NORMAL)
+            self.log_text.delete(1.0, tk.END)
+            self.log_text.configure(state=tk.DISABLED)
+            ColorPrint.blue("[LogPanel] Logs cleared")
         except Exception as e:
-            ColorPrint.red(f"[ERROR] 清除日志失败: {e}")
-    
-    def _save_log(self):
-        """Save log to file"""
+            print(f"Error clearing logs: {e}")
+
+    def save_logs(self):
+        """Save logs to file"""
         try:
             from tkinter import filedialog
             import datetime
             
-            # Generate default filename
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            default_filename = f"d3check_log_{timestamp}.txt"
-            
-            # Ask user for save location
+            # Get save location
             filename = filedialog.asksaveasfilename(
-                title="保存日志文件",
                 defaultextension=".txt",
-                filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")],
-                initialvalue=default_filename
+                filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+                initialname=f"d3check_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
             )
             
             if filename:
-                # Get log content
-                if hasattr(self, 'log_widget') and self.log_widget:
-                    if hasattr(self.log_widget, 'get_content'):
-                        content = self.log_widget.get_content()
-                    elif hasattr(self.log_widget, 'text_widget'):
-                        content = self.log_widget.text_widget.get(1.0, tk.END)
-                    else:
-                        content = "日志内容不可用"
-                elif hasattr(self, 'log_text'):
-                    content = self.log_text.get(1.0, tk.END)
-                else:
-                    content = "日志内容不可用"
-                
-                # Save to file
                 with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(content)
+                    f.write(f"D3-Check Log Export\n")
+                    f.write(f"Generated: {datetime.datetime.now()}\n")
+                    f.write("=" * 50 + "\n\n")
+                    
+                    for log_entry in self.log_buffer:
+                        f.write(f"[{log_entry['level']}] {log_entry['message']}\n")
                 
-                ColorPrint.green(f"[SUCCESS] 日志已保存到: {filename}")
-            
+                ColorPrint.green(f"[LogPanel] Logs saved to: {filename}")
+                
         except Exception as e:
-            ColorPrint.red(f"[ERROR] 保存日志失败: {e}")
-    
-    def add_log_message(self, message, level="INFO"):
-        """Add message to log"""
-        try:
-            if hasattr(self, 'log_widget') and self.log_widget:
-                if hasattr(self.log_widget, 'add_message'):
-                    self.log_widget.add_message(message, level)
-                elif hasattr(self.log_widget, 'text_widget'):
-                    self.log_widget.text_widget.insert(tk.END, f"[{level}] {message}\n")
-            elif hasattr(self, 'log_text'):
-                self.log_text.insert(tk.END, f"[{level}] {message}\n")
-                if self.auto_scroll_var.get():
-                    self.log_text.see(tk.END)
-            
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] 添加日志消息失败: {e}")
-    
-    def set_test_function_callback(self, callback):
-        """Set test function callback"""
-        self.on_test_function = callback
+            ColorPrint.red(f"[LogPanel] Error saving logs: {e}")
+
+    def _test_bag(self):
+        """Test bag functionality"""
+        ColorPrint.blue(f"[{i18n_manager.get_ui_text('log_panel.bag_test')}] {i18n_manager.get_ui_text('log_panel.bag_test_start')}")
+        ColorPrint.green(f"[{i18n_manager.get_ui_text('log_panel.bag_test')}] {i18n_manager.get_ui_text('log_panel.bag_test_complete')}")
+
+    def _test_yellow_upgrade(self):
+        """Test yellow upgrade functionality"""
+        ColorPrint.blue(f"[{i18n_manager.get_ui_text('log_panel.yellow_upgrade')}] {i18n_manager.get_ui_text('log_panel.yellow_upgrade_start')}")
+        ColorPrint.green(f"[{i18n_manager.get_ui_text('log_panel.yellow_upgrade')}] {i18n_manager.get_ui_text('log_panel.yellow_upgrade_complete')}")
+
+    def _test_item_reforge(self):
+        """Test item reforge functionality"""
+        ColorPrint.blue(f"[{i18n_manager.get_ui_text('log_panel.item_reforge')}] {i18n_manager.get_ui_text('log_panel.item_reforge_start')}")
+        ColorPrint.green(f"[{i18n_manager.get_ui_text('log_panel.item_reforge')}] {i18n_manager.get_ui_text('log_panel.item_reforge_complete')}")
+
+    def _test_pathfinding(self):
+        """Test pathfinding functionality"""
+        ColorPrint.blue(f"[{i18n_manager.get_ui_text('log_panel.test_pathfinding')}] {i18n_manager.get_ui_text('log_panel.test_pathfinding_start')}")
+        ColorPrint.green(f"[{i18n_manager.get_ui_text('log_panel.test_pathfinding')}] {i18n_manager.get_ui_text('log_panel.test_pathfinding_complete')}")
+
+# Language change is now handled by main UI - no individual panel methods needed

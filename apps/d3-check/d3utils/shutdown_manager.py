@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Shutdown Manager - Unified Application Shutdown Controller
+Handles all application shutdown logic in a single place
+"""
+
+import os
+import sys
+import time
+import threading
+from typing import Optional
+
+# Import from common_imports
+from providor.common_imports import ColorPrint, ENCYCLOPEDIA
+
+# Import static global modules
+import timers.timer_manager as timer_manager
+from providor.common_imports import HotkeyListener
+
+# Global hotkey listener reference
+_hotkey_listener: Optional[HotkeyListener] = None
+
+# Global shutdown events
+_shutdown_requested = threading.Event()
+_shutdown_completed = threading.Event()
+_shutdown_lock = threading.Lock()
+
+
+def register_hotkey_listener(hotkey_listener):
+    """Register hotkey listener reference"""
+    global _hotkey_listener
+    _hotkey_listener = hotkey_listener
+    ColorPrint.blue("[ShutdownManager] Hotkey listener registered")
+
+
+def request_shutdown():
+    """
+    Request application shutdown
+
+    This is the ONLY method that should be called from anywhere to trigger shutdown.
+    It sets the shutdown event flag and quits UI mainloop to let main thread execute shutdown.
+    """
+    global _shutdown_requested
+
+    if _shutdown_requested.is_set():
+        return  # Already requested
+
+    ColorPrint.yellow("[ShutdownManager] ========================================")
+    ColorPrint.yellow("[ShutdownManager] Shutdown requested")
+    ColorPrint.yellow("[ShutdownManager] ========================================")
+    _shutdown_requested.set()
+
+    # Quit UI mainloop to let main thread continue
+    ui = ENCYCLOPEDIA.get('ui')
+    if ui:
+        try:
+            ColorPrint.blue("[ShutdownManager] Quitting UI mainloop...")
+            ui.root.quit()
+        except Exception as e:
+            ColorPrint.red(f"[ShutdownManager] Error quitting UI mainloop: {e}")
+
+
+def is_shutdown_requested() -> bool:
+    """Check if shutdown has been requested"""
+    return _shutdown_requested.is_set()
+
+
+def execute_shutdown():
+    """
+    Execute the actual shutdown sequence
+
+    This should ONLY be called from the main thread monitoring loop.
+    Never call this directly from UI, signal handlers, or other components.
+    """
+    global _shutdown_lock, _shutdown_completed
+    global _hotkey_listener
+
+    with _shutdown_lock:
+        if _shutdown_completed.is_set():
+            return  # Already completed
+
+        ColorPrint.yellow("[ShutdownManager] ========================================")
+        ColorPrint.yellow("[ShutdownManager] Executing shutdown sequence...")
+        ColorPrint.yellow("[ShutdownManager] ========================================")
+
+        try:
+            # Step 1: Stop hotkey listener (prevent new input)
+            if _hotkey_listener:
+                try:
+                    ColorPrint.blue("[ShutdownManager] [1/3] Stopping hotkey listener...")
+                    _hotkey_listener.stop_listening()
+                    ColorPrint.green("[ShutdownManager] ✓ Hotkey listener stopped")
+                except Exception as e:
+                    ColorPrint.red(f"[ShutdownManager] ✗ Hotkey listener error: {e}")
+
+            # Step 2: Stop timer manager (stop periodic tasks)
+            try:
+                ColorPrint.blue("[ShutdownManager] [2/3] Stopping timer manager...")
+                timer_manager.stop()
+                ColorPrint.green("[ShutdownManager] ✓ Timer manager stopped")
+            except Exception as e:
+                ColorPrint.red(f"[ShutdownManager] ✗ Timer manager error: {e}")
+
+            # Step 3: Destroy UI (cleanup window and system tray)
+            ui = ENCYCLOPEDIA.get('ui')
+            if ui:
+                try:
+                    ColorPrint.blue("[ShutdownManager] [3/3] Destroying UI...")
+                    # Stop system tray first
+                    if hasattr(ui, 'system_tray') and ui.system_tray:
+                        try:
+                            ui.system_tray.stop()
+                            time.sleep(0.2)  # Brief wait for tray cleanup
+                        except:
+                            pass
+
+                    # Destroy UI window
+                    try:
+                        ui.root.quit()
+                    except:
+                        pass
+
+                    try:
+                        ui.root.destroy()
+                    except:
+                        pass
+
+                    ColorPrint.green("[ShutdownManager] ✓ UI destroyed")
+                except Exception as e:
+                    ColorPrint.red(f"[ShutdownManager] ✗ UI destruction error: {e}")
+
+            _shutdown_completed.set()
+
+            ColorPrint.green("[ShutdownManager] ========================================")
+            ColorPrint.green("[ShutdownManager] Shutdown sequence completed")
+            ColorPrint.green("[ShutdownManager] ========================================")
+
+            # Final exit
+            ColorPrint.blue("[ShutdownManager] Exiting application...")
+            time.sleep(0.3)
+            os._exit(0)
+
+        except Exception as e:
+            ColorPrint.red(f"[ShutdownManager] ✗ Critical error: {e}")
+            import traceback
+            traceback.print_exc()
+            os._exit(1)
+
+
+def wait_for_shutdown(timeout: Optional[float] = None):
+    """Wait for shutdown request"""
+    return _shutdown_requested.wait(timeout)

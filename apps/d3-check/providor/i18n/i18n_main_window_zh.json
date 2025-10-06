@@ -1,0 +1,72 @@
+{
+  "ui": {
+    "main_window": {
+      "title": "暗黑破坏神3 宏助手",
+      "back_button": "←",
+      "language": "语言",
+      "menu": {
+        "file": "文件",
+        "edit": "编辑",
+        "view": "视图",
+        "help": "帮助",
+        "language": "语言",
+        "exit": "退出"
+      }
+    },
+    "tabs": {
+      "main_functions": "主要功能",
+      "auxiliary_functions": "辅助功能",
+      "log": "日志",
+      "rosbot_extension": "Rosbot扩展"
+    },
+    "macro_controls": {
+      "start_macro": "启动宏",
+      "stop_macro": "停止宏",
+      "running": "运行中",
+      "stopped": "已停止"
+    },
+    "status_bar": {
+      "game_status": "游戏状态",
+      "window_size": "窗口尺寸",
+      "main_log": "主日志区",
+      "diablo_running": "暗黑运行中",
+      "diablo_not_running": "暗黑未运行",
+      "window_detected": "窗口已检测",
+      "window_not_detected": "窗口未检测",
+      "size_format": "{width}x{height}",
+      "status": "状态",
+      "ready": "就绪",
+      "working": "工作中",
+      "error": "错误",
+      "multiple_logs_note": "注：此程序有多处日志输出"
+    },
+    "main_functions_panel": {
+      "quick_switch": "快速切换",
+      "animation_speed_label": "动画速度:",
+      "animation_speed_slow": "慢速",
+      "animation_speed_medium": "中等",
+      "animation_speed_fast": "快速",
+      "game_language_label": "游戏语言:",
+      "game_language_simplified": "简体中文",
+      "game_language_traditional": "繁体中文",
+      "game_language_english": "English",
+      "log_level_label": "日志级别:",
+      "macro_start_hotkey_label": "战斗宏启停热键:",
+      "macro_pause_hotkey_label": "辅助宏启停热键:",
+      "current_config": "当前配置",
+      "config_file_path": "配置文件路径",
+      "skill_config": "技能配置",
+      "skill1": "技能1",
+      "skill2": "技能2",
+      "skill3": "技能3",
+      "skill4": "技能4",
+      "additional_settings": "附加设置",
+      "quick_switch_key": "快速切换",
+      "movement_key": "移动键",
+      "potion_key": "药水键",
+      "potion_interval": "药水间隔",
+      "status_config_loaded": "配置已加载",
+      "space_key": "空格"
+    }
+  }
+}

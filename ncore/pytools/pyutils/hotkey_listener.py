@@ -400,7 +400,7 @@ class HotkeyListener:
         return hotkey.lower().replace(' ', '').replace('+', '+')
     
     def _register_with_keyboard(self, hotkey: str, info: HotkeyInfo):
-        """Register hotkey with keyboard module"""
+        """Register hotkey with keyboard module with conflict resolution"""
         if not KEYBOARD_AVAILABLE:
             ColorPrint.red("[ERROR] Keyboard module not available")
             return
@@ -410,15 +410,122 @@ class HotkeyListener:
                 if info.enabled:
                     try:
                         ColorPrint.blue(f"[HOTKEY] Triggered: {hotkey}")
+                        
+                        # Execute the main callback
                         info.callback()
+                        
+                        # If there's an original callback (system hotkey), execute it after
+                        if info.original_callback:
+                            try:
+                                ColorPrint.blue(f"[HOTKEY] Executing original system callback for '{hotkey}'")
+                                info.original_callback()
+                            except Exception as e:
+                                ColorPrint.red(f"[ERROR] Original callback error for '{hotkey}': {e}")
+                                
                     except Exception as e:
                         ColorPrint.red(f"[ERROR] Hotkey callback error for '{hotkey}': {e}")
             
-            # Register with keyboard module
-            keyboard.add_hotkey(hotkey, hotkey_callback, suppress=False)
+            # Try to register with keyboard module
+            try:
+                # First attempt: try to register normally
+                keyboard.add_hotkey(hotkey, hotkey_callback, suppress=False)
+                ColorPrint.green(f"[HOTKEY] Successfully registered '{hotkey}'")
+                
+            except Exception as register_error:
+                # If registration fails, try to handle conflicts
+                ColorPrint.yellow(f"[HOTKEY] Registration failed for '{hotkey}': {register_error}")
+                
+                if self._handle_hotkey_conflict(hotkey, info, hotkey_callback):
+                    ColorPrint.green(f"[HOTKEY] Successfully handled conflict for '{hotkey}'")
+                else:
+                    ColorPrint.red(f"[HOTKEY] Failed to handle conflict for '{hotkey}'")
+                    raise register_error
             
         except Exception as e:
             ColorPrint.red(f"[ERROR] Failed to register '{hotkey}' with keyboard module: {e}")
+    
+    def _handle_hotkey_conflict(self, hotkey: str, info: HotkeyInfo, new_callback: Callable) -> bool:
+        """
+        Handle hotkey conflicts by attempting to take over existing hotkeys
+        
+        Args:
+            hotkey: Hotkey string
+            info: Hotkey info
+            new_callback: New callback function
+            
+        Returns:
+            True if conflict handled successfully, False otherwise
+        """
+        try:
+            # Try to remove any existing hotkey first
+            try:
+                keyboard.remove_hotkey(hotkey)
+                ColorPrint.blue(f"[HOTKEY] Removed existing hotkey '{hotkey}'")
+            except:
+                pass  # No existing hotkey to remove
+            
+            # Try to register with suppress=True to take over system hotkeys
+            try:
+                keyboard.add_hotkey(hotkey, new_callback, suppress=True)
+                ColorPrint.green(f"[HOTKEY] Successfully took over '{hotkey}' with suppress=True")
+                return True
+            except Exception as suppress_error:
+                ColorPrint.yellow(f"[HOTKEY] Suppress registration failed for '{hotkey}': {suppress_error}")
+                
+                # Try alternative registration methods
+                return self._try_alternative_registration(hotkey, info, new_callback)
+                
+        except Exception as e:
+            ColorPrint.red(f"[ERROR] Failed to handle conflict for '{hotkey}': {e}")
+            return False
+    
+    def _try_alternative_registration(self, hotkey: str, info: HotkeyInfo, new_callback: Callable) -> bool:
+        """
+        Try alternative registration methods for problematic hotkeys
+        
+        Args:
+            hotkey: Hotkey string
+            info: Hotkey info
+            new_callback: New callback function
+            
+        Returns:
+            True if registered successfully, False otherwise
+        """
+        try:
+            # Method 1: Try with different suppress settings
+            try:
+                keyboard.add_hotkey(hotkey, new_callback, suppress=False)
+                ColorPrint.green(f"[HOTKEY] Alternative registration successful for '{hotkey}'")
+                return True
+            except:
+                pass
+            
+            # Method 2: Try registering with a slight delay
+            import time
+            time.sleep(0.1)
+            try:
+                keyboard.add_hotkey(hotkey, new_callback, suppress=True)
+                ColorPrint.green(f"[HOTKEY] Delayed registration successful for '{hotkey}'")
+                return True
+            except:
+                pass
+            
+            # Method 3: Try with different hotkey format
+            try:
+                # Convert to different format (e.g., 'ctrl+shift+f1' -> 'ctrl shift f1')
+                alt_hotkey = hotkey.replace('+', ' ')
+                keyboard.add_hotkey(alt_hotkey, new_callback, suppress=True)
+                ColorPrint.green(f"[HOTKEY] Alternative format registration successful for '{alt_hotkey}'")
+                return True
+            except:
+                pass
+            
+            ColorPrint.red(f"[HOTKEY] All alternative registration methods failed for '{hotkey}'")
+            return False
+            
+        except Exception as e:
+            ColorPrint.red(f"[ERROR] Alternative registration failed for '{hotkey}': {e}")
+            return False
     
     def _unregister_from_keyboard(self, hotkey: str):
         """Unregister hotkey from keyboard module"""

@@ -1,0 +1,7 @@
+{
+  "ui": {
+    "error_messages": {
+      "bag_offset_failed": "更新背包偏移值配置失败"
+    }
+  }
+}

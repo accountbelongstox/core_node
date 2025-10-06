@@ -1,0 +1,180 @@
+留:
+  - get_system_initializer() - 唯一的单例获取函数
+
+  2. ✅ 创建通用热键注册系统
+
+  新文件: d3utils/d3u_common/hotkey_registry.py
+  - HotkeyRegistry 类 - 管理所有热键
+  - initialize_hotkeys() - 配置驱动的热键初始化
+  - 从 system_initializer.py 移除热键相关代码
+
+  3. ✅ 实现完全解耦架构
+
+  核心原则:
+  UI ⟍ 互不引用 ⟋ Timer System
+       ⟍         ⟋
+    system_initializer (中介者)
+           ↓
+    game_interface_data (共享数据中心)
+
+  关键修改:
+
+  ui/diablo3_macro_ui.py:
+
+  - 移除 _register_status_bar_callback() 方法
+  - 添加 get_status_bar_callback() 方法提供回调
+  - 不引用 timer system 或 system_initializer
+
+  d3utils/system_initializer.py:
+
+  - 添加 register_ui_callback(ui_instance) 方法
+  - 作为中介者，从 UI 获取回调并注册到 window_monitor
+
+  controller/d3_macro_controller.py:
+
+  - 创建 UI 后调用 sys_init.register_ui_callback(ui)
+  - 完成 UI 到 timer 的回调注册
+
+  4. ✅ 数据流架构
+
+  1. Initialization:
+     main.py → sys_init.initialize_system()
+     → timer_manager + window_monitor created
+
+  2. UI Registration:
+     controller → ui = Diablo3MacroUI()
+     controller → sys_init.register_ui_callback(ui)
+     → window_monitor.add_callback(ui.get_status_bar_callback())
+
+  3. Periodic Updates (every 10s):
+     timer_manager.trigger()
+     → window_monitor.check_window()
+     → game_interface_data update
+     → window_monitor._notify_callbacks()
+     → status_bar.on_window_status_update(window_info)
+     → UI updates
+
+  5. ✅ 文档更新
+
+  创建 timers/README.md，详细说明：
+  - 解耦架构设计
+  - 数据流示例
+  - API 参考
+  - 最佳实践
+
+  架构优势
+
+  1. 松耦合: UI 和 Timer 互不依赖
+  2. 单一职责: system_initializer 负责协调
+  3. 共享数据: game_interface_data 统一数据访问
+  4. 易测试: 各组件可独立测试
+  5. 易扩展: 新增 timer task 或 UI callback 无需修改现有代码
+
+  现在的架构清晰、解耦、易维护！
+
+> 检测一下，还有遗漏没有。D:\programing\core_node\apps\d3-check\d3utils\system_initializer.py
+其中的UI和定时器的注册原理为，调用UI中的update方法给定义器，而定时器每个task执行一次如果存在回调就会执行回调，同时都是使用
+D:\programing\core_node\apps\d3-check\d3utils\share\game_interface_data.py 作为数据共享，所以，ui中并不需要引入定义器，相当于是定时器中引用了UI，但定时器的引用实际 上是说system
+initilizhser注册执行的，所以ui和定义器都互相不引用，而是在system initializer中注册完成。
+
+● 好的，让我全面检查是否有遗漏的地方：
+
+● Search(pattern: "from d3utils\.system_initializer import|from d3utils import system_initializer|import system_initializer", path: "apps\d3-check\ui")
+  ⎿  Found 1 file (ctrl+o to expand)
+
+● Search(pattern: "from timers import|import timers", path: "apps\d3-check\ui")
+  ⎿  Found 0 files
+
+● Search(pattern: "from d3utils\.system_initializer import|from d3utils import system_initializer", path: "apps\d3-check\ui", output_mode: "content")
+  ⎿  Found 7 lines (ctrl+o to expand)
+
+● Search(pattern: "from ui\.|import ui|from.*diablo3_macro_ui|from.*status_bar", path: "apps\d3-check\timers")
+  ⎿  Found 0 files
+
+● Search(pattern: "from d3utils|from timers|import system_initializer|import timers", path: "apps\d3-check\ui\components\status_bar.py", output_mode: "content")
+  ⎿  Found 1 line (ctrl+o to expand)
+
+● Read(apps\d3-check\ui\diablo3_macro_ui.py)
+  ⎿  Read 50 lines (ctrl+o to expand)
+
+● Search(pattern: "def set_.*_callback", path: "apps\d3-check\ui\diablo3_macro_ui.py", output_mode: "content")
+  ⎿  Found 4 lines (ctrl+o to expand)
+
+● Update(apps\d3-check\ui\diablo3_macro_ui.py)
+  ⎿  Updated apps\d3-check\ui\diablo3_macro_ui.py with 1 addition
+       72            self.on_macro_stop: Optional[Callable] = None
+       73            self.on_config_change: Optional[Callable] = None
+       74            self.on_skill_config_switch: Optional[Callable] = None
+       75 +          self.on_shutdown: Optional[Callable] = None  # Shutdown callback (set by controller)
+       76
+       77            # Create UI
+       78            self._create_ui()
+
+● Read(apps\d3-check\ui\diablo3_macro_ui.py)
+  ⎿  Read 20 lines (ctrl+o to expand)
+
+● Update(apps\d3-check\ui\diablo3_macro_ui.py)
+  ⎿  Updated apps\d3-check\ui\diablo3_macro_ui.py with 9 additions
+       917        def set_skill_config_switch_callback(self, callback: Callable):
+       918            """Set callback for skill configuration switch"""
+       919            self.on_skill_config_switch = callback
+       920 +
+       921 +      def set_shutdown_callback(self, callback: Callable):
+       922 +          """
+       923 +          Set callback for system shutdown
+       924 +
+       925 +          This maintains decoupled architecture - UI does not import system_initializer.
+       926 +          Controller sets this callback to trigger system shutdown.
+       927 +          """
+       928 +          self.on_shutdown = callback
+       929
+       930        # Utility methods
+       931
+
+● Update(apps\d3-check\ui\diablo3_macro_ui.py)
+  ⎿  Updated apps\d3-check\ui\diablo3_macro_ui.py with 17 additions and 6 removals
+       314                os._exit(0)
+       315
+       316        def _trigger_system_shutdown(self):
+       317 -          """Trigger complete system shutdown - UNIFIED EXIT METHOD"""
+       317 +          """
+       318 +          Trigger complete system shutdown - UNIFIED EXIT METHOD
+       319 +
+       320 +          This method maintains decoupled architecture - UI does not import system_initializer.
+       321 +          Instead, it calls the shutdown callback set by controller.
+       322 +          """
+       323            try:
+       324 -              ColorPrint.blue("[UI] Triggering system shutdown...")
+       325 -              # Import system initializer
+       326 -              from d3utils.system_initializer import get_system_initializer
+       327 -              # Trigger shutdown
+       328 -              get_system_initializer().shutdown()
+       324 +              ColorPrint.blue("[UI] Triggering system shutdown via callback...")
+       325 +
+       326 +              if self.on_shutdown:
+       327 +                  # Call shutdown callback (set by controller)
+       328 +                  self.on_shutdown()
+       329 +              else:
+       330 +                  ColorPrint.yellow("[UI] No shutdown callback set, using fallback exit")
+       331 +                  # Fallback to direct exit
+       332 +                  import os
+       333 +                  os._exit(0)
+       334 +
+       335            except Exception as e:
+       336                ColorPrint.red(f"[UI] Error triggering system shutdown: {e}")
+       337                # Fallback to direct exit
+
+● Update(apps\d3-check\controller\d3_macro_controller.py)
+  ⎿  Updated apps\d3-check\controller\d3_macro_controller.py with 6 additions
+       240                # UI does not import timer system, system_initializer acts as mediator
+       241                from d3utils.system_initializer import get_system_initializer
+       242                sys_init = get_system_initializer()
+       243 +
+       244 +              # Set shutdown callback (decoupled architecture)
+       245 +              # UI does not import system_initializer, calls shutdown via callback
+       246 +              self.ui.set_shutdown_callback(sys_init.shutdown)
+       247 +
+       248 +              # Register UI window status callback
+       249                sys_init.register_ui_callback(self.ui)
+       250
+       251                # Run UI

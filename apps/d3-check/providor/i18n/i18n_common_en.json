@@ -1,0 +1,75 @@
+{
+  "ui": {
+    "buttons": {
+      "save": "Save",
+      "load": "Load",
+      "reset": "Reset",
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "ok": "OK"
+    },
+    "messages": {
+      "config_saved": "Configuration saved",
+      "config_loaded": "Configuration loaded",
+      "config_reset": "Configuration reset",
+      "error_occurred": "An error occurred",
+      "success": "Success",
+      "failed": "Failed"
+    },
+    "options": {
+      "play_sound_on_switch": "Play sound when hotkey switches config successfully",
+      "smart_pause": "Smart Pause",
+      "use_custom_stand_key": "Use custom force stand key",
+      "current_active_config": "Current Active Config",
+      "key_send_mode": "Key Send Mode"
+    },
+    "skills": {
+      "skill1": "Skill 1",
+      "skill2": "Skill 2",
+      "skill3": "Skill 3",
+      "skill4": "Skill 4",
+      "left_click": "Left Click",
+      "right_click": "Right Click"
+    },
+    "image_display": {
+      "click_to_load": "Click to load image",
+      "path": "Path",
+      "size": "Size",
+      "load_image": "Load Image",
+      "clear": "Clear",
+      "select_image": "Select Image",
+      "image_files": "Image Files",
+      "all_files": "All Files",
+      "image_info": "Image Information",
+      "file_not_found": "File not found",
+      "unsupported_type": "Unsupported type",
+      "load_failed": "Load failed",
+      "image": "Image",
+      "add_image": "Add Image"
+    },
+    "hotkey_input": {
+      "placeholder": "Press hotkey...",
+      "keys": {
+        "ctrl": "Ctrl",
+        "shift": "Shift",
+        "alt": "Alt",
+        "win": "Win",
+        "space": "Space",
+        "enter": "Enter",
+        "backspace": "Backspace",
+        "tab": "Tab",
+        "esc": "Esc",
+        "del": "Del",
+        "ins": "Ins",
+        "home": "Home",
+        "end": "End",
+        "pageup": "PageUp",
+        "pagedown": "PageDown",
+        "up": "Up",
+        "down": "Down",
+        "left": "Left",
+        "right": "Right"
+      }
+    }
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "ui": {
+    "skill_config": {
+      "title": "技能配置",
+      "skill": "技能",
+      "key": "按键",
+      "strategy": "策略",
+      "interval": "间隔(ms)",
+      "delay": "延迟(ms)",
+      "random_delay": "随机延迟(ms)",
+      "enable": "启用",
+      "combat_skills": "战斗技能",
+      "movement_skills": "移动技能",
+      "utility_skills": "辅助技能",
+      "movement_skill": "移动技能",
+      "dodge_skill": "闪避技能",
+      "teleport_skill": "传送技能",
+      "healing_potion": "治疗药水",
+      "mana_potion": "法力药水",
+      "town_portal": "城镇传送",
+      "strategies": {
+        "continuous": "连续",
+        "single": "单次",
+        "hold": "按住",
+        "drag": "拖拽",
+        "disabled": "禁用",
+        "buff": "保持Buff"
+      }
+    },
+    "additional_settings": {
+      "title": "其他设置",
+      "quick_switch": "快速切换",
+      "movement": "移动",
+      "potion": "药水",
+      "potion_interval": "药水间隔(ms)",
+      "quick_switch_title": "快速切换至本配置",
+      "auto_start": "切换后自动启动宏",
+      "macro_start_title": "宏启动方式",
+      "lazy_mode": "懒人模式",
+      "manual_mode": "手动模式",
+      "single_thread": "使用单线程按键队列 (毫秒)",
+      "quick_pause_title": "快速暂停",
+      "double_click": "双击",
+      "pause_key": "则暂停按键宏",
+      "milliseconds": "毫秒",
+      "movement_assist_title": "走位辅助",
+      "force_movement": "强制走位 (连点)",
+      "smart_movement": "智能走位",
+      "disabled": "禁用",
+      "execution_interval": "执行间隔 (毫秒)",
+      "potion_assist_title": "药水辅助",
+      "keep_potion_cd": "保持药水CD",
+      "smart_potion": "智能药水"
+    },
+    "config_tabs": {
+      "config1": "配置1",
+      "config2": "配置2",
+      "config3": "配置3",
+      "config4": "配置4"
+    },
+    "main_functions_panel": {
+      "current_config": "当前配置",
+      "config_file_path": "配置文件路径",
+      "skill_config": "技能配置",
+      "primary_skill": "主要技能",
+      "secondary_skill": "次要技能",
+      "defensive_skill": "防御技能",
+      "ultimate_skill": "终极技能",
+      "additional_settings": "附加设置",
+      "quick_switch": "快速切换",
+      "movement_key": "移动键",
+      "potion_key": "药水键",
+      "status": "状态",
+      "config_loaded": "配置已加载"
+    },
+    "basic_info": {
+      "title": "基本信息",
+      "current_config_info": "当前配置信息",
+      "config_file": "配置文件",
+      "file_exists": "文件存在",
+      "file_size": "文件大小",
+      "available_configs": "可用配置",
+      "current_skill_config": "当前技能配置",
+      "yes": "是",
+      "no": "否",
+      "bytes": "字节"
+    },
+    "skill_table": {
+      "headers": {
+        "key": "快捷键",
+        "strategy": "策略",
+        "interval": "执行间隔 (毫秒)",
+        "delay": "延迟 (毫秒)",
+        "random_delay": "延迟随机"
+      },
+      "skills": {
+        "skill1": "技能一",
+        "skill2": "技能二",
+        "skill3": "技能三",
+        "skill4": "技能四",
+        "left_click": "左键技能",
+        "right_click": "右键技能"
+      },
+      "strategies": {
+        "disabled": "禁用",
+        "hold": "按住不放",
+        "continuous": "连点",
+        "buff": "保持Buff"
+      }
+    },
+    "config_selection": {
+      "title": "配置选择"
+    },
+    "skill_config_list": {
+      "title": "技能配置列表",
+      "config_name": "配置名称",
+      "skill_name": "技能名称",
+      "key": "按键",
+      "strategy": "策略",
+      "interval": "间隔(ms)",
+      "delay": "延迟(ms)",
+      "random_delay": "随机延迟(ms)",
+      "quick_switch": "快速切换",
+      "movement": "移动",
+      "potion": "药水",
+      "potion_interval": "药水间隔(ms)",
+      "strategy_options": {
+        "continuous": "连续",
+        "single": "单次",
+        "hold": "按住"
+      }
+    }
+  }
+}

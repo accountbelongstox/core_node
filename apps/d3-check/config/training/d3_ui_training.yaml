@@ -1,0 +1,72 @@
+# Ultralytics Training Configuration for D3 UI Detection
+# Dataset: Diablo III Game Interface Elements
+
+# Core parameters
+data: config/datasets/d3_ui/data.yaml
+model: yolov8n.pt  # Nano model (fastest)
+epochs: 100
+imgsz: 640
+batch: 16
+
+# Device and project
+device: cpu  # Change to 'cuda' or '0' for GPU
+project: training/runs
+name: d3_ui_detector
+exist_ok: true
+pretrained: true
+
+# Optimizer settings
+optimizer: auto  # Automatically select best optimizer
+lr0: 0.01  # Initial learning rate
+lrf: 0.01  # Final learning rate (lr0 * lrf)
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 3
+
+# Training settings
+patience: 50  # Early stopping patience
+save: true
+save_period: 10  # Save checkpoint every 10 epochs
+cache: false  # Set to 'ram' or 'disk' to cache images
+workers: 4  # Number of dataloader workers
+cos_lr: false  # Use cosine learning rate scheduler
+amp: true  # Automatic Mixed Precision
+fraction: 1.0  # Use 100% of dataset
+profile: false
+freeze: null  # Freeze layers (e.g., [0, 1, 2] or 10)
+
+# Advanced training
+multi_scale: false
+single_cls: false
+rect: false
+resume: false  # Resume from last checkpoint
+close_mosaic: 10  # Disable mosaic augmentation for final N epochs
+
+# Augmentation parameters
+# HSV color-space augmentation
+hsv_h: 0.015  # Hue
+hsv_s: 0.7    # Saturation
+hsv_v: 0.4    # Value
+
+# Geometric augmentation
+degrees: 0.0      # Rotation (-degrees to +degrees)
+translate: 0.1    # Translation
+scale: 0.5        # Scale (+/- gain)
+shear: 0.0        # Shear (+/- degrees)
+perspective: 0.0  # Perspective
+
+# Flip augmentation
+flipud: 0.0  # Vertical flip probability
+fliplr: 0.5  # Horizontal flip probability
+
+# Advanced augmentation
+mosaic: 1.0      # Mosaic augmentation probability
+mixup: 0.0       # Mixup augmentation probability
+copy_paste: 0.0  # Copy-paste augmentation probability
+
+# Model-specific settings
+# For larger models, consider:
+# yolov8s.pt: Small model (better accuracy)
+# yolov8m.pt: Medium model (balanced)
+# yolov8l.pt: Large model (high accuracy)
+# yolov8x.pt: Extra large model (highest accuracy)

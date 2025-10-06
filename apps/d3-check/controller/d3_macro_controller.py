@@ -17,6 +17,7 @@ current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
 
 from providor.providor_index import CONFIG, load_config
+from providor.common_imports import ColorPrint
 from ui.diablo3_macro_ui import Diablo3MacroUI
 from controller.game_interface_controller import GameInterfaceController
 
@@ -27,9 +28,6 @@ class D3MacroController:
     def __init__(self):
         """Initialize the controller"""
         self.logger = logging.getLogger(__name__)
-        
-        # Load configuration
-        load_config()
         
         # Game interface controller
         self.game_interface_controller = GameInterfaceController()
@@ -46,6 +44,10 @@ class D3MacroController:
         self.on_macro_start: Optional[Callable] = None
         self.on_macro_stop: Optional[Callable] = None
         self.on_config_change: Optional[Callable] = None
+
+        # Language change control
+        self._last_language_change_time = 0
+        self._language_change_debounce_ms = 500  # 500ms debounce
     
     def start_macro(self):
         """Start the macro"""
@@ -178,33 +180,75 @@ class D3MacroController:
             self.update_skill_config(self.current_skill_config, current_skill_config)
             self.update_auxiliary_config(current_auxiliary_config)
             
-            # Update hotkey bindings if auxiliary config changed
-            self.game_interface_controller.update_hotkeys()
     
     def on_ui_skill_config_switch(self, config_name: str):
         """Handle UI skill configuration switch"""
         self.switch_skill_config(config_name)
+
+    def _register_language_listener(self):
+        """Register language change listener at controller level (top-level)"""
+        try:
+            from d3utils.i18n_manager import i18n_manager
+            i18n_manager.add_language_change_listener(self._on_language_changed)
+            ColorPrint.blue("[Controller] Registered top-level language change listener")
+        except Exception as e:
+            ColorPrint.red(f"[Controller] Failed to register language listener: {e}")
+
+    def _on_language_changed(self, new_language: str):
+        """Handle language change at controller level with debouncing"""
+        try:
+            import time
+            current_time = time.time() * 1000  # Convert to milliseconds
+
+            # Debouncing: ignore rapid successive calls
+            if current_time - self._last_language_change_time < self._language_change_debounce_ms:
+                ColorPrint.yellow(f"[Controller] Language change to {new_language} debounced (too soon)")
+                return
+
+            self._last_language_change_time = current_time
+            ColorPrint.green(f"[Controller] Language changed to: {new_language}")
+
+            if self.ui and hasattr(self.ui, '_on_language_changed'):
+                # Call UI's language change method directly
+                self.ui._on_language_changed(new_language)
+            else:
+                ColorPrint.yellow("[Controller] UI not available for language change")
+        except Exception as e:
+            ColorPrint.red(f"[Controller] Error handling language change: {e}")
     
     def run(self):
-        """Run the application"""
+        """Run the application and return UI instance"""
         try:
             # Initialize game interface
             if not self.game_interface_controller.initialize_game_interface():
                 self.logger.error("Failed to initialize game interface")
-                return
-            
+                return None
+
             # Create UI
             self.ui = Diablo3MacroUI(self.current_skill_config)
-            
+
             # Set UI callbacks
             self.ui.set_macro_start_callback(self.on_ui_macro_start)
             self.ui.set_macro_stop_callback(self.on_ui_macro_stop)
             self.ui.set_config_change_callback(self.on_ui_config_change)
             self.ui.set_skill_config_switch_callback(self.on_ui_skill_config_switch)
-            
-            # Run UI
+
+            # Register language change listener at controller level (top-level)
+            self._register_language_listener()
+
+            # Register window status callback to window monitor (static global)
+            # UI calls request_shutdown directly when close/exit is requested
+            if hasattr(self.ui, 'get_status_bar_callback'):
+                import timers.window_monitor_timer as window_monitor
+                callback = self.ui.get_status_bar_callback()
+                window_monitor.add_callback(callback)
+
+            # Run UI (BLOCKING)
             self.ui.run()
-            
+
+            # Return UI instance for main.py global variable
+            return self.ui
+
         except Exception as e:
             self.logger.error(f"Application error: {e}")
             raise
@@ -213,9 +257,55 @@ class D3MacroController:
             self.macro_running = False
             if self.macro_thread:
                 self.macro_thread.join(timeout=1)
-            
+
             # Shutdown game interface
             self.game_interface_controller.shutdown_game_interface()
+    
+    def shutdown(self):
+        """Shutdown the controller gracefully - use unified exit"""
+        try:
+            self.logger.info("Starting controller shutdown...")
+            
+            # Use UI's unified exit method if available
+            if self.ui and hasattr(self.ui, '_unified_exit'):
+                self.logger.info("Using UI unified exit method...")
+                self.ui._unified_exit()
+                return
+            
+            # Fallback to manual shutdown
+            self.logger.info("Using fallback shutdown method...")
+            
+            # Stop macro if running
+            if self.macro_running:
+                self.logger.info("Stopping macro...")
+                self.stop_macro()
+            
+            # Shutdown game interface first
+            if hasattr(self, 'game_interface_controller'):
+                self.logger.info("Shutting down game interface...")
+                self.game_interface_controller.shutdown_game_interface()
+            
+            # Stop system tray if available
+            if self.ui and hasattr(self.ui, 'system_tray') and self.ui.system_tray:
+                try:
+                    self.logger.info("Stopping system tray...")
+                    self.ui.system_tray.stop()
+                    import time
+                    time.sleep(0.3)  # Wait for tray to stop
+                    self.logger.info("System tray stopped")
+                except Exception as e:
+                    self.logger.error(f"Error stopping system tray: {e}")
+            
+            # Force exit
+            self.logger.info("Forcing application exit...")
+            import os
+            os._exit(0)
+            
+        except Exception as e:
+            self.logger.error(f"Error during controller shutdown: {e}")
+            # Force exit even on error
+            import os
+            os._exit(1)
     
     def get_config_info(self) -> dict:
         """Get configuration information"""

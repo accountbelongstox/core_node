@@ -1,0 +1,52 @@
+{
+  "ui": {
+    "log_panel": {
+      "test_functions": "测试功能区域 (Test Functions)",
+      "test": "测试",
+      "test_status": "测试状态",
+      "ready": "就绪",
+      "progress": "进度",
+      "start_all_tests": "开始所有测试",
+      "stop_all_tests": "停止所有测试",
+      "clear_logs": "清除日志",
+      "log_output": "日志输出",
+      "clear": "清除",
+      "save_log": "保存日志",
+      "auto_scroll": "自动滚动",
+      "running_test": "运行测试",
+      "test_failed": "测试失败",
+      "test_completed": "测试执行完成",
+      "all_tests_completed": "所有测试完成",
+      "stopped": "已停止",
+      "all_tests_stopped": "所有测试已停止",
+      "stop_test_failed": "停止测试失败",
+      "log_cleared": "日志已清除",
+      "clear_log_failed": "清除日志失败",
+      "save_log_file": "保存日志文件",
+      "text_files": "文本文件",
+      "all_files": "所有文件",
+      "log_content_unavailable": "日志内容不可用",
+      "log_saved": "日志已保存到",
+      "save_log_failed": "保存日志失败",
+      "add_log_message_failed": "添加日志消息失败",
+      "screenshot_recognition": "截屏识别",
+      "screenshot_recognition_running": "截屏识别运行中",
+      "screenshot_recognition_success": "截屏识别成功",
+      "screenshot_recognition_failed": "截屏识别失败",
+      "log_settings": "日志设置",
+      "log_level": "日志级别:",
+      "bag_test": "背包测试",
+      "yellow_upgrade": "黄装升级",
+      "item_reforge": "重铸装备",
+      "test_pathfinding": "测试寻路",
+      "log_level_descriptions": {
+        "DEBUG": "显示所有日志信息",
+        "INFO": "显示信息、警告、错误和严重错误",
+        "WARNING": "显示警告、错误和严重错误",
+        "ERROR": "显示错误和严重错误",
+        "CRITICAL": "仅显示严重错误",
+        "unknown": "未知级别"
+      }
+    }
+  }
+}

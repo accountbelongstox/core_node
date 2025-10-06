@@ -482,6 +482,74 @@ function Copy-FileToWinEnvs {
     }
 }
 
+function Add-ScriptContentToWinEnvs {
+    param (
+        [string]$Content,
+        [string]$FileName
+    )
+    
+    # Ensure .winenvs directory exists
+    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    if (-not (Test-Path $winEnvsDir)) {
+        New-Item -ItemType Directory -Path $winEnvsDir -Force | Out-Null
+        Write-Log "Created $Global:WINENVS_DIR directory: $winEnvsDir" -color "Yellow"
+    }
+    
+    # Validate parameters
+    if ([string]::IsNullOrWhiteSpace($Content)) {
+        Write-Log "Content cannot be empty" -color "Red"
+        return
+    }
+    
+    if ([string]::IsNullOrWhiteSpace($FileName)) {
+        Write-Log "FileName cannot be empty" -color "Red"
+        return
+    }
+    
+    # Ensure filename has proper extension
+    if (-not $FileName.EndsWith('.bat') -and -not $FileName.EndsWith('.ps1') -and -not $FileName.EndsWith('.cmd')) {
+        $FileName = $FileName + '.bat'
+    }
+    
+    $targetPath = Join-Path $winEnvsDir $FileName
+    
+    # DEBUG: Print target information
+    Write-Log "DEBUG: Target directory: $winEnvsDir" -color "Cyan"
+    Write-Log "DEBUG: Target file path: $targetPath" -color "Cyan"
+    Write-Log "DEBUG: File name: $FileName" -color "Cyan"
+    Write-Log "DEBUG: Content length: $($Content.Length) characters" -color "Cyan"
+    
+    # Check if file already exists
+    if (Test-Path $targetPath) {
+        Write-Log "File already exists: $FileName" -color "Yellow"
+        Write-Log "Replacing existing file..." -color "Yellow"
+        
+        try {
+            Remove-Item -Path $targetPath -Force -ErrorAction Stop
+            Write-Log "Removed existing file: $targetPath" -color "Yellow"
+        } catch {
+            Write-Log "Failed to remove existing file: $($_.Exception.Message)" -color "Red"
+            return
+        }
+    }
+    
+    # Write content to file
+    try {
+        $Content | Out-File -FilePath $targetPath -Encoding ASCII -Force
+        Write-Log "Script content written to .winenvs: $FileName -> $targetPath" -color "Green"
+        
+        # DEBUG: Verify file was created
+        if (Test-Path $targetPath) {
+            $fileSize = (Get-Item $targetPath).Length
+            Write-Log "DEBUG: File verification SUCCESS - Size: $fileSize bytes" -color "Cyan"
+        } else {
+            Write-Log "DEBUG: File verification FAILED - File not found" -color "Red"
+        }
+    } catch {
+        Write-Log "Failed to write script content to .winenvs: $($_.Exception.Message)" -color "Red"
+    }
+}
+
 # Main logic
 switch ($action) {
     "add" {
@@ -591,6 +659,14 @@ switch ($action) {
             Add-FileToWinEnvs -filePath $param1
         }
     }
+    "addscript" {
+        if ([string]::IsNullOrWhiteSpace($param1) -or [string]::IsNullOrWhiteSpace($param2)) {
+            Write-Log "Content and filename are required for addscript" -color "Red"
+            Write-Log "Usage: addscript <content> <filename>" -color "Yellow"
+        } else {
+            Add-ScriptContentToWinEnvs -Content $param1 -FileName $param2
+        }
+    }
     "help" {
         Write-Log "Invalid action. Available actions:" -color "Red"
         Write-Log "  PATH Management:" -color "Yellow"
@@ -614,10 +690,12 @@ switch ($action) {
         Write-Log "  Symbolic Link Management:" -color "Yellow"
         Write-Log "    addexec <exePath>             - Add executable via symbolic links to GlobalEnvs" -color "White"
         Write-Log "    addfile <filePath>             - Copy file to $Global:WINENVS_DIR directory" -color "White"
+        Write-Log "    addscript <content> <filename> - Write script content to $Global:WINENVS_DIR directory" -color "White"
         Write-Log "  Examples:" -color "Yellow"
         Write-Log "    .\WindowsPathFunction.ps1 add 'C:\Program Files\Git\bin'" -color "Cyan"
         Write-Log "    .\WindowsPathFunction.ps1 setvar 'JAVA_HOME' 'C:\Program Files\Java\jdk-11'" -color "Cyan"
         Write-Log "    .\WindowsPathFunction.ps1 addexec 'C:\Program Files\Git\bin'" -color "Cyan"
+        Write-Log "    .\WindowsPathFunction.ps1 addscript '@echo off\necho Hello' 'test.bat'" -color "Cyan"
     }
     default {
         Write-Log "Use WindowsPathFunction.ps1 v1.0.0; help ?" -color "Green"

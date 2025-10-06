@@ -2,410 +2,356 @@
 # -*- coding: utf-8 -*-
 """
 D3 Interface Manager
-Manages Diablo III game interface properties including bag coordinates,
-button positions, and functional interface states
+Manages game interface information collection
+Coordinates collectors and provides unified API
 """
 
 import os
 import sys
-from typing import Optional, Tuple, Dict, Union
-from pathlib import Path
+from typing import Optional, Tuple, Dict
 
-# Add ncore path
-ncore_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ncore")
-sys.path.insert(0, ncore_path)
-
-from pytools.pyfoundations.color_print import ColorPrint
-from d3utils.interface_property_detector import InterfacePropertyDetector
-
+# Import from common_imports (unified public library imports)
+from providor.common_imports import ColorPrint
+from d3utils.share import get_game_interface_data, BagCoordinates, UIRegion
+# Import both UI region collectors
+from d3utils.collectors import UIRegionCollectorOptimized, UIRegionCollectorAnchor, BagInfoCollector
 
 class D3InterfaceManager:
     """
-    Manages Diablo III game interface properties
+    D3 Interface Manager
 
-    Properties managed:
-    - Bag coordinates (60-slot inventory grid)
-    - Material placement button coordinates
-    - Conversion button coordinates
-    - Conversion button clickable state
-    - Current functional interface type
-    - Functional interface property (reforge/upgrade)
+    Manages game interface information collection through collectors
+
+    Public Methods:
+    - collect_ui_info(): Collect UI region information (optimized, window cache)
+    - collect_ui_info_anchor(): Collect UI region information (anchor-based, fullscreen)
+    - collect_bag_info_quik(): Collect bag information (optimized)
+    - collect_bag_info_anchor(): Collect bag information (anchor-based)
     """
 
-    # Functional interface types
-    FUNC_TYPE_NONE = None
-    FUNC_TYPE_REFORGE = "reforge"  # 重铸 (Kanai's Cube - Reforge)
-    FUNC_TYPE_UPGRADE = "upgrade"  # 升级黄装 (Kanai's Cube - Upgrade Rare)
-
     def __init__(self):
-        """Initialize interface manager with empty properties"""
-        # Bag coordinates
-        self._bag_top_left: Optional[Tuple[int, int]] = None
-        self._bag_bottom_right: Optional[Tuple[int, int]] = None
-        self._bag_grid_rows: int = 6
-        self._bag_grid_cols: int = 10
-        self._bag_total_slots: int = 60
-
-        # Button coordinates
-        self._put_material_button: Optional[Tuple[int, int]] = None
-        self._conversion_button: Optional[Tuple[int, int]] = None
-
-        # Interface states (refreshed every time)
-        self._conversion_clickable: Optional[bool] = None
-        self._functional_interface: Optional[str] = None
-
-        # Detector instance
-        self._detector: Optional[InterfacePropertyDetector] = None
-
+        """Initialize interface manager"""
+        self._ui_collector: Optional[UIRegionCollectorOptimized] = None
+        self._ui_collector_anchor: Optional[UIRegionCollectorAnchor] = None
+        self._bag_collector: Optional[BagInfoCollector] = None
         ColorPrint.green("[D3InterfaceManager] Initialized")
 
-    # === Initialization Method ===
-
-    def initialize(
+    def collect_ui_info(
         self,
-        screenshot_path: Optional[Union[str, Path]] = None,
-        force_refresh: bool = False
-    ) -> bool:
+        force_new_capture: bool = True,
+        save_screenshot: bool = False
+    ) -> Optional[UIRegion]:
         """
-        Initialize or refresh interface properties from screenshot
+        Collect UI region information (Test 1)
 
         This method:
-        1. Captures a new screenshot (if screenshot_path not provided)
-        2. Detects bag coordinates (if not already set or force_refresh=True)
-        3. Detects button positions (if not already set or force_refresh=True)
-        4. Always refreshes: conversion clickable state and functional interface type
+        1. Captures screenshot (optimized with cache)
+        2. Detects UI region (window position, offset, size)
+        3. Updates shared data with UI region
+        4. Returns UI region
 
         Args:
-            screenshot_path: Optional path to screenshot (if None, captures new screenshot)
-            force_refresh: Force re-detection of all properties (default: False)
+            force_new_capture: Force capture new screenshot (default: True)
+            save_screenshot: Save screenshot to disk (default: False)
 
         Returns:
-            True if initialization successful, False otherwise
+            UIRegion or None if failed
         """
-        ColorPrint.blue("\n[Initialize] Starting interface detection...")
+        ColorPrint.blue("\n" + "=" * 60)
+        ColorPrint.blue("[InterfaceManager] Collecting UI Information (Test 1)")
+        ColorPrint.blue("=" * 60)
 
-        # Create detector if needed
-        if self._detector is None:
-            self._detector = InterfacePropertyDetector()
+        # Create collector if needed
+        if self._ui_collector is None:
+            self._ui_collector = UIRegionCollectorOptimized()
 
-        # Auto-detect template directory
-        template_dir = Path(__file__).parent.parent / "images"
-
-        # Perform detection (will auto-capture if screenshot_path is None)
-        try:
-            matches = self._detector.initialize(
-                screenshot_path=screenshot_path,
-                template_dir=template_dir
-            )
-
-            if not matches:
-                ColorPrint.yellow("[Initialize] No templates detected")
-                return False
-
-            # 1. Update bag coordinates (skip if already set and not force_refresh)
-            if force_refresh or not self.is_bag_initialized():
-                bag_coords = self._detector.get_bag_coordinates()
-                if bag_coords:
-                    self.set_bag_coordinates(
-                        bag_coords["top_left"],
-                        bag_coords["bottom_right"]
-                    )
-                else:
-                    ColorPrint.yellow("[Initialize] Bag coordinates not detected")
-
-            # 2. Update button positions (skip if already set and not force_refresh)
-            if force_refresh or not self.is_put_material_button_initialized():
-                material_btn = self._detector.get_put_material_button()
-                if material_btn:
-                    self.set_put_material_button(material_btn)
-
-            if force_refresh or not self.is_conversion_button_initialized():
-                conversion_btn = self._detector.get_conversion_button()
-                if conversion_btn:
-                    self.set_conversion_button(conversion_btn)
-
-            # 3. Always refresh: conversion clickable state
-            conversion_clickable = self._detector.get_conversion_clickable()
-            if conversion_clickable is not None:
-                self.set_conversion_clickable(conversion_clickable)
-
-            # 4. Always refresh: functional interface type
-            func_interface = self._detector.get_functional_interface()
-            self.set_functional_interface(func_interface)
-
-            ColorPrint.green("[Initialize] Interface detection complete")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[Initialize] Error during detection: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
-    # === Bag Property Methods ===
-
-    def get_bag_coordinates(self) -> Optional[Dict]:
-        """
-        Get bag coordinates
-
-        Returns:
-            Dictionary with bag coordinates or None if not set:
-            {
-                "top_left": (x, y),
-                "bottom_right": (x, y),
-                "width": int,
-                "height": int,
-                "rows": int,
-                "cols": int,
-                "total_slots": int
-            }
-        """
-        if self._bag_top_left is None or self._bag_bottom_right is None:
-            return None
-
-        return {
-            "top_left": self._bag_top_left,
-            "bottom_right": self._bag_bottom_right,
-            "width": self._bag_bottom_right[0] - self._bag_top_left[0],
-            "height": self._bag_bottom_right[1] - self._bag_top_left[1],
-            "rows": self._bag_grid_rows,
-            "cols": self._bag_grid_cols,
-            "total_slots": self._bag_total_slots
-        }
-
-    def set_bag_coordinates(
-        self,
-        top_left: Tuple[int, int],
-        bottom_right: Tuple[int, int]
-    ) -> None:
-        """
-        Set bag coordinates
-
-        Args:
-            top_left: Top-left corner (x, y)
-            bottom_right: Bottom-right corner (x, y)
-        """
-        self._bag_top_left = top_left
-        self._bag_bottom_right = bottom_right
-        ColorPrint.green(f"[Bag] Set coordinates: {top_left} -> {bottom_right}")
-
-    def is_bag_initialized(self) -> bool:
-        """Check if bag coordinates are set"""
-        return self._bag_top_left is not None and self._bag_bottom_right is not None
-
-    # === Button Property Methods ===
-
-    def get_put_material_button(self) -> Optional[Tuple[int, int]]:
-        """
-        Get material placement button coordinates
-
-        Returns:
-            Button center coordinates (x, y) or None if not set
-        """
-        return self._put_material_button
-
-    def set_put_material_button(self, center: Tuple[int, int]) -> None:
-        """
-        Set material placement button coordinates
-
-        Args:
-            center: Button center coordinates (x, y)
-        """
-        self._put_material_button = center
-        ColorPrint.green(f"[Button] Set material placement button: {center}")
-
-    def is_put_material_button_initialized(self) -> bool:
-        """Check if material placement button is set"""
-        return self._put_material_button is not None
-
-    def get_conversion_button(self) -> Optional[Tuple[int, int]]:
-        """
-        Get conversion button coordinates
-
-        Returns:
-            Button center coordinates (x, y) or None if not set
-        """
-        return self._conversion_button
-
-    def set_conversion_button(self, center: Tuple[int, int]) -> None:
-        """
-        Set conversion button coordinates
-
-        Args:
-            center: Button center coordinates (x, y)
-        """
-        self._conversion_button = center
-        ColorPrint.green(f"[Button] Set conversion button: {center}")
-
-    def is_conversion_button_initialized(self) -> bool:
-        """Check if conversion button is set"""
-        return self._conversion_button is not None
-
-    # === Interface State Methods (Always Refreshed) ===
-
-    def get_conversion_clickable(self) -> Optional[bool]:
-        """
-        Get conversion button clickable state
-
-        Returns:
-            True if clickable, False if not, None if unknown
-        """
-        return self._conversion_clickable
-
-    def set_conversion_clickable(self, clickable: bool) -> None:
-        """
-        Set conversion button clickable state
-
-        Args:
-            clickable: True if button is clickable
-        """
-        self._conversion_clickable = clickable
-        ColorPrint.blue(f"[State] Conversion clickable: {clickable}")
-
-    def get_functional_interface(self) -> Optional[str]:
-        """
-        Get current functional interface type
-
-        Returns:
-            Interface type (FUNC_TYPE_REFORGE, FUNC_TYPE_UPGRADE) or None
-        """
-        return self._functional_interface
-
-    def get_bag_layout(self) -> Optional[Dict]:
-        """
-        Get bag layout data including item information
-
-        Returns:
-            Dictionary containing:
-            - 'layout': 2D array of slot usage
-            - 'items': Dictionary mapping (row, col) to item info with quality
-            Returns None if bag layout not detected
-        """
-        if self._detector and hasattr(self._detector, 'bag_layout'):
-            return self._detector.bag_layout
-        return None
-
-    def get_window_offset(self) -> tuple:
-        """
-        Get window offset for converting screenshot coordinates to screen coordinates
-
-        Returns:
-            Tuple (offset_x, offset_y) representing window position on screen
-        """
-        if self._detector:
-            return self._detector.get_window_offset()
-        return (0, 0)
-
-    def set_functional_interface(self, func_type: Optional[str]) -> None:
-        """
-        Set functional interface type
-
-        Args:
-            func_type: Interface type (FUNC_TYPE_REFORGE, FUNC_TYPE_UPGRADE, or None)
-        """
-        self._functional_interface = func_type
-        ColorPrint.blue(f"[State] Functional interface: {func_type}")
-
-    # === Validation Methods ===
-
-    def needs_initialization(self) -> bool:
-        """
-        Check if initialization is needed
-
-        Returns:
-            True if any persistent property is missing
-        """
-        needs_init = (
-            not self.is_bag_initialized() or
-            not self.is_put_material_button_initialized() or
-            not self.is_conversion_button_initialized()
+        # Call collector to detect UI region
+        ui_region = self._ui_collector.collect(
+            force_new_capture=force_new_capture,
+            save_screenshot=save_screenshot
         )
 
-        if needs_init:
-            missing = []
-            if not self.is_bag_initialized():
-                missing.append("bag_coordinates")
-            if not self.is_put_material_button_initialized():
-                missing.append("put_material_button")
-            if not self.is_conversion_button_initialized():
-                missing.append("conversion_button")
+        if not ui_region:
+            ColorPrint.red(f"[InterfaceManager] Failed to collect UI info")
+            return None
+        ColorPrint.green("[InterfaceManager] UI information collected successfully")
+        ColorPrint.green(f"  Position: ({ui_region.x}, {ui_region.y})")
+        ColorPrint.green(f"  Size: {ui_region.width}x{ui_region.height}")
+        ColorPrint.green(f"  Offset: ({ui_region.ui_offset_x}, {ui_region.ui_offset_y})")
 
-            ColorPrint.yellow(f"[Init Required] Missing properties: {', '.join(missing)}")
+        return ui_region
 
-        return needs_init
-
-    def get_summary(self) -> Dict:
+    def collect_bag_info_quik(
+        self,
+        force_refresh: bool = False,
+        save_screenshot: bool = False,
+        force_new_capture: bool = True  # Always True to refresh screen data
+    ) -> Optional[BagCoordinates]:
         """
-        Get summary of all interface properties
+        Collect bag information using optimized detection
+
+        Uses UIRegionCollectorOptimized for fast window cache-based detection.
+
+        This method ALWAYS refreshes screen data first, then detects bag:
+        1. Calls collect_ui_info to refresh screenshot and UI region (ALWAYS)
+        2. BagInfoCollector extracts data from shared data (NO parameters needed)
+        3. Detects bag border and layout
+        4. Updates shared data with bag coordinates and layout
+        5. Returns bag coordinates
+
+        Args:
+            force_refresh: Force re-detection even if bag data exists (default: False)
+            save_screenshot: Save annotated screenshot (default: False)
+            force_new_capture: Force new screenshot capture (default: True, always enabled)
 
         Returns:
-            Dictionary with all current properties
+            BagCoordinates or None if failed
         """
-        return {
-            "bag_coordinates": self.get_bag_coordinates(),
-            "put_material_button": self.get_put_material_button(),
-            "conversion_button": self.get_conversion_button(),
-            "conversion_clickable": self.get_conversion_clickable(),
-            "functional_interface": self.get_functional_interface(),
-            "needs_initialization": self.needs_initialization()
-        }
+        ColorPrint.blue("\n" + "=" * 60)
+        ColorPrint.blue("[InterfaceManager] Collecting Bag Information (Optimized)")
+        ColorPrint.blue("=" * 60)
+
+        # ALWAYS refresh screen data and UI region first
+        ColorPrint.yellow("[InterfaceManager] Refreshing screen data and UI region...")
+        ui_region = self.collect_ui_info(
+            force_new_capture=True,  # Always capture new screenshot
+            save_screenshot=save_screenshot
+        )
+        if not ui_region:
+            ColorPrint.red("[InterfaceManager] Failed to collect UI region")
+            return None
+
+        # Create bag collector if needed
+        if self._bag_collector is None:
+            self._bag_collector = BagInfoCollector()
+
+        # Collect bag information (same as regular method)
+        # If force_new_capture is True, also force bag refresh to ensure fresh detection
+        bag_coords = self._bag_collector.collect(
+            force_refresh=force_refresh or force_new_capture,  # Force refresh if new capture
+            save_screenshot=save_screenshot
+        )
+
+        if not bag_coords:
+            ColorPrint.red("[InterfaceManager] Failed to collect bag info")
+            return None
+
+        ColorPrint.green("[InterfaceManager] Quick bag detection completed successfully")
+        ColorPrint.green(f"  Top-left: {bag_coords.top_left}")
+        ColorPrint.green(f"  Bottom-right: {bag_coords.bottom_right}")
+        ColorPrint.green(f"  Grid: {bag_coords.rows}x{bag_coords.cols} ({bag_coords.total_slots} slots)")
+
+        return bag_coords
+
+    def collect_ui_info_anchor(
+        self,
+        force_new_capture: bool = True,
+        save_screenshot: bool = False
+    ) -> Optional[UIRegion]:
+        """
+        Collect UI region information using anchor-based detection
+
+        Uses UIRegionCollectorAnchor for accurate anchor point matching.
+        This method captures fullscreen and detects UI region using anchor templates.
+
+        This method:
+        1. Captures fullscreen screenshot
+        2. Detects UI region using anchor point template matching
+        3. Updates shared data with UI region and game window image
+        4. Returns UI region
+
+        Args:
+            force_new_capture: Force capture new screenshot (default: True)
+            save_screenshot: Save screenshot to disk (default: False)
+
+        Returns:
+            UIRegion or None if failed
+        """
+        ColorPrint.blue("\n" + "=" * 60)
+        ColorPrint.blue("[InterfaceManager] Collecting UI Information (Anchor-based)")
+        ColorPrint.blue("=" * 60)
+
+        # Create anchor collector if needed
+        if self._ui_collector_anchor is None:
+            self._ui_collector_anchor = UIRegionCollectorAnchor()
+
+        # Call collector to detect UI region
+        ui_region = self._ui_collector_anchor.collect(
+            force_new_capture=force_new_capture,
+            save_screenshot=save_screenshot
+        )
+
+        if not ui_region:
+            ColorPrint.red(f"[InterfaceManager] Failed to collect UI info (anchor)")
+            return None
+
+        ColorPrint.green("[InterfaceManager] UI information collected successfully (anchor)")
+        ColorPrint.green(f"  Position: ({ui_region.x}, {ui_region.y})")
+        ColorPrint.green(f"  Size: {ui_region.width}x{ui_region.height}")
+        ColorPrint.green(f"  Offset: ({ui_region.ui_offset_x}, {ui_region.ui_offset_y})")
+        ColorPrint.green(f"  Fullscreen: {ui_region.is_fullscreen}")
+
+        return ui_region
+
+    def collect_bag_info_anchor(
+        self,
+        force_refresh: bool = False,
+        save_screenshot: bool = False,
+        force_new_capture: bool = True
+    ) -> Optional[BagCoordinates]:
+        """
+        Collect bag information using anchor-based detection
+
+        Uses UIRegionCollectorAnchor for accurate fullscreen capture and anchor matching.
+
+        This method ALWAYS refreshes screen data first, then detects bag:
+        1. Calls collect_ui_info_anchor to refresh screenshot and UI region (ALWAYS)
+        2. BagInfoCollector extracts data from shared data (NO parameters needed)
+        3. Detects bag border and layout
+        4. Updates shared data with bag coordinates and layout
+        5. Returns bag coordinates
+
+        Args:
+            force_refresh: Force re-detection even if bag data exists (default: False)
+            save_screenshot: Save annotated screenshot (default: False)
+            force_new_capture: Force new screenshot capture (default: True, always enabled)
+
+        Returns:
+            BagCoordinates or None if failed
+        """
+        ColorPrint.blue("\n" + "=" * 60)
+        ColorPrint.blue("[InterfaceManager] Collecting Bag Information (Anchor-based)")
+        ColorPrint.blue("=" * 60)
+
+        # ALWAYS refresh screen data and UI region first using anchor collector
+        ColorPrint.yellow("[InterfaceManager] Refreshing screen data and UI region (anchor)...")
+        ui_region = self.collect_ui_info_anchor(
+            force_new_capture=True,  # Always capture new screenshot
+            save_screenshot=save_screenshot
+        )
+        if not ui_region:
+            ColorPrint.red("[InterfaceManager] Failed to collect UI region (anchor)")
+            return None
+
+        # Create bag collector if needed
+        if self._bag_collector is None:
+            self._bag_collector = BagInfoCollector()
+
+        # Collect bag information from shared data (NO parameters needed for data)
+        # BagInfoCollector will extract game_window_image from shared data
+        ColorPrint.blue("[InterfaceManager] Detecting bag from shared data...")
+        bag_coords = self._bag_collector.collect(
+            force_refresh=force_refresh or force_new_capture,  # Force refresh if new capture
+            save_screenshot=save_screenshot
+        )
+
+        if not bag_coords:
+            ColorPrint.red("[InterfaceManager] Failed to collect bag info")
+            return None
+
+        ColorPrint.green("[InterfaceManager] Bag detection completed successfully (anchor)")
+        ColorPrint.green(f"  Top-left: {bag_coords.top_left}")
+        ColorPrint.green(f"  Bottom-right: {bag_coords.bottom_right}")
+        ColorPrint.green(f"  Grid: {bag_coords.rows}x{bag_coords.cols} ({bag_coords.total_slots} slots)")
+
+        return bag_coords
+
+    def get_window_offset(self) -> Tuple[int, int]:
+        """
+        Get combined window offset from shared data
+
+        This includes:
+        - UI region offset (from UI collector)
+        - Bag offset (if bag is detected)
+
+        Returns:
+            Tuple (total_offset_x, total_offset_y)
+        """
+        shared_data = get_game_interface_data()
+
+        offset_x = 0
+        offset_y = 0
+
+        # Add UI offset
+        if shared_data.ui_region:
+            offset_x += shared_data.ui_region.ui_offset_x
+            offset_y += shared_data.ui_region.ui_offset_y
+
+        # Bag offset is already included in bag coordinates
+        # No additional offset needed
+
+        return (offset_x, offset_y)
 
     def print_summary(self) -> None:
-        """Print summary of all interface properties"""
-        ColorPrint.blue("\n[D3 Interface Manager Summary]")
-        ColorPrint.blue("=" * 50)
+        """Print summary of shared data"""
+        shared_data = get_game_interface_data()
+        summary = shared_data.get_summary()
 
-        bag = self.get_bag_coordinates()
-        if bag:
-            ColorPrint.green(f"Bag: {bag['top_left']} -> {bag['bottom_right']} ({bag['rows']}x{bag['cols']})")
+        ColorPrint.blue("\n" + "=" * 60)
+        ColorPrint.blue("[D3 Interface Manager Summary]")
+        ColorPrint.blue("=" * 60)
+
+        ColorPrint.blue(f"Timestamp: {summary['timestamp']}")
+
+        if summary['error']:
+            ColorPrint.red(f"Error: {summary['error']}")
         else:
-            ColorPrint.yellow("Bag: Not initialized")
+            ColorPrint.green("Error: None")
 
-        put_btn = self.get_put_material_button()
-        if put_btn:
-            ColorPrint.green(f"Material Button: {put_btn}")
+        # UI Region
+        if summary['has_ui_region']:
+            ui = shared_data.ui_region
+            ColorPrint.green(f"\nUI Region: Available")
+            ColorPrint.green(f"  Position: ({ui.x}, {ui.y})")
+            ColorPrint.green(f"  Size: {ui.width}x{ui.height}")
+            ColorPrint.green(f"  Offset: ({ui.ui_offset_x}, {ui.ui_offset_y})")
+            ColorPrint.green(f"  Fullscreen: {ui.is_fullscreen}")
+            ColorPrint.green(f"  Source: {ui.source}")
         else:
-            ColorPrint.yellow("Material Button: Not initialized")
+            ColorPrint.yellow("\nUI Region: Not available")
 
-        conv_btn = self.get_conversion_button()
-        if conv_btn:
-            ColorPrint.green(f"Conversion Button: {conv_btn}")
+        # Bag Coordinates
+        if summary['has_bag_coordinates']:
+            bag = shared_data.bag_coordinates
+            ColorPrint.green(f"\nBag Coordinates: Available")
+            ColorPrint.green(f"  Top-left: {bag.top_left}")
+            ColorPrint.green(f"  Bottom-right: {bag.bottom_right}")
+            ColorPrint.green(f"  Size: {bag.width}x{bag.height}")
+            ColorPrint.green(f"  Grid: {bag.rows}x{bag.cols} ({bag.total_slots} slots)")
         else:
-            ColorPrint.yellow("Conversion Button: Not initialized")
+            ColorPrint.yellow("\nBag Coordinates: Not available")
 
-        conv_click = self.get_conversion_clickable()
-        if conv_click is not None:
-            ColorPrint.blue(f"Conversion Clickable: {conv_click}")
+        # Bag Layout
+        if summary['has_bag_layout']:
+            ColorPrint.green("\nBag Layout: Available")
         else:
-            ColorPrint.gray("Conversion Clickable: Unknown")
+            ColorPrint.gray("\nBag Layout: Not available")
 
-        func_int = self.get_functional_interface()
-        if func_int:
-            ColorPrint.blue(f"Functional Interface: {func_int}")
-        else:
-            ColorPrint.gray("Functional Interface: None")
+        # Other info
+        if summary['has_put_material_button']:
+            ColorPrint.green(f"\nPut Material Button: {shared_data.put_material_button}")
 
-        ColorPrint.blue("=" * 50)
+        if summary['has_conversion_button']:
+            ColorPrint.green(f"Conversion Button: {shared_data.conversion_button}")
 
+        if summary['conversion_clickable'] is not None:
+            ColorPrint.blue(f"Conversion Clickable: {summary['conversion_clickable']}")
+
+        if summary['functional_interface']:
+            ColorPrint.blue(f"Functional Interface: {summary['functional_interface']}")
+
+        ColorPrint.blue("=" * 60)
 
 # Example usage
 if __name__ == "__main__":
     manager = D3InterfaceManager()
 
-    # Check if initialization needed
-    if manager.needs_initialization():
-        print("Initialization required!")
+    # Collect UI info
+    ui_region = manager.collect_ui_info()
 
-    # Set bag coordinates
-    manager.set_bag_coordinates((100, 200), (500, 600))
-
-    # Set button coordinates
-    manager.set_put_material_button((300, 400))
-    manager.set_conversion_button((400, 500))
-
-    # Set interface states
-    manager.set_conversion_clickable(True)
-    manager.set_functional_interface(D3InterfaceManager.FUNC_TYPE_REFORGE)
+    # Collect bag info (optimized)
+    if ui_region:
+        bag_coords = manager.collect_bag_info_quik()
 
     # Print summary
     manager.print_summary()

@@ -34,11 +34,17 @@ class ColorPrintCallback:
         """Clear all registered callbacks"""
         self._callbacks.clear()
     
-    def notify(self, message: str, color_type: str = "white"):
+    def notify(self, message: str, color_type: str = "white", log_level: str = None):
         """Notify all registered callbacks"""
         for callback in self._callbacks:
             try:
-                callback(message, color_type)
+                # Support both old and new callback signatures
+                import inspect
+                sig = inspect.signature(callback)
+                if len(sig.parameters) >= 3:
+                    callback(message, color_type, log_level)
+                else:
+                    callback(message, color_type)
             except Exception:
                 pass  # Ignore callback errors
     
@@ -82,45 +88,51 @@ class ColorPrint:
         return _color_print_callback.get_callback_count()
     
     @staticmethod
-    def _log_to_callback(message, color_type="white"):
+    def _log_to_callback(message, color_type="white", log_level=None):
         """Send message to all registered callbacks"""
-        _color_print_callback.notify(message, color_type)
+        _color_print_callback.notify(message, color_type, log_level)
     
     @staticmethod
     def green(message):
         """Print green text"""
         print(f"{ColorPrint.GREEN}{message}{ColorPrint.RESET}")
-        ColorPrint._log_to_callback(message, "green")
+        ColorPrint._log_to_callback(message, "green", "SUCCESS")
 
     @staticmethod
     def red(message):
         """Print red text"""
         print(f"{ColorPrint.RED}{message}{ColorPrint.RESET}")
-        ColorPrint._log_to_callback(message, "red")
+        ColorPrint._log_to_callback(message, "red", "ERROR")
 
     @staticmethod
     def yellow(message):
         """Print yellow text"""
         print(f"{ColorPrint.YELLOW}{message}{ColorPrint.RESET}")
-        ColorPrint._log_to_callback(message, "yellow")
+        ColorPrint._log_to_callback(message, "yellow", "WARNING")
 
     @staticmethod
     def gray(message):
         """Print gray text"""
         print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}")
-        ColorPrint._log_to_callback(message, "gray")
+        ColorPrint._log_to_callback(message, "gray", "DEBUG")
 
     @staticmethod
     def white(message):
         """Print white text"""
         print(f"{ColorPrint.WHITE}{message}{ColorPrint.RESET}")
-        ColorPrint._log_to_callback(message, "white")
+        ColorPrint._log_to_callback(message, "white", "INFO")
 
     @staticmethod
     def blue(message):
         """Print blue text"""
         print(f"{ColorPrint.BLUE}{message}{ColorPrint.RESET}")
-        ColorPrint._log_to_callback(message, "blue")
+        ColorPrint._log_to_callback(message, "blue", "INFO")
+    
+    @staticmethod
+    def debug(message):
+        """Print debug text (gray)"""
+        print(f"{ColorPrint.GRAY}{message}{ColorPrint.RESET}")
+        ColorPrint._log_to_callback(message, "gray", "DEBUG")
 
     @staticmethod
     def print_separator(char='-', length=None):
