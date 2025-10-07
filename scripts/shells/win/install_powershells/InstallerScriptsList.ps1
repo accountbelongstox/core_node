@@ -32,7 +32,6 @@ $InstallerScripts = @(
     'Step56_InstallAndroidStudio.ps1',
     'Step57_InstallAndroidPlatformTools.ps1',
     'Step66_InstallFlutter.ps1',
-    'Step77_InstallDevSorftware.ps1',
     'Step80_InstallWSL.ps1',
     'Step81_InstallWSLUbuntu24.ps1',
     'Step82_SetRootLoginWSLUbuntuDebian.ps1',
