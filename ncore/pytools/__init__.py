@@ -39,6 +39,9 @@ DEPENDENCY_MAP = {
     
     # For UI automation
     "uiautomation": "uiautomation",
+    
+    # For fast screenshots
+    "mss": "mss",
 }
 
 def check_and_install_dependencies():
