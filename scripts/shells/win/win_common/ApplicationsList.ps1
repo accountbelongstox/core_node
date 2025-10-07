@@ -52,11 +52,20 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
     - ForceToInstallDir: Force to install to install directory, bucase some package need to install to install directory
     - AppCustomInstallDir: App specific install directory, if not specified, uses LANG_COMPILER_DIR\app_name
     - VerifySuffix: Verification suffix to test installation (e.g., "--version", "-v", "--help"). Will be appended to executable path for verification.
-    - PostInstallCallbacks: Array of post-installation operations (copy/rename/delete/configure)
+    - PostInstallCallbacks: Array of post-installation operations (copy/rename/delete/configure/registry)
       * Type: "copy" - Copy file (SourceFile -> TargetFile)
       * Type: "rename" - Rename/move file (SourceFile -> TargetFile)  
       * Type: "delete" - Delete file (TargetFile)
       * Type: "configurator" - Configure package manager settings (Executable -> Parameters)
+      * Type: "registry_template" - Apply registry template with placeholder replacement
+        - TemplateFile: Path to registry template file (relative to scripts directory)
+        - Replacements: Hashtable of placeholder -> replacement mappings
+          * "{{PLACEHOLDER}}" -> "EXECUTABLE_PATH" (uses actual executable path)
+          * "{{PLACEHOLDER}}" -> "INSTALL_DIR" (uses installation directory)
+          * "{{PLACEHOLDER}}" -> "ICON_PATH" (uses icon file path, falls back to executable if not found)
+          * "{{PLACEHOLDER}}" -> "custom_value" (uses literal value)
+        - Description: Description of the operation (optional)
+        - RequiresAdmin: Whether admin privileges are required (optional, default: true)
       * Type: "mcp" - MCP (Model Context Protocol) configuration processor
         - Operation: "replace_path" - Replace executable path in MCP JSON config
         - Operation: "copy_config" - Copy MCP configuration to target directory
@@ -64,9 +73,10 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
         - McpConfigPath: Relative path to MCP configuration file
         - SearchValue: Value to search for in JSON (for replace_path operation)
         - TemplatePath: Template file path (optional, for initialization)
-      * All file paths relative to executable directory
+      * All file paths relative to executable directory (except registry_template)
       * Supports Unicode filenames via $Global:CHINESE_* variables
       * Configurator respects SELECTED_REGION global variable
+      * Registry templates support automatic path escaping for Windows registry format
 
 .PARAMETER DesktopShortcuts Details
     Array of desktop shortcut configurations. Each item can contain:
@@ -168,6 +178,40 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
 
 
 # For PostInstallCallbacks usage, see: <#POSTINSTALL_CALLBACKS_ANCHOR#>
+
+# Windows 10 Essential Patches Group - Critical system patches specifically for Windows 10
+# This group contains essential Windows components that are missing in Windows 10 but built-in in Windows 11
+# These patches are ONLY installed on Windows 10 systems for compatibility and feature parity
+# Windows 11 systems already have these components built-in and do not need these patches
+$Global:WINDOWS_10_ESSENTIAL_PATCHES = @{
+    WindowsTerminal = @{
+        PackageId          = "Microsoft.WindowsTerminal"
+        Exec              = "wt.exe"
+        Name              = "Windows Terminal"
+        Description       = "Modern terminal application for Windows - Essential system component"
+        InstallType       = "winget"
+        ForceToInstallDir = $false
+        VerifySuffix      = "--version"
+        IncludeSystemPaths = $true
+        AdditionalKeywords = @("WindowsTerminal", "wt")
+        DesktopCategory   = $Global:DESKTOP_CATEGORY_SYSTEM_TOOLS
+        EnvVars           = @()
+        DesktopShortcuts  = @()
+        PostInstallCallbacks = @(
+            @{
+                Type = "registry_template"
+                TemplateFile = "registry_templates\WindowsTerminal_ContextMenu.reg"
+                Replacements = @{
+                    "{{WT_EXECUTABLE_PATH}}" = "EXECUTABLE_PATH"
+                    "{{WT_ICON_PATH}}" = "ICON_PATH"
+                }
+                Description = "Add Windows Terminal to right-click context menu"
+                RequiresAdmin = $true
+            }
+        )
+    }
+}
+
 $Global:BasePackages = @{
     Rust       = @{
         PackageId          = "Rustlang.Rust.MSVC"

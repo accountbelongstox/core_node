@@ -1,0 +1,33 @@
+Windows Registry Editor Version 5.00
+
+; Windows Terminal Context Menu Integration
+; This registry file adds "Open Windows Terminal here" to the right-click context menu
+; Compatible with both Windows 10 and Windows 11
+
+; Remove any existing Windows Terminal context menu entries first
+[-HKEY_CLASSES_ROOT\Directory\Background\shell\wt]
+[-HKEY_CLASSES_ROOT\Directory\shell\wt]
+
+; Add Windows Terminal to folder background context menu (right-click in empty space)
+[HKEY_CLASSES_ROOT\Directory\Background\shell\wt]
+@="Open Windows Terminal here"
+"Icon"="{{WT_ICON_PATH}}"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\wt\command]
+@="\"{{WT_EXECUTABLE_PATH}}\" -d \"%V\""
+
+; Add Windows Terminal to folder context menu (right-click on folder)
+[HKEY_CLASSES_ROOT\Directory\shell\wt]
+@="Open Windows Terminal here"
+"Icon"="{{WT_ICON_PATH}}"
+
+[HKEY_CLASSES_ROOT\Directory\shell\wt\command]
+@="\"{{WT_EXECUTABLE_PATH}}\" -d \"%1\""
+
+; Add Windows Terminal to drive context menu (right-click on drive)
+[HKEY_CLASSES_ROOT\Drive\shell\wt]
+@="Open Windows Terminal here"
+"Icon"="{{WT_ICON_PATH}}"
+
+[HKEY_CLASSES_ROOT\Drive\shell\wt\command]
+@="\"{{WT_EXECUTABLE_PATH}}\" -d \"%1\""
