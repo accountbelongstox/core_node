@@ -870,6 +870,25 @@ $Global:APPLICATIONS_PACKAGES = @{
             }
         )
     }
+    PowerToys       = @{
+        PackageId            = "Microsoft.PowerToys"
+        Exec                = "PowerToys.exe"
+        Name                = "PowerToys"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_SYSTEM_TOOLS
+        Description         = "Microsoft PowerToys - Windows system utilities"
+        InstallType         = "winget"
+        ForceToInstallDir   = $false
+        VerifySuffix        = ""
+        AdditionalKeywords  = @("PowerToys", "microsoft-powertoys")
+        DesktopShortcuts    = @(
+            @{
+                Name = "PowerToys"
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars             = @(
+        )
+    }
     Kiro            = @{
         PackageId            = "Amazon.Kiro"
         Exec                = "Kiro.exe"

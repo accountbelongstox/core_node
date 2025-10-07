@@ -20,6 +20,10 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 # Define WindowsPathFunction.ps1 path for centralized management
 $script:WindowsPathFunctionPath = Join-Path $PSScriptRoot "WindowsPathFunction.ps1"
 
+# Define winget log file paths
+$script:WINGET_UNINSTALL_OUTPUT_LOG = Join-Path $Global:TEMP_DIR "winget_uninstall_output.log"
+$script:WINGET_UNINSTALL_ERROR_LOG = Join-Path $Global:TEMP_DIR "winget_uninstall_error.log"
+
 # Add color constants
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
@@ -1202,7 +1206,7 @@ function Invoke-WingetCommand {
         # Start timing the uninstall process
         $uninstallStartTime = Get-Date
         
-        $firstCleanOldInstallProcess = Start-Process -FilePath "winget" -ArgumentList "uninstall $Id" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "winget_uninstall_output.log" -RedirectStandardError "winget_uninstall_error.log"
+        $firstCleanOldInstallProcess = Start-Process -FilePath "winget" -ArgumentList "uninstall $Id" -Wait -NoNewWindow -PassThru -RedirectStandardOutput $script:WINGET_UNINSTALL_OUTPUT_LOG -RedirectStandardError $script:WINGET_UNINSTALL_ERROR_LOG
         if ($firstCleanOldInstallProcess.ExitCode -eq 0) {
             Write-Host "       Successfully cleaned old installation of $Id" -ForegroundColor Green
         }

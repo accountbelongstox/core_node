@@ -531,8 +531,8 @@ $Global:PHP_CONFIGFILE_LOCAL_PATH = "$Global:PROJECT_WIN_SCRIPTS_DIR\1_phpconfig
 
 
 # Global Android Studio Variables
-$Global:ANDROID_STUDIO_VERSION = "2024.3.1.13"
-$Global:ANDROID_STUDIO_DOWNLOAD_URL = "https://redirector.gvt1.com/edgedl/android/studio/install/2024.3.1.13/android-studio-2024.3.1.13-windows.exe"
+$Global:ANDROID_STUDIO_VERSION = "2025.1.3.7"
+$Global:ANDROID_STUDIO_DOWNLOAD_URL = "https://redirector.gvt1.com/edgedl/android/studio/install/2025.1.3.7/android-studio-2025.1.3.7-windows.exe"
 $Global:ANDROID_DIR = "C:\Program Files\Android"
 $Global:ANDROID_STUDIO_DIR = Join-Path $ANDROID_DIR "Android Studio"
 $Global:ANDROID_STUDIO_EXE_PATH = Join-Path $ANDROID_STUDIO_DIR "bin\studio64.exe"
@@ -542,7 +542,7 @@ $Global:ANDROID_STUDIO_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\AndroidStudio_In
 # Note: Go configuration moved to ApplicationsList.ps1 for consistency
 
 # Global Flutter Variables
-$Global:FLUTTER_VERSION = "3.29.3-stable"
+$Global:FLUTTER_VERSION = "3.35.5-stable"
 $Global:FLUTTER_DIR = Join-Path $Global:LANG_COMPILER_DIR "flutter"
 $Global:FLUTTER_EXE_PATH = Join-Path $Global:FLUTTER_DIR "bin\flutter.bat"
 $Global:FLUTTER_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\Flutter_Installed_flag"
@@ -557,7 +557,7 @@ $Global:FLUTTER_MIRRORS = @{
     "China"  = @{
         "PUB_HOSTED_URL"           = "https://pub.flutter-io.cn"
         "FLUTTER_STORAGE_BASE_URL" = "https://storage.flutter-io.cn"
-        "DOWNLOAD_URL_FORMAT"      = "https://storage.flutter-io.cn/flutter_infra_release/releases/stable/windows/flutter_windows_{0}.zip?_gl=1*1m6uxlm*_ga*MTA5MTk5NDU1MS4xNzQ1NTE3ODc4*_ga_HPSFTRXK91*MTc0NTYxMjk1NC4zLjEuMTc0NTYxMzI3NC41MS4wLjA"
+        "DOWNLOAD_URL_FORMAT"      = "https://storage.flutter-io.cn/flutter_infra_release/releases/stable/windows/flutter_windows_{0}.zip"
     }
 }
 

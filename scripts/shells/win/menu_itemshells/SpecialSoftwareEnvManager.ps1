@@ -481,7 +481,8 @@ function Get-ExistingFiles {
     if ($null -eq $files) {
         $allFiles = @()
     } else {
-        $allFiles = @($files)
+        # Ensure we have a proper array and filter out any null values
+        $allFiles = @($files | Where-Object { $null -ne $_ })
     }
     
     # DEBUG: Check what allFiles becomes
@@ -552,13 +553,13 @@ function Show-ExistingFilesMenu {
     Write-ColorMessage -Message "DEBUG: Processing $($Files.Count) files for replacement options" -Type "Info"
     $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
     foreach ($file in $Files) {
-        if ($null -ne $file -and $file.Name) {
+        if ($null -ne $file -and $file.PSObject.Properties['Name'] -and $file.Name) {
             # Build full path manually since $file.FullName might be empty
             $fullPath = Join-Path $winEnvsDir $file.Name
             Write-ColorMessage -Message "DEBUG: File - Name: '$($file.Name)', FullName: '$($file.FullName)', Built Path: '$fullPath'" -Type "Info"
             $menuItems += @{ Text = "Replace existing: $($file.Name)"; Action = $fullPath }
         } else {
-            Write-ColorMessage -Message "DEBUG: Skipping file - Name: '$($file.Name)', FullName: '$($file.FullName)'" -Type "Warning"
+            Write-ColorMessage -Message "DEBUG: Skipping file - file is null or missing Name property" -Type "Warning"
         }
     }
     
