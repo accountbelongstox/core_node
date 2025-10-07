@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../core/network_config.dart';
-import '../core/network_models.dart';
+// REFACTOR: Renamed network_models.dart to endpoint_network_models.dart  
+import '../core/endpoint_network_models.dart';
 import '../auth/unified_auth_manager.dart';
 
 /// Network interceptors for request/response processing
@@ -187,6 +188,9 @@ class LoggingRequestInterceptor extends RequestInterceptor {
 
 /// Authentication request interceptor
 class AuthRequestInterceptor extends RequestInterceptor {
+  // FIXED: AuthRequestInterceptor needs its own reference to authManager
+  final UnifiedAuthManager _authManager = UnifiedAuthManager.instance;
+
   @override
   Future<NetworkRequest> onRequest(NetworkRequest request) async {
     // Check if token needs refresh
@@ -268,6 +272,9 @@ class LoggingResponseInterceptor extends ResponseInterceptor {
 
 /// Authentication response interceptor
 class AuthResponseInterceptor extends ResponseInterceptor {
+  // FIXED: AuthResponseInterceptor needs its own reference to authManager
+  final UnifiedAuthManager _authManager = UnifiedAuthManager.instance;
+
   @override
   Future<NetworkResponse<T>> onResponse<T>(NetworkResponse<T> response) async {
     // Handle authentication errors

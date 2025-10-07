@@ -41,6 +41,14 @@ class AChatApp extends StatelessWidget {
 /// NOTE: We pass the AChat SharedPreferences class to runCommonApp
 /// which will properly initialize it after Flutter binding is ready
 Future<void> main() async {
+  // Initialize AChat service for BankV1 backend integration
+  try {
+    await AChatService.instance.initialize();
+    print('AChat service initialized successfully');
+  } catch (e) {
+    print('Failed to initialize AChat service: $e');
+  }
+
   await runCommonApp(
     appName: AChatAppConfig.appName,
     appId: AChatAppConfig.appId, // Specific app ID for app-specific routing

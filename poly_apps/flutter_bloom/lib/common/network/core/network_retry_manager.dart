@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'unified_network_client.dart';
+// REFACTOR: Import NetworkRequest and NetworkResponse from network_types.dart
+import 'network_types.dart' show NetworkRequest, NetworkResponse;
 
 /// Smart Retry Manager
 /// Adjusts retry strategy based on network conditions
@@ -233,15 +235,20 @@ class ConnectivityMonitor {
   }
 
   Future<bool> waitForNetworkRecovery({Duration? timeout}) async {
-    if (_currentConnectivity != ConnectivityResult.none) {
+    // FIXED: Updated to handle List<ConnectivityResult> from connectivity_plus API
+    // _currentConnectivity is a single value, need to check if it's in the none state
+    if (_currentConnectivity != null && _currentConnectivity != ConnectivityResult.none) {
       return true; // Already connected
     }
 
     final completer = Completer<bool>();
-    StreamSubscription<ConnectivityResult>? subscription;
+    // FIXED: Changed type from StreamSubscription<ConnectivityResult> to List<ConnectivityResult>
+    // connectivity_plus now returns Stream<List<ConnectivityResult>>
+    StreamSubscription<List<ConnectivityResult>>? subscription;
 
-    subscription = _connectivity.onConnectivityChanged.listen((result) {
-      if (result != ConnectivityResult.none) {
+    subscription = _connectivity.onConnectivityChanged.listen((results) {
+      // FIXED: Check if any result is not 'none' (network is available)
+      if (results.any((result) => result != ConnectivityResult.none)) {
         subscription?.cancel();
         if (!completer.isCompleted) {
           completer.complete(true);

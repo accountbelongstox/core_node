@@ -2,7 +2,7 @@
 /// This file provides integration between the network framework and user providers
 
 import 'package:flutter/foundation.dart';
-import '../auth/auth_manager.dart';
+import '../auth/unified_auth_manager.dart';
 import '../../provider_status/user_provider.dart';
 
 /// Network User Integration Manager
@@ -22,7 +22,7 @@ class NetworkUserIntegration {
     _userProvider = userProvider;
     
     // Set user provider in auth manager
-    AuthManager.instance.setUserProvider(userProvider);
+    UnifiedAuthManager.instance.setUserProvider(userProvider);
     
     // Listen to user provider changes
     userProvider.addListener(_onUserProviderChanged);
@@ -37,7 +37,7 @@ class NetworkUserIntegration {
 
     // Sync authentication state when user provider changes
     final authMetadata = _userProvider!.authMetadata;
-    final authManager = AuthManager.instance;
+    final authManager = UnifiedAuthManager.instance;
 
     // Update auth manager based on user provider auth metadata
     switch (authMetadata.authType) {
@@ -119,7 +119,7 @@ class NetworkUserIntegration {
     );
 
     // Update auth manager
-    await AuthManager.instance.setToken(
+    await UnifiedAuthManager.instance.setToken(
       token,
       refreshToken: refreshToken,
       expiresAt: expiresAt,
@@ -143,7 +143,7 @@ class NetworkUserIntegration {
     );
 
     // Update auth manager
-    await AuthManager.instance.setClientCredentials(clientId, '');
+    await UnifiedAuthManager.instance.setClientCredentials(clientId, '');
   }
 
   /// Set authentication for Header Key
@@ -163,7 +163,7 @@ class NetworkUserIntegration {
     );
 
     // Update auth manager
-    await AuthManager.instance.setCustomAuthFields({
+    await UnifiedAuthManager.instance.setCustomAuthFields({
       headerKey: headerValue,
     });
   }
@@ -185,7 +185,7 @@ class NetworkUserIntegration {
     );
 
     // Update auth manager
-    await AuthManager.instance.setSessionId(sessionId);
+    await UnifiedAuthManager.instance.setSessionId(sessionId);
   }
 
   /// Set custom authentication
@@ -203,7 +203,7 @@ class NetworkUserIntegration {
     );
 
     // Update auth manager
-    await AuthManager.instance.setCustomAuthFields(customHeaders);
+    await UnifiedAuthManager.instance.setCustomAuthFields(customHeaders);
   }
 
   /// Clear authentication
@@ -214,7 +214,7 @@ class NetworkUserIntegration {
     _userProvider!.setAuthMetadata(const AuthMetadata());
 
     // Clear auth manager
-    await AuthManager.instance.clearAuth();
+    await UnifiedAuthManager.instance.clearAuth();
   }
 
   /// Check if user is authenticated

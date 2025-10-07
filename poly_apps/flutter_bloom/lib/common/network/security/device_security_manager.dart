@@ -15,7 +15,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+// FIXED: Removed unused 'package:flutter/services.dart' import
 import 'package:crypto/crypto.dart';
 import '../../storage/unified_storage.dart';
 
@@ -25,7 +25,7 @@ class DeviceSecurityManager {
   
   DeviceSecurityManager._();
   
-  final UnifiedStorage _storage = UnifiedStorage.instance;
+  // FIXED: UnifiedStorage is abstract class with static methods, removed instance field
   String? _deviceId;
   String? _appSignature;
   bool _isLocked = false;
@@ -37,7 +37,8 @@ class DeviceSecurityManager {
   static const String _lockTimestampKey = 'device_lock_timestamp';
   
   Future<void> initialize() async {
-    await _storage.init();
+    // FIXED: UnifiedStorage.init() is static method, call directly on class
+    await UnifiedStorage.init();
     await _loadDeviceInfo();
     await _checkLockStatus();
     _startLockMonitoring();
@@ -46,11 +47,13 @@ class DeviceSecurityManager {
   Future<String> getDeviceId() async {
     if (_deviceId != null) return _deviceId!;
     
-    _deviceId = await _storage.getString(_deviceIdKey);
+    // FIXED: UnifiedStorage uses generic get<T> method instead of getString
+    _deviceId = await UnifiedStorage.get<String>(_deviceIdKey);
     
     if (_deviceId == null) {
       _deviceId = await _generateDeviceId();
-      await _storage.setString(_deviceIdKey, _deviceId!);
+      // FIXED: UnifiedStorage uses generic set<T> method instead of setString
+      await UnifiedStorage.set<String>(_deviceIdKey, _deviceId!);
     }
     
     return _deviceId!;
@@ -59,11 +62,13 @@ class DeviceSecurityManager {
   Future<String> getAppSignature() async {
     if (_appSignature != null) return _appSignature!;
     
-    _appSignature = await _storage.getString(_appSignatureKey);
+    // FIXED: UnifiedStorage uses generic get<T> method instead of getString
+    _appSignature = await UnifiedStorage.get<String>(_appSignatureKey);
     
     if (_appSignature == null) {
       _appSignature = await _generateAppSignature();
-      await _storage.setString(_appSignatureKey, _appSignature!);
+      // FIXED: UnifiedStorage uses generic set<T> method instead of setString
+      await UnifiedStorage.set<String>(_appSignatureKey, _appSignature!);
     }
     
     return _appSignature!;
@@ -89,8 +94,9 @@ class DeviceSecurityManager {
 
   Future<void> lockDevice(String reason) async {
     _isLocked = true;
-    await _storage.setBool(_lockStatusKey, true);
-    await _storage.setString(_lockTimestampKey, DateTime.now().toIso8601String());
+    // FIXED: UnifiedStorage uses generic set<T> method instead of setBool/setString
+    await UnifiedStorage.set<bool>(_lockStatusKey, true);
+    await UnifiedStorage.set<String>(_lockTimestampKey, DateTime.now().toIso8601String());
     
     if (kDebugMode) {
       print('Device locked: $reason');
@@ -102,8 +108,9 @@ class DeviceSecurityManager {
 
   Future<void> unlockDevice() async {
     _isLocked = false;
-    await _storage.setBool(_lockStatusKey, false);
-    await _storage.remove(_lockTimestampKey);
+    // FIXED: UnifiedStorage uses generic set<T> method instead of setBool
+    await UnifiedStorage.set<bool>(_lockStatusKey, false);
+    await UnifiedStorage.remove(_lockTimestampKey);
     
     if (kDebugMode) {
       print('Device unlocked');
@@ -213,15 +220,18 @@ class DeviceSecurityManager {
   }
 
   Future<void> _loadDeviceInfo() async {
-    _deviceId = await _storage.getString(_deviceIdKey);
-    _appSignature = await _storage.getString(_appSignatureKey);
+    // FIXED: UnifiedStorage uses generic get<T> method instead of getString
+    _deviceId = await UnifiedStorage.get<String>(_deviceIdKey);
+    _appSignature = await UnifiedStorage.get<String>(_appSignatureKey);
   }
 
   Future<void> _checkLockStatus() async {
-    _isLocked = await _storage.getBool(_lockStatusKey) ?? false;
+    // FIXED: UnifiedStorage uses generic get<T> method instead of getBool
+    _isLocked = await UnifiedStorage.get<bool>(_lockStatusKey) ?? false;
     
     if (_isLocked) {
-      final lockTimestamp = await _storage.getString(_lockTimestampKey);
+      // FIXED: UnifiedStorage uses generic get<T> method instead of getString
+      final lockTimestamp = await UnifiedStorage.get<String>(_lockTimestampKey);
       if (lockTimestamp != null) {
         final lockTime = DateTime.parse(lockTimestamp);
         final now = DateTime.now();
@@ -250,10 +260,11 @@ class DeviceSecurityManager {
   }
 
   Future<void> clearSecurityData() async {
-    await _storage.remove(_deviceIdKey);
-    await _storage.remove(_appSignatureKey);
-    await _storage.remove(_lockStatusKey);
-    await _storage.remove(_lockTimestampKey);
+    // FIXED: Call static methods directly on UnifiedStorage class
+    await UnifiedStorage.remove(_deviceIdKey);
+    await UnifiedStorage.remove(_appSignatureKey);
+    await UnifiedStorage.remove(_lockStatusKey);
+    await UnifiedStorage.remove(_lockTimestampKey);
     
     _deviceId = null;
     _appSignature = null;

@@ -1,5 +1,8 @@
 import '../core/network_config.dart';
-import '../core/network_models.dart';
+// REFACTOR: Renamed network_models.dart to endpoint_network_models.dart
+import '../core/endpoint_network_models.dart';
+// REFACTOR: Import CancelToken from network_types.dart
+import '../core/network_types.dart' show CancelToken;
 import 'package:qyflutter/common/constants/app_constants.dart';
 
 /// Endpoint configuration for sub-applications
@@ -537,7 +540,9 @@ class LaravelEndpoints {
         name: 'auth',
         basePath: '',
         requestType: RequestType.authenticated,
-        authType: AuthType.bearer,
+        // FIXED: AuthType.bearer doesn't exist in enum, changed to AuthType.jwt
+        // Bearer token authentication is implemented via JWT
+        authType: AuthType.jwt,
         timeout: const Duration(seconds: 30),
         maxRetries: 2,
       ),
@@ -545,7 +550,8 @@ class LaravelEndpoints {
         name: 'dictionary',
         basePath: '/dict/v1',
         requestType: RequestType.authenticated,
-        authType: AuthType.bearer,
+        // FIXED: AuthType.bearer doesn't exist in enum, changed to AuthType.jwt
+        authType: AuthType.jwt,
         timeout: const Duration(seconds: 15),
         enableCache: true,
         cacheDuration: Duration(minutes: 10),

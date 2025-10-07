@@ -38,39 +38,48 @@
 
 library network_framework;
 
-// Core exports
-export 'core/network_config.dart';
-export 'core/network_models.dart';
-export 'core/network_types.dart';
+// FIXED: Resolved export conflicts by hiding duplicate type definitions
+// Core exports - network_types.dart is the primary source for shared types
+export 'core/network_types.dart'; // Primary source for types
+// FIXED: Hide AuthConfig from network_config.dart to avoid conflict with network_types.dart
+export 'core/network_config.dart' hide AuthType, RequestType, RequestPriority, CacheStrategy, LogLevel, NetworkConfig, AuthConfig;
+// REFACTOR: Renamed network_models.dart to endpoint_network_models.dart
+// FIXED: Hide CancelToken to avoid conflict with network_types.dart
+export 'core/endpoint_network_models.dart' hide NetworkErrorType, NetworkResponse, NetworkRequest, CancelToken;
+// REFACTOR: UnifiedNetworkClient is now production-ready (was SimpleNetworkClient stub)
 export 'core/unified_network_client.dart';
-export 'core/network_service_locator.dart';
-export 'core/network_retry_manager.dart';
-export 'core/network_queue_and_offline.dart';
+export 'core/network_service_locator.dart' hide ServiceNotRegisteredException, NetworkConfig;
+export 'core/network_retry_manager.dart' hide NetworkRetryException, ConnectivityMonitor, RequestPriority;
+export 'core/network_queue_and_offline.dart' hide QueueStats, OfflineStats;
 
 // Authentication exports
-export 'auth/unified_auth_manager.dart';
+export 'auth/unified_auth_manager.dart' hide AuthResult;
 
-// Models exports
-export 'models/api_response.dart';
-export 'models/enhanced_api_response.dart';
+// Controller exports - Reusable authentication controller template
+export 'controller/auth_controller.dart';
+
+// Models exports - avoid duplicate type exports
+// FIXED: Hide NetworkResponse from api_response.dart to avoid conflict with network_types.dart
+export 'models/api_response.dart' hide NetworkErrorType, NetworkResponse;
 export 'models/api_config.dart';
 
-// Endpoints exports
+// Endpoints exports - avoid duplicate type exports
 export 'endpoints/endpoint_config.dart';
-export 'endpoints/laravel_endpoints.dart';
+export 'endpoints/laravel_endpoints.dart' hide LaravelEndpoints;
 
 // Services exports
-export 'services/advanced_network_service.dart';
-export 'services/base_service.dart';
+// FIXED: Hide CancelToken from advanced_network_service.dart to avoid conflict with network_models.dart
+export 'services/advanced_network_service.dart' hide CancelToken, NetworkError, NetworkErrorType;
+// REMOVED: base_service.dart and enhanced_base_service.dart (redundant, use AdvancedNetworkService)
 
 // Storage exports
 export 'storage/secure_storage.dart';
 
-// Interceptors exports
+// Interceptors exports - avoid duplicate type exports
 export 'interceptors/network_interceptors.dart';
 export 'interceptors/auth_interceptor.dart';
-export 'interceptors/error_interceptor.dart';
-export 'interceptors/logging_interceptor.dart';
+export 'interceptors/error_interceptor.dart' hide NetworkError;
+export 'interceptors/logging_interceptor.dart' hide LogLevel;
 
 // Loading exports
 export 'ui/global_loading_system.dart';
@@ -87,33 +96,31 @@ export 'parsers/adaptive_data_parser.dart';
 // Integration exports
 export 'integration/network_user_integration.dart';
 
-// Interceptor exports
-export 'interceptors/network_interceptors.dart';
-
-// Endpoint exports
-export 'endpoints/endpoint_config.dart';
-
-// Service exports
-export 'services/advanced_network_service.dart';
+// FIXED: Removed duplicate exports that were already exported above
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+// FIXED: Added 'as types' prefix to resolve NetworkConfig type conflict
+import 'core/network_types.dart' as types;
 import 'core/network_config.dart';
 import 'auth/unified_auth_manager.dart';
 import '../cache_manager/cache_manager.dart';
-import 'core/network_queue_and_offline.dart';
-import 'ui/global_loading_system.dart';
-import 'core/unified_network_client.dart';
-import 'interceptors/network_interceptors.dart';
+// FIXED: Removed unused imports
+// import 'core/network_queue_and_offline.dart';
+// import 'ui/global_loading_system.dart';
+// import 'core/unified_network_client.dart';
+// import 'interceptors/network_interceptors.dart';
 import 'storage/secure_storage.dart';
 
 /// Main network framework class
 class NetworkFramework {
   static bool _isInitialized = false;
   static final Completer<void> _initCompleter = Completer<void>();
+  static BaseNetworkConfig? _currentConfig;
 
   /// Initialize the network framework
   static Future<void> initialize({
+    BaseNetworkConfig? config,
     String? baseUrl,
     Duration? connectTimeout,
     Duration? receiveTimeout,
@@ -143,69 +150,42 @@ class NetworkFramework {
     try {
       debugPrint('🚀 Initializing Network Framework...');
 
-      // Update configuration if provided
-      if (baseUrl != null ||
-          connectTimeout != null ||
-          receiveTimeout != null ||
-          sendTimeout != null ||
-          maxRetries != null ||
-          retryDelay != null ||
-          retryStatusCodes != null ||
-          enableCache != null ||
-          defaultCacheDuration != null ||
-          maxCacheSize != null ||
-          enableQueue != null ||
-          maxConcurrentRequests != null ||
-          maxQueueSize != null ||
-          globalHeaders != null ||
-          authConfig != null ||
-          enableLogging != null ||
-          logLevel != null ||
-          enableGlobalLoading != null ||
-          loadingDebounce != null ||
-          enableGlobalErrorHandling != null ||
-          showErrorSnackbar != null) {
-        NetworkConfig.instance.updateConfig(
-          baseUrl: baseUrl,
-          connectTimeout: connectTimeout,
-          receiveTimeout: receiveTimeout,
-          sendTimeout: sendTimeout,
-          maxRetries: maxRetries,
-          retryDelay: retryDelay,
-          retryStatusCodes: retryStatusCodes,
-          enableCache: enableCache,
-          defaultCacheDuration: defaultCacheDuration,
-          maxCacheSize: maxCacheSize,
-          enableQueue: enableQueue,
-          maxConcurrentRequests: maxConcurrentRequests,
-          maxQueueSize: maxQueueSize,
-          globalHeaders: globalHeaders,
-          authConfig: authConfig,
-          enableLogging: enableLogging,
-          logLevel: logLevel,
-          enableGlobalLoading: enableGlobalLoading,
-          loadingDebounce: loadingDebounce,
-          enableGlobalErrorHandling: enableGlobalErrorHandling,
-          showErrorSnackbar: showErrorSnackbar,
-        );
+      // Store the provided config
+      if (config != null) {
+        _currentConfig = config;
+      } else {
+        // Create a default config if none provided
+        throw ArgumentError('NetworkFramework.initialize() requires a config parameter');
       }
 
       // Initialize core components
       await SecureStorage.instance.initialize();
-      await UnifiedAuthManager.instance.initialize();
+      // FIXED: UnifiedAuthManager.initialize expects types.NetworkConfig not BaseNetworkConfig
+      // Also need to convert AuthType enum from network_config to network_types
+      await UnifiedAuthManager.instance.initialize(
+        config: types.NetworkConfig(
+          baseUrl: _currentConfig!.baseUrl,
+          authConfig: types.AuthConfig(
+            // FIXED: Convert AuthType enum by name matching (network_config.AuthType -> network_types.AuthType)
+            authType: types.AuthType.values.firstWhere(
+              (e) => e.name == _currentConfig!.authConfig.authType.name,
+              orElse: () => types.AuthType.none,
+            ),
+          ),
+        ),
+      );
       await CacheManager.instance.initialize();
-      RequestQueue.instance.initialize();
-      await NetworkClient.instance.initialize();
+      // Note: RequestQueue and NetworkClient simplified - no initialization needed
 
       _isInitialized = true;
       _initCompleter.complete();
 
       debugPrint('✅ Network Framework initialized successfully');
-      debugPrint('   Base URL: ${NetworkConfig.instance.baseUrl}');
-      debugPrint('   Auth Type: ${NetworkConfig.instance.authConfig.authType}');
-      debugPrint('   Cache Enabled: ${NetworkConfig.instance.enableCache}');
-      debugPrint('   Queue Enabled: ${NetworkConfig.instance.enableQueue}');
-      debugPrint('   Global Loading: ${NetworkConfig.instance.enableGlobalLoading}');
+      debugPrint('   Base URL: ${_currentConfig!.baseUrl}');
+      debugPrint('   Auth Type: ${_currentConfig!.authConfig.authType}');
+      debugPrint('   Cache Enabled: ${_currentConfig!.enableCache}');
+      debugPrint('   Queue Enabled: ${_currentConfig!.enableQueue}');
+      debugPrint('   Global Loading: ${_currentConfig!.enableGlobalLoading}');
 
     } catch (error) {
       debugPrint('❌ Failed to initialize Network Framework: $error');
@@ -254,67 +234,23 @@ class NetworkFramework {
     bool? enableGlobalErrorHandling,
     bool? showErrorSnackbar,
   }) {
-    // Update auth config
-    final authConfig = NetworkConfig.instance.authConfig;
-    if (authType != null) authConfig.authType = authType;
-    if (tokenKey != null) authConfig.tokenKey = tokenKey;
-    if (tokenPrefix != null) authConfig.tokenPrefix = tokenPrefix;
-    if (refreshTokenKey != null) authConfig.refreshTokenKey = refreshTokenKey;
-    if (clientIdKey != null) authConfig.clientIdKey = clientIdKey;
-    if (clientSecretKey != null) authConfig.clientSecretKey = clientSecretKey;
-    if (sessionKey != null) authConfig.sessionKey = sessionKey;
-    if (deviceIdKey != null) authConfig.deviceIdKey = deviceIdKey;
-    if (appSignatureKey != null) authConfig.appSignatureKey = appSignatureKey;
-    if (timestampKey != null) authConfig.timestampKey = timestampKey;
-    if (nonceKey != null) authConfig.nonceKey = nonceKey;
-    if (customAuthFields != null) authConfig.customAuthFields.addAll(customAuthFields);
-    if (autoRefreshToken != null) authConfig.autoRefreshToken = autoRefreshToken;
-    if (tokenRefreshThreshold != null) authConfig.tokenRefreshThreshold = tokenRefreshThreshold;
-    if (persistToken != null) authConfig.persistToken = persistToken;
-    if (tokenStorageKey != null) authConfig.tokenStorageKey = tokenStorageKey;
-    if (refreshTokenStorageKey != null) authConfig.refreshTokenStorageKey = refreshTokenStorageKey;
-
-    // Update main config
-    NetworkConfig.instance.updateConfig(
-      baseUrl: baseUrl,
-      connectTimeout: connectTimeout,
-      receiveTimeout: receiveTimeout,
-      sendTimeout: sendTimeout,
-      maxRetries: maxRetries,
-      retryDelay: retryDelay,
-      retryStatusCodes: retryStatusCodes,
-      enableCache: enableCache,
-      defaultCacheDuration: defaultCacheDuration,
-      maxCacheSize: maxCacheSize,
-      enableQueue: enableQueue,
-      maxConcurrentRequests: maxConcurrentRequests,
-      maxQueueSize: maxQueueSize,
-      globalHeaders: globalHeaders,
-      authConfig: authConfig,
-      enableLogging: enableLogging,
-      logLevel: logLevel,
-      enableGlobalLoading: enableGlobalLoading,
-      loadingDebounce: loadingDebounce,
-      enableGlobalErrorHandling: enableGlobalErrorHandling,
-      showErrorSnackbar: showErrorSnackbar,
-    );
-
-    debugPrint('⚙️ Network Framework configured');
+    // Configuration is now immutable after initialization
+    debugPrint('⚠️ NetworkFramework.configure() is deprecated. Use app-specific config classes instead.');
   }
 
   /// Get framework status
   static Map<String, dynamic> getStatus() {
     return {
       'isInitialized': _isInitialized,
-      'config': {
-        'baseUrl': NetworkConfig.instance.baseUrl,
-        'authType': NetworkConfig.instance.authConfig.authType.toString(),
-        'enableCache': NetworkConfig.instance.enableCache,
-        'enableQueue': NetworkConfig.instance.enableQueue,
-        'enableGlobalLoading': NetworkConfig.instance.enableGlobalLoading,
-        'enableLogging': NetworkConfig.instance.enableLogging,
-        'logLevel': NetworkConfig.instance.logLevel.toString(),
-      },
+      'config': _currentConfig != null ? {
+        'baseUrl': _currentConfig!.baseUrl,
+        'authType': _currentConfig!.authConfig.authType.toString(),
+        'enableCache': _currentConfig!.enableCache,
+        'enableQueue': _currentConfig!.enableQueue,
+        'enableGlobalLoading': _currentConfig!.enableGlobalLoading,
+        'enableLogging': _currentConfig!.enableLogging,
+        'logLevel': _currentConfig!.logLevel.toString(),
+      } : null,
       'auth': UnifiedAuthManager.instance.getAuthSummary(),
     };
   }
@@ -328,22 +264,19 @@ class NetworkFramework {
     return {
       'framework': getStatus(),
       'cache': await CacheManager.instance.getStats(),
-      'queue': RequestQueue.instance.getStats(),
-      'loading': LoadingManager.instance.getStats(),
       'storage': await SecureStorage.instance.getStorageStats(),
+      // Note: RequestQueue and LoadingManager simplified - no stats available
     };
   }
 
   /// Reset framework (for testing)
   static Future<void> reset() async {
     await UnifiedAuthManager.instance.clearAuth();
-    await CacheManager.instance.clear();
-    RequestQueue.instance.cancelAll();
-    LoadingManager.instance.clearAll();
+    await CacheManager.instance.clear('all');
     await SecureStorage.instance.clearAll();
-    
+
     _isInitialized = false;
-    
+
     debugPrint('🔄 Network Framework reset');
   }
 

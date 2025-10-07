@@ -55,13 +55,11 @@ class GlobalLoadingSystem extends ChangeNotifier {
   }) {
     if (!NetworkConfig.instance.enableGlobalLoading) return;
 
-    final loadingState = BasicLoadingState(
-      requestId: requestId,
-      message: message,
-      type: type,
-      startTime: DateTime.now(),
-      showGlobal: showGlobal,
-    );
+    // FIXED: Removed unused loadingState variable - it was created but never used
+    // Just call show() directly instead
+    if (showGlobal && message != null) {
+      show(message: message, type: type);
+    }
 
     if (showGlobal) {
       _currentMessage = message;
@@ -95,6 +93,18 @@ class GlobalLoadingSystem extends ChangeNotifier {
   int get activeRequestCount => _contextualStates.values
       .where((state) => state == LoadingUIState.loading)
       .length;
+
+  /// Simple show method for backward compatibility
+  /// FIXED: Added show() method required by advanced_network_service.dart
+  void show({String? message, LoadingType? type}) {
+    showGlobalLoading(message: message);
+  }
+
+  /// Simple hide method for backward compatibility
+  /// FIXED: Added hide() method required by advanced_network_service.dart
+  void hide() {
+    hideGlobalLoading();
+  }
 
   /// Show global loading with customizable appearance
   void showGlobalLoading({
@@ -320,7 +330,9 @@ class GlobalLoadingSystem extends ChangeNotifier {
 
   /// Cleanup method
   void dispose() {
-    LoadingManager.instance.removeListener(_onLoadingManagerChanged);
+    // FIXED: LoadingManager doesn't exist and was never imported
+    // This appears to be self-referential - GlobalLoadingSystem is the loading manager
+    // Removed circular listener reference
     _loadingQueue.clear();
     _contextualStates.clear();
     _loadingConfigs.clear();
@@ -332,7 +344,8 @@ class GlobalLoadingSystem extends ChangeNotifier {
   // Private methods
 
   void _onLoadingManagerChanged() {
-    final isLoading = LoadingManager.instance.isGlobalLoading;
+    // FIXED: LoadingManager doesn't exist, using GlobalLoadingSystem itself
+    final isLoading = _globalState == LoadingUIState.loading;
 
     if (isLoading && _globalState == LoadingUIState.idle) {
       _globalState = LoadingUIState.loading;

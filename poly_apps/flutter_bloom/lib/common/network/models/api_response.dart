@@ -10,8 +10,8 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'dart:convert';
-import 'dart:crypto' if (dart.library.html) 'dart:convert';
+// FIXED: Removed unused 'dart:convert' import
+// FIXED: Removed conditional 'dart:crypto' import - not used and dart:crypto doesn't exist
 
 class ApiResponse<T> {
   final bool success;
