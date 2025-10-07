@@ -166,8 +166,8 @@ function Set-VisualStudioHardLinks {
 
     if ($linkErrors.Count -gt 0) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] The following errors occurred while creating hard links:" -Type "Error"
-        foreach ($error in $linkErrors) {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] - $error" -Type "Error"
+        foreach ($errorMsg in $linkErrors) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] - $errorMsg" -Type "Error"
         }
         return $false
     }

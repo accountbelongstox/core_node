@@ -73,6 +73,133 @@ function Set-FileExplorerSettings {
     }
 }
 
+function Set-DarkModeAndOpenSettings {
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Configuring dark mode settings..." -Type "Info"
+    
+    try {
+        $darkModeApplied = $false
+        
+        # Set dark mode for Windows based on version
+        if ($Global:isWin10 -or $Global:isWin11) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Detected Windows 10/11, applying dark mode settings..." -Type "Info"
+            
+            # Set Apps to use dark theme
+            Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Value 0 -Type DWord -Force
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Apps dark theme enabled." -Type "Success"
+            
+            # Set System to use dark theme  
+            Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Value 0 -Type DWord -Force
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] System dark theme enabled." -Type "Success"
+            
+            # Additional Windows 11 specific settings
+            if ($Global:isWin11) {
+                # Enable dark mode for taskbar and start menu
+                Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "ColorPrevalence" -Value 0 -Type DWord -Force
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Windows 11 taskbar dark mode enabled." -Type "Success"
+            }
+            
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Dark mode configuration completed successfully." -Type "Success"
+            $darkModeApplied = $true
+        }
+        else {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Dark mode configuration not supported on this Windows version." -Type "Warning"
+        }
+        
+        # Ask user if they want to open settings window (only if dark mode was applied)
+        if ($darkModeApplied) {
+            Write-Host ""
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Dark mode has been applied successfully!" -Type "Success"
+            Write-Host "Do you want to open Windows Settings to review the theme settings? (Y/N)" -ForegroundColor Yellow -NoNewline
+            Write-Host " [Auto-continue in 20 seconds with 'N']" -ForegroundColor Gray
+            
+            # Wait for user input with 20 second timeout
+            $timeout = 20
+            $userChoice = $null
+            $startTime = Get-Date
+            
+            do {
+                if ([Console]::KeyAvailable) {
+                    $key = [Console]::ReadKey($true)
+                    if ($key.Key -eq 'Y' -or $key.KeyChar -eq 'y') {
+                        $userChoice = 'Y'
+                        break
+                    }
+                    elseif ($key.Key -eq 'N' -or $key.KeyChar -eq 'n' -or $key.Key -eq 'Enter' -or $key.Key -eq 'Escape') {
+                        $userChoice = 'N'
+                        break
+                    }
+                }
+                
+                $elapsed = (Get-Date) - $startTime
+                if ($elapsed.TotalSeconds -ge $timeout) {
+                    $userChoice = 'N'
+                    Write-Host ""
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Timeout reached, continuing without opening settings..." -Type "Info"
+                    break
+                }
+                
+                Start-Sleep -Milliseconds 100
+            } while ($true)
+            
+            # Open settings if user chose to
+            if ($userChoice -eq 'Y') {
+                Write-Host ""
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Opening Windows Settings window..." -Type "Info"
+                
+                # Try multiple methods for better Win10/Win11 compatibility
+                $settingsOpened = $false
+                
+                try {
+                    # Method 1: Use ms-settings URI (preferred for Win10/Win11)
+                    if ($Global:isWin11) {
+                        Start-Process "ms-settings:personalization-colors" -ErrorAction Stop
+                        $settingsOpened = $true
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Windows 11 Settings opened via ms-settings URI." -Type "Success"
+                    }
+                    elseif ($Global:isWin10) {
+                        Start-Process "ms-settings:personalization-colors" -ErrorAction Stop
+                        $settingsOpened = $true
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Windows 10 Settings opened via ms-settings URI." -Type "Success"
+                    }
+                }
+                catch {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] ms-settings URI failed, trying alternative method..." -Type "Warning"
+                }
+                
+                # Method 2: Fallback to control panel if ms-settings fails
+                if (-not $settingsOpened) {
+                    try {
+                        Start-Process "control" -ArgumentList "desk.cpl,,2" -ErrorAction Stop
+                        $settingsOpened = $true
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Settings opened via Control Panel (fallback method)." -Type "Success"
+                    }
+                    catch {
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Control Panel method also failed, trying final fallback..." -Type "Warning"
+                    }
+                }
+                
+                # Method 3: Final fallback - open general settings
+                if (-not $settingsOpened) {
+                    try {
+                        Start-Process "ms-settings:" -ErrorAction Stop
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] General Settings opened (final fallback method)." -Type "Success"
+                    }
+                    catch {
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Unable to open Settings window. Please open manually: Settings > Personalization > Colors" -Type "Error"
+                    }
+                }
+            }
+            else {
+                Write-Host ""
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Skipping settings window as requested." -Type "Info"
+            }
+        }
+    }
+    catch {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Error configuring dark mode: $_" -Type "Error"
+    }
+}
+
 function Restart-ExplorerOnce {
     # Check if Explorer restart has already been performed
     if (Test-Path $Global:STEP2_EXPLORER_RESTART_FLAG) {
@@ -105,6 +232,7 @@ if (Test-Path $Global:STEP2_BASE_SETTINGS_FLAG) {
     
     Set-PluggedInPowerSettings
     Set-FileExplorerSettings
+    Set-DarkModeAndOpenSettings
     
     # Create completion flag file
     New-Item -ItemType File -Path $Global:STEP2_BASE_SETTINGS_FLAG -Force | Out-Null
@@ -198,6 +326,9 @@ function Set-Win10ContextMenuRegistry {
 
 # Always check and perform Explorer restart if needed (independent of base settings)
 Restart-ExplorerOnce
+
+# Always run dark mode configuration (independent of base settings flag)
+Set-DarkModeAndOpenSettings
 
 # Handle Windows 10 specific registry context menu
 Set-Win10ContextMenuRegistry

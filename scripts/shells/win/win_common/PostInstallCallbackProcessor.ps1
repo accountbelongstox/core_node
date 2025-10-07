@@ -57,6 +57,7 @@ $Global:MCP_DEFAULT_SEARCH_VALUE = "cunzhi-placeholder-path"
     - "rename": Move/rename files within package directory (SourceFile -> TargetFile)  
     - "delete": Remove files from package directory (TargetFile)
     - "configurator": Execute package manager configuration commands with region awareness
+    - "registry_template": Apply Windows registry templates with placeholder replacement
     - "mcp": Process MCP (Model Context Protocol) configuration files with JSON manipulation
     
     MCP OPERATIONS SUPPORTED:
@@ -77,6 +78,173 @@ $Global:MCP_DEFAULT_SEARCH_VALUE = "cunzhi-placeholder-path"
     Configurator operations automatically detect and respect SELECTED_REGION global variable
     JSON manipulation preserves original formatting and structure
 #>
+
+# ===== REGISTRY TEMPLATE FUNCTIONS =====
+
+# Function to process registry template callbacks
+function Invoke-RegistryTemplateProcessor {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$RegistryCallback,
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+        [Parameter(Mandatory = $true)]
+        [string]$InstallDir,
+        [Parameter(Mandatory = $false)]
+        [string]$LogPrefix = "[REGISTRY_TEMPLATE]"
+    )
+
+    # Validate required parameters
+    if (-not $RegistryCallback.ContainsKey("TemplateFile")) {
+        Write-Host "$LogPrefix Error: TemplateFile not specified in callback" -ForegroundColor Red
+        return $false
+    }
+
+    if (-not $RegistryCallback.ContainsKey("Replacements")) {
+        Write-Host "$LogPrefix Error: Replacements not specified in callback" -ForegroundColor Red
+        return $false
+    }
+
+    $templateFile = $RegistryCallback.TemplateFile
+    $replacements = $RegistryCallback.Replacements
+    $description = if ($RegistryCallback.ContainsKey("Description")) { $RegistryCallback.Description } else { "Registry template processing" }
+    $requiresAdmin = if ($RegistryCallback.ContainsKey("RequiresAdmin")) { $RegistryCallback.RequiresAdmin } else { $true }
+
+    Write-Host "$LogPrefix Description: $description" -ForegroundColor Cyan
+    Write-Host "$LogPrefix Template file: $templateFile" -ForegroundColor Cyan
+    Write-Host "$LogPrefix Requires admin: $requiresAdmin" -ForegroundColor Cyan
+
+    # Check admin privileges if required
+    if ($requiresAdmin -and -not $Global:IS_RUN_ADMIN) {
+        Write-Host "$LogPrefix Warning: Admin privileges required but not available. Registry changes may fail." -ForegroundColor Yellow
+        Write-Host "$LogPrefix Continuing anyway - some registry operations may work without admin privileges" -ForegroundColor Yellow
+    }
+
+    try {
+        # Resolve template file path
+        $templatePath = Join-Path $Global:CORE_NODE_SCRIPTS_DIR $templateFile
+        
+        if (-not (Test-Path $templatePath)) {
+            Write-Host "$LogPrefix Error: Template file not found: $templatePath" -ForegroundColor Red
+            return $false
+        }
+
+        Write-Host "$LogPrefix Loading template from: $templatePath" -ForegroundColor Cyan
+
+        # Read template content
+        $templateContent = Get-Content -Path $templatePath -Raw -Encoding UTF8
+
+        if ([string]::IsNullOrWhiteSpace($templateContent)) {
+            Write-Host "$LogPrefix Error: Template file is empty or could not be read" -ForegroundColor Red
+            return $false
+        }
+
+        # Process replacements
+        $processedContent = $templateContent
+        foreach ($placeholder in $replacements.Keys) {
+            $replacementValue = $replacements[$placeholder]
+            
+            # Handle special replacement values
+            if ($replacementValue -eq "EXECUTABLE_PATH") {
+                $replacementValue = $ExecutablePath.Replace('\', '\\')
+                Write-Host "$LogPrefix Replacing '$placeholder' with executable path: $ExecutablePath" -ForegroundColor Cyan
+            }
+            elseif ($replacementValue -eq "INSTALL_DIR") {
+                $replacementValue = $InstallDir.Replace('\', '\\')
+                Write-Host "$LogPrefix Replacing '$placeholder' with install directory: $InstallDir" -ForegroundColor Cyan
+            }
+            elseif ($replacementValue -eq "ICON_PATH") {
+                # Generate icon path based on executable path
+                $executableDir = Split-Path $ExecutablePath -Parent
+                $iconPath = Join-Path $executableDir "terminal.ico"
+                
+                # Check if terminal.ico exists, if not use cmd.exe as fallback
+                if (Test-Path $iconPath) {
+                    $replacementValue = $iconPath.Replace('\', '\\')
+                    Write-Host "$LogPrefix Replacing '$placeholder' with icon path: $iconPath" -ForegroundColor Cyan
+                }
+                else {
+                    # Use cmd.exe as fallback icon (always available on Windows)
+                    $cmdPath = Join-Path $env:SystemRoot "System32\cmd.exe"
+                    $replacementValue = $cmdPath.Replace('\', '\\')
+                    Write-Host "$LogPrefix Icon file not found, using cmd.exe as icon: $cmdPath" -ForegroundColor Cyan
+                }
+            }
+            else {
+                # Escape backslashes for registry format
+                $replacementValue = $replacementValue.Replace('\', '\\')
+                Write-Host "$LogPrefix Replacing '$placeholder' with: $replacementValue" -ForegroundColor Cyan
+            }
+            
+            $processedContent = $processedContent.Replace($placeholder, $replacementValue)
+        }
+
+        # Create temporary registry file
+        $tempRegFile = Join-Path $Global:TEMP_DIR "temp_registry_$PackageName.reg"
+        
+        # Ensure temp directory exists
+        if (-not (Test-Path $Global:TEMP_DIR)) {
+            New-Item -ItemType Directory -Path $Global:TEMP_DIR -Force | Out-Null
+        }
+
+        # Write processed content to temporary file
+        Set-Content -Path $tempRegFile -Value $processedContent -Encoding UTF8
+        Write-Host "$LogPrefix Created temporary registry file: $tempRegFile" -ForegroundColor Cyan
+
+        # Apply registry changes
+        Write-Host "$LogPrefix Applying registry changes..." -ForegroundColor Cyan
+        
+        try {
+            # Try reg.exe first
+            $regResult = Start-Process -FilePath "reg.exe" -ArgumentList "import", "`"$tempRegFile`"" -Wait -PassThru -WindowStyle Hidden
+            
+            if ($regResult.ExitCode -eq 0) {
+                Write-Host "$LogPrefix Registry changes applied successfully using reg.exe" -ForegroundColor Green
+                $success = $true
+            }
+            else {
+                Write-Host "$LogPrefix reg.exe failed with exit code $($regResult.ExitCode), trying regedit.exe..." -ForegroundColor Yellow
+                
+                # Fallback to regedit.exe
+                $regeditResult = Start-Process -FilePath "regedit.exe" -ArgumentList "/s", "`"$tempRegFile`"" -Wait -PassThru -WindowStyle Hidden
+                
+                if ($regeditResult.ExitCode -eq 0) {
+                    Write-Host "$LogPrefix Registry changes applied successfully using regedit.exe" -ForegroundColor Green
+                    $success = $true
+                }
+                else {
+                    Write-Host "$LogPrefix Error: Both reg.exe and regedit.exe failed to apply registry changes" -ForegroundColor Red
+                    Write-Host "$LogPrefix reg.exe exit code: $($regResult.ExitCode)" -ForegroundColor Red
+                    Write-Host "$LogPrefix regedit.exe exit code: $($regeditResult.ExitCode)" -ForegroundColor Red
+                    $success = $false
+                }
+            }
+        }
+        catch {
+            Write-Host "$LogPrefix Error applying registry changes: $($_.Exception.Message)" -ForegroundColor Red
+            $success = $false
+        }
+
+        # Clean up temporary file
+        try {
+            if (Test-Path $tempRegFile) {
+                Remove-Item -Path $tempRegFile -Force
+                Write-Host "$LogPrefix Cleaned up temporary registry file" -ForegroundColor Cyan
+            }
+        }
+        catch {
+            Write-Host "$LogPrefix Warning: Could not clean up temporary file: $tempRegFile" -ForegroundColor Yellow
+        }
+
+        return $success
+    }
+    catch {
+        Write-Host "$LogPrefix Error processing registry template: $($_.Exception.Message)" -ForegroundColor Red
+        return $false
+    }
+}
 
 # ===== MCP CONFIGURATION FUNCTIONS =====
 
@@ -833,6 +1001,15 @@ function Invoke-PostInstallCallbacks {
                         Write-Host "$LogPrefix MCP callback completed successfully" -ForegroundColor Green
                     } else {
                         Write-Host "$LogPrefix MCP callback failed" -ForegroundColor Red
+                    }
+                }
+                "registry_template" {
+                    Write-Host "$LogPrefix Processing registry template callback for $PackageName" -ForegroundColor Cyan
+                    $success = Invoke-RegistryTemplateProcessor -RegistryCallback $callback -PackageName $PackageName -ExecutablePath $ExecutablePath -InstallDir $InstallDir -LogPrefix "$LogPrefix [REGISTRY_TEMPLATE]"
+                    if ($success) {
+                        Write-Host "$LogPrefix Registry template callback completed successfully" -ForegroundColor Green
+                    } else {
+                        Write-Host "$LogPrefix Registry template callback failed" -ForegroundColor Red
                     }
                 }
                 default {

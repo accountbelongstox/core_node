@@ -30,13 +30,15 @@ param(
 
     PACKAGE GROUP FILTERING:
     - Use -PackageGroup to filter entire package groups (supports partial matching)
-    - Available groups: BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpServicesPackages, DevSoftwarePackages
+    - Available groups: Windows10EssentialPatches, BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpServicesPackages, DevSoftwarePackages
+    - Examples: -PackageGroup "Windows10" (matches Windows10EssentialPatches - Win10 only)
     - Examples: -PackageGroup "Mcp" (matches McpServicesPackages)
     - Examples: -PackageGroup "Base" (matches BasePackages)
     - Examples: -PackageGroup "Dev" (matches DevSoftwarePackages)
 
     USAGE EXAMPLES:
     .\Step12_InstallApplications.ps1 -PackageName "VSCode"           # Install all packages containing "VSCode"
+    .\Step12_InstallApplications.ps1 -PackageGroup "Windows10"      # Install only Windows 10 Essential Patches (Win10 only)
     .\Step12_InstallApplications.ps1 -PackageGroup "Mcp"            # Install only MCP services packages
     .\Step12_InstallApplications.ps1 -PackageGroup "Base"           # Install only base packages
     .\Step12_InstallApplications.ps1                                # Install all packages (default behavior)
@@ -1011,6 +1013,33 @@ function Install-BasePackage {
 }
 
 # Main execution starts here
+
+# Install Windows 10 Essential Patches (Priority installation for Windows 10 ONLY)
+if (Test-PackageGroupFilter -GroupName "Windows10EssentialPatches") {
+    Write-Host "$SCRIPT_INDEX Installing Windows 10 Essential Patches from GlobalVars.ps1" -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX Windows 10 Essential Patches: $($Global:WINDOWS_10_ESSENTIAL_PATCHES.Keys -join ', ')" -ForegroundColor Cyan
+    
+    # Check if this is Windows 10 system (Windows 11 already has these components built-in)
+    if ($Global:isWin10) {
+        Write-Host "$SCRIPT_INDEX Detected Windows 10 system - Installing essential patches for feature parity with Windows 11" -ForegroundColor Yellow
+        
+        # Iterate through all Windows 10 essential patches
+        foreach ($packageName in $Global:WINDOWS_10_ESSENTIAL_PATCHES.Keys) {
+            $packageMeta = $Global:WINDOWS_10_ESSENTIAL_PATCHES[$packageName]
+            Write-Host "$SCRIPT_INDEX [WIN10_PATCH] Installing essential component: $packageName" -ForegroundColor Magenta
+            Install-PackageManager -PackageName $packageName -PackageMeta $packageMeta -BaseDirectory "BaseDir"
+        }
+        
+        Write-Host "$SCRIPT_INDEX Windows 10 Essential Patches installation completed" -ForegroundColor Green
+    }
+    elseif ($Global:isWin11) {
+        Write-Host "$SCRIPT_INDEX Skipping Windows 10 Essential Patches - Windows 11 already has these components built-in" -ForegroundColor Green
+    }
+    else {
+        Write-Host "$SCRIPT_INDEX Skipping Windows 10 Essential Patches - not a Windows 10 system" -ForegroundColor Yellow
+    }
+}
+
 # Install Base Packages
 if (Test-PackageGroupFilter -GroupName "BasePackages") {
     Write-Host "$SCRIPT_INDEX Installing all base packages from GlobalVars.ps1" -ForegroundColor Cyan
