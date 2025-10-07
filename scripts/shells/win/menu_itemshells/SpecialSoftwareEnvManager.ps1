@@ -469,9 +469,10 @@ function Get-ExistingFiles {
     # Get all files matching the prefix pattern
     $files = Get-ChildItem -Path $winEnvsDir -Filter "${filePrefix}*" -File -ErrorAction SilentlyContinue
     
-    # DEBUG: Check what Get-ChildItem returns
+    # Ensure $files is always an array, even if no files found
     if ($null -eq $files) {
-        Write-ColorMessage -Message "DEBUG: files is null" -Type "Info"
+        $files = @()
+        Write-ColorMessage -Message "DEBUG: files is null, converted to empty array" -Type "Info"
     } else {
         Write-ColorMessage -Message "DEBUG: files type: $($files.GetType().Name)" -Type "Info"
         Write-ColorMessage -Message "DEBUG: files value: $files" -Type "Info"
