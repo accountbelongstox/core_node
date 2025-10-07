@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'dart:convert';
-import 'dart:crypto';
+import 'dart:crypto' if (dart.library.html) 'dart:convert';
 
 class ApiResponse<T> {
   final bool success;

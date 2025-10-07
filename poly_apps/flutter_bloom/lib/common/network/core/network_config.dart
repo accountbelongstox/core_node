@@ -1,100 +1,74 @@
 import 'package:flutter/foundation.dart';
+import 'network_types.dart';
 
-/// Network configuration for the entire application
-class NetworkConfig {
-  static NetworkConfig? _instance;
-  static NetworkConfig get instance => _instance ??= NetworkConfig._();
-  NetworkConfig._();
+/// Abstract base network configuration
+/// Each app should extend this with their specific configuration
+abstract class BaseNetworkConfig {
+  // Base configuration - to be overridden by apps
+  String get baseUrl;
+  Duration get connectTimeout => const Duration(seconds: 30);
+  Duration get receiveTimeout => const Duration(seconds: 30);
+  Duration get sendTimeout => const Duration(seconds: 30);
 
-  // Base configuration
-  String baseUrl = 'https://api.si.12gm.com';
-  Duration connectTimeout = const Duration(seconds: 30);
-  Duration receiveTimeout = const Duration(seconds: 30);
-  Duration sendTimeout = const Duration(seconds: 30);
-  
   // Retry configuration
-  int maxRetries = 3;
-  Duration retryDelay = const Duration(seconds: 1);
-  List<int> retryStatusCodes = [408, 429, 500, 502, 503, 504];
-  
+  int get maxRetries => 3;
+  Duration get retryDelay => const Duration(seconds: 1);
+  List<int> get retryStatusCodes => [408, 429, 500, 502, 503, 504];
+
   // Cache configuration
-  bool enableCache = true;
-  Duration defaultCacheDuration = const Duration(minutes: 5);
-  int maxCacheSize = 100; // MB
-  
+  bool get enableCache => true;
+  Duration get defaultCacheDuration => const Duration(minutes: 5);
+  int get maxCacheSize => 100; // MB
+
   // Queue configuration
-  bool enableQueue = true;
-  int maxConcurrentRequests = 5;
-  int maxQueueSize = 100;
-  
-  // Global headers
-  Map<String, String> globalHeaders = {
+  bool get enableQueue => true;
+  int get maxConcurrentRequests => 5;
+  int get maxQueueSize => 100;
+
+  // Global headers - can be overridden
+  Map<String, String> get globalHeaders => {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     'User-Agent': 'FlutterApp/1.0.0',
   };
-  
-  // Authentication configuration
-  AuthConfig authConfig = AuthConfig();
-  
+
+  // Authentication configuration - to be overridden
+  AuthConfig get authConfig;
+
   // Logging configuration
-  bool enableLogging = kDebugMode;
-  LogLevel logLevel = kDebugMode ? LogLevel.verbose : LogLevel.error;
-  
+  bool get enableLogging => kDebugMode;
+  LogLevel get logLevel => kDebugMode ? LogLevel.verbose : LogLevel.error;
+
   // Loading state configuration
-  bool enableGlobalLoading = true;
-  Duration loadingDebounce = const Duration(milliseconds: 300);
-  
+  bool get enableGlobalLoading => true;
+  Duration get loadingDebounce => const Duration(milliseconds: 300);
+
   // Error handling configuration
-  bool enableGlobalErrorHandling = true;
-  bool showErrorSnackbar = true;
-  
-  /// Update configuration
-  void updateConfig({
-    String? baseUrl,
-    Duration? connectTimeout,
-    Duration? receiveTimeout,
-    Duration? sendTimeout,
-    int? maxRetries,
-    Duration? retryDelay,
-    List<int>? retryStatusCodes,
-    bool? enableCache,
-    Duration? defaultCacheDuration,
-    int? maxCacheSize,
-    bool? enableQueue,
-    int? maxConcurrentRequests,
-    int? maxQueueSize,
-    Map<String, String>? globalHeaders,
-    AuthConfig? authConfig,
-    bool? enableLogging,
-    LogLevel? logLevel,
-    bool? enableGlobalLoading,
-    Duration? loadingDebounce,
-    bool? enableGlobalErrorHandling,
-    bool? showErrorSnackbar,
-  }) {
-    if (baseUrl != null) this.baseUrl = baseUrl;
-    if (connectTimeout != null) this.connectTimeout = connectTimeout;
-    if (receiveTimeout != null) this.receiveTimeout = receiveTimeout;
-    if (sendTimeout != null) this.sendTimeout = sendTimeout;
-    if (maxRetries != null) this.maxRetries = maxRetries;
-    if (retryDelay != null) this.retryDelay = retryDelay;
-    if (retryStatusCodes != null) this.retryStatusCodes = retryStatusCodes;
-    if (enableCache != null) this.enableCache = enableCache;
-    if (defaultCacheDuration != null) this.defaultCacheDuration = defaultCacheDuration;
-    if (maxCacheSize != null) this.maxCacheSize = maxCacheSize;
-    if (enableQueue != null) this.enableQueue = enableQueue;
-    if (maxConcurrentRequests != null) this.maxConcurrentRequests = maxConcurrentRequests;
-    if (maxQueueSize != null) this.maxQueueSize = maxQueueSize;
-    if (globalHeaders != null) this.globalHeaders.addAll(globalHeaders);
-    if (authConfig != null) this.authConfig = authConfig;
-    if (enableLogging != null) this.enableLogging = enableLogging;
-    if (logLevel != null) this.logLevel = logLevel;
-    if (enableGlobalLoading != null) this.enableGlobalLoading = enableGlobalLoading;
-    if (loadingDebounce != null) this.loadingDebounce = loadingDebounce;
-    if (enableGlobalErrorHandling != null) this.enableGlobalErrorHandling = enableGlobalErrorHandling;
-    if (showErrorSnackbar != null) this.showErrorSnackbar = showErrorSnackbar;
+  bool get enableGlobalErrorHandling => true;
+  bool get showErrorSnackbar => true;
+}
+
+/// Default network configuration for framework internal use
+class DefaultNetworkConfig extends BaseNetworkConfig {
+  @override
+  String get baseUrl => 'https://api.example.com';
+
+  @override
+  AuthConfig get authConfig => AuthConfig();
+}
+
+/// Network configuration manager
+class NetworkConfig {
+  static BaseNetworkConfig? _instance;
+  static BaseNetworkConfig get instance => _instance ?? DefaultNetworkConfig();
+
+  /// Set the network configuration for the current app
+  static void setConfig(BaseNetworkConfig config) {
+    _instance = config;
   }
+
+  /// Create default configuration
+  static BaseNetworkConfig defaultConfig() => DefaultNetworkConfig();
 }
 
 /// Authentication configuration

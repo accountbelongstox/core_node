@@ -1,0 +1,1795 @@
+ ->  2. app_bank [Debug/Web]
+     3. app_example [Debug/Android]
+     4. app_wuy [Debug/Android]
+
+Controls:
+  Up/Down arrows: Navigate apps
+  Left arrow: Toggle Debug/Build mode
+  Right arrow: Toggle platform (Web/Android/Windows/All)
+  Enter: Select app
+
+[INFO] Caching variables for cross-process exchange...
+[SUCCESS] App selected - app_bank [Debug/Web]
+[INFO] Variables saved for cross-process exchange
+[INFO] Debug script to execute: D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\startDebugByWeb.ps1
+[SUCCESS] Debug mode configured - script path saved
+[INFO] Python launcher completed - passing control to PowerShell
+[DEBUG] Python script exit code: 0
+[DEBUG] Python script completed successfully, continuing to PowerShell execution...
+[DEBUG] Selected action from Python: 'Debug'
+[DEBUG] Routing to appropriate mode...
+[DEBUG] Calling Invoke-DebugMode
+[DEBUG] Loaded variables from Python:
+[DEBUG]   Selected App: 'app_bank'
+[DEBUG]   Selected Action: 'Debug'
+[DEBUG]   Selected Platform: 'Web'
+[DEBUG]   Entry File: 'lib/apps/app_bank/main_app_bank.dart'
+[DEBUG]   App Index: '2'
+[DEBUG]   Debug Port: '10002'
+[DEBUG]   Script Path: 'D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\startDebugByWeb.ps1'
+[INFO] app_bank [Debug/Web]
+[DEBUG] Debug mode detected, checking script path...
+[DEBUG] Script path exists check: True
+[DEBUG] Script path value: 'D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\startDebugByWeb.ps1'
+[INFO] Starting debug mode...
+[DEBUG] Script directory: 'D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug'
+[DEBUG] Script name: 'startDebugByWeb.ps1'
+[DEBUG] Switching to project root: 'D:\programing\core_node\poly_apps\flutter_bloom'
+[DEBUG] Current working directory: D:\programing\core_node\poly_apps\flutter_bloom
+[DEBUG] About to execute: powershell -File D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug\startDebugByWeb.ps1
+[DEBUG] Script location: D:\programing\core_node\poly_apps\flutter_bloom\scripts\dev_debug
+[DEBUG] Switching to project root: D:\programing\core_node\poly_apps\flutter_bloom
+[DEBUG] Current working directory: D:\programing\core_node\poly_apps\flutter_bloom
+========================================
+Flutter Bloom Web Debug Launcher
+========================================
+[INFO] Loading variables for Web debug...
+[INFO] Web Debug Configuration:
+  App: app_bank
+  Entry File: lib/apps/app_bank/main_app_bank.dart
+  App Index: 2
+  Debug Port: 10002
+  Action: Debug (hardcoded)
+  Platform: Web (hardcoded)
+[INFO] Starting Flutter Web Debug...
+========================================
+[INFO] Project Root: D:\programing\core_node\poly_apps\flutter_bloom
+[INFO] Entry File: lib/apps/app_bank/main_app_bank.dart
+[INFO] Debug Port: 10002
+[INFO] Executing: flutter run -d web-server --web-port 10002 --web-hostname 0.0.0.0 -t lib/apps/app_bank/main_app_bank.dart
+[INFO] Web server will be available at: http://localhost:10002
+[INFO] Press Ctrl+C to stop the debug server
+========================================
+Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 76.0.0 (89.0.0 available)
+  analyzer 6.11.0 (8.2.0 available)
+  build 2.5.4 (4.0.1 available)
+  build_config 1.1.2 (1.2.0 available)
+  build_resolvers 2.5.4 (3.0.4 available)
+  build_runner 2.5.4 (2.9.0 available)
+  build_runner_core 9.1.2 (9.3.2 available)
+  built_value 8.11.1 (8.12.0 available)
+  characters 1.4.0 (1.4.1 available)
+  code_builder 4.10.1 (4.11.0 available)
+  connectivity_plus 6.1.5 (7.0.0 available)
+  country_code_picker 3.3.0 (3.4.0 available)
+  dart_style 2.3.8 (3.1.2 available)
+  dartdoc 8.3.2 (8.3.4 available)
+  device_info_plus 11.5.0 (12.1.0 available)
+  file_picker 10.3.0 (10.3.3 available)
+  file_selector_macos 0.9.4+3 (0.9.4+4 available)
+  flutter_local_notifications 19.4.0 (19.4.2 available)
+  flutter_local_notifications_windows 1.0.2 (1.0.3 available)
+  flutter_plugin_android_lifecycle 2.0.29 (2.0.30 available)
+  flutter_svg 2.2.0 (2.2.1 available)
+  fluttertoast 8.2.12 (9.0.0 available)
+  go_router 16.1.0 (16.2.4 available)
+  image_picker 1.1.2 (1.2.0 available)
+  image_picker_android 0.8.12+25 (0.8.13+3 available)
+  image_picker_for_web 3.0.6 (3.1.0 available)
+  image_picker_ios 0.8.12+2 (0.8.13 available)
+  image_picker_linux 0.2.1+2 (0.2.2 available)
+  image_picker_macos 0.2.1+2 (0.2.2 available)
+  image_picker_platform_interface 2.10.1 (2.11.0 available)
+  image_picker_windows 0.2.1+1 (0.2.2 available)
+  json_serializable 6.9.0 (6.11.1 available)
+  leak_tracker 10.0.9 (11.0.2 available)
+  leak_tracker_flutter_testing 3.0.9 (3.0.10 available)
+  leak_tracker_testing 3.0.1 (3.0.2 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  meta 1.16.0 (1.17.0 available)
+  path_provider_android 2.2.17 (2.2.18 available)
+  path_provider_foundation 2.4.1 (2.4.2 available)
+  petitparser 6.1.0 (7.0.1 available)
+  pool 1.5.1 (1.5.2 available)
+  provider 6.1.5 (6.1.5+1 available)
+  shared_preferences_android 2.4.11 (2.4.14 available)
+  source_gen 1.5.0 (4.0.1 available)
+  source_helper 1.3.5 (1.3.8 available)
+  sqflite_android 2.4.1 (2.4.2+2 available)
+  sqlite3 2.9.0 (2.9.1 available)
+  syncfusion_flutter_core 30.2.4 (31.1.22 available)
+  syncfusion_flutter_datepicker 30.2.4 (31.1.22 available)
+  test_api 0.7.4 (0.7.7 available)
+  url_launcher_android 6.3.17 (6.3.23 available)
+  url_launcher_ios 6.3.3 (6.3.4 available)
+  url_launcher_macos 3.2.2 (3.2.3 available)
+  url_strategy 0.3.0 (discontinued)
+  vector_graphics_compiler 1.1.17 (1.1.19 available)
+  vector_math 2.1.4 (2.2.0 available)
+  vibration 3.1.3 (3.1.4 available)
+  vibration_platform_interface 0.1.0 (0.1.1 available)
+  vm_service 15.0.0 (15.0.2 available)
+  watcher 1.1.2 (1.1.4 available)
+  xml 6.5.0 (6.6.1 available)
+Got dependencies!
+1 package is discontinued.
+60 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Launching lib/apps/app_bank/main_app_bank.dart on Web Server in debug mode...
+lib/common/network/auth/unified_auth_manager.dart:1242:1: Error: Expected a declaration, but got '}'.
+}
+^
+lib/common/network/network_framework.dart:102:8: Error: Error when reading 'lib/common/network/auth/auth_manager.dart': The system cannot find
+the file specified.
+
+import 'auth/auth_manager.dart';
+       ^
+lib/common/network/integration/network_user_integration.dart:5:8: Error: Error when reading 'lib/common/network/auth/auth_manager.dart': The
+system cannot find the file specified.
+
+import '../auth/auth_manager.dart';
+       ^
+lib/common/network/network_framework.dart:103:8: Error: Error when reading 'lib/common/network/cache/cache_manager.dart': The system cannot find
+the path specified.
+
+import 'cache/cache_manager.dart';
+       ^
+lib/common/network/network_framework.dart:104:8: Error: Error when reading 'lib/common/network/queue/request_queue.dart': The system cannot find
+the path specified.
+
+import 'queue/request_queue.dart';
+       ^
+lib/common/network/network_framework.dart:105:8: Error: Error when reading 'lib/common/network/loading/loading_manager.dart': The system cannot
+find the path specified.
+
+import 'loading/loading_manager.dart';
+       ^
+lib/common/network/network_framework.dart:106:8: Error: Error when reading 'lib/common/network/client/network_client.dart': The system cannot
+find the file specified.
+
+import 'client/network_client.dart';
+       ^
+lib/common/network/core/network_service_locator.dart:6:8: Error: Error when reading 'lib/common/network/core/network_cache_manager.dart': The
+system cannot find the file specified.
+
+import 'network_cache_manager.dart';
+       ^
+lib/common/network/models/api_response.dart:14:8: Error: Dart library 'dart:crypto' is not available on this platform.
+import 'dart:crypto';
+       ^
+Context: The unavailable library 'dart:crypto' is imported through these packages:
+
+    web_entrypoint.dart => package:qyflutter => dart:crypto
+
+Detailed import paths for (some of) the these imports:
+
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/unified_network_client.dart => package:qyflutter/common/network/models/api_response.dart =>
+    dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_service_locator.dart => package:qyflutter/common/network/core/unified_network_client.dart =>
+    package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_service_locator.dart => package:qyflutter/common/network/core/network_retry_manager.dart =>
+    package:qyflutter/common/network/core/unified_network_client.dart => package:qyflutter/common/network/models/api_response.dart =>
+    dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_service_locator.dart => package:qyflutter/common/network/core/network_queue_and_offline.dart
+    => package:qyflutter/common/network/core/unified_network_client.dart => package:qyflutter/common/network/models/api_response.dart =>
+    dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_service_locator.dart => package:qyflutter/common/network/core/network_queue_and_offline.dart
+    => package:qyflutter/common/network/core/network_retry_manager.dart => package:qyflutter/common/network/core/unified_network_client.dart =>
+    package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_retry_manager.dart => package:qyflutter/common/network/core/unified_network_client.dart =>
+    package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_queue_and_offline.dart => package:qyflutter/common/network/core/unified_network_client.dart =>
+    package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_queue_and_offline.dart => package:qyflutter/common/network/core/network_retry_manager.dart =>
+    package:qyflutter/common/network/core/unified_network_client.dart => package:qyflutter/common/network/models/api_response.dart =>
+    dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/auth/unified_auth_manager.dart => package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/models/enhanced_api_response.dart => package:qyflutter/common/network/models/api_response.dart =>
+    dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/services/advanced_network_service.dart => package:qyflutter/common/network/core/unified_network_client.dart
+    => package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/services/advanced_network_service.dart => package:qyflutter/common/network/auth/unified_auth_manager.dart
+    => package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/services/base_service.dart => package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/interceptors/network_interceptors.dart => package:qyflutter/common/network/auth/unified_auth_manager.dart
+    => package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart =>
+    package:qyflutter/apps/app_bank/config_app_bank/bank_endpoint_config.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/unified_network_client.dart => package:qyflutter/common/network/models/api_response.dart =>
+    dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart =>
+    package:qyflutter/apps/app_bank/config_app_bank/bank_endpoint_config.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_service_locator.dart => package:qyflutter/common/network/core/unified_network_client.dart =>
+    package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart =>
+    package:qyflutter/apps/app_bank/config_app_bank/bank_endpoint_config.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_service_locator.dart => package:qyflutter/common/network/core/network_retry_manager.dart =>
+    package:qyflutter/common/network/core/unified_network_client.dart => package:qyflutter/common/network/models/api_response.dart =>
+    dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart =>
+    package:qyflutter/apps/app_bank/config_app_bank/bank_endpoint_config.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_service_locator.dart => package:qyflutter/common/network/core/network_queue_and_offline.dart
+    => package:qyflutter/common/network/core/unified_network_client.dart => package:qyflutter/common/network/models/api_response.dart =>
+    dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart =>
+    package:qyflutter/apps/app_bank/config_app_bank/bank_endpoint_config.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_service_locator.dart => package:qyflutter/common/network/core/network_queue_and_offline.dart
+    => package:qyflutter/common/network/core/network_retry_manager.dart => package:qyflutter/common/network/core/unified_network_client.dart =>
+    package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart =>
+    package:qyflutter/apps/app_bank/config_app_bank/bank_endpoint_config.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/core/network_retry_manager.dart => package:qyflutter/common/network/core/unified_network_client.dart =>
+    package:qyflutter/common/network/models/api_response.dart => dart:crypto
+    ...
+
+lib/common/network/parsers/adaptive_data_parser.dart:2:8: Error: Dart library 'dart:mirrors' is not available on this platform.
+import 'dart:mirrors';
+       ^
+Context: The unavailable library 'dart:mirrors' is imported through these packages:
+
+    web_entrypoint.dart => package:qyflutter => dart:mirrors
+
+Detailed import paths for (some of) the these imports:
+
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/parsers/adaptive_data_parser.dart => dart:mirrors
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/apps/app_bank/services_app_bank/bank_network_service.dart =>
+    package:qyflutter/apps/app_bank/config_app_bank/bank_endpoint_config.dart => package:qyflutter/common/network/network_framework.dart =>
+    package:qyflutter/common/network/parsers/adaptive_data_parser.dart => dart:mirrors
+    web_entrypoint.dart => package:qyflutter/apps/app_bank/main_app_bank.dart =>
+    package:qyflutter/apps/app_bank/router_app_bank/router_app_bank.dart =>
+    package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart =>
+    package:qyflutter/common/network/network_framework.dart => package:qyflutter/common/network/parsers/adaptive_data_parser.dart =>
+    dart:mirrors
+
+lib/common/network/auth/unified_auth_manager.dart:1245:7: Error: 'AuthResult' is already declared in this scope.
+class AuthResult {
+      ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1133:7: Context: Previous declaration of 'AuthResult'.
+class AuthResult {
+      ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:294:22: Error: 'refreshToken' is already declared in this scope.
+  Future<AuthResult> refreshToken({
+                     ^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:47:15: Context: Previous declaration of 'refreshToken'.
+  String? get refreshToken => _refreshToken;
+              ^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:989:22: Error: 'refreshToken' is already declared in this scope.
+  Future<AuthResult> refreshToken({
+                     ^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:47:15: Context: Previous declaration of 'refreshToken'.
+  String? get refreshToken => _refreshToken;
+              ^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:853:22: Error: 'login' is already declared in this scope.
+  Future<AuthResult> login({
+                     ^^^^^
+lib/common/network/auth/unified_auth_manager.dart:98:22: Context: Previous declaration of 'login'.
+  Future<AuthResult> login({
+                     ^^^^^
+lib/common/network/auth/unified_auth_manager.dart:907:22: Error: 'register' is already declared in this scope.
+  Future<AuthResult> register({
+                     ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:177:22: Context: Previous declaration of 'register'.
+  Future<AuthResult> register({
+                     ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:959:22: Error: 'logout' is already declared in this scope.
+  Future<AuthResult> logout({
+                     ^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:255:22: Context: Previous declaration of 'logout'.
+  Future<AuthResult> logout({
+                     ^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1018:22: Error: 'forgotPassword' is already declared in this scope.
+  Future<AuthResult> forgotPassword({
+                     ^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:347:22: Context: Previous declaration of 'forgotPassword'.
+  Future<AuthResult> forgotPassword({
+                     ^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1115:8: Error: '_setLoading' is already declared in this scope.
+  void _setLoading(bool loading) {
+       ^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:586:8: Context: Previous declaration of '_setLoading'.
+  void _setLoading(bool loading) {
+       ^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1121:8: Error: '_setError' is already declared in this scope.
+  void _setError(String? error) {
+       ^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:591:8: Context: Previous declaration of '_setError'.
+  void _setError(String? error) {
+       ^^^^^^^^^
+lib/common/network/network_framework.dart:42:1: Error: 'NetworkConfig' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_config.dart';
+^
+lib/common/network/network_framework.dart:42:1: Error: 'AuthConfig' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_config.dart';
+^
+lib/common/network/network_framework.dart:42:1: Error: 'AuthType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_config.dart';
+^
+lib/common/network/network_framework.dart:42:1: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_config.dart';
+^
+lib/common/network/network_framework.dart:42:1: Error: 'CacheStrategy' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_config.dart';
+^
+lib/common/network/network_framework.dart:42:1: Error: 'RequestType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_config.dart';
+^
+lib/common/network/network_framework.dart:43:1: Error: 'NetworkRequest' is exported from both
+'package:qyflutter/common/network/core/network_models.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_models.dart';
+^
+lib/common/network/network_framework.dart:43:1: Error: 'NetworkResponse' is exported from both
+'package:qyflutter/common/network/core/network_models.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_models.dart';
+^
+lib/common/network/network_framework.dart:45:1: Error: 'NetworkClient' is exported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/network/core/unified_network_client.dart'.
+export 'core/unified_network_client.dart';
+^
+lib/common/network/network_framework.dart:46:1: Error: 'ServiceNotRegisteredException' is exported from both
+'package:qyflutter/common/network/core/network_service_locator.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_service_locator.dart';
+^
+lib/common/network/network_framework.dart:47:1: Error: 'NetworkRetryException' is exported from both
+'package:qyflutter/common/network/core/network_retry_manager.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_retry_manager.dart';
+^
+lib/common/network/network_framework.dart:47:1: Error: 'ConnectivityMonitor' is exported from both
+'package:qyflutter/common/network/core/network_retry_manager.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_retry_manager.dart';
+^
+lib/common/network/network_framework.dart:48:1: Error: 'QueueStats' is exported from both
+'package:qyflutter/common/network/core/network_queue_and_offline.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_queue_and_offline.dart';
+^
+lib/common/network/network_framework.dart:48:1: Error: 'OfflineStats' is exported from both
+'package:qyflutter/common/network/core/network_queue_and_offline.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+export 'core/network_queue_and_offline.dart';
+^
+lib/common/network/network_framework.dart:54:1: Error: 'NetworkErrorType' is exported from both
+'package:qyflutter/common/network/core/network_models.dart' and 'package:qyflutter/common/network/models/api_response.dart'.
+export 'models/api_response.dart';
+^
+lib/common/network/network_framework.dart:55:1: Error: 'EnhancedApiResponse' is exported from both
+'package:qyflutter/common/network/models/api_response.dart' and 'package:qyflutter/common/network/models/enhanced_api_response.dart'.
+export 'models/enhanced_api_response.dart';
+^
+lib/common/network/network_framework.dart:55:1: Error: 'CacheInfo' is exported from both
+'package:qyflutter/common/network/models/api_response.dart' and 'package:qyflutter/common/network/models/enhanced_api_response.dart'.
+export 'models/enhanced_api_response.dart';
+^
+lib/common/network/network_framework.dart:60:1: Error: 'LaravelEndpoints' is exported from both
+'package:qyflutter/common/network/endpoints/endpoint_config.dart' and 'package:qyflutter/common/network/endpoints/laravel_endpoints.dart'.
+export 'endpoints/laravel_endpoints.dart';
+^
+lib/common/network/network_framework.dart:72:1: Error: 'NetworkError' is exported from both
+'package:qyflutter/common/network/core/network_models.dart' and 'package:qyflutter/common/network/interceptors/error_interceptor.dart'.
+export 'interceptors/error_interceptor.dart';
+^
+lib/common/network/network_framework.dart:73:1: Error: 'LogLevel' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/interceptors/logging_interceptor.dart'.
+export 'interceptors/logging_interceptor.dart';
+^
+lib/common/network/core/unified_network_client.dart:17:9: Error: Type 'NetworkRetryManager' not found.
+  final NetworkRetryManager _retryManager;
+        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:18:9: Error: Type 'NetworkRequestQueue' not found.
+  final NetworkRequestQueue _requestQueue;
+        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:19:9: Error: Type 'OfflineRequestManager' not found.
+  final OfflineRequestManager _offlineManager;
+        ^^^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:20:9: Error: Type 'NetworkCacheManager' not found.
+  final NetworkCacheManager _cacheManager;
+        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:21:9: Error: Type 'ConnectivityMonitor' not found.
+  final ConnectivityMonitor _connectivityMonitor;
+        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:26:5: Error: Type 'NetworkRetryManager' not found.
+    NetworkRetryManager? retryManager,
+    ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:27:5: Error: Type 'NetworkRequestQueue' not found.
+    NetworkRequestQueue? requestQueue,
+    ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:28:5: Error: Type 'OfflineRequestManager' not found.
+    OfflineRequestManager? offlineManager,
+    ^^^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:29:5: Error: Type 'NetworkCacheManager' not found.
+    NetworkCacheManager? cacheManager,
+    ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:30:5: Error: Type 'ConnectivityMonitor' not found.
+    ConnectivityMonitor? connectivityMonitor,
+    ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:151:9: Error: Type 'RequestPriority' not found.
+  final RequestPriority priority;
+        ^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:178:5: Error: Type 'RequestPriority' not found.
+    RequestPriority? priority,
+    ^^^^^^^^^^^^^^^
+lib/common/network/core/network_service_locator.dart:259:10: Error: Type 'NetworkCacheManager' not found.
+  static NetworkCacheManager get cache {
+         ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/network_service_locator.dart:269:10: Error: Type 'CacheStats' not found.
+  static CacheStats get cacheStats {
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:43:28: Error: Type 'HttpClient' not found.
+  static final Map<String, HttpClient> _httpClients = {};
+                           ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:98:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> login({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:98:10: Context: This isn't a type.
+  Future<AuthResult> login({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:177:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> register({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:177:10: Context: This isn't a type.
+  Future<AuthResult> register({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:255:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> logout({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:255:10: Context: This isn't a type.
+  Future<AuthResult> logout({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:294:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> refreshToken({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:294:10: Context: This isn't a type.
+  Future<AuthResult> refreshToken({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:347:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> forgotPassword({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:347:10: Context: This isn't a type.
+  Future<AuthResult> forgotPassword({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:653:3: Error: Type 'HttpClient' not found.
+  HttpClient _getHttpClient(String baseUrl) {
+  ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:663:5: Error: Type 'HttpClient' not found.
+    HttpClient client,
+    ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:853:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> login({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:853:10: Context: This isn't a type.
+  Future<AuthResult> login({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:907:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> register({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:907:10: Context: This isn't a type.
+  Future<AuthResult> register({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:959:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> logout({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:959:10: Context: This isn't a type.
+  Future<AuthResult> logout({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:989:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> refreshToken({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:989:10: Context: This isn't a type.
+  Future<AuthResult> refreshToken({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1018:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> forgotPassword({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1018:10: Context: This isn't a type.
+  Future<AuthResult> forgotPassword({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1053:10: Error: 'AuthResult' isn't a type.
+  Future<AuthResult> resetPassword({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1053:10: Context: This isn't a type.
+  Future<AuthResult> resetPassword({
+         ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:10:1: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+import '../../provider_status/user_provider.dart';
+^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:9:1: Error: 'NetworkResponse' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/network/models/api_response.dart'.
+import '../models/api_response.dart';
+^^^^^^^^^^^^^^^
+lib/common/network/services/advanced_network_service.dart:5:1: Error: 'NetworkResponse' is imported from both
+'package:qyflutter/common/network/core/network_models.dart' and 'package:qyflutter/common/network/core/unified_network_client.dart'.
+import '../core/unified_network_client.dart';
+^^^^^^^^^^^^^^^
+lib/common/provider_status/bank_user_provider.dart:21:7: Error: The non-abstract class 'BankUserProvider' is missing implementations for these
+members:
+ - BaseUserProvider.authMetadata
+ - BaseUserProvider.getAuthHeaders
+ - BaseUserProvider.hasPermission
+ - BaseUserProvider.hasRole
+ - BaseUserProvider.needsAuthRefresh
+ - BaseUserProvider.setAuthMetadata
+ - BaseUserProvider.updateAuthMetadata
+Try to either
+ - provide an implementation,
+ - inherit an implementation from a superclass or mixin,
+ - mark the class as abstract, or
+ - provide a 'noSuchMethod' implementation.
+
+class BankUserProvider extends BaseUserProvider {
+      ^^^^^^^^^^^^^^^^
+lib/common/provider_status/user_provider.dart:395:20: Context: 'BaseUserProvider.authMetadata' is defined here.
+  AuthMetadata get authMetadata;
+                   ^^^^^^^^^^^^
+lib/common/provider_status/user_provider.dart:429:23: Context: 'BaseUserProvider.getAuthHeaders' is defined here.
+  Map<String, String> getAuthHeaders();
+                      ^^^^^^^^^^^^^^
+lib/common/provider_status/user_provider.dart:432:8: Context: 'BaseUserProvider.hasPermission' is defined here.
+  bool hasPermission(String permission);
+       ^^^^^^^^^^^^^
+lib/common/provider_status/user_provider.dart:435:8: Context: 'BaseUserProvider.hasRole' is defined here.
+  bool hasRole(String role);
+       ^^^^^^^
+lib/common/provider_status/user_provider.dart:426:12: Context: 'BaseUserProvider.needsAuthRefresh' is defined here.
+  bool get needsAuthRefresh;
+           ^^^^^^^^^^^^^^^^
+lib/common/provider_status/user_provider.dart:407:8: Context: 'BaseUserProvider.setAuthMetadata' is defined here.
+  void setAuthMetadata(AuthMetadata metadata);
+       ^^^^^^^^^^^^^^^
+lib/common/provider_status/user_provider.dart:410:8: Context: 'BaseUserProvider.updateAuthMetadata' is defined here.
+  void updateAuthMetadata({
+       ^^^^^^^^^^^^^^^^^^
+lib/common/provider_status/bank_user_provider.dart:39:22: Error: The return type of the method 'BankUserProvider.user' is 'BankUserModel?',
+which does not match the return type, 'BaseUserModel?', of the overridden method, 'BaseUserProvider.user'.
+ - 'BankUserModel' is from 'package:qyflutter/common/model/bank_user_model.dart' ('lib/common/model/bank_user_model.dart').
+ - 'BaseUserModel' is from 'package:qyflutter/common/provider_status/user_provider.dart' ('lib/common/provider_status/user_provider.dart').
+Change to a subtype of 'BaseUserModel?'.
+  BankUserModel? get user => _user;
+                     ^
+lib/common/provider_status/user_provider.dart:392:22: Context: This is the overridden method ('user').
+  BaseUserModel? get user;
+                     ^
+lib/common/network/core/network_types.dart:203:55: Error: Couldn't find constructor 'NetworkResponse._defaultTimestamp'.
+  }) : timestamp = timestamp ?? const NetworkResponse._defaultTimestamp();
+                                                      ^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:164:21: Error: Undefined name 'RequestPriority'.
+    this.priority = RequestPriority.normal,
+                    ^^^^^^^^^^^^^^^
+lib/common/app/main_common.dart:190:24: Error: Method not found: 'DefaultUserProvider'.
+  final userProvider = DefaultUserProvider();
+                       ^^^^^^^^^^^^^^^^^^^
+lib/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart:47:19: Error: 'AuthType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+        authType: AuthType.jwt,
+                  ^^^^^^^^
+lib/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart:52:19: Error: 'LogLevel' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/interceptors/logging_interceptor.dart'.
+        logLevel: LogLevel.debug,
+                  ^^^^^^^^
+lib/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart:47:9: Error: No named parameter with the name 'authType'.
+        authType: AuthType.jwt,
+        ^^^^^^^^
+lib/common/network/network_framework.dart:116:23: Context: Found this candidate, but the arguments don't match.
+  static Future<void> initialize({
+                      ^^^^^^^^^^
+lib/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart:58:27: Error: The getter 'AuthManager' isn't defined for the class
+'_BankDashboardScreenState'.
+ - '_BankDashboardScreenState' is from 'package:qyflutter/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart'
+ ('lib/apps/app_bank/features_app_bank/dashboard/views/dashboard_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'AuthManager'.
+      final authManager = AuthManager.instance;
+                          ^^^^^^^^^^^
+lib/apps/app_bank/services_app_bank/bank_network_service.dart:94:36: Error: The getter 'expiresAt' isn't defined for the class
+'LoginResponseAppBank'.
+ - 'LoginResponseAppBank' is from 'package:qyflutter/apps/app_bank/config_app_bank/api_config_app_bank.dart'
+ ('lib/apps/app_bank/config_app_bank/api_config_app_bank.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'expiresAt'.
+          expiresAt: loginResponse.expiresAt,
+                                   ^^^^^^^^^
+lib/apps/app_bank/services_app_bank/bank_network_service.dart:205:14: Error: 'NetworkResponse' is exported from both
+'package:qyflutter/common/network/core/network_models.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      return NetworkResponse.error(
+             ^^^^^^^^^^^^^^^
+lib/apps/app_bank/services_app_bank/bank_network_service.dart:253:14: Error: 'NetworkResponse' is exported from both
+'package:qyflutter/common/network/core/network_models.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      return NetworkResponse.error(
+             ^^^^^^^^^^^^^^^
+lib/apps/app_bank/services_app_bank/bank_network_service.dart:382:14: Error: 'NetworkResponse' is exported from both
+'package:qyflutter/common/network/core/network_models.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      return NetworkResponse.error(
+             ^^^^^^^^^^^^^^^
+lib/apps/app_bank/services_app_bank/bank_network_service.dart:445:32: Error: Member not found: 'auth'.
+      loadingType: LoadingType.auth,
+                               ^^^^
+lib/apps/app_bank/services_app_bank/bank_network_service.dart:438:7: Error: The argument type 'Future<invalid-type> Function()' can't be
+assigned to the parameter type 'String'.
+ - 'Future' is from 'dart:async'.
+      () => login(
+      ^
+lib/apps/app_bank/services_app_bank/bank_network_service.dart:456:7: Error: The argument type 'Future<invalid-type> Function()' can't be
+assigned to the parameter type 'String'.
+ - 'Future' is from 'dart:async'.
+      () => transfer(
+      ^
+lib/common/network/network_framework.dart:195:13: Error: Undefined name 'AuthManager'.
+      await AuthManager.instance.initialize();
+            ^^^^^^^^^^^
+lib/common/network/network_framework.dart:196:13: Error: Undefined name 'CacheManager'.
+      await CacheManager.instance.initialize();
+            ^^^^^^^^^^^^
+lib/common/network/network_framework.dart:197:7: Error: Undefined name 'RequestQueue'.
+      RequestQueue.instance.initialize();
+      ^^^^^^^^^^^^
+lib/common/network/network_framework.dart:198:13: Error: Undefined name 'NetworkClient'.
+      await NetworkClient.instance.initialize();
+            ^^^^^^^^^^^^^
+lib/common/network/network_framework.dart:318:15: Error: Undefined name 'AuthManager'.
+      'auth': AuthManager.instance.getAuthSummary(),
+              ^^^^^^^^^^^
+lib/common/network/network_framework.dart:330:22: Error: Undefined name 'CacheManager'.
+      'cache': await CacheManager.instance.getStats(),
+                     ^^^^^^^^^^^^
+lib/common/network/network_framework.dart:331:16: Error: Undefined name 'RequestQueue'.
+      'queue': RequestQueue.instance.getStats(),
+               ^^^^^^^^^^^^
+lib/common/network/network_framework.dart:332:18: Error: Undefined name 'LoadingManager'.
+      'loading': LoadingManager.instance.getStats(),
+                 ^^^^^^^^^^^^^^
+lib/common/network/network_framework.dart:339:11: Error: Undefined name 'AuthManager'.
+    await AuthManager.instance.clearAuth();
+          ^^^^^^^^^^^
+lib/common/network/network_framework.dart:340:11: Error: Undefined name 'CacheManager'.
+    await CacheManager.instance.clear();
+          ^^^^^^^^^^^^
+lib/common/network/network_framework.dart:341:5: Error: Undefined name 'RequestQueue'.
+    RequestQueue.instance.cancelAll();
+    ^^^^^^^^^^^^
+lib/common/network/network_framework.dart:342:5: Error: Undefined name 'LoadingManager'.
+    LoadingManager.instance.clearAll();
+    ^^^^^^^^^^^^^^
+lib/common/network/integration/network_user_integration.dart:25:5: Error: The getter 'AuthManager' isn't defined for the class
+'NetworkUserIntegration'.
+ - 'NetworkUserIntegration' is from 'package:qyflutter/common/network/integration/network_user_integration.dart'
+ ('lib/common/network/integration/network_user_integration.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'AuthManager'.
+    AuthManager.instance.setUserProvider(userProvider);
+    ^^^^^^^^^^^
+lib/common/network/integration/network_user_integration.dart:40:25: Error: The getter 'AuthManager' isn't defined for the class
+'NetworkUserIntegration'.
+ - 'NetworkUserIntegration' is from 'package:qyflutter/common/network/integration/network_user_integration.dart'
+ ('lib/common/network/integration/network_user_integration.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'AuthManager'.
+    final authManager = AuthManager.instance;
+                        ^^^^^^^^^^^
+lib/common/network/integration/network_user_integration.dart:122:11: Error: The getter 'AuthManager' isn't defined for the class
+'NetworkUserIntegration'.
+ - 'NetworkUserIntegration' is from 'package:qyflutter/common/network/integration/network_user_integration.dart'
+ ('lib/common/network/integration/network_user_integration.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'AuthManager'.
+    await AuthManager.instance.setToken(
+          ^^^^^^^^^^^
+lib/common/network/integration/network_user_integration.dart:146:11: Error: The getter 'AuthManager' isn't defined for the class
+'NetworkUserIntegration'.
+ - 'NetworkUserIntegration' is from 'package:qyflutter/common/network/integration/network_user_integration.dart'
+ ('lib/common/network/integration/network_user_integration.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'AuthManager'.
+    await AuthManager.instance.setClientCredentials(clientId, '');
+          ^^^^^^^^^^^
+lib/common/network/integration/network_user_integration.dart:166:11: Error: The getter 'AuthManager' isn't defined for the class
+'NetworkUserIntegration'.
+ - 'NetworkUserIntegration' is from 'package:qyflutter/common/network/integration/network_user_integration.dart'
+ ('lib/common/network/integration/network_user_integration.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'AuthManager'.
+    await AuthManager.instance.setCustomAuthFields({
+          ^^^^^^^^^^^
+lib/common/network/integration/network_user_integration.dart:188:11: Error: The getter 'AuthManager' isn't defined for the class
+'NetworkUserIntegration'.
+ - 'NetworkUserIntegration' is from 'package:qyflutter/common/network/integration/network_user_integration.dart'
+ ('lib/common/network/integration/network_user_integration.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'AuthManager'.
+    await AuthManager.instance.setSessionId(sessionId);
+          ^^^^^^^^^^^
+lib/common/network/integration/network_user_integration.dart:206:11: Error: The getter 'AuthManager' isn't defined for the class
+'NetworkUserIntegration'.
+ - 'NetworkUserIntegration' is from 'package:qyflutter/common/network/integration/network_user_integration.dart'
+ ('lib/common/network/integration/network_user_integration.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'AuthManager'.
+    await AuthManager.instance.setCustomAuthFields(customHeaders);
+          ^^^^^^^^^^^
+lib/common/network/integration/network_user_integration.dart:217:11: Error: The getter 'AuthManager' isn't defined for the class
+'NetworkUserIntegration'.
+ - 'NetworkUserIntegration' is from 'package:qyflutter/common/network/integration/network_user_integration.dart'
+ ('lib/common/network/integration/network_user_integration.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'AuthManager'.
+    await AuthManager.instance.clearAuth();
+          ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:27:20: Error: Not a constant expression.
+      requestType: RequestType.public,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:27:20: Error: 'RequestType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      requestType: RequestType.public,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:30:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:30:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:36:20: Error: Not a constant expression.
+      requestType: RequestType.public,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:36:20: Error: 'RequestType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      requestType: RequestType.public,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:38:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:38:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:43:20: Error: Not a constant expression.
+      requestType: RequestType.authenticated,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:43:20: Error: 'RequestType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      requestType: RequestType.authenticated,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:44:17: Error: Not a constant expression.
+      authType: AuthType.jwt,
+                ^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:44:17: Error: 'AuthType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      authType: AuthType.jwt,
+                ^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:47:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:47:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:53:20: Error: Not a constant expression.
+      requestType: RequestType.authenticated,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:53:20: Error: 'RequestType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      requestType: RequestType.authenticated,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:54:17: Error: Not a constant expression.
+      authType: AuthType.jwt,
+                ^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:54:17: Error: 'AuthType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      authType: AuthType.jwt,
+                ^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:56:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:56:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:62:20: Error: Not a constant expression.
+      requestType: RequestType.authenticated,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:62:20: Error: 'RequestType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      requestType: RequestType.authenticated,
+                   ^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:63:17: Error: Not a constant expression.
+      authType: AuthType.jwt,
+                ^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:63:17: Error: 'AuthType' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      authType: AuthType.jwt,
+                ^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:65:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:65:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:77:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:77:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:86:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:86:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:95:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:95:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:104:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:104:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:113:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:113:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:123:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:123:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:132:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:132:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:141:17: Error: Not a constant expression.
+      priority: RequestPriority.low,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:141:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.low,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:152:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:152:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:161:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:161:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:170:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:170:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:179:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:179:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:188:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:188:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:198:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:198:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:207:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:207:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:216:17: Error: Not a constant expression.
+      priority: RequestPriority.critical,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:216:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.critical,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:227:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:227:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:237:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:237:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:247:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:247:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:258:17: Error: Not a constant expression.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:258:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.normal,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:267:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:267:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:276:17: Error: Not a constant expression.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/apps/app_bank/config_app_bank/bank_endpoint_config.dart:276:17: Error: 'RequestPriority' is exported from both
+'package:qyflutter/common/network/core/network_config.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+      priority: RequestPriority.high,
+                ^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:17:9: Error: 'NetworkRetryManager' isn't a type.
+  final NetworkRetryManager _retryManager;
+        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:18:9: Error: 'NetworkRequestQueue' isn't a type.
+  final NetworkRequestQueue _requestQueue;
+        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:19:9: Error: 'OfflineRequestManager' isn't a type.
+  final OfflineRequestManager _offlineManager;
+        ^^^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:20:9: Error: 'NetworkCacheManager' isn't a type.
+  final NetworkCacheManager _cacheManager;
+        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:21:9: Error: 'ConnectivityMonitor' isn't a type.
+  final ConnectivityMonitor _connectivityMonitor;
+        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:26:5: Error: 'NetworkRetryManager' isn't a type.
+    NetworkRetryManager? retryManager,
+    ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:27:5: Error: 'NetworkRequestQueue' isn't a type.
+    NetworkRequestQueue? requestQueue,
+    ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:28:5: Error: 'OfflineRequestManager' isn't a type.
+    OfflineRequestManager? offlineManager,
+    ^^^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:29:5: Error: 'NetworkCacheManager' isn't a type.
+    NetworkCacheManager? cacheManager,
+    ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:30:5: Error: 'ConnectivityMonitor' isn't a type.
+    ConnectivityMonitor? connectivityMonitor,
+    ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:31:41: Error: Method not found: 'NetworkRetryManager'.
+  })  : _retryManager = retryManager ?? NetworkRetryManager(),
+                                        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:32:41: Error: Method not found: 'NetworkRequestQueue'.
+        _requestQueue = requestQueue ?? NetworkRequestQueue(),
+                                        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:33:45: Error: Method not found: 'OfflineRequestManager'.
+        _offlineManager = offlineManager ?? OfflineRequestManager(),
+                                            ^^^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:34:41: Error: Method not found: 'NetworkCacheManager'.
+        _cacheManager = cacheManager ?? NetworkCacheManager(),
+                                        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:35:55: Error: Method not found: 'ConnectivityMonitor'.
+        _connectivityMonitor = connectivityMonitor ?? ConnectivityMonitor();
+                                                      ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:120:11: Error: Method 'sort' cannot be called on 'List<MapEntry<String, dynamic>>?' because
+it is potentially null.
+ - 'List' is from 'dart:core'.
+ - 'MapEntry' is from 'dart:core'.
+Try calling using ?. instead.
+        ..sort((a, b) => a.key.compareTo(b.key));
+          ^^^^
+lib/common/network/core/unified_network_client.dart:151:9: Error: 'RequestPriority' isn't a type.
+  final RequestPriority priority;
+        ^^^^^^^^^^^^^^^
+lib/common/network/core/unified_network_client.dart:178:5: Error: 'RequestPriority' isn't a type.
+    RequestPriority? priority,
+    ^^^^^^^^^^^^^^^
+lib/common/network/core/network_service_locator.dart:31:21: Error: 'NetworkCacheManager' isn't a type.
+    registerFactory<NetworkCacheManager>(() => NetworkCacheManager(
+                    ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/network_service_locator.dart:48:25: Error: 'NetworkCacheManager' isn't a type.
+      cacheManager: get<NetworkCacheManager>(),
+                        ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/network_service_locator.dart:31:48: Error: The method 'NetworkCacheManager' isn't defined for the class
+'NetworkServiceLocator'.
+ - 'NetworkServiceLocator' is from 'package:qyflutter/common/network/core/network_service_locator.dart'
+ ('lib/common/network/core/network_service_locator.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'NetworkCacheManager'.
+    registerFactory<NetworkCacheManager>(() => NetworkCacheManager(
+                                               ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/network_service_locator.dart:260:23: Error: 'NetworkCacheManager' isn't a type.
+    return getService<NetworkCacheManager>();
+                      ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/network_service_locator.dart:270:23: Error: 'NetworkCacheManager' isn't a type.
+    return getService<NetworkCacheManager>().getStats();
+                      ^^^^^^^^^^^^^^^^^^^
+lib/common/network/core/network_retry_manager.dart:17:50: Error: The argument type 'List<ConnectivityResult>' can't be assigned to the parameter
+type 'ConnectivityResult'.
+ - 'List' is from 'dart:core'.
+ - 'ConnectivityResult' is from 'package:connectivity_plus_platform_interface/src/enums.dart'
+ ('/C:/Users/MPC/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus_platform_interface-2.0.1/lib/src/enums.dart').
+    final strategy = _getStrategyForConnectivity(connectivityResult, requestConfig);
+                                                 ^
+lib/common/network/core/network_retry_manager.dart:202:28: Error: A value of type 'List<ConnectivityResult>' can't be assigned to a variable of
+type 'ConnectivityResult?'.
+ - 'List' is from 'dart:core'.
+ - 'ConnectivityResult' is from 'package:connectivity_plus_platform_interface/src/enums.dart'
+ ('/C:/Users/MPC/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus_platform_interface-2.0.1/lib/src/enums.dart').
+    _currentConnectivity = await _connectivity.checkConnectivity();
+                           ^
+lib/common/network/core/network_retry_manager.dart:206:30: Error: A value of type 'List<ConnectivityResult>' can't be assigned to a variable of
+type 'ConnectivityResult?'.
+ - 'List' is from 'dart:core'.
+ - 'ConnectivityResult' is from 'package:connectivity_plus_platform_interface/src/enums.dart'
+ ('/C:/Users/MPC/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus_platform_interface-2.0.1/lib/src/enums.dart').
+      _currentConnectivity = result;
+                             ^
+lib/common/network/core/network_retry_manager.dart:209:42: Error: The argument type 'List<ConnectivityResult>' can't be assigned to the
+parameter type 'ConnectivityResult'.
+ - 'List' is from 'dart:core'.
+ - 'ConnectivityResult' is from 'package:connectivity_plus_platform_interface/src/enums.dart'
+ ('/C:/Users/MPC/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus_platform_interface-2.0.1/lib/src/enums.dart').
+        _onConnectivityChanged(previous, result);
+                                         ^
+lib/common/network/core/network_retry_manager.dart:204:57: Error: A value of type 'StreamSubscription<List<ConnectivityResult>>' can't be
+assigned to a variable of type 'StreamSubscription<ConnectivityResult>?'.
+ - 'StreamSubscription' is from 'dart:async'.
+ - 'List' is from 'dart:core'.
+ - 'ConnectivityResult' is from 'package:connectivity_plus_platform_interface/src/enums.dart'
+ ('/C:/Users/MPC/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus_platform_interface-2.0.1/lib/src/enums.dart').
+    _subscription = _connectivity.onConnectivityChanged.listen((result) {
+                                                        ^
+lib/common/network/core/network_retry_manager.dart:237:56: Error: A value of type 'StreamSubscription<List<ConnectivityResult>>' can't be
+assigned to a variable of type 'StreamSubscription<ConnectivityResult>?'.
+ - 'StreamSubscription' is from 'dart:async'.
+ - 'List' is from 'dart:core'.
+ - 'ConnectivityResult' is from 'package:connectivity_plus_platform_interface/src/enums.dart'
+ ('/C:/Users/MPC/AppData/Local/Pub/Cache/hosted/pub.dev/connectivity_plus_platform_interface-2.0.1/lib/src/enums.dart').
+    subscription = _connectivity.onConnectivityChanged.listen((result) {
+                                                       ^
+lib/common/network/auth/unified_auth_manager.dart:43:28: Error: 'HttpClient' isn't a type.
+  static final Map<String, HttpClient> _httpClients = {};
+                           ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:43:55: Error: A value of type 'Map<dynamic, dynamic>' can't be assigned to a variable of type
+'Map<String, invalid-type>'.
+ - 'Map' is from 'dart:core'.
+  static final Map<String, HttpClient> _httpClients = {};
+                                                      ^
+lib/common/network/auth/unified_auth_manager.dart:107:5: Error: Can't use '_setLoading' because it is declared more than once.
+    _setLoading(true);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:108:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:149:18: Error: Can't use 'AuthResult' because it is declared more than once.
+          return AuthResult.success(
+                 ^
+lib/common/network/auth/unified_auth_manager.dart:154:18: Error: Can't use 'AuthResult' because it is declared more than once.
+          return AuthResult.failure(
+                 ^
+lib/common/network/auth/unified_auth_manager.dart:160:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.failure(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:166:7: Error: Can't use '_setError' because it is declared more than once.
+      _setError(e.toString());
+      ^
+lib/common/network/auth/unified_auth_manager.dart:167:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:172:7: Error: Can't use '_setLoading' because it is declared more than once.
+      _setLoading(false);
+      ^
+lib/common/network/auth/unified_auth_manager.dart:118:50: Error: The argument type 'String?' can't be assigned to the parameter type 'String'
+because 'String?' is nullable and 'String' isn't.
+      final httpClient = _getHttpClient(_config!.baseUrl);
+                                                 ^
+lib/common/network/auth/unified_auth_manager.dart:146:36: Error: The argument type 'Map<String, dynamic>' can't be assigned to the parameter
+type 'BaseUserModel'.
+ - 'Map' is from 'dart:core'.
+ - 'BaseUserModel' is from 'package:qyflutter/common/provider_status/user_provider.dart' ('lib/common/provider_status/user_provider.dart').
+            _userProvider!.setUser(userDataWithToken);
+                                   ^
+lib/common/network/auth/unified_auth_manager.dart:185:5: Error: Can't use '_setLoading' because it is declared more than once.
+    _setLoading(true);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:186:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:227:18: Error: Can't use 'AuthResult' because it is declared more than once.
+          return AuthResult.success(
+                 ^
+lib/common/network/auth/unified_auth_manager.dart:232:18: Error: Can't use 'AuthResult' because it is declared more than once.
+          return AuthResult.failure(
+                 ^
+lib/common/network/auth/unified_auth_manager.dart:238:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.failure(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:244:7: Error: Can't use '_setError' because it is declared more than once.
+      _setError(e.toString());
+      ^
+lib/common/network/auth/unified_auth_manager.dart:245:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:250:7: Error: Can't use '_setLoading' because it is declared more than once.
+      _setLoading(false);
+      ^
+lib/common/network/auth/unified_auth_manager.dart:196:50: Error: The argument type 'String?' can't be assigned to the parameter type 'String'
+because 'String?' is nullable and 'String' isn't.
+      final httpClient = _getHttpClient(_config!.baseUrl);
+                                                 ^
+lib/common/network/auth/unified_auth_manager.dart:224:36: Error: The argument type 'Map<String, dynamic>' can't be assigned to the parameter
+type 'BaseUserModel'.
+ - 'Map' is from 'dart:core'.
+ - 'BaseUserModel' is from 'package:qyflutter/common/provider_status/user_provider.dart' ('lib/common/provider_status/user_provider.dart').
+            _userProvider!.setUser(userDataWithToken);
+                                   ^
+lib/common/network/auth/unified_auth_manager.dart:259:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.success(message: 'Already logged out');
+             ^
+lib/common/network/auth/unified_auth_manager.dart:263:5: Error: Can't use '_setLoading' because it is declared more than once.
+    _setLoading(true);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:264:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:279:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.success(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:285:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.success(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:289:7: Error: Can't use '_setLoading' because it is declared more than once.
+      _setLoading(false);
+      ^
+lib/common/network/auth/unified_auth_manager.dart:268:50: Error: The argument type 'String?' can't be assigned to the parameter type 'String'
+because 'String?' is nullable and 'String' isn't.
+      final httpClient = _getHttpClient(_config!.baseUrl);
+                                                 ^
+lib/common/network/auth/unified_auth_manager.dart:298:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(error: 'No refresh token available');
+             ^
+lib/common/network/auth/unified_auth_manager.dart:331:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.success(message: 'Token refreshed successfully');
+               ^
+lib/common/network/auth/unified_auth_manager.dart:333:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.failure(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:339:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:304:50: Error: The argument type 'String?' can't be assigned to the parameter type 'String'
+because 'String?' is nullable and 'String' isn't.
+      final httpClient = _getHttpClient(_config!.baseUrl);
+                                                 ^
+lib/common/network/auth/unified_auth_manager.dart:327:36: Error: The argument type 'Map<String, dynamic>' can't be assigned to the parameter
+type 'BaseUserModel'.
+ - 'Map' is from 'dart:core'.
+ - 'BaseUserModel' is from 'package:qyflutter/common/provider_status/user_provider.dart' ('lib/common/provider_status/user_provider.dart').
+            _userProvider!.setUser(updatedUser);
+                                   ^
+lib/common/network/auth/unified_auth_manager.dart:352:5: Error: Can't use '_setLoading' because it is declared more than once.
+    _setLoading(true);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:353:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:366:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.success(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:370:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.failure(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:376:7: Error: Can't use '_setError' because it is declared more than once.
+      _setError(e.toString());
+      ^
+lib/common/network/auth/unified_auth_manager.dart:377:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:382:7: Error: Can't use '_setLoading' because it is declared more than once.
+      _setLoading(false);
+      ^
+lib/common/network/auth/unified_auth_manager.dart:356:50: Error: The argument type 'String?' can't be assigned to the parameter type 'String'
+because 'String?' is nullable and 'String' isn't.
+      final httpClient = _getHttpClient(_config!.baseUrl);
+                                                 ^
+lib/common/network/auth/unified_auth_manager.dart:406:19: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+        authType: AuthType.jwt,
+                  ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:434:44: Error: 'AuthMetadata' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      _userProvider!.setAuthMetadata(const AuthMetadata());
+                                           ^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:463:12: Error: Not a constant expression.
+      case AuthType.jwt:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:463:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.jwt:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:469:12: Error: Not a constant expression.
+      case AuthType.clientKey:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:469:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.clientKey:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:478:12: Error: Not a constant expression.
+      case AuthType.session:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:478:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.session:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:484:12: Error: Not a constant expression.
+      case AuthType.custom:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:484:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.custom:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:488:12: Error: Not a constant expression.
+      case AuthType.multiple:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:488:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.multiple:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:505:12: Error: Not a constant expression.
+      case AuthType.none:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:505:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.none:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:602:12: Error: Not a constant expression.
+      case AuthType.jwt:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:602:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.jwt:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:610:12: Error: Not a constant expression.
+      case AuthType.clientId:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:610:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.clientId:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:616:12: Error: Not a constant expression.
+      case AuthType.session:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:616:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.session:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:622:12: Error: Not a constant expression.
+      case AuthType.custom:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:622:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.custom:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:628:12: Error: Not a constant expression.
+      case AuthType.multiple:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:628:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.multiple:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:646:12: Error: Not a constant expression.
+      case AuthType.none:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:646:12: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+      case AuthType.none:
+           ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:655:22: Error: The method 'HttpClient' isn't defined for the class 'UnifiedAuthManager'.
+ - 'UnifiedAuthManager' is from 'package:qyflutter/common/network/auth/unified_auth_manager.dart'
+ ('lib/common/network/auth/unified_auth_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'HttpClient'.
+      final client = HttpClient();
+                     ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:663:5: Error: 'HttpClient' isn't a type.
+    HttpClient client,
+    ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:699:12: Error: 'NetworkResponse' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/network/models/api_response.dart'.
+    return NetworkResponse(
+           ^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:860:5: Error: Can't use '_setLoading' because it is declared more than once.
+    _setLoading(true);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:861:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:873:15: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+        type: AuthType.bearer,
+              ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:885:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.success(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:890:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.failure(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:896:7: Error: Can't use '_setError' because it is declared more than once.
+      _setError(e.toString());
+      ^
+lib/common/network/auth/unified_auth_manager.dart:897:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:902:7: Error: Can't use '_setLoading' because it is declared more than once.
+      _setLoading(false);
+      ^
+lib/common/network/auth/unified_auth_manager.dart:872:27: Error: The method 'AuthRequest' isn't defined for the class 'UnifiedAuthManager'.
+ - 'UnifiedAuthManager' is from 'package:qyflutter/common/network/auth/unified_auth_manager.dart'
+ ('lib/common/network/auth/unified_auth_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'AuthRequest'.
+      final authRequest = AuthRequest(
+                          ^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:882:28: Error: The method 'authenticate' isn't defined for the class 'UnifiedAuthManager'.
+ - 'UnifiedAuthManager' is from 'package:qyflutter/common/network/auth/unified_auth_manager.dart'
+ ('lib/common/network/auth/unified_auth_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'authenticate'.
+      final result = await authenticate(authRequest);
+                           ^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:914:5: Error: Can't use '_setLoading' because it is declared more than once.
+    _setLoading(true);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:915:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:926:15: Error: 'AuthType' is imported from both
+'package:qyflutter/common/network/core/network_types.dart' and 'package:qyflutter/common/provider_status/user_provider.dart'.
+        type: AuthType.bearer,
+              ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:937:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.success(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:942:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.failure(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:948:7: Error: Can't use '_setError' because it is declared more than once.
+      _setError(e.toString());
+      ^
+lib/common/network/auth/unified_auth_manager.dart:949:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:954:7: Error: Can't use '_setLoading' because it is declared more than once.
+      _setLoading(false);
+      ^
+lib/common/network/auth/unified_auth_manager.dart:925:27: Error: The method 'AuthRequest' isn't defined for the class 'UnifiedAuthManager'.
+ - 'UnifiedAuthManager' is from 'package:qyflutter/common/network/auth/unified_auth_manager.dart'
+ ('lib/common/network/auth/unified_auth_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'AuthRequest'.
+      final authRequest = AuthRequest(
+                          ^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:934:28: Error: The method 'authenticate' isn't defined for the class 'UnifiedAuthManager'.
+ - 'UnifiedAuthManager' is from 'package:qyflutter/common/network/auth/unified_auth_manager.dart'
+ ('lib/common/network/auth/unified_auth_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'authenticate'.
+      final result = await authenticate(authRequest);
+                           ^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:963:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.success(message: 'Already logged out');
+             ^
+lib/common/network/auth/unified_auth_manager.dart:966:5: Error: Can't use '_setLoading' because it is declared more than once.
+    _setLoading(true);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:967:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:972:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.success(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:980:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.success(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:984:7: Error: Can't use '_setLoading' because it is declared more than once.
+      _setLoading(false);
+      ^
+lib/common/network/auth/unified_auth_manager.dart:970:13: Error: The method 'deauthenticate' isn't defined for the class 'UnifiedAuthManager'.
+ - 'UnifiedAuthManager' is from 'package:qyflutter/common/network/auth/unified_auth_manager.dart'
+ ('lib/common/network/auth/unified_auth_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'deauthenticate'.
+      await deauthenticate();
+            ^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:977:13: Error: The method '_clearAuthData' isn't defined for the class 'UnifiedAuthManager'.
+ - 'UnifiedAuthManager' is from 'package:qyflutter/common/network/auth/unified_auth_manager.dart'
+ ('lib/common/network/auth/unified_auth_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named '_clearAuthData'.
+      await _clearAuthData();
+            ^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:993:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(error: 'Not authenticated');
+             ^
+lib/common/network/auth/unified_auth_manager.dart:1000:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.success(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:1004:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.failure(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:1010:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:997:28: Error: The method 'refreshAuthentication' isn't defined for the class
+'UnifiedAuthManager'.
+ - 'UnifiedAuthManager' is from 'package:qyflutter/common/network/auth/unified_auth_manager.dart'
+ ('lib/common/network/auth/unified_auth_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'refreshAuthentication'.
+      final result = await refreshAuthentication();
+                           ^^^^^^^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1022:5: Error: Can't use '_setLoading' because it is declared more than once.
+    _setLoading(true);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:1023:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:1032:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.success(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:1036:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.failure(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:1042:7: Error: Can't use '_setError' because it is declared more than once.
+      _setError(e.toString());
+      ^
+lib/common/network/auth/unified_auth_manager.dart:1043:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:1048:7: Error: Can't use '_setLoading' because it is declared more than once.
+      _setLoading(false);
+      ^
+lib/common/network/auth/unified_auth_manager.dart:1059:5: Error: Can't use '_setLoading' because it is declared more than once.
+    _setLoading(true);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:1060:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:1070:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.success(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:1074:16: Error: Can't use 'AuthResult' because it is declared more than once.
+        return AuthResult.failure(
+               ^
+lib/common/network/auth/unified_auth_manager.dart:1080:7: Error: Can't use '_setError' because it is declared more than once.
+      _setError(e.toString());
+      ^
+lib/common/network/auth/unified_auth_manager.dart:1081:14: Error: Can't use 'AuthResult' because it is declared more than once.
+      return AuthResult.failure(
+             ^
+lib/common/network/auth/unified_auth_manager.dart:1086:7: Error: Can't use '_setLoading' because it is declared more than once.
+      _setLoading(false);
+      ^
+lib/common/network/auth/unified_auth_manager.dart:1128:5: Error: Can't use '_setError' because it is declared more than once.
+    _setError(null);
+    ^
+lib/common/network/auth/unified_auth_manager.dart:1152:12: Error: Can't use 'AuthResult' because it is declared more than once.
+    return AuthResult._(
+           ^
+lib/common/network/auth/unified_auth_manager.dart:1163:12: Error: Can't use 'AuthResult' because it is declared more than once.
+    return AuthResult._(
+           ^
+lib/common/network/auth/unified_auth_manager.dart:1181:9: Error: Undefined name '_config'.
+    if (_config?.authConfig.persistToken == true) {
+        ^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1182:36: Error: Undefined name '_config'.
+      _token = await _storage.read(_config!.authConfig.tokenStorageKey);
+                                   ^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1182:22: Error: Undefined name '_storage'.
+      _token = await _storage.read(_config!.authConfig.tokenStorageKey);
+                     ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1182:7: Error: Setter not found: '_token'.
+      _token = await _storage.read(_config!.authConfig.tokenStorageKey);
+      ^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1183:43: Error: Undefined name '_config'.
+      _refreshToken = await _storage.read(_config!.authConfig.refreshTokenStorageKey);
+                                          ^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1183:29: Error: Undefined name '_storage'.
+      _refreshToken = await _storage.read(_config!.authConfig.refreshTokenStorageKey);
+                            ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1183:7: Error: Setter not found: '_refreshToken'.
+      _refreshToken = await _storage.read(_config!.authConfig.refreshTokenStorageKey);
+      ^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1185:37: Error: Undefined name '_storage'.
+      final expiresAtString = await _storage.read('token_expires_at');
+                                    ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1188:11: Error: Setter not found: '_tokenExpiresAt'.
+          _tokenExpiresAt = DateTime.parse(expiresAtString);
+          ^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1195:23: Error: Undefined name '_storage'.
+    _clientId = await _storage.read('client_id');
+                      ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1195:5: Error: Setter not found: '_clientId'.
+    _clientId = await _storage.read('client_id');
+    ^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1196:27: Error: Undefined name '_storage'.
+    _clientSecret = await _storage.read('client_secret');
+                          ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1196:5: Error: Setter not found: '_clientSecret'.
+    _clientSecret = await _storage.read('client_secret');
+    ^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1197:24: Error: Undefined name '_storage'.
+    _sessionId = await _storage.read('session_id');
+                       ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1197:5: Error: Setter not found: '_sessionId'.
+    _sessionId = await _storage.read('session_id');
+    ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1199:38: Error: Undefined name '_storage'.
+    final customFieldsString = await _storage.read('custom_auth_fields');
+                                     ^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1203:9: Error: Setter not found: '_customAuthFields'.
+        _customAuthFields = decoded.map((k, v) => MapEntry(k, v.toString()));
+        ^^^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1209:24: Error: Undefined name '_token'.
+    _isAuthenticated = _token != null ||
+                       ^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1210:23: Error: Undefined name '_clientId'.
+                      _clientId != null ||
+                      ^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1211:23: Error: Undefined name '_sessionId'.
+                      _sessionId != null ||
+                      ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1212:23: Error: Undefined name '_customAuthFields'.
+                      _customAuthFields.isNotEmpty;
+                      ^^^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1209:5: Error: Setter not found: '_isAuthenticated'.
+    _isAuthenticated = _token != null ||
+    ^^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1218:26: Error: Undefined name '_httpClients'.
+    for (final client in _httpClients.values) {
+                         ^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1221:5: Error: Undefined name '_httpClients'.
+    _httpClients.clear();
+    ^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1227:26: Error: Undefined name '_isAuthenticated'.
+      'isAuthenticated': _isAuthenticated,
+                         ^^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1228:19: Error: Undefined name '_token'.
+      'hasToken': _token != null,
+                  ^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1229:26: Error: Undefined name '_refreshToken'.
+      'hasRefreshToken': _refreshToken != null,
+                         ^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1230:31: Error: Undefined name '_clientId'.
+      'hasClientCredentials': _clientId != null && _clientSecret != null,
+                              ^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1230:52: Error: Undefined name '_clientSecret'.
+      'hasClientCredentials': _clientId != null && _clientSecret != null,
+                                                   ^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1231:23: Error: Undefined name '_sessionId'.
+      'hasSessionId': _sessionId != null,
+                      ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1232:22: Error: Undefined name '_deviceId'.
+      'hasDeviceId': _deviceId != null,
+                     ^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1233:26: Error: Undefined name '_appSignature'.
+      'hasAppSignature': _appSignature != null,
+                         ^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1234:28: Error: Undefined name '_customAuthFields'.
+      'customFieldsCount': _customAuthFields.length,
+                           ^^^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1235:25: Error: Undefined name '_tokenExpiresAt'.
+      'tokenExpiresAt': _tokenExpiresAt?.toIso8601String(),
+                        ^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1236:28: Error: Undefined name 'needsTokenRefresh'.
+      'needsTokenRefresh': needsTokenRefresh,
+                           ^^^^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1237:25: Error: Undefined name 'isTokenExpired'.
+      'isTokenExpired': isTokenExpired,
+                        ^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1238:20: Error: Undefined name '_isLoading'.
+      'isLoading': _isLoading,
+                   ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1239:20: Error: Undefined name '_lastError'.
+      'lastError': _lastError,
+                   ^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:1264:12: Error: Can't use 'AuthResult' because it is declared more than once.
+    return AuthResult._(
+           ^
+lib/common/network/auth/unified_auth_manager.dart:1275:12: Error: Can't use 'AuthResult' because it is declared more than once.
+    return AuthResult._(
+           ^
+lib/common/network/endpoints/endpoint_config.dart:540:28: Error: Member not found: 'bearer'.
+        authType: AuthType.bearer,
+                           ^^^^^^
+lib/common/network/endpoints/endpoint_config.dart:548:28: Error: Member not found: 'bearer'.
+        authType: AuthType.bearer,
+                           ^^^^^^
+lib/common/network/services/advanced_network_service.dart:24:19: Error: The method 'initialize' isn't defined for the class
+'RobustNetworkClient'.
+ - 'RobustNetworkClient' is from 'package:qyflutter/common/network/core/unified_network_client.dart'
+ ('lib/common/network/core/unified_network_client.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'initialize'.
+    await _client.initialize();
+                  ^^^^^^^^^^
+lib/common/network/services/advanced_network_service.dart:52:14: Error: 'NetworkResponse' is imported from both
+'package:qyflutter/common/network/core/network_models.dart' and 'package:qyflutter/common/network/core/unified_network_client.dart'.
+      return NetworkResponse.error<T>(
+             ^^^^^^^^^^^^^^^
+lib/common/network/services/advanced_network_service.dart:75:37: Error: The argument type 'NetworkRequest/*1*/' can't be assigned to the
+parameter type 'NetworkRequest/*2*/'.
+ - 'NetworkRequest/*1*/' is from 'package:qyflutter/common/network/core/network_models.dart' ('lib/common/network/core/network_models.dart').
+ - 'NetworkRequest/*2*/' is from 'package:qyflutter/common/network/core/unified_network_client.dart'
+ ('lib/common/network/core/unified_network_client.dart').
+    return await _client.request<T>(request);
+                                    ^
+lib/common/network/services/advanced_network_service.dart:293:34: Error: The method 'withLoading' isn't defined for the class
+'GlobalLoadingSystem'.
+ - 'GlobalLoadingSystem' is from 'package:qyflutter/common/network/ui/global_loading_system.dart'
+ ('lib/common/network/ui/global_loading_system.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'withLoading'.
+    return await _loadingManager.withLoading<NetworkResponse<T>>(
+                                 ^^^^^^^^^^^
+lib/common/network/services/advanced_network_service.dart:333:56: Error: The method 'getAuthSummary' isn't defined for the class
+'UnifiedAuthManager'.
+ - 'UnifiedAuthManager' is from 'package:qyflutter/common/network/auth/unified_auth_manager.dart'
+ ('lib/common/network/auth/unified_auth_manager.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getAuthSummary'.
+  Map<String, dynamic> get authSummary => _authManager.getAuthSummary();
+                                                       ^^^^^^^^^^^^^^
+lib/common/network/interceptors/network_interceptors.dart:193:9: Error: The getter '_authManager' isn't defined for the class
+'AuthRequestInterceptor'.
+ - 'AuthRequestInterceptor' is from 'package:qyflutter/common/network/interceptors/network_interceptors.dart'
+ ('lib/common/network/interceptors/network_interceptors.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named '_authManager'.
+    if (_authManager.needsTokenRefresh &&
+        ^^^^^^^^^^^^
+lib/common/network/interceptors/network_interceptors.dart:276:13: Error: The getter '_authManager' isn't defined for the class
+'AuthResponseInterceptor'.
+ - 'AuthResponseInterceptor' is from 'package:qyflutter/common/network/interceptors/network_interceptors.dart'
+ ('lib/common/network/interceptors/network_interceptors.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named '_authManager'.
+      await _authManager.clearAuth();
+            ^^^^^^^^^^^^
+lib/common/network/interceptors/network_interceptors.dart:297:17: Error: The getter '_authManager' isn't defined for the class
+'AuthResponseInterceptor'.
+ - 'AuthResponseInterceptor' is from 'package:qyflutter/common/network/interceptors/network_interceptors.dart'
+ ('lib/common/network/interceptors/network_interceptors.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named '_authManager'.
+          await _authManager.setToken(
+                ^^^^^^^^^^^^
+lib/common/network/ui/global_loading_system.dart:323:5: Error: The getter 'LoadingManager' isn't defined for the class 'GlobalLoadingSystem'.
+ - 'GlobalLoadingSystem' is from 'package:qyflutter/common/network/ui/global_loading_system.dart'
+ ('lib/common/network/ui/global_loading_system.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'LoadingManager'.
+    LoadingManager.instance.removeListener(_onLoadingManagerChanged);
+    ^^^^^^^^^^^^^^
+lib/common/network/ui/global_loading_system.dart:335:23: Error: The getter 'LoadingManager' isn't defined for the class 'GlobalLoadingSystem'.
+ - 'GlobalLoadingSystem' is from 'package:qyflutter/common/network/ui/global_loading_system.dart'
+ ('lib/common/network/ui/global_loading_system.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'LoadingManager'.
+    final isLoading = LoadingManager.instance.isGlobalLoading;
+                      ^^^^^^^^^^^^^^
+lib/common/network/auth/unified_auth_manager.dart:601:26: Error: The type 'AuthType' is not exhaustively matched by the switch cases since it
+doesn't match 'AuthType.none'.
+ - 'AuthType' is from 'package:qyflutter/common/provider_status/user_provider.dart' ('lib/common/provider_status/user_provider.dart').
+Try adding a default case or cases that match 'AuthType.none'.
+    switch (authMetadata.authType) {
+                         ^
+Waiting for connection from debug service on Web Server...             \

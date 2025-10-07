@@ -1,535 +1,879 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
+# Unified Manager for Core Node Applications
+# Manages applications in Core Node project
 
-# Unified Manager - Main Menu Interface
-# Provides a unified interface for application management with interactive menu
+# Define script self path
+$scriptPath = $PSScriptRoot
+$rootDir = (Get-Item $scriptPath).Parent.Parent.FullName
+$NcoreApps = Join-Path $rootDir "apps"
 
-# Import global variables and utilities
-$UNIFIED_MANAGER_ROOT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-$UTILS_PATH = Join-Path $UNIFIED_MANAGER_ROOT_DIR "common\utils.ps1"
-. (Join-Path $UNIFIED_MANAGER_ROOT_DIR "common\global_vars.ps1")
+# Source GlobalVars.ps1 to get $Global:USER_DIR
+. (Join-Path $rootDir "scripts\shells\win\win_common\GlobalVars.ps1")
 
-# Script paths
-$START_APPS_SCRIPT = Join-Path $UNIFIED_MANAGER_ROOT_DIR "app_managers\start_apps.ps1"
-$INSTALL_SCRIPT = Join-Path $UNIFIED_MANAGER_ROOT_DIR "app_managers\install_all.ps1"
-$BUILD_SCRIPT = Join-Path $UNIFIED_MANAGER_ROOT_DIR "app_managers\build_apps.ps1"
+# Debug output for paths
+Write-Host "Script Path: $scriptPath" -ForegroundColor Cyan
+Write-Host "Root Dir: $rootDir" -ForegroundColor Cyan
+Write-Host "Apps Dir: $NcoreApps" -ForegroundColor Cyan
+Write-Host "Apps Dir Exists: $(Test-Path $NcoreApps)" -ForegroundColor Cyan
+Write-Host "User Dir: $Global:USER_DIR" -ForegroundColor Cyan
+Write-Host ""
 
-# Import utilities
-if (Test-Path $UTILS_PATH) {
-    . $UTILS_PATH
-} else {
-    Write-Error "Utilities not found: $UTILS_PATH"
-    exit 1
+# Cache directory
+$cacheDir = Join-Path $Global:USER_DIR "unified_manager"
+$cacheFile = Join-Path $cacheDir "app_cache.json"
+$tempScriptDir = Join-Path $cacheDir "temp_scripts"
+
+# Ensure cache directory exists
+if (-not (Test-Path $cacheDir)) {
+    New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
 }
 
-# Function to test console capabilities
-function Test-ConsoleCapabilities {
-    $capabilities = @{
-        KeyInput = $true
-        CursorControl = $true  
-        ColorControl = $true
-    }
-
-    try {
-        $null = [Console]::ReadKey
-    } catch {
-        $capabilities.KeyInput = $false
-    }
-
-    try {
-        $null = [Console]::CursorVisible
-    } catch {
-        $capabilities.CursorControl = $false
-    }
-
-    try {
-        $null = [Console]::ForegroundColor
-    } catch {
-        $capabilities.ColorControl = $false
-    }
-
-    return $capabilities
+# Ensure temp script directory exists
+if (-not (Test-Path $tempScriptDir)) {
+    New-Item -ItemType Directory -Path $tempScriptDir -Force | Out-Null
 }
 
-# Function to write colored messages
-function Write-ColorMessage {
-    param(
-        [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$true)] [ValidateSet("Info", "Success", "Warning", "Error")] [string]$Type
-    )
+# Application information class
+class AppInfo {
+    [string]$Name
+    [string]$Path
+    [bool]$HasInstallPs1
+    [bool]$HasStartPs1
+    [bool]$HasStartBat
+    [bool]$HasMainPy
+    [bool]$HasMainJs
+    [bool]$HasPubspecYaml
+    [bool]$HasComposerJson
+    [bool]$HasNuxtConfig
+    [bool]$HasIndexPhp
+    [bool]$IsSelected
+    [string[]]$AvailableScripts
+    [string]$CurrentScript
+    [int]$ScriptIndex
+    [string]$AppType
     
-    $color = switch ($Type) {
-        "Info"    { "Cyan" }
-        "Success" { "Green" }
-        "Warning" { "Yellow" }
-        "Error"   { "Red" }
+    AppInfo([string]$name, [string]$path, [string]$appType) {
+        $this.Name = $name
+        $this.Path = $path
+        $this.AppType = $appType
+        $this.IsSelected = $false
+        $this.AvailableScripts = @()
+        $this.CurrentScript = ""
+        $this.ScriptIndex = 0
+        $this.CheckScripts()
     }
     
-    $prefix = switch ($Type) {
-        "Info"    { "[INFO] " }
-        "Success" { "[OK] " }
-        "Warning" { "[WARN] " }
-        "Error"   { "[ERROR] " }
+    [void] CheckScripts() {
+        # Check for native startup files and project indicators
+        $this.HasMainPy = Test-Path (Join-Path $this.Path "main.py")
+        $this.HasMainJs = Test-Path (Join-Path $this.Path "main.js")
+        $this.HasPubspecYaml = Test-Path (Join-Path $this.Path "pubspec.yaml")
+        $this.HasComposerJson = Test-Path (Join-Path $this.Path "composer.json")
+        $this.HasNuxtConfig = Test-Path (Join-Path $this.Path "nuxt.config.ts")
+        $this.HasIndexPhp = Test-Path (Join-Path $this.Path "index.php")
     }
-    
-    Write-Host -ForegroundColor $color "$prefix$Message"
 }
 
-# Function for interactive menu (copied from dd.ps1)
-function Invoke-InteractiveMenu {
-    param(
-        [Parameter(Mandatory=$true)] [array]$Items,
-        [Parameter(Mandatory=$true)] [string]$Title,
-        [Parameter()] [bool]$EnableValueToggle = $true
-    )
-    $selectedIndex = 0
+# Global variables
+$global:Apps = @()
+$global:SelectedApps = @()
+$global:CurrentIndex = 0
+$global:MaxAppNameWidth = 0
 
-    $consoleCapabilities = Test-ConsoleCapabilities
+# Script files to scan for
+$global:ScriptFiles = @("start.ps1", "start.bat", "install.ps1", "deploy.ps1", "deploy.bat")
 
-    $cursorVisible = $true
-    $originalForeground = [ConsoleColor]::Gray
-    $originalBackground = [ConsoleColor]::Black
+# Poly apps directory
+$PolyApps = Join-Path $rootDir "poly_apps"
 
-    if ($consoleCapabilities.CursorControl) {
-        try {
-            $cursorVisible = [Console]::CursorVisible
-            [Console]::CursorVisible = $false
-        } catch {
-            Write-ColorMessage -Message "Warning: Cannot control cursor visibility in this environment" -Type "Warning"
-        }
+# Generate pyStart command
+function Get-PyStartCommand {
+    param([string]$AppPath)
+    
+    $mainPyPath = Join-Path $AppPath "main.py"
+    if (Test-Path $mainPyPath) {
+        $absolutePath = (Resolve-Path $mainPyPath).Path
+        return "python `"$absolutePath`""
     }
+    return $null
+}
 
-    if ($consoleCapabilities.ColorControl) {
-        try {
-            $originalForeground = [Console]::ForegroundColor
-            $originalBackground = [Console]::BackgroundColor
-        } catch {
-            Write-ColorMessage -Message "Warning: Cannot get console colors in this environment" -Type "Warning"
-            $originalForeground = [ConsoleColor]::Gray
-            $originalBackground = [ConsoleColor]::Black
-        }
+# Generate ncoreStart command
+function Get-NcoreStartCommand {
+    param([string]$AppPath)
+    
+    $mainJsPath = Join-Path $AppPath "main.js"
+    if (Test-Path $mainJsPath) {
+        $appName = Split-Path $AppPath -Leaf
+        $rootDirPath = (Get-Item $PSScriptRoot).Parent.Parent.FullName
+        $mainJsAbsolutePath = (Resolve-Path (Join-Path $rootDirPath "main.js")).Path
+        return "node `"$mainJsAbsolutePath`" app=$appName"
     }
+    return $null
+}
 
-    function Draw-MenuInternal {
-        Clear-Host
-        Write-ColorMessage -Message $Title -Type "Info"
-        for ($i = 0; $i -lt $Items.Count; $i++) {
-            $item = $Items[$i]
-            if (-not $item.ContainsKey('CurrentValueIndex')) { 
-                $item | Add-Member -NotePropertyName CurrentValueIndex -NotePropertyValue 0 
-            }
-            $currentValue = $item.Values[$item.CurrentValueIndex]
-            $valueDisplay = ""
-            if ($item.Values.Count -gt 1 -or $currentValue -ne "default") { 
-                $valueDisplay = " [$currentValue]" 
-            }
-            if ($i -eq $selectedIndex) {
-                Write-Host -NoNewline ">"
-                Write-Host -NoNewline -ForegroundColor Black -BackgroundColor White (" {0,-40}{1}" -f $item.Text, $valueDisplay)
-                Write-Host ""
-            } else {
-                Write-Host ("  {0,-40}{1}" -f $item.Text, $valueDisplay)
-            }
-        }
+# Generate flutterStart command
+function Get-FlutterStartCommand {
+    param([string]$AppPath)
+    
+    $pubspecPath = Join-Path $AppPath "pubspec.yaml"
+    if (Test-Path $pubspecPath) {
+        Push-Location $AppPath
+        $absolutePath = (Resolve-Path $AppPath).Path
+        Pop-Location
+        return "cd `"$absolutePath`" && flutter run"
     }
+    return $null
+}
 
-    while ($true) {
-        Draw-MenuInternal
+# Generate laravelStart command
+function Get-LaravelStartCommand {
+    param([string]$AppPath)
+    
+    $composerPath = Join-Path $AppPath "composer.json"
+    $publicIndexPath = Join-Path $AppPath "public\index.php"
+    
+    if ((Test-Path $composerPath) -and (Test-Path $publicIndexPath)) {
+        $absolutePath = (Resolve-Path $AppPath).Path
+        return "cd `"$absolutePath`" && php artisan serve"
+    }
+    return $null
+}
 
-        if ($consoleCapabilities.KeyInput) {
-            try {
-                $key = [Console]::ReadKey($true).Key
-            } catch {
-                Write-ColorMessage -Message "Error: Cannot read console input in this environment, falling back to number input" -Type "Warning"
-                $consoleCapabilities.KeyInput = $false
-                continue
-            }
-        } else {
-            Write-Host ""
-            Write-Host "Console key input not supported. Please use number selection:" -ForegroundColor Yellow
-            for ($i = 0; $i -lt $Items.Count; $i++) {
-                Write-Host "  $($i + 1). $($Items[$i].Text)" -ForegroundColor Cyan
-            }
+# Generate nuxtStart command
+function Get-NuxtStartCommand {
+    param([string]$AppPath)
+    
+    $nuxtConfigPath = Join-Path $AppPath "nuxt.config.ts"
+    if (Test-Path $nuxtConfigPath) {
+        $absolutePath = (Resolve-Path $AppPath).Path
+        return "cd `"$absolutePath`" && npm run dev"
+    }
+    return $null
+}
 
-            do {
-                $input = Read-Host "Enter selection (1-$($Items.Count))"
-                $selection = $null
-                if ([int]::TryParse($input, [ref]$selection) -and $selection -ge 1 -and $selection -le $Items.Count) {
-                    $selectedIndex = $selection - 1
-                    break
-                } else {
-                    Write-Host "Invalid selection. Please enter a number between 1 and $($Items.Count)" -ForegroundColor Red
-                }
-            } while ($true)
+# Generate phpStart command
+function Get-PhpStartCommand {
+    param([string]$AppPath)
+    
+    $indexPhpPath = Join-Path $AppPath "index.php"
+    if (Test-Path $indexPhpPath) {
+        $absolutePath = (Resolve-Path $indexPhpPath).Path
+        return "php -S localhost:8000 -t `"$(Split-Path $absolutePath)`""
+    }
+    return $null
+}
 
-            if ($consoleCapabilities.CursorControl) {
-                try { [Console]::CursorVisible = $cursorVisible } catch { }
+# Step 1: Scan $rootDir/apps and get ncoreApp list with appType
+function Step1-ScanNcoreApps {
+    Write-Host "Step 1: Scanning $rootDir/apps directory..." -ForegroundColor Cyan
+    
+    $ncoreAppsPath = Join-Path $rootDir "apps"
+    $ncoreApps = @()
+    
+    if (Test-Path $ncoreAppsPath) {
+        $appDirectories = Get-ChildItem -Path $ncoreAppsPath -Directory
+        foreach ($dir in $appDirectories) {
+            $app = [AppInfo]::new($dir.Name, $dir.FullName, "ncoreApp")
+            $ncoreApps += $app
+            Write-Host "  Found: $($app.Name) [ncoreApp]" -ForegroundColor Gray
+        }
+        Write-Host "  Total ncoreApps: $($ncoreApps.Count)" -ForegroundColor Green
+    } else {
+        Write-Host "  Directory not found: $ncoreAppsPath" -ForegroundColor Red
+    }
+    
+    return $ncoreApps
+}
+
+# Step 2: Scan $rootDir/poly_apps and get poly_apps list with appType
+function Step2-ScanPolyApps {
+    Write-Host "Step 2: Scanning $rootDir/poly_apps directory..." -ForegroundColor Cyan
+    
+    $polyAppsPath = Join-Path $rootDir "poly_apps"
+    $polyApps = @()
+    
+    if (Test-Path $polyAppsPath) {
+        $appDirectories = Get-ChildItem -Path $polyAppsPath -Directory
+        foreach ($dir in $appDirectories) {
+            $app = [AppInfo]::new($dir.Name, $dir.FullName, "poly_apps")
+            $polyApps += $app
+            Write-Host "  Found: $($app.Name) [poly_apps]" -ForegroundColor Gray
+        }
+        Write-Host "  Total poly_apps: $($polyApps.Count)" -ForegroundColor Green
+    } else {
+        Write-Host "  Directory not found: $polyAppsPath" -ForegroundColor Red
+    }
+    
+    return $polyApps
+}
+
+# Step 3: Generate native startup commands and set first toggle item for each list
+function Step3-GenerateNativeStartup {
+    param([array]$AppList)
+    
+    Write-Host "Step 3: Generating native startup commands..." -ForegroundColor Cyan
+    
+    foreach ($app in $AppList) {
+        $app.AvailableScripts = @()
+        $foundNative = $false
+        
+        # Priority 1: ncoreStart for ncoreApp with main.js
+        if ($app.AppType -eq "ncoreApp" -and $app.HasMainJs) {
+            $startCommand = Get-NcoreStartCommand -AppPath $app.Path
+            if ($startCommand) {
+                $app.AvailableScripts += "ncoreStart"
+                $app.CurrentScript = "ncoreStart"
+                $app.ScriptIndex = 0
+                $foundNative = $true
+                Write-Host "  $($app.Name): ncoreStart - $startCommand" -ForegroundColor Magenta
             }
-            if ($consoleCapabilities.ColorControl) {
-                try {
-                    [Console]::ForegroundColor = $originalForeground
-                    [Console]::BackgroundColor = $originalBackground
-                } catch { }
-            }
-            Clear-Host
-            return $selectedIndex
         }
         
-        switch ($key) {
-            'UpArrow'   { 
-                if ($selectedIndex -gt 0) { $selectedIndex-- } 
-                else { $selectedIndex = $Items.Count - 1 } 
-            }
-            'DownArrow' { 
-                if ($selectedIndex -lt $Items.Count - 1) { $selectedIndex++ } 
-                else { $selectedIndex = 0 } 
-            }
-            'LeftArrow' {
-                if ($EnableValueToggle) {
-                    $item = $Items[$selectedIndex]
-                    if ($item.Values.Count -gt 1) {
-                        $item.CurrentValueIndex--
-                        if ($item.CurrentValueIndex -lt 0) { 
-                            $item.CurrentValueIndex = $item.Values.Count - 1 
-                        }
-                    }
-                }
-            }
-            'RightArrow' {
-                if ($EnableValueToggle) {
-                    $item = $Items[$selectedIndex]
-                    if ($item.Values.Count -gt 1) {
-                        $item.CurrentValueIndex++
-                        if ($item.CurrentValueIndex -ge $item.Values.Count) { 
-                            $item.CurrentValueIndex = 0 
-                        }
-                    }
-                }
-            }
-            'Enter'     {
-                if ($consoleCapabilities.CursorControl) {
-                    try { [Console]::CursorVisible = $cursorVisible } catch { }
-                }
-                if ($consoleCapabilities.ColorControl) {
-                    try {
-                        [Console]::ForegroundColor = $originalForeground
-                        [Console]::BackgroundColor = $originalBackground
-                    } catch { }
-                }
-                Clear-Host
-                return $selectedIndex
-            }
-        }
-    }
-}
-
-# Function to show Start Poly Applications submenu
-function Show-StartPolyApplicationsMenu {
-    $subMenuItems = @(
-        @{
-            Text              = "Run Poly apps"
-            Values            = @("default")
-            CurrentValueIndex = 0
-            Action            = {
-                $polyAppsPath = Join-Path $PROJECT_ROOT "poly_apps"
-                
-                if (-not (Test-Path $polyAppsPath -PathType Container)) {
-                    Write-ColorMessage -Message "Poly apps directory not found: $polyAppsPath" -Type "Error"
-                    Read-Host "Press Enter to continue"
-                    return
-                }
-                
-                $polyAppDirectories = Get-ChildItem -Path $polyAppsPath -Directory | Select-Object -ExpandProperty Name
-                
-                if ($polyAppDirectories.Count -eq 0) {
-                    Write-ColorMessage -Message "No poly app directories found in: $polyAppsPath" -Type "Warning"
-                    Read-Host "Press Enter to continue"
-                    return
-                }
-                
-                Write-ColorMessage -Message "Available poly apps:" -Type "Info"
-                for ($i = 0; $i -lt $polyAppDirectories.Count; $i++) {
-                    Write-ColorMessage -Message "$($i + 1). $($polyAppDirectories[$i])" -Type "Info"
-                }
-                Write-ColorMessage -Message "0. Return to main menu" -Type "Info"
-                
-                $choice = Read-Host "Select a poly app to run"
-                
-                if ($choice -eq "0" -or [string]::IsNullOrEmpty($choice)) {
-                    return
-                }
-                
-                $selectedIndex = [int]$choice - 1
-                if ($selectedIndex -ge 0 -and $selectedIndex -lt $polyAppDirectories.Count) {
-                    $selectedPolyApp = $polyAppDirectories[$selectedIndex]
-                    $mainJsPath = Join-Path $PROJECT_ROOT "main.js"
-                    
-                    Write-ColorMessage -Message "Running poly app: $selectedPolyApp" -Type "Info"
-                    Write-ColorMessage -Message "Command: node $mainJsPath poly_app=$selectedPolyApp" -Type "Info"
-                    
-                    & node $mainJsPath poly_app=$selectedPolyApp
-                }
-                else {
-                    Write-ColorMessage -Message "Invalid selection. Please try again." -Type "Warning"
-                    Read-Host "Press Enter to continue"
-                }
-            }
-        },
-        @{
-            Text              = "Build Poly apps"
-            Values            = @("default")
-            CurrentValueIndex = 0
-            Action            = {
-                $selectedValue = "interactive"
-                if (Test-Path $BUILD_SCRIPT) {
-                    try {
-                        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$BUILD_SCRIPT" -Interactive
-                    } catch {
-                        Write-ColorMessage -Message "Error executing build script: $($_.Exception.Message)" -Type "Error"
-                    }
-                } else {
-                    Write-ColorMessage -Message "Error: build_apps.ps1 script not found at $BUILD_SCRIPT" -Type "Error"
-                }
-                Read-Host "Press Enter to continue"
-            }
-        },
-        @{
-            Text              = "Test Registry Parser"
-            Values            = @("default")
-            CurrentValueIndex = 0
-            Action            = {
-                $testScript = Join-Path $UNIFIED_MANAGER_ROOT_DIR "test_ini_registry.ps1"
-                if (Test-Path $testScript) {
-                    & powershell -NoProfile -ExecutionPolicy Bypass -File $testScript
-                } else {
-                    Write-ColorMessage -Message "Error: test_ini_registry.ps1 script not found" -Type "Error"
-                }
-                Read-Host "Press Enter to continue"
-            }
-        },
-        @{
-            Text              = "Back to Main Menu"
-            Values            = @("default")
-            CurrentValueIndex = 0
-            Action            = {
-                return
-            }
-        },
-        @{
-            Text              = "Exit"
-            Values            = @("default")
-            CurrentValueIndex = 0
-            Action            = {
-                Write-ColorMessage -Message "Exiting Unified Manager..." -Type "Info"
-                exit 0
-            }
-        }
-    )
-    
-    while ($true) {
-        $selection = Invoke-InteractiveMenu -Items $subMenuItems -Title "Start Poly Applications - Select an option" -EnableValueToggle $false
-        
-        if ($selection -ge 0 -and $selection -lt $subMenuItems.Count) {
-            $selectedItem = $subMenuItems[$selection]
-            if ($selectedItem.Action) {
-                try {
-                    & $selectedItem.Action
-                    if ($selectedItem.Text -eq "Back to Main Menu") {
-                        return
-                    }
-                } catch {
-                    Write-ColorMessage -Message "Error executing action: $_" -Type "Error"
-                    Read-Host "Press Enter to continue"
-                }
-            }
-        }
-    }
-}
-
-# Function to show applications list
-function Show-ApplicationsList {
-    Write-ColorMessage -Message "Available Applications:" -Type "Info"
-    Write-Host ""
-    
-    # Show regular apps
-    $appsPath = Join-Path $PROJECT_ROOT "apps"
-    if (Test-Path $appsPath -PathType Container) {
-        $appDirectories = Get-ChildItem -Path $appsPath -Directory | Select-Object -ExpandProperty Name
-        if ($appDirectories.Count -gt 0) {
-            Write-ColorMessage -Message "Regular Apps:" -Type "Info"
-            for ($i = 0; $i -lt $appDirectories.Count; $i++) {
-                Write-ColorMessage -Message "  $($i + 1). $($appDirectories[$i])" -Type "Info"
-            }
-        }
-    }
-    
-    Write-Host ""
-    
-    # Show poly apps
-    $polyAppsPath = Join-Path $PROJECT_ROOT "poly_apps"
-    if (Test-Path $polyAppsPath -PathType Container) {
-        $polyAppDirectories = Get-ChildItem -Path $polyAppsPath -Directory | Select-Object -ExpandProperty Name
-        if ($polyAppDirectories.Count -gt 0) {
-            Write-ColorMessage -Message "Poly Apps:" -Type "Info"
-            for ($i = 0; $i -lt $polyAppDirectories.Count; $i++) {
-                Write-ColorMessage -Message "  $($i + 1). $($polyAppDirectories[$i])" -Type "Info"
-            }
-        }
-    }
-    
-    Read-Host "Press Enter to continue"
-}
-
-# Menu items definition
-$MenuItems = @(
-    @{
-        Text              = "Start Applications"
-        Values            = @("interactive", "list-only")
-        CurrentValueIndex = 0
-        Action            = {
-            $selectedValue = $MenuItems[0].Values[$MenuItems[0].CurrentValueIndex]
-            Write-ColorMessage -Message "Executing: $START_APPS_SCRIPT" -Type "Info"
-
-            if (-not (Test-Path $START_APPS_SCRIPT)) {
-                Write-ColorMessage -Message "Error: Script file not found at $START_APPS_SCRIPT" -Type "Error"
-                Read-Host "Press Enter to continue"
-                return
-            }
-
-            try {
-                if ($selectedValue -eq "interactive") {
-                    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$START_APPS_SCRIPT" -Interactive
-                } else {
-                    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$START_APPS_SCRIPT" -List
-                    Read-Host "Press Enter to continue"
-                }
-            } catch {
-                Write-ColorMessage -Message "Error executing script: $($_.Exception.Message)" -Type "Error"
-                Write-ColorMessage -Message "Script path: $START_APPS_SCRIPT" -Type "Info"
-                Read-Host "Press Enter to continue"
-            }
-        }
-    },
-    @{
-        Text              = "Start Poly Applications"
-        Values            = @("interactive", "list-only")
-        CurrentValueIndex = 0
-        Action            = {
-            $selectedValue = $MenuItems[1].Values[$MenuItems[1].CurrentValueIndex]
-            if ($selectedValue -eq "interactive") {
-                Show-StartPolyApplicationsMenu
-            } else {
-                Show-ApplicationsList
-            }
-        }
-    },
-    @{
-        Text              = "Install Dependencies"
-        Values            = @("all-apps", "specific-apps")
-        CurrentValueIndex = 0
-        Action            = {
-            $selectedValue = $MenuItems[2].Values[$MenuItems[2].CurrentValueIndex]
-            if (Test-Path $INSTALL_SCRIPT) {
-                try {
-                    if ($selectedValue -eq "all-apps") {
-                        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTALL_SCRIPT"
+        # Priority 2: Framework-specific starts for poly_apps
+        if ($app.AppType -eq "poly_apps") {
+            # Flutter
+            if ($app.HasPubspecYaml) {
+                $startCommand = Get-FlutterStartCommand -AppPath $app.Path
+                if ($startCommand) {
+                    if (-not $foundNative) {
+                        $app.AvailableScripts += "flutterStart"
+                        $app.CurrentScript = "flutterStart"
+                        $app.ScriptIndex = 0
+                        $foundNative = $true
                     } else {
-                        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTALL_SCRIPT" -Interactive
+                        $app.AvailableScripts += "flutterStart"
                     }
-                } catch {
-                    Write-ColorMessage -Message "Error executing install script: $($_.Exception.Message)" -Type "Error"
+                    Write-Host "  $($app.Name): flutterStart - $startCommand" -ForegroundColor Magenta
                 }
-            } else {
-                Write-ColorMessage -Message "Error: install_all.ps1 script not found at $INSTALL_SCRIPT" -Type "Error"
             }
-            Read-Host "Press Enter to continue"
-        }
-    },
-    @{
-        Text              = "Build Applications"
-        Values            = @("interactive", "list-only", "all-buildable")
-        CurrentValueIndex = 0
-        Action            = {
-            $selectedValue = $MenuItems[3].Values[$MenuItems[3].CurrentValueIndex]
-            if (Test-Path $BUILD_SCRIPT) {
-                try {
-                    if ($selectedValue -eq "interactive") {
-                        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$BUILD_SCRIPT" -Interactive
-                    } elseif ($selectedValue -eq "list-only") {
-                        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$BUILD_SCRIPT" -List
-                    } else {
-                        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$BUILD_SCRIPT" -All
-                    }
-                } catch {
-                    Write-ColorMessage -Message "Error executing build script: $($_.Exception.Message)" -Type "Error"
-                }
-            } else {
-                Write-ColorMessage -Message "Error: build_apps.ps1 script not found at $BUILD_SCRIPT" -Type "Error"
-            }
-            Read-Host "Press Enter to continue"
-        }
-    },
-    @{
-        Text              = "Back to Main Menu"
-        Values            = @("default")
-        CurrentValueIndex = 0
-        Action            = {
-            Write-ColorMessage -Message "Returning to main menu..." -Type "Info"
-            $ddScript = Join-Path $PROJECT_ROOT "scripts\shells\win\dd.ps1"
-            if (Test-Path $ddScript) {
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $ddScript -SkipInitialization
-            } else {
-                Write-ColorMessage -Message "Error: dd.ps1 script not found" -Type "Error"
-                Read-Host "Press Enter to continue"
-            }
-        }
-    },
-    @{
-        Text              = "Exit"
-        Values            = @("default")
-        CurrentValueIndex = 0
-        Action            = {
-            Write-ColorMessage -Message "Exiting Unified Manager..." -Type "Info"
-            exit 0
-        }
-    }
-)
-
-# Main menu loop
-function Start-UnifiedManager {
-    Write-ColorMessage -Message "Starting Unified Application Manager" -Type "Info"
-    Write-Host ""
-
-    while ($true) {
-        try {
-            $selection = Invoke-InteractiveMenu -Items $MenuItems -Title "Unified App Manager - Select an option (Up/Down to move, Left/Right to change mode, Enter to select)" -EnableValueToggle $true
             
-            if ($selection -ge 0 -and $selection -lt $MenuItems.Count) {
-                $selectedItem = $MenuItems[$selection]
-                if ($selectedItem.Action) {
-                    try {
-                        & $selectedItem.Action
-                    } catch {
-                        Write-ColorMessage -Message "Error executing action: $_" -Type "Error"
-                        Read-Host "Press Enter to continue"
+            # Laravel
+            if ($app.HasComposerJson) {
+                $publicIndexPath = Join-Path $app.Path "public\index.php"
+                if (Test-Path $publicIndexPath) {
+                    $startCommand = Get-LaravelStartCommand -AppPath $app.Path
+                    if ($startCommand) {
+                        if (-not $foundNative) {
+                            $app.AvailableScripts += "laravelStart"
+                            $app.CurrentScript = "laravelStart"
+                            $app.ScriptIndex = 0
+                            $foundNative = $true
+                        } else {
+                            $app.AvailableScripts += "laravelStart"
+                        }
+                        Write-Host "  $($app.Name): laravelStart - $startCommand" -ForegroundColor Magenta
                     }
                 }
             }
-        } catch {
-            Write-ColorMessage -Message "Error in menu: $_" -Type "Error"
-            Read-Host "Press Enter to continue"
+            
+            # Nuxt
+            if ($app.HasNuxtConfig) {
+                $startCommand = Get-NuxtStartCommand -AppPath $app.Path
+                if ($startCommand) {
+                    if (-not $foundNative) {
+                        $app.AvailableScripts += "nuxtStart"
+                        $app.CurrentScript = "nuxtStart"
+                        $app.ScriptIndex = 0
+                        $foundNative = $true
+                    } else {
+                        $app.AvailableScripts += "nuxtStart"
+                    }
+                    Write-Host "  $($app.Name): nuxtStart - $startCommand" -ForegroundColor Magenta
+                }
+            }
+            
+            # PHP (plain)
+            if ($app.HasIndexPhp -and -not $app.HasComposerJson) {
+                $startCommand = Get-PhpStartCommand -AppPath $app.Path
+                if ($startCommand) {
+                    if (-not $foundNative) {
+                        $app.AvailableScripts += "phpStart"
+                        $app.CurrentScript = "phpStart"
+                        $app.ScriptIndex = 0
+                        $foundNative = $true
+                    } else {
+                        $app.AvailableScripts += "phpStart"
+                    }
+                    Write-Host "  $($app.Name): phpStart - $startCommand" -ForegroundColor Magenta
+                }
+            }
+        }
+        
+        # Priority 3: pyStart for main.py
+        if ($app.HasMainPy) {
+            $startCommand = Get-PyStartCommand -AppPath $app.Path
+            if ($startCommand) {
+                if (-not $foundNative) {
+                    $app.AvailableScripts += "pyStart"
+                    $app.CurrentScript = "pyStart"
+                    $app.ScriptIndex = 0
+                    $foundNative = $true
+                } else {
+                    $app.AvailableScripts += "pyStart"
+                }
+                Write-Host "  $($app.Name): pyStart - $startCommand" -ForegroundColor Magenta
+            }
         }
     }
 }
 
-# Start the unified manager
-Start-UnifiedManager
+# Step 4: Integrate two lists into one data
+function Step4-IntegrateData {
+    param([array]$NcoreApps, [array]$PolyApps)
+    
+    Write-Host "Step 4: Integrating data..." -ForegroundColor Cyan
+    
+    $allApps = @()
+    $allApps += $NcoreApps
+    $allApps += $PolyApps
+    
+    Write-Host "  Total apps: $($allApps.Count)" -ForegroundColor Green
+    
+    return $allApps
+}
+
+# Step 5: Scan scripts directory for each app
+function Step5-ScanScriptsDirectory {
+    param([array]$AllApps)
+    
+    Write-Host "Step 5: Scanning scripts directories..." -ForegroundColor Cyan
+    
+    foreach ($app in $AllApps) {
+        $scriptsPath = Join-Path $app.Path "scripts"
+        if (Test-Path $scriptsPath) {
+            $foundScripts = @()
+            foreach ($scriptFile in $global:ScriptFiles) {
+                $scriptPath = Join-Path $scriptsPath $scriptFile
+                if (Test-Path $scriptPath) {
+                    $foundScripts += $scriptFile
+                }
+            }
+            
+            if ($foundScripts.Count -gt 0) {
+                $app.AvailableScripts += $foundScripts
+                Write-Host "  $($app.Name): $($foundScripts -join ', ')" -ForegroundColor Gray
+            }
+        }
+        
+        # Set default if no scripts found
+        if ($app.AvailableScripts.Count -eq 0) {
+            $app.CurrentScript = "None"
+        } elseif (-not $app.CurrentScript) {
+            $app.CurrentScript = $app.AvailableScripts[0]
+            $app.ScriptIndex = 0
+        }
+    }
+}
+
+# Step 6: Load cache and restore app states
+function Step6-LoadCache {
+    Write-Host "Step 6: Loading cache and restoring states..." -ForegroundColor Cyan
+    
+    $loaded = Load-Cache
+    if ($loaded) {
+        Write-Host "  Cache restored: app states and toggle indices" -ForegroundColor Green
+    } else {
+        Write-Host "  No cache found, using default states" -ForegroundColor Yellow
+    }
+}
+
+# Step 7: Calculate max app name width
+function Step7-CalculateMaxWidth {
+    param([array]$AllApps)
+    
+    Write-Host "Step 7: Calculating max app name width..." -ForegroundColor Cyan
+    
+    $maxWidth = 0
+    foreach ($app in $AllApps) {
+        if ($app.Name.Length -gt $maxWidth) {
+            $maxWidth = $app.Name.Length
+        }
+    }
+    
+    Write-Host "  Max app name width: $maxWidth" -ForegroundColor Green
+    
+    return $maxWidth
+}
+
+# Main scan function
+function Scan-Apps {
+    Write-Host ""
+    Write-Host "=== Starting Application Scan ===" -ForegroundColor Yellow
+    Write-Host ""
+    
+    # Step 1: Scan ncoreApps
+    $ncoreApps = Step1-ScanNcoreApps
+    Write-Host ""
+    
+    # Step 2: Scan poly_apps
+    $polyApps = Step2-ScanPolyApps
+    Write-Host ""
+    
+    # Step 3: Generate native startup for ncoreApps
+    Step3-GenerateNativeStartup -AppList $ncoreApps
+    Write-Host ""
+    
+    # Step 3: Generate native startup for poly_apps
+    Step3-GenerateNativeStartup -AppList $polyApps
+    Write-Host ""
+    
+    # Step 4: Integrate data
+    $allApps = Step4-IntegrateData -NcoreApps $ncoreApps -PolyApps $polyApps
+    Write-Host ""
+    
+    # Step 5: Scan scripts directories
+    Step5-ScanScriptsDirectory -AllApps $allApps
+    Write-Host ""
+    
+    # Set global apps
+    $global:Apps = $allApps
+    
+    # Step 6: Load cache (will override if exists)
+    Step6-LoadCache
+    Write-Host ""
+    
+    # Step 7: Calculate max width for menu
+    $global:MaxAppNameWidth = Step7-CalculateMaxWidth -AllApps $global:Apps
+    Write-Host ""
+    
+    Write-Host "=== Scan Complete ===" -ForegroundColor Green
+    Write-Host ""
+}
+
+
+# Save cache - only save app index and toggle index
+function Save-Cache {
+    $cacheData = @{
+        AppStates = $global:Apps | ForEach-Object {
+            @{
+                Name = $_.Name
+                AppType = $_.AppType
+                IsSelected = $_.IsSelected
+                CurrentScript = $_.CurrentScript
+                ScriptIndex = $_.ScriptIndex
+            }
+        }
+        CurrentIndex = $global:CurrentIndex
+    }
+    
+    $cacheData | ConvertTo-Json -Depth 3 | Out-File -FilePath $cacheFile -Encoding UTF8
+    Write-Host "Cache saved to: $cacheFile" -ForegroundColor Green
+}
+
+# Load cache - only load app index and toggle index, restore states
+function Load-Cache {
+    if (Test-Path $cacheFile) {
+        try {
+            $cacheData = Get-Content -Path $cacheFile -Encoding UTF8 | ConvertFrom-Json
+            
+            if ($cacheData.AppStates) {
+                # Restore states for each app based on name and type
+                foreach ($appState in $cacheData.AppStates) {
+                    $matchingApp = $global:Apps | Where-Object { $_.Name -eq $appState.Name -and $_.AppType -eq $appState.AppType }
+                    if ($matchingApp) {
+                        $matchingApp.IsSelected = $appState.IsSelected
+                        
+                        # Restore toggle index if the script exists in available scripts
+                        if ($appState.CurrentScript -and $matchingApp.AvailableScripts -contains $appState.CurrentScript) {
+                            $matchingApp.CurrentScript = $appState.CurrentScript
+                            $matchingApp.ScriptIndex = [array]::IndexOf($matchingApp.AvailableScripts, $appState.CurrentScript)
+                        }
+                    }
+                }
+            }
+            
+            if ($cacheData.CurrentIndex -ne $null) {
+                $global:CurrentIndex = $cacheData.CurrentIndex
+                # Ensure index is within bounds
+                if ($global:CurrentIndex -ge $global:Apps.Count) {
+                    $global:CurrentIndex = 0
+                }
+            }
+            
+            Write-Host "Cache data loaded from: $cacheFile" -ForegroundColor Green
+            return $true
+        }
+        catch {
+            Write-Host "Failed to load cache: $($_.Exception.Message)" -ForegroundColor Yellow
+            return $false
+        }
+    }
+    return $false
+}
+
+# Show menu
+function Show-Menu {
+    Clear-Host
+    Write-Host "=== Core Node Unified Manager ===" -ForegroundColor Cyan
+    Write-Host "Current directory: $rootDir" -ForegroundColor Gray
+    Write-Host ""
+    
+    if ($global:Apps.Count -eq 0) {
+        Write-Host "No applications found" -ForegroundColor Red
+        return
+    }
+    
+    # Calculate column widths
+    $nameWidth = if ($global:MaxAppNameWidth -gt 8) { $global:MaxAppNameWidth } else { 8 }
+    $typeWidth = 9
+    $scriptWidth = 14
+    
+    Write-Host "Application List:" -ForegroundColor Yellow
+    
+    # Header
+    $header = "No. | {0} | Type      | Current Script | Sel" -f "App Name".PadRight($nameWidth)
+    Write-Host $header -ForegroundColor White
+    
+    # Separator
+    $separator = "----|{0}|-----------|----------------|----" -f ("-" * ($nameWidth + 2))
+    Write-Host $separator -ForegroundColor Gray
+    # App list
+    for ($i = 0; $i -lt $global:Apps.Count; $i++) {
+        $app = $global:Apps[$i]
+        $currentScript = if ($app.CurrentScript) { $app.CurrentScript } else { "None" }
+        $selectedStatus = if ($app.IsSelected) { "Y" } else { "N" }
+        $appType = if ($app.AppType) { $app.AppType } else { "unknown" }
+        
+        # Highlight current selection
+        $color = if ($i -eq $global:CurrentIndex) { "Yellow" } else { "White" }
+        $indicator = if ($i -eq $global:CurrentIndex) { ">" } else { " " }
+        
+        # Format line with proper alignment
+        $appNamePadded = $app.Name.PadRight($nameWidth)
+        $typePadded = $appType.PadRight($typeWidth)
+        $scriptPadded = $currentScript.PadRight($scriptWidth)
+        
+        $line = "{0}{1,2} | {2} | {3} | {4} | {5}" -f $indicator, ($i + 1), $appNamePadded, $typePadded, $scriptPadded, $selectedStatus
+        Write-Host $line -ForegroundColor $color
+    }
+    
+    Write-Host ""
+    Write-Host "Controls:" -ForegroundColor Yellow
+    Write-Host "Up/Down: Navigate | Left/Right: Toggle script | Enter: Launch | Space: Select | E: Execute | S: Save | Q: Quit" -ForegroundColor White
+    Write-Host ""
+}
+
+# Navigate up
+function Navigate-Up {
+    if ($global:CurrentIndex -gt 0) {
+        $global:CurrentIndex--
+    }
+}
+
+# Navigate down
+function Navigate-Down {
+    if ($global:CurrentIndex -lt ($global:Apps.Count - 1)) {
+        $global:CurrentIndex++
+    }
+}
+
+# Toggle script for current app
+function Toggle-Script {
+    $app = $global:Apps[$global:CurrentIndex]
+    if ($app.AvailableScripts.Count -gt 1) {
+        $app.ScriptIndex = ($app.ScriptIndex + 1) % $app.AvailableScripts.Count
+        $app.CurrentScript = $app.AvailableScripts[$app.ScriptIndex]
+        Write-Host "Switched to $($app.CurrentScript) for $($app.Name)" -ForegroundColor Green
+        Save-Cache
+    } else {
+        Write-Host "No alternative scripts available for $($app.Name)" -ForegroundColor Yellow
+    }
+}
+
+# Toggle app selection
+function Toggle-AppSelection {
+    $app = $global:Apps[$global:CurrentIndex]
+    $app.IsSelected = -not $app.IsSelected
+    $status = if ($app.IsSelected) { "selected" } else { "deselected" }
+    Write-Host "$($app.Name) $status" -ForegroundColor Green
+    Save-Cache
+}
+
+# Launch current app
+function Launch-CurrentApp {
+    $app = $global:Apps[$global:CurrentIndex]
+    
+    if (-not $app.CurrentScript -or $app.CurrentScript -eq "None") {
+        Write-Host "No startup script configured for $($app.Name)" -ForegroundColor Red
+        Read-Host "Press any key to continue"
+        return
+    }
+    
+    # Show launch details
+    Write-Host ""
+    Write-Host "=== Launch Details ===" -ForegroundColor Yellow
+    Write-Host "App Name: $($app.Name)" -ForegroundColor White
+    Write-Host "App Type: $($app.AppType)" -ForegroundColor White
+    Write-Host "Startup Mode: $($app.CurrentScript)" -ForegroundColor Cyan
+    Write-Host ""
+    
+    # Check if it's a native startup
+    $nativeStartups = @("ncoreStart", "pyStart", "flutterStart", "laravelStart", "nuxtStart", "phpStart")
+    $isNativeStartup = $nativeStartups -contains $app.CurrentScript
+    
+    if ($isNativeStartup) {
+        # Generate command based on startup type
+        $command = $null
+        $workingDir = $null
+        
+        switch ($app.CurrentScript) {
+            "ncoreStart" {
+                $command = Get-NcoreStartCommand -AppPath $app.Path
+                $workingDir = $rootDir
+            }
+            "pyStart" {
+                $command = Get-PyStartCommand -AppPath $app.Path
+                $workingDir = $app.Path
+            }
+            "flutterStart" {
+                $command = Get-FlutterStartCommand -AppPath $app.Path
+                $workingDir = $app.Path
+            }
+            "laravelStart" {
+                $command = Get-LaravelStartCommand -AppPath $app.Path
+                $workingDir = $app.Path
+            }
+            "nuxtStart" {
+                $command = Get-NuxtStartCommand -AppPath $app.Path
+                $workingDir = $app.Path
+            }
+            "phpStart" {
+                $command = Get-PhpStartCommand -AppPath $app.Path
+                $workingDir = $app.Path
+            }
+        }
+        
+        if ($command) {
+            Write-Host "Working Directory: $workingDir" -ForegroundColor Gray
+            Write-Host "Command: $command" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "Press any key to continue, or 'n' to cancel..." -ForegroundColor Yellow
+            
+            $response = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            if ($response.Character -eq 'n' -or $response.Character -eq 'N') {
+                Write-Host "Launch cancelled" -ForegroundColor Yellow
+                Start-Sleep -Seconds 1
+                return
+            }
+            
+            # Create temporary batch file
+            $tempBatFile = Join-Path $tempScriptDir "$($app.Name)_$($app.CurrentScript).bat"
+            
+            # Generate batch file content
+            $batContent = @"
+@echo off
+cd /d "$workingDir"
+echo Starting $($app.Name) with $($app.CurrentScript)...
+echo Working Directory: %CD%
+echo.
+$command
+pause
+"@
+            
+            # Write batch file
+            $batContent | Out-File -FilePath $tempBatFile -Encoding ASCII -Force
+            
+            Write-Host "Launching $($app.Name)..." -ForegroundColor Green
+            
+            # Launch using explorer (only accepts one parameter)
+            Start-Process "explorer.exe" -ArgumentList $tempBatFile
+            
+            Start-Sleep -Seconds 1
+        } else {
+            Write-Host "Failed to generate startup command" -ForegroundColor Red
+            Read-Host "Press any key to continue"
+        }
+    } else {
+        # Script-based startup
+        $scriptPath = Join-Path (Join-Path $app.Path "scripts") $app.CurrentScript
+        
+        if (Test-Path $scriptPath) {
+            Write-Host "Script Path: $scriptPath" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "Press any key to continue, or 'n' to cancel..." -ForegroundColor Yellow
+            
+            $response = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            if ($response.Character -eq 'n' -or $response.Character -eq 'N') {
+                Write-Host "Launch cancelled" -ForegroundColor Yellow
+                Start-Sleep -Seconds 1
+                return
+            }
+            
+            Write-Host "Launching $($app.Name) with $($app.CurrentScript)..." -ForegroundColor Green
+            
+            # Launch script directly using explorer
+            Start-Process "explorer.exe" -ArgumentList $scriptPath
+            
+            Start-Sleep -Seconds 1
+        } else {
+            Write-Host "Script not found: $scriptPath" -ForegroundColor Red
+            Read-Host "Press any key to continue"
+        }
+    }
+}
+
+# Execute selected app scripts
+function Execute-SelectedApps {
+    $selectedApps = $global:Apps | Where-Object { $_.IsSelected }
+    
+    if ($selectedApps.Count -eq 0) {
+        Write-Host "No applications selected" -ForegroundColor Yellow
+        return
+    }
+    
+    Write-Host "Executing selected applications with their current scripts:" -ForegroundColor Yellow
+    foreach ($app in $selectedApps) {
+        if ($app.CurrentScript) {
+            Write-Host "Executing $($app.CurrentScript) for $($app.Name)..." -ForegroundColor White
+            Execute-Scripts -ScriptType $app.CurrentScript -Apps @($app)
+        } else {
+            Write-Host "No script selected for $($app.Name)" -ForegroundColor Red
+        }
+    }
+}
+
+# Execute scripts
+function Execute-Scripts {
+    param(
+        [string]$ScriptType,
+        [array]$Apps
+    )
+    
+    $hasScript = $false
+    foreach ($app in $Apps) {
+        $scriptPath = $null
+        $command = $null
+        
+        # Determine script path and command based on script type
+        switch ($ScriptType) {
+            "pyStart" {
+                $scriptPath = Join-Path $app.Path "main.py"
+                $command = Get-PyStartCommand -AppPath $app.Path
+            }
+            "ncoreStart" {
+                $scriptPath = Join-Path $app.Path "main.js"
+                $command = Get-NcoreStartCommand -AppPath $app.Path
+            }
+            "flutterStart" {
+                $scriptPath = Join-Path $app.Path "pubspec.yaml"
+                $command = Get-FlutterStartCommand -AppPath $app.Path
+            }
+            "laravelStart" {
+                $scriptPath = Join-Path $app.Path "composer.json"
+                $command = Get-LaravelStartCommand -AppPath $app.Path
+            }
+            "nuxtStart" {
+                $scriptPath = Join-Path $app.Path "nuxt.config.ts"
+                $command = Get-NuxtStartCommand -AppPath $app.Path
+            }
+            "phpStart" {
+                $scriptPath = Join-Path $app.Path "index.php"
+                $command = Get-PhpStartCommand -AppPath $app.Path
+            }
+            default {
+                $scriptPath = Join-Path (Join-Path $app.Path "scripts") $ScriptType
+            }
+        }
+        
+        if (Test-Path $scriptPath) {
+            $hasScript = $true
+            Write-Host "Executing $ScriptType for $($app.Name)..." -ForegroundColor Yellow
+            
+            try {
+                if ($command) {
+                    # Native startup commands
+                    Invoke-Expression $command
+                } elseif ($ScriptType -eq "start.bat" -or $ScriptType -eq "deploy.bat") {
+                    # Batch files
+                    & $scriptPath
+                } else {
+                    # PowerShell scripts: start.ps1, install.ps1, deploy.ps1
+                    & powershell -ExecutionPolicy Bypass -File $scriptPath
+                }
+                Write-Host "$ScriptType for $($app.Name) completed" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "$ScriptType for $($app.Name) failed: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
+    }
+    
+    if (-not $hasScript) {
+        Write-Host "No applications contain $ScriptType script" -ForegroundColor Yellow
+    }
+}
+
+# Main loop
+function Main {
+    # Always scan apps first
+    Scan-Apps
+    
+    do {
+        Show-Menu
+        
+        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        
+        switch ($key.VirtualKeyCode) {
+            38 { # Up arrow
+                Navigate-Up
+                Save-Cache
+            }
+            40 { # Down arrow
+                Navigate-Down
+                Save-Cache
+            }
+            37 { # Left arrow
+                Toggle-Script
+            }
+            39 { # Right arrow
+                Toggle-Script
+            }
+            13 { # Enter
+                Launch-CurrentApp
+            }
+            32 { # Space key - Toggle selection
+                Toggle-AppSelection
+            }
+            81 { # Q key
+                Write-Host "Exiting program" -ForegroundColor Yellow
+                Save-Cache
+                break
+            }
+            82 { # R key
+                Scan-Apps
+                Write-Host "Application list updated" -ForegroundColor Green
+                Start-Sleep -Seconds 1
+            }
+            83 { # S key
+                Save-Cache
+                Write-Host "State saved" -ForegroundColor Green
+                Start-Sleep -Seconds 1
+            }
+            69 { # E key
+                Execute-SelectedApps
+                Read-Host "Press any key to continue"
+            }
+            68 { # D key
+                Show-Cache-Debug
+                Read-Host "Press any key to continue"
+            }
+            default {
+                # Ignore other keys
+            }
+        }
+    } while ($key.VirtualKeyCode -ne 81)
+}
+
+# Debug function to show cache content
+function Show-Cache-Debug {
+    if (Test-Path $cacheFile) {
+        Write-Host "Cache file content:" -ForegroundColor Cyan
+        $cacheContent = Get-Content -Path $cacheFile -Encoding UTF8
+        Write-Host $cacheContent -ForegroundColor White
+    } else {
+        Write-Host "No cache file found" -ForegroundColor Yellow
+    }
+}
+
+# Start program
+Main

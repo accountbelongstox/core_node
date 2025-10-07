@@ -19,13 +19,15 @@ import '../../../common/network/api_client.dart';
 import '../../../common/network/models/api_response.dart';
 import '../../../common/network/models/enhanced_api_response.dart';
 import '../../../common/cache_manager/cache_manager.dart';
+import '../config_app_achat/api_config_achat.dart';
 import '../models/chat_models.dart';
 import '../models/user_models.dart';
 import '../models/message_models.dart';
 
-/// Extended API client for AChat with caching and enhanced features
+/// Extended API client for AChat connecting to BankV1 backend
+/// Cross-app data consistency implementation
 class AChatApiClient extends ApiClient {
-  static const String baseUrl = 'https://api.achat.enterprise.com/v1';
+  static const String baseUrl = 'https://api.si.12gm.com';
 
   final CacheManager _cacheManager = CacheManager.instance;
 
@@ -564,5 +566,199 @@ class AChatApiClient extends ApiClient {
 
   Future<Map<String, dynamic>> getCacheStats() async {
     return await _cacheManager.getStats();
+  }
+
+  // ========================================
+  // BankV1 Backend Integration Methods
+  // Cross-app data consistency implementation
+  // ========================================
+
+  /// App lifecycle - Open app
+  Future<ApiResponse<Map<String, dynamic>>> appOpen({
+    String? appVersion,
+    String? platform,
+  }) async {
+    try {
+      final requestData = AChatApiModels.appOpenRequest(
+        deviceId: AChatDeviceInfo.deviceId,
+        appSignature: AChatDeviceInfo.appSignature,
+        timestamp: AChatDeviceInfo.currentTimestamp,
+        appVersion: appVersion,
+        platform: platform,
+      );
+
+      final response = await post(
+        ApiEndpointsAChat.appOpen,
+        data: requestData,
+        headers: {
+          'X-Device-ID': AChatDeviceInfo.deviceId,
+          'X-App-Signature': AChatDeviceInfo.appSignature,
+          'X-Platform': platform ?? 'flutter',
+          'X-App-Version': appVersion ?? '1.0.0',
+        },
+      );
+
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('App open API error: $e');
+      }
+      return ApiResponse.error('Failed to notify app open: $e');
+    }
+  }
+
+  /// App lifecycle - Close app
+  Future<ApiResponse<Map<String, dynamic>>> appClose({
+    int? sessionDuration,
+  }) async {
+    try {
+      final requestData = AChatApiModels.appCloseRequest(
+        deviceId: AChatDeviceInfo.deviceId,
+        appSignature: AChatDeviceInfo.appSignature,
+        timestamp: AChatDeviceInfo.currentTimestamp,
+        sessionDuration: sessionDuration,
+      );
+
+      final response = await post(
+        ApiEndpointsAChat.appClose,
+        data: requestData,
+        headers: {
+          'X-Device-ID': AChatDeviceInfo.deviceId,
+          'X-App-Signature': AChatDeviceInfo.appSignature,
+        },
+      );
+
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('App close API error: $e');
+      }
+      return ApiResponse.error('Failed to notify app close: $e');
+    }
+  }
+
+  /// App lifecycle - Heartbeat
+  Future<ApiResponse<Map<String, dynamic>>> heartbeat({
+    int? sessionDuration,
+  }) async {
+    try {
+      final requestData = AChatApiModels.heartbeatRequest(
+        timestamp: AChatDeviceInfo.currentTimestamp,
+        sessionDuration: sessionDuration,
+      );
+
+      final response = await post(
+        ApiEndpointsAChat.appHeartbeat,
+        data: requestData,
+        headers: {
+          'X-Device-ID': AChatDeviceInfo.deviceId,
+          'X-App-Signature': AChatDeviceInfo.appSignature,
+        },
+      );
+
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Heartbeat API error: $e');
+      }
+      return ApiResponse.error('Failed to send heartbeat: $e');
+    }
+  }
+
+  /// User management - Update profile
+  Future<ApiResponse<Map<String, dynamic>>> updateUserProfile({
+    String? fullName,
+    String? email,
+    String? phone,
+    String? dateOfBirth,
+    String? gender,
+  }) async {
+    try {
+      final requestData = AChatApiModels.profileUpdateRequest(
+        fullName: fullName,
+        email: email,
+        phone: phone,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+
+      final response = await put(
+        ApiEndpointsAChat.updateProfile,
+        data: requestData,
+        headers: {
+          'X-Device-ID': AChatDeviceInfo.deviceId,
+          'X-App-Signature': AChatDeviceInfo.appSignature,
+        },
+      );
+
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Update profile API error: $e');
+      }
+      return ApiResponse.error('Failed to update profile: $e');
+    }
+  }
+
+  /// Test app - Generate test data
+  Future<ApiResponse<Map<String, dynamic>>> generateTestData({
+    required String dataType,
+    int? count,
+    Map<String, dynamic>? parameters,
+  }) async {
+    try {
+      final requestData = AChatApiModels.generateTestDataRequest(
+        dataType: dataType,
+        count: count,
+        parameters: parameters,
+      );
+
+      final response = await post(
+        ApiEndpointsAChat.generateTestData,
+        data: requestData,
+        headers: {
+          'X-Device-ID': AChatDeviceInfo.deviceId,
+          'X-App-Signature': AChatDeviceInfo.appSignature,
+        },
+      );
+
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Generate test data API error: $e');
+      }
+      return ApiResponse.error('Failed to generate test data: $e');
+    }
+  }
+
+  /// Test app - Upload test info
+  Future<ApiResponse<Map<String, dynamic>>> uploadTestInfo({
+    required String infoType,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final requestData = AChatApiModels.uploadTestInfoRequest(
+        infoType: infoType,
+        data: data,
+        timestamp: DateTime.now().toIso8601String(),
+      );
+
+      final response = await post(
+        ApiEndpointsAChat.uploadTestInfo,
+        data: requestData,
+        headers: {
+          'X-Device-ID': AChatDeviceInfo.deviceId,
+          'X-App-Signature': AChatDeviceInfo.appSignature,
+        },
+      );
+
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Upload test info API error: $e');
+      }
+      return ApiResponse.error('Failed to upload test info: $e');
+    }
   }
 }

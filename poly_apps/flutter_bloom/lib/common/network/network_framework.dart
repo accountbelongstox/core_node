@@ -99,11 +99,11 @@ export 'services/advanced_network_service.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'core/network_config.dart';
-import 'auth/auth_manager.dart';
-import 'cache/cache_manager.dart';
-import 'queue/request_queue.dart';
-import 'loading/loading_manager.dart';
-import 'client/network_client.dart';
+import 'auth/unified_auth_manager.dart';
+import '../cache_manager/cache_manager.dart';
+import 'core/network_queue_and_offline.dart';
+import 'ui/global_loading_system.dart';
+import 'core/unified_network_client.dart';
 import 'interceptors/network_interceptors.dart';
 import 'storage/secure_storage.dart';
 
@@ -192,7 +192,7 @@ class NetworkFramework {
 
       // Initialize core components
       await SecureStorage.instance.initialize();
-      await AuthManager.instance.initialize();
+      await UnifiedAuthManager.instance.initialize();
       await CacheManager.instance.initialize();
       RequestQueue.instance.initialize();
       await NetworkClient.instance.initialize();
@@ -315,7 +315,7 @@ class NetworkFramework {
         'enableLogging': NetworkConfig.instance.enableLogging,
         'logLevel': NetworkConfig.instance.logLevel.toString(),
       },
-      'auth': AuthManager.instance.getAuthSummary(),
+      'auth': UnifiedAuthManager.instance.getAuthSummary(),
     };
   }
 
@@ -336,7 +336,7 @@ class NetworkFramework {
 
   /// Reset framework (for testing)
   static Future<void> reset() async {
-    await AuthManager.instance.clearAuth();
+    await UnifiedAuthManager.instance.clearAuth();
     await CacheManager.instance.clear();
     RequestQueue.instance.cancelAll();
     LoadingManager.instance.clearAll();

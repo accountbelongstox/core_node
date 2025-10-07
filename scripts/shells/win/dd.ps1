@@ -310,7 +310,7 @@ $script:MenuItems = @(
         Values            = @("default")
         CurrentValueIndex = 0
         Action            = {
-            $unifiedManagerScript = Join-Path $script:SCRIPT_DIR "unified_manager_py\unified_manager.ps1"
+            $unifiedManagerScript = Join-Path $script:SCRIPT_DIR "unified_manager\unified_manager.ps1"
             if (Test-Path $unifiedManagerScript) {
                 $shellCandidates = @('pwsh', 'powershell')
                 $shellExecutable = $null
@@ -329,17 +329,11 @@ $script:MenuItems = @(
                     return
                 }
 
-                $previousPythonUnbuffered = $env:PYTHONUNBUFFERED
-                $env:PYTHONUNBUFFERED = "1"
-
                 try {
                     & $shellExecutable -NoLogo -NoProfile -ExecutionPolicy Bypass -File $unifiedManagerScript
                 } finally {
-                    if ($null -eq $previousPythonUnbuffered) {
-                        Remove-Item Env:PYTHONUNBUFFERED -ErrorAction SilentlyContinue
-                    } else {
-                        $env:PYTHONUNBUFFERED = $previousPythonUnbuffered
-                    }
+                    # Return to dd.ps1 with SkipInitialization to avoid redundant processing
+                    & $PSCommandPath -SkipInitialization
                 }
             } else {
                 Write-ColorMessage -Message "Error: unified_manager.ps1 script not found at: $unifiedManagerScript" -Type "Error"
