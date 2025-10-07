@@ -20,8 +20,8 @@ import '../../../resources_app_bank/assets_images_app_bank.dart';
 import '../../../resources_app_bank/gradients_app_bank.dart';
 import '../../../config_app_bank/theme_config_app_bank.dart';
 import '../../../services_app_bank/bank_network_service.dart';
+// Fix: Import network_framework.dart for UnifiedAuthManager
 import '../../../../../common/network/network_framework.dart';
-import '../../../../../common/provider_status/user_provider.dart';
 
 class BankDashboardScreen extends StatefulWidget {
   const BankDashboardScreen({super.key});
@@ -42,20 +42,12 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
 
   Future<void> _initializeNetworkFramework() async {
     try {
-      await NetworkFramework.initialize(
-        baseUrl: 'https://api.si.12gm.com',
-        authType: AuthType.jwt,
-        enableCache: true,
-        enableQueue: true,
-        enableGlobalLoading: true,
-        enableLogging: true,
-        logLevel: LogLevel.debug,
-      );
-
+      // Fix: NetworkFramework.initialize requires a BaseNetworkConfig
+      // For Bank app, we simply initialize the network service
       await _networkService.initialize();
 
       // Report app open event
-      final authManager = AuthManager.instance;
+      final authManager = UnifiedAuthManager.instance;
       if (authManager.deviceId != null && authManager.appSignature != null) {
         await _networkService.appOpen(
           deviceId: authManager.deviceId!,

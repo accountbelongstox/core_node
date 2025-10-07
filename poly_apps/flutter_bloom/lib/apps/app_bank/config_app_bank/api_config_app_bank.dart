@@ -11,6 +11,8 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import '../../../common/network/models/api_config.dart';
+// FIX: Import unified user model for LoginResponseAppBank
+import '../models_app_bank/user_model_app_bank.dart';
 
 class ApiConfigAppBank {
   static const String baseUrl = 'https://api.si.12gm.com';
@@ -225,77 +227,34 @@ class ApiDataModelsAppBank {
 }
 
 // Response models for type-safe parsing
+// REMOVED: UserDataAppBank class - unified to use BankUser from user_model_app_bank.dart
+
 class LoginResponseAppBank {
   final String token;
   final String refreshToken;
-  final UserDataAppBank user;
+  final BankUser user; // FIX: Unified to use BankUser
   final int expiresIn;
+  final DateTime? expiresAt;
 
   LoginResponseAppBank({
     required this.token,
     required this.refreshToken,
     required this.user,
     required this.expiresIn,
+    this.expiresAt,
   });
 
   factory LoginResponseAppBank.fromJson(Map<String, dynamic> json) {
     return LoginResponseAppBank(
       token: json['token'] ?? '',
       refreshToken: json['refresh_token'] ?? '',
-      user: UserDataAppBank.fromJson(json['user'] ?? {}),
+      user: BankUser.fromApiResponse(json['user'] ?? {}), // FIX: Use unified model
       expiresIn: json['expires_in'] ?? 3600,
+      expiresAt: json['expires_at'] != null 
+        ? DateTime.tryParse(json['expires_at']) 
+        : DateTime.now().add(Duration(seconds: json['expires_in'] ?? 3600)),
     );
   }
-}
-
-class UserDataAppBank {
-  final String id;
-  final String username;
-  final String email;
-  final String fullName;
-  final String? phone;
-  final double balance;
-  final String? address;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  UserDataAppBank({
-    required this.id,
-    required this.username,
-    required this.email,
-    required this.fullName,
-    this.phone,
-    required this.balance,
-    this.address,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-
-  factory UserDataAppBank.fromJson(Map<String, dynamic> json) {
-    return UserDataAppBank(
-      id: json['id']?.toString() ?? '',
-      username: json['username'] ?? '',
-      email: json['email'] ?? '',
-      fullName: json['full_name'] ?? '',
-      phone: json['phone'],
-      balance: (json['balance'] ?? 0.0).toDouble(),
-      address: json['address'],
-      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'username': username,
-    'email': email,
-    'full_name': fullName,
-    'phone': phone,
-    'balance': balance,
-    'address': address,
-    'created_at': createdAt.toIso8601String(),
-    'updated_at': updatedAt.toIso8601String(),
-  };
 }
 
 class AppOpenResponseAppBank {

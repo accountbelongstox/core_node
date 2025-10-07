@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+// Fix: Use BankNetworkService for app lifecycle events (has appOpen/appClose methods)
+import '../services_app_bank/bank_network_service.dart';
+// Fix: Use BankPublicApiService for device status/security checks
 import '../services_app_bank/bank_public_api_service.dart';
 import '../../../common/network/security/device_security_manager.dart';
 
@@ -8,7 +11,8 @@ class AppLifecycleManager {
   factory AppLifecycleManager() => _instance;
   AppLifecycleManager._internal();
 
-  final BankPublicApiService _publicService = BankPublicApiService.instance;
+  // Fix: Use BankNetworkService instead of BankPublicApiService
+  final BankNetworkService _networkService = BankNetworkService.instance;
   final DeviceSecurityManager _securityManager = DeviceSecurityManager.instance;
   
   bool _isInitialized = false;
@@ -39,30 +43,29 @@ class AppLifecycleManager {
       _appOpenTime = DateTime.now();
       
       final deviceId = await _securityManager.getDeviceId();
-      final appSignature = await _securityManager.generateAppSignature();
+      // Fix: Use getAppSignature instead of generateAppSignature
+      final appSignature = await _securityManager.getAppSignature();
       
-      final response = await _publicService.reportAppOpen(
+      // Fix: Use BankNetworkService.appOpen with correct parameters
+      final response = await _networkService.appOpen(
         deviceId: deviceId,
         appSignature: appSignature,
-        timestamp: _appOpenTime!.millisecondsSinceEpoch ~/ 1000,
-        eventType: 'app_open',
         appVersion: await _getAppVersion(),
         platform: await _getPlatform(),
       );
 
-      if (response.isSuccess && response.data != null) {
-        _sessionId = response.data!['session_id'];
+      if (response.statusCode == 200 && response.data != null) {
+        _sessionId = response.data!.sessionId;
         
         // Check if device is locked
-        final deviceLocked = response.data!['device_locked'] ?? false;
-        if (deviceLocked) {
-          final lockReason = response.data!['lock_reason'] ?? 'Device is locked';
+        if (response.data!.deviceLocked) {
+          final lockReason = response.data!.lockReason ?? 'Device is locked';
           await _handleDeviceLocked(lockReason);
         }
         
         debugPrint('App open event reported successfully. Session ID: $_sessionId');
       } else {
-        debugPrint('Failed to report app open event: ${response.message}');
+        debugPrint('Failed to report app open event: ${response.error ?? response.message}');
       }
     } catch (e) {
       debugPrint('Error reporting app open event: $e');
@@ -75,21 +78,21 @@ class AppLifecycleManager {
     
     try {
       final deviceId = await _securityManager.getDeviceId();
-      final appSignature = await _securityManager.generateAppSignature();
+      // Fix: Use getAppSignature instead of generateAppSignature
+      final appSignature = await _securityManager.getAppSignature();
       final sessionDuration = DateTime.now().difference(_appOpenTime!).inSeconds;
       
-      final response = await _publicService.reportAppClose(
+      // Fix: Use BankNetworkService.appClose with correct parameters
+      final response = await _networkService.appClose(
         deviceId: deviceId,
         appSignature: appSignature,
-        timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        eventType: 'app_close',
         sessionDuration: sessionDuration,
       );
 
-      if (response.isSuccess) {
+      if (response.statusCode == 200) {
         debugPrint('App close event reported successfully');
       } else {
-        debugPrint('Failed to report app close event: ${response.message}');
+        debugPrint('Failed to report app close event: ${response.error ?? response.message}');
       }
     } catch (e) {
       debugPrint('Error reporting app close event: $e');
@@ -160,9 +163,10 @@ class AppLifecycleManager {
   /// Check device security status
   Future<bool> checkDeviceStatus() async {
     try {
-      final deviceId = await _securityManager.getDeviceId();
-      final response = await _publicService.checkDeviceStatus(deviceId);
+      // Fix: BankPublicApiService.checkDeviceStatus() has no parameters
+      final response = await BankPublicApiService.instance.checkDeviceStatus();
       
+      // Fix: NetworkResponse uses 'isSuccess' getter
       if (response.isSuccess && response.data != null) {
         final deviceLocked = response.data!['device_locked'] ?? false;
         if (deviceLocked) {
@@ -182,18 +186,10 @@ class AppLifecycleManager {
   /// Register device with backend
   Future<bool> registerDevice() async {
     try {
-      final deviceId = await _securityManager.getDeviceId();
-      final appSignature = await _securityManager.generateAppSignature();
-      
-      final response = await _publicService.registerDevice(
-        deviceId: deviceId,
-        appSignature: appSignature,
-        registrationTimestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        deviceName: await _getDeviceName(),
-        platform: await _getPlatform(),
-        appVersion: await _getAppVersion(),
-      );
+      // Fix: BankPublicApiService.registerDevice() has no parameters
+      final response = await BankPublicApiService.instance.registerDevice();
 
+      // Fix: NetworkResponse uses 'isSuccess' getter
       if (response.isSuccess) {
         debugPrint('Device registered successfully');
         return true;
@@ -207,29 +203,13 @@ class AppLifecycleManager {
     }
   }
 
-  /// Get device name
-  Future<String> _getDeviceName() async {
-    try {
-      // You can get this from device_info_plus or similar package
-      return 'Flutter Device'; // Placeholder
-    } catch (e) {
-      return 'Unknown Device';
-    }
-  }
-
   /// Perform security check
   Future<bool> performSecurityCheck(String checkType) async {
     try {
-      final deviceId = await _securityManager.getDeviceId();
-      final appSignature = await _securityManager.generateAppSignature();
-      
-      final response = await _publicService.performSecurityCheck(
-        deviceId: deviceId,
-        appSignature: appSignature,
-        timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        checkType: checkType,
-      );
+      // Fix: BankPublicApiService.performSecurityCheck() has no parameters
+      final response = await BankPublicApiService.instance.performSecurityCheck();
 
+      // Fix: NetworkResponse uses 'isSuccess' getter
       if (response.isSuccess) {
         debugPrint('Security check passed');
         return true;

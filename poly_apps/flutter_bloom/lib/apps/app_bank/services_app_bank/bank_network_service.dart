@@ -17,6 +17,8 @@ import '../../../common/network/integration/network_user_integration.dart';
 import '../config_app_bank/api_config_app_bank.dart';
 import '../config_app_bank/bank_endpoint_config.dart';
 import '../providers_app_bank/bank_user_provider.dart';
+// FIX: Import unified user model for BankUser type only
+import '../models_app_bank/user_model_app_bank.dart' show BankUser;
 
 class BankNetworkService extends AdvancedNetworkService {
   static BankNetworkService? _instance;
@@ -31,6 +33,11 @@ class BankNetworkService extends AdvancedNetworkService {
 
   @override
   EndpointConfig get endpointConfig => BankEndpointConfig();
+
+  // Fix: Implement missing abstract getter apiConfig
+  // Use authApiConfig as the primary config for authenticated endpoints
+  @override
+  ApiConfig get apiConfig => ApiConfigAppBank.authApiConfig;
 
   /// Initialize with user provider
   Future<void> initializeWithUserProvider(BankUserProvider userProvider) async {
@@ -96,16 +103,25 @@ class BankNetworkService extends AdvancedNetworkService {
 
         // Update user data if available
         if (loginResponse.user != null) {
-          // Convert API user data to BankUserModel and update provider
-          // This would need proper mapping from API response to user model
           debugPrint('User logged in successfully: ${loginResponse.user!.username}');
         }
       }
 
-      return response.copyWith<LoginResponseAppBank>(data: loginResponse);
+      return NetworkResponse<LoginResponseAppBank>(
+        data: loginResponse,
+        statusCode: response.statusCode,
+        message: response.message,
+        error: response.error,
+        timestamp: response.timestamp,
+      );
     }
 
-    return response.copyWith<LoginResponseAppBank>();
+    return NetworkResponse<LoginResponseAppBank>(
+      statusCode: response.statusCode ?? 500,
+      error: response.error ?? 'Login failed',
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
   Future<NetworkResponse<LoginResponseAppBank>> register({
@@ -131,10 +147,21 @@ class BankNetworkService extends AdvancedNetworkService {
     
     if (response.isSuccess && response.data != null) {
       final loginResponse = LoginResponseAppBank.fromJson(response.data!);
-      return response.copyWith<LoginResponseAppBank>(data: loginResponse);
+      return NetworkResponse<LoginResponseAppBank>(
+        data: loginResponse,
+        statusCode: response.statusCode,
+        message: response.message,
+        error: response.error,
+        timestamp: response.timestamp,
+      );
     }
     
-    return response.copyWith<LoginResponseAppBank>();
+    return NetworkResponse<LoginResponseAppBank>(
+      statusCode: response.statusCode ?? 500,
+      error: response.error ?? 'Registration failed',
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
   Future<NetworkResponse<Map<String, dynamic>>> logout() async {
@@ -175,10 +202,21 @@ class BankNetworkService extends AdvancedNetworkService {
     
     if (response.isSuccess && response.data != null) {
       final appOpenResponse = AppOpenResponseAppBank.fromJson(response.data!);
-      return response.copyWith<AppOpenResponseAppBank>(data: appOpenResponse);
+      return NetworkResponse<AppOpenResponseAppBank>(
+        data: appOpenResponse,
+        statusCode: response.statusCode,
+        message: response.message,
+        error: response.error,
+        timestamp: response.timestamp,
+      );
     }
     
-    return response.copyWith<AppOpenResponseAppBank>();
+    return NetworkResponse<AppOpenResponseAppBank>(
+      statusCode: response.statusCode ?? 500,
+      error: response.error ?? 'App open failed',
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
   Future<NetworkResponse<Map<String, dynamic>>> appClose({
@@ -200,26 +238,39 @@ class BankNetworkService extends AdvancedNetworkService {
   }
 
   // User management methods
-  Future<NetworkResponse<UserDataAppBank>> getUserProfile() async {
+  /// FIX: Unified user model - returns BankUser directly
+  Future<NetworkResponse<BankUser>> getUserProfile() async {
     if (!_checkAuthentication(permission: 'view_profile')) {
-      return NetworkResponse.error(
-        requestId: 'getUserProfile',
+      return NetworkResponse<BankUser>(
         statusCode: 401,
-        message: 'Authentication required to view profile',
+        error: 'Authentication required to view profile',
+        timestamp: DateTime.now(),
       );
     }
 
     final response = await get<Map<String, dynamic>>('userProfile');
 
     if (response.isSuccess && response.data != null) {
-      final userData = UserDataAppBank.fromJson(response.data!);
-      return response.copyWith<UserDataAppBank>(data: userData);
+      final userData = BankUser.fromApiResponse(response.data!);
+      return NetworkResponse<BankUser>(
+        data: userData,
+        statusCode: response.statusCode,
+        message: response.message,
+        error: response.error,
+        timestamp: response.timestamp,
+      );
     }
 
-    return response.copyWith<UserDataAppBank>();
+    return NetworkResponse<BankUser>(
+      statusCode: response.statusCode ?? 500,
+      error: response.error ?? 'Failed to get user profile',
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
-  Future<NetworkResponse<UserDataAppBank>> updateProfile({
+  /// FIX: Unified user model - returns BankUser directly
+  Future<NetworkResponse<BankUser>> updateProfile({
     String? fullName,
     String? email,
     String? phone,
@@ -237,11 +288,22 @@ class BankNetworkService extends AdvancedNetworkService {
     final response = await put<Map<String, dynamic>>('updateProfile', data: data);
     
     if (response.isSuccess && response.data != null) {
-      final userData = UserDataAppBank.fromJson(response.data!);
-      return response.copyWith<UserDataAppBank>(data: userData);
+      final userData = BankUser.fromApiResponse(response.data!);
+      return NetworkResponse<BankUser>(
+        data: userData,
+        statusCode: response.statusCode,
+        message: response.message,
+        error: response.error,
+        timestamp: response.timestamp,
+      );
     }
     
-    return response.copyWith<UserDataAppBank>();
+    return NetworkResponse<BankUser>(
+      statusCode: response.statusCode ?? 500,
+      error: response.error ?? 'Failed to update profile',
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
   Future<NetworkResponse<Map<String, dynamic>>> updateBalance({
@@ -250,10 +312,10 @@ class BankNetworkService extends AdvancedNetworkService {
     String? transactionType,
   }) async {
     if (!_checkAuthentication(permission: 'update_balance')) {
-      return NetworkResponse.error(
-        requestId: 'updateBalance',
+      return NetworkResponse<Map<String, dynamic>>(
         statusCode: 403,
-        message: 'Insufficient permissions to update balance',
+        error: 'Insufficient permissions to update balance',
+        timestamp: DateTime.now(),
       );
     }
 
@@ -379,10 +441,10 @@ class BankNetworkService extends AdvancedNetworkService {
     String? transferType,
   }) async {
     if (!_checkAuthentication(permission: 'transfer')) {
-      return NetworkResponse.error(
-        requestId: 'transfer',
+      return NetworkResponse<Map<String, dynamic>>(
         statusCode: 403,
-        message: 'Insufficient permissions to make transfers',
+        error: 'Insufficient permissions to make transfers',
+        timestamp: DateTime.now(),
       );
     }
 

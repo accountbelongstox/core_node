@@ -2,7 +2,7 @@
 function appData() {
     return {
         // State
-        apiBaseUrl: 'https://api.si.12gm.com/it-tools/v1',
+        apiBaseUrl: CONFIG.API_BASE_URL,
         searchQuery: '',
         selectedCategory: 'all',
         selectedTool: null,
@@ -34,7 +34,7 @@ function appData() {
 
         // Load settings from localStorage
         loadSettings() {
-            const savedUrl = localStorage.getItem('apiBaseUrl');
+            const savedUrl = localStorage.getItem(CONFIG.STORAGE.API_BASE_URL);
             if (savedUrl) {
                 this.apiBaseUrl = savedUrl;
             }
@@ -42,7 +42,7 @@ function appData() {
 
         // Save settings to localStorage
         saveSettings() {
-            localStorage.setItem('apiBaseUrl', this.apiBaseUrl);
+            localStorage.setItem(CONFIG.STORAGE.API_BASE_URL, this.apiBaseUrl);
             this.showToast('success', 'Settings Saved', 'API URL has been updated');
             this.showSettings = false;
         },
@@ -162,9 +162,8 @@ function appData() {
                 const url = `${this.apiBaseUrl}${endpoint}`;
                 const options = {
                     method,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: CONFIG.REQUEST.HEADERS,
+                    timeout: CONFIG.REQUEST.TIMEOUT
                 };
 
                 if (data && method !== 'GET') {

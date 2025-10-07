@@ -649,6 +649,9 @@ class BagInfoCollector:
                         bag_layout=bag_layout
                     )
 
+            # Draw ALL detection results with appropriate colors
+            self._draw_all_detection_results(annotator, button_detections, COLORS)
+
             # Draw legend and detection results summary in top-left corner
             legend_x = 10
             legend_y = 230  # Start below existing info (resolution, offset, etc.)
@@ -682,9 +685,15 @@ class BagInfoCollector:
                         found = True
                         indicator_match = indicator_detection.match
 
-                # Draw legend entry
-                status_text = "FOUND" if found else "NOT FOUND"
+                # Draw legend entry with coordinates if found
                 status_color = (0, 255, 0) if found else (128, 128, 128)
+
+                # Get status text with coordinates if found
+                if found and indicator_name in button_detections:
+                    detection_result = button_detections[indicator_name]
+                    status_text = self._get_status_text_with_coordinates(detection_result, indicator_name)
+                else:
+                    status_text = "NOT FOUND"
 
                 # Draw color indicator box
                 annotator.draw_rectangle(
@@ -694,7 +703,7 @@ class BagInfoCollector:
                     thickness=-1  # filled
                 )
 
-                # Draw status text
+                # Draw status text with coordinates if available
                 annotator.draw_text(
                     text=f"{type_name}: {status_text}",
                     position=(legend_x + 35, legend_y),
@@ -704,33 +713,7 @@ class BagInfoCollector:
                     background_color=status_color
                 )
 
-                # If found, draw on the actual detection location
-                if found and indicator_match:
-                    if 'polygon' in indicator_match:
-                        polygon = indicator_match['polygon']
-                        annotator.draw_polygon(
-                            points=polygon,
-                            color=color,
-                            thickness=3
-                        )
-
-                        center = indicator_match['center']
-                        annotator.draw_circle(
-                            center=(int(center[0]), int(center[1])),
-                            radius=8,
-                            color=color,
-                            filled=True
-                        )
-
-                        label = f"{type_name.upper()}"
-                        annotator.draw_text(
-                            text=label,
-                            position=(int(center[0]) + 15, int(center[1])),
-                            color=(255, 255, 255),
-                            font_scale=0.6,
-                            thickness=2,
-                            background_color=color
-                        )
+                # Note: Detection boxes are now drawn by _draw_all_detection_results() method above
 
                 legend_y += legend_line_height
 
@@ -743,34 +726,13 @@ class BagInfoCollector:
             if conv_found:
                 conv_data = button_detections['conversion_button']
                 state = conv_data.state  # Access as attribute, not dict
-                conv_status = f"FOUND ({state.upper()})" if state else "FOUND"
                 conv_color = COLORS['conversion_enabled'] if state == 'enabled' else COLORS['conversion_disabled']
 
-                # Draw on actual location
-                match = conv_data.match  # Access as attribute, not dict
-                if 'polygon' in match:
-                    annotator.draw_polygon(
-                        points=match['polygon'],
-                        color=conv_color,
-                        thickness=2
-                    )
+                # Get status text with coordinates using helper method
+                default_status = f"FOUND ({state.upper()})" if state else "FOUND"
+                conv_status = self._get_status_text_with_coordinates(conv_data, 'conversion_button', default_status)
 
-                center = match['center']
-                annotator.draw_circle(
-                    center=(int(center[0]), int(center[1])),
-                    radius=10,
-                    color=conv_color,
-                    filled=True
-                )
-
-                annotator.draw_text(
-                    text=f"Convert ({state.upper()})",
-                    position=(int(center[0]) + 15, int(center[1])),
-                    color=(255, 255, 255),
-                    font_scale=0.5,
-                    thickness=2,
-                    background_color=conv_color
-                )
+                # Note: Detection boxes are now drawn by _draw_all_detection_results() method above
 
             # Draw conversion button legend
             annotator.draw_rectangle(
@@ -796,32 +758,11 @@ class BagInfoCollector:
 
             if mat_found:
                 mat_data = button_detections['material_button']
-                match = mat_data.match  # Access as attribute, not dict
 
-                # Draw on actual location
-                if 'polygon' in match:
-                    annotator.draw_polygon(
-                        points=match['polygon'],
-                        color=COLORS['material_button'],
-                        thickness=2
-                    )
+                # Get status text with coordinates using helper method
+                mat_status = self._get_status_text_with_coordinates(mat_data, 'material_button')
 
-                center = match['center']
-                annotator.draw_circle(
-                    center=(int(center[0]), int(center[1])),
-                    radius=10,
-                    color=COLORS['material_button'],
-                    filled=True
-                )
-
-                annotator.draw_text(
-                    text="Put Material",
-                    position=(int(center[0]) + 15, int(center[1])),
-                    color=(255, 255, 255),
-                    font_scale=0.5,
-                    thickness=2,
-                    background_color=COLORS['material_button']
-                )
+                # Note: Detection boxes are now drawn by _draw_all_detection_results() method above
 
             # Draw material button legend
             annotator.draw_rectangle(
@@ -854,6 +795,222 @@ class BagInfoCollector:
             import traceback
             traceback.print_exc()
 
+    def _safe_extract_coordinates(self, center, template_name="unknown"):
+        """
+        Safely extract coordinates from various data types (numpy arrays, lists, tuples, etc.)
+
+        Args:
+            center: Center coordinate data (could be numpy array, list, tuple, etc.)
+            template_name: Name of template for error logging
+
+        Returns:
+            Tuple[int, int] or None if extraction fails
+        """
+        if center is None:
+            return None
+
+        try:
+            # Handle numpy arrays
+            if hasattr(center, 'size') and center.size >= 2:
+                return int(float(center[0])), int(float(center[1]))
+
+            # Handle lists, tuples, and other sequence types
+            elif isinstance(center, (list, tuple)) or (hasattr(center, '__len__') and len(center) >= 2):
+                return int(float(center[0])), int(float(center[1]))
+
+            # Handle objects with x, y attributes
+            elif hasattr(center, 'x') and hasattr(center, 'y'):
+                return int(float(center.x)), int(float(center.y))
+
+            # Handle dict with x, y keys
+            elif isinstance(center, dict) and 'x' in center and 'y' in center:
+                return int(float(center['x'])), int(float(center['y']))
+
+            else:
+                ColorPrint.yellow(f"[BagInfoCollector] Unsupported center coordinate format for {template_name}: {type(center)} - {center}")
+                return None
+
+        except (ValueError, TypeError, IndexError, AttributeError) as e:
+            ColorPrint.yellow(f"[BagInfoCollector] Error extracting coordinates for {template_name}: {e}, center: {center}")
+            return None
+
+    def _get_status_text_with_coordinates(self, detection_result, template_name, default_status="FOUND"):
+        """
+        Helper method to get status text with coordinates if available
+
+        Args:
+            detection_result: DetectionResult object
+            template_name: Name of the template for logging
+            default_status: Default status text (e.g., "FOUND", "FOUND (ENABLED)")
+
+        Returns:
+            Status text with coordinates if available, otherwise default status
+        """
+        if not detection_result or not hasattr(detection_result, 'match') or not detection_result.match:
+            return default_status
+
+        match = detection_result.match
+        if not isinstance(match, dict) or 'center' not in match:
+            return default_status
+
+        center = match['center']
+        coords = self._safe_extract_coordinates(center, template_name)
+
+        if coords is None:
+            return default_status
+
+        center_x, center_y = coords
+
+        # Handle special cases with additional state information
+        if template_name == 'conversion_button' and hasattr(detection_result, 'state'):
+            state = detection_result.state
+            state_part = f" ({state.upper()})" if state else ""
+            return f"FOUND{state_part} ({center_x}, {center_y})"
+
+        return f"FOUND ({center_x}, {center_y})"
+
+    def _draw_all_detection_results(self, annotator, button_detections, COLORS):
+        """
+        Draw detection boxes for ALL found templates with appropriate colors
+
+        This method iterates through all detection results in button_detections
+        and draws detection boxes with colors based on template types.
+
+        Args:
+            annotator: ImageAnnotator instance
+            button_detections: Dict[str, DetectionResult] with all detection results
+            COLORS: Color palette dictionary
+        """
+        if not button_detections:
+            ColorPrint.gray("[BagInfoCollector] No button detections to draw")
+            return
+
+        ColorPrint.blue(f"[BagInfoCollector] Drawing detection boxes for {len(button_detections)} templates")
+
+        # Template type to color mapping (extended)
+        template_color_map = {
+            # Interface indicators
+            'blacksmith_indicator_1': (255, 200, 0),  # Orange-yellow
+            'blacksmith_indicator_2': (255, 165, 0),  # Orange
+            'kanai_cube_left_panel_indicator': (128, 0, 128),  # Purple
+            'kanai_right_page_indicator': (0, 128, 255),  # Orange-blue
+
+            # Functional buttons
+            'conversion_button': (0, 255, 0),  # Green when enabled, Red when disabled
+            'material_button': (255, 0, 255),  # Magenta
+            'upgrade_button': (0, 255, 128),  # Lime green
+            'reforge_button': (255, 128, 0),  # Blue-orange
+
+            # Map elements
+            'waypoint_indicator': (0, 255, 255),  # Cyan
+            'health_orb': (255, 0, 0),  # Red
+            'resource_orb': (0, 0, 255),  # Blue
+            'inventory_indicator': (255, 255, 0),  # Yellow
+            'skill_bar_indicator': (128, 0, 255),  # Purple
+            'minimap_indicator': (0, 165, 255),  # Blue
+
+            # UI elements
+            'close_button': (0, 0, 255),  # Red
+            'cancel_button': (128, 128, 128),  # Gray
+            'accept_button': (0, 255, 0),  # Green
+            'tab_button': (255, 165, 0),  # Orange
+
+            # Item quality indicators
+            'legendary_item': (255, 128, 0),  # Orange
+            'set_item': (0, 255, 0),  # Green
+            'rare_item': (255, 255, 0),  # Yellow
+            'magic_item': (0, 128, 255),  # Blue
+            'common_item': (128, 128, 128),  # Gray
+
+            # Bag elements (already handled separately)
+            'bag_buttom': (0, 255, 0),  # Green
+            'bag_left': (255, 165, 0),  # Orange
+            'bag_grid': (192, 192, 192),  # Silver
+
+            # NPC and interaction elements
+            'npc_indicator': (255, 0, 255),  # Magenta
+            'dialogue_box': (0, 128, 128),  # Teal
+            'quest_marker': (255, 215, 0),  # Gold
+
+            # Default color for unknown templates
+            'default': (128, 128, 128)  # Gray
+        }
+
+        drawn_count = 0
+
+        for template_name, detection_result in button_detections.items():
+            if detection_result is None:
+                continue
+
+            # Get match data from DetectionResult object
+            if not hasattr(detection_result, 'match') or detection_result.match is None:
+                continue
+
+            match_data = detection_result.match
+
+            # Skip bag templates since they're already handled separately
+            if template_name in ['bag_buttom', 'bag_left']:
+                continue
+
+            # Get appropriate color for this template type
+            color = template_color_map.get(template_name, template_color_map['default'])
+
+            # Special handling for conversion button based on state
+            if template_name == 'conversion_button' and hasattr(detection_result, 'state'):
+                if detection_result.state == 'enabled':
+                    color = (0, 255, 0)  # Green
+                elif detection_result.state == 'disabled':
+                    color = (0, 0, 255)  # Red
+                else:
+                    color = (255, 255, 0)  # Yellow for unknown state
+
+            # Draw detection polygon if available
+            if isinstance(match_data, dict) and 'polygon' in match_data:
+                polygon = match_data['polygon']
+                if polygon is not None and len(polygon) > 0:
+                    annotator.draw_polygon(
+                        points=polygon,
+                        color=color,
+                        thickness=3
+                    )
+                    ColorPrint.green(f"[BagInfoCollector] Drew polygon for {template_name}")
+
+            # Draw center point and label
+            center = match_data.get('center') if isinstance(match_data, dict) else None
+            if center is not None:
+                coords = self._safe_extract_coordinates(center, template_name)
+
+                if coords is not None:
+                    center_x, center_y = coords
+
+                    # Draw center circle
+                    annotator.draw_circle(
+                        center=(center_x, center_y),
+                        radius=8,
+                        color=color,
+                        filled=True
+                    )
+
+                    # Draw template name label
+                    label = template_name.replace('_', ' ').upper()
+                    annotator.draw_text(
+                        text=label,
+                        position=(center_x + 15, center_y),
+                        color=(255, 255, 255),
+                        font_scale=0.6,
+                        thickness=2,
+                        background_color=color
+                    )
+
+                    ColorPrint.green(f"[BagInfoCollector] Drew center and label for {template_name} at ({center_x}, {center_y})")
+                    drawn_count += 1
+                else:
+                    ColorPrint.yellow(f"[BagInfoCollector] Failed to extract coordinates for {template_name}")
+            else:
+                ColorPrint.yellow(f"[BagInfoCollector] No center coordinate found for {template_name}")
+
+        ColorPrint.green(f"[BagInfoCollector] Successfully drew detection boxes for {drawn_count} templates")
+
     def _detect_interface_buttons(self, game_window_image, shared_data) -> Dict:
         """
         Detect interface type and functional buttons
@@ -862,17 +1019,16 @@ class BagInfoCollector:
         1. Check blacksmith indicators (blacksmith_indicator_1 or blacksmith_indicator_2):
            - If found → interface_type = "blacksmith"
 
-        2. Check conversion button (button_convert_enabled or button_convert_disabled):
+        2. Check Kanai's Cube left panel indicator (kanai_cube_left_panel_indicator):
            - If found → interface_type = "kanai_cube"
 
         3. If neither found → No functional interface opened
 
         Updates shared_data with:
         - interface_type: "blacksmith", "kanai_cube", or None
-        - conversion_clickable: True/False (if kanai cube)
-        - put_material_button: (x, y) coordinates (if kanai cube)
-        - conversion_button: (x, y) coordinates (if kanai cube)
         - button_detections: Dict[str, DetectionResult]
+
+        Note: Conversion button now uses fixed coordinate system (290, 1005) via get_scaled_conversion_button()
 
         Args:
             game_window_image: PIL Image for template matching
@@ -939,69 +1095,38 @@ class BagInfoCollector:
                 ColorPrint.gray(f"[BagInfoCollector] {indicator_name} not found")
 
         # ============================================================
-        # Step 2: If not blacksmith, check conversion button (Kanai Cube)
+        # Step 2: If not blacksmith, check Kanai's Cube left panel indicator
         # ============================================================
         if not interface_type:
-            ColorPrint.blue("[BagInfoCollector] Step 2: Checking conversion button (Kanai Cube)...")
+            ColorPrint.blue("[BagInfoCollector] Step 2: Checking Kanai's Cube left panel indicator...")
 
-            # Try to detect button_convert_enabled first
-            enabled_path = get_template_path("button_convert_enabled")
-            if enabled_path and Path(enabled_path).exists():
-                enabled_result = self.scaled_matcher.match_template(
+            # Detect kanai_cube_left_panel_indicator
+            indicator_path = get_template_path("kanai_cube_left_panel_indicator")
+            if indicator_path and Path(indicator_path).exists():
+                indicator_result = self.scaled_matcher.match_template(
                     target_image=game_window_image,  # PIL Image directly
-                    template_name="button_convert_enabled",
+                    template_name="kanai_cube_left_panel_indicator",
                     output_dir=None
                 )
 
-                if enabled_result["total_matches"] > 0:
-                    ColorPrint.green("[BagInfoCollector] button_convert_enabled FOUND → Kanai Cube interface detected")
-
-                    shared_data.conversion_clickable = True
-                    center = enabled_result["matches"][0]['center']
-                    shared_data.conversion_button = (int(center[0]), int(center[1]))
+                if indicator_result["total_matches"] > 0:
+                    ColorPrint.green("[BagInfoCollector] kanai_cube_left_panel_indicator FOUND → Kanai Cube interface detected")
 
                     # Store in button_detections
-                    button_detections['conversion_button'] = DetectionResult(
-                        match=enabled_result["matches"][0],
+                    button_detections['kanai_cube_left_panel_indicator'] = DetectionResult(
+                        match=indicator_result["matches"][0],
                         reliable=True,
-                        state='enabled'
+                        state=None
                     )
 
                     # Set interface type
                     interface_type = "kanai_cube"
                     shared_data.interface_type = interface_type
                     ColorPrint.green(f"[BagInfoCollector] Interface type: {interface_type}")
-                    ColorPrint.green(f"[BagInfoCollector] Conversion button (enabled): {shared_data.conversion_button}")
-
-            # If still not found, try button_convert_disabled
-            if not interface_type:
-                disabled_path = get_template_path("button_convert_disabled")
-                if disabled_path and Path(disabled_path).exists():
-                    disabled_result = self.scaled_matcher.match_template(
-                        target_image=game_window_image,  # PIL Image directly
-                        template_name="button_convert_disabled",
-                        output_dir=None
-                    )
-
-                    if disabled_result["total_matches"] > 0:
-                        ColorPrint.green("[BagInfoCollector] button_convert_disabled FOUND → Kanai Cube interface detected")
-
-                        shared_data.conversion_clickable = False
-                        center = disabled_result["matches"][0]['center']
-                        shared_data.conversion_button = (int(center[0]), int(center[1]))
-
-                        # Store in button_detections
-                        button_detections['conversion_button'] = DetectionResult(
-                            match=disabled_result["matches"][0],
-                            reliable=True,
-                            state='disabled'
-                        )
-
-                        # Set interface type
-                        interface_type = "kanai_cube"
-                        shared_data.interface_type = interface_type
-                        ColorPrint.green(f"[BagInfoCollector] Interface type: {interface_type}")
-                        ColorPrint.yellow(f"[BagInfoCollector] Conversion button (disabled): {shared_data.conversion_button}")
+                else:
+                    ColorPrint.gray("[BagInfoCollector] kanai_cube_left_panel_indicator not found")
+            else:
+                ColorPrint.gray("[BagInfoCollector] kanai_cube_left_panel_indicator template not found")
 
         # ============================================================
         # Step 3: Final result
@@ -1017,57 +1142,28 @@ class BagInfoCollector:
         # Additional detections (only if Kanai Cube)
         # ============================================================
         if interface_type == "kanai_cube":
-            # Detect kanai_right_panel_opened_indicator
-            ColorPrint.blue("[BagInfoCollector] Detecting kanai_right_panel_opened_indicator...")
-            panel_indicator_path = get_template_path("kanai_right_panel_opened_indicator")
-            if panel_indicator_path and Path(panel_indicator_path).exists():
-                panel_result = self.scaled_matcher.match_template(
+            # Note: interface_type == "kanai_cube" already means left panel is opened
+            # No need to detect kanai_panel_opened separately
+
+            # Detect if Kanai's Cube right page is opened
+            ColorPrint.blue("[BagInfoCollector] Detecting if Kanai's Cube right page is opened...")
+            right_page_path = get_template_path("kanai_right_page_indicator")
+            if right_page_path and Path(right_page_path).exists():
+                right_page_result = self.scaled_matcher.match_template(
                     target_image=game_window_image,  # PIL Image directly
-                    template_name="kanai_right_panel_opened_indicator",
+                    template_name="kanai_right_page_indicator",
                     output_dir=None
                 )
 
-                if panel_result["total_matches"] > 0:
-                    ColorPrint.green("[BagInfoCollector] kanai_right_panel_opened_indicator FOUND (right panel is OPENED)")
-                    shared_data.kanai_panel_opened = True
-
-                    button_detections['kanai_right_panel_opened_indicator'] = DetectionResult(
-                        match=panel_result["matches"][0],
-                        reliable=True,
-                        state='opened'
-                    )
+                if right_page_result["total_matches"] > 0:
+                    shared_data.kanai_right_page_opened = True
+                    ColorPrint.green("[BagInfoCollector] Kanai's Cube right page is OPENED")
                 else:
-                    ColorPrint.yellow("[BagInfoCollector] kanai_right_panel_opened_indicator NOT FOUND (right panel is CLOSED)")
-                    shared_data.kanai_panel_opened = False
+                    shared_data.kanai_right_page_opened = False
+                    ColorPrint.yellow("[BagInfoCollector] Kanai's Cube right page is CLOSED")
             else:
-                ColorPrint.gray("[BagInfoCollector] kanai_right_panel_opened_indicator template not found")
-                shared_data.kanai_panel_opened = None
-
-            # Detect put material button (UNRELIABLE - panel may not be opened)
-            ColorPrint.blue("[BagInfoCollector] Detecting put_material_button (UNRELIABLE)...")
-            material_path = get_template_path("button_put_material_alt")
-            if material_path and Path(material_path).exists():
-                material_result = self.scaled_matcher.match_template(
-                    target_image=game_window_image,  # PIL Image directly
-                    template_name="button_put_material_alt",
-                    output_dir=None
-                )
-
-                if material_result["total_matches"] > 0:
-                    center = material_result["matches"][0]['center']
-                    shared_data.put_material_button = (int(center[0]), int(center[1]))
-
-                    button_detections['material_button'] = DetectionResult(
-                        match=material_result["matches"][0],
-                        reliable=False,  # NOT RELIABLE - panel state unknown
-                        state=None
-                    )
-
-                    ColorPrint.yellow(f"[BagInfoCollector] Put material button detected (UNRELIABLE): {shared_data.put_material_button}")
-                else:
-                    ColorPrint.yellow("[BagInfoCollector] Put material button not found")
-            else:
-                ColorPrint.gray("[BagInfoCollector] Put material button template not found")
+                ColorPrint.gray("[BagInfoCollector] kanai_right_page_indicator template not found")
+                shared_data.kanai_right_page_opened = None
 
         # Update shared_data with button_detections
         shared_data.button_detections = button_detections

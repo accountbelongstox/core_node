@@ -47,7 +47,8 @@ from providor.providor_index import (
     get_template_path,
     get_template_threshold,
     get_template_use_alpha,
-    get_template_match_method
+    get_template_match_method,
+    get_adjusted_threshold
 )
 from d3utils.share import get_global_scale
 
@@ -63,6 +64,13 @@ class ScaledTemplateMatcher:
     - Scales templates in memory (cached for performance)
     - Delegates to ImageMatcher for actual matching
     - Supports single and multiple template matching
+    - Supports multiple match methods (SIFT, ORB, TM_CCOEFF_NORMED, etc.)
+    - Intelligent threshold conversion between match methods (via get_adjusted_threshold)
+
+    Threshold Management:
+    - Each template in TEMPLATE_CONFIGS has a threshold designed for its match_method
+    - Use get_template_threshold() for standard operation (recommended)
+    - Use get_adjusted_threshold(template_name, override_method) when changing match methods at runtime
     """
 
     def __init__(self):
@@ -353,6 +361,11 @@ class ScaledTemplateMatcher:
             }
 
         # Get template config
+        # Note: get_template_threshold() returns the threshold from TEMPLATE_CONFIGS,
+        # which is designed for the template's specified match_method.
+        # If you need to override match_method at runtime, use get_adjusted_threshold()
+        # to automatically convert the threshold to the appropriate range:
+        #   threshold = get_adjusted_threshold(template_name, override_method)
         threshold = get_template_threshold(template_name)
         use_alpha = get_template_use_alpha(template_name)
         match_method = get_template_match_method(template_name)
@@ -367,7 +380,8 @@ class ScaledTemplateMatcher:
             template_image=scaled_template_img,
             template_name=template_name,
             custom_threshold=threshold,
-            use_alpha=use_alpha
+            use_alpha=use_alpha,
+            detection_method=match_method
         )
 
         # Format result to match expected output format
@@ -440,6 +454,8 @@ class ScaledTemplateMatcher:
                 continue
 
             # Get template config
+            # Note: Threshold is designed for the template's specified match_method
+            # Use get_adjusted_threshold(template_name, override_method) for runtime method changes
             threshold = get_template_threshold(template_name)
             use_alpha = get_template_use_alpha(template_name)
             match_method = get_template_match_method(template_name)

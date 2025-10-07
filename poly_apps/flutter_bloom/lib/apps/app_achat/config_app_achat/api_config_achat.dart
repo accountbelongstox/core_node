@@ -12,11 +12,12 @@
 
 import '../../../common/network/models/api_config.dart';
 
-/// API Configuration for AChat app connecting to BankV1 backend
-/// Cross-app data consistency with Laravel BankV1 backend
+/// API Configuration for AChat app connecting to AChatV1 backend
+/// Cross-app data consistency with Laravel AChatV1 backend
 class ApiConfigAChat {
-  static const String baseUrl = 'https://api.si.12gm.com';
-  static const String basePath = '/api/bank';
+  // Fix: Updated to actual AChat backend URL
+  static const String baseUrl = 'https://apiv1.achat.fun';
+  static const String basePath = '/achat/v1';
   
   /// Test app configuration - no authentication required
   static ApiConfig get testApiConfig => ApiConfig.noAuth(
@@ -27,9 +28,11 @@ class ApiConfigAChat {
   );
   
   /// Device tracking configuration for app lifecycle
-  static ApiConfig get deviceTrackingConfig => ApiConfig.custom(
+  static ApiConfig get deviceTrackingConfig => ApiConfig.noAuth(
     baseUrl: baseUrl,
-    customHeaders: {
+    timeoutSeconds: 30,
+    enableLogging: true,
+    defaultHeaders: {
       'X-Device-ID': '', // Will be set dynamically
       'X-App-Signature': '', // Will be set dynamically
       'X-Platform': 'flutter',
@@ -37,32 +40,49 @@ class ApiConfigAChat {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
-    timeoutSeconds: 30,
-    enableLogging: true,
     responseValidation: ResponseValidationConfig.laravelConfig(),
   );
 }
 
-/// API Endpoints for AChat app - mapped to BankV1 backend
+/// API Endpoints for AChat app - mapped to AChatV1 backend
 class ApiEndpointsAChat {
-  // App lifecycle endpoints (no auth required for test app)
-  static const String appOpen = '/api/bank/app/open';
-  static const String appClose = '/api/bank/app/close';
-  static const String appHeartbeat = '/api/bank/app/heartbeat';
+  // App lifecycle endpoints
+  static const String appOpen = '$basePath/app/open';
+  static const String appClose = '$basePath/app/close';
+  static const String appHeartbeat = '$basePath/app/heartbeat';
   
-  // User management endpoints (test app specific)
-  static const String userProfile = '/api/bank/user/profile';
-  static const String updateProfile = '/api/bank/user/profile/update';
-  static const String updateBalance = '/api/bank/user/balance/update';
+  // Auth endpoints
+  static const String login = '$basePath/auth/login';
+  static const String register = '$basePath/auth/register';
+  static const String logout = '$basePath/auth/logout';
+  static const String refreshToken = '$basePath/auth/refresh';
   
-  // Security endpoints
-  static const String deviceCheck = '/api/bank/security/device/check';
-  static const String deviceRegister = '/api/bank/security/device/register';
-  static const String deviceUpdate = '/api/bank/security/device/update';
+  // User management endpoints
+  static const String userProfile = '$basePath/users';
+  static const String updateProfile = '$basePath/users/profile';
+  static const String searchUsers = '$basePath/users/search';
   
-  // Test app specific endpoints
-  static const String generateTestData = '/api/bank/test/generate';
-  static const String uploadTestInfo = '/api/bank/test/upload';
+  // Conversation endpoints
+  static const String conversations = '$basePath/conversations';
+  static const String createConversation = '$basePath/conversations';
+  
+  // Message endpoints
+  static const String messages = '$basePath/messages';
+  static const String sendMessage = '$basePath/messages';
+  static const String markAsRead = '$basePath/messages/read';
+  
+  // Group endpoints
+  static const String groups = '$basePath/groups';
+  static const String groupMembers = '$basePath/groups/members';
+  
+  // File upload endpoints
+  static const String fileUpload = '$basePath/files/upload';
+  
+  // Device management
+  static const String deviceRegister = '$basePath/devices/register';
+  static const String deviceUpdate = '$basePath/devices/update';
+  
+  static const String basePath = ApiConfigAChat.basePath;
 }
 
 /// Request models for AChat API calls

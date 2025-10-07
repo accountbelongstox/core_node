@@ -378,6 +378,14 @@ class BankUserModel extends BaseUserModel {
     );
   }
 
+  /// Get masked name (first character replaced with *)
+  String get maskedName {
+    final displayName = name ?? fullName ?? 'User';
+    if (displayName.isEmpty) return '';
+    if (displayName.length == 1) return '*';
+    return '*${displayName.substring(1)}';
+  }
+
   /// Get formatted balance for display
   String get formattedBalance {
     return '¥ ${balance.toStringAsFixed(2)}';

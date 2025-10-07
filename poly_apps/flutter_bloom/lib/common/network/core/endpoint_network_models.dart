@@ -1,8 +1,8 @@
 // FIXED: Removed unused 'dart:convert' import
 import 'package:flutter/foundation.dart';
 import 'network_config.dart';
-// REFACTOR: Import CancelToken from network_types.dart (removed duplicate from this file)
-import 'network_types.dart' show CancelToken;
+// Fix: Import all shared types from network_types.dart to use unified definitions
+import 'network_types.dart' show CancelToken, RequestPriority, CacheStrategy;
 
 /// Network request model
 class NetworkRequest {

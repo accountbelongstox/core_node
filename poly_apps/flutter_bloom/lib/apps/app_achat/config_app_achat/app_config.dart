@@ -18,6 +18,9 @@ class AChatAppConfig {
   static const String appId = 'achat';
   static const String appVersion = '1.0.0';
   static const String appDescription = 'AI Chat Application';
+  
+  // Fix: Device identification (should be generated per device in production)
+  static String get deviceId => 'achat_test_device_${DateTime.now().millisecondsSinceEpoch}';
 
   // Feature flags
   static const bool enableAnalytics = true;

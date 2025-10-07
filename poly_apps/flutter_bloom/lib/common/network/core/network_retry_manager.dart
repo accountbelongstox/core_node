@@ -3,8 +3,8 @@ import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'unified_network_client.dart';
-// REFACTOR: Import NetworkRequest and NetworkResponse from network_types.dart
-import 'network_types.dart' show NetworkRequest, NetworkResponse;
+// Fix: Import RequestPriority from network_types.dart to use unified definition
+import 'network_types.dart' show NetworkRequest, NetworkResponse, RequestPriority;
 
 /// Smart Retry Manager
 /// Adjusts retry strategy based on network conditions
@@ -273,12 +273,4 @@ class ConnectivityMonitor {
     await _subscription?.cancel();
     _subscription = null;
   }
-}
-
-/// Request priority levels
-enum RequestPriority {
-  low,
-  normal,
-  high,
-  critical
 }

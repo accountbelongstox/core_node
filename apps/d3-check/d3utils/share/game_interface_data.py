@@ -46,11 +46,17 @@ class StandardCoordinates:
     # Blacksmith interface
     blacksmith_salvage_button: Tuple[int, int] = (202, 368)
 
-    # Reforge (附魔) region
+    # Kanai's Cube interface
+    kanai_put_material_button: Tuple[int, int] = (848, 1012)
+    kanai_right_panel_toggle: Tuple[int, int] = (514, 997)
+    kanai_conversion_button: Tuple[int, int] = (290, 1005)
+    kanai_next_page_button: Tuple[int, int] = (1005, 1015)
+
+    # Reforge region
     reforge_region_start: Tuple[int, int] = (368, 470)
     reforge_region_end: Tuple[int, int] = (368, 723)
 
-    # Bag region (背包区域)
+    # Bag region
     bag_top_left: Tuple[int, int] = (1213, 686)
     bag_bottom_right: Tuple[int, int] = (1805, 1036)
 
@@ -149,6 +155,54 @@ def get_scaled_blacksmith_salvage_button() -> Tuple[int, int]:
     """
     return calculate_scaled_coordinate(
         STANDARD_COORDS.blacksmith_salvage_button
+    )
+
+
+def get_scaled_kanai_put_material_button() -> Tuple[int, int]:
+    """
+    Get scaled Kanai's Cube put material button coordinate based on current game window size
+
+    Returns:
+        Scaled coordinate (x, y) relative to game window
+    """
+    return calculate_scaled_coordinate(
+        STANDARD_COORDS.kanai_put_material_button
+    )
+
+
+def get_scaled_kanai_right_panel_toggle() -> Tuple[int, int]:
+    """
+    Get scaled Kanai's Cube right panel toggle button coordinate based on current game window size
+
+    Returns:
+        Scaled coordinate (x, y) relative to game window
+    """
+    return calculate_scaled_coordinate(
+        STANDARD_COORDS.kanai_right_panel_toggle
+    )
+
+
+def get_scaled_conversion_button() -> Tuple[int, int]:
+    """
+    Get scaled Kanai's Cube conversion button coordinate based on current game window size
+
+    Returns:
+        Scaled coordinate (x, y) relative to game window
+    """
+    return calculate_scaled_coordinate(
+        STANDARD_COORDS.kanai_conversion_button
+    )
+
+
+def get_scaled_kanai_next_page_button() -> Tuple[int, int]:
+    """
+    Get scaled Kanai's Cube next page button coordinate based on current game window size
+
+    Returns:
+        Scaled coordinate (x, y) relative to game window
+    """
+    return calculate_scaled_coordinate(
+        STANDARD_COORDS.kanai_next_page_button
     )
 
 
@@ -269,14 +323,16 @@ class D3InterfaceData:
     bag_coordinates: Optional[BagCoordinates] = None
     bag_layout: Optional[BagLayout] = None
 
-    # Button coordinates (filled by bag_info_collector)
-    put_material_button: Optional[Tuple[int, int]] = None
-    conversion_button: Optional[Tuple[int, int]] = None
+    # DEPRECATED: Button coordinates - Now using coordinate system in StandardCoordinates
+    # Use get_scaled_kanai_put_material_button() and get_scaled_conversion_button() instead
+    put_material_button: Optional[Tuple[int, int]] = None  # DEPRECATED
+    conversion_button: Optional[Tuple[int, int]] = None  # DEPRECATED
 
     # Interface states (filled by bag_info_collector)
-    conversion_clickable: Optional[bool] = None
-    interface_type: Optional[str] = None  # "blacksmith", "reforge", "upgrade"
+    conversion_clickable: Optional[bool] = None  # DEPRECATED - No longer used (only one indicator for kanai_cube)
+    interface_type: Optional[str] = None  # "blacksmith", "kanai_cube"
     functional_interface: Optional[str] = None  # "reforge" or "upgrade" (for compatibility)
+    kanai_right_page_opened: Optional[bool] = None  # True if Kanai Cube right page is opened, False if closed
 
     # Detection match results (filled by bag_info_collector, for visualization)
     bag_buttom_match: Optional[Dict] = None
@@ -304,6 +360,7 @@ class D3InterfaceData:
         self.conversion_clickable = None
         self.interface_type = None
         self.functional_interface = None
+        self.kanai_right_page_opened = None
         self.bag_buttom_match = None
         self.bag_left_match = None
         self.button_detections = None

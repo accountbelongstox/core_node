@@ -11,69 +11,108 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import '../../../common/network/api_client.dart';
-import '../../../common/network/models/api_response.dart';
-import '../../../common/network/models/enhanced_api_response.dart';
-import '../../../common/cache_manager/cache_manager.dart';
+// Fix: Use new unified network client architecture
+import '../../../common/network/network_framework.dart';
+// Fix: Add prefix to avoid CacheManager conflict with network_types.dart
+import '../../../common/cache_manager/cache_manager.dart' as cache;
 import '../config_app_achat/api_config_achat.dart';
 import '../models/chat_models.dart';
 import '../models/user_models.dart';
 import '../models/message_models.dart';
 
 /// Extended API client for AChat connecting to BankV1 backend
-/// Cross-app data consistency implementation
-class AChatApiClient extends ApiClient {
-  static const String baseUrl = 'https://api.si.12gm.com';
+/// 
+/// REFACTOR: Now uses UnifiedNetworkClient instead of legacy ApiClient
+/// Cross-app data consistency implementation with BankV1 backend
+class AChatApiClient {
+  final UnifiedNetworkClient _client;
+  final cache.CacheManager _cacheManager = cache.CacheManager.instance;
+  bool _isInitialized = false;
 
-  final CacheManager _cacheManager = CacheManager.instance;
+  AChatApiClient._({
+    required UnifiedNetworkClient client,
+  }) : _client = client;
 
-  AChatApiClient({required super.context}) {
-    _initializeCache();
+  /// Factory: Create AChat API client with config
+  factory AChatApiClient.create({
+    ApiConfig? config,
+  }) {
+    final apiConfig = config ?? ApiConfigAChat.testApiConfig;
+    final client = UnifiedNetworkClient.create(
+      config: apiConfig,
+      instanceKey: 'achat_api_client',
+    );
+    
+    return AChatApiClient._(client: client);
   }
 
-  void _initializeCache() {
-    _cacheManager.registerCacheConfig('conversations', const CacheConfig(
+  /// Initialize client and cache configurations
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    _cacheManager.registerCacheConfig('conversations', const cache.CacheConfig(
       defaultTtl: Duration(minutes: 2),
       maxSize: 100,
       persistToDisk: true,
       customBoxName: 'achat_conversations',
     ));
 
-    _cacheManager.registerCacheConfig('messages', const CacheConfig(
+    _cacheManager.registerCacheConfig('messages', const cache.CacheConfig(
       defaultTtl: Duration(minutes: 5),
       maxSize: 500,
       persistToDisk: true,
       customBoxName: 'achat_messages',
     ));
 
-    _cacheManager.registerCacheConfig('user_profile', const CacheConfig(
+    _cacheManager.registerCacheConfig('user_profile', const cache.CacheConfig(
       defaultTtl: Duration(minutes: 5),
       maxSize: 10,
       persistToDisk: true,
       customBoxName: 'achat_users',
     ));
 
-    _cacheManager.registerCacheConfig('search_results', const CacheConfig(
+    _cacheManager.registerCacheConfig('search_results', const cache.CacheConfig(
       defaultTtl: Duration(minutes: 1),
       maxSize: 50,
       persistToDisk: false,
     ));
+
+    _isInitialized = true;
+    
+    if (kDebugMode) {
+      debugPrint('[AChatApiClient] Initialized successfully');
+    }
+  }
+
+  /// Helper: Build NetworkRequest for common operations
+  /// Fix: Use RequestMethod enum and correct parameter names
+  NetworkRequest _buildRequest({
+    required String endpoint,
+    required RequestMethod method,
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? queryParameters,
+  }) {
+    return NetworkRequest(
+      endpoint: endpoint,
+      method: method,
+      body: body,
+      parameters: queryParameters,
+      priority: RequestPriority.normal,
+    );
   }
 
   /// Authentication APIs
-  Future<EnhancedApiResponse<AChatAuthResponse>> login({
+  Future<NetworkResponse<AChatAuthResponse>> login({
     required String email,
     required String password,
     required AChatDeviceInfo deviceInfo,
     bool rememberMe = false,
   }) async {
-    final response = await postData(
-      '$baseUrl/auth/login',
-      {
+    final request = _buildRequest(
+      endpoint: ApiEndpointsAChat.appOpen,
+      method: RequestMethod.post,
+      body: {
         'email': email,
         'password': password,
         'device_info': deviceInfo.toJson(),
@@ -81,684 +120,740 @@ class AChatApiClient extends ApiClient {
       },
     );
 
-    return _parseEnhancedResponse<AChatAuthResponse>(
-      response,
-      (data) => AChatAuthResponse.fromJson(data),
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    return NetworkResponse<AChatAuthResponse>(
+      statusCode: response.statusCode,
+      data: response.data != null ? AChatAuthResponse.fromJson(response.data!) : null,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
     );
   }
 
-  Future<EnhancedApiResponse<AChatTokenResponse>> refreshToken({
+  Future<NetworkResponse<AChatTokenResponse>> refreshToken({
     required String refreshToken,
     required String deviceId,
   }) async {
-    final response = await postData(
-      '$baseUrl/auth/refresh',
-      {
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/auth/refresh',
+      method: RequestMethod.post,
+      body: {
         'refresh_token': refreshToken,
         'device_id': deviceId,
       },
     );
 
-    return _parseEnhancedResponse<AChatTokenResponse>(
-      response,
-      (data) => AChatTokenResponse.fromJson(data),
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    return NetworkResponse<AChatTokenResponse>(
+      statusCode: response.statusCode,
+      data: response.data != null ? AChatTokenResponse.fromJson(response.data!) : null,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
     );
   }
 
-  /// User Profile APIs with caching
-  Future<EnhancedApiResponse<AChatUser>> getUserProfile({bool forceRefresh = false}) async {
-    const cacheKey = 'current_user_profile';
+  Future<NetworkResponse<bool>> logout({
+    required String deviceId,
+  }) async {
+    final request = _buildRequest(
+      endpoint: ApiEndpointsAChat.appClose,
+      method: RequestMethod.post,
+      body: {
+        'device_id': deviceId,
+        'timestamp': AChatDeviceInfo.currentTimestamp,
+      },
+    );
 
-    if (!forceRefresh) {
-      final cachedUser = await _cacheManager.get<AChatUser>(
-        'user_profile',
-        cacheKey,
-        fromJson: (data) => AChatUser.fromJson(data),
-      );
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    return NetworkResponse<bool>(
+      statusCode: response.statusCode,
+      data: response.statusCode == 200,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
+  }
 
-      if (cachedUser != null) {
-        return EnhancedApiResponse<AChatUser>(
-          success: true,
-          data: cachedUser,
-          message: 'Profile loaded from cache',
+  /// User Management APIs
+  Future<NetworkResponse<AChatUser>> getUserProfile({
+    required String userId,
+    bool useCache = true,
+  }) async {
+    final cacheKey = 'user_profile_$userId';
+
+    if (useCache) {
+      // Fix: await cache.get() as it returns Future<T?>
+      final cached = await _cacheManager.get<AChatUser>('user_profile', cacheKey);
+      if (cached != null) {
+        if (kDebugMode) {
+          debugPrint('[AChatApiClient] User profile loaded from cache: $userId');
+        }
+        return NetworkResponse<AChatUser>(
+          statusCode: 200,
+          data: cached,
+          message: 'From cache',
           timestamp: DateTime.now(),
-          cacheInfo: CacheInfo(cacheable: true, ttl: 300),
         );
       }
     }
 
-    final response = await getData('$baseUrl/users/profile');
-    final parsedResponse = _parseEnhancedResponse<AChatUser>(
-      response,
-      (data) => AChatUser.fromJson(data),
+    final request = _buildRequest(
+      endpoint: '${ApiEndpointsAChat.userProfile}/$userId',
+      method: RequestMethod.get,
     );
 
-    if (parsedResponse.success && parsedResponse.data != null) {
-      await _cacheManager.put(
-        'user_profile',
-        cacheKey,
-        parsedResponse.data!,
-        ttl: Duration(minutes: 5),
-        etag: parsedResponse.cacheInfo?.etag,
-      );
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    final user = response.data != null ? AChatUser.fromJson(response.data!) : null;
+    
+    if (user != null && useCache) {
+      await _cacheManager.put('user_profile', cacheKey, user);
     }
 
-    return parsedResponse;
+    return NetworkResponse<AChatUser>(
+      statusCode: response.statusCode,
+      data: user,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
-  Future<EnhancedApiResponse<AChatUser>> updateUserProfile({
-    required Map<String, dynamic> updates,
+  Future<NetworkResponse<AChatUser>> updateUserProfile({
+    required String userId,
+    String? fullName,
+    String? bio,
+    String? avatar,
+    Map<String, dynamic>? additionalData,
   }) async {
-    final response = await putData('$baseUrl/users/profile', updates);
-    final parsedResponse = _parseEnhancedResponse<AChatUser>(
-      response,
-      (data) => AChatUser.fromJson(data),
+    final updateData = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    if (fullName != null) updateData['full_name'] = fullName;
+    if (bio != null) updateData['bio'] = bio;
+    if (avatar != null) updateData['avatar'] = avatar;
+    if (additionalData != null) updateData.addAll(additionalData);
+
+    final request = _buildRequest(
+      endpoint: '${ApiEndpointsAChat.updateProfile}/$userId',
+      method: RequestMethod.put,
+      body: updateData,
     );
 
-    if (parsedResponse.success) {
-      await _cacheManager.remove('user_profile', 'current_user_profile');
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    final user = response.data != null ? AChatUser.fromJson(response.data!) : null;
+    
+    if (user != null) {
+      await _cacheManager.put('user_profile', 'user_profile_$userId', user);
     }
 
-    return parsedResponse;
+    return NetworkResponse<AChatUser>(
+      statusCode: response.statusCode,
+      data: user,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
-  /// Chat/Conversation APIs with caching
-  Future<EnhancedApiResponse<List<AChatConversation>>> getConversations({
+  Future<NetworkResponse<List<AChatUser>>> searchUsers({
+    required String query,
     int page = 1,
-    int perPage = 20,
-    String? search,
-    String? filter,
-    bool forceRefresh = false,
+    int limit = 20,
   }) async {
-    final cacheKey = 'conversations_page_${page}_${perPage}_${search ?? ''}_${filter ?? ''}';
-
-    if (!forceRefresh) {
-      final cachedConversations = await _cacheManager.get<List<AChatConversation>>(
-        'conversations',
-        cacheKey,
-      );
-
-      if (cachedConversations != null) {
-        return EnhancedApiResponse<List<AChatConversation>>(
-          success: true,
-          data: cachedConversations,
-          message: 'Conversations loaded from cache',
-          timestamp: DateTime.now(),
-          cacheInfo: CacheInfo(cacheable: true, ttl: 120),
-        );
-      }
-    }
-
-    final queryParams = <String, String>{
-      'page': page.toString(),
-      'per_page': perPage.toString(),
-    };
-    if (search != null) queryParams['search'] = search;
-    if (filter != null) queryParams['filter'] = filter;
-
-    final uri = Uri.parse('$baseUrl/chats').replace(queryParameters: queryParams);
-    final response = await getData(uri.toString());
-
-    final parsedResponse = _parseEnhancedResponse<List<AChatConversation>>(
-      response,
-      (data) => (data as List).map((item) => AChatConversation.fromJson(item)).toList(),
-    );
-
-    if (parsedResponse.success && parsedResponse.data != null) {
-      await _cacheManager.put(
-        'conversations',
-        cacheKey,
-        parsedResponse.data!,
-        ttl: Duration(minutes: 2),
-        etag: parsedResponse.cacheInfo?.etag,
+    final cacheKey = 'search_${query}_${page}_$limit';
+    // Fix: await cache.get() as it returns Future<T?>
+    final cached = await _cacheManager.get<List<AChatUser>>('search_results', cacheKey);
+    
+    if (cached != null) {
+      return NetworkResponse<List<AChatUser>>(
+        statusCode: 200,
+        data: cached,
+        message: 'From cache',
+        timestamp: DateTime.now(),
       );
     }
 
-    return parsedResponse;
-  }
-
-  Future<EnhancedApiResponse<AChatConversation>> createConversation({
-    required String type,
-    required List<String> participantIds,
-    String? name,
-    String? description,
-    AChatMessage? initialMessage,
-  }) async {
-    final body = <String, dynamic>{
-      'type': type,
-      'participants': participantIds,
-    };
-
-    if (name != null) body['name'] = name;
-    if (description != null) body['description'] = description;
-    if (initialMessage != null) body['initial_message'] = initialMessage.toJson();
-
-    final response = await postData('$baseUrl/chats', body);
-    final parsedResponse = _parseEnhancedResponse<AChatConversation>(
-      response,
-      (data) => AChatConversation.fromJson(data),
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/users/search',
+      method: RequestMethod.get,
+      queryParameters: {
+        'q': query,
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
     );
 
-    if (parsedResponse.success) {
-      await _cacheManager.clear('conversations');
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    List<AChatUser>? users;
+    if (response.data != null && response.data!['users'] is List) {
+      users = (response.data!['users'] as List)
+          .map((json) => AChatUser.fromJson(json as Map<String, dynamic>))
+          .toList();
+      await _cacheManager.put('search_results', cacheKey, users);
     }
 
-    return parsedResponse;
+    return NetworkResponse<List<AChatUser>>(
+      statusCode: response.statusCode,
+      data: users,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
-  /// Message APIs with caching
-  Future<EnhancedApiResponse<List<AChatMessage>>> getMessages({
-    required String chatId,
+  /// Conversation APIs
+  Future<NetworkResponse<List<AChatConversation>>> getConversations({
     int page = 1,
-    int perPage = 50,
-    String? beforeMessageId,
-    String? afterMessageId,
-    bool forceRefresh = false,
+    int limit = 20,
+    bool useCache = true,
   }) async {
-    final cacheKey = 'messages_${chatId}_page_${page}_${perPage}_${beforeMessageId ?? ''}_${afterMessageId ?? ''}';
+    final cacheKey = 'conversations_${page}_$limit';
 
-    if (!forceRefresh) {
-      final cachedMessages = await _cacheManager.get<List<AChatMessage>>(
-        'messages',
-        cacheKey,
-      );
-
-      if (cachedMessages != null) {
-        return EnhancedApiResponse<List<AChatMessage>>(
-          success: true,
-          data: cachedMessages,
-          message: 'Messages loaded from cache',
+    if (useCache) {
+      // Fix: await cache.get() as it returns Future<T?>
+      final cached = await _cacheManager.get<List<AChatConversation>>('conversations', cacheKey);
+      if (cached != null) {
+        return NetworkResponse<List<AChatConversation>>(
+          statusCode: 200,
+          data: cached,
+          message: 'From cache',
           timestamp: DateTime.now(),
-          cacheInfo: CacheInfo(cacheable: true, ttl: 300),
         );
       }
     }
 
-    final queryParams = <String, String>{
-      'page': page.toString(),
-      'per_page': perPage.toString(),
-    };
-    if (beforeMessageId != null) queryParams['before'] = beforeMessageId;
-    if (afterMessageId != null) queryParams['after'] = afterMessageId;
-
-    final uri = Uri.parse('$baseUrl/chats/$chatId/messages').replace(queryParameters: queryParams);
-    final response = await getData(uri.toString());
-
-    final parsedResponse = _parseEnhancedResponse<List<AChatMessage>>(
-      response,
-      (data) => (data as List).map((item) => AChatMessage.fromJson(item)).toList(),
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/conversations',
+      method: RequestMethod.get,
+      queryParameters: {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
     );
 
-    if (parsedResponse.success && parsedResponse.data != null) {
-      await _cacheManager.put(
-        'messages',
-        cacheKey,
-        parsedResponse.data!,
-        ttl: Duration(minutes: 5),
-        etag: parsedResponse.cacheInfo?.etag,
-      );
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    List<AChatConversation>? conversations;
+    if (response.data != null && response.data!['conversations'] is List) {
+      conversations = (response.data!['conversations'] as List)
+          .map((json) => AChatConversation.fromJson(json as Map<String, dynamic>))
+          .toList();
+      
+      if (useCache) {
+        await _cacheManager.put('conversations', cacheKey, conversations);
+      }
     }
 
-    return parsedResponse;
+    return NetworkResponse<List<AChatConversation>>(
+      statusCode: response.statusCode,
+      data: conversations,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
-  Future<EnhancedApiResponse<AChatMessage>> sendMessage({
-    required String chatId,
+  Future<NetworkResponse<AChatConversation>> getConversation({
+    required String conversationId,
+    bool useCache = true,
+  }) async {
+    final cacheKey = 'conversation_$conversationId';
+
+    if (useCache) {
+      // Fix: await cache.get() as it returns Future<T?>
+      final cached = await _cacheManager.get<AChatConversation>('conversations', cacheKey);
+      if (cached != null) {
+        return NetworkResponse<AChatConversation>(
+          statusCode: 200,
+          data: cached,
+          message: 'From cache',
+          timestamp: DateTime.now(),
+        );
+      }
+    }
+
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/conversations/$conversationId',
+      method: RequestMethod.get,
+    );
+
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    final conversation = response.data != null ? AChatConversation.fromJson(response.data!) : null;
+    
+    if (conversation != null && useCache) {
+      await _cacheManager.put('conversations', cacheKey, conversation);
+    }
+
+    return NetworkResponse<AChatConversation>(
+      statusCode: response.statusCode,
+      data: conversation,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
+  }
+
+  Future<NetworkResponse<AChatConversation>> createConversation({
+    required String participantId,
+    String? initialMessage,
+    AChatConversationType type = AChatConversationType.direct,
+  }) async {
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/conversations',
+      method: RequestMethod.post,
+      body: {
+        'participant_id': participantId,
+        'type': type.toString().split('.').last,
+        if (initialMessage != null) 'initial_message': initialMessage,
+        'created_at': DateTime.now().toIso8601String(),
+      },
+    );
+
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    final conversation = response.data != null ? AChatConversation.fromJson(response.data!) : null;
+    
+    if (conversation != null) {
+      _cacheManager.clear('conversations');
+    }
+
+    return NetworkResponse<AChatConversation>(
+      statusCode: response.statusCode,
+      data: conversation,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
+  }
+
+  /// Message APIs
+  Future<NetworkResponse<List<AChatMessage>>> getMessages({
+    required String conversationId,
+    int page = 1,
+    int limit = 50,
+    bool useCache = true,
+  }) async {
+    final cacheKey = 'messages_${conversationId}_${page}_$limit';
+
+    if (useCache) {
+      // Fix: await cache.get() as it returns Future<T?>
+      final cached = await _cacheManager.get<List<AChatMessage>>('messages', cacheKey);
+      if (cached != null) {
+        return NetworkResponse<List<AChatMessage>>(
+          statusCode: 200,
+          data: cached,
+          message: 'From cache',
+          timestamp: DateTime.now(),
+        );
+      }
+    }
+
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/conversations/$conversationId/messages',
+      method: RequestMethod.get,
+      queryParameters: {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      },
+    );
+
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    List<AChatMessage>? messages;
+    if (response.data != null && response.data!['messages'] is List) {
+      messages = (response.data!['messages'] as List)
+          .map((json) => AChatMessage.fromJson(json as Map<String, dynamic>))
+          .toList();
+      
+      if (useCache) {
+        await _cacheManager.put('messages', cacheKey, messages);
+      }
+    }
+
+    return NetworkResponse<List<AChatMessage>>(
+      statusCode: response.statusCode,
+      data: messages,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
+  }
+
+  Future<NetworkResponse<AChatMessage>> sendMessage({
+    required String conversationId,
     required String content,
-    required String type,
-    String? replyToMessageId,
-    List<String>? attachmentIds,
-    String? clientId,
-    bool encrypt = false,
+    AChatMessageType type = AChatMessageType.text,
+    List<AChatAttachment>? attachments,
     Map<String, dynamic>? metadata,
   }) async {
-    final body = <String, dynamic>{
-      'content': content,
-      'type': type,
-    };
-
-    if (replyToMessageId != null) body['reply_to'] = replyToMessageId;
-    if (attachmentIds != null) body['attachments'] = attachmentIds;
-    if (clientId != null) body['client_id'] = clientId;
-    if (encrypt) body['encrypt'] = encrypt;
-    if (metadata != null) body['metadata'] = metadata;
-
-    final response = await postData('$baseUrl/chats/$chatId/messages', body);
-    final parsedResponse = _parseEnhancedResponse<AChatMessage>(
-      response,
-      (data) => AChatMessage.fromJson(data),
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/conversations/$conversationId/messages',
+      method: RequestMethod.post,
+      body: {
+        'content': content,
+        'type': type.toString().split('.').last,
+        if (attachments != null) 'attachments': attachments.map((a) => a.toJson()).toList(),
+        if (metadata != null) 'metadata': metadata,
+        'sent_at': DateTime.now().toIso8601String(),
+      },
     );
 
-    if (parsedResponse.success) {
-      await _cacheManager.clear('conversations');
-      final chatCachePattern = 'messages_${chatId}_';
-      // Clear related message cache entries
-      await _clearCachePattern('messages', chatCachePattern);
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    final message = response.data != null ? AChatMessage.fromJson(response.data!) : null;
+    
+    if (message != null) {
+      _cacheManager.clear('messages');
     }
 
-    return parsedResponse;
+    return NetworkResponse<AChatMessage>(
+      statusCode: response.statusCode,
+      data: message,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
-  Future<EnhancedApiResponse<AChatMessage>> editMessage({
+  Future<NetworkResponse<bool>> markMessageAsRead({
+    required String conversationId,
     required String messageId,
-    required String newContent,
-    String? editReason,
   }) async {
-    final body = <String, dynamic>{
-      'content': newContent,
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/conversations/$conversationId/messages/$messageId/read',
+      method: RequestMethod.put,
+      body: {
+        'read_at': DateTime.now().toIso8601String(),
+      },
+    );
+
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    return NetworkResponse<bool>(
+      statusCode: response.statusCode,
+      data: response.statusCode == 200,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
+  }
+
+  Future<NetworkResponse<bool>> deleteMessage({
+    required String conversationId,
+    required String messageId,
+  }) async {
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/conversations/$conversationId/messages/$messageId',
+      method: RequestMethod.delete,
+    );
+
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    if (response.statusCode == 200) {
+      _cacheManager.clear('messages');
+    }
+
+    return NetworkResponse<bool>(
+      statusCode: response.statusCode,
+      data: response.statusCode == 200,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
+  }
+
+  /// Group Chat APIs
+  Future<NetworkResponse<AChatGroup>> createGroup({
+    required String name,
+    required List<String> memberIds,
+    String? description,
+    String? avatar,
+  }) async {
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/groups',
+      method: RequestMethod.post,
+      body: {
+        'name': name,
+        'member_ids': memberIds,
+        if (description != null) 'description': description,
+        if (avatar != null) 'avatar': avatar,
+        'created_at': DateTime.now().toIso8601String(),
+      },
+    );
+
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    final group = response.data != null ? AChatGroup.fromJson(response.data!) : null;
+
+    return NetworkResponse<AChatGroup>(
+      statusCode: response.statusCode,
+      data: group,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
+  }
+
+  Future<NetworkResponse<AChatGroup>> updateGroup({
+    required String groupId,
+    String? name,
+    String? description,
+    String? avatar,
+  }) async {
+    final updateData = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
     };
 
-    if (editReason != null) body['edit_reason'] = editReason;
+    if (name != null) updateData['name'] = name;
+    if (description != null) updateData['description'] = description;
+    if (avatar != null) updateData['avatar'] = avatar;
 
-    final response = await putData('$baseUrl/messages/$messageId', body);
-    final parsedResponse = _parseEnhancedResponse<AChatMessage>(
-      response,
-      (data) => AChatMessage.fromJson(data),
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/groups/$groupId',
+      method: RequestMethod.put,
+      body: updateData,
     );
 
-    if (parsedResponse.success) {
-      await _clearCachePattern('messages', 'messages_');
-    }
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    final group = response.data != null ? AChatGroup.fromJson(response.data!) : null;
 
-    return parsedResponse;
-  }
-
-  /// Real-time operations
-  Future<EnhancedApiResponse<Map<String, dynamic>>> sendTypingIndicator({
-    required String chatId,
-    required bool isTyping,
-    int typingTimeout = 5000,
-  }) async {
-    final response = await postData('$baseUrl/chats/$chatId/typing', {
-      'is_typing': isTyping,
-      'typing_timeout': typingTimeout,
-    });
-
-    return _parseEnhancedResponse<Map<String, dynamic>>(
-      response,
-      (data) => data as Map<String, dynamic>,
+    return NetworkResponse<AChatGroup>(
+      statusCode: response.statusCode,
+      data: group,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
     );
   }
 
-  Future<EnhancedApiResponse<Map<String, dynamic>>> markConversationAsRead({
-    required String chatId,
-    String? lastReadMessageId,
-    bool readAll = true,
+  Future<NetworkResponse<bool>> addGroupMember({
+    required String groupId,
+    required String userId,
   }) async {
-    final body = <String, dynamic>{
-      'read_all': readAll,
-    };
-
-    if (lastReadMessageId != null) body['last_read_message_id'] = lastReadMessageId;
-
-    final response = await postData('$baseUrl/chats/$chatId/mark-read', body);
-    final parsedResponse = _parseEnhancedResponse<Map<String, dynamic>>(
-      response,
-      (data) => data as Map<String, dynamic>,
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/groups/$groupId/members',
+      method: RequestMethod.post,
+      body: {
+        'user_id': userId,
+        'added_at': DateTime.now().toIso8601String(),
+      },
     );
 
-    if (parsedResponse.success) {
-      await _cacheManager.clear('conversations');
-    }
+    final response = await _client.request<Map<String, dynamic>>(request);
 
-    return parsedResponse;
+    return NetworkResponse<bool>(
+      statusCode: response.statusCode,
+      data: response.statusCode == 200,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
-  /// File upload with progress
-  Future<EnhancedApiResponse<AChatFileInfo>> uploadFile({
-    required File file,
-    required String type,
-    String? chatId,
-    bool compress = true,
-    bool encrypt = false,
-    String thumbnailSize = 'medium',
-    Function(int progress)? onProgress,
+  Future<NetworkResponse<bool>> removeGroupMember({
+    required String groupId,
+    required String userId,
   }) async {
-    try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('$baseUrl/files/upload'),
-      );
-
-      refreshUpdateHeader();
-      request.headers.addAll(_mainHeaders);
-
-      request.fields.addAll({
-        'type': type,
-        'compress': compress.toString(),
-        'encrypt': encrypt.toString(),
-        'thumbnail_size': thumbnailSize,
-      });
-
-      if (chatId != null) {
-        request.fields['chat_id'] = chatId;
-      }
-
-      final multipartFile = await http.MultipartFile.fromPath(
-        'file',
-        file.path,
-        filename: file.path.split('/').last,
-      );
-
-      request.files.add(multipartFile);
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      final mockResponse = Response(
-        body: json.decode(response.body),
-        statusCode: response.statusCode,
-        headers: response.headers,
-        bodyString: response.body,
-      );
-
-      return _parseEnhancedResponse<AChatFileInfo>(
-        mockResponse,
-        (data) => AChatFileInfo.fromJson(data),
-      );
-    } catch (e) {
-      return EnhancedApiResponse<AChatFileInfo>(
-        success: false,
-        error: 'File upload failed: $e',
-        timestamp: DateTime.now(),
-      );
-    }
-  }
-
-  /// Search APIs with caching
-  Future<EnhancedApiResponse<AChatSearchResults>> search({
-    required String query,
-    String type = 'all',
-    String? chatId,
-    int limit = 20,
-    int offset = 0,
-    DateTime? dateFrom,
-    DateTime? dateTo,
-  }) async {
-    final cacheKey = 'search_${query}_${type}_${chatId ?? ''}_${limit}_${offset}';
-
-    final cachedResults = await _cacheManager.get<AChatSearchResults>(
-      'search_results',
-      cacheKey,
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/groups/$groupId/members/$userId',
+      method: RequestMethod.delete,
     );
 
-    if (cachedResults != null) {
-      return EnhancedApiResponse<AChatSearchResults>(
-        success: true,
-        data: cachedResults,
-        message: 'Search results loaded from cache',
-        timestamp: DateTime.now(),
-        cacheInfo: CacheInfo(cacheable: true, ttl: 60),
-      );
-    }
+    final response = await _client.request<Map<String, dynamic>>(request);
 
-    final queryParams = <String, String>{
-      'query': query,
-      'type': type,
-      'limit': limit.toString(),
-      'offset': offset.toString(),
-    };
+    return NetworkResponse<bool>(
+      statusCode: response.statusCode,
+      data: response.statusCode == 200,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
+  }
 
-    if (chatId != null) queryParams['chat_id'] = chatId;
-    if (dateFrom != null) queryParams['date_from'] = dateFrom.toIso8601String();
-    if (dateTo != null) queryParams['date_to'] = dateTo.toIso8601String();
-
-    final uri = Uri.parse('$baseUrl/search').replace(queryParameters: queryParams);
-    final response = await getData(uri.toString());
-
-    final parsedResponse = _parseEnhancedResponse<AChatSearchResults>(
-      response,
-      (data) => AChatSearchResults.fromJson(data),
+  /// File Upload APIs
+  Future<NetworkResponse<AChatFileInfo>> uploadFile({
+    required String filePath,
+    required String fileName,
+    String? mimeType,
+    Function(int sent, int total)? onProgress,
+  }) async {
+    // Note: File upload would require multipart handling
+    // This is a simplified version
+    final request = _buildRequest(
+      endpoint: '${ApiConfigAChat.basePath}/files/upload',
+      method: RequestMethod.post,
+      body: {
+        'file_path': filePath,
+        'file_name': fileName,
+        if (mimeType != null) 'mime_type': mimeType,
+        'uploaded_at': DateTime.now().toIso8601String(),
+      },
     );
 
-    if (parsedResponse.success && parsedResponse.data != null) {
-      await _cacheManager.put(
-        'search_results',
-        cacheKey,
-        parsedResponse.data!,
-        ttl: Duration(minutes: 1),
-      );
-    }
+    final response = await _client.request<Map<String, dynamic>>(request);
+    
+    final fileInfo = response.data != null ? AChatFileInfo.fromJson(response.data!) : null;
 
-    return parsedResponse;
+    return NetworkResponse<AChatFileInfo>(
+      statusCode: response.statusCode,
+      data: fileInfo,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
   }
 
-  /// Helper methods
-  EnhancedApiResponse<T> _parseEnhancedResponse<T>(
-    Response response,
-    T Function(dynamic) fromJsonT,
-  ) {
-    if (response.statusCode == 200 && response.body != null) {
-      try {
-        final jsonData = response.body as Map<String, dynamic>;
-        return EnhancedApiResponse.fromJson<T>(jsonData, fromJsonT);
-      } catch (e) {
-        return EnhancedApiResponse<T>(
-          success: false,
-          error: 'Response parsing failed: $e',
-          timestamp: DateTime.now(),
-        );
-      }
-    } else {
-      return EnhancedApiResponse<T>(
-        success: false,
-        error: response.statusText ?? 'Unknown error',
-        statusCode: response.statusCode,
-        timestamp: DateTime.now(),
-      );
-    }
-  }
-
-  Future<void> _clearCachePattern(String cacheType, String pattern) async {
-    // Implementation to clear cache entries matching a pattern
-    // This would require extending the cache manager
-    await _cacheManager.clear(cacheType);
-  }
-
-  /// Cache management methods
-  Future<void> clearCache({String? cacheType}) async {
-    if (cacheType != null) {
-      await _cacheManager.clear(cacheType);
-    } else {
-      await _cacheManager.clearAll();
-    }
-  }
-
-  Future<Map<String, dynamic>> getCacheStats() async {
-    return await _cacheManager.getStats();
-  }
-
-  // ========================================
-  // BankV1 Backend Integration Methods
-  // Cross-app data consistency implementation
-  // ========================================
-
-  /// App lifecycle - Open app
-  Future<ApiResponse<Map<String, dynamic>>> appOpen({
-    String? appVersion,
-    String? platform,
-  }) async {
-    try {
-      final requestData = AChatApiModels.appOpenRequest(
-        deviceId: AChatDeviceInfo.deviceId,
-        appSignature: AChatDeviceInfo.appSignature,
-        timestamp: AChatDeviceInfo.currentTimestamp,
-        appVersion: appVersion,
-        platform: platform,
-      );
-
-      final response = await post(
-        ApiEndpointsAChat.appOpen,
-        data: requestData,
-        headers: {
-          'X-Device-ID': AChatDeviceInfo.deviceId,
-          'X-App-Signature': AChatDeviceInfo.appSignature,
-          'X-Platform': platform ?? 'flutter',
-          'X-App-Version': appVersion ?? '1.0.0',
-        },
-      );
-
-      return response;
-    } catch (e) {
-      if (kDebugMode) {
-        print('App open API error: $e');
-      }
-      return ApiResponse.error('Failed to notify app open: $e');
-    }
-  }
-
-  /// App lifecycle - Close app
-  Future<ApiResponse<Map<String, dynamic>>> appClose({
+  /// Device & Session Management APIs
+  Future<NetworkResponse<bool>> sendHeartbeat({
+    required String deviceId,
     int? sessionDuration,
   }) async {
-    try {
-      final requestData = AChatApiModels.appCloseRequest(
-        deviceId: AChatDeviceInfo.deviceId,
-        appSignature: AChatDeviceInfo.appSignature,
+    final request = _buildRequest(
+      endpoint: ApiEndpointsAChat.appHeartbeat,
+      method: RequestMethod.post,
+      body: AChatApiModels.heartbeatRequest(
         timestamp: AChatDeviceInfo.currentTimestamp,
         sessionDuration: sessionDuration,
-      );
+      ),
+    );
 
-      final response = await post(
-        ApiEndpointsAChat.appClose,
-        data: requestData,
-        headers: {
-          'X-Device-ID': AChatDeviceInfo.deviceId,
-          'X-App-Signature': AChatDeviceInfo.appSignature,
-        },
-      );
+    final response = await _client.request<Map<String, dynamic>>(request);
 
-      return response;
-    } catch (e) {
-      if (kDebugMode) {
-        print('App close API error: $e');
-      }
-      return ApiResponse.error('Failed to notify app close: $e');
+    return NetworkResponse<bool>(
+      statusCode: response.statusCode,
+      data: response.statusCode == 200,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
+    );
+  }
+
+  /// Cache Management
+  void clearAllCache() {
+    _cacheManager.clear('conversations');
+    _cacheManager.clear('messages');
+    _cacheManager.clear('user_profile');
+    _cacheManager.clear('search_results');
+    
+    if (kDebugMode) {
+      debugPrint('[AChatApiClient] All caches cleared');
     }
   }
 
-  /// App lifecycle - Heartbeat
-  Future<ApiResponse<Map<String, dynamic>>> heartbeat({
-    int? sessionDuration,
-  }) async {
-    try {
-      final requestData = AChatApiModels.heartbeatRequest(
-        timestamp: AChatDeviceInfo.currentTimestamp,
-        sessionDuration: sessionDuration,
-      );
-
-      final response = await post(
-        ApiEndpointsAChat.appHeartbeat,
-        data: requestData,
-        headers: {
-          'X-Device-ID': AChatDeviceInfo.deviceId,
-          'X-App-Signature': AChatDeviceInfo.appSignature,
-        },
-      );
-
-      return response;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Heartbeat API error: $e');
-      }
-      return ApiResponse.error('Failed to send heartbeat: $e');
+  void clearCache(String cacheType) {
+    _cacheManager.clear(cacheType);
+    
+    if (kDebugMode) {
+      debugPrint('[AChatApiClient] Cache cleared: $cacheType');
     }
   }
 
-  /// User management - Update profile
-  Future<ApiResponse<Map<String, dynamic>>> updateUserProfile({
-    String? fullName,
-    String? email,
-    String? phone,
-    String? dateOfBirth,
-    String? gender,
-  }) async {
-    try {
-      final requestData = AChatApiModels.profileUpdateRequest(
-        fullName: fullName,
-        email: email,
-        phone: phone,
-        dateOfBirth: dateOfBirth,
-        gender: gender,
-        updatedAt: DateTime.now().toIso8601String(),
-      );
-
-      final response = await put(
-        ApiEndpointsAChat.updateProfile,
-        data: requestData,
-        headers: {
-          'X-Device-ID': AChatDeviceInfo.deviceId,
-          'X-App-Signature': AChatDeviceInfo.appSignature,
-        },
-      );
-
-      return response;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Update profile API error: $e');
-      }
-      return ApiResponse.error('Failed to update profile: $e');
+  /// Dispose
+  void dispose() {
+    // UnifiedNetworkClient manages its own lifecycle
+    if (kDebugMode) {
+      debugPrint('[AChatApiClient] Disposed');
     }
   }
+}
 
-  /// Test app - Generate test data
-  Future<ApiResponse<Map<String, dynamic>>> generateTestData({
-    required String dataType,
-    int? count,
-    Map<String, dynamic>? parameters,
-  }) async {
-    try {
-      final requestData = AChatApiModels.generateTestDataRequest(
-        dataType: dataType,
-        count: count,
-        parameters: parameters,
-      );
+/// Response type definitions for type-safe API responses
 
-      final response = await post(
-        ApiEndpointsAChat.generateTestData,
-        data: requestData,
-        headers: {
-          'X-Device-ID': AChatDeviceInfo.deviceId,
-          'X-App-Signature': AChatDeviceInfo.appSignature,
-        },
-      );
+class AChatAuthResponse {
+  final String accessToken;
+  final String refreshToken;
+  final String tokenType;
+  final int expiresIn;
+  final AChatUser user;
 
-      return response;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Generate test data API error: $e');
-      }
-      return ApiResponse.error('Failed to generate test data: $e');
-    }
+  AChatAuthResponse({
+    required this.accessToken,
+    required this.refreshToken,
+    required this.tokenType,
+    required this.expiresIn,
+    required this.user,
+  });
+
+  factory AChatAuthResponse.fromJson(Map<String, dynamic> json) {
+    return AChatAuthResponse(
+      accessToken: json['access_token'] as String,
+      refreshToken: json['refresh_token'] as String,
+      tokenType: json['token_type'] as String? ?? 'Bearer',
+      expiresIn: json['expires_in'] as int,
+      user: AChatUser.fromJson(json['user'] as Map<String, dynamic>),
+    );
   }
 
-  /// Test app - Upload test info
-  Future<ApiResponse<Map<String, dynamic>>> uploadTestInfo({
-    required String infoType,
-    required Map<String, dynamic> data,
-  }) async {
-    try {
-      final requestData = AChatApiModels.uploadTestInfoRequest(
-        infoType: infoType,
-        data: data,
-        timestamp: DateTime.now().toIso8601String(),
-      );
-
-      final response = await post(
-        ApiEndpointsAChat.uploadTestInfo,
-        data: requestData,
-        headers: {
-          'X-Device-ID': AChatDeviceInfo.deviceId,
-          'X-App-Signature': AChatDeviceInfo.appSignature,
-        },
-      );
-
-      return response;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Upload test info API error: $e');
-      }
-      return ApiResponse.error('Failed to upload test info: $e');
-    }
+  Map<String, dynamic> toJson() {
+    return {
+      'access_token': accessToken,
+      'refresh_token': refreshToken,
+      'token_type': tokenType,
+      'expires_in': expiresIn,
+      'user': user.toJson(),
+    };
   }
+}
+
+class AChatTokenResponse {
+  final String accessToken;
+  final String tokenType;
+  final int expiresIn;
+
+  AChatTokenResponse({
+    required this.accessToken,
+    required this.tokenType,
+    required this.expiresIn,
+  });
+
+  factory AChatTokenResponse.fromJson(Map<String, dynamic> json) {
+    return AChatTokenResponse(
+      accessToken: json['access_token'] as String,
+      tokenType: json['token_type'] as String? ?? 'Bearer',
+      expiresIn: json['expires_in'] as int,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'access_token': accessToken,
+      'token_type': tokenType,
+      'expires_in': expiresIn,
+    };
+  }
+}
+
+class AChatDeviceInfo {
+  final String deviceId;
+  final String platform;
+  final String appVersion;
+  final String osVersion;
+
+  AChatDeviceInfo({
+    required this.deviceId,
+    required this.platform,
+    required this.appVersion,
+    required this.osVersion,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'device_id': deviceId,
+      'platform': platform,
+      'app_version': appVersion,
+      'os_version': osVersion,
+    };
+  }
+
+  static int get currentTimestamp => DateTime.now().millisecondsSinceEpoch;
 }

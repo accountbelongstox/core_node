@@ -11,7 +11,8 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'prefs_app_bank.dart';
-import 'package:qyflutter/apps/app_bank/config_app_bank/bank_user_provider.dart';
+// Fix: Use providers_app_bank/bank_user_provider.dart (correct implementation)
+import '../providers_app_bank/bank_user_provider.dart';
 
 /// Bank App Provider
 /// 

@@ -46,10 +46,7 @@ class ImageMatcher:
         nfeatures: int = 5000,
         ransac_threshold: float = 5.0,
         standard_width: Optional[int] = None,
-        standard_height: Optional[int] = None,
-        default_method: int = cv2.TM_CCORR_NORMED,
-        support_alpha: bool = False,
-        feature_detector: str = "ORB"
+        standard_height: Optional[int] = None
     ):
         """
         Initialize image matcher
@@ -61,42 +58,21 @@ class ImageMatcher:
             ransac_threshold: RANSAC reprojection error threshold
             standard_width: Standard reference width for auto-scaling (None = use target image width)
             standard_height: Standard reference height for auto-scaling (None = use target image height)
-            default_method: Default template matching method (cv2.TM_CCORR_NORMED by default)
-            support_alpha: Whether to support PNG alpha channel transparency (False by default)
-            feature_detector: Feature detector type: "ORB", "SIFT", or "AKAZE" (default: "ORB")
         """
         self.ratio_thresh = ratio_thresh
         self.min_inliers = min_inliers
         self.ransac_threshold = ransac_threshold
         self.standard_width = standard_width
         self.standard_height = standard_height
-        self.default_method = default_method
-        self.support_alpha = support_alpha
-        self.feature_detector_type = feature_detector.upper()
+        self.nfeatures = nfeatures
 
-        # Initialize feature detector based on type
-        if self.feature_detector_type == "SIFT":
-            self.detector = cv2.SIFT_create(nfeatures=nfeatures)
-            self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
-            ColorPrint.blue(f"[ImageMatcher] Using SIFT feature detector")
-        elif self.feature_detector_type == "AKAZE":
-            self.detector = cv2.AKAZE_create()
-            self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-            ColorPrint.blue(f"[ImageMatcher] Using AKAZE feature detector")
-        else:  # Default to ORB
-            self.detector = cv2.ORB_create(nfeatures=nfeatures)
-            self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-            ColorPrint.blue(f"[ImageMatcher] Using ORB feature detector")
-
-        # Keep backward compatibility
-        self.orb = self.detector
+        ColorPrint.blue(f"[ImageMatcher] Feature ratio threshold: {ratio_thresh}")
+        ColorPrint.blue(f"[ImageMatcher] Minimum inliers: {min_inliers}")
+        ColorPrint.blue(f"[ImageMatcher] Max features: {nfeatures}")
+        ColorPrint.blue(f"[ImageMatcher] RANSAC threshold: {ransac_threshold}px")
 
         if standard_width is not None and standard_height is not None:
             ColorPrint.blue(f"[ImageMatcher] Standard resolution: {standard_width}x{standard_height}")
-
-        method_name = self._get_method_name(default_method)
-        ColorPrint.blue(f"[ImageMatcher] Default matching method: {method_name}")
-        ColorPrint.blue(f"[ImageMatcher] Alpha channel support: {'Enabled' if support_alpha else 'Disabled'}")
 
     @staticmethod
     def _get_method_name(method: int) -> str:
@@ -143,7 +119,8 @@ class ImageMatcher:
         template_image: np.ndarray,
         template_name: str = "template",
         custom_threshold: float = None,
-        use_alpha: bool = None
+        use_alpha: bool = None,
+        detection_method: str = "ORB"
     ) -> Optional[Dict]:
         """
         Match a single template image in the target image with auto-scaling support
@@ -152,8 +129,16 @@ class ImageMatcher:
             target_image: Large image to search in (BGR format)
             template_image: Small template image to find (BGR or BGRA format)
             template_name: Name identifier for this template
-            custom_threshold: Custom matching threshold for template matching (default: 0.8)
+            custom_threshold: Custom matching threshold (default: uses self.ratio_thresh)
+                            - For feature matching (SIFT/ORB/AKAZE): Used as Lowe's ratio test threshold
+                              Typical range: 0.6-0.9 (higher = stricter matching)
+                            - For template matching: Used as correlation threshold
+                              Typical range: 0.7-0.95 (higher = stricter matching)
             use_alpha: Whether to use alpha channel (None = use self.support_alpha)
+            method: Matching method to use (None = auto-detect based on feature_detector)
+                   - Feature methods: "SIFT", "ORB", "AKAZE"
+                   - Template methods: "TM_CCOEFF", "TM_CCORR", "TM_CCORR_NORMED", etc.
+                   If None, will use the configured feature_detector type
 
         Returns:
             Dictionary with match results or None if no match found:
@@ -182,39 +167,96 @@ class ImageMatcher:
 
             scaled_template = cv2.resize(template_image, (scaled_w, scaled_h), interpolation=cv2.INTER_LINEAR)
 
-        # First try feature-based matching
-        result = self._match_with_features(target_image, scaled_template, template_name)
+        # Initialize the appropriate feature detector for this call
+        detection_method_upper = detection_method.upper()
 
-        if result is not None:
-            result["auto_scale_x"] = scale_x
-            result["auto_scale_y"] = scale_y
+        if detection_method_upper == "SIFT":
+            detector = cv2.SIFT_create(nfeatures=self.nfeatures)
+            matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
+            ColorPrint.blue(f"[ImageMatcher] Using SIFT feature detector")
+        elif detection_method_upper == "AKAZE":
+            detector = cv2.AKAZE_create()
+            matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+            ColorPrint.blue(f"[ImageMatcher] Using AKAZE feature detector")
+        else:  # Default to ORB
+            detector = cv2.ORB_create(nfeatures=self.nfeatures)
+            matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+            ColorPrint.blue(f"[ImageMatcher] Using ORB feature detector")
+
+        # Feature-based methods
+        feature_methods = ["SIFT", "ORB", "AKAZE"]
+
+        # Template matching methods map
+        template_method_map = {
+            "TM_CCOEFF": cv2.TM_CCOEFF,
+            "TM_CCOEFF_NORMED": cv2.TM_CCOEFF_NORMED,
+            "TM_CCORR": cv2.TM_CCORR,
+            "TM_CCORR_NORMED": cv2.TM_CCORR_NORMED,
+            "TM_SQDIFF": cv2.TM_SQDIFF,
+            "TM_SQDIFF_NORMED": cv2.TM_SQDIFF_NORMED
+        }
+
+        if detection_method_upper in feature_methods:
+            # Use feature-based matching
+            ratio_thresh = custom_threshold if custom_threshold is not None else self.ratio_thresh
+            ColorPrint.debug(f"[ImageMatcher] Using {detection_method_upper} feature matching with threshold {ratio_thresh}")
+            result = self._match_with_features(target_image, scaled_template, template_name, ratio_thresh, detector, matcher)
+
+            if result is not None:
+                result["auto_scale_x"] = scale_x
+                result["auto_scale_y"] = scale_y
+                result["match_threshold"] = ratio_thresh
+                result["matching_method"] = detection_method_upper
             return result
 
-        # If feature matching fails, try template matching for simple templates
-        ColorPrint.yellow(f"[DEBUG] {template_name}: Feature matching failed, trying template matching...")
-        threshold = custom_threshold if custom_threshold is not None else 0.8
-        result = self._match_with_template(target_image, scaled_template, template_name, threshold, use_alpha)
+        elif detection_method_upper in template_method_map:
+            # Use template-based matching
+            threshold = custom_threshold if custom_threshold is not None else 0.8
+            cv_method = template_method_map[detection_method_upper]
+            ColorPrint.debug(f"[ImageMatcher] Using {detection_method_upper} template matching with threshold {threshold}")
+            result = self._match_with_template(target_image, scaled_template, template_name, threshold, use_alpha, cv_method)
 
-        if result is not None:
-            result["auto_scale_x"] = scale_x
-            result["auto_scale_y"] = scale_y
+            if result is not None:
+                result["auto_scale_x"] = scale_x
+                result["auto_scale_y"] = scale_y
+                result["match_threshold"] = threshold
+                result["matching_method"] = detection_method_upper
+            return result
 
-        return result
+        else:
+            # Unknown method - let it fail naturally as requested
+            ColorPrint.red(f"[ImageMatcher] Unknown matching method: {detection_method}")
+            # Deliberately not providing fallback - let the program fail as requested
+            raise ValueError(f"Unknown matching method: {detection_method}. Supported methods are: {feature_methods + list(template_method_map.keys())}")
 
     def _match_with_features(
         self,
         target_image: np.ndarray,
         template_image: np.ndarray,
-        template_name: str
+        template_name: str,
+        ratio_thresh: float = None,
+        detector=None,
+        matcher=None
     ) -> Optional[Dict]:
-        """Feature-based matching using ORB"""
+        """
+        Feature-based matching using configured feature detector (SIFT/ORB/AKAZE)
+
+        Args:
+            target_image: Large image to search in
+            template_image: Template to find
+            template_name: Name for logging
+            ratio_thresh: Custom Lowe's ratio test threshold (if None, uses self.ratio_thresh)
+        """
+        # Use custom ratio_thresh if provided, otherwise use instance default
+        effective_ratio_thresh = ratio_thresh if ratio_thresh is not None else self.ratio_thresh
+
         # Convert to grayscale
         gray_target = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY)
         gray_template = cv2.cvtColor(template_image, cv2.COLOR_BGR2GRAY)
 
         # Detect features and compute descriptors
-        kp_template, des_template = self.detector.detectAndCompute(gray_template, None)
-        kp_target, des_target = self.detector.detectAndCompute(gray_target, None)
+        kp_template, des_template = detector.detectAndCompute(gray_template, None)
+        kp_target, des_target = detector.detectAndCompute(gray_target, None)
 
         ColorPrint.debug(f"[DEBUG] {template_name}: Found {len(kp_template) if kp_template else 0} keypoints in template")
         ColorPrint.debug(f"[DEBUG] {template_name}: Found {len(kp_target) if kp_target else 0} keypoints in target")
@@ -225,21 +267,21 @@ class ImageMatcher:
 
         # Match features using k-NN
         try:
-            matches = self.matcher.knnMatch(des_template, des_target, k=2)
+            matches = matcher.knnMatch(des_template, des_target, k=2)
             ColorPrint.debug(f"[DEBUG] {template_name}: knnMatch returned {len(matches)} match pairs")
         except cv2.error:
             ColorPrint.red(f"[DEBUG] {template_name}: knnMatch failed")
             return None
 
-        # Apply Lowe's ratio test
+        # Apply Lowe's ratio test with custom or default ratio_thresh
         good_matches = []
         for match_pair in matches:
             if len(match_pair) == 2:
                 m, n = match_pair
-                if m.distance < self.ratio_thresh * n.distance:
+                if m.distance < effective_ratio_thresh * n.distance:
                     good_matches.append(m)
 
-        ColorPrint.debug(f"[DEBUG] {template_name}: {len(good_matches)} good matches after ratio test (min required: {self.min_inliers})")
+        ColorPrint.debug(f"[DEBUG] {template_name}: {len(good_matches)} good matches after ratio test (ratio_thresh={effective_ratio_thresh:.3f}, min required: {self.min_inliers})")
 
         if len(good_matches) < self.min_inliers:
             ColorPrint.yellow(f"[DEBUG] {template_name}: Not enough good matches")
@@ -280,7 +322,8 @@ class ImageMatcher:
         template_image: np.ndarray,
         template_name: str,
         threshold: float = 0.8,
-        use_alpha: bool = None
+        use_alpha: bool = None,
+        cv_method: int = None
     ) -> Optional[Dict]:
         """Template matching using normalized cross-correlation
 
@@ -290,6 +333,7 @@ class ImageMatcher:
             template_name: Template identifier
             threshold: Matching threshold
             use_alpha: Whether to use alpha channel (None = use self.support_alpha)
+            cv_method: OpenCV template matching method (None = use self.default_method)
         """
         # Determine if alpha channel should be used
         if use_alpha is None:
@@ -308,19 +352,36 @@ class ImageMatcher:
 
         h, w = gray_template.shape
 
-        # Use default method or try multiple methods
-        result = cv2.matchTemplate(gray_target, gray_template, self.default_method, mask=mask)
+        # Use provided method or default method
+        if cv_method is not None:
+            effective_method = cv_method
+        else:
+            # Convert string default to OpenCV constant
+            if isinstance(self.default_method, str):
+                template_method_map = {
+                    "TM_CCOEFF": cv2.TM_CCOEFF,
+                    "TM_CCOEFF_NORMED": cv2.TM_CCOEFF_NORMED,
+                    "TM_CCORR": cv2.TM_CCORR,
+                    "TM_CCORR_NORMED": cv2.TM_CCORR_NORMED,
+                    "TM_SQDIFF": cv2.TM_SQDIFF,
+                    "TM_SQDIFF_NORMED": cv2.TM_SQDIFF_NORMED
+                }
+                effective_method = template_method_map.get(self.default_method, cv2.TM_CCORR_NORMED)
+            else:
+                effective_method = self.default_method
+
+        result = cv2.matchTemplate(gray_target, gray_template, effective_method, mask=mask)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
         # For SQDIFF methods, lower is better
-        if self.default_method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
+        if effective_method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
             match_val = 1 - min_val
             best_match = min_loc
         else:
             match_val = max_val
             best_match = max_loc
 
-        method_name = self._get_method_name(self.default_method)
+        method_name = self._get_method_name(effective_method)
         ColorPrint.debug(f"[DEBUG] {template_name}: Template matching score: {match_val:.3f} (threshold: {threshold}, method: {method_name})")
 
         if match_val < threshold:

@@ -75,7 +75,6 @@ class GameAssistantController:
         # Step 1: Collect interface information (only once!)
         ColorPrint.blue("[AutoUseInterface] Step 1: Detecting interface type...")
         bag_success = self.interface_manager.collect_bag_info_quik()
-        ColorPrint.red(f"[AutoUseInterface] exit")
         if not bag_success:
             ColorPrint.red("[AutoUseInterface] Failed to collect interface info")
             return False
