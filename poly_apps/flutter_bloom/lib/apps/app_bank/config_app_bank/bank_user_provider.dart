@@ -11,10 +11,10 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/foundation.dart';
-import '../model/bank_user_model.dart';
-import '../storage/storage_manager.dart';
-import '../cache_manager/cache_manager.dart';
-import 'user_provider.dart';
+import '../../../common/model/bank_user_model.dart';
+import '../../../common/storage/storage_manager.dart';
+import '../../../common/cache_manager/cache_manager.dart';
+import '../../../common/provider_status/user_provider.dart';
 
 /// Bank User Provider
 /// Manages bank user data with persistent storage and caching
