@@ -53,8 +53,8 @@ class Diablo3MacroUI:
 
         # Set window title
         self.root.title(i18n_manager.get_ui_text("main_window.title"))
-        self.root.geometry("900x780")  # Increased height for more log display space
-        self.root.minsize(700, 550)    # Increased minimum size
+        self.root.geometry("540x468")  # Scaled to 60% of original 900x780
+        self.root.minsize(420, 330)    # Scaled to 60% of original 700x550
         self.root.resizable(True, True) # Allow resizing
         self.root.configure(bg=UITheme.get_color('bg_dark'))
 
@@ -89,47 +89,47 @@ class Diablo3MacroUI:
         # Create invisible frames for resize borders
         self.resize_frames = {}
         
-        # Top border
-        self.resize_frames['top'] = tk.Frame(self.root, height=3, bg=UITheme.get_color('bg_dark'))
+        # Top border (scaled to 60% of original 3px)
+        self.resize_frames['top'] = tk.Frame(self.root, height=2, bg=UITheme.get_color('bg_dark'))
         self.resize_frames['top'].pack(fill=tk.X, side=tk.TOP)
         self.resize_frames['top'].bind("<Button-1>", lambda e: self._start_resize('n'))
         self.resize_frames['top'].bind("<B1-Motion>", lambda e: self._on_resize('n', e))
         
-        # Bottom border
-        self.resize_frames['bottom'] = tk.Frame(self.root, height=3, bg=UITheme.get_color('bg_dark'))
+        # Bottom border (scaled to 60% of original 3px)
+        self.resize_frames['bottom'] = tk.Frame(self.root, height=2, bg=UITheme.get_color('bg_dark'))
         self.resize_frames['bottom'].pack(fill=tk.X, side=tk.BOTTOM)
         self.resize_frames['bottom'].bind("<Button-1>", lambda e: self._start_resize('s'))
         self.resize_frames['bottom'].bind("<B1-Motion>", lambda e: self._on_resize('s', e))
         
-        # Left border
-        self.resize_frames['left'] = tk.Frame(self.root, width=3, bg=UITheme.get_color('bg_dark'))
+        # Left border (scaled to 60% of original 3px)
+        self.resize_frames['left'] = tk.Frame(self.root, width=2, bg=UITheme.get_color('bg_dark'))
         self.resize_frames['left'].pack(fill=tk.Y, side=tk.LEFT)
         self.resize_frames['left'].bind("<Button-1>", lambda e: self._start_resize('w'))
         self.resize_frames['left'].bind("<B1-Motion>", lambda e: self._on_resize('w', e))
         
-        # Right border
-        self.resize_frames['right'] = tk.Frame(self.root, width=3, bg=UITheme.get_color('bg_dark'))
+        # Right border (scaled to 60% of original 3px)
+        self.resize_frames['right'] = tk.Frame(self.root, width=2, bg=UITheme.get_color('bg_dark'))
         self.resize_frames['right'].pack(fill=tk.Y, side=tk.RIGHT)
         self.resize_frames['right'].bind("<Button-1>", lambda e: self._start_resize('e'))
         self.resize_frames['right'].bind("<B1-Motion>", lambda e: self._on_resize('e', e))
         
-        # Corner borders
-        self.resize_frames['nw'] = tk.Frame(self.root, width=3, height=3, bg=UITheme.get_color('bg_dark'))
+        # Corner borders (scaled to 60% of original 3x3px)
+        self.resize_frames['nw'] = tk.Frame(self.root, width=2, height=2, bg=UITheme.get_color('bg_dark'))
         self.resize_frames['nw'].place(x=0, y=0)
         self.resize_frames['nw'].bind("<Button-1>", lambda e: self._start_resize('nw'))
         self.resize_frames['nw'].bind("<B1-Motion>", lambda e: self._on_resize('nw', e))
         
-        self.resize_frames['ne'] = tk.Frame(self.root, width=3, height=3, bg=UITheme.get_color('bg_dark'))
+        self.resize_frames['ne'] = tk.Frame(self.root, width=2, height=2, bg=UITheme.get_color('bg_dark'))
         self.resize_frames['ne'].place(relx=1.0, y=0, anchor='ne')
         self.resize_frames['ne'].bind("<Button-1>", lambda e: self._start_resize('ne'))
         self.resize_frames['ne'].bind("<B1-Motion>", lambda e: self._on_resize('ne', e))
         
-        self.resize_frames['sw'] = tk.Frame(self.root, width=3, height=3, bg=UITheme.get_color('bg_dark'))
+        self.resize_frames['sw'] = tk.Frame(self.root, width=2, height=2, bg=UITheme.get_color('bg_dark'))
         self.resize_frames['sw'].place(x=0, rely=1.0, anchor='sw')
         self.resize_frames['sw'].bind("<Button-1>", lambda e: self._start_resize('sw'))
         self.resize_frames['sw'].bind("<B1-Motion>", lambda e: self._on_resize('sw', e))
         
-        self.resize_frames['se'] = tk.Frame(self.root, width=3, height=3, bg=UITheme.get_color('bg_dark'))
+        self.resize_frames['se'] = tk.Frame(self.root, width=2, height=2, bg=UITheme.get_color('bg_dark'))
         self.resize_frames['se'].place(relx=1.0, rely=1.0, anchor='se')
         self.resize_frames['se'].bind("<Button-1>", lambda e: self._start_resize('se'))
         self.resize_frames['se'].bind("<B1-Motion>", lambda e: self._on_resize('se', e))
@@ -171,14 +171,14 @@ class Diablo3MacroUI:
         new_y = self.resize_start_y_root
         
         if 'e' in direction:
-            new_width = max(700, self.resize_start_width + delta_x)
+            new_width = max(420, self.resize_start_width + delta_x)  # Scaled to 60% of 700
         if 'w' in direction:
-            new_width = max(700, self.resize_start_width - delta_x)
+            new_width = max(420, self.resize_start_width - delta_x)  # Scaled to 60% of 700
             new_x = self.resize_start_x_root + delta_x
         if 's' in direction:
-            new_height = max(550, self.resize_start_height + delta_y)
+            new_height = max(330, self.resize_start_height + delta_y)  # Scaled to 60% of 550
         if 'n' in direction:
-            new_height = max(550, self.resize_start_height - delta_y)
+            new_height = max(330, self.resize_start_height - delta_y)  # Scaled to 60% of 550
             new_y = self.resize_start_y_root + delta_y
         
         # Apply new geometry
@@ -325,8 +325,8 @@ class Diablo3MacroUI:
     
     def _create_main_tabs(self):
         """Create main tabbed interface"""
-        # Create notebook for main tabs with fixed height (increased from 450 to 480 for more log space)
-        self.main_notebook = ttk.Notebook(self.root, height=480)
+        # Create notebook for main tabs with fixed height (scaled to 60% of original 480)
+        self.main_notebook = ttk.Notebook(self.root, height=288)
         self.main_notebook.pack(fill=tk.X, padx=10, pady=5)
         
         # Apply dark theme to notebook
@@ -357,11 +357,11 @@ class Diablo3MacroUI:
         except:
             pass
         
-        # Method 2: Configure notebook style with consistent tab margins
+        # Method 2: Configure notebook style with consistent tab margins (scaled to 60%)
         style.configure('Dark.TNotebook',
                        background=UITheme.get_color('bg_primary'),
                        borderwidth=0,
-                       tabmargins=[2, 5, 2, 0],  # Consistent margins for all tabs
+                       tabmargins=[1, 3, 1, 0],  # [2,5,2,0] * 0.6 = [1.2,3,1.2,0] -> [1,3,1,0]
                        tabposition='nw')  # Ensure tabs are at top-left
         
         # Configure frame style for tab content
@@ -369,11 +369,11 @@ class Diablo3MacroUI:
                        background=UITheme.get_color('bg_primary'),
                        borderwidth=0)
         
-        # Method 3: Configure tab style with explicit colors
+        # Method 3: Configure tab style with explicit colors (scaled to 60%)
         style.configure('Dark.TNotebook.Tab',
                        background=UITheme.get_color('tab_unselected_bg'),  # Light background for unselected
                        foreground=UITheme.get_color('tab_unselected_fg'),  # Dark text for unselected
-                       padding=[20, 10],
+                       padding=[12, 6],  # [20,10] * 0.6 = [12,6]
                        borderwidth=1,
                        focuscolor='none',  # Remove focus border
                        lightcolor=UITheme.get_color('tab_unselected_bg'),
@@ -394,9 +394,9 @@ class Diablo3MacroUI:
                  darkcolor=[('selected', UITheme.get_color('bg_secondary')),
                           ('active', UITheme.get_color('tab_hover_bg')),
                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 padding=[('selected', [20, 10]),  # Same padding for selected
-                         ('active', [20, 10]),     # Same padding for hover
-                         ('!selected', [20, 10])], # Same padding for unselected
+                 padding=[('selected', [12, 6]),   # [20,10] * 0.6 = [12,6] for selected
+                         ('active', [12, 6]),      # [20,10] * 0.6 = [12,6] for hover
+                         ('!selected', [12, 6])],  # [20,10] * 0.6 = [12,6] for unselected
                  borderwidth=[('selected', 1),     # Same border for selected
                              ('active', 1),        # Same border for hover
                              ('!selected', 1)],    # Same border for unselected
@@ -415,11 +415,11 @@ class Diablo3MacroUI:
         try:
             style = ttk.Style()
             
-            # Re-apply all style configurations
+            # Re-apply all style configurations (scaled to 60%)
             style.configure('Dark.TNotebook.Tab',
                            background=UITheme.get_color('tab_unselected_bg'),
                            foreground=UITheme.get_color('tab_unselected_fg'),
-                           padding=[20, 10],
+                           padding=[12, 6],  # [20,10] * 0.6 = [12,6]
                            borderwidth=1,
                            focuscolor='none',
                            lightcolor=UITheme.get_color('tab_unselected_bg'),
@@ -438,12 +438,12 @@ class Diablo3MacroUI:
         try:
             style = ttk.Style()
             
-            # Reconfigure all style variants
+            # Reconfigure all style variants (scaled to 60%)
             for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
                 style.configure(style_name,
                                background=UITheme.get_color('tab_unselected_bg'),
                                foreground=UITheme.get_color('tab_unselected_fg'),
-                               padding=[20, 10],
+                               padding=[12, 6],  # [20,10] * 0.6 = [12,6]
                                borderwidth=1,
                                focuscolor='none',
                                lightcolor=UITheme.get_color('tab_unselected_bg'),
@@ -463,12 +463,12 @@ class Diablo3MacroUI:
         try:
             style = ttk.Style()
             
-            # Create multiple style variants with new tab colors
+            # Create multiple style variants with new tab colors (scaled to 60%)
             for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
                 style.configure(style_name,
                                background=UITheme.get_color('tab_unselected_bg'),
                                foreground=UITheme.get_color('tab_unselected_fg'),
-                               padding=[20, 10],
+                               padding=[12, 6],  # [20,10] * 0.6 = [12,6]
                                borderwidth=1,
                                focuscolor='none',
                                lightcolor=UITheme.get_color('tab_unselected_bg'),
