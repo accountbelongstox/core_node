@@ -4,6 +4,7 @@ import 'unified_network_client.dart';
 import 'network_retry_manager.dart';
 import 'network_queue_and_offline.dart';
 import 'network_cache_manager.dart';
+import 'network_types.dart';
 
 /// Network Service Locator
 /// Replaces problematic singleton pattern with proper dependency injection

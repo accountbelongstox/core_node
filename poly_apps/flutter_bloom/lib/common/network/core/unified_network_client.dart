@@ -3,6 +3,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../models/api_response.dart';
 import 'network_models.dart';
+import '../../cache_manager/cache_manager.dart';
 
 /// Unified Network Client Interface
 /// Replaces multiple scattered HTTP clients with single consistent interface
@@ -17,7 +18,7 @@ class RobustNetworkClient implements NetworkClient {
   final NetworkRetryManager _retryManager;
   final NetworkRequestQueue _requestQueue;
   final OfflineRequestManager _offlineManager;
-  final NetworkCacheManager _cacheManager;
+  final CacheManager _cacheManager;
   final ConnectivityMonitor _connectivityMonitor;
 
   bool _isDisposed = false;
@@ -26,12 +27,12 @@ class RobustNetworkClient implements NetworkClient {
     NetworkRetryManager? retryManager,
     NetworkRequestQueue? requestQueue,
     OfflineRequestManager? offlineManager,
-    NetworkCacheManager? cacheManager,
+    CacheManager? cacheManager,
     ConnectivityMonitor? connectivityMonitor,
   })  : _retryManager = retryManager ?? NetworkRetryManager(),
         _requestQueue = requestQueue ?? NetworkRequestQueue(),
         _offlineManager = offlineManager ?? OfflineRequestManager(),
-        _cacheManager = cacheManager ?? NetworkCacheManager(),
+        _cacheManager = cacheManager ?? CacheManager.instance,
         _connectivityMonitor = connectivityMonitor ?? ConnectivityMonitor();
 
   @override
@@ -44,7 +45,7 @@ class RobustNetworkClient implements NetworkClient {
 
     // Step 1: Cache-first strategy for GET requests
     if (request.method == 'GET' && request.enableCache) {
-      final cachedResponse = await _cacheManager.get<T>(cacheKey);
+      final cachedResponse = await _cacheManager.getNetworkResponse<T>(cacheKey);
       if (cachedResponse != null && !_isCacheStale(cachedResponse, request.cacheStaleTime)) {
         debugPrint('Cache hit: ${request.endpoint}');
         return cachedResponse;
@@ -71,7 +72,7 @@ class RobustNetworkClient implements NetworkClient {
 
       // Step 4: Update cache on success
       if (request.enableCache && request.method == 'GET') {
-        await _cacheManager.store(cacheKey, response);
+        await _cacheManager.storeNetworkResponse(cacheKey, response);
       }
 
       return response;
@@ -88,7 +89,7 @@ class RobustNetworkClient implements NetworkClient {
   ) async {
     // Try stale cache first
     if (request.enableCache) {
-      final staleCache = await _cacheManager.get<T>(cacheKey);
+      final staleCache = await _cacheManager.getNetworkResponse<T>(cacheKey);
       if (staleCache != null) {
         debugPrint('Network failed, returning stale cache: ${request.endpoint}');
         return staleCache.copyWith(isStale: true, error: error.toString());
@@ -135,7 +136,7 @@ class RobustNetworkClient implements NetworkClient {
     _isDisposed = true;
     await _requestQueue.dispose();
     await _offlineManager.dispose();
-    await _cacheManager.dispose();
+    _cacheManager.dispose();
     await _connectivityMonitor.dispose();
     await _retryManager.dispose();
   }

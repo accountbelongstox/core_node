@@ -28,10 +28,15 @@ class AChatAppConfig {
   static const bool enableVoiceInput = true;
   static const bool enableImageGeneration = false;
 
-  // API configuration
-  static const String baseUrl = 'https://api.achat.com';
+  // API configuration - Cross-app data consistency with BankV1 backend
+  static const String baseUrl = 'https://api.si.12gm.com';
+  static const String apiBasePath = '/api/bank';
   static const String apiVersion = 'v1';
   static const int timeoutSeconds = 30;
+
+  // Test app specific configuration
+  static const bool isTestApp = true;
+  static const bool requiresAuthentication = false; // Test app doesn't need login
 
   // Chat configuration
   static const int maxMessageLength = 1000;

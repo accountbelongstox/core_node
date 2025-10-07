@@ -736,12 +736,12 @@ handle_menu_action() {
             read
             ;;
         "unified_manager")
-            local unified_manager_py_script="$SCRIPT_DIR/unified_manager_py/unified_manager.sh"
-            if [ -x "$unified_manager_py_script" ]; then
-                bash "$unified_manager_py_script"
+            local unified_manager_script="$SCRIPT_DIR/unified_manager/unified_manager.sh"
+            if [ -x "$unified_manager_script" ]; then
+                bash "$unified_manager_script"
             else
-                echo "Error: unified_manager.sh script not found at $unified_manager_py_script"
-                echo "Please ensure the Python Unified Manager scripts are properly installed"
+                echo "Error: unified_manager.sh script not found at $unified_manager_script"
+                echo "Please ensure the Unified Manager script is properly installed"
             fi
             echo ""
             echo "Press Enter to continue..."

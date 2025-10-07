@@ -11,33 +11,27 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Function to determine global variable directory
-determine_global_var_dir() {
-    local default_dir="/usr/core_node/global_var"
-    local wsl_users_path="/mnt/c/Users"
+# Determine CORE_NODE_DATA_DIR based on environment
+CORE_NODE_DATA_DIR="/usr/.core_node"
+WSL_USERS_PATH="/mnt/c/Users"
 
-    # Check if WSL Windows users path exists
-    if [ -d "$wsl_users_path" ]; then
-        # Loop through each user directory
-        for user_dir in "$wsl_users_path"/*; do
-            if [ -d "$user_dir" ]; then
-                local potential_dir="$user_dir/.core_node/global_var"
-
-                # Check if the .core_node/global_var directory exists
-                if [ -d "$potential_dir" ]; then
-                    echo "$potential_dir"
-                    return 0
-                fi
+# Check if WSL Windows users path exists
+if [ -d "$WSL_USERS_PATH" ]; then
+    # Loop through each user directory
+    for user_dir in "$WSL_USERS_PATH"/*; do
+        if [ -d "$user_dir" ]; then
+            potential_dir="$user_dir/.core_node"
+            
+            # Check if the .core_node directory exists
+            if [ -d "$potential_dir" ]; then
+                CORE_NODE_DATA_DIR="$potential_dir"
+                break
             fi
-        done
-    fi
+        fi
+    done
+fi
 
-    # Fallback to default directory
-    echo "$default_dir"
-    return 0
-}
-
-GLOBAL_VAR_DIR=$(determine_global_var_dir)
+GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
 
 # Function to determine and create COMPILE_DIR based on OS and version
 determine_compile_dir() {
@@ -96,26 +90,23 @@ ensure_compile_dir() {
 COMPILE_DIR=$(determine_compile_dir)
 ensure_compile_dir "$COMPILE_DIR"
 
-# Function to determine and create global temporary directory
-determine_temp_dir() {
-    local temp_base_dir="/www/wwwroot/.tmp"
-    echo "$temp_base_dir"
-    return 0
-}
+# Check and set sudo
+if command -v sudo >/dev/null 2>&1; then
+    USE_SUDO="sudo"
+else
+    USE_SUDO=""
+fi
 
-# Function to ensure global temporary directory exists
-ensure_temp_dir() {
-    local temp_dir="$1"
-    
-    if [ ! -d "$temp_dir" ]; then
-        echo "Creating global temporary directory: $temp_dir"
-        $USE_SUDO mkdir -p "$temp_dir"
-        $USE_SUDO chmod 755 "$temp_dir"
-    fi
-    
-    echo "Global temporary directory: $temp_dir"
-    return 0
-}
+# Initialize global temporary directory
+GLOBAL_TEMP_DIR="/www/wwwroot/.tmp"
+
+# Ensure global temporary directory exists
+if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
+    echo "Creating global temporary directory: $GLOBAL_TEMP_DIR"
+    $USE_SUDO mkdir -p "$GLOBAL_TEMP_DIR"
+    $USE_SUDO chmod 755 "$GLOBAL_TEMP_DIR"
+fi
+echo "Global temporary directory: $GLOBAL_TEMP_DIR"
 
 # Function to create script-specific temporary directory
 create_script_temp_dir() {
@@ -142,30 +133,14 @@ cleanup_script_temp_dir() {
     fi
 }
 
-# Initialize global temporary directory
-GLOBAL_TEMP_DIR=$(determine_temp_dir)
-ensure_temp_dir "$GLOBAL_TEMP_DIR"
+# Ensure the global variable directory exists
+if [ ! -d "$GLOBAL_VAR_DIR" ]; then
+    $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
+    echo "Created global variable directory: $GLOBAL_VAR_DIR"
+fi
 
-check_and_install_sudo() {
-    if command -v sudo >/dev/null 2>&1; then
-        USE_SUDO="sudo"
-    else
-        USE_SUDO=""
-    fi
-}
-check_and_install_sudo
-
-# Set IS_GLOBAL based on SELECTED_REGION (moved after function definitions)
+# Set IS_GLOBAL based on SELECTED_REGION
 set_is_global() {
-    # Ensure directory exists before trying to read from it
-    if [ ! -d "$GLOBAL_VAR_DIR" ]; then
-        local sudo_cmd=""
-        if command -v sudo >/dev/null 2>&1; then
-            sudo_cmd="sudo"
-        fi
-        $sudo_cmd mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
-    fi
-    
     local selected_region=$(get_global_var "SELECTED_REGION" "Global")
     if [ "$selected_region" = "Global" ]; then
         IS_GLOBAL="true"
@@ -174,44 +149,12 @@ set_is_global() {
     fi
 }
 
-# Ensure the global variable directory exists
-ensure_dir() {
-    if [ ! -d "$GLOBAL_VAR_DIR" ]; then
-        $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR"
-        echo "Created global variable directory: $GLOBAL_VAR_DIR"
-    fi
-}
-
-# Function to set global variable
-set_var() {
+# Helper function to normalize key and get file path
+_get_var_file_path() {
     local key="$1"
-    local val="$2"
-
-    # Convert key to uppercase
-    key=$(echo "$key" | tr '[:lower:]' '[:upper:]')
-
-    # Ensure directory exists
-    if [[ ! -d "$GLOBAL_VAR_DIR" ]]; then
-        $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR"
-    fi
-
-    # Write or update the value
-    echo "$val" | $USE_SUDO tee "$GLOBAL_VAR_DIR/$key" >/dev/null
-}
-
-# Function to get global variable
-get_var() {
-    local key="$1"
-    local default_value="$2"
-
-    # Convert key to uppercase
-    key=$(echo "$key" | tr '[:lower:]' '[:upper:]')
-
-    if [[ -f "$GLOBAL_VAR_DIR/$key" ]]; then
-        cat "$GLOBAL_VAR_DIR/$key" 2>/dev/null || echo "${default_value:-}"
-    else
-        echo "${default_value:-}"
-    fi
+    # Convert key to uppercase and remove any special characters
+    key=$(echo "$key" | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')
+    echo "$GLOBAL_VAR_DIR/$key"
 }
 
 # Function to store path in global variables
@@ -239,18 +182,8 @@ set_global_var() {
         return 1
     fi
 
-    # Ensure global var directory exists
-    if [[ ! -d "$GLOBAL_VAR_DIR" ]]; then
-        $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR"
-        if [[ $? -ne 0 ]]; then
-            echo "Error: Failed to create directory $GLOBAL_VAR_DIR"
-            return 1
-        fi
-    fi
-
-    # Convert key to uppercase and remove any special characters
-    key=$(echo "$key" | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')
-    local file_path="$GLOBAL_VAR_DIR/$key"
+    # Get normalized file path
+    local file_path=$(_get_var_file_path "$key")
 
     # Write value to file
     echo "$val" | $USE_SUDO tee "$file_path" >/dev/null
@@ -277,9 +210,8 @@ get_global_var() {
         return 1
     fi
 
-    # Convert key to uppercase and remove any special characters
-    key=$(echo "$key" | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')
-    local file_path="$GLOBAL_VAR_DIR/$key"
+    # Get normalized file path
+    local file_path=$(_get_var_file_path "$key")
 
     # Check if file exists
     if [[ ! -f "$file_path" ]]; then
@@ -355,9 +287,8 @@ remove_global_vars() {
     fi
 
     for key in "${keys[@]}"; do
-        # Convert key to uppercase and remove special characters
-        key=$(echo "$key" | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')
-        local file_path="$GLOBAL_VAR_DIR/$key"
+        # Get normalized file path
+        local file_path=$(_get_var_file_path "$key")
 
         if [[ -f "$file_path" ]]; then
             $USE_SUDO rm -f "$file_path"
@@ -439,27 +370,14 @@ set_env_and_var() {
 set_env_and_var "PUPPETEER_SKIP_DOWNLOAD" "true"
 
 # Git SSH related URLs - Auto-switch based on region
-get_git_ssh_base_url() {
-    # Ensure directory exists before trying to read from it
-    if [ ! -d "$GLOBAL_VAR_DIR" ]; then
-        local sudo_cmd=""
-        if command -v sudo >/dev/null 2>&1; then
-            sudo_cmd="sudo"
-        fi
-        $sudo_cmd mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
-    fi
-    
-    local selected_region=$(get_global_var "SELECTED_REGION" "Global" 2>/dev/null || echo "Global")
+SELECTED_REGION=$(get_global_var "SELECTED_REGION" "Global" 2>/dev/null || echo "Global")
 
-    if [[ "$selected_region" == "China" ]]; then
-        echo "https://gitee.com/accountbelongstox/core_node/raw/main"
-    else
-        echo "https://raw.githubusercontent.com/accountbelongstox/core_node/main"
-    fi
-}
+if [[ "$SELECTED_REGION" == "China" ]]; then
+    GIT_SSH_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
+else
+    GIT_SSH_BASE_URL="https://raw.githubusercontent.com/accountbelongstox/core_node/main"
+fi
 
-# Git SSH URLs
-GIT_SSH_BASE_URL=$(get_git_ssh_base_url)
 GIT_SSH_PUB_URL="$GIT_SSH_BASE_URL/scripts/git/git.ssh.id.ed.pub.js"
 GIT_SSH_KEY_URL="$GIT_SSH_BASE_URL/scripts/git/git.ssh.id.ed.js"
 
@@ -480,7 +398,6 @@ export GIT_SSH_KEY_URL
 export SSH_DIR
 export SSH_INSTALLED_FLAG
 
-ensure_dir
 # Export the GLOBAL_VAR_DIR and GLOBAL_TEMP_DIR
 export GLOBAL_VAR_DIR
 export GLOBAL_TEMP_DIR

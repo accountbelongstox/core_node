@@ -20,13 +20,16 @@ class NetworkRetryManager {
   }
 
   RetryStrategy _getStrategyForConnectivity(
-    ConnectivityResult connectivity,
+    List<ConnectivityResult> connectivity,
     NetworkRequest request
   ) {
     // Custom retry count from request takes precedence
     final baseMaxRetries = request.maxRetries ?? 3;
 
-    switch (connectivity) {
+    // Check the primary connectivity type
+    final primaryConnectivity = connectivity.isNotEmpty ? connectivity.first : ConnectivityResult.none;
+
+    switch (primaryConnectivity) {
       case ConnectivityResult.wifi:
         return RetryStrategy(
           maxRetries: min(baseMaxRetries, 2),
@@ -193,10 +196,10 @@ class NetworkRetryException implements Exception {
 /// Connectivity monitor for network state changes
 class ConnectivityMonitor {
   final Connectivity _connectivity = Connectivity();
-  StreamSubscription<ConnectivityResult>? _subscription;
-  ConnectivityResult? _currentConnectivity;
+  StreamSubscription<List<ConnectivityResult>>? _subscription;
+  List<ConnectivityResult>? _currentConnectivity;
 
-  ConnectivityResult? get currentConnectivity => _currentConnectivity;
+  List<ConnectivityResult>? get currentConnectivity => _currentConnectivity;
 
   Future<void> initialize() async {
     _currentConnectivity = await _connectivity.checkConnectivity();
@@ -211,10 +214,13 @@ class ConnectivityMonitor {
     });
   }
 
-  void _onConnectivityChanged(ConnectivityResult previous, ConnectivityResult current) {
+  void _onConnectivityChanged(List<ConnectivityResult> previous, List<ConnectivityResult> current) {
     debugPrint('Network connectivity changed: $previous -> $current');
 
-    if (previous == ConnectivityResult.none && current != ConnectivityResult.none) {
+    final wasOffline = previous.contains(ConnectivityResult.none) || previous.isEmpty;
+    final isOnline = !current.contains(ConnectivityResult.none) && current.isNotEmpty;
+
+    if (wasOffline && isOnline) {
       debugPrint('Network recovered, triggering offline sync...');
       // Trigger offline request sync
       _triggerOfflineSync();
