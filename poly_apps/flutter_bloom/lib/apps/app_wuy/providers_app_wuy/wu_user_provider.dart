@@ -20,7 +20,8 @@ class WuUserProvider extends EnhancedUserProvider {
   WuUserProvider() : super(appNamespace: _namespace);
 
   UserModelAppWuy? get appProfile {
-    final LaravelUserModel? laravelUser = user;
+    // Fix: Cast BaseUserModel? to LaravelUserModel? since user getter returns BaseUserModel
+    final LaravelUserModel? laravelUser = user as LaravelUserModel?;
     if (laravelUser == null) {
       return null;
     }
@@ -73,7 +74,8 @@ class WuUserProvider extends EnhancedUserProvider {
   }
 
   void upsertPreference(String key, dynamic value) {
-    final LaravelUserModel? laravelUser = user;
+    // Fix: Cast BaseUserModel? to LaravelUserModel?
+    final LaravelUserModel? laravelUser = user as LaravelUserModel?;
     if (laravelUser == null) {
       return;
     }
