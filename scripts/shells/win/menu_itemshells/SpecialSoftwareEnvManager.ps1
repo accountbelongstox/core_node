@@ -645,6 +645,11 @@ function Generate-ListScript {
     # Find all existing files
     $existingFiles = Get-ExistingFiles -ConfigName $ConfigName
     
+    # Ensure $existingFiles is always an array
+    if ($null -eq $existingFiles) {
+        $existingFiles = @()
+    }
+    
     # Generate list script content
     $listScriptName = "${commandPrefix}list"
     $listScriptPath = Join-Path $winEnvsDir "${listScriptName}.bat"
