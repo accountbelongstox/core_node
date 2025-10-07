@@ -133,23 +133,18 @@ function Step56_InstallAndroidStudio {
     if (Test-Path $ANDROID_STUDIO_EXE_PATH) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Android Studio is already installed at: $ANDROID_STUDIO_EXE_PATH" -Type "Success"
         
-        # Check and create desktop shortcut
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking Android Studio desktop shortcut..." -Type "Info"
-        $desktopPath = [Environment]::GetFolderPath("Desktop")
-        $shortcutPath = Join-Path $desktopPath "Android Studio.lnk"
-        
-        if (-not (Test-Path $shortcutPath)) {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Creating desktop shortcut for Android Studio..." -Type "Warning"
-            $WshShell = New-Object -ComObject WScript.Shell
-            $Shortcut = $WshShell.CreateShortcut($shortcutPath)
-            $Shortcut.TargetPath = $ANDROID_STUDIO_EXE_PATH
-            $Shortcut.WorkingDirectory = $ANDROID_STUDIO_DIR
-            $Shortcut.Description = "Android Studio"
-            $Shortcut.Save()
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Created desktop shortcut at: $shortcutPath" -Type "Success"
+        # Create desktop shortcut using unified system
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Creating Android Studio desktop shortcut using unified system..." -Type "Info"
+        try {
+            $shortcutCreated = Create-DesktopShortcutsForPackage -ShortcutName "Android Studio" -ExePath $ANDROID_STUDIO_EXE_PATH -CategoryName $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS -ScanKeywords @("Android Studio", "studio64", "android-studio")
+            if ($shortcutCreated) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully created Android Studio desktop shortcut" -Type "Success"
+            } else {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Desktop shortcut creation completed (may already exist)" -Type "Info"
+            }
         }
-        else {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Desktop shortcut already exists at: $shortcutPath" -Type "Success"
+        catch {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Error creating desktop shortcut: $($_.Exception.Message)" -Type "Warning"
         }
     }
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking Android Studio environment variables..." -Type "Info"
