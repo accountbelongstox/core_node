@@ -13,7 +13,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/common/widgets/bank_scaffold.dart';
-import 'package:qyflutter/common/provider_status/bank_user_provider.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/bank_user_provider.dart';
 import '../../settings/views/settings_screen.dart';
 import '../../../config_app_bank/theme_config_app_bank.dart';
 
