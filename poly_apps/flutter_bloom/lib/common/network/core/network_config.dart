@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'network_types.dart';
+// FIXED: Removed unused 'network_types.dart' import
 
 /// Abstract base network configuration
 /// Each app should extend this with their specific configuration

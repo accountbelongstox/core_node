@@ -134,6 +134,7 @@ abstract class UnifiedStorage {
   
   
   /// Get value from persistent storage
+  /// Get value from storage (async)
   static Future<T?> get<T>(String key, {String? box, T? defaultValue}) async {
     _ensureInitialized();
     final targetBox = box ?? commonBox;

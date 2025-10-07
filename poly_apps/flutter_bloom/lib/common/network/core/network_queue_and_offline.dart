@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:convert';
+// FIXED: Removed unused 'dart:convert' import
 import 'package:flutter/foundation.dart';
 import 'unified_network_client.dart';
-import 'network_retry_manager.dart';
+// REFACTOR: Import all needed types from network_types.dart
+import 'network_types.dart' show RequestPriority, NetworkRequest, NetworkResponse, CancelToken;
+// FIXED: Removed unused network_retry_manager.dart import
+// It also defines RequestPriority which would cause conflicts
 
 /// Request Queue Manager with Priority Support
 /// Replaces the problematic singleton pattern with proper lifecycle management

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+// FIXED: Removed unused 'dart:io' import
 
 /// Core network types for the unified network framework
 /// Defines common interfaces, enums, and data structures
@@ -187,7 +187,8 @@ class NetworkResponse<T> {
   final int? retryCount;
   final Map<String, dynamic>? metadata;
 
-  const NetworkResponse({
+  // FIXED: Removed 'const' keyword because constructor uses DateTime.now() which is not a compile-time constant
+  NetworkResponse({
     this.data,
     this.statusCode,
     this.message,
@@ -200,9 +201,7 @@ class NetworkResponse<T> {
     this.latency,
     this.retryCount,
     this.metadata,
-  }) : timestamp = timestamp ?? const NetworkResponse._defaultTimestamp();
-
-  static DateTime _defaultTimestamp() => DateTime.now();
+  }) : timestamp = timestamp ?? DateTime.now();
 
   /// Check if response is successful
   bool get isSuccess => statusCode != null && statusCode! >= 200 && statusCode! < 300;
@@ -548,6 +547,70 @@ abstract class ConnectivityMonitor {
   Future<void> initialize();
   Future<void> dispose();
 }
+
+// ================================
+// UTILITY CLASSES
+// ================================
+
+/// Cancel token for request cancellation
+/// Allows cancelling in-flight network requests
+class CancelToken {
+  bool _isCancelled = false;
+  String? _cancelReason;
+  final List<VoidCallback> _listeners = [];
+
+  /// Whether this token has been cancelled
+  bool get isCancelled => _isCancelled;
+  
+  /// The reason for cancellation if provided
+  String? get cancelReason => _cancelReason;
+
+  /// Cancel the associated request
+  void cancel([String? reason]) {
+    if (_isCancelled) return;
+    _isCancelled = true;
+    _cancelReason = reason;
+    
+    // Notify all listeners
+    for (final listener in _listeners) {
+      listener();
+    }
+    _listeners.clear();
+  }
+
+  /// Add a cancellation listener
+  void addListener(VoidCallback listener) {
+    if (_isCancelled) {
+      listener();
+    } else {
+      _listeners.add(listener);
+    }
+  }
+
+  /// Remove a cancellation listener
+  void removeListener(VoidCallback listener) {
+    _listeners.remove(listener);
+  }
+
+  /// Throw if cancelled
+  void throwIfCancelled() {
+    if (_isCancelled) {
+      throw CancellationException(_cancelReason ?? 'Request cancelled');
+    }
+  }
+}
+
+/// Exception thrown when a request is cancelled
+class CancellationException implements Exception {
+  final String message;
+  const CancellationException(this.message);
+
+  @override
+  String toString() => 'CancellationException: $message';
+}
+
+/// Callback type for void functions
+typedef VoidCallback = void Function();
 
 // ================================
 // STATISTICS CLASSES

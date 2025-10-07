@@ -7,6 +7,7 @@ lib/
 ├── apps/
 │   ├── app_achat/
 │   │   ├── config_app_achat/
+│   │   │   ├── api_config_achat.dart
 │   │   │   ├── app_config.dart
 │   │   │   ├── constants.dart
 │   │   │   ├── prefs_app_achat.dart
@@ -162,13 +163,15 @@ lib/
 │   │   │   │   │   └── proxy_settings_screen.dart
 │   │   │   │   └── widgets/
 │   │   │   │       └── proxy_setting_card.dart
-│   │   │   └── qr_profile/
-│   │   │       ├── controllers/
-│   │   │       │   └── qr_profile_controller.dart
-│   │   │       ├── models/
-│   │   │       │   └── qr_profile_model.dart
-│   │   │       └── views/
-│   │   │           └── qr_profile_screen.dart
+│   │   │   ├── qr_profile/
+│   │   │   │   ├── controllers/
+│   │   │   │   │   └── qr_profile_controller.dart
+│   │   │   │   ├── models/
+│   │   │   │   │   └── qr_profile_model.dart
+│   │   │   │   └── views/
+│   │   │   │       └── qr_profile_screen.dart
+│   │   │   └── test_backend/
+│   │   │       └── test_backend_page.dart
 │   │   ├── localization_app_achat/
 │   │   │   ├── en_app_achat.dart
 │   │   │   ├── localization_keys_app_achat.dart
@@ -200,7 +203,8 @@ lib/
 │   │   ├── storage/
 │   │   │   └── achat_storage_manager.dart
 │   │   ├── utils_app_achat/
-│   │   │   └── app_utils.dart
+│   │   │   ├── app_utils.dart
+│   │   │   └── test_data_generator.dart
 │   │   ├── build_config.ini
 │   │   └── main_app_achat.dart
 │   ├── app_bank/
@@ -751,18 +755,24 @@ lib/
 │   ├── network/
 │   │   ├── auth/
 │   │   │   └── unified_auth_manager.dart
-│   │   ├── client/
-│   │   │   ├── enhanced_http_client.dart
-│   │   │   └── network_client.dart
 │   │   ├── core/
-│   │   │   ├── network_cache_manager.dart
+│   │   │   ├── endpoint_network_models.dart
 │   │   │   ├── network_config.dart
-│   │   │   ├── network_models.dart
 │   │   │   ├── network_queue_and_offline.dart
 │   │   │   ├── network_retry_manager.dart
 │   │   │   ├── network_service_locator.dart
 │   │   │   ├── network_types.dart
 │   │   │   └── unified_network_client.dart
+│   │   ├── doc/
+│   │   │   ├── ARCHITECTURE_ANALYSIS.md
+│   │   │   ├── AUTH_INTERCEPTOR_INTEGRATION.md
+│   │   │   ├── FINAL_STATUS_REPORT.md
+│   │   │   ├── INDEX.md
+│   │   │   ├── PHASE2_REFACTORING.md
+│   │   │   ├── PHASE3_AGGRESSIVE_CLEANUP.md
+│   │   │   ├── PHASE3_COMPLETION.md
+│   │   │   ├── REFACTORING_LOG.md
+│   │   │   └── REFACTORING_SUMMARY.md
 │   │   ├── endpoints/
 │   │   │   ├── endpoint_config.dart
 │   │   │   └── laravel_endpoints.dart
@@ -773,54 +783,6 @@ lib/
 │   │   │   ├── error_interceptor.dart
 │   │   │   ├── logging_interceptor.dart
 │   │   │   └── network_interceptors.dart
-│   │   ├── loading/
-│   │   │   └── loading_manager.dart
-│   │   ├── models/
-│   │   │   ├── api_config.dart
-│   │   │   ├── api_response.dart
-│   │   │   └── enhanced_api_response.dart
-│   │   ├── parsers/
-│   │   │   └── adaptive_data_parser.dart
-│   │   ├── queue/
-│   │   │   └── request_queue.dart
-│   │   ├── security/
-│   │   │   └── device_security_manager.dart
-│   │   ├── services/
-│   │   │   ├── advanced_network_service.dart
-│   │   │   ├── base_service.dart
-│   │   │   └── enhanced_base_service.dart
-│   │   ├── storage/
-│   │   │   └── secure_storage.dart
-│   │   ├── ui/
-│   │   │   └── global_loading_system.dart
-│   │   ├── utils/
-│   │   │   └── network_utils.dart
-│   │   ├── widgets/
-│   │   │   └── adaptive_loading_widgets.dart
-│   │   ├── network_framework.dart
-│   │   └── network_tree.md
-│   ├── network_v1/
-│   │   ├── auth/
-│   │   │   └── unified_auth_manager.dart
-│   │   ├── client/
-│   │   │   └── enhanced_http_client.dart
-│   │   ├── core/
-│   │   │   ├── network_config.dart
-│   │   │   ├── network_models.dart
-│   │   │   ├── network_queue_and_offline.dart
-│   │   │   ├── network_retry_manager.dart
-│   │   │   ├── network_service_locator.dart
-│   │   │   ├── network_types.dart
-│   │   │   └── unified_network_client.dart
-│   │   ├── endpoints/
-│   │   │   └── endpoint_config.dart
-│   │   ├── integration/
-│   │   │   └── network_user_integration.dart
-│   │   ├── interceptors/
-│   │   │   ├── auth_interceptor.dart
-│   │   │   ├── error_interceptor.dart
-│   │   │   ├── logging_interceptor.dart
-│   │   │   └── network_interceptors.dart
 │   │   ├── models/
 │   │   │   ├── api_config.dart
 │   │   │   ├── api_response.dart
@@ -830,9 +792,7 @@ lib/
 │   │   ├── security/
 │   │   │   └── device_security_manager.dart
 │   │   ├── services/
-│   │   │   ├── advanced_network_service.dart
-│   │   │   ├── base_service.dart
-│   │   │   └── enhanced_base_service.dart
+│   │   │   └── advanced_network_service.dart
 │   │   ├── storage/
 │   │   │   └── secure_storage.dart
 │   │   ├── ui/
@@ -841,19 +801,8 @@ lib/
 │   │   │   └── network_utils.dart
 │   │   ├── widgets/
 │   │   │   └── adaptive_loading_widgets.dart
-│   │   ├── api_checker.dart
-│   │   ├── api_client.dart
-│   │   ├── api_group.dart
-│   │   ├── authenticated_client.dart
-│   │   ├── enhanced_network_example.dart
-│   │   ├── error_response.dart
-│   │   ├── laravel_apis.dart
-│   │   ├── laravel_auth_apis.dart
-│   │   ├── network_framework.dart
-│   │   ├── network_tree.md
-│   │   ├── public_client.dart
-│   │   ├── unified_architecture.md
-│   │   └── websocket_client.dart
+│   │   ├── NETWORKREADME.md
+│   │   └── network_framework.dart
 │   ├── network_v2/
 │   │   ├── auth/
 │   │   │   ├── auth_coordinator.dart

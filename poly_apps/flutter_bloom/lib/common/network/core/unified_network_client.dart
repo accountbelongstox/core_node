@@ -1,39 +1,74 @@
+/// Unified Network Client - Production Implementation
+/// 
+/// This is the primary HTTP client for the application, based on EnhancedHttpClient
+/// with simplified API compatible with NetworkClient interface.
+/// 
+/// Features:
+/// - Full HTTP support (GET, POST, PUT, DELETE, PATCH)
+/// - Interceptor support (Auth, Error, Logging)
+/// - Timeout and retry handling
+/// - Network connectivity check
+/// - Type-safe response handling
+
 import 'dart:async';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../models/api_response.dart';
-import 'network_models.dart';
-import '../../cache_manager/cache_manager.dart';
+import 'package:http/http.dart' as http;
+import 'network_types.dart';
+import '../models/api_config.dart';
+import '../utils/network_utils.dart';
+import '../interceptors/auth_interceptor.dart';
 
-/// Unified Network Client Interface
-/// Replaces multiple scattered HTTP clients with single consistent interface
-abstract class NetworkClient {
-  Future<NetworkResponse<T>> request<T>(NetworkRequest request);
-  Future<void> dispose();
-}
-
-/// Robust Network Client Implementation
-/// Combines all networking features in one unified client
-class RobustNetworkClient implements NetworkClient {
-  final NetworkRetryManager _retryManager;
-  final NetworkRequestQueue _requestQueue;
-  final OfflineRequestManager _offlineManager;
-  final CacheManager _cacheManager;
-  final ConnectivityMonitor _connectivityMonitor;
-
+/// Unified Network Client - Production-ready HTTP client
+/// 
+/// Features:
+/// - Automatic authentication header injection via AuthInterceptor
+/// - Token refresh on 401 responses
+/// - Network connectivity check
+/// - Request/response logging
+/// - Type-safe responses
+class UnifiedNetworkClient implements NetworkClient {
+  final ApiConfig config;
+  final http.Client _httpClient;
+  final NetworkUtils _networkUtils;
+  final AuthInterceptor _authInterceptor;
+  
   bool _isDisposed = false;
+  static final Map<String, UnifiedNetworkClient> _instances = {};
+  
+  UnifiedNetworkClient._({
+    required this.config,
+    http.Client? httpClient,
+    NetworkUtils? networkUtils,
+    AuthInterceptor? authInterceptor,
+  }) : _httpClient = httpClient ?? http.Client(),
+       _networkUtils = networkUtils ?? NetworkUtils.instance,
+       _authInterceptor = authInterceptor ?? AuthInterceptor.instance;
 
-  RobustNetworkClient({
-    NetworkRetryManager? retryManager,
-    NetworkRequestQueue? requestQueue,
-    OfflineRequestManager? offlineManager,
-    CacheManager? cacheManager,
-    ConnectivityMonitor? connectivityMonitor,
-  })  : _retryManager = retryManager ?? NetworkRetryManager(),
-        _requestQueue = requestQueue ?? NetworkRequestQueue(),
-        _offlineManager = offlineManager ?? OfflineRequestManager(),
-        _cacheManager = cacheManager ?? CacheManager.instance,
-        _connectivityMonitor = connectivityMonitor ?? ConnectivityMonitor();
+  /// Factory constructor with instance caching
+  factory UnifiedNetworkClient.create({
+    required ApiConfig config,
+    String? instanceKey,
+    http.Client? httpClient,
+    NetworkUtils? networkUtils,
+    AuthInterceptor? authInterceptor,
+  }) {
+    final key = instanceKey ?? config.baseUrl;
+    
+    if (_instances.containsKey(key)) {
+      return _instances[key]!;
+    }
+    
+    final client = UnifiedNetworkClient._(
+      config: config,
+      httpClient: httpClient,
+      networkUtils: networkUtils,
+      authInterceptor: authInterceptor,
+    );
+    
+    _instances[key] = client;
+    return client;
+  }
 
   @override
   Future<NetworkResponse<T>> request<T>(NetworkRequest request) async {
@@ -41,241 +76,259 @@ class RobustNetworkClient implements NetworkClient {
       throw StateError('NetworkClient has been disposed');
     }
 
-    final cacheKey = _generateCacheKey(request);
-
-    // Step 1: Cache-first strategy for GET requests
-    if (request.method == 'GET' && request.enableCache) {
-      final cachedResponse = await _cacheManager.getNetworkResponse<T>(cacheKey);
-      if (cachedResponse != null && !_isCacheStale(cachedResponse, request.cacheStaleTime)) {
-        debugPrint('Cache hit: ${request.endpoint}');
-        return cachedResponse;
-      }
+    return await _makeRequestWithAuth<T>(request, isRetry: false);
+  }
+  
+  /// Make request with authentication and auto-retry on 401
+  Future<NetworkResponse<T>> _makeRequestWithAuth<T>(
+    NetworkRequest request, {
+    required bool isRetry,
+  }) async {
+    // Check network connectivity
+    if (!_networkUtils.isConnected) {
+      return NetworkResponse<T>(
+        statusCode: 0,
+        error: 'No network connection',
+        data: null,
+        timestamp: DateTime.now(),
+      );
     }
 
-    // Step 2: Queue request with priority
-    return await _requestQueue.enqueue<T>(
-      () => _executeRequestWithFallback<T>(request, cacheKey),
-      priority: request.priority,
+    try {
+      // Build URL
+      final uri = _buildUri(request.endpoint, request.parameters);
+      
+      // Build headers with authentication
+      final headers = await _buildHeaders(request);
+      
+      // Log request
+      if (config.enableLogging) {
+        debugPrint('→ ${request.method.name} ${uri.toString()}');
+        if (_authInterceptor.isAuthenticated()) {
+          debugPrint('   🔐 Authenticated request');
+        }
+      }
+      
+      // Make HTTP request
+      final response = await _makeHttpRequest(uri, request.method, headers, request.body, request.timeout);
+      
+      // Log response
+      if (config.enableLogging) {
+        debugPrint('← ${response.statusCode} ${uri.toString()}');
+      }
+      
+      // Handle 401 Unauthorized - Auto refresh token and retry
+      if (response.statusCode == 401 && !isRetry) {
+        debugPrint('⚠️  Received 401 Unauthorized, attempting token refresh...');
+        
+        final refreshSuccess = await _authInterceptor.refreshToken();
+        
+        if (refreshSuccess) {
+          debugPrint('✅ Token refreshed, retrying request...');
+          // Retry request with new token
+          return await _makeRequestWithAuth<T>(request, isRetry: true);
+        } else {
+          debugPrint('❌ Token refresh failed, request aborted');
+          _authInterceptor.onAuthError();
+        }
+      }
+      
+      // Parse response
+      return _parseResponse<T>(response);
+      
+    } catch (e, stackTrace) {
+      debugPrint('Network request failed: $e');
+      
+      return NetworkResponse<T>(
+        statusCode: 500,
+        error: e.toString(),
+        data: null,
+        timestamp: DateTime.now(),
+      );
+    }
+  }
+
+  Uri _buildUri(String endpoint, Map<String, dynamic>? parameters) {
+    final baseUrl = config.baseUrl.endsWith('/') 
+        ? config.baseUrl.substring(0, config.baseUrl.length - 1)
+        : config.baseUrl;
+    
+    final path = endpoint.startsWith('/') ? endpoint : '/$endpoint';
+    final fullUrl = '$baseUrl$path';
+    
+    if (parameters != null && parameters.isNotEmpty) {
+      return Uri.parse(fullUrl).replace(queryParameters: 
+        parameters.map((key, value) => MapEntry(key, value.toString()))
+      );
+    }
+    
+    return Uri.parse(fullUrl);
+  }
+
+  Future<Map<String, String>> _buildHeaders(NetworkRequest request) async {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...config.defaultHeaders,
+    };
+    
+    // Add custom headers from request
+    if (request.headers != null) {
+      headers.addAll(request.headers!);
+    }
+    
+    // INTEGRATED: Add authentication headers via AuthInterceptor
+    // This automatically handles:
+    // - Bearer token injection
+    // - Token expiry check
+    // - Auto refresh if needed
+    final authHeaders = await _authInterceptor.getAuthHeaders();
+    headers.addAll(authHeaders);
+    
+    return headers;
+  }
+
+  Future<http.Response> _makeHttpRequest(
+    Uri uri,
+    RequestMethod method,
+    Map<String, String> headers,
+    dynamic body,
+    Duration? timeout,
+  ) async {
+    final effectiveTimeout = timeout ?? Duration(seconds: config.timeoutSeconds);
+    
+    Future<http.Response> requestFuture;
+    
+    switch (method) {
+      case RequestMethod.get:
+        requestFuture = _httpClient.get(uri, headers: headers);
+        break;
+      case RequestMethod.post:
+        requestFuture = _httpClient.post(
+          uri,
+          headers: headers,
+          body: body != null ? jsonEncode(body) : null,
+        );
+        break;
+      case RequestMethod.put:
+        requestFuture = _httpClient.put(
+          uri,
+          headers: headers,
+          body: body != null ? jsonEncode(body) : null,
+        );
+        break;
+      case RequestMethod.delete:
+        requestFuture = _httpClient.delete(uri, headers: headers);
+        break;
+      case RequestMethod.patch:
+        requestFuture = _httpClient.patch(
+          uri,
+          headers: headers,
+          body: body != null ? jsonEncode(body) : null,
+        );
+        break;
+      case RequestMethod.head:
+        requestFuture = _httpClient.head(uri, headers: headers);
+        break;
+      case RequestMethod.options:
+        // http package doesn't have options, use generic request
+        requestFuture = _httpClient.send(http.Request('OPTIONS', uri)..headers.addAll(headers))
+            .then((streamedResponse) => http.Response.fromStream(streamedResponse));
+        break;
+    }
+    
+    return await requestFuture.timeout(effectiveTimeout);
+  }
+
+  NetworkResponse<T> _parseResponse<T>(http.Response response) {
+    final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
+    
+    dynamic data;
+    String? error;
+    
+    if (response.body.isNotEmpty) {
+      try {
+        data = jsonDecode(response.body);
+      } catch (e) {
+        // If JSON parsing fails, use raw body
+        data = response.body;
+      }
+    }
+    
+    if (!isSuccess) {
+      error = _extractErrorMessage(data) ?? 'Request failed with status ${response.statusCode}';
+    }
+    
+    return NetworkResponse<T>(
+      statusCode: response.statusCode,
+      data: data as T?,
+      error: error,
+      message: isSuccess ? 'Success' : error,
+      timestamp: DateTime.now(),
+      headers: response.headers,
     );
   }
 
-  Future<NetworkResponse<T>> _executeRequestWithFallback<T>(
-    NetworkRequest request,
-    String cacheKey
-  ) async {
-    try {
-      // Step 3: Execute with smart retry
-      final response = await _retryManager.executeWithNetworkAwareness<T>(
-        () => _performHttpRequest<T>(request),
-        request: request,
-      );
-
-      // Step 4: Update cache on success
-      if (request.enableCache && request.method == 'GET') {
-        await _cacheManager.storeNetworkResponse(cacheKey, response);
-      }
-
-      return response;
-    } catch (e) {
-      // Step 5: Handle network failure
-      return await _handleNetworkFailure<T>(request, cacheKey, e);
+  String? _extractErrorMessage(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return data['error']?.toString() ?? 
+             data['message']?.toString() ?? 
+             data['msg']?.toString();
     }
+    return null;
   }
 
-  Future<NetworkResponse<T>> _handleNetworkFailure<T>(
-    NetworkRequest request,
-    String cacheKey,
-    dynamic error,
-  ) async {
-    // Try stale cache first
-    if (request.enableCache) {
-      final staleCache = await _cacheManager.getNetworkResponse<T>(cacheKey);
-      if (staleCache != null) {
-        debugPrint('Network failed, returning stale cache: ${request.endpoint}');
-        return staleCache.copyWith(isStale: true, error: error.toString());
-      }
-    }
-
-    // Queue for offline if allowed
-    if (request.allowOffline) {
-      await _offlineManager.queueRequest(request);
-      return NetworkResponse<T>.offline(
-        message: 'Request queued for when network is available',
-        originalError: error.toString(),
-      );
-    }
-
-    throw error;
+  // ==================== Authentication Methods ====================
+  
+  /// Set authentication tokens
+  /// This is a convenience method to set tokens in the AuthInterceptor
+  void setAuthTokens({
+    required String accessToken,
+    String? refreshToken,
+    DateTime? expiry,
+  }) {
+    _authInterceptor.setTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      expiry: expiry,
+    );
   }
-
-  Future<NetworkResponse<T>> _performHttpRequest<T>(NetworkRequest request) async {
-    // Actual HTTP implementation would go here
-    // This is a placeholder that delegates to the appropriate HTTP client
-    throw UnimplementedError('HTTP implementation needed');
+  
+  /// Clear authentication tokens
+  void clearAuthTokens() {
+    _authInterceptor.clearTokens();
   }
-
-  String _generateCacheKey(NetworkRequest request) {
-    // Generate deterministic cache key
-    final params = request.parameters?.entries
-        .toList()
-        ..sort((a, b) => a.key.compareTo(b.key));
-
-    final paramString = params?.map((e) => '${e.key}=${e.value}').join('&') ?? '';
-    return '${request.method}_${request.endpoint}_$paramString';
-  }
-
-  bool _isCacheStale(NetworkResponse response, Duration? staleTime) {
-    if (staleTime == null) return false;
-    return DateTime.now().difference(response.timestamp) > staleTime;
-  }
-
+  
+  /// Check if user is authenticated
+  bool get isAuthenticated => _authInterceptor.isAuthenticated();
+  
+  /// Get current access token
+  String? get accessToken => _authInterceptor.accessToken;
+  
+  /// Check if token is expired
+  bool get isTokenExpired => _authInterceptor.isTokenExpired();
+  
+  /// Check if token will expire soon (within 5 minutes)
+  bool get isTokenExpiringSoon => _authInterceptor.isTokenExpiringSoon();
+  
+  /// Manually trigger token refresh
+  Future<bool> refreshToken() => _authInterceptor.refreshToken();
+  
+  // ==================== Lifecycle Methods ====================
+  
   @override
   Future<void> dispose() async {
     if (_isDisposed) return;
-
     _isDisposed = true;
-    await _requestQueue.dispose();
-    await _offlineManager.dispose();
-    _cacheManager.dispose();
-    await _connectivityMonitor.dispose();
-    await _retryManager.dispose();
+    _httpClient.close();
+  }
+  
+  /// Clear all cached instances
+  static void clearInstances() {
+    for (final instance in _instances.values) {
+      instance.dispose();
+    }
+    _instances.clear();
   }
 }
 
-/// Network request model with all configuration options
-class NetworkRequest {
-  final String endpoint;
-  final String method;
-  final Map<String, dynamic>? parameters;
-  final Map<String, String>? headers;
-  final dynamic body;
-  final RequestPriority priority;
-  final bool enableCache;
-  final bool allowOffline;
-  final Duration? timeout;
-  final Duration? cacheStaleTime;
-  final int? maxRetries;
-
-  const NetworkRequest({
-    required this.endpoint,
-    this.method = 'GET',
-    this.parameters,
-    this.headers,
-    this.body,
-    this.priority = RequestPriority.normal,
-    this.enableCache = true,
-    this.allowOffline = true,
-    this.timeout,
-    this.cacheStaleTime,
-    this.maxRetries,
-  });
-
-  NetworkRequest copyWith({
-    String? endpoint,
-    String? method,
-    Map<String, dynamic>? parameters,
-    Map<String, String>? headers,
-    dynamic body,
-    RequestPriority? priority,
-    bool? enableCache,
-    bool? allowOffline,
-    Duration? timeout,
-    Duration? cacheStaleTime,
-    int? maxRetries,
-  }) {
-    return NetworkRequest(
-      endpoint: endpoint ?? this.endpoint,
-      method: method ?? this.method,
-      parameters: parameters ?? this.parameters,
-      headers: headers ?? this.headers,
-      body: body ?? this.body,
-      priority: priority ?? this.priority,
-      enableCache: enableCache ?? this.enableCache,
-      allowOffline: allowOffline ?? this.allowOffline,
-      timeout: timeout ?? this.timeout,
-      cacheStaleTime: cacheStaleTime ?? this.cacheStaleTime,
-      maxRetries: maxRetries ?? this.maxRetries,
-    );
-  }
-}
-
-/// Network response model with enhanced metadata
-class NetworkResponse<T> {
-  final T? data;
-  final int statusCode;
-  final String? message;
-  final Map<String, String>? headers;
-  final DateTime timestamp;
-  final bool isStale;
-  final bool isFromCache;
-  final bool isOffline;
-  final String? error;
-
-  const NetworkResponse({
-    this.data,
-    required this.statusCode,
-    this.message,
-    this.headers,
-    required this.timestamp,
-    this.isStale = false,
-    this.isFromCache = false,
-    this.isOffline = false,
-    this.error,
-  });
-
-  factory NetworkResponse.success(T data, {
-    int statusCode = 200,
-    String? message,
-    Map<String, String>? headers,
-    bool isFromCache = false,
-  }) {
-    return NetworkResponse<T>(
-      data: data,
-      statusCode: statusCode,
-      message: message,
-      headers: headers,
-      timestamp: DateTime.now(),
-      isFromCache: isFromCache,
-    );
-  }
-
-  factory NetworkResponse.offline({
-    String? message,
-    String? originalError,
-  }) {
-    return NetworkResponse<T>(
-      statusCode: 0,
-      message: message ?? 'Request queued for offline execution',
-      timestamp: DateTime.now(),
-      isOffline: true,
-      error: originalError,
-    );
-  }
-
-  NetworkResponse<T> copyWith({
-    T? data,
-    int? statusCode,
-    String? message,
-    Map<String, String>? headers,
-    DateTime? timestamp,
-    bool? isStale,
-    bool? isFromCache,
-    bool? isOffline,
-    String? error,
-  }) {
-    return NetworkResponse<T>(
-      data: data ?? this.data,
-      statusCode: statusCode ?? this.statusCode,
-      message: message ?? this.message,
-      headers: headers ?? this.headers,
-      timestamp: timestamp ?? this.timestamp,
-      isStale: isStale ?? this.isStale,
-      isFromCache: isFromCache ?? this.isFromCache,
-      isOffline: isOffline ?? this.isOffline,
-      error: error ?? this.error,
-    );
-  }
-
-  bool get isSuccess => statusCode >= 200 && statusCode < 300;
-  bool get hasError => error != null;
-}
