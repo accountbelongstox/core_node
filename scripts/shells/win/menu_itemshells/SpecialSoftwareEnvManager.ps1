@@ -176,6 +176,18 @@ $script:EnvironmentConfigs = @{
 
 #region Script Generation Functions
 
+function Ensure-Array {
+    param(
+        [Parameter(Mandatory=$false)] $InputObject
+    )
+    
+    if ($null -eq $InputObject) {
+        return ,@()  # Force return as array
+    } else {
+        return ,@($InputObject)  # Force return as array
+    }
+}
+
 function Get-CommonName {
     param(
         [Parameter(Mandatory=$true)] [string]$ConfigName
@@ -220,7 +232,11 @@ function Get-ExistingScripts {
     }
     
     $pattern = "${listScriptName}*"
-    $scripts = Get-ChildItem -Path $winEnvsDir -Filter $pattern -File | Sort-Object Name
+    $scripts = Get-ChildItem -Path $winEnvsDir -Filter $pattern -File -ErrorAction SilentlyContinue | Sort-Object Name
+    
+    # Ensure $scripts is always an array
+    $scripts = Ensure-Array -InputObject $scripts
+    
     return $scripts
 }
 
@@ -229,6 +245,9 @@ function Show-ExistingScriptsMenu {
         [Parameter(Mandatory=$true)] [string]$ConfigName,
         [Parameter(Mandatory=$false)] [array]$Scripts = @()
     )
+    
+    # Ensure Scripts is always an array
+    $Scripts = Ensure-Array -InputObject $Scripts
     
     if ($Scripts.Count -eq 0) {
         return "new"
@@ -316,6 +335,10 @@ function Generate-EnvironmentScript {
     
     # Generate script number
     $existingScripts = Get-ExistingScripts -ConfigName $ConfigName
+    
+    # Ensure $existingScripts is always an array
+    $existingScripts = Ensure-Array -InputObject $existingScripts
+    
     $scriptNumber = $existingScripts.Count + 1
     
     # Generate script filename
@@ -387,6 +410,10 @@ function Show-ListScripts {
     }
     
     $files = Get-ExistingFiles -ConfigName $ConfigName
+    
+    # Ensure $files is always an array
+    $files = Ensure-Array -InputObject $files
+    
     $listScriptName = "${commandPrefix}list"
     
     Clear-Host
@@ -470,21 +497,20 @@ function Get-ExistingFiles {
     $files = Get-ChildItem -Path $winEnvsDir -Filter "${filePrefix}*" -File -ErrorAction SilentlyContinue
     
     # Ensure $files is always an array, even if no files found
-    if ($null -eq $files) {
-        $files = @()
-        Write-ColorMessage -Message "DEBUG: files is null, converted to empty array" -Type "Info"
+    $files = Ensure-Array -InputObject $files
+    
+    if ($files.Count -eq 0) {
+        Write-ColorMessage -Message "DEBUG: files is empty array" -Type "Info"
     } else {
         Write-ColorMessage -Message "DEBUG: files type: $($files.GetType().Name)" -Type "Info"
         Write-ColorMessage -Message "DEBUG: files value: $files" -Type "Info"
     }
     
-    # Get-ChildItem returns $null when no files found, so we need to handle this
-    if ($null -eq $files) {
-        $allFiles = @()
-    } else {
-        # Ensure we have a proper array and filter out any null values
-        $allFiles = @($files | Where-Object { $null -ne $_ })
-    }
+    # Use the already processed $files array
+    $allFiles = $files
+    
+    # Ensure we have a proper array and filter out any null values
+    $allFiles = @($allFiles | Where-Object { $null -ne $_ })
     
     # DEBUG: Check what allFiles becomes
     if ($null -eq $allFiles) {
@@ -513,7 +539,7 @@ function Show-ExistingFilesMenu {
     )
     
     # Ensure Files is always an array
-    $Files = @($Files)
+    $Files = Ensure-Array -InputObject $Files
     
     # Get file prefix
     $filePrefix = Get-CommandPrefix -ConfigName $ConfigName
@@ -646,9 +672,10 @@ function Generate-ListScript {
     $existingFiles = Get-ExistingFiles -ConfigName $ConfigName
     
     # Ensure $existingFiles is always an array
-    if ($null -eq $existingFiles) {
-        $existingFiles = @()
-    }
+    $existingFiles = Ensure-Array -InputObject $existingFiles
+    
+    # Get the count for use in the script template
+    $fileCount = $existingFiles.Count
     
     # Generate list script content
     $listScriptName = "${commandPrefix}list"
@@ -679,7 +706,7 @@ for %%f in ("%~dp0${commandPrefix}*.bat") do (
 )
 
 echo.
-echo Total: $($existingFiles.Count) files available
+echo Total: $fileCount files available
 echo.
 echo =====================================
 echo File Management Options:
@@ -1519,6 +1546,10 @@ function Show-SubMenu {
                 switch ($action) {
                     'addcommand' { 
                         $existingFiles = Get-ExistingFiles -ConfigName $ConfigName
+                        
+                        # Ensure $existingFiles is always an array
+                        $existingFiles = Ensure-Array -InputObject $existingFiles
+                        
                         Show-ExistingFilesMenu -ConfigName $ConfigName -Files $existingFiles
                         
                         # Use global variables to determine action
