@@ -19,6 +19,7 @@ import 'router_app_achat/router_app_achat.dart';
 import 'settings_app_achat/settings_app_achat.dart';
 import 'localization_app_achat/en_app_achat.dart';
 import 'localization_app_achat/zh_app_achat.dart';
+import 'services_app_achat/achat_service.dart';
 
 /// AChat App specific widget
 /// This can be customized for AChat app specific needs
