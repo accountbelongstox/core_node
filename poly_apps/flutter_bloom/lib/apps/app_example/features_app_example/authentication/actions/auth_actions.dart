@@ -13,13 +13,12 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_example/controller_app_example/auth_controller_app_example.dart';
 import 'package:qyflutter/apps/app_example/model_app_example/user_model.dart';
-import 'package:qyflutter/common/provider_status/user_provider.dart';
+import 'package:qyflutter/apps/app_example/providers_app_example/example_user_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:convert';
 import 'package:qyflutter/common/utils/database/cache_operations.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
-// Updated: Import ExampleAppRoutesProvider instead of RouterQy
 import 'package:qyflutter/apps/app_example/router_app_example/routes_provider_app_example.dart';
 
 class AuthActions {
@@ -41,7 +40,8 @@ class AuthActions {
     }
 
     final AuthControllerAppExample authController = AuthControllerAppExample(context);
-    final userProvider = Provider.of<BaseUserProvider>(context, listen: false);
+    // Fix: Use ExampleUserProvider for proper type handling
+    final userProvider = Provider.of<ExampleUserProvider>(context, listen: false);
 
     try {
       final response = await authController.login(
@@ -66,7 +66,8 @@ class AuthActions {
         user.tokenType = response.body['token_type'];
         user.expiration = response.body['expiration']?.toString();
 
-        userProvider.setUser(user);
+        // Fix: Use setAppUser method from ExampleUserProvider
+        userProvider.setAppUser(profile: user);
         onResult('login.success'.tr(context), false);
 
         await Future.delayed(const Duration(milliseconds: 100));

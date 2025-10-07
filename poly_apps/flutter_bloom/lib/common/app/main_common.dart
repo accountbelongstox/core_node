@@ -89,6 +89,8 @@ Future<void> runCommonApp({
   List<Map<String, dynamic>> zhAppLocales = const [],
   // App-specific SharedPreferences class - can be provided or null for internal initialization
   AppPrefsBase? appPrefs, // App-specific SharedPreferences class (optional)
+  // Custom UserProvider - if provided, will be used instead of default EnhancedUserProvider
+  BaseUserProvider? customUserProvider, // Optional: App-specific user provider (e.g., ExampleUserProvider, WuUserProvider)
   // Route configuration - provided by app
   GoRouter? routerConfig, // App-specific router configuration
   String? initialRoute,
@@ -187,7 +189,8 @@ Future<void> runCommonApp({
   // Initialize settings controller
   await settingsController.initialize();
 
-  final userProvider = EnhancedUserProvider();
+  // Use custom user provider if provided, otherwise use default EnhancedUserProvider
+  final userProvider = customUserProvider ?? EnhancedUserProvider();
   final screenSizeProvider = ScreenSizeProvider();
 
   // Safely remove splash screen after initialization
