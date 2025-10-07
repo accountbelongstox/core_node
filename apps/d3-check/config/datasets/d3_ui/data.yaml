@@ -15,11 +15,10 @@ names:
   1: d3_anchor_bottom_right
   2: d3_bag_border
   3: d3_button_material
-  4: d3_button_convert_enabled
-  5: d3_button_convert_disabled
+  # Note: button_convert_enabled/disabled removed - now using coordinate system
 
 # Dataset statistics (will be updated after data collection)
-# nc: 6  # Number of classes
+# nc: 4  # Number of classes
 
 # Training notes:
 # ===============

@@ -39,14 +39,14 @@ class AChatService {
   /// Initialize AChat service - Test app mode (no authentication required)
   Future<void> initialize() async {
     try {
-      // Initialize API client for test app
-      _apiClient = AChatApiClient(context: 'achat_test_app');
+      // Fix: Initialize API client with factory method
+      _apiClient = AChatApiClient.create(
+        config: ApiConfigAChat.testApiConfig,
+      );
+      await _apiClient!.initialize();
 
       // Set app start time
       _appStartTime = DateTime.now();
-
-      // Notify backend about app open
-      await _notifyAppOpen();
 
       // Start heartbeat timer
       _startHeartbeat();
@@ -138,39 +138,10 @@ class AChatService {
     }
   }
 
-  /// Setup connection to chat service
-  Future<void> _setupConnection() async {
-    // Mock connection setup
-    await Future.delayed(Duration(milliseconds: 500));
-  }
-
   // ========================================
-  // BankV1 Backend Integration Methods
+  // AChatV1 Backend Integration Methods
   // Cross-app data consistency implementation
   // ========================================
-
-  /// Notify backend about app open
-  Future<void> _notifyAppOpen() async {
-    if (_apiClient == null) return;
-
-    try {
-      final response = await _apiClient!.appOpen(
-        appVersion: AChatAppConfig.appVersion,
-        platform: 'flutter',
-      );
-
-      if (response.success && response.data != null) {
-        _sessionId = response.data!['session_id'] as String?;
-        if (kDebugMode) {
-          print('App open notification sent successfully. Session ID: $_sessionId');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Failed to notify app open: $e');
-      }
-    }
-  }
 
   /// Start heartbeat timer
   void _startHeartbeat() {
@@ -185,12 +156,15 @@ class AChatService {
     if (_apiClient == null || !_isInitialized) return;
 
     try {
-      final response = await _apiClient!.heartbeat(
+      // Fix: Use new sendHeartbeat method with required deviceId
+      final deviceId = AChatAppConfig.deviceId;
+      final response = await _apiClient!.sendHeartbeat(
+        deviceId: deviceId,
         sessionDuration: sessionDuration?.inSeconds,
       );
 
       if (kDebugMode) {
-        print('Heartbeat sent: ${response.success}');
+        print('Heartbeat sent: ${response.statusCode == 200}');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -201,26 +175,25 @@ class AChatService {
 
   /// Update user profile information
   Future<bool> updateUserProfile({
+    required String userId,
     String? fullName,
-    String? email,
-    String? phone,
-    String? dateOfBirth,
-    String? gender,
+    String? bio,
+    String? avatar,
   }) async {
     if (_apiClient == null || !_isInitialized) {
       throw Exception('AChat service not initialized');
     }
 
     try {
+      // Fix: Use new updateUserProfile method signature
       final response = await _apiClient!.updateUserProfile(
+        userId: userId,
         fullName: fullName,
-        email: email,
-        phone: phone,
-        dateOfBirth: dateOfBirth,
-        gender: gender,
+        bio: bio,
+        avatar: avatar,
       );
 
-      if (response.success) {
+      if (response.statusCode == 200) {
         if (kDebugMode) {
           print('User profile updated successfully');
         }
@@ -239,75 +212,6 @@ class AChatService {
     }
   }
 
-  /// Generate test data
-  Future<Map<String, dynamic>?> generateTestData({
-    required String dataType,
-    int? count,
-    Map<String, dynamic>? parameters,
-  }) async {
-    if (_apiClient == null || !_isInitialized) {
-      throw Exception('AChat service not initialized');
-    }
-
-    try {
-      final response = await _apiClient!.generateTestData(
-        dataType: dataType,
-        count: count,
-        parameters: parameters,
-      );
-
-      if (response.success) {
-        if (kDebugMode) {
-          print('Test data generated successfully');
-        }
-        return response.data;
-      } else {
-        if (kDebugMode) {
-          print('Failed to generate test data: ${response.error}');
-        }
-        return null;
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Failed to generate test data: $e');
-      }
-      return null;
-    }
-  }
-
-  /// Upload test information to backend
-  Future<bool> uploadTestInfo({
-    required String infoType,
-    required Map<String, dynamic> data,
-  }) async {
-    if (_apiClient == null || !_isInitialized) {
-      throw Exception('AChat service not initialized');
-    }
-
-    try {
-      final response = await _apiClient!.uploadTestInfo(
-        infoType: infoType,
-        data: data,
-      );
-
-      if (response.success) {
-        if (kDebugMode) {
-          print('Test info uploaded successfully');
-        }
-        return true;
-      } else {
-        if (kDebugMode) {
-          print('Failed to upload test info: ${response.error}');
-        }
-        return false;
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Failed to upload test info: $e');
-      }
-      return false;
-    }
-  }
 
   /// Dispose service and notify backend about app close
   Future<void> dispose() async {
@@ -317,9 +221,9 @@ class AChatService {
 
       // Notify backend about app close
       if (_apiClient != null && _isInitialized) {
-        await _apiClient!.appClose(
-          sessionDuration: sessionDuration?.inSeconds,
-        );
+        // Fix: Use new logout method
+        final deviceId = AChatAppConfig.deviceId;
+        await _apiClient!.logout(deviceId: deviceId);
       }
 
       _isInitialized = false;

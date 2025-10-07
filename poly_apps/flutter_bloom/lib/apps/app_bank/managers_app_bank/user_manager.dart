@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../services_app_bank/bank_auth_api_service.dart';
-import '../config_app_bank/api_config_app_bank.dart';
-import '../models_app_bank/bank_user_model.dart';
+// FIX: Use unified BankUser model from user_model_app_bank.dart
+import '../models_app_bank/user_model_app_bank.dart';
 import '../../../common/network/security/device_security_manager.dart';
 
 class UserManager extends ChangeNotifier {
@@ -12,14 +12,14 @@ class UserManager extends ChangeNotifier {
   final BankAuthApiService _authService = BankAuthApiService.instance;
   final DeviceSecurityManager _securityManager = DeviceSecurityManager.instance;
 
-  BankUserModel? _currentUser;
+  BankUser? _currentUser;
   String? _authToken;
   String? _refreshToken;
   bool _isLoggedIn = false;
   bool _isLoading = false;
 
   // Getters
-  BankUserModel? get currentUser => _currentUser;
+  BankUser? get currentUser => _currentUser;
   String? get authToken => _authToken;
   bool get isLoggedIn => _isLoggedIn;
   bool get isLoading => _isLoading;
@@ -40,22 +40,18 @@ class UserManager extends ChangeNotifier {
     _setLoading(true);
     
     try {
-      final deviceId = await _securityManager.getDeviceId();
-      final appSignature = await _securityManager.generateAppSignature();
-      
       final response = await _authService.login(
         username: username,
         password: password,
-        deviceId: deviceId,
-        appSignature: appSignature,
       );
 
+      // FIX: Use response.isSuccess and loginData.user is already BankUser
       if (response.isSuccess && response.data != null) {
         final loginData = response.data!;
         
-        _authToken = loginData['token'];
-        _refreshToken = loginData['refresh_token'];
-        _currentUser = UserData.fromJson(loginData['user']);
+        _authToken = loginData.token;
+        _refreshToken = loginData.refreshToken;
+        _currentUser = loginData.user; // Already BankUser type
         _isLoggedIn = true;
         
         // Save credentials for auto-login
@@ -72,7 +68,7 @@ class UserManager extends ChangeNotifier {
         return LoginResult(
           success: false,
           message: response.message ?? 'Login failed',
-          errorCode: response.errorCode,
+          errorCode: response.error,
         );
       }
     } catch (e) {
@@ -97,30 +93,26 @@ class UserManager extends ChangeNotifier {
     _setLoading(true);
     
     try {
-      final deviceId = await _securityManager.getDeviceId();
-      final appSignature = await _securityManager.generateAppSignature();
-      
       final response = await _authService.register(
         username: username,
         email: email,
         password: password,
         fullName: fullName,
         phone: phone,
-        deviceId: deviceId,
-        appSignature: appSignature,
       );
 
+      // FIX: Use response.isSuccess, response.data is LoginResponseAppBank
       if (response.isSuccess && response.data != null) {
         return RegisterResult(
           success: true,
           message: response.message ?? 'Registration successful',
-          userId: response.data!['user_id'],
+          userId: response.data!.user.id,
         );
       } else {
         return RegisterResult(
           success: false,
           message: response.message ?? 'Registration failed',
-          errorCode: response.errorCode,
+          errorCode: response.error,
         );
       }
     } catch (e) {
@@ -178,9 +170,9 @@ class UserManager extends ChangeNotifier {
         gender: gender,
       );
 
+      // FIX: Use response.isSuccess and response.data is already BankUser
       if (response.isSuccess && response.data != null) {
-        // Update local user data
-        _currentUser = UserData.fromJson(response.data!);
+        _currentUser = response.data; // Already BankUser type
         await _saveCredentials();
         notifyListeners();
         
@@ -193,7 +185,7 @@ class UserManager extends ChangeNotifier {
         return UpdateProfileResult(
           success: false,
           message: response.message ?? 'Profile update failed',
-          errorCode: response.errorCode,
+          errorCode: response.error,
         );
       }
     } catch (e) {
@@ -208,6 +200,7 @@ class UserManager extends ChangeNotifier {
   }
 
   /// Update user balance
+  /// FIX: BankAuthApiService doesn't have updateBalance method - feature not implemented
   Future<UpdateBalanceResult> updateBalance({
     required double newBalance,
     String? reason,
@@ -220,51 +213,15 @@ class UserManager extends ChangeNotifier {
       );
     }
 
-    _setLoading(true);
-    
-    try {
-      final response = await _authService.updateBalance(
-        newBalance: newBalance,
-        reason: reason,
-        transactionType: transactionType,
-      );
-
-      if (response.isSuccess && response.data != null) {
-        // Update local user balance
-        if (_currentUser != null) {
-          _currentUser = _currentUser!.copyWith(
-            balance: response.data!['new_balance'],
-          );
-          await _saveCredentials();
-          notifyListeners();
-        }
-        
-        return UpdateBalanceResult(
-          success: true,
-          message: response.message ?? 'Balance updated successfully',
-          oldBalance: response.data!['old_balance'],
-          newBalance: response.data!['new_balance'],
-          transactionId: response.data!['transaction_id'],
-        );
-      } else {
-        return UpdateBalanceResult(
-          success: false,
-          message: response.message ?? 'Balance update failed',
-          errorCode: response.errorCode,
-        );
-      }
-    } catch (e) {
-      debugPrint('Update balance error: $e');
-      return UpdateBalanceResult(
-        success: false,
-        message: 'Balance update failed: $e',
-      );
-    } finally {
-      _setLoading(false);
-    }
+    // TODO: Implement when BankAuthApiService.updateBalance is available
+    return UpdateBalanceResult(
+      success: false,
+      message: 'Balance update feature not implemented',
+    );
   }
 
   /// Update user address
+  /// FIX: BankAuthApiService doesn't have updateAddress method - feature not implemented
   Future<UpdateAddressResult> updateAddress({
     String? street,
     String? city,
@@ -279,42 +236,14 @@ class UserManager extends ChangeNotifier {
       );
     }
 
-    _setLoading(true);
-    
-    try {
-      final response = await _authService.updateAddress(
-        street: street,
-        city: city,
-        state: state,
-        zipCode: zipCode,
-        country: country,
-      );
-
-      if (response.isSuccess && response.data != null) {
-        return UpdateAddressResult(
-          success: true,
-          message: response.message ?? 'Address updated successfully',
-          address: AddressData.fromJson(response.data!),
-        );
-      } else {
-        return UpdateAddressResult(
-          success: false,
-          message: response.message ?? 'Address update failed',
-          errorCode: response.errorCode,
-        );
-      }
-    } catch (e) {
-      debugPrint('Update address error: $e');
-      return UpdateAddressResult(
-        success: false,
-        message: 'Address update failed: $e',
-      );
-    } finally {
-      _setLoading(false);
-    }
+    // TODO: Implement when BankAuthApiService.updateAddress is available
+    return UpdateAddressResult(
+      success: false,
+      message: 'Address update feature not implemented',
+    );
   }
 
-  /// Apply registration code
+  /// Apply registration code (method not available in BankAuthApiService)
   Future<RegistrationCodeResult> applyRegistrationCode({
     required String registrationCode,
     String? referralSource,
@@ -326,56 +255,20 @@ class UserManager extends ChangeNotifier {
       );
     }
 
-    _setLoading(true);
-    
-    try {
-      final response = await _authService.applyRegistrationCode(
-        registrationCode: registrationCode,
-        referralSource: referralSource,
-      );
-
-      if (response.isSuccess && response.data != null) {
-        return RegistrationCodeResult(
-          success: true,
-          message: response.message ?? 'Registration code applied successfully',
-          codeValid: response.data!['code_valid'],
-          benefits: response.data!['benefits'],
-        );
-      } else {
-        return RegistrationCodeResult(
-          success: false,
-          message: response.message ?? 'Registration code application failed',
-          errorCode: response.errorCode,
-        );
-      }
-    } catch (e) {
-      debugPrint('Apply registration code error: $e');
-      return RegistrationCodeResult(
-        success: false,
-        message: 'Registration code application failed: $e',
-      );
-    } finally {
-      _setLoading(false);
-    }
+    // TODO: Implement when BankAuthApiService.applyRegistrationCode is available
+    return RegistrationCodeResult(
+      success: false,
+      message: 'Registration code feature not implemented',
+    );
   }
 
-  /// Refresh authentication token
+  /// Refresh authentication token (method not available in BankAuthApiService)
   Future<bool> refreshToken() async {
     if (_refreshToken == null) return false;
     
-    try {
-      final response = await _authService.refreshToken(_refreshToken!);
-      
-      if (response.isSuccess && response.data != null) {
-        _authToken = response.data!['token'];
-        await _saveCredentials();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      debugPrint('Token refresh error: $e');
-      return false;
-    }
+    // TODO: Implement when BankAuthApiService.refreshToken is available
+    debugPrint('Token refresh not implemented');
+    return false;
   }
 
   /// Set loading state
@@ -407,10 +300,11 @@ class UserManager extends ChangeNotifier {
 }
 
 // Result classes
+// FIX: Use BankUser (unified model) instead of BankUserModel
 class LoginResult {
   final bool success;
   final String message;
-  final UserData? user;
+  final BankUser? user;
   final String? errorCode;
 
   LoginResult({
@@ -435,10 +329,11 @@ class RegisterResult {
   });
 }
 
+// FIX: Use BankUser (unified model) instead of BankUserModel
 class UpdateProfileResult {
   final bool success;
   final String message;
-  final UserData? user;
+  final BankUser? user;
   final String? errorCode;
 
   UpdateProfileResult({
@@ -467,10 +362,11 @@ class UpdateBalanceResult {
   });
 }
 
+// Fix: Use Map<String, dynamic> instead of AddressData (type not defined)
 class UpdateAddressResult {
   final bool success;
   final String message;
-  final AddressData? address;
+  final Map<String, dynamic>? address;
   final String? errorCode;
 
   UpdateAddressResult({

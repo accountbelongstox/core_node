@@ -12,25 +12,65 @@
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../../../common/network/services/enhanced_base_service.dart';
-import '../../../common/network/models/api_response.dart';
+// REFACTOR: Use new unified network client architecture instead of EnhancedBaseService
+import '../../../common/network/network_framework.dart';
 import '../../../common/network/security/device_security_manager.dart';
 import '../config_app_bank/api_config_app_bank.dart';
+// Fix: BankUser is the correct class name in user_model_app_bank.dart
 import '../models_app_bank/user_model_app_bank.dart';
 
-class BankAuthApiService extends EnhancedBaseService {
+/// Bank Authentication API Service
+/// REFACTOR: Now uses UnifiedNetworkClient instead of EnhancedBaseService
+/// Handles all authentication-related API calls for the Bank app
+class BankAuthApiService {
   static BankAuthApiService? _instance;
   static BankAuthApiService get instance => _instance ??= BankAuthApiService._();
   
-  BankAuthApiService._() : super(config: ApiConfigAppBank.authApiConfig);
-
+  late final UnifiedNetworkClient _client;
   Timer? _heartbeatTimer;
   DateTime? _sessionStartTime;
   bool _isLoggedIn = false;
-  UserModelAppBank? _currentUser;
+  bool _isInitialized = false;
+  BankUser? _currentUser;
 
-  // Authentication methods
-  Future<ApiResponse<LoginResponseAppBank>> login({
+  BankAuthApiService._() {
+    _client = UnifiedNetworkClient.create(
+      config: ApiConfigAppBank.authApiConfig,
+      instanceKey: 'bank_auth_api',
+    );
+  }
+
+  /// Initialize the service
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+    _isInitialized = true;
+    debugPrint('✅ BankAuthApiService initialized');
+  }
+
+  /// Get current user
+  /// Fix: Return BankUser? instead of UserModelAppBank?
+  BankUser? get currentUser => _currentUser;
+
+  bool get isLoggedIn => _isLoggedIn;
+
+  /// Helper: Build NetworkRequest for common operations
+  NetworkRequest _buildRequest({
+    required String endpoint,
+    required RequestMethod method,
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? queryParameters,
+  }) {
+    return NetworkRequest(
+      endpoint: endpoint,
+      method: method,
+      body: body,
+      parameters: queryParameters,
+      priority: RequestPriority.normal,
+    );
+  }
+
+  /// Login
+  Future<NetworkResponse<LoginResponseAppBank>> login({
     required String username,
     required String password,
   }) async {
@@ -38,52 +78,56 @@ class BankAuthApiService extends EnhancedBaseService {
       final deviceId = await DeviceSecurityManager.instance.getDeviceId();
       final appSignature = await DeviceSecurityManager.instance.getAppSignature();
       
-      final requestBody = ApiDataModelsAppBank.loginRequest(
-        username: username,
-        password: password,
-        deviceId: deviceId,
-        appSignature: appSignature,
+      final request = _buildRequest(
+        endpoint: ApiEndpointsAppBank.login,
+        method: RequestMethod.post,
+        body: ApiDataModelsAppBank.loginRequest(
+          username: username,
+          password: password,
+          deviceId: deviceId,
+          appSignature: appSignature,
+        ),
       );
 
-      final response = await super.login<Map<String, dynamic>>(
-        ApiEndpointsAppBank.login,
-        requestBody,
-        fromJson: (json) => json,
-      );
+      final response = await _client.request<Map<String, dynamic>>(request);
 
-      if (response.success && response.data != null) {
+      if (response.statusCode == 200 && response.data != null) {
         final loginResponse = LoginResponseAppBank.fromJson(response.data!);
-        _currentUser = UserModelAppBank.fromUserData(loginResponse.user);
+        // FIX: Unified user model - LoginResponseAppBank.user is already BankUser
+        _currentUser = loginResponse.user;
         _isLoggedIn = true;
         _sessionStartTime = DateTime.now();
         
         // Start heartbeat
         _startHeartbeat();
         
-        return ApiResponse<LoginResponseAppBank>.success(
-          data: loginResponse,
+        return NetworkResponse<LoginResponseAppBank>(
           statusCode: response.statusCode,
-          message: response.message,
+          data: loginResponse,
+          message: response.message ?? 'Login successful',
+          timestamp: response.timestamp,
         );
       }
 
-      return ApiResponse<LoginResponseAppBank>.error(
-        error: response.error ?? 'Login failed',
+      return NetworkResponse<LoginResponseAppBank>(
         statusCode: response.statusCode,
-        message: response.message,
+        error: response.error,
+        message: response.message ?? 'Login failed',
+        timestamp: response.timestamp,
       );
     } catch (e) {
-      if (kDebugMode) {
-        print('Login error: $e');
-      }
-      return ApiResponse<LoginResponseAppBank>.error(
-        error: 'Login failed: $e',
+      debugPrint('Login error: $e');
+      return NetworkResponse<LoginResponseAppBank>(
         statusCode: 500,
+        error: 'Login failed: $e',
+        message: 'Login failed',
+        timestamp: DateTime.now(),
       );
     }
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> register({
+  /// Register
+  Future<NetworkResponse<LoginResponseAppBank>> register({
     required String username,
     required String email,
     required String password,
@@ -94,300 +138,189 @@ class BankAuthApiService extends EnhancedBaseService {
       final deviceId = await DeviceSecurityManager.instance.getDeviceId();
       final appSignature = await DeviceSecurityManager.instance.getAppSignature();
       
-      final requestBody = ApiDataModelsAppBank.registerRequest(
-        username: username,
-        email: email,
-        password: password,
-        fullName: fullName,
-        phone: phone,
-        deviceId: deviceId,
-        appSignature: appSignature,
+      final request = _buildRequest(
+        endpoint: ApiEndpointsAppBank.register,
+        method: RequestMethod.post,
+        body: ApiDataModelsAppBank.registerRequest(
+          username: username,
+          email: email,
+          password: password,
+          fullName: fullName,
+          phone: phone,
+          deviceId: deviceId,
+          appSignature: appSignature,
+        ),
       );
 
-      return await post<Map<String, dynamic>>(
-        ApiEndpointsAppBank.register,
-        body: requestBody,
-        fromJson: (json) => json,
-        requiresAuth: false,
+      final response = await _client.request<Map<String, dynamic>>(request);
+
+      if (response.statusCode == 200 && response.data != null) {
+        final loginResponse = LoginResponseAppBank.fromJson(response.data!);
+        return NetworkResponse<LoginResponseAppBank>(
+          statusCode: response.statusCode,
+          data: loginResponse,
+          message: response.message ?? 'Registration successful',
+          timestamp: response.timestamp,
+        );
+      }
+
+      return NetworkResponse<LoginResponseAppBank>(
+        statusCode: response.statusCode,
+        error: response.error,
+        message: response.message ?? 'Registration failed',
+        timestamp: response.timestamp,
       );
     } catch (e) {
-      if (kDebugMode) {
-        print('Register error: $e');
-      }
-      return ApiResponse<Map<String, dynamic>>.error(
-        error: 'Registration failed: $e',
+      debugPrint('Register error: $e');
+      return NetworkResponse<LoginResponseAppBank>(
         statusCode: 500,
+        error: 'Registration failed: $e',
+        message: 'Registration failed',
+        timestamp: DateTime.now(),
       );
     }
   }
 
-  @override
+  /// Logout
   Future<void> logout() async {
     try {
       if (_isLoggedIn) {
-        await post<Map<String, dynamic>>(
-          ApiEndpointsAppBank.logout,
-          body: {},
-          fromJson: (json) => json,
+        final request = _buildRequest(
+          endpoint: ApiEndpointsAppBank.logout,
+          method: RequestMethod.post,
         );
+        
+        await _client.request<Map<String, dynamic>>(request);
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('Logout error: $e');
-      }
+      debugPrint('Logout error: $e');
     } finally {
       _stopHeartbeat();
       _isLoggedIn = false;
       _currentUser = null;
       _sessionStartTime = null;
-      await super.logout();
     }
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> verifyToken() async {
-    return await get<Map<String, dynamic>>(
-      ApiEndpointsAppBank.verifyToken,
-      fromJson: (json) => json,
+  /// Verify Token
+  Future<NetworkResponse<Map<String, dynamic>>> verifyToken() async {
+    final request = _buildRequest(
+      endpoint: ApiEndpointsAppBank.verifyToken,
+      method: RequestMethod.post,
     );
+    
+    return await _client.request<Map<String, dynamic>>(request);
   }
 
-  // App lifecycle methods
-  Future<ApiResponse<AppOpenResponseAppBank>> reportAppOpen() async {
-    try {
-      final deviceId = await DeviceSecurityManager.instance.getDeviceId();
-      final appSignature = await DeviceSecurityManager.instance.getAppSignature();
+  /// Refresh Token
+  Future<NetworkResponse<Map<String, dynamic>>> refreshToken() async {
+    final request = _buildRequest(
+      endpoint: ApiEndpointsAppBank.refreshToken,
+      method: RequestMethod.post,
+    );
+    
+    return await _client.request<Map<String, dynamic>>(request);
+  }
+
+  /// Get User Profile
+  /// FIX: Unified user model - returns BankUser directly
+  Future<NetworkResponse<BankUser>> getUserProfile() async {
+    final request = _buildRequest(
+      endpoint: ApiEndpointsAppBank.userProfile,
+      method: RequestMethod.get,
+    );
+    
+    final response = await _client.request<Map<String, dynamic>>(request);
+
+    if (response.statusCode == 200 && response.data != null) {
+      final userData = BankUser.fromApiResponse(response.data!);
+      _currentUser = userData;
       
-      final requestBody = ApiDataModelsAppBank.appOpenRequest(
-        deviceId: deviceId,
-        appSignature: appSignature,
-        appVersion: '1.0.0', // This should come from package info
-        platform: _getPlatformName(),
-      );
-
-      final response = await post<Map<String, dynamic>>(
-        ApiEndpointsAppBank.appOpen,
-        body: requestBody,
-        fromJson: (json) => json,
-        requiresAuth: false,
-      );
-
-      if (response.success && response.data != null) {
-        final appOpenResponse = AppOpenResponseAppBank.fromJson(response.data!);
-        
-        // Handle device lock from server
-        if (appOpenResponse.deviceLocked) {
-          await DeviceSecurityManager.instance.lockDevice(
-            appOpenResponse.lockReason ?? 'Server security lock',
-          );
-        }
-        
-        return ApiResponse<AppOpenResponseAppBank>.success(
-          data: appOpenResponse,
-          statusCode: response.statusCode,
-          message: response.message,
-        );
-      }
-
-      return ApiResponse<AppOpenResponseAppBank>.error(
-        error: response.error ?? 'App open report failed',
+      return NetworkResponse<BankUser>(
         statusCode: response.statusCode,
-        message: response.message,
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        print('App open report error: $e');
-      }
-      return ApiResponse<AppOpenResponseAppBank>.error(
-        error: 'App open report failed: $e',
-        statusCode: 500,
-      );
-    }
-  }
-
-  Future<ApiResponse<Map<String, dynamic>>> reportAppClose() async {
-    try {
-      final deviceId = await DeviceSecurityManager.instance.getDeviceId();
-      final appSignature = await DeviceSecurityManager.instance.getAppSignature();
-      
-      int? sessionDuration;
-      if (_sessionStartTime != null) {
-        sessionDuration = DateTime.now().difference(_sessionStartTime!).inSeconds;
-      }
-      
-      final requestBody = ApiDataModelsAppBank.appCloseRequest(
-        deviceId: deviceId,
-        appSignature: appSignature,
-        sessionDuration: sessionDuration,
-      );
-
-      return await post<Map<String, dynamic>>(
-        ApiEndpointsAppBank.appClose,
-        body: requestBody,
-        fromJson: (json) => json,
-        requiresAuth: false,
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        print('App close report error: $e');
-      }
-      return ApiResponse<Map<String, dynamic>>.error(
-        error: 'App close report failed: $e',
-        statusCode: 500,
-      );
-    }
-  }
-
-  // User profile methods
-  Future<ApiResponse<UserDataAppBank>> getUserProfile() async {
-    final response = await get<Map<String, dynamic>>(
-      ApiEndpointsAppBank.userProfile,
-      fromJson: (json) => json,
-    );
-
-    if (response.success && response.data != null) {
-      final userData = UserDataAppBank.fromJson(response.data!);
-      _currentUser = UserModelAppBank.fromUserData(userData);
-      
-      return ApiResponse<UserDataAppBank>.success(
         data: userData,
-        statusCode: response.statusCode,
         message: response.message,
+        timestamp: response.timestamp,
       );
     }
 
-    return ApiResponse<UserDataAppBank>.error(
-      error: response.error ?? 'Failed to get user profile',
+    return NetworkResponse<BankUser>(
       statusCode: response.statusCode,
+      error: response.error,
       message: response.message,
+      timestamp: response.timestamp,
     );
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> updateProfile({
+  /// Update Profile
+  /// FIX: Unified user model - returns BankUser directly
+  Future<NetworkResponse<BankUser>> updateProfile({
     String? fullName,
     String? email,
     String? phone,
     String? dateOfBirth,
     String? gender,
   }) async {
-    final requestBody = ApiDataModelsAppBank.updateProfileRequest(
-      fullName: fullName,
-      email: email,
-      phone: phone,
-      dateOfBirth: dateOfBirth,
-      gender: gender,
+    final request = _buildRequest(
+      endpoint: ApiEndpointsAppBank.updateProfile,
+      method: RequestMethod.put,
+      body: ApiDataModelsAppBank.updateProfileRequest(
+        fullName: fullName,
+        email: email,
+        phone: phone,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+      ),
     );
+    
+    final response = await _client.request<Map<String, dynamic>>(request);
 
-    return await put<Map<String, dynamic>>(
-      ApiEndpointsAppBank.updateProfile,
-      body: requestBody,
-      fromJson: (json) => json,
-    );
-  }
+    if (response.statusCode == 200 && response.data != null) {
+      final userData = BankUser.fromApiResponse(response.data!);
+      _currentUser = userData;
+      
+      return NetworkResponse<BankUser>(
+        statusCode: response.statusCode,
+        data: userData,
+        message: response.message,
+        timestamp: response.timestamp,
+      );
+    }
 
-  Future<ApiResponse<Map<String, dynamic>>> updateBalance({
-    required double newBalance,
-    String? reason,
-    String? transactionType,
-  }) async {
-    final requestBody = ApiDataModelsAppBank.updateBalanceRequest(
-      newBalance: newBalance,
-      reason: reason,
-      transactionType: transactionType,
-    );
-
-    return await put<Map<String, dynamic>>(
-      ApiEndpointsAppBank.updateBalance,
-      body: requestBody,
-      fromJson: (json) => json,
-    );
-  }
-
-  Future<ApiResponse<Map<String, dynamic>>> updateAddress({
-    String? street,
-    String? city,
-    String? state,
-    String? zipCode,
-    String? country,
-  }) async {
-    final requestBody = ApiDataModelsAppBank.updateAddressRequest(
-      street: street,
-      city: city,
-      state: state,
-      zipCode: zipCode,
-      country: country,
-    );
-
-    return await put<Map<String, dynamic>>(
-      ApiEndpointsAppBank.updateAddress,
-      body: requestBody,
-      fromJson: (json) => json,
+    return NetworkResponse<BankUser>(
+      statusCode: response.statusCode,
+      error: response.error,
+      message: response.message,
+      timestamp: response.timestamp,
     );
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> registerWithCode({
-    required String registrationCode,
-    String? referralSource,
-  }) async {
-    final requestBody = ApiDataModelsAppBank.registerCodeRequest(
-      registrationCode: registrationCode,
-      referralSource: referralSource,
-    );
-
-    return await post<Map<String, dynamic>>(
-      ApiEndpointsAppBank.registerWithCode,
-      body: requestBody,
-      fromJson: (json) => json,
-    );
-  }
-
-  // Getters
-  bool get isLoggedIn => _isLoggedIn;
-  UserModelAppBank? get currentUser => _currentUser;
-  DateTime? get sessionStartTime => _sessionStartTime;
-
-  // Private methods
+  /// Start heartbeat timer
   void _startHeartbeat() {
-    _stopHeartbeat();
-    _heartbeatTimer = Timer.periodic(
-      const Duration(minutes: 5),
-      (timer) => _sendHeartbeat(),
-    );
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(minutes: 5), (_) async {
+      if (_isLoggedIn) {
+        try {
+          final request = _buildRequest(
+            endpoint: ApiEndpointsAppBank.appHeartbeat,
+            method: RequestMethod.post,
+          );
+          
+          await _client.request<Map<String, dynamic>>(request);
+        } catch (e) {
+          debugPrint('Heartbeat error: $e');
+        }
+      }
+    });
   }
 
+  /// Stop heartbeat timer
   void _stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
   }
 
-  Future<void> _sendHeartbeat() async {
-    try {
-      await post<Map<String, dynamic>>(
-        ApiEndpointsAppBank.appHeartbeat,
-        body: {
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          'session_duration': _sessionStartTime != null 
-              ? DateTime.now().difference(_sessionStartTime!).inSeconds 
-              : 0,
-        },
-        fromJson: (json) => json,
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        print('Heartbeat error: $e');
-      }
-    }
-  }
-
-  String _getPlatformName() {
-    if (kIsWeb) return 'web';
-    if (defaultTargetPlatform == TargetPlatform.android) return 'android';
-    if (defaultTargetPlatform == TargetPlatform.iOS) return 'ios';
-    if (defaultTargetPlatform == TargetPlatform.windows) return 'windows';
-    if (defaultTargetPlatform == TargetPlatform.macOS) return 'macos';
-    if (defaultTargetPlatform == TargetPlatform.linux) return 'linux';
-    return 'unknown';
-  }
-
+  /// Dispose resources
   void dispose() {
     _stopHeartbeat();
   }

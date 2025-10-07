@@ -1,0 +1,26 @@
+{
+    // https://nuxt.com/docs/guide/concepts/typescript
+    // After running 'npm run dev', this will extend from .nuxt/tsconfig.app.json
+    // Nuxt 4 + @nuxtjs/i18n v10 provide types automatically - no manual 'types' needed
+    "extends": "./.nuxt/tsconfig.app.json",
+    "compilerOptions": {
+        // Fallback config before .nuxt is generated
+        // Note: "types": ["@nuxt/types", "@nuxtjs/i18n"] is no longer needed in Nuxt 4
+        // Types are auto-generated in .nuxt/nuxt.d.ts after running 'npm run dev'
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "jsx": "preserve",
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "target": "ESNext",
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
+        "baseUrl": ".",
+        "paths": {
+            "~/*": ["./*"],
+            "@/*": ["./*"],
+            "~~/*": ["./*"],
+            "@@/*": ["./*"]
+        }
+    }
+}

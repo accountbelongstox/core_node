@@ -21,8 +21,9 @@ class BankEndpointConfig extends EndpointConfig {
     endpoints: _endpoints,
   );
 
+  // Fix: Remove const to allow non-const enum values in constructor
   static final Map<String, EndpointGroup> _groups = {
-    'public': const EndpointGroup(
+    'public': EndpointGroup(
       name: 'public',
       requestType: RequestType.public,
       enableCache: true,
@@ -30,7 +31,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'auth': const EndpointGroup(
+    'auth': EndpointGroup(
       name: 'auth',
       basePath: '/auth',
       requestType: RequestType.public,
@@ -38,7 +39,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'authenticated': const EndpointGroup(
+    'authenticated': EndpointGroup(
       name: 'authenticated',
       requestType: RequestType.authenticated,
       authType: AuthType.jwt,
@@ -47,7 +48,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'security': const EndpointGroup(
+    'security': EndpointGroup(
       name: 'security',
       basePath: '/security',
       requestType: RequestType.authenticated,
@@ -56,7 +57,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'app': const EndpointGroup(
+    'app': EndpointGroup(
       name: 'app',
       basePath: '/app',
       requestType: RequestType.authenticated,
@@ -66,9 +67,10 @@ class BankEndpointConfig extends EndpointConfig {
     ),
   };
 
+  // Fix: Remove const from all EndpointDefinitions
   static final Map<String, EndpointDefinition> _endpoints = {
     // Authentication endpoints
-    'login': const EndpointDefinition(
+    'login': EndpointDefinition(
       name: 'login',
       method: 'POST',
       path: '/login',
@@ -77,7 +79,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'register': const EndpointDefinition(
+    'register': EndpointDefinition(
       name: 'register',
       method: 'POST',
       path: '/register',
@@ -86,7 +88,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'logout': const EndpointDefinition(
+    'logout': EndpointDefinition(
       name: 'logout',
       method: 'POST',
       path: '/logout',
@@ -95,7 +97,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'refreshToken': const EndpointDefinition(
+    'refreshToken': EndpointDefinition(
       name: 'refreshToken',
       method: 'POST',
       path: '/refresh',
@@ -104,7 +106,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'verifyToken': const EndpointDefinition(
+    'verifyToken': EndpointDefinition(
       name: 'verifyToken',
       method: 'POST',
       path: '/verify',
@@ -114,7 +116,7 @@ class BankEndpointConfig extends EndpointConfig {
     ),
 
     // App lifecycle endpoints
-    'appOpen': const EndpointDefinition(
+    'appOpen': EndpointDefinition(
       name: 'appOpen',
       method: 'POST',
       path: '/open',
@@ -123,7 +125,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'appClose': const EndpointDefinition(
+    'appClose': EndpointDefinition(
       name: 'appClose',
       method: 'POST',
       path: '/close',
@@ -132,7 +134,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'appHeartbeat': const EndpointDefinition(
+    'appHeartbeat': EndpointDefinition(
       name: 'appHeartbeat',
       method: 'POST',
       path: '/heartbeat',
@@ -142,7 +144,7 @@ class BankEndpointConfig extends EndpointConfig {
     ),
 
     // User management endpoints
-    'userProfile': const EndpointDefinition(
+    'userProfile': EndpointDefinition(
       name: 'userProfile',
       method: 'GET',
       path: '/user/profile',
@@ -152,7 +154,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'updateProfile': const EndpointDefinition(
+    'updateProfile': EndpointDefinition(
       name: 'updateProfile',
       method: 'PUT',
       path: '/user/profile/update',
@@ -161,7 +163,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'updateBalance': const EndpointDefinition(
+    'updateBalance': EndpointDefinition(
       name: 'updateBalance',
       method: 'PUT',
       path: '/user/balance/update',
@@ -170,7 +172,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'updateAddress': const EndpointDefinition(
+    'updateAddress': EndpointDefinition(
       name: 'updateAddress',
       method: 'PUT',
       path: '/user/address/update',
@@ -179,7 +181,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'registerWithCode': const EndpointDefinition(
+    'registerWithCode': EndpointDefinition(
       name: 'registerWithCode',
       method: 'POST',
       path: '/user/register-code',
@@ -189,7 +191,7 @@ class BankEndpointConfig extends EndpointConfig {
     ),
 
     // Security endpoints
-    'deviceRegister': const EndpointDefinition(
+    'deviceRegister': EndpointDefinition(
       name: 'deviceRegister',
       method: 'POST',
       path: '/device/register',
@@ -198,7 +200,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'deviceStatus': const EndpointDefinition(
+    'deviceStatus': EndpointDefinition(
       name: 'deviceStatus',
       method: 'GET',
       path: '/device/status',
@@ -207,7 +209,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'securityCheck': const EndpointDefinition(
+    'securityCheck': EndpointDefinition(
       name: 'securityCheck',
       method: 'POST',
       path: '/check',
@@ -217,7 +219,7 @@ class BankEndpointConfig extends EndpointConfig {
     ),
 
     // Account endpoints
-    'accountBalance': const EndpointDefinition(
+    'accountBalance': EndpointDefinition(
       name: 'accountBalance',
       method: 'GET',
       path: '/account/balance',
@@ -227,7 +229,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'accountHistory': const EndpointDefinition(
+    'accountHistory': EndpointDefinition(
       name: 'accountHistory',
       method: 'GET',
       path: '/account/history',
@@ -237,7 +239,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'accountDetails': const EndpointDefinition(
+    'accountDetails': EndpointDefinition(
       name: 'accountDetails',
       method: 'GET',
       path: '/account/details',
@@ -248,7 +250,7 @@ class BankEndpointConfig extends EndpointConfig {
     ),
 
     // Transaction endpoints
-    'transactions': const EndpointDefinition(
+    'transactions': EndpointDefinition(
       name: 'transactions',
       method: 'GET',
       path: '/transactions',
@@ -258,7 +260,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.normal,
     ),
     
-    'transfer': const EndpointDefinition(
+    'transfer': EndpointDefinition(
       name: 'transfer',
       method: 'POST',
       path: '/transactions/transfer',
@@ -267,7 +269,7 @@ class BankEndpointConfig extends EndpointConfig {
       priority: RequestPriority.high,
     ),
     
-    'payment': const EndpointDefinition(
+    'payment': EndpointDefinition(
       name: 'payment',
       method: 'POST',
       path: '/transactions/payment',

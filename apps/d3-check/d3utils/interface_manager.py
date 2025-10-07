@@ -327,15 +327,12 @@ class D3InterfaceManager:
         else:
             ColorPrint.gray("\nBag Layout: Not available")
 
-        # Other info
-        if summary['has_put_material_button']:
-            ColorPrint.green(f"\nPut Material Button: {shared_data.put_material_button}")
-
-        if summary['has_conversion_button']:
-            ColorPrint.green(f"Conversion Button: {shared_data.conversion_button}")
-
-        if summary['conversion_clickable'] is not None:
-            ColorPrint.blue(f"Conversion Clickable: {summary['conversion_clickable']}")
+        # Other info - Button coordinates now use fixed coordinate system
+        # Note: Button coordinates are calculated via get_scaled_*() methods, not stored in shared_data
+        if shared_data.interface_type == "kanai_cube":
+            from d3utils.share.game_interface_data import get_scaled_conversion_button, get_scaled_kanai_put_material_button
+            ColorPrint.green(f"\nConversion Button (coordinate system): {get_scaled_conversion_button()}")
+            ColorPrint.green(f"Put Material Button (coordinate system): {get_scaled_kanai_put_material_button()}")
 
         if summary['functional_interface']:
             ColorPrint.blue(f"Functional Interface: {summary['functional_interface']}")

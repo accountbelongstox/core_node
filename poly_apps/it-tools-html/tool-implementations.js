@@ -63,7 +63,7 @@ window.render_hash_text = function() {
 
                         this.loading = true;
                         try {
-                            const response = await fetch('${Alpine.store('app')?.apiBaseUrl || 'https://api.si.12gm.com/it-tools/v1'}/crypto/hash', {
+                            const response = await fetch(CONFIG.getEndpointUrl('CRYPTO.HASH'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -153,8 +153,8 @@ window.render_base64_string = function() {
                         if (!this.input) return;
 
                         try {
-                            const endpoint = this.mode === 'encode' ? '/converter/base64/encode' : '/converter/base64/decode';
-                            const response = await fetch('${Alpine.store('app')?.apiBaseUrl || 'https://api.si.12gm.com/it-tools/v1'}' + endpoint, {
+                            const endpointKey = this.mode === 'encode' ? 'CONVERTER.BASE64_ENCODE' : 'CONVERTER.BASE64_DECODE';
+                            const response = await fetch(CONFIG.getEndpointUrl(endpointKey), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(this.mode === 'encode' ? { text: this.input } : { encoded: this.input })
@@ -235,7 +235,7 @@ window.render_uuid_generator = function() {
 
                     async generate() {
                         try {
-                            const response = await fetch('${Alpine.store('app')?.apiBaseUrl || 'https://api.si.12gm.com/it-tools/v1'}/crypto/uuid/generate', {
+                            const response = await fetch(CONFIG.getEndpointUrl('CRYPTO.UUID_GENERATE'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -335,7 +335,7 @@ window.render_json_viewer = function() {
                     async prettify() {
                         this.error = '';
                         try {
-                            const response = await fetch('${Alpine.store('app')?.apiBaseUrl || 'https://api.si.12gm.com/it-tools/v1'}/web/json/prettify', {
+                            const response = await fetch(CONFIG.getEndpointUrl('WEB.JSON_PRETTIFY'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -358,7 +358,7 @@ window.render_json_viewer = function() {
                     async minify() {
                         this.error = '';
                         try {
-                            const response = await fetch('${Alpine.store('app')?.apiBaseUrl || 'https://api.si.12gm.com/it-tools/v1'}/web/json/minify', {
+                            const response = await fetch(CONFIG.getEndpointUrl('WEB.JSON_MINIFY'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ json: this.input })
@@ -489,7 +489,7 @@ window.render_color_converter = function() {
 
                     async convert() {
                         try {
-                            const response = await fetch('${Alpine.store('app')?.apiBaseUrl || 'https://api.si.12gm.com/it-tools/v1'}/converter/color', {
+                            const response = await fetch(CONFIG.getEndpointUrl('CONVERTER.COLOR'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ color: this.input })
@@ -564,7 +564,7 @@ window.render_jwt_parser = function() {
                         if (!this.token) return;
 
                         try {
-                            const response = await fetch('${Alpine.store('app')?.apiBaseUrl || 'https://api.si.12gm.com/it-tools/v1'}/web/jwt/parse', {
+                            const response = await fetch(CONFIG.getEndpointUrl('WEB.JWT_PARSE'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ token: this.token })

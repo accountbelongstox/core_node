@@ -8,7 +8,10 @@
       "Bash(done)",
       "Bash(for file in d3utils/collectors/*.py d3utils/game_window_detector.py d3utils/screenshot_provider.py d3utils/scaled_template_matcher.py)",
       "Read(//c/Users/MPC/Downloads/**)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(awk:*)",
+      "Bash(find:*)",
+      "Bash(wget:*)"
     ],
     "deny": [],
     "ask": [],

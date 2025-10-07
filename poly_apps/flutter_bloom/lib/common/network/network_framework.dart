@@ -40,16 +40,23 @@ library network_framework;
 
 // FIXED: Resolved export conflicts by hiding duplicate type definitions
 // Core exports - network_types.dart is the primary source for shared types
-export 'core/network_types.dart'; // Primary source for types
-// FIXED: Hide AuthConfig from network_config.dart to avoid conflict with network_types.dart
-export 'core/network_config.dart' hide AuthType, RequestType, RequestPriority, CacheStrategy, LogLevel, NetworkConfig, AuthConfig;
+export 'core/network_types.dart'; // Primary source for all shared types
+// Fix: network_config.dart now imports all shared types from network_types.dart
+export 'core/network_config.dart' hide LogLevel, NetworkConfig, AuthConfig;
 // REFACTOR: Renamed network_models.dart to endpoint_network_models.dart
 // FIXED: Hide CancelToken to avoid conflict with network_types.dart
 export 'core/endpoint_network_models.dart' hide NetworkErrorType, NetworkResponse, NetworkRequest, CancelToken;
 // REFACTOR: UnifiedNetworkClient is now production-ready (was SimpleNetworkClient stub)
 export 'core/unified_network_client.dart';
+
+// WebSocket exports - NEW: Universal WebSocket library
+export 'websocket/websocket_client.dart';
+export 'websocket/websocket_config.dart';
+export 'websocket/websocket_types.dart';
+export 'websocket/websocket_interceptor.dart';
 export 'core/network_service_locator.dart' hide ServiceNotRegisteredException, NetworkConfig;
-export 'core/network_retry_manager.dart' hide NetworkRetryException, ConnectivityMonitor, RequestPriority;
+// Fix: network_retry_manager.dart now imports RequestPriority from network_types.dart
+export 'core/network_retry_manager.dart' hide NetworkRetryException, ConnectivityMonitor;
 export 'core/network_queue_and_offline.dart' hide QueueStats, OfflineStats;
 
 // Authentication exports

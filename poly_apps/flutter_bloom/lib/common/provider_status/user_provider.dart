@@ -16,17 +16,8 @@ import 'package:flutter/foundation.dart';
 
 import '../cache_manager/cache_manager.dart';
 import '../storage/storage_manager.dart';
-
-/// Authentication types supported by the framework
-enum AuthType {
-  none,           // No authentication
-  clientId,       // Client ID authentication
-  headerKey,      // Header key authentication
-  jwt,            // JWT token authentication
-  session,        // Session-based authentication
-  custom,         // Custom authentication
-  multiple,       // Multiple authentication strategies
-}
+// Fix: Import AuthType from network_types.dart as single source of truth
+import '../network/core/network_types.dart' show AuthType;
 
 /// Permission status enumeration
 enum PermissionStatus {
@@ -258,6 +249,12 @@ class AuthMetadata {
         }
         if (customHeaders != null) {
           headers.addAll(customHeaders!);
+        }
+        break;
+      case AuthType.clientKey:
+        // Fix: Added missing case for clientKey
+        if (clientId != null) {
+          headers['X-Client-Key'] = clientId!;
         }
         break;
       case AuthType.none:

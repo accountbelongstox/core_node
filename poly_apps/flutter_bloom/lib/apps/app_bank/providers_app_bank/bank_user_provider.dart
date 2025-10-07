@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import '../../../common/provider_status/user_provider.dart';
 import '../../../common/storage/storage_manager.dart';
 import '../../../common/cache_manager/cache_manager.dart';
+// Fix: Import AuthType explicitly from network_types.dart
+import '../../../common/network/core/network_types.dart' show AuthType;
 import '../models_app_bank/bank_user_model.dart';
 import '../models_app_bank/bank_global_data.dart';
 

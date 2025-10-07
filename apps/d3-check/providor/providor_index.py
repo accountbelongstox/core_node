@@ -138,17 +138,17 @@ TEMPLATE_CONFIGS = {
     # Interface indicator templates
     "blacksmith_indicator_1": {
         "path": os.path.join(TEMPLATE_DIR, "blacksmith_indicator_1.png"),
-        "threshold": 0.85,  # SIFT matching threshold
+        "threshold": 0.85,  # Template matching threshold for TM_CCOEFF_NORMED
         "category": "interface_indicator",
         "use_alpha": False,
-        "match_method": "SIFT"  # Use SIFT for icon matching
+        "match_method": "ORB"
     },
     "blacksmith_indicator_2": {
         "path": os.path.join(TEMPLATE_DIR, "blacksmith_indicator_2.png"),
-        "threshold": 0.85,  # SIFT matching threshold
+        "threshold": 0.85,  # Template matching threshold for TM_CCOEFF_NORMED
         "category": "interface_indicator",
         "use_alpha": False,
-        "match_method": "SIFT"  # Use SIFT for icon matching
+        "match_method": "ORB"
     },
     "blacksmith_sidebar_tab_1": {
         "path": os.path.join(TEMPLATE_DIR, "blacksmith_sidebar_tab_1.png"),
@@ -184,33 +184,33 @@ TEMPLATE_CONFIGS = {
     },
 
     # Button templates
-    "button_put_material_alt": {
-        "path": os.path.join(TEMPLATE_DIR, "button_put_material_alt.png"),
-        "threshold": 0.65,  # Lowered threshold - button appears slightly different when panel opens
-        "category": "button",
+    # DEPRECATED: kanai_right_page_indicator - Now using state management instead of template detection
+    # State is initialized to False in bag_info_collector.py and managed by KanaiCubeHandler through toggle clicks
+    "kanai_right_page_indicator": {
+        "path": os.path.join(TEMPLATE_DIR, "kanai_right_page_indicator.png"),
+        "threshold": 0.8,  # DEPRECATED - No longer used for detection
+        "category": "interface_indicator",
         "use_alpha": False,
-        "match_method": "SIFT"
+        "match_method": "SIFT",
+        "note": "DEPRECATED - Use state management in KanaiCubeHandler instead of template detection"
     },
-    "button_convert_enabled": {
-        "path": os.path.join(TEMPLATE_DIR, "button_convert_enabled.png"),
-        "threshold": 0.8,  # Higher for button accuracy
-        "category": "button",
+    "kanai_cube_left_panel_indicator": {
+        "path": os.path.join(TEMPLATE_DIR, "kanai_cube_left_panel_indicator.png"),
+        "threshold": 0.80,  # SIFT matching threshold for Kanai Cube indicator
+        "category": "interface_indicator",
         "use_alpha": False,
-        "match_method": "SIFT"
+        "match_method": "ORB",
+        "note": "Detects if Kanai's Cube left panel is opened - indicates kanai_cube interface is active"
     },
-    "button_convert_disabled": {
-        "path": os.path.join(TEMPLATE_DIR, "button_convert_disabled.png"),
-        "threshold": 0.8,
-        "category": "button",
-        "use_alpha": False,
-        "match_method": "SIFT"
-    },
+    # DEPRECATED: kanai_right_panel_toggle_icon - Now using coordinate system (514, 997) in game_interface_data.py
+    # Use get_scaled_kanai_right_panel_toggle() instead of image detection
     "kanai_right_panel_toggle_icon": {
         "path": os.path.join(TEMPLATE_DIR, "kanai_right_panel_toggle_icon.png"),
         "threshold": 0.75,  # SIFT matching threshold for icon
         "category": "icon",
         "use_alpha": False,
-        "match_method": "SIFT"  # Use SIFT for accurate icon detection
+        "match_method": "SIFT",  # Use SIFT for accurate icon detection
+        "note": "DEPRECATED - Use get_scaled_kanai_right_panel_toggle() from game_interface_data.py instead"
     },
     "kanai_next_page_icon": {
         "path": os.path.join(TEMPLATE_DIR, "kanai_next_page_icon.png"),
@@ -339,6 +339,111 @@ def get_template_match_method(template_name: str) -> str:
     """
     config = TEMPLATE_CONFIGS.get(template_name)
     return config.get("match_method", "ORB") if config else "ORB"
+
+# Helper function for intelligent threshold conversion
+def get_adjusted_threshold(template_name: str, target_match_method: Optional[str] = None) -> float:
+    """
+    Get template matching threshold with intelligent conversion for different match methods
+
+    This function handles threshold adjustment when a template's match method differs
+    from the target method. Different matching algorithms have different threshold ranges
+    and semantics:
+
+    - Feature-based (SIFT, ORB, AKAZE): Use match ratio/distance thresholds (0.6-0.9 typical)
+    - Template matching (TM_CCOEFF_NORMED, TM_CCORR_NORMED): Use correlation coefficients (0.7-0.95 typical)
+    - TM_SQDIFF methods: Use distance thresholds (lower is better, inverted logic)
+
+    Args:
+        template_name: Template name from TEMPLATE_CONFIGS
+        target_match_method: Target matching method (if None, uses template's original method)
+
+    Returns:
+        Adjusted threshold value appropriate for the target method
+
+    Examples:
+        # Use original threshold for original method
+        >>> get_adjusted_threshold("blacksmith_indicator_1")
+        0.85
+
+        # Convert threshold when switching methods
+        >>> get_adjusted_threshold("blacksmith_indicator_1", "SIFT")
+        0.75  # Adjusted for SIFT feature matching
+    """
+    config = TEMPLATE_CONFIGS.get(template_name)
+    if not config:
+        ColorPrint.yellow(f"[ThresholdConvert] Template '{template_name}' not found, using default 0.8")
+        return 0.8
+
+    original_threshold = config.get("threshold", 0.8)
+    original_method = config.get("match_method", "ORB")
+
+    # If no target method specified, return original threshold
+    if target_match_method is None:
+        return original_threshold
+
+    # If methods match, no conversion needed
+    if original_method == target_match_method:
+        return original_threshold
+
+    # Categorize matching methods
+    feature_methods = ["SIFT", "ORB", "AKAZE"]
+    template_methods = ["TM_CCOEFF", "TM_CCOEFF_NORMED", "TM_CCORR", "TM_CCORR_NORMED"]
+    sqdiff_methods = ["TM_SQDIFF", "TM_SQDIFF_NORMED"]
+
+    original_is_feature = original_method in feature_methods
+    original_is_template = original_method in template_methods
+    original_is_sqdiff = original_method in sqdiff_methods
+
+    target_is_feature = target_match_method in feature_methods
+    target_is_template = target_match_method in template_methods
+    target_is_sqdiff = target_match_method in sqdiff_methods
+
+    # Conversion logic
+    converted_threshold = original_threshold
+
+    # Case 1: Feature method -> Feature method (similar thresholds)
+    if original_is_feature and target_is_feature:
+        converted_threshold = original_threshold
+        ColorPrint.gray(f"[ThresholdConvert] {template_name}: {original_method}({original_threshold}) -> {target_match_method}({converted_threshold}) [feature->feature, no change]")
+
+    # Case 2: Template method -> Template method (similar thresholds)
+    elif original_is_template and target_is_template:
+        converted_threshold = original_threshold
+        ColorPrint.gray(f"[ThresholdConvert] {template_name}: {original_method}({original_threshold}) -> {target_match_method}({converted_threshold}) [template->template, no change]")
+
+    # Case 3: Feature method -> Template method (slightly increase for stricter matching)
+    elif original_is_feature and target_is_template:
+        # Feature methods typically use 0.6-0.8, template methods use 0.7-0.95
+        # Apply a slight increase to maintain matching quality
+        converted_threshold = min(0.95, original_threshold + 0.05)
+        ColorPrint.blue(f"[ThresholdConvert] {template_name}: {original_method}({original_threshold}) -> {target_match_method}({converted_threshold:.2f}) [feature->template, +0.05]")
+
+    # Case 4: Template method -> Feature method (slightly decrease for more lenient matching)
+    elif original_is_template and target_is_feature:
+        # Template methods typically use 0.7-0.95, feature methods use 0.6-0.8
+        # Apply a slight decrease to maintain matching success rate
+        converted_threshold = max(0.6, original_threshold - 0.05)
+        ColorPrint.blue(f"[ThresholdConvert] {template_name}: {original_method}({original_threshold}) -> {target_match_method}({converted_threshold:.2f}) [template->feature, -0.05]")
+
+    # Case 5: SQDIFF methods (inverted logic - lower is better)
+    elif original_is_sqdiff or target_is_sqdiff:
+        # For SQDIFF, lower values indicate better matches
+        # If converting to/from SQDIFF, invert the threshold
+        if original_is_sqdiff and not target_is_sqdiff:
+            # SQDIFF -> other: invert (1 - threshold)
+            converted_threshold = 1.0 - original_threshold
+            ColorPrint.blue(f"[ThresholdConvert] {template_name}: {original_method}({original_threshold}) -> {target_match_method}({converted_threshold:.2f}) [sqdiff->other, invert]")
+        elif not original_is_sqdiff and target_is_sqdiff:
+            # other -> SQDIFF: invert (1 - threshold)
+            converted_threshold = 1.0 - original_threshold
+            ColorPrint.blue(f"[ThresholdConvert] {template_name}: {original_method}({original_threshold}) -> {target_match_method}({converted_threshold:.2f}) [other->sqdiff, invert]")
+
+    else:
+        # Unknown combination, keep original
+        ColorPrint.yellow(f"[ThresholdConvert] {template_name}: {original_method}({original_threshold}) -> {target_match_method}(?) [unknown conversion, keeping original]")
+        converted_threshold = original_threshold
+
+    return converted_threshold
 
 # Helper function to get use_alpha setting
 def get_template_use_alpha(template_name: str) -> bool:

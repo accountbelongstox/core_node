@@ -13,7 +13,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../../../common/network/websocket_client.dart';
+// Fix: Use new WebSocket library structure
+import '../../../common/network/websocket/websocket_client.dart';
+import '../../../common/network/websocket/websocket_config.dart';
 import '../../../common/cache_manager/cache_manager.dart';
 import '../models/message_models.dart';
 import '../models/chat_models.dart';
@@ -52,9 +54,9 @@ class AChatWebSocketEvent {
 }
 
 /// AChat WebSocket client with real-time features
+/// 
+/// Fix: Removed hardcoded baseUrl, now accepts URL through config parameter
 class AChatWebSocketClient extends BaseWebSocketClient {
-  static const String baseUrl = 'wss://ws.achat.enterprise.com/v1/ws';
-
   String? _authToken;
   String? _deviceId;
   final StreamController<AChatWebSocketEvent> _achatEventController =
@@ -65,6 +67,39 @@ class AChatWebSocketClient extends BaseWebSocketClient {
   final Map<String, Timer> _typingTimers = {};
   final Map<String, AChatUserPresence> _userPresences = {};
   final Map<String, List<String>> _typingUsers = {};
+
+  // Fix: Constructor now requires WebSocketConfig with URL
+  AChatWebSocketClient({
+    required WebSocketConfig config,
+  }) : super(config: config);
+
+  /// Factory: Create AChat client with URL and auth
+  /// 
+  /// Fix: Automatically append device_id to URL
+  factory AChatWebSocketClient.withAuth({
+    required String url,
+    required String authToken,
+    required String deviceId,
+    bool enableLogging = false,
+  }) {
+    // Append device_id to URL if not present
+    String fullUrl = url;
+    if (!url.contains('client_id')) {
+      final separator = url.contains('?') ? '&' : '?';
+      fullUrl = '$url${separator}client_id=$deviceId';
+    }
+
+    final client = AChatWebSocketClient(
+      config: WebSocketConfig.withAuth(
+        url: fullUrl,
+        token: authToken,
+        enableLogging: enableLogging,
+      ),
+    );
+    client._authToken = authToken;
+    client._deviceId = deviceId;
+    return client;
+  }
 
   /// Stream of AChat-specific events
   Stream<AChatWebSocketEvent> get achatEvents => _achatEventController.stream;
@@ -86,51 +121,53 @@ class AChatWebSocketClient extends BaseWebSocketClient {
     _deviceId = deviceId;
   }
 
-  @override
-  Future<Map<String, String>> getAuthHeaders() async {
-    final headers = <String, String>{};
-    if (_authToken != null) {
-      headers['Authorization'] = 'Bearer $_authToken';
-    }
-    return headers;
-  }
-
   /// Connect with AChat-specific parameters
+  /// 
+  /// Fix: Now directly calls parent connect() method with proper URL
   Future<void> connectToAChat() async {
     if (_authToken == null || _deviceId == null) {
       throw Exception('Authentication credentials not set');
     }
 
-    final url = '$baseUrl?token=$_authToken&client_id=$_deviceId';
-    await connect(url);
+    // Note: URL with device_id should be set when creating the client
+    // or update config before calling this method
+    await connect();
   }
 
+  // Fix: Override message stream to process AChat-specific messages
   @override
-  Map<String, dynamic>? processIncomingMessage(dynamic rawMessage) {
-    try {
-      if (rawMessage is String) {
-        final message = json.decode(rawMessage) as Map<String, dynamic>;
-        _handleAChatMessage(message);
+  Stream<dynamic> get messages {
+    return super.messages.map((rawMessage) {
+      try {
+        dynamic message = rawMessage;
+        if (message is String) {
+          try {
+            message = json.decode(message);
+          } catch (_) {
+            // Not JSON, keep as string
+          }
+        }
+        
+        if (message is Map<String, dynamic>) {
+          _handleAChatMessage(message);
+        }
+        
         return message;
-      } else if (rawMessage is Map<String, dynamic>) {
-        _handleAChatMessage(rawMessage);
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error processing AChat WebSocket message: $e');
+        }
         return rawMessage;
       }
-      return null;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error processing AChat WebSocket message: $e');
-      }
-      return null;
-    }
+    });
   }
 
-  @override
-  String processOutgoingMessage(Map<String, dynamic> message) {
+  // Fix: Override send to add AChat-specific metadata
+  void sendAChatMessage(Map<String, dynamic> message) {
     // Add timestamp and device info to outgoing messages
     message['timestamp'] = DateTime.now().toIso8601String();
     message['client_id'] = _deviceId;
-    return json.encode(message);
+    send(message);
   }
 
   void _handleAChatMessage(Map<String, dynamic> message) {
@@ -517,8 +554,9 @@ class AChatWebSocketClient extends BaseWebSocketClient {
   }
 
   /// Send typing indicator
+  /// Fix: Changed sendMessage to sendAChatMessage
   void sendTyping(String chatId, bool isTyping, {int timeoutMs = 5000}) {
-    sendMessage({
+    sendAChatMessage({
       'type': 'typing_update',
       'data': {
         'chat_id': chatId,
@@ -529,8 +567,9 @@ class AChatWebSocketClient extends BaseWebSocketClient {
   }
 
   /// Update user presence
+  /// Fix: Changed sendMessage to sendAChatMessage
   void updatePresence(String status, {String? message}) {
-    sendMessage({
+    sendAChatMessage({
       'type': 'presence_update',
       'data': {
         'status': status,
@@ -540,8 +579,9 @@ class AChatWebSocketClient extends BaseWebSocketClient {
   }
 
   /// Join chat room for real-time updates
+  /// Fix: Changed sendMessage to sendAChatMessage
   void joinChatRoom(String chatId) {
-    sendMessage({
+    sendAChatMessage({
       'type': 'join_room',
       'data': {
         'room': 'chat_$chatId',
@@ -550,8 +590,9 @@ class AChatWebSocketClient extends BaseWebSocketClient {
   }
 
   /// Leave chat room
+  /// Fix: Changed sendMessage to sendAChatMessage
   void leaveChatRoom(String chatId) {
-    sendMessage({
+    sendAChatMessage({
       'type': 'leave_room',
       'data': {
         'room': 'chat_$chatId',

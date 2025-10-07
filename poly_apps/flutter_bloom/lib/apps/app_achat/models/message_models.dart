@@ -10,8 +10,18 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'dart:convert';
-import 'user_models.dart';
+/// Message type enum
+enum AChatMessageType {
+  text,
+  image,
+  video,
+  audio,
+  file,
+  location,
+  contact,
+  sticker,
+  system,
+}
 
 /// AChat Message model
 class AChatMessage {

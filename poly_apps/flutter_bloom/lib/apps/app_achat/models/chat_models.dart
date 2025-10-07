@@ -14,6 +14,62 @@ import 'dart:convert';
 import 'message_models.dart';
 import 'user_models.dart';
 
+/// Conversation type enum
+enum AChatConversationType {
+  direct,
+  group,
+  channel,
+}
+
+/// Group model
+class AChatGroup {
+  final String id;
+  final String name;
+  final String? description;
+  final String? avatar;
+  final List<String> memberIds;
+  final String adminId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  AChatGroup({
+    required this.id,
+    required this.name,
+    this.description,
+    this.avatar,
+    required this.memberIds,
+    required this.adminId,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory AChatGroup.fromJson(Map<String, dynamic> json) {
+    return AChatGroup(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      description: json['description'] as String?,
+      avatar: json['avatar'] as String?,
+      memberIds: List<String>.from(json['member_ids'] as List? ?? []),
+      adminId: json['admin_id'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'avatar': avatar,
+      'member_ids': memberIds,
+      'admin_id': adminId,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
+  }
+}
+
 /// AChat Conversation model
 class AChatConversation {
   final String id;

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
-// FIXED: Removed unused 'network_types.dart' import
+// Fix: Import all shared types from network_types.dart as single source of truth
+import 'network_types.dart' show RequestPriority, AuthType, RequestType, CacheStrategy;
 
 /// Abstract base network configuration
 /// Each app should extend this with their specific configuration
@@ -98,16 +99,6 @@ class AuthConfig {
   String refreshTokenStorageKey = 'refresh_token';
 }
 
-/// Authentication types
-enum AuthType {
-  none,
-  jwt,
-  session,
-  clientKey,
-  custom,
-  multiple, // Support multiple auth types simultaneously
-}
-
 /// Log levels
 enum LogLevel {
   none,
@@ -116,31 +107,6 @@ enum LogLevel {
   info,
   debug,
   verbose,
-}
-
-/// Request priority levels
-enum RequestPriority {
-  low,
-  normal,
-  high,
-  critical,
-}
-
-/// Cache strategies
-enum CacheStrategy {
-  none,
-  memory,
-  disk,
-  both,
-}
-
-/// Request types for different authentication requirements
-enum RequestType {
-  public,        // No authentication required
-  authenticated, // Basic authentication required (login)
-  authorized,    // Specific permission required
-  admin,         // Admin permission required
-  custom,        // Custom authentication logic
 }
 
 /// Endpoint group configuration

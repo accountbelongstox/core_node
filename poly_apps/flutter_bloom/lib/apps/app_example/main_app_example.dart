@@ -11,7 +11,6 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:qyflutter/common/app/main_common.dart';
 import 'config_app_example/app_config_app_example.dart';
 import 'config_app_example/provider_app_example.dart';

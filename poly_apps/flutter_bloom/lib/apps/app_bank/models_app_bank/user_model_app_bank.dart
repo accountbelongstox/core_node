@@ -10,8 +10,6 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'package:flutter/foundation.dart';
-
 /// Bank User Model
 /// Represents a bank user with authentication and profile information
 class BankUser {
@@ -115,6 +113,37 @@ class BankUser {
       preferences: BankUserPreferences.fromJson(json['preferences']),
     );
   }
+
+  /// Create BankUser from API response (UserDataAppBank format)
+  /// FIX: Unified user model - convert from API response format
+  factory BankUser.fromApiResponse(Map<String, dynamic> json) {
+    // Parse full_name into firstName and lastName
+    final fullName = json['full_name'] ?? json['username'] ?? '';
+    final nameParts = fullName.split(' ');
+    final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+    final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
+    return BankUser(
+      id: json['id']?.toString() ?? '',
+      email: json['email'] ?? '',
+      firstName: firstName,
+      lastName: lastName,
+      phoneNumber: json['phone'],
+      profileImageUrl: null,
+      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      lastLoginAt: DateTime.now(),
+      isEmailVerified: true,
+      isPhoneVerified: json['phone'] != null,
+      isBiometricEnabled: false,
+      customerNumber: json['id']?.toString(),
+      preferences: const BankUserPreferences(),
+    );
+  }
+
+  /// Additional fields for Bank app compatibility
+  String? get username => email.split('@').first;
+  double get balance => 0.0; // TODO: Implement balance management
+  String? get address => null; // TODO: Implement address management
 }
 
 /// Bank User Preferences
@@ -183,49 +212,5 @@ class BankUserPreferences {
   }
 }
 
-/// User Provider for state management
-class BankUserProvider extends ChangeNotifier {
-  BankUser? _user;
-  bool _isLoggedIn = false;
-  bool _isLoading = false;
-
-  BankUser? get user => _user;
-  bool get isLoggedIn => _isLoggedIn;
-  bool get isLoading => _isLoading;
-
-  void setUser(BankUser user) {
-    _user = user;
-    _isLoggedIn = true;
-    notifyListeners();
-  }
-
-  void updateUser(BankUser user) {
-    _user = user;
-    notifyListeners();
-  }
-
-  void updatePreferences(BankUserPreferences preferences) {
-    if (_user != null) {
-      _user = _user!.copyWith(preferences: preferences);
-      notifyListeners();
-    }
-  }
-
-  void setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
-
-  void logout() {
-    _user = null;
-    _isLoggedIn = false;
-    notifyListeners();
-  }
-
-  void clear() {
-    _user = null;
-    _isLoggedIn = false;
-    _isLoading = false;
-    notifyListeners();
-  }
-}
+// FIX: Removed duplicate BankUserProvider class definition
+// Use providers_app_bank/bank_user_provider.dart instead
