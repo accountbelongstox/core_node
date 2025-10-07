@@ -187,7 +187,7 @@ Future<void> runCommonApp({
   // Initialize settings controller
   await settingsController.initialize();
 
-  final userProvider = DefaultUserProvider();
+  final userProvider = EnhancedUserProvider();
   final screenSizeProvider = ScreenSizeProvider();
 
   // Safely remove splash screen after initialization

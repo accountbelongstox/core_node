@@ -10,23 +10,15 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'package:qyflutter/common/network/api_client.dart';
 import 'package:qyflutter/common/constants/app_constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashRepo {
-  final ApiClient apiClient;
   final SharedPreferences sharedPreferences;
 
   SplashRepo({
-    required this.apiClient,
     required this.sharedPreferences,
   });
-
-  Future<Response> getConfigData() async {
-    Response response = await apiClient.postData('', {});
-    return response;
-  }
 
   Future<bool> initSharedData() {
     if (!sharedPreferences.containsKey(AppConstants.theme)) {
