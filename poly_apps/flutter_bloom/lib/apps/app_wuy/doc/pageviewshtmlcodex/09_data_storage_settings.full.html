@@ -1,0 +1,106 @@
+﻿<!doctype html>
+<html lang=zh-CN>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<title>TA 概览（还原）</title>
+<style>
+  :root{color-scheme:light}
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#f6f8fc,#eef1f6);display:grid;place-items:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif}
+  .phone{width: 375px;height: 812px;background:#f8f9fb;border-radius:28px;box-shadow:0 20px 40px rgba(0,0,0,.15);position:relative;overflow:hidden;border:6px solid #fff}
+  
+  .hero{height:140px;background:linear-gradient(135deg,#b9f1ff,#b7e3f5), url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"600\" height=\"300\"><rect width=\"100%\" height=\"100%\" fill=\"#bdeeff\"/><circle cx=\"80\" cy=\"40\" r=\"24\" fill=\"#fff\" opacity=\".6\"/><circle cx=\"220\" cy=\"30\" r=\"16\" fill=\"#fff\" opacity=\".6\"/></svg>') center/cover no-repeat;border-bottom-left-radius:18px;border-bottom-right-radius:18px;position:relative}
+  .avatar{position:absolute;left:50%;top:44px;transform:translate(-50%,-50%);width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,#ffd08a,#ff9f6e);border:4px solid #fff;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+  .content{padding:58px 12px 12px}
+  .name{text-align:center;font-weight:800}
+  .sub{text-align:center;margin:4px 0 12px;color:#222;font-weight:700}
+  .card{background:#fff;border:1px solid #e9edf2;border-radius:12px;padding:12px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .card h3{margin:0 0 10px;font-size:14px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);text-align:center}
+  .stats .v{display:grid;gap:6px}
+  .pill{background:#eef9f1;border:1px solid #d3f0d8;border-radius:6px;padding:4px 6px;font-size:12px}
+  .list{display:grid;grid-template-columns:64px 1fr;gap:8px}
+  .poi{width:64px;height:64px;border-radius:10px;background:linear-gradient(135deg,#dfe8ff,#eef5ff);display:grid;place-items:center;border:1px solid #e5e9f0}
+  .bar{background:#eaf6e8;border:1px solid #d2ebcf;border-radius:6px;height:20px;display:grid;align-content:center;padding-left:6px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+
+
+
+/* unified bottom navigation */
+.tabs{position:absolute;left:0;right:0;bottom: 0;background:#ffffff;border-top:1px solid #e6e9ef;height:64px;display:grid;grid-template-columns:repeat(3,1fr);align-items:center}
+.tab{display:grid;justify-items:center;align-content:center;color:#8a94a1;font-size:12px;gap:4px;text-decoration:none}
+.tab.active{color:#2a89ff}
+.tab svg{width:22px;height:22px;display:block}
+</style>
+</head>
+<body>
+  <div class=phone>
+    <div></div>
+    </div>
+    <div class=hero></div>
+    <div class=avatar></div>
+    <div class=content>
+      <div class=name>小飞棍 ♂</div>
+      <div class=sub>守护你的未来</div>
+
+      <div class=card>
+        <h3>TA 的健康</h3>
+        <div class=stats>
+          <div class=v><div>🚶‍♂️</div><div>1235步</div></div>
+          <div class=v><div>💓</div><div>98</div></div>
+          <div class=v><div>🌡️</div><div>36.3℃</div></div>
+          <div class=v><div>🩸</div><div>90</div></div>
+        </div>
+      </div>
+
+      <div class=card>
+        <h3>TA 今天停留过的地方</h3>
+        <div class=list>
+          <div class=poi>🏙️</div>
+          <div>
+            <div>00:00 某个市小区的名字</div>
+            <div class=bar>停留了0分钟</div>
+            <div style="margin-top:6px">00:00  其它地点</div>
+            <div class=bar>停留了0分钟</div>
+          </div>
+        </div>
+      </div>
+
+      <div class=card>
+        <h3>TA 今天的手机报告</h3>
+        <div class=grid2>
+          <div class=pill>
+            网络记录<br/>
+            00:00 连接了移动网络<br/>
+            去连接了 wifi
+          </div>
+          <div class=pill>解锁手机次数<br/>0次</div>
+          <div class=pill>拦截了骚扰短信<br/>0次</div>
+          <div class=pill>App 使用时长<br/>00时 00分</div>
+        </div>
+      </div>
+
+    </div>
+  
+  
+    </div>
+
+  <div class="tabs">
+    <a class="tab" href="03_menu_drawer_open.full.html" title="地图">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7v8H3z" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>地图</div>
+    </a>
+    <a class="tab" href="04_settings_page.full.html" title="好友">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>好友</div>
+    </a>
+    <a class="tab" href="12_theme_selection_dialog.full.html" title="我的">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 20a8 5 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>我的</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

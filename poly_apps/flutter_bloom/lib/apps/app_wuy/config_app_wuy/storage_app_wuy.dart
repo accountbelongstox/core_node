@@ -23,7 +23,8 @@ class StorageAppWuy {
 
   /// Initialize app storage
   Future<void> initAppStorage() async {
-    await UnifiedStorage.init(appName: 'wuy');
+    // UnifiedStorage is initialized by main_common.dart
+    // No need to initialize here to avoid conflicts
   }
   
   

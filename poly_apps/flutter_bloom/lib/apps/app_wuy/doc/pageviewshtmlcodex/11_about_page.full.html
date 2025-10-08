@@ -1,0 +1,77 @@
+﻿<!doctype html>
+<html lang=zh-CN>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<title>网络记录（还原）</title>
+<style>
+  :root{color-scheme:light}
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#f6f8fc,#eef1f6);display:grid;place-items:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif}
+  .phone{width: 375px;height: 812px;background:#f8f9fb;border-radius:28px;box-shadow:0 20px 40px rgba(0,0,0,.15);position:relative;overflow:hidden;border:6px solid #fff}
+  
+  .hero{height:160px;background:linear-gradient(135deg,#e9f1e3,#e2f5ef);border-bottom-left-radius:18px;border-bottom-right-radius:18px;position:relative}
+  .avatar{position:absolute;left:50%;top:116px;transform:translate(-50%,-50%);width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,#ffd08a,#ff9f6e);border:4px solid #fff;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+  .content{padding:70px 18px 18px;text-align:center}
+  .name{font-weight:800}
+  .sub{margin:4px 0 18px;font-weight:700}
+  .panel{margin:0 auto;background:#e9fabc;border:1px solid #d6ec9f;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.08);height:460px;width:88%;text-align:left;color:#244}
+  .panel .head{font-weight:800;padding:14px}
+  .line{height:420px;border-left:2px solid rgba(0,0,0,.15);margin-left:30px;position:relative}
+  .entry{position:absolute;left:24px;font-size:12px;color:#244}
+  .entry.e1{top:40px}
+  .entry.e2{top:100px}
+
+
+
+
+/* unified bottom navigation */
+.tabs{position:absolute;left:0;right:0;bottom: 0;background:#ffffff;border-top:1px solid #e6e9ef;height:64px;display:grid;grid-template-columns:repeat(3,1fr);align-items:center}
+.tab{display:grid;justify-items:center;align-content:center;color:#8a94a1;font-size:12px;gap:4px;text-decoration:none}
+.tab.active{color:#2a89ff}
+.tab svg{width:22px;height:22px;display:block}
+</style>
+</head>
+<body>
+  <div class=phone>
+    <div></div>
+    </div>
+    <div class=hero></div>
+    <div class=avatar></div>
+    <div class=content>
+      <div class=name>小飞棍 ♂</div>
+      <div class=sub>守护你的未来</div>
+      <div class=panel>
+        <div class=head>网络记录</div>
+        <div class=line></div>
+        <div class="entry e1">
+          <div>2025-4-23 00:00</div>
+          <div>连接了移动网络</div>
+        </div>
+        <div class="entry e2">
+          <div>2025-4-23 00:00</div>
+          <div>连接WIFI：CMCC-10086</div>
+        </div>
+      </div>
+    </div>
+  
+  
+    </div>
+
+  <div class="tabs">
+    <a class="tab" href="03_menu_drawer_open.full.html" title="地图">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7v8H3z" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>地图</div>
+    </a>
+    <a class="tab" href="04_settings_page.full.html" title="好友">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>好友</div>
+    </a>
+    <a class="tab" href="12_theme_selection_dialog.full.html" title="我的">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 20a8 5 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>我的</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

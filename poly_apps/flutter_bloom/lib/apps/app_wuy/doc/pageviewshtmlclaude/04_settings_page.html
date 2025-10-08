@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            max-width: 375px;
+            margin: 0 auto;
+            background-color: #fff;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            color: white;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .back-button {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            margin-right: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transition: background 0.2s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .content {
+            background-color: #f5f5f5;
+            min-height: calc(100vh - 60px);
+        }
+
+        .settings-section {
+            background-color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .settings-group {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .settings-group:last-child {
+            border-bottom: none;
+        }
+
+        .settings-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            position: relative;
+        }
+
+        .settings-item:hover {
+            background-color: #f8f8f8;
+        }
+
+        .settings-item:active {
+            background-color: #f0f0f0;
+        }
+
+        .item-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-right: 15px;
+        }
+
+        .icon-account {
+            background-color: #e3f2fd;
+            color: #2196f3;
+        }
+
+        .icon-display {
+            background-color: #f3e5f5;
+            color: #9c27b0;
+        }
+
+        .icon-notification {
+            background-color: #e8f5e8;
+            color: #4caf50;
+        }
+
+        .icon-privacy {
+            background-color: #fff3e0;
+            color: #ff9800;
+        }
+
+        .icon-storage {
+            background-color: #fce4ec;
+            color: #e91e63;
+        }
+
+        .item-content {
+            flex: 1;
+        }
+
+        .item-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .item-description {
+            font-size: 13px;
+            color: #999;
+        }
+
+        .item-arrow {
+            color: #ccc;
+            font-size: 16px;
+        }
+
+        .section-title {
+            padding: 15px 20px 10px;
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            background-color: #f5f5f5;
+        }
+
+        .bottom-section {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .app-version {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+
+        .app-info {
+            font-size: 11px;
+            color: #bbb;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <div class="back-button">←</div>
+            <div class="header-title">设置</div>
+        </div>
+
+        <div class="content">
+            <div class="settings-section">
+                <div class="settings-group">
+                    <div class="settings-item">
+                        <div class="item-icon icon-account">👤</div>
+                        <div class="item-content">
+                            <div class="item-title">账户设置</div>
+                            <div class="item-description">个人信息、密码、登录方式</div>
+                        </div>
+                        <div class="item-arrow">›</div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-item">
+                        <div class="item-icon icon-display">🎨</div>
+                        <div class="item-content">
+                            <div class="item-title">显示设置</div>
+                            <div class="item-description">主题、字体大小、界面布局</div>
+                        </div>
+                        <div class="item-arrow">›</div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-item">
+                        <div class="item-icon icon-notification">🔔</div>
+                        <div class="item-content">
+                            <div class="item-title">通知设置</div>
+                            <div class="item-description">推送通知、声音、震动</div>
+                        </div>
+                        <div class="item-arrow">›</div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-item">
+                        <div class="item-icon icon-privacy">🔒</div>
+                        <div class="item-content">
+                            <div class="item-title">隐私设置</div>
+                            <div class="item-description">数据权限、隐私保护</div>
+                        </div>
+                        <div class="item-arrow">›</div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-item">
+                        <div class="item-icon icon-storage">💾</div>
+                        <div class="item-content">
+                            <div class="item-title">数据与存储</div>
+                            <div class="item-description">缓存管理、数据备份</div>
+                        </div>
+                        <div class="item-arrow">›</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title">其他</div>
+
+            <div class="settings-section">
+                <div class="settings-group">
+                    <div class="settings-item">
+                        <div class="item-icon" style="background-color: #f0f8ff; color: #007acc;">❓</div>
+                        <div class="item-content">
+                            <div class="item-title">帮助与反馈</div>
+                            <div class="item-description">常见问题、意见反馈</div>
+                        </div>
+                        <div class="item-arrow">›</div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-item">
+                        <div class="item-icon" style="background-color: #f5f5f5; color: #666;">ℹ️</div>
+                        <div class="item-content">
+                            <div class="item-title">关于</div>
+                            <div class="item-description">版本信息、开发者信息</div>
+                        </div>
+                        <div class="item-arrow">›</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bottom-section">
+                <div class="app-version">版本 2.1.0</div>
+                <div class="app-info">
+                    © 2024 物语团队<br>
+                    保留所有权利
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Back button handler
+        document.querySelector('.back-button').addEventListener('click', function() {
+            window.history.back();
+        });
+
+        // Settings items click handlers
+        document.querySelectorAll('.settings-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const title = this.querySelector('.item-title').textContent;
+                console.log('Settings item clicked:', title);
+
+                // Simple click feedback
+                this.style.backgroundColor = '#e8e8e8';
+                setTimeout(() => {
+                    this.style.backgroundColor = '';
+                }, 200);
+            });
+        });
+
+        // Simulate navigation based on settings item
+        const settingsNavigation = {
+            '账户设置': 'account_settings.html',
+            '显示设置': 'display_settings.html',
+            '通知设置': 'notification_settings.html',
+            '隐私设置': 'privacy_settings.html',
+            '数据与存储': 'data_storage_settings.html',
+            '帮助与反馈': 'help_feedback.html',
+            '关于': 'about.html'
+        };
+
+        document.querySelectorAll('.settings-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const title = this.querySelector('.item-title').textContent;
+                if (settingsNavigation[title]) {
+                    console.log('Navigate to:', settingsNavigation[title]);
+                    // window.location.href = settingsNavigation[title];
+                }
+            });
+        });
+    </script>
+</body>
+</html>

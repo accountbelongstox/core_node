@@ -391,7 +391,7 @@ class FlutterPrinter:
         ]
         return header
 
-    def print_app(self, app_name, mode):
+    def print_app(self, app_name, mode, use_timestamp=False):
         """Print app directory tree based on mode"""
         paths_to_print = []
 
@@ -450,19 +450,28 @@ class FlutterPrinter:
         )
 
         # Generate output file path
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        if app_name == 'flutter':
-            output_file = FLUTTER_DIR / f"flutter_tree_{mode}_{timestamp}.txt"
+        if use_timestamp:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            if app_name == 'flutter':
+                output_file = FLUTTER_DIR / f"flutter_tree_{mode}_{timestamp}.txt"
+            else:
+                output_dir = FLUTTER_DIR / "lib" / "apps" / app_name
+                output_dir.mkdir(parents=True, exist_ok=True)
+                output_file = output_dir / f"{app_name}_tree_{mode}_{timestamp}.txt"
         else:
-            output_dir = FLUTTER_DIR / "lib" / "apps" / app_name
-            output_dir.mkdir(parents=True, exist_ok=True)
-            output_file = output_dir / f"{app_name}_tree_{mode}_{timestamp}.txt"
+            # Use fixed filename without timestamp
+            if app_name == 'flutter':
+                output_file = FLUTTER_DIR / f"flutter_tree_{mode}.txt"
+            else:
+                output_dir = FLUTTER_DIR / "lib" / "apps" / app_name
+                output_dir.mkdir(parents=True, exist_ok=True)
+                output_file = output_dir / f"{app_name}_tree_{mode}.txt"
 
         # Write to file
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(tree_content)
 
-        print(f"\n✓ Tree printed to: {output_file}")
+        print(f"\n[OK] Tree printed to: {output_file}")
         print(f"  Total lines: {len(tree_content.splitlines())}")
 
         return output_file
@@ -475,9 +484,10 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  python flutter_app_printer.py                    # Interactive menu
-  python flutter_app_printer.py achat              # Print app_achat with default mode
-  python flutter_app_printer.py achat code         # Print app_achat with code mode
+  python flutter_app_printer.py                    # Interactive menu (fixed filename)
+  python flutter_app_printer.py achat              # Print app_achat with default mode (fixed filename)
+  python flutter_app_printer.py achat code         # Print app_achat with code mode (fixed filename)
+  python flutter_app_printer.py achat code --timestamp  # Print with timestamp in filename
   python flutter_app_printer.py flutter all        # Print entire flutter directory
         '''
     )
@@ -495,7 +505,17 @@ Examples:
         help=f'Print mode: {", ".join(MODES)}'
     )
 
+    parser.add_argument(
+        '--timestamp',
+        action='store_true',
+        help='Use timestamp in filename (default: False, uses fixed filename)'
+    )
+
     return parser.parse_args()
+
+
+# Constants
+USE_TIMESTAMP_BY_DEFAULT = False  # Set to True to use timestamp by default
 
 
 def main():
@@ -536,12 +556,16 @@ def main():
             mode = MODES[0]  # Default to first mode
             print_yellow(f"Warning: No mode specified, using default mode: '{mode}'")
 
+        # Determine if timestamp should be used
+        use_timestamp = args.timestamp or USE_TIMESTAMP_BY_DEFAULT
+
         print(f"App: {matched_app}")
         print(f"Mode: {mode}")
+        print(f"Timestamp: {'Yes' if use_timestamp else 'No (fixed filename)'}")
 
         # Print selected app
         printer = FlutterPrinter()
-        printer.print_app(matched_app, mode)
+        printer.print_app(matched_app, mode, use_timestamp=use_timestamp)
 
     else:
         # Interactive menu mode
@@ -550,9 +574,16 @@ def main():
         menu = FlutterAppMenu()
         selected_app = menu.run()
 
+        # Check if timestamp should be used for interactive mode
+        use_timestamp = USE_TIMESTAMP_BY_DEFAULT
+
+        print(f"App: {selected_app['name']}")
+        print(f"Mode: {selected_app['mode']}")
+        print(f"Timestamp: {'Yes' if use_timestamp else 'No (fixed filename)'}")
+
         # Print selected app
         printer = FlutterPrinter()
-        printer.print_app(selected_app['name'], selected_app['mode'])
+        printer.print_app(selected_app['name'], selected_app['mode'], use_timestamp=use_timestamp)
 
 
 if __name__ == "__main__":

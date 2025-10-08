@@ -1,0 +1,83 @@
+﻿<!doctype html>
+<html lang=zh-CN>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<title>聊天对话（还原）</title>
+<style>
+  :root{color-scheme:light}
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#f6f8fc,#eef1f6);display:grid;place-items:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif}
+  .phone{width: 375px;height: 812px;background:#f8f9fb;border-radius:28px;box-shadow:0 20px 40px rgba(0,0,0,.15);position:relative;overflow:hidden;border:6px solid #fff}
+  
+  .title{height:44px;display:grid;place-items:center;border-bottom:1px solid #edeff3}
+  .name{font-weight:800}
+  .scroller{position:absolute;top:44px;bottom:76px;left:0;right:0;overflow:auto;padding:12px;display:grid;gap:12px}
+  .ts{color:#9aa3ad;font-size:11px;text-align:center}
+  .row{display:grid;gap:6px}
+  .msg{max-width:72%;padding:10px 12px;border-radius:14px;background:#fff;border:1px solid #edf1f5;box-shadow:0 1px 2px rgba(0,0,0,.04);color:#2a2f35}
+  .me .msg{background:#2f8fff;border-color:#2f8fff;color:#fff}
+  .me{justify-self:end}
+  .inputbar{position:absolute;left:0;right:0;bottom:64px;height:76px;background:#fff;border-top:1px solid #eceef2;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:0 12px}
+  .input{height:36px;border:1px solid #e2e6ea;border-radius:18px;background:#f5f7fa;display:flex;align-items:center;padding:0 12px;color:#a1a8b0}
+  .send{width:36px;height:36px;border-radius:50%;background:#2f8fff;display:grid;place-items:center;color:#fff}
+
+
+
+
+/* unified bottom navigation */
+.tabs{position:absolute;left:0;right:0;bottom: 0;background:#ffffff;border-top:1px solid #e6e9ef;height:64px;display:grid;grid-template-columns:repeat(3,1fr);align-items:center}
+.tab{display:grid;justify-items:center;align-content:center;color:#8a94a1;font-size:12px;gap:4px;text-decoration:none}
+.tab.active{color:#2a89ff}
+.tab svg{width:22px;height:22px;display:block}
+</style>
+</head>
+<body>
+  <div class=phone>
+    <div></div>
+    </div>
+    <div class=title>
+      <div class=name>张三</div>
+      <div style="font-size:11px;color:#9aa3ad">2024/05/15</div>
+    </div>
+    <div class=scroller>
+      <div class=row>
+        <div class=msg>你好，请问天空阴面的颜色怎么那么快呢？</div>
+      </div>
+      <div class="row me">
+        <div class=msg>去尝试一下整刀原型生成功能吧～</div>
+        <div class=ts>手机电量剩余90%<br/>2024/05/15</div>
+      </div>
+      <div class=row><div class=msg>好的，感谢你的解答！</div></div>
+      <div class="row me">
+        <div class=msg>去尝试一下整刀原型生成功能吧～</div>
+        <div class=ts>对方在13:51打开了空光<br/>2024/05/15</div>
+      </div>
+      <div class=row><div class=msg>试过了，果然厉害！</div></div>
+      <div class="row me"><div class=msg>那我晚上接你回来</div></div>
+    </div>
+    <div class=inputbar>
+      <div class=input>请输入…</div>
+      <div class=send>➤</div>
+    </div>
+  
+  
+    </div>
+
+  <div class="tabs">
+    <a class="tab" href="03_menu_drawer_open.full.html" title="地图">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7v8H3z" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>地图</div>
+    </a>
+    <a class="tab" href="04_settings_page.full.html" title="好友">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>好友</div>
+    </a>
+    <a class="tab" href="12_theme_selection_dialog.full.html" title="我的">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 20a8 5 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>我的</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

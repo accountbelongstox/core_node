@@ -240,7 +240,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       });
 
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/wuy/home');
+        Navigator.pushReplacementNamed(context, '/wuy/friends');
       }
     }
   }

@@ -159,7 +159,7 @@ Future<void> runCommonApp({
   // Handle SharedPreferences initialization
   // If appPrefs is provided, let it initialize SharedPreferences automatically
   // This allows apps to handle their own SharedPreferences initialization
-  SharedPreferences? prefs;
+  SharedPreferences prefs;
   
   if (appPrefs != null) {
     // Initialize the app-specific SharedPreferences class and get the prefs instance
@@ -213,7 +213,7 @@ Future<void> runCommonApp({
         ChangeNotifierProvider.value(value: screenSizeProvider),
         // Register app-specific SharedPreferences class for Provider access
         // This is a required class that must be implemented by all apps
-        Provider.value(value: appPrefs!),
+        if (appPrefs != null) Provider.value(value: appPrefs),
         // Add additional app-specific providers if provided
         if (additionalProviders != null) ...additionalProviders,
       ],

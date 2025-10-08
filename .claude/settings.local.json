@@ -1,17 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)",
-      "Read(//c/Users/MPC/.core_node/pytools/tmp/**)",
-      "Bash(for file in \"ui/panels/auxiliary_functions_panel.py\" \"ui/panels/log_panel.py\" \"ui/panels/main_functions_panel.py\" \"ui/components/status_bar.py\" \"ui/components/system_tray.py\" \"ui/diablo3_macro_ui.py\" \"main_optimized.py\" \"ui_demo_optimized.py\" \"ui_demo_simple.py\")",
-      "Bash(do echo \"=== $file ===\")",
-      "Bash(done)",
-      "Bash(for file in d3utils/collectors/*.py d3utils/game_window_detector.py d3utils/screenshot_provider.py d3utils/scaled_template_matcher.py)",
-      "Read(//c/Users/MPC/Downloads/**)",
-      "Bash(cat:*)",
-      "Bash(awk:*)",
-      "Bash(find:*)",
-      "Bash(wget:*)"
+      "Bash(for:*)",
+      "Bash(chmod:*)",
+      "Bash(do echo:*)"
     ],
     "deny": [],
     "ask": [],

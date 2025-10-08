@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隐私设置</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            max-width: 375px;
+            margin: 0 auto;
+            background-color: #fff;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            color: white;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .back-button {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            margin-right: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transition: background 0.2s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .content {
+            background-color: #f5f5f5;
+            min-height: calc(100vh - 60px);
+        }
+
+        .settings-section {
+            background-color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            padding: 15px 20px 10px;
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            background-color: #f5f5f5;
+        }
+
+        .settings-group {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .settings-group:last-child {
+            border-bottom: none;
+        }
+
+        .settings-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            position: relative;
+        }
+
+        .settings-item:hover {
+            background-color: #f8f8f8;
+        }
+
+        .settings-item:active {
+            background-color: #f0f0f0;
+        }
+
+        .item-content {
+            flex: 1;
+        }
+
+        .item-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .item-description {
+            font-size: 13px;
+            color: #999;
+        }
+
+        .item-value {
+            font-size: 14px;
+            color: #666;
+            margin-right: 10px;
+        }
+
+        .item-arrow {
+            color: #ccc;
+            font-size: 16px;
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+        }
+
+        .switch-label {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 26px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #667eea;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+
+        .privacy-option {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .privacy-option:last-child {
+            border-bottom: none;
+        }
+
+        .radio-container {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+        }
+
+        .radio-input {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .privacy-label {
+            flex: 1;
+            font-size: 16px;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .privacy-description {
+            font-size: 13px;
+            color: #999;
+            margin-top: 3px;
+        }
+
+        .danger-zone {
+            background-color: #fff;
+            border: 1px solid #ffebee;
+            margin: 10px 20px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .danger-header {
+            background-color: #ffebee;
+            padding: 12px 20px;
+            border-bottom: 1px solid #ffcdd2;
+        }
+
+        .danger-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #c62828;
+        }
+
+        .danger-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .danger-item:last-child {
+            border-bottom: none;
+        }
+
+        .danger-item:hover {
+            background-color: #fff5f5;
+        }
+
+        .danger-icon {
+            width: 32px;
+            height: 32px;
+            background-color: #ffebee;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 16px;
+        }
+
+        .danger-content {
+            flex: 1;
+        }
+
+        .danger-item-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #d32f2f;
+            margin-bottom: 3px;
+        }
+
+        .danger-item-description {
+            font-size: 13px;
+            color: #999;
+        }
+
+        .danger-arrow {
+            color: #f44336;
+            font-size: 16px;
+        }
+
+        .button-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 20px;
+            width: calc(100% - 40px);
+        }
+
+        .button-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .button-primary:active {
+            transform: translateY(0);
+        }
+
+        .info-box {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 15px 20px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .info-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 8px;
+        }
+
+        .info-text {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <div class="back-button">←</div>
+            <div class="header-title">隐私设置</div>
+        </div>
+
+        <div class="content">
+            <div class="section-title">个人资料隐私</div>
+            <div class="settings-section">
+                <div class="privacy-option">
+                    <div class="radio-container">
+                        <input type="radio" name="profilePrivacy" id="public" class="radio-input" checked>
+                    </div>
+                    <label for="public" class="privacy-label">
+                        <div>公开</div>
+                        <div class="privacy-description">所有人都可以看到您的个人资料</div>
+                    </label>
+                </div>
+
+                <div class="privacy-option">
+                    <div class="radio-container">
+                        <input type="radio" name="profilePrivacy" id="friends" class="radio-input">
+                    </div>
+                    <label for="friends" class="privacy-label">
+                        <div>仅好友</div>
+                        <div class="privacy-description">只有好友可以看到您的个人资料</div>
+                    </label>
+                </div>
+
+                <div class="privacy-option">
+                    <div class="radio-container">
+                        <input type="radio" name="profilePrivacy" id="private" class="radio-input">
+                    </div>
+                    <label for="private" class="privacy-label">
+                        <div>私密</div>
+                        <div class="privacy-description">没有人可以看到您的个人资料</div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="section-title">数据权限</div>
+            <div class="settings-section">
+                <div class="switch-container">
+                    <div class="switch-label">允许搜索手机号</div>
+                    <label class="switch">
+                        <input type="checkbox" id="searchByPhone">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container">
+                    <div class="switch-label">允许搜索邮箱</div>
+                    <label class="switch">
+                        <input type="checkbox" id="searchByEmail">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container">
+                    <div class="switch-label">显示在线状态</div>
+                    <label class="switch">
+                        <input type="checkbox" id="showOnlineStatus" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container">
+                    <div class="switch-label">显示最后活跃时间</div>
+                    <label class="switch">
+                        <input type="checkbox" id="showLastActive" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container">
+                    <div class="switch-label">允许陌生人私信</div>
+                    <label class="switch">
+                        <input type="checkbox" id="allowStrangerMessages">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="section-title">数据安全</div>
+            <div class="settings-section">
+                <div class="settings-item">
+                    <div class="item-content">
+                        <div class="item-title">双重认证</div>
+                        <div class="item-description">增强账户安全性</div>
+                    </div>
+                    <div class="item-value">未开启</div>
+                    <div class="item-arrow">›</div>
+                </div>
+
+                <div class="settings-item">
+                    <div class="item-content">
+                        <div class="item-title">登录设备管理</div>
+                        <div class="item-description">查看和管理登录设备</div>
+                    </div>
+                    <div class="item-value">3台设备</div>
+                    <div class="item-arrow">›</div>
+                </div>
+
+                <div class="settings-item">
+                    <div class="item-content">
+                        <div class="item-title">数据导出</div>
+                        <div class="item-description">导出您的所有数据</div>
+                    </div>
+                    <div class="item-arrow">›</div>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <div class="info-title">隐私保护提示</div>
+                <div class="info-text">
+                    我们高度重视您的隐私安全，所有数据都经过加密处理，并严格按照隐私政策进行管理。
+                </div>
+            </div>
+
+            <div class="danger-zone">
+                <div class="danger-header">
+                    <div class="danger-title">危险操作</div>
+                </div>
+
+                <div class="danger-item">
+                    <div class="danger-icon">🚫</div>
+                    <div class="danger-content">
+                        <div class="danger-item-title">屏蔽用户</div>
+                        <div class="danger-item-description">管理屏蔽列表</div>
+                    </div>
+                    <div class="danger-arrow">›</div>
+                </div>
+
+                <div class="danger-item">
+                    <div class="danger-icon">🗑️</div>
+                    <div class="danger-content">
+                        <div class="danger-item-title">清空聊天记录</div>
+                        <div class="danger-item-description">删除所有聊天记录</div>
+                    </div>
+                    <div class="danger-arrow">›</div>
+                </div>
+            </div>
+
+            <button class="button-primary">保存设置</button>
+        </div>
+    </div>
+
+    <script>
+        // Back button handler
+        document.querySelector('.back-button').addEventListener('click', function() {
+            window.history.back();
+        });
+
+        // Privacy radio handlers
+        document.querySelectorAll('input[name="profilePrivacy"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                console.log('Profile privacy:', this.id);
+            });
+        });
+
+        // Switch handlers
+        document.getElementById('searchByPhone').addEventListener('change', function() {
+            console.log('允许搜索手机号:', this.checked);
+        });
+
+        document.getElementById('searchByEmail').addEventListener('change', function() {
+            console.log('允许搜索邮箱:', this.checked);
+        });
+
+        document.getElementById('showOnlineStatus').addEventListener('change', function() {
+            console.log('显示在线状态:', this.checked);
+            // If online status is hidden, also hide last active time
+            if (!this.checked) {
+                document.getElementById('showLastActive').checked = false;
+            }
+        });
+
+        document.getElementById('showLastActive').addEventListener('change', function() {
+            console.log('显示最后活跃时间:', this.checked);
+            // If last active is shown, also show online status
+            if (this.checked) {
+                document.getElementById('showOnlineStatus').checked = true;
+            }
+        });
+
+        document.getElementById('allowStrangerMessages').addEventListener('change', function() {
+            console.log('允许陌生人私信:', this.checked);
+        });
+
+        // Settings item handlers
+        document.querySelectorAll('.settings-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const title = this.querySelector('.item-title').textContent;
+                console.log('Settings item clicked:', title);
+
+                // Add click feedback
+                this.style.backgroundColor = '#f8f8f8';
+                setTimeout(() => {
+                    this.style.backgroundColor = '';
+                }, 200);
+
+                // Handle specific actions
+                if (title === '双重认证') {
+                    alert('跳转到双重认证设置页面');
+                } else if (title === '登录设备管理') {
+                    alert('跳转到设备管理页面');
+                } else if (title === '数据导出') {
+                    if (confirm('确定要导出您的所有数据吗？这可能需要一些时间。')) {
+                        alert('数据导出请求已提交，将在处理完成后发送到您的邮箱');
+                    }
+                }
+            });
+        });
+
+        // Danger zone handlers
+        document.querySelectorAll('.danger-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const title = this.querySelector('.danger-item-title').textContent;
+                console.log('Danger item clicked:', title);
+
+                if (title === '屏蔽用户') {
+                    alert('跳转到屏蔽用户管理页面');
+                } else if (title === '清空聊天记录') {
+                    const confirmMessage = '确定要清空所有聊天记录吗？此操作不可恢复！';
+                    if (confirm(confirmMessage)) {
+                        const finalConfirm = '请再次确认：此操作将永久删除所有聊天记录，是否继续？';
+                        if (confirm(finalConfirm)) {
+                            alert('聊天记录已清空');
+                        }
+                    }
+                }
+            });
+        });
+
+        // Save button handler
+        document.querySelector('.button-primary').addEventListener('click', function() {
+            const settings = {
+                profilePrivacy: document.querySelector('input[name="profilePrivacy"]:checked').id,
+                searchByPhone: document.getElementById('searchByPhone').checked,
+                searchByEmail: document.getElementById('searchByEmail').checked,
+                showOnlineStatus: document.getElementById('showOnlineStatus').checked,
+                showLastActive: document.getElementById('showLastActive').checked,
+                allowStrangerMessages: document.getElementById('allowStrangerMessages').checked
+            };
+
+            console.log('Saving privacy settings:', settings);
+
+            // Simulate saving
+            this.textContent = '保存中...';
+            this.disabled = true;
+
+            setTimeout(() => {
+                this.textContent = '保存成功';
+                setTimeout(() => {
+                    this.textContent = '保存设置';
+                    this.disabled = false;
+                }, 1500);
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
