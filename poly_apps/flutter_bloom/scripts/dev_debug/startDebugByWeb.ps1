@@ -16,6 +16,23 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
+# Set error action preference to continue on errors
+$ErrorActionPreference = "Continue"
+
+function Show-ErrorAndPause {
+    param($ErrorMessage, $Exception = $null)
+    
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "[ERROR] $ErrorMessage" -ForegroundColor Red
+    if ($Exception) {
+        Write-Host "[DEBUG] Exception: $($Exception.Message)" -ForegroundColor Yellow
+        Write-Host "[DEBUG] Stack Trace: $($Exception.StackTrace)" -ForegroundColor Yellow
+    }
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "[INFO] Press any key to continue..." -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+
 # Variables declaration
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SCRIPTS_ROOT = Split-Path -Parent $SCRIPT_DIR
@@ -99,10 +116,14 @@ function Start-WebDebug {
     Write-Host "[INFO] Press Ctrl+C to stop the debug server" -ForegroundColor Yellow
     Write-Host "========================================" -ForegroundColor Cyan
 
-    # Start Flutter web debug with real-time output
-    flutter $flutterArgs
-
-    Write-Host "[INFO] Flutter command completed" -ForegroundColor Green
+    # Start Flutter web debug with real-time output and error handling
+    try {
+        flutter $flutterArgs
+        Write-Host "[INFO] Flutter command completed successfully" -ForegroundColor Green
+    } catch {
+        Show-ErrorAndPause -ErrorMessage "Flutter command failed" -Exception $_.Exception
+        Write-Host "[INFO] Continuing script execution to show error details..." -ForegroundColor Yellow
+    }
 }
 
 # Main execution
@@ -118,8 +139,11 @@ try {
     Start-WebDebug -Config $config
 
 } catch {
-    Write-Host "[ERROR] An error occurred: $_" -ForegroundColor Red
-    Write-Host "[DEBUG] Error details: $($_.Exception.Message)" -ForegroundColor Yellow
+    Show-ErrorAndPause -ErrorMessage "An error occurred during script execution" -Exception $_.Exception
+} finally {
+    Write-Host "[INFO] Script execution finished" -ForegroundColor Green
+    Write-Host "[INFO] Press any key to exit..." -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
 Write-Host "[INFO] Web debug script completed" -ForegroundColor Green
