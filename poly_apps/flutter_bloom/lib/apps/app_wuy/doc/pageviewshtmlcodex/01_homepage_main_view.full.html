@@ -1,0 +1,82 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>安无忧 - 登录/注册（还原）</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { height: 100%; }
+  body { margin: 0; background:linear-gradient(180deg,#f6f8fc,#eef1f6); display:grid; place-items:center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; }
+  .phone { width: 375px; height: 812px; background:#f8f9fb; border-radius: 28px; box-shadow: 0 20px 40px rgba(0,0,0,.15); position: relative; overflow:hidden; border: 6px solid #fff; }
+  
+  
+  
+  .header-bg { height: 220px; background: radial-gradient(140% 90% at 0% 0%, #dff2ff 0%, #f5fbff 45%, #ffffff 80%); position:relative; }
+  .header-bg:before { content:""; position:absolute; inset:20px 16px auto 16px; height: 60px; background: conic-gradient(from 40deg at 10% 0%, rgba(155,197,255,.35), rgba(255,255,255,0) 60%); border-radius:16px; filter: blur(10px); opacity:.9; }
+  .wrap { padding: 0 22px 22px; }
+  h1 { margin: 16px 0 6px; font-size: 32px; line-height:1.2; letter-spacing: .5px; color:#0a1a2b; font-weight: 800; }
+  .sub { color:#263849; opacity:.85; font-size: 16px; margin-bottom: 22px; font-weight:600; }
+  .logo-card { height:88px; border-radius: 12px; background:#fff; box-shadow: 0 2px 10px rgba(0,0,0,.06); display:grid; place-items:center; margin: 10px 0 28px; }
+  .logo { display:inline-grid; grid-auto-flow: column; align-items:center; gap:8px; font-weight:800; font-size:24px; color:#1b5cff; }
+  .logo .bar { width: 10px; height: 44px; background:#1b5cff; border-radius: 2px; box-shadow: 16px 0 0 #5aa8ff inset; }
+  .primary { position: relative; height: 48px; border-radius: 24px; background: linear-gradient(180deg, #2fa6ff 0%, #1677ff 100%); color:#fff; font-weight: 800; letter-spacing:.5px; display:flex; align-items:center; justify-content:center; text-decoration:none; box-shadow: 0 6px 18px rgba(35,119,255,.35); }
+  .primary:after { content:""; position:absolute; right:8px; top:-2px; width: 16px; height: 16px; background: #e6f1ff; border-top-right-radius: 12px; transform: skew(-35deg); box-shadow: 0 0 0 1px rgba(0,0,0,.06) inset; }
+  .agreements { text-align:center; color:#2e7dff; font-size:12px; margin-top: 10px; font-weight:600; }
+  .other-title { text-align:center; color:#9aa3ad; font-size: 12px; margin: 34px 0 12px; }
+  .auths { display:flex; justify-content: center; gap: 26px; }
+  .auths .icon { width: 54px; height: 54px; border-radius: 50%; background:#fff; border:1px solid #e7ebf0; box-shadow: 0 1px 6px rgba(0,0,0,.06); display:grid; place-items:center; }
+  .auths svg { width: 26px; height: 26px; opacity:.55; }
+
+
+
+
+/* unified bottom navigation */
+.tabs{position:absolute;left:0;right:0;bottom: 0;background:#ffffff;border-top:1px solid #e6e9ef;height:64px;display:grid;grid-template-columns:repeat(3,1fr);align-items:center}
+.tab{display:grid;justify-items:center;align-content:center;color:#8a94a1;font-size:12px;gap:4px;text-decoration:none}
+.tab.active{color:#2a89ff}
+.tab svg{width:22px;height:22px;display:block}
+</style>
+</head>
+<body>
+  <div class="phone">
+    
+    <div class="header-bg"></div>
+    <div class="wrap">
+      <h1>安无忧</h1>
+      <div class="sub">为您精心守护</div>
+      <div class="logo-card">
+        <div class="logo"><span class="bar"></span><span>安无忧</span></div>
+      </div>
+      <a class="primary" href="#">手机号登录注册<div class="agreements">注册即表示同意《用户服务与隐私协议》</div>
+      <div class="other-title">其他登录方式</div>
+      <div class="auths">
+        <!-- icon 1 -->
+        <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#8cc" opacity=".25"/><path d="M7 12h10M12 7v10" stroke="#666" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <!-- icon 2 -->
+        <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ccc" opacity=".25"/><path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0z" fill="none" stroke="#666" stroke-width="1.6"/></svg></div>
+        <!-- icon 3 -->
+        <div class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ccc" opacity=".25"/><path d="M6 16c2-2 4-3 6-3s4 1 6 3" fill="none" stroke="#666" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+      </div>
+    </div>
+  
+  
+    </div>
+
+  <div class="tabs">
+    <a class="tab" href="03_menu_drawer_open.full.html" title="地图">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7v8H3z" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>地图</div>
+    </a>
+    <a class="tab" href="04_settings_page.full.html" title="好友">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>好友</div>
+    </a>
+    <a class="tab" href="12_theme_selection_dialog.full.html" title="我的">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 20a8 5 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>我的</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

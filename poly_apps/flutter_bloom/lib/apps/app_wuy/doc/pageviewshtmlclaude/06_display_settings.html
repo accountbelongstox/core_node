@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>显示设置</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            max-width: 375px;
+            margin: 0 auto;
+            background-color: #fff;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 20px;
+            color: white;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .back-button {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            margin-right: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transition: background 0.2s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .content {
+            background-color: #f5f5f5;
+            min-height: calc(100vh - 60px);
+        }
+
+        .settings-section {
+            background-color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            padding: 15px 20px 10px;
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            background-color: #f5f5f5;
+        }
+
+        .settings-group {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .settings-group:last-child {
+            border-bottom: none;
+        }
+
+        .settings-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            position: relative;
+        }
+
+        .settings-item:hover {
+            background-color: #f8f8f8;
+        }
+
+        .settings-item:active {
+            background-color: #f0f0f0;
+        }
+
+        .item-content {
+            flex: 1;
+        }
+
+        .item-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .item-description {
+            font-size: 13px;
+            color: #999;
+        }
+
+        .item-value {
+            font-size: 14px;
+            color: #666;
+            margin-right: 10px;
+        }
+
+        .item-arrow {
+            color: #ccc;
+            font-size: 16px;
+        }
+
+        .theme-options {
+            display: flex;
+            padding: 15px 20px;
+            gap: 15px;
+        }
+
+        .theme-option {
+            flex: 1;
+            text-align: center;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid #f0f0f0;
+            transition: all 0.2s ease;
+        }
+
+        .theme-option:hover {
+            border-color: #667eea;
+            background-color: #f8f9ff;
+        }
+
+        .theme-option.active {
+            border-color: #667eea;
+            background-color: #f0f4ff;
+        }
+
+        .theme-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .theme-name {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .theme-option.active .theme-name {
+            color: #667eea;
+        }
+
+        .font-size-selector {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            gap: 15px;
+        }
+
+        .font-size-option {
+            flex: 1;
+            text-align: center;
+            padding: 12px 8px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background-color: #fafafa;
+        }
+
+        .font-size-option:hover {
+            border-color: #667eea;
+            background-color: #f8f9ff;
+        }
+
+        .font-size-option.active {
+            border-color: #667eea;
+            background-color: #667eea;
+            color: white;
+        }
+
+        .font-size-preview {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .font-size-small {
+            font-size: 14px;
+        }
+
+        .font-size-medium {
+            font-size: 16px;
+        }
+
+        .font-size-large {
+            font-size: 18px;
+        }
+
+        .font-size-option.active .font-size-preview {
+            color: white;
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+        }
+
+        .switch-label {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 26px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #667eea;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+
+        .preview-section {
+            background-color: #fff;
+            margin: 10px 0;
+            padding: 20px;
+        }
+
+        .preview-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .preview-content {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .preview-heading {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .preview-text {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #666;
+        }
+
+        .button-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 20px;
+            width: calc(100% - 40px);
+        }
+
+        .button-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .button-primary:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <div class="back-button">←</div>
+            <div class="header-title">显示设置</div>
+        </div>
+
+        <div class="content">
+            <div class="section-title">主题设置</div>
+            <div class="settings-section">
+                <div class="theme-options">
+                    <div class="theme-option active" data-theme="light">
+                        <div class="theme-icon">☀️</div>
+                        <div class="theme-name">浅色</div>
+                    </div>
+                    <div class="theme-option" data-theme="dark">
+                        <div class="theme-icon">🌙</div>
+                        <div class="theme-name">深色</div>
+                    </div>
+                    <div class="theme-option" data-theme="auto">
+                        <div class="theme-icon">🌓</div>
+                        <div class="theme-name">自动</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title">字体大小</div>
+            <div class="settings-section">
+                <div class="font-size-selector">
+                    <div class="font-size-option" data-size="small">
+                        <div class="font-size-preview font-size-small">A</div>
+                        <div style="font-size: 12px; color: #999; margin-top: 5px;">小</div>
+                    </div>
+                    <div class="font-size-option active" data-size="medium">
+                        <div class="font-size-preview font-size-medium">A</div>
+                        <div style="font-size: 12px; color: #999; margin-top: 5px;">中</div>
+                    </div>
+                    <div class="font-size-option" data-size="large">
+                        <div class="font-size-preview font-size-large">A</div>
+                        <div style="font-size: 12px; color: #999; margin-top: 5px;">大</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title">界面设置</div>
+            <div class="settings-section">
+                <div class="switch-container">
+                    <div class="switch-label">紧凑模式</div>
+                    <label class="switch">
+                        <input type="checkbox" id="compactMode">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container">
+                    <div class="switch-label">显示动画效果</div>
+                    <label class="switch">
+                        <input type="checkbox" id="animations" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container">
+                    <div class="switch-label">高清图片</div>
+                    <label class="switch">
+                        <input type="checkbox" id="hdImages" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="settings-item">
+                    <div class="item-content">
+                        <div class="item-title">语言设置</div>
+                        <div class="item-description">选择应用显示语言</div>
+                    </div>
+                    <div class="item-value">简体中文</div>
+                    <div class="item-arrow">›</div>
+                </div>
+            </div>
+
+            <div class="preview-section">
+                <div class="preview-title">预览效果</div>
+                <div class="preview-content">
+                    <div class="preview-heading">标题示例</div>
+                    <div class="preview-text">
+                        这是一段预览文本，用于展示当前字体大小的显示效果。您可以调整字体大小来查看不同的显示效果。
+                    </div>
+                </div>
+            </div>
+
+            <button class="button-primary">保存设置</button>
+        </div>
+    </div>
+
+    <script>
+        // Back button handler
+        document.querySelector('.back-button').addEventListener('click', function() {
+            window.history.back();
+        });
+
+        // Theme selection
+        document.querySelectorAll('.theme-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.theme-option').forEach(opt => opt.classList.remove('active'));
+                this.classList.add('active');
+                const theme = this.dataset.theme;
+                console.log('Selected theme:', theme);
+
+                // Apply theme preview
+                applyThemePreview(theme);
+            });
+        });
+
+        // Font size selection
+        document.querySelectorAll('.font-size-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.font-size-option').forEach(opt => opt.classList.remove('active'));
+                this.classList.add('active');
+                const size = this.dataset.size;
+                console.log('Selected font size:', size);
+
+                // Apply font size preview
+                applyFontSizePreview(size);
+            });
+        });
+
+        // Switch handlers
+        document.getElementById('compactMode').addEventListener('change', function() {
+            console.log('Compact mode:', this.checked);
+        });
+
+        document.getElementById('animations').addEventListener('change', function() {
+            console.log('Animations:', this.checked);
+        });
+
+        document.getElementById('hdImages').addEventListener('change', function() {
+            console.log('HD images:', this.checked);
+        });
+
+        // Language settings item click
+        document.querySelector('.settings-item').addEventListener('click', function() {
+            console.log('Language settings clicked');
+        });
+
+        // Save button handler
+        document.querySelector('.button-primary').addEventListener('click', function() {
+            const settings = {
+                theme: document.querySelector('.theme-option.active').dataset.theme,
+                fontSize: document.querySelector('.font-size-option.active').dataset.size,
+                compactMode: document.getElementById('compactMode').checked,
+                animations: document.getElementById('animations').checked,
+                hdImages: document.getElementById('hdImages').checked
+            };
+
+            console.log('Saving settings:', settings);
+
+            // Simulate saving
+            this.textContent = '保存中...';
+            this.disabled = true;
+
+            setTimeout(() => {
+                this.textContent = '保存成功';
+                setTimeout(() => {
+                    this.textContent = '保存设置';
+                    this.disabled = false;
+                }, 1500);
+            }, 1000);
+        });
+
+        // Apply theme preview
+        function applyThemePreview(theme) {
+            const previewContent = document.querySelector('.preview-content');
+
+            switch(theme) {
+                case 'light':
+                    previewContent.style.backgroundColor = '#f8f9fa';
+                    previewContent.style.color = '#333';
+                    break;
+                case 'dark':
+                    previewContent.style.backgroundColor = '#2d3748';
+                    previewContent.style.color = '#fff';
+                    break;
+                case 'auto':
+                    previewContent.style.backgroundColor = '#f8f9fa';
+                    previewContent.style.color = '#333';
+                    break;
+            }
+        }
+
+        // Apply font size preview
+        function applyFontSizePreview(size) {
+            const previewHeading = document.querySelector('.preview-heading');
+            const previewText = document.querySelector('.preview-text');
+
+            switch(size) {
+                case 'small':
+                    previewHeading.style.fontSize = '14px';
+                    previewText.style.fontSize = '12px';
+                    break;
+                case 'medium':
+                    previewHeading.style.fontSize = '16px';
+                    previewText.style.fontSize = '14px';
+                    break;
+                case 'large':
+                    previewHeading.style.fontSize = '18px';
+                    previewText.style.fontSize = '16px';
+                    break;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -17,6 +17,8 @@ import 'router_app_wuy/router_app_wuy.dart';
 import 'settings_app_wuy/settings_app_wuy.dart';
 import 'localization_app_wuy/locales_provider_app_wuy.dart';
 import 'utils_app_wuy/app_info_app_wuy.dart';
+import 'providers_app_wuy/app_prefs_app_wuy.dart';
+import 'providers_app_wuy/wu_user_provider.dart';
 
 /// Wuy App specific widget
 /// This can be customized for Wuy app specific needs
@@ -40,6 +42,13 @@ Future<void> main() async {
   // Initialize Wuy app-specific configurations
   WuyAppInfo.initializeApp();
 
+  // Initialize app-specific SharedPreferences
+  final AppPrefsAppWuy appPrefs = AppPrefsAppWuy.instance;
+  await appPrefs.initSharedPreferences();
+
+  // Create app-specific user provider
+  final WuUserProvider userProvider = WuUserProvider();
+
   await runCommonApp(
     appName: AppConfigAppWuy.appName,
     appId: AppConfigAppWuy.appId, // Specific app ID for app-specific routing
@@ -51,5 +60,7 @@ Future<void> main() async {
     homeRoute: WuyAppRouter.getHomeRoute(),
     appConfig: AppConfigAppWuy.appInfo,
     customApp: const WuyApp(),
+    appPrefs: appPrefs, // Provide app-specific SharedPreferences
+    customUserProvider: userProvider, // Provide app-specific user provider
   );
 }

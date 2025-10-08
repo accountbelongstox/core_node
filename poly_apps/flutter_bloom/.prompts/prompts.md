@@ -46,4 +46,4 @@ Try using 'as prefix' for one of the import directives, or hiding the name from 
 ```
 How can I resolve this? If you propose a fix, please make it concise.
 
-D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_example\error.txt 你先查看错误，然后了解一下项目的结构，D:\programing\core_node\poly_apps\flutter_bloom\lib\lib_tree.md 然后进行修复，注意，你能单独的修复一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范可以查看 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
+D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\error.txt 你先查看错误，然后了解一下项目的结构， D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets_20251008_104556.txt  然后进行修复，注意，你能单独的修复一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范可以查看 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md

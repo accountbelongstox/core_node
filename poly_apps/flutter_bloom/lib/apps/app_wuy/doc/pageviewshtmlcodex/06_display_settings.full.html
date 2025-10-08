@@ -1,0 +1,66 @@
+﻿<!doctype html>
+<html lang=zh-CN>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<title>添加好友（还原）</title>
+<style>
+  :root{color-scheme:light}
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#f6f8fc,#eef1f6);display:grid;place-items:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Arial,sans-serif}
+  .phone{width: 375px;height: 812px;background:#fff;border-radius:28px;box-shadow:0 20px 40px rgba(0,0,0,.15);position:relative;overflow:hidden;border:6px solid #fff}
+  
+  .toolbar{height:44px;background:#f7f7f8;border-bottom:1px solid #eceef2;display:grid;grid-template-columns:auto 1fr auto;align-items:center;padding:0 10px;color:#333}
+  .back{font-size:18px}
+  .title{justify-self:center;font-weight:700}
+  .wrap{padding:16px}
+  .search{width:260px;height:30px;border-radius:16px;border:1px solid #dfe3e9;background:#fff;display:flex;align-items:center;gap:8px;padding:0 10px;color:#a3aab3}
+  .scan{margin-top:24px;display:flex;align-items:center;gap:10px;color:#111;font-weight:700}
+  .scan .box{width:18px;height:18px;border:2px solid #111;border-radius:4px;display:inline-block}
+  .home-indicator{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;width:134px;height:5px;background:#000;border-radius:999px;opacity:.9}
+
+
+
+
+/* unified bottom navigation */
+.tabs{position:absolute;left:0;right:0;bottom: 0;background:#ffffff;border-top:1px solid #e6e9ef;height:64px;display:grid;grid-template-columns:repeat(3,1fr);align-items:center}
+.tab{display:grid;justify-items:center;align-content:center;color:#8a94a1;font-size:12px;gap:4px;text-decoration:none}
+.tab.active{color:#2a89ff}
+.tab svg{width:22px;height:22px;display:block}
+</style>
+</head>
+<body>
+  <div class=phone>
+    <div></div>
+    </div>
+    <div class=toolbar>
+      <div class=back>‹</div>
+      <div class=title>添加好友</div>
+      <div style="width:22px"></div>
+    </div>
+    <div class=wrap>
+      <div class=search>请输入要添加好友的手机号 🔎</div>
+      <div class=scan><span class=box></span> 扫描二维码添加好友</div>
+    </div>
+    <div class=home-indicator></div>
+  
+  
+    </div>
+
+  <div class="tabs">
+    <a class="tab" href="03_menu_drawer_open.full.html" title="地图">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7v8H3z" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>地图</div>
+    </a>
+    <a class="tab" href="04_settings_page.full.html" title="好友">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>好友</div>
+    </a>
+    <a class="tab" href="12_theme_selection_dialog.full.html" title="我的">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 20a8 5 0 0 1 16 0" stroke="currentColor" stroke-width="1.6"/></svg>
+      <div>我的</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

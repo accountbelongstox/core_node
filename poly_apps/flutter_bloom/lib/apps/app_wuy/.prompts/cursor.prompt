@@ -1,0 +1,11 @@
+根据我传给你的图,查看这个app的最低页
+同时根据资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\pageviews\screenshots_catalog.md 
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+同时了解基本规则:首页 实际上是连接到 我的好友,但如果没有登陆将跳转到登陆页,
+现在的任务:
+1: 完成不存在或百未完成的页,同时首页默认指向该我的好友,但是未登陆跳到登陆,首先你要根据现有的构架,以及规范,使用同一个app的主题(未创建则他那),使用同一个数据共享中心(用户\地图\好友等),全局的api访问中心(使用common库 本子app使用的https://api.anwuyou.test/api/v1),当网络不可访问时使用一致性的fake数据(目前设计一个全局的变量表示网络不可访问,模拟本地测试)
+重点:首先你要使用common中的公共多语言库,并对每个text都使用多语言库,默认为zh.
+同时,你要整体分析,构架的缺陷.合并冗余代码,
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>菜单抽屉</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            max-width: 375px;
+            margin: 0 auto;
+            background-color: #fff;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .overlay.active {
+            opacity: 1;
+        }
+
+        .menu-drawer {
+            position: fixed;
+            top: 0;
+            left: -280px;
+            width: 280px;
+            height: 100%;
+            background-color: #fff;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+            z-index: 1001;
+            transition: left 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .menu-drawer.open {
+            left: 0;
+        }
+
+        .menu-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px 30px;
+            color: white;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .user-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-right: 15px;
+        }
+
+        .user-details {
+            flex: 1;
+        }
+
+        .user-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .user-email {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .menu-stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 15px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .menu-items {
+            padding: 20px 0;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.2s ease;
+            cursor: pointer;
+        }
+
+        .menu-item:hover {
+            background-color: #f8f8f8;
+        }
+
+        .menu-item:active {
+            background-color: #f0f0f0;
+        }
+
+        .menu-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .menu-text {
+            flex: 1;
+            font-size: 16px;
+        }
+
+        .menu-arrow {
+            font-size: 14px;
+            color: #999;
+        }
+
+        .menu-divider {
+            height: 1px;
+            background-color: #f0f0f0;
+            margin: 10px 0;
+        }
+
+        .main-content {
+            padding: 20px;
+            background-color: #fff;
+            min-height: 100vh;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .main-content.dimmed {
+            opacity: 0.3;
+        }
+
+        .menu-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(102, 126, 234, 0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 999;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .menu-toggle:hover {
+            background-color: #667eea;
+            transform: scale(1.05);
+        }
+
+        .menu-toggle:active {
+            transform: scale(0.95);
+        }
+
+        .content-placeholder {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .content-placeholder h2 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .content-placeholder p {
+            font-size: 16px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="overlay" id="overlay"></div>
+
+        <div class="menu-drawer" id="menuDrawer">
+            <div class="menu-header">
+                <div class="user-info">
+                    <div class="user-avatar">👤</div>
+                    <div class="user-details">
+                        <div class="user-name">用户名</div>
+                        <div class="user-email">user@example.com</div>
+                    </div>
+                </div>
+                <div class="menu-stats">
+                    <div class="stat-item">
+                        <div class="stat-number">128</div>
+                        <div class="stat-label">收藏</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">56</div>
+                        <div class="stat-label">关注</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">234</div>
+                        <div class="stat-label">浏览</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="menu-items">
+                <a href="#" class="menu-item">
+                    <div class="menu-icon">🏠</div>
+                    <div class="menu-text">首页</div>
+                    <div class="menu-arrow">›</div>
+                </a>
+
+                <a href="#" class="menu-item">
+                    <div class="menu-icon">📱</div>
+                    <div class="menu-text">发现</div>
+                    <div class="menu-arrow">›</div>
+                </a>
+
+                <a href="#" class="menu-item">
+                    <div class="menu-icon">📷</div>
+                    <div class="menu-text">发布</div>
+                    <div class="menu-arrow">›</div>
+                </a>
+
+                <a href="#" class="menu-item">
+                    <div class="menu-icon">💬</div>
+                    <div class="menu-text">消息</div>
+                    <div class="menu-arrow">›</div>
+                </a>
+
+                <div class="menu-divider"></div>
+
+                <a href="#" class="menu-item">
+                    <div class="menu-icon">⚙️</div>
+                    <div class="menu-text">设置</div>
+                    <div class="menu-arrow">›</div>
+                </a>
+
+                <a href="#" class="menu-item">
+                    <div class="menu-icon">❓</div>
+                    <div class="menu-text">帮助与反馈</div>
+                    <div class="menu-arrow">›</div>
+                </a>
+
+                <a href="#" class="menu-item">
+                    <div class="menu-icon">ℹ️</div>
+                    <div class="menu-text">关于</div>
+                    <div class="menu-arrow">›</div>
+                </a>
+
+                <div class="menu-divider"></div>
+
+                <a href="#" class="menu-item">
+                    <div class="menu-icon">🚪</div>
+                    <div class="menu-text">退出登录</div>
+                    <div class="menu-arrow">›</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="main-content" id="mainContent">
+            <div class="menu-toggle" id="menuToggle">☰</div>
+
+            <div class="content-placeholder">
+                <h2>主页面</h2>
+                <p>点击左上角菜单按钮打开侧边栏</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const menuToggle = document.getElementById('menuToggle');
+        const menuDrawer = document.getElementById('menuDrawer');
+        const overlay = document.getElementById('overlay');
+        const mainContent = document.getElementById('mainContent');
+
+        function openMenu() {
+            menuDrawer.classList.add('open');
+            overlay.classList.add('active');
+            mainContent.classList.add('dimmed');
+        }
+
+        function closeMenu() {
+            menuDrawer.classList.remove('open');
+            overlay.classList.remove('active');
+            mainContent.classList.remove('dimmed');
+        }
+
+        menuToggle.addEventListener('click', openMenu);
+        overlay.addEventListener('click', closeMenu);
+
+        // Menu items click handlers
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                const menuText = this.querySelector('.menu-text').textContent;
+                console.log('Clicked:', menuText);
+
+                // For demo purposes, close menu on any item click
+                if (menuText === '退出登录') {
+                    if (confirm('确定要退出登录吗？')) {
+                        closeMenu();
+                        alert('已退出登录');
+                    }
+                } else {
+                    closeMenu();
+                }
+            });
+        });
+
+        // Close menu on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeMenu();
+            }
+        });
+    </script>
+</body>
+</html>

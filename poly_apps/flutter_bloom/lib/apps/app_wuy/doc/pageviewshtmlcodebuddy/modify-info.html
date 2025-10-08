@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>修改资料 - 安无忧</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(180deg,#f7fbff,#ffffff);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrapper{max-width:420px;margin:0 auto;min-height:100vh;padding:24px 16px 72px}
+.header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.header a{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.9);border:1px solid #e8eef5;border-radius:16px;padding:6px 10px;color:#111;text-decoration:none;box-shadow:0 4px 12px rgba(0,0,0,.06)}
+.section{background:#fff;border:1px solid #e8eef5;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.08);padding:12px;margin-bottom:14px}
+.section h2{font-size:15px;margin:0 0 8px}
+.row{display:flex;align-items:center;gap:10px}
+.input{flex:1;height:40px;border:1px solid #e0e7ef;border-radius:10px;padding:0 12px}
+.actions{display:flex;gap:8px;margin-top:10px}
+.btn{height:36px;border:none;border-radius:10px;padding:0 12px;cursor:pointer}
+.btn.gray{background:#e9edf3;color:#333}
+.btn.primary{background:#1677ff;color:#fff}
+.radio{display:flex;align-items:center;gap:12px}
+.nav{position:fixed;left:50%;bottom:8px;transform:translateX(-50%);max-width:420px;width:100%;display:flex;justify-content:space-around;padding:10px 22px;background:rgba(255,255,255,.92);border:1px solid #e8eef5;border-radius:22px;box-shadow:0 8px 20px rgba(0,0,0,.08);backdrop-filter:saturate(120%) blur(6px)}
+.tab{display:flex;flex-direction:column;align-items:center;color:#7c8b9f;text-decoration:none;font-size:12px;padding:6px 10px;border-radius:14px}
+.tab.active{color:#1677ff;background:rgba(35,136,255,.12);box-shadow:0 6px 12px rgba(35,136,255,.12)}
+/* shared switch module for reuse */
+.switch{position:relative;display:inline-block;width:44px;height:24px}
+.switch input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.switch .slider{position:absolute;inset:0;border-radius:999px;background:#dfe6ee;border:1px solid #cfd8e3;box-shadow:inset 0 2px 4px rgba(0,0,0,.06);transition:all .2s ease}
+.switch .slider::after{content:"";position:absolute;top:50%;left:3px;width:18px;height:18px;transform:translateY(-50%);border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.12);transition:all .2s ease}
+.switch input:checked + .slider{background:#a7d2ff;border-color:#7db7ff;box-shadow:inset 0 2px 6px rgba(35,136,255,.18)}
+.switch input:checked + .slider::after{left:23px}
+.switch input:focus-visible + .slider{outline:2px solid #2388ff33;outline-offset:2px}
+</style></head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <a href="personal-info.html">← 返回个人资料</a>
+    <h1 style="margin:0;font-size:18px">🛠️ 修改资料</h1>
+  </div>
+
+  <section id="name" class="section">
+    <h2>🧾 更改名字</h2>
+    <div class="row"><input class="input" placeholder="小飞栖"></div>
+    <div class="actions"><button class="btn gray" onclick="location.href='personal-info.html'">取消</button><button class="btn primary">保存</button></div>
+  </section>
+
+  <section id="signature" class="section">
+    <h2>📝 更改个签</h2>
+    <div class="row"><input class="input" placeholder="守护你的未来"></div>
+    <div class="actions"><button class="btn gray" onclick="location.href='personal-info.html'">取消</button><button class="btn primary">保存</button></div>
+  </section>
+
+  <section id="gender" class="section">
+    <h2>⚧ 更改性别</h2>
+    <div class="radio">
+      <label><input type="radio" name="gender"> 男</label>
+      <label><input type="radio" name="gender"> 女</label>
+    </div>
+    <div class="actions"><button class="btn gray" onclick="location.href='personal-info.html'">取消</button><button class="btn primary">保存</button></div>
+  </section>
+
+  <section id="phone" class="section">
+    <h2>📱 更改号码</h2>
+    <div class="row"><input class="input" placeholder="186******88"></div>
+    <div class="actions"><button class="btn gray" onclick="location.href='personal-info.html'">取消</button><button class="btn primary">保存</button></div>
+  </section>
+</div>
+
+<nav class="nav" aria-label="底部导航">
+  <a class="tab" href="map.html"><i class="fa-solid fa-map"></i><span>地图</span></a>
+  <a class="tab" href="friends-list.html"><i class="fa-solid fa-user-group"></i><span>好友</span></a>
+  <a class="tab active" href="mine.html"><i class="fa-regular fa-circle-user"></i><span>我的</span></a>
+</nav>
+</body></html>
