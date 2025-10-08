@@ -71,38 +71,38 @@ class UnifiedStyles:
         'tab_text': '#ECEFF4',          # Tab text
     }
     
-    # Font Configuration
+    # Font Configuration (9px as minimum font size)
     FONTS = {
-        'default': ('Segoe UI', 9),
-        'heading': ('Segoe UI', 11, 'bold'),
-        'subheading': ('Segoe UI', 10, 'bold'),
-        'small': ('Segoe UI', 8),
-        'code': ('Consolas', 9),
-        'button': ('Segoe UI', 9, 'bold'),
-        'label': ('Segoe UI', 9),
-        'input': ('Segoe UI', 9),
+        'default': ('Segoe UI', 9),      # 9px as minimum font size
+        'heading': ('Segoe UI', 9, 'bold'),  # 9px as minimum font size
+        'subheading': ('Segoe UI', 9, 'bold'),  # 9px as minimum font size
+        'small': ('Segoe UI', 9),        # 9px as minimum font size
+        'code': ('Consolas', 9),         # 9px as minimum font size
+        'button': ('Segoe UI', 9, 'bold'),  # 9px as minimum font size
+        'label': ('Segoe UI', 9),        # 9px as minimum font size
+        'input': ('Segoe UI', 9),        # 9px as minimum font size
     }
     
-    # Spacing Configuration
+    # Spacing Configuration (scaled to 60%)
     SPACING = {
         'none': 0,
-        'xs': 2,
-        'sm': 5,
-        'md': 10,
-        'lg': 15,
-        'xl': 20,
-        'xxl': 30,
+        'xs': 1,      # 2 * 0.6 = 1.2 -> 1
+        'sm': 3,      # 5 * 0.6 = 3
+        'md': 6,      # 10 * 0.6 = 6
+        'lg': 9,      # 15 * 0.6 = 9
+        'xl': 12,     # 20 * 0.6 = 12
+        'xxl': 18,    # 30 * 0.6 = 18
     }
     
-    # Padding Configuration
+    # Padding Configuration (scaled to 60%)
     PADDING = {
         'none': 0,
-        'xs': 3,
-        'sm': 6,
-        'md': 12,
-        'lg': 18,
-        'xl': 24,
-        'xxl': 36,
+        'xs': 2,      # 3 * 0.6 = 1.8 -> 2
+        'sm': 4,      # 6 * 0.6 = 3.6 -> 4
+        'md': 7,      # 12 * 0.6 = 7.2 -> 7
+        'lg': 11,     # 18 * 0.6 = 10.8 -> 11
+        'xl': 14,     # 24 * 0.6 = 14.4 -> 14
+        'xxl': 22,    # 36 * 0.6 = 21.6 -> 22
     }
     
     @classmethod

@@ -42,16 +42,16 @@ class TitleBar:
     def _create_content(self):
         """Create title bar content"""
 
-        # Title label with drag functionality
+        # Title label with drag functionality (9px as minimum font size)
         self.title_label = tk.Label(
             self.frame,
             text=i18n_manager.get_ui_text("main_window.title"),
-            font=('Arial', 12, 'bold'),
+            font=('Arial', 9, 'bold'),   # 9px as minimum font size
             fg=UITheme.get_color('text_secondary'),
             bg=UITheme.get_color('bg_primary'),
             cursor='fleur'  # Drag cursor
         )
-        self.title_label.pack(side=tk.LEFT, expand=True, fill=tk.X, pady=5, padx=(20, 20))
+        self.title_label.pack(side=tk.LEFT, expand=True, fill=tk.X, pady=3, padx=(12, 12))  # Scaled to 60%
         
         # Bind drag functionality to title label
         self._bind_drag_events()
