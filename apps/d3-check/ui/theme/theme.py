@@ -64,25 +64,25 @@ class UITheme:
         'separator': '#2a2a3e',        # Separator line
     }
 
-    # Font definitions
+    # Font definitions (9px as minimum font size)
     FONTS = {
-        'title': ('Arial', 14, 'bold'),
-        'subtitle': ('Arial', 12, 'bold'),
-        'heading': ('Arial', 11, 'bold'),
-        'subheading': ('Arial', 10, 'bold'),
-        'body': ('Arial', 9),
-        'button': ('Arial', 9, 'bold'),
-        'code': ('Consolas', 9),
+        'title': ('Arial', 9, 'bold'),      # 9px as minimum font size
+        'subtitle': ('Arial', 9, 'bold'),   # 9px as minimum font size
+        'heading': ('Arial', 9, 'bold'),    # 9px as minimum font size
+        'subheading': ('Arial', 9, 'bold'), # 9px as minimum font size
+        'body': ('Arial', 9),               # 9px as minimum font size
+        'button': ('Arial', 9, 'bold'),     # 9px as minimum font size
+        'code': ('Consolas', 9),            # 9px as minimum font size
     }
 
-    # Size definitions
+    # Size definitions (scaled to 60% of original sizes)
     SIZES = {
-        'padding_small': 5,
-        'padding_medium': 10,
-        'padding_large': 15,
-        'border_width': 2,
-        'button_width': 8,
-        'input_width': 10,
+        'padding_small': 3,      # 5 * 0.6 = 3
+        'padding_medium': 6,     # 10 * 0.6 = 6
+        'padding_large': 9,      # 15 * 0.6 = 9
+        'border_width': 1,       # 2 * 0.6 = 1.2 -> 1
+        'button_width': 5,       # 8 * 0.6 = 4.8 -> 5
+        'input_width': 6,        # 10 * 0.6 = 6
     }
 
     @classmethod
@@ -132,16 +132,16 @@ class UITheme:
         Args:
             style: ttk.Style instance to configure
         """
-        # Configure Notebook style
+        # Configure Notebook style (scaled to 60%)
         style.configure('TNotebook',
                        background=cls.get_color('bg_primary'),
                        borderwidth=0,
-                       tabmargins=[2, 5, 2, 0])
+                       tabmargins=[1, 3, 1, 0])  # [2,5,2,0] * 0.6 = [1.2,3,1.2,0] -> [1,3,1,0]
 
         style.configure('TNotebook.Tab',
                        background=cls.get_color('bg_secondary'),
                        foreground=cls.get_color('text_primary'),
-                       padding=[20, 10],
+                       padding=[12, 6],  # [20,10] * 0.6 = [12,6]
                        font=cls.get_font('button'))
 
         style.map('TNotebook.Tab',
@@ -164,12 +164,12 @@ class UITheme:
                        foreground=cls.get_color('text_secondary'),
                        font=cls.get_font('heading'))
 
-        # Configure Button style
+        # Configure Button style (scaled to 60%)
         style.configure('TButton',
                        background=cls.get_color('btn_primary'),
                        foreground=cls.get_color('text_primary'),
                        font=cls.get_font('button'),
-                       padding=[10, 5])
+                       padding=[6, 3])  # [10,5] * 0.6 = [6,3]
 
         style.map('TButton',
                  background=[('active', cls.get_color('btn_primary_hover')),
