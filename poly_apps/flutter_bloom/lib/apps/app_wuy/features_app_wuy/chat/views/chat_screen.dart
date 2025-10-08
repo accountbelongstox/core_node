@@ -12,9 +12,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/chat_message_model_app_wuy.dart';
-import '../../../models_app_wuy/friend_model_app_wuy.dart';
 
 class WuyChatScreen extends StatefulWidget {
   final String friendId;
@@ -35,7 +35,6 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessageModelAppWuy> _messages = [];
   final String _currentUserId = 'current_user';
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -59,16 +58,16 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
           chatId: widget.friendId,
           senderId: widget.friendId,
           content: '你好，请问有什么可以帮助你的吗？',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-          status: MessageStatus.read,
+          createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          isRead: true,
         ),
         ChatMessageModelAppWuy(
           id: '2',
           chatId: widget.friendId,
           senderId: _currentUserId,
           content: '我想找一个可以聊天的人',
-          timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
-          status: MessageStatus.read,
+          createdAt: DateTime.now().subtract(const Duration(minutes: 2)),
+          isRead: true,
         ),
       ]);
     });
@@ -83,8 +82,8 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
       chatId: widget.friendId,
       senderId: _currentUserId,
       content: content,
-      timestamp: DateTime.now(),
-      status: MessageStatus.sending,
+      createdAt: DateTime.now(),
+      isRead: false,
     );
 
     setState(() {
@@ -100,7 +99,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
         setState(() {
           final index = _messages.indexWhere((m) => m.id == message.id);
           if (index != -1) {
-            _messages[index] = _messages[index].copyWith(status: MessageStatus.sent);
+            _messages[index] = _messages[index].copyWith(isRead: true);
           }
         });
       }
@@ -177,7 +176,10 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
           const SizedBox(height: 16),
           Text(
             'Start a conversation',
-            style: WuyAppThemeConfig.wuyTextSecondary.copyWith(fontSize: 18),
+            style: ThemeTextStyles.bodyText1.copyWith(
+              color: WuyAppThemeConfig.wuyTextSecondary,
+              fontSize: 18,
+            ),
           ),
         ],
       ),
@@ -244,7 +246,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
                       if (isFromCurrentUser) ...[
                         const SizedBox(width: 4),
                         Icon(
-                          _getStatusIcon(message.status),
+                          _getStatusIcon(message.isRead),
                           size: 12,
                           color: Colors.white70,
                         ),
@@ -271,18 +273,11 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
     );
   }
 
-  IconData _getStatusIcon(MessageStatus status) {
-    switch (status) {
-      case MessageStatus.sending:
-        return Icons.access_time;
-      case MessageStatus.sent:
-        return Icons.check;
-      case MessageStatus.delivered:
-        return Icons.done_all;
-      case MessageStatus.read:
-        return Icons.done_all;
-      case MessageStatus.failed:
-        return Icons.error;
+  IconData _getStatusIcon(bool isRead) {
+    if (isRead) {
+      return Icons.done_all;
+    } else {
+      return Icons.check;
     }
   }
 

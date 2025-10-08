@@ -12,9 +12,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/search_filter_model_app_wuy.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 class WuySearchScreen extends StatefulWidget {
   const WuySearchScreen({super.key});
@@ -65,16 +68,6 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
     });
   }
 
-  void _resetSearch() {
-    setState(() {
-      _nameController.clear();
-      _signatureController.clear();
-      _phoneController.clear();
-      _selectedGender = null;
-      _searchFilter = const SearchFilterModelAppWuy();
-      _searchResults.clear();
-    });
-  }
 
   List<FriendModelAppWuy> _generateMockResults() {
     // Mock search results based on the screenshot
@@ -82,9 +75,9 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       FriendModelAppWuy(
         id: '1',
         username: 'xiaofeixia',
-        nickname: '小飞侠',
-        avatar: null,
-        phone: '138****8888',
+        displayName: '小飞侠',
+        avatarUrl: null,
+        phoneNumber: '138****8888',
         bio: '今天天气真好',
         isOnline: true,
         lastSeen: DateTime.now(),
@@ -94,9 +87,9 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       FriendModelAppWuy(
         id: '2',
         username: 'sunny_day',
-        nickname: '阳光明媚',
-        avatar: null,
-        phone: '139****9999',
+        displayName: '阳光明媚',
+        avatarUrl: null,
+        phoneNumber: '139****9999',
         bio: '热爱生活，享受每一天',
         isOnline: false,
         lastSeen: DateTime.now().subtract(const Duration(hours: 2)),
@@ -114,7 +107,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
         backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
         foregroundColor: Colors.white,
         title: Text(
-          'Search',
+          LocalizationKeysAppWuy.wuySearchTitle.tr(context),
           style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(color: Colors.white),
         ),
         leading: IconButton(
@@ -128,13 +121,13 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildSearchSection(
-              title: '搜索名字 (Search Name)',
+              title: LocalizationKeysAppWuy.wuySearchName.tr(context),
               controller: _nameController,
               hintText: '小飞侠',
             ),
             const SizedBox(height: 24),
             _buildSearchSection(
-              title: '搜索个性签名 (Search Signature)',
+              title: LocalizationKeysAppWuy.wuySearchSignature.tr(context),
               controller: _signatureController,
               hintText: '今天天气真好',
             ),
@@ -142,7 +135,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
             _buildGenderSearchSection(),
             const SizedBox(height: 24),
             _buildSearchSection(
-              title: '搜索号码 (Search Number)',
+              title: LocalizationKeysAppWuy.wuySearchPhone.tr(context),
               controller: _phoneController,
               hintText: '138****8888',
             ),
@@ -191,7 +184,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           children: [
             Expanded(
               child: _buildActionButton(
-                text: '重置 (Reset)',
+                text: LocalizationKeysAppWuy.wuySearchReset.tr(context),
                 onPressed: () {
                   controller.clear();
                 },
@@ -201,7 +194,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: _buildActionButton(
-                text: '搜索 (Search)',
+                text: LocalizationKeysAppWuy.wuySearchTitle.tr(context),
                 onPressed: _performSearch,
                 isPrimary: true,
               ),
@@ -217,7 +210,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '搜索点赞数 (Search Likes Count)',
+          LocalizationKeysAppWuy.wuySearchGender.tr(context),
           style: WuyAppThemeConfig.wuyFriendName.copyWith(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -234,11 +227,11 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           child: Row(
             children: [
               Expanded(
-                child: _buildGenderOption('男 (Male)', 'male'),
+                child: _buildGenderOption(LocalizationKeysAppWuy.wuySearchMale.tr(context), 'male'),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: _buildGenderOption('女 (Female)', 'female'),
+                child: _buildGenderOption(LocalizationKeysAppWuy.wuySearchFemale.tr(context), 'female'),
               ),
             ],
           ),
@@ -248,7 +241,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           children: [
             Expanded(
               child: _buildActionButton(
-                text: '重置 (Reset)',
+                text: LocalizationKeysAppWuy.wuySearchReset.tr(context),
                 onPressed: () {
                   setState(() {
                     _selectedGender = null;
@@ -260,7 +253,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: _buildActionButton(
-                text: '搜索 (Search)',
+                text: LocalizationKeysAppWuy.wuySearchTitle.tr(context),
                 onPressed: _performSearch,
                 isPrimary: true,
               ),
@@ -408,7 +401,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
                   const SizedBox(height: 4),
                   Text(
                     friend.bio!,
-                    style: WuyAppThemeConfig.wuyTextSecondary.copyWith(fontSize: 12),
+                    style: ThemeTextStyles.bodySmall.copyWith(
+                      color: WuyAppThemeConfig.wuyTextSecondary,
+                      fontSize: 12,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -426,7 +422,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
                     const SizedBox(width: 4),
                     Text(
                       friend.statusText,
-                      style: WuyAppThemeConfig.wuyTextSecondary.copyWith(fontSize: 12),
+                      style: ThemeTextStyles.bodySmall.copyWith(
+                        color: WuyAppThemeConfig.wuyTextSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),

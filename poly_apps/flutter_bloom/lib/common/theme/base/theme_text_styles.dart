@@ -605,6 +605,8 @@ class ThemeTextStyles {
   /// Button text style - commonly used across all apps
   static const TextStyle buttonText = buttonMedium;
 
+  // Additional getters for compatibility (removed duplicates)
+
   /// Donation title style
   static TextStyle get donationTitle => textBold.copyWith(
     fontSize: 18,

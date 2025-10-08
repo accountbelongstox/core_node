@@ -12,7 +12,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../common/provider_status/user_provider.dart';
 import '../providers_app_wuy/wu_user_provider.dart';
 
 /// Authentication Guard for Wuy App

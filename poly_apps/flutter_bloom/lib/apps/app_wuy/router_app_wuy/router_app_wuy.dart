@@ -14,15 +14,22 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 
 // Import Wuy App feature screens
-import '../features_app_wuy/home/views/home_screen.dart';
 import '../features_app_wuy/profile/views/profile_screen.dart';
 import '../features_app_wuy/settings/views/settings_screen.dart';
 import '../features_app_wuy/authentication/views/login_screen.dart';
+import '../features_app_wuy/authentication/views/register_screen.dart';
 import '../features_app_wuy/splash/views/splash_screen.dart';
 import '../features_app_wuy/dashboard/views/dashboard_screen.dart';
 import '../features_app_wuy/friends/views/friends_list_screen.dart';
+import '../features_app_wuy/friends/views/friend_info_screen.dart';
+import '../features_app_wuy/friends/views/add_friend_screen.dart';
 import '../features_app_wuy/chat/views/chat_screen.dart';
 import '../features_app_wuy/search/views/search_screen.dart';
+import '../features_app_wuy/map/views/map_screen.dart';
+import '../features_app_wuy/history/views/history_tracking_screen.dart';
+import '../features_app_wuy/network/views/network_records_screen.dart';
+import '../features_app_wuy/profile/views/personal_info_screen.dart';
+import '../features_app_wuy/about/views/about_screen.dart';
 import '../utils_app_wuy/auth_guard.dart';
 
 /// Wuy App Router Configuration
@@ -33,6 +40,7 @@ class WuyAppRouter {
   static const String routeSplash = '/wuy/splash';
   static const String routeInitial = '/wuy/initial';
   static const String routeLogin = '/wuy/login';
+  static const String routeRegister = '/wuy/register';
   static const String routeProfile = '/wuy/profile';
   static const String routeSettings = '/wuy/settings';
   static const String routeDashboard = '/wuy/dashboard';
@@ -42,6 +50,9 @@ class WuyAppRouter {
   static const String routeAddFriend = '/wuy/add-friend';
   static const String routeChat = '/wuy/chat/:id';
   static const String routeSearch = '/wuy/search';
+  static const String routeMap = '/wuy/map';
+  static const String routeHistoryTracks = '/wuy/history-tracks';
+  static const String routeNetworkRecords = '/wuy/network-records';
   
   /// Create router for Wuy app - required by development guidelines
   static GoRouter createRouter() {
@@ -75,11 +86,17 @@ class WuyAppRouter {
           ),
         ),
         
-        // Authentication route
+        // Authentication routes
         GoRoute(
           path: routeLogin,
           name: 'wuy_login',
           builder: (context, state) => const WuyLoginScreen(),
+        ),
+        
+        GoRoute(
+          path: routeRegister,
+          name: 'wuy_register',
+          builder: (context, state) => const WuyRegisterScreen(),
         ),
         
         // Dashboard route
@@ -114,10 +131,7 @@ class WuyAppRouter {
             final friendId = state.pathParameters['id'] ?? '';
             return AuthGuard.requireAuth(
               context,
-              Scaffold(
-                appBar: AppBar(title: Text('Friend $friendId')),
-                body: Center(child: Text('Friend Info: $friendId')),
-              ),
+              WuyFriendInfoScreen(friendId: friendId),
             );
           },
         ),
@@ -128,10 +142,7 @@ class WuyAppRouter {
           name: 'wuy_find_friends',
           builder: (context, state) => AuthGuard.requireAuth(
             context,
-            Scaffold(
-              appBar: AppBar(title: const Text('Find Friends')),
-              body: const Center(child: Text('Find Friends Page - Coming Soon')),
-            ),
+            const WuySearchScreen(),
           ),
         ),
         
@@ -141,10 +152,7 @@ class WuyAppRouter {
           name: 'wuy_add_friend',
           builder: (context, state) => AuthGuard.requireAuth(
             context,
-            Scaffold(
-              appBar: AppBar(title: const Text('Add Friend')),
-              body: const Center(child: Text('Add Friend Page - Coming Soon')),
-            ),
+            const WuyAddFriendScreen(),
           ),
         ),
         
@@ -172,6 +180,56 @@ class WuyAppRouter {
           builder: (context, state) => AuthGuard.requireAuth(
             context,
             const WuySearchScreen(),
+          ),
+        ),
+        
+        // Map route
+        GoRoute(
+          path: routeMap,
+          name: 'wuy_map',
+          builder: (context, state) => AuthGuard.requireAuth(
+            context,
+            const WuyMapScreen(),
+          ),
+        ),
+        
+        // History tracking route
+        GoRoute(
+          path: routeHistoryTracks,
+          name: 'wuy_history_tracks',
+          builder: (context, state) => AuthGuard.requireAuth(
+            context,
+            const WuyHistoryTrackingScreen(),
+          ),
+        ),
+        
+        // Network records route
+        GoRoute(
+          path: routeNetworkRecords,
+          name: 'wuy_network_records',
+          builder: (context, state) => AuthGuard.requireAuth(
+            context,
+            const WuyNetworkRecordsScreen(),
+          ),
+        ),
+        
+        // Personal info route
+        GoRoute(
+          path: '/wuy/personal-info',
+          name: 'wuy_personal_info',
+          builder: (context, state) => AuthGuard.requireAuth(
+            context,
+            const WuyPersonalInfoScreen(),
+          ),
+        ),
+        
+        // About route
+        GoRoute(
+          path: '/wuy/about',
+          name: 'wuy_about',
+          builder: (context, state) => AuthGuard.requireAuth(
+            context,
+            const WuyAboutScreen(),
           ),
         ),
         
@@ -217,6 +275,7 @@ class WuyAppRouter {
   static String getSplashRoute() => routeSplash;
   static String getHomeRoute() => routeHome;
   static String getLoginRoute() => routeLogin;
+  static String getRegisterRoute() => routeRegister;
   static String getProfileRoute() => routeProfile;
   static String getSettingsRoute() => routeSettings;
   static String getDashboardRoute() => routeDashboard;
@@ -224,6 +283,9 @@ class WuyAppRouter {
   static String getFindFriendsRoute() => routeFindFriends;
   static String getAddFriendRoute() => routeAddFriend;
   static String getSearchRoute() => routeSearch;
+  static String getMapRoute() => routeMap;
+  static String getHistoryTracksRoute() => routeHistoryTracks;
+  static String getNetworkRecordsRoute() => routeNetworkRecords;
 
   /// Get default route for the Wuy app
   static String getDefaultRoute() => routeHome;
@@ -235,6 +297,7 @@ class WuyAppRouter {
       routeSplash,
       routeInitial,
       routeLogin,
+      routeRegister,
       routeProfile,
       routeSettings,
       routeDashboard,
@@ -242,6 +305,9 @@ class WuyAppRouter {
       routeFindFriends,
       routeAddFriend,
       routeSearch,
+      routeMap,
+      routeHistoryTracks,
+      routeNetworkRecords,
     ];
   }
 }

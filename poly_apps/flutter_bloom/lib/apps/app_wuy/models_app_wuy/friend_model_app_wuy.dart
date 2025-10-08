@@ -13,9 +13,9 @@
 class FriendModelAppWuy {
   final String id;
   final String username;
-  final String? nickname;
-  final String? avatar;
-  final String? phone;
+  final String displayName;
+  final String? avatarUrl;
+  final String? phoneNumber;
   final String? bio;
   final bool isOnline;
   final DateTime? lastSeen;
@@ -29,9 +29,9 @@ class FriendModelAppWuy {
   const FriendModelAppWuy({
     required this.id,
     required this.username,
-    this.nickname,
-    this.avatar,
-    this.phone,
+    required this.displayName,
+    this.avatarUrl,
+    this.phoneNumber,
     this.bio,
     this.isOnline = false,
     this.lastSeen,
@@ -47,18 +47,24 @@ class FriendModelAppWuy {
     return FriendModelAppWuy(
       id: json['id'] as String,
       username: json['username'] as String,
-      nickname: json['nickname'] as String?,
-      avatar: json['avatar'] as String?,
-      phone: json['phone'] as String?,
+      displayName: json['display_name'] as String? ?? json['displayName'] as String? ?? json['username'] as String,
+      avatarUrl: json['avatar_url'] as String? ?? json['avatarUrl'] as String? ?? json['avatar'] as String?,
+      phoneNumber: json['phone_number'] as String? ?? json['phoneNumber'] as String? ?? json['phone'] as String?,
       bio: json['bio'] as String?,
-      isOnline: json['isOnline'] as bool? ?? false,
-      lastSeen: json['lastSeen'] != null 
-          ? DateTime.parse(json['lastSeen'] as String)
-          : null,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      isBlocked: json['isBlocked'] as bool? ?? false,
-      isFavorite: json['isFavorite'] as bool? ?? false,
+      isOnline: json['is_online'] as bool? ?? json['isOnline'] as bool? ?? false,
+      lastSeen: json['last_seen'] != null 
+          ? DateTime.parse(json['last_seen'] as String)
+          : json['lastSeen'] != null 
+              ? DateTime.parse(json['lastSeen'] as String)
+              : null,
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.parse(json['createdAt'] as String),
+      updatedAt: json['updated_at'] != null 
+          ? DateTime.parse(json['updated_at'] as String)
+          : DateTime.parse(json['updatedAt'] as String),
+      isBlocked: json['is_blocked'] as bool? ?? json['isBlocked'] as bool? ?? false,
+      isFavorite: json['is_favorite'] as bool? ?? json['isFavorite'] as bool? ?? false,
       relationship: json['relationship'] as String?,
       metadata: json['metadata'] as Map<String, dynamic>?,
     );
@@ -68,16 +74,16 @@ class FriendModelAppWuy {
     return {
       'id': id,
       'username': username,
-      'nickname': nickname,
-      'avatar': avatar,
-      'phone': phone,
+      'display_name': displayName,
+      'avatar_url': avatarUrl,
+      'phone_number': phoneNumber,
       'bio': bio,
-      'isOnline': isOnline,
-      'lastSeen': lastSeen?.toIso8601String(),
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      'isBlocked': isBlocked,
-      'isFavorite': isFavorite,
+      'is_online': isOnline,
+      'last_seen': lastSeen?.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'is_blocked': isBlocked,
+      'is_favorite': isFavorite,
       'relationship': relationship,
       'metadata': metadata,
     };
@@ -86,9 +92,9 @@ class FriendModelAppWuy {
   FriendModelAppWuy copyWith({
     String? id,
     String? username,
-    String? nickname,
-    String? avatar,
-    String? phone,
+    String? displayName,
+    String? avatarUrl,
+    String? phoneNumber,
     String? bio,
     bool? isOnline,
     DateTime? lastSeen,
@@ -102,9 +108,9 @@ class FriendModelAppWuy {
     return FriendModelAppWuy(
       id: id ?? this.id,
       username: username ?? this.username,
-      nickname: nickname ?? this.nickname,
-      avatar: avatar ?? this.avatar,
-      phone: phone ?? this.phone,
+      displayName: displayName ?? this.displayName,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
       bio: bio ?? this.bio,
       isOnline: isOnline ?? this.isOnline,
       lastSeen: lastSeen ?? this.lastSeen,
@@ -117,7 +123,7 @@ class FriendModelAppWuy {
     );
   }
 
-  String get displayName => nickname ?? username;
+  String get displayNameOrUsername => displayName.isNotEmpty ? displayName : username;
 
   String get statusText {
     if (isOnline) return 'Online';

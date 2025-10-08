@@ -12,12 +12,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:provider/provider.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
-import 'package:qyflutter/common/widgets/custom_bottom_navigation.dart';
-import '../../theme_app_wuy/theme_config_app_wuy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_data_center.dart';
+import '../../../models_app_wuy/friend_model_app_wuy.dart';
 
 class WuyFriendsListScreen extends StatefulWidget {
   const WuyFriendsListScreen({super.key});
@@ -28,8 +31,7 @@ class WuyFriendsListScreen extends StatefulWidget {
 
 class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<FriendItem> _friends = [];
-  List<FriendItem> _filteredFriends = [];
+  List<FriendModelAppWuy> _filteredFriends = [];
   bool _isLoading = true;
 
   @override
@@ -49,54 +51,13 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
       _isLoading = true;
     });
 
-    // Simulate loading friends data
-    await Future.delayed(const Duration(seconds: 1));
-
-    // Mock data based on the screenshot
-    _friends = [
-      FriendItem(
-        id: '1',
-        name: '小飞侠',
-        avatar: 'assets/common/icons/people.png',
-        isOnline: true,
-        lastSeen: '刚刚',
-        status: '在线',
-      ),
-      FriendItem(
-        id: '2',
-        name: '小明',
-        avatar: 'assets/common/icons/people.png',
-        isOnline: true,
-        lastSeen: '5分钟前',
-        status: '在线',
-      ),
-      FriendItem(
-        id: '3',
-        name: '小红',
-        avatar: 'assets/common/icons/people.png',
-        isOnline: false,
-        lastSeen: '1小时前',
-        status: '离线',
-      ),
-      FriendItem(
-        id: '4',
-        name: '张三',
-        avatar: 'assets/common/icons/people.png',
-        isOnline: true,
-        lastSeen: '30分钟前',
-        status: '在线',
-      ),
-      FriendItem(
-        id: '5',
-        name: '李四',
-        avatar: 'assets/common/icons/people.png',
-        isOnline: false,
-        lastSeen: '2小时前',
-        status: '离线',
-      ),
-    ];
-
-    _filteredFriends = List.from(_friends);
+    // Get data from data center
+    final dataCenter = Provider.of<WuyDataCenter>(context, listen: false);
+    await dataCenter.initialize();
+    
+    // Get friends from data center
+    final friends = dataCenter.friends;
+    _filteredFriends = List.from(friends);
 
     setState(() {
       _isLoading = false;
@@ -105,12 +66,16 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
 
   void _filterFriends(String query) {
     setState(() {
+      final dataCenter = Provider.of<WuyDataCenter>(context, listen: false);
+      final friends = dataCenter.friends;
+      
       if (query.isEmpty) {
-        _filteredFriends = List.from(_friends);
+        _filteredFriends = List.from(friends);
       } else {
-        _filteredFriends = _friends
+        _filteredFriends = friends
             .where((friend) =>
-                friend.name.toLowerCase().contains(query.toLowerCase()))
+                friend.displayName.toLowerCase().contains(query.toLowerCase()) ||
+                friend.username.toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
     });
@@ -118,11 +83,13 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Consumer<WuyDataCenter>(
+      builder: (context, dataCenter, child) {
+        return Scaffold(
       backgroundColor: WuyAppThemeConfig.wuyBackgroundColor,
       appBar: AppBar(
         title: Text(
-          '好友&群聊',
+          LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
           style: WuyAppThemeConfig.wuyAppBarTitle,
         ),
         backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
@@ -148,6 +115,8 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
         ],
       ),
       bottomNavigationBar: _buildBottomNavigation(),
+        );
+      },
     );
   }
 
@@ -158,7 +127,7 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
         controller: _searchController,
         onChanged: _filterFriends,
         decoration: InputDecoration(
-          hintText: '搜索好友',
+          hintText: LocalizationKeysAppWuy.wuyFriendsSearch.tr(context),
           prefixIcon: Icon(
             Icons.search,
             color: WuyAppThemeConfig.wuyTextSecondary,
@@ -194,8 +163,8 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
             SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
             Text(
               _searchController.text.isEmpty
-                  ? '暂无好友'
-                  : '未找到相关好友',
+                  ? LocalizationKeysAppWuy.wuyFriendsNoFriends.tr(context)
+                  : LocalizationKeysAppWuy.wuySearchNoResults.tr(context),
               style: ThemeTextStyles.bodyText1.copyWith(
                 color: WuyAppThemeConfig.wuyTextSecondary,
               ),
@@ -207,7 +176,7 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
                   context.go('/wuy/find-friends');
                 },
                 style: WuyAppThemeConfig.wuyPrimaryButton,
-                child: const Text('添加好友'),
+                child: Text(LocalizationKeysAppWuy.wuyFriendsAddFriend.tr(context)),
               ),
             ],
           ],
@@ -224,7 +193,7 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
     );
   }
 
-  Widget _buildFriendItem(FriendItem friend) {
+  Widget _buildFriendItem(FriendModelAppWuy friend) {
     return Container(
       margin: EdgeInsets.symmetric(
         horizontal: WuyAppThemeConfig.wuyDefaultPadding,
@@ -248,7 +217,7 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
           ),
         ),
         title: Text(
-          friend.name,
+          friend.displayName,
           style: WuyAppThemeConfig.wuyFriendName,
         ),
         trailing: Row(
@@ -257,7 +226,7 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
             IconButton(
               icon: const Icon(Icons.chat, size: 20),
               onPressed: () {
-                context.go('${WuyAppRouter.routeChat.replaceAll(':id', friend.id)}?name=${Uri.encodeComponent(friend.name)}');
+                context.go('${WuyAppRouter.routeChat.replaceAll(':id', friend.id)}?name=${Uri.encodeComponent(friend.displayName)}');
               },
               tooltip: 'Chat',
             ),
@@ -271,9 +240,8 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
             Switch(
               value: friend.isOnline,
               onChanged: (value) {
-                setState(() {
-                  friend.isOnline = value;
-                });
+                final dataCenter = Provider.of<WuyDataCenter>(context, listen: false);
+                dataCenter.updateFriendStatus(friend.id, value);
               },
               activeColor: WuyAppThemeConfig.wuyPrimaryColor,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -294,10 +262,10 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.chat, '消息', false, () => context.go(WuyAppRouter.routeSearch)),
-              _buildNavItem(Icons.people, '好友', true, null),
+              _buildNavItem(Icons.chat, LocalizationKeysAppWuy.wuyMenuMessages.tr(context), false, () => context.go(WuyAppRouter.routeSearch)),
+              _buildNavItem(Icons.people, LocalizationKeysAppWuy.wuyFriendsTitle.tr(context), true, null),
               _buildNavItem(Icons.explore, '发现', false, () => context.go(WuyAppRouter.routeFindFriends)),
-              _buildNavItem(Icons.person, '我的', false, () => context.go(WuyAppRouter.routeProfile)),
+              _buildNavItem(Icons.person, LocalizationKeysAppWuy.wuyMenuProfile.tr(context), false, () => context.go(WuyAppRouter.routeProfile)),
             ],
           ),
         ),
@@ -339,20 +307,3 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
   }
 }
 
-class FriendItem {
-  final String id;
-  final String name;
-  final String avatar;
-  bool isOnline;
-  final String lastSeen;
-  final String status;
-
-  FriendItem({
-    required this.id,
-    required this.name,
-    required this.avatar,
-    required this.isOnline,
-    required this.lastSeen,
-    required this.status,
-  });
-}

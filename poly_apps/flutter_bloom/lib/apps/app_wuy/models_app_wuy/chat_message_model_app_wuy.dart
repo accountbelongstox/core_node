@@ -34,9 +34,9 @@ class ChatMessageModelAppWuy {
   final String senderId;
   final String? receiverId;
   final String content;
-  final MessageType type;
-  final MessageStatus status;
-  final DateTime timestamp;
+  final String messageType;
+  final bool isRead;
+  final DateTime createdAt;
   final DateTime? readAt;
   final Map<String, dynamic>? metadata;
   final String? replyToId;
@@ -49,9 +49,9 @@ class ChatMessageModelAppWuy {
     required this.senderId,
     this.receiverId,
     required this.content,
-    this.type = MessageType.text,
-    this.status = MessageStatus.sent,
-    required this.timestamp,
+    this.messageType = 'text',
+    this.isRead = false,
+    required this.createdAt,
     this.readAt,
     this.metadata,
     this.replyToId,
@@ -62,46 +62,48 @@ class ChatMessageModelAppWuy {
   factory ChatMessageModelAppWuy.fromJson(Map<String, dynamic> json) {
     return ChatMessageModelAppWuy(
       id: json['id'] as String,
-      chatId: json['chatId'] as String,
-      senderId: json['senderId'] as String,
-      receiverId: json['receiverId'] as String?,
+      chatId: json['chat_id'] as String? ?? json['chatId'] as String,
+      senderId: json['sender_id'] as String? ?? json['senderId'] as String,
+      receiverId: json['receiver_id'] as String? ?? json['receiverId'] as String?,
       content: json['content'] as String,
-      type: MessageType.values.firstWhere(
-        (e) => e.name == json['type'],
-        orElse: () => MessageType.text,
-      ),
-      status: MessageStatus.values.firstWhere(
-        (e) => e.name == json['status'],
-        orElse: () => MessageStatus.sent,
-      ),
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      readAt: json['readAt'] != null 
-          ? DateTime.parse(json['readAt'] as String)
-          : null,
+      messageType: json['message_type'] as String? ?? json['messageType'] as String? ?? 'text',
+      isRead: json['is_read'] as bool? ?? json['isRead'] as bool? ?? false,
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at'] as String)
+          : json['createdAt'] != null 
+              ? DateTime.parse(json['createdAt'] as String)
+              : DateTime.parse(json['timestamp'] as String),
+      readAt: json['read_at'] != null 
+          ? DateTime.parse(json['read_at'] as String)
+          : json['readAt'] != null 
+              ? DateTime.parse(json['readAt'] as String)
+              : null,
       metadata: json['metadata'] as Map<String, dynamic>?,
-      replyToId: json['replyToId'] as String?,
-      isEdited: json['isEdited'] as bool? ?? false,
-      editedAt: json['editedAt'] != null 
-          ? DateTime.parse(json['editedAt'] as String)
-          : null,
+      replyToId: json['reply_to_id'] as String? ?? json['replyToId'] as String?,
+      isEdited: json['is_edited'] as bool? ?? json['isEdited'] as bool? ?? false,
+      editedAt: json['edited_at'] != null 
+          ? DateTime.parse(json['edited_at'] as String)
+          : json['editedAt'] != null 
+              ? DateTime.parse(json['editedAt'] as String)
+              : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'chatId': chatId,
-      'senderId': senderId,
-      'receiverId': receiverId,
+      'chat_id': chatId,
+      'sender_id': senderId,
+      'receiver_id': receiverId,
       'content': content,
-      'type': type.name,
-      'status': status.name,
-      'timestamp': timestamp.toIso8601String(),
-      'readAt': readAt?.toIso8601String(),
+      'message_type': messageType,
+      'is_read': isRead,
+      'created_at': createdAt.toIso8601String(),
+      'read_at': readAt?.toIso8601String(),
       'metadata': metadata,
-      'replyToId': replyToId,
-      'isEdited': isEdited,
-      'editedAt': editedAt?.toIso8601String(),
+      'reply_to_id': replyToId,
+      'is_edited': isEdited,
+      'edited_at': editedAt?.toIso8601String(),
     };
   }
 
@@ -111,9 +113,9 @@ class ChatMessageModelAppWuy {
     String? senderId,
     String? receiverId,
     String? content,
-    MessageType? type,
-    MessageStatus? status,
-    DateTime? timestamp,
+    String? messageType,
+    bool? isRead,
+    DateTime? createdAt,
     DateTime? readAt,
     Map<String, dynamic>? metadata,
     String? replyToId,
@@ -126,9 +128,9 @@ class ChatMessageModelAppWuy {
       senderId: senderId ?? this.senderId,
       receiverId: receiverId ?? this.receiverId,
       content: content ?? this.content,
-      type: type ?? this.type,
-      status: status ?? this.status,
-      timestamp: timestamp ?? this.timestamp,
+      messageType: messageType ?? this.messageType,
+      isRead: isRead ?? this.isRead,
+      createdAt: createdAt ?? this.createdAt,
       readAt: readAt ?? this.readAt,
       metadata: metadata ?? this.metadata,
       replyToId: replyToId ?? this.replyToId,
@@ -141,12 +143,12 @@ class ChatMessageModelAppWuy {
 
   String get timeText {
     final now = DateTime.now();
-    final difference = now.difference(timestamp);
+    final difference = now.difference(createdAt);
     
     if (difference.inDays > 0) {
-      return '${timestamp.day}/${timestamp.month}';
+      return '${createdAt.day}/${createdAt.month}';
     } else if (difference.inHours > 0) {
-      return '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+      return '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
     } else if (difference.inMinutes > 0) {
       return '${difference.inMinutes}m ago';
     } else {
@@ -155,17 +157,10 @@ class ChatMessageModelAppWuy {
   }
 
   String get statusText {
-    switch (status) {
-      case MessageStatus.sending:
-        return 'Sending...';
-      case MessageStatus.sent:
-        return 'Sent';
-      case MessageStatus.delivered:
-        return 'Delivered';
-      case MessageStatus.read:
-        return 'Read';
-      case MessageStatus.failed:
-        return 'Failed';
+    if (isRead) {
+      return 'Read';
+    } else {
+      return 'Sent';
     }
   }
 
@@ -180,6 +175,6 @@ class ChatMessageModelAppWuy {
 
   @override
   String toString() {
-    return 'ChatMessageModelAppWuy(id: $id, content: $content, type: $type, status: $status)';
+    return 'ChatMessageModelAppWuy(id: $id, content: $content, messageType: $messageType, isRead: $isRead)';
   }
 }

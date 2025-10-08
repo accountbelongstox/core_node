@@ -1,0 +1,191 @@
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\theme\base\theme_dimensions.dart:405:34 - deprecated_member_use
+   info - Unnecessary 'late' modifier - lib\common\theme\base\theme_dimensions.dart:521:10 - unnecessary_late
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\theme\base\theme_shadow.dart:21:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\theme\base\theme_shadow.dart:33:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\theme\base\theme_shadow.dart:45:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\theme\base\theme_text_styles.dart:301:47 - deprecated_member_use
+warning - Unused import: '../extensions/gradient_extensions.dart' - lib\common\theme\compatibility\gradient_compatibility.dart:14:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\theme\extensions\gradient_extensions.dart:274:52 - deprecated_member_use
+   info - 'indicatorColor' is deprecated and shouldn't be used. Use TabBarThemeData.indicatorColor instead. This feature was deprecated after v3.28.0-1.0.pre - lib\common\theme\platforms\desktop\desktop_dark_theme.dart:37:5 - deprecated_member_use
+   info - 'indicatorColor' is deprecated and shouldn't be used. Use TabBarThemeData.indicatorColor instead. This feature was deprecated after v3.28.0-1.0.pre - lib\common\theme\platforms\desktop\desktop_light_theme.dart:37:5 - deprecated_member_use
+   info - 'indicatorColor' is deprecated and shouldn't be used. Use TabBarThemeData.indicatorColor instead. This feature was deprecated after v3.28.0-1.0.pre - lib\common\theme\platforms\mobile\mobile_dark_theme.dart:53:5 - deprecated_member_use
+   info - 'indicatorColor' is deprecated and shouldn't be used. Use TabBarThemeData.indicatorColor instead. This feature was deprecated after v3.28.0-1.0.pre - lib\common\theme\platforms\mobile\mobile_light_theme.dart:39:5 - deprecated_member_use
+   info - 'indicatorColor' is deprecated and shouldn't be used. Use TabBarThemeData.indicatorColor instead. This feature was deprecated after v3.28.0-1.0.pre - lib\common\theme\platforms\web\web_dark_theme.dart:37:5 - deprecated_member_use
+   info - 'indicatorColor' is deprecated and shouldn't be used. Use TabBarThemeData.indicatorColor instead. This feature was deprecated after v3.28.0-1.0.pre - lib\common\theme\platforms\web\web_light_theme.dart:38:5 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - lib\common\utils\common\price_converter.dart:370:15 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\common\utils\common\price_converter.dart:372:15 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\common\utils\common\price_converter.dart:374:15 - unnecessary_brace_in_string_interps
+   info - Unnecessary braces in a string interpolation - lib\common\utils\common\price_converter.dart:376:15 - unnecessary_brace_in_string_interps
+warning - Unused import: 'dart:math' - lib\common\utils\device_utils.dart:15:8 - unused_import
+   info - 'textScaleFactor' is deprecated and shouldn't be used. Use textScaler instead. Use of textScaleFactor was deprecated in preparation for the upcoming nonlinear text scaling support. This feature was deprecated after v3.12.0-2.0.pre - lib\common\utils\display\display_helper.dart:289:35 - deprecated_member_use
+warning - The value of the field '_isMobile' isn't used - lib\common\utils\display\responsive_helper.dart:25:15 - unused_field
+warning - The value of the field '_isTablet' isn't used - lib\common\utils\display\responsive_helper.dart:26:15 - unused_field
+warning - The value of the field '_isDesktop' isn't used - lib\common\utils\display\responsive_helper.dart:27:15 - unused_field
+warning - The value of the field '_isPortrait' isn't used - lib\common\utils\display\responsive_helper.dart:28:15 - unused_field
+warning - The value of the field '_screenHeight' isn't used - lib\common\utils\display\responsive_helper.dart:30:17 - unused_field
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/services.dart' - lib\common\utils\image\image_loader.dart:18:8 - unnecessary_import
+warning - Unused import: 'package:flutter/foundation.dart' - lib\common\utils\mobile\native_splash.dart:17:8 - unused_import
+warning - Unused import: 'package:flutter/material.dart' - lib\common\utils\mobile\notification_helper.dart:19:8 - unused_import
+warning - Unused import: 'package:get/get.dart' - lib\common\utils\mobile\notification_helper.dart:21:8 - unused_import
+   info - The imported package 'timezone' isn't a dependency of the importing package - lib\common\utils\mobile\notification_helper.dart:24:8 - depend_on_referenced_packages
+   info - The imported package 'timezone' isn't a dependency of the importing package - lib\common\utils\mobile\notification_helper.dart:25:8 - depend_on_referenced_packages
+warning - Unused import: 'package:timezone/data/latest.dart' - lib\common\utils\mobile\notification_helper.dart:25:8 - unused_import
+   info - 'dart:html' is deprecated and shouldn't be used. Use package:web and dart:js_interop instead - lib\common\utils\web\web_tools_web.dart:14:1 - deprecated_member_use
+   info - Don't use web-only libraries outside Flutter web plugins - lib\common\utils\web\web_tools_web.dart:14:1 - avoid_web_libraries_in_flutter
+   info - Don't invoke 'print' in production code - lib\common\utils\web\web_tools_web.dart:40:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\common\utils\web\web_tools_web.dart:73:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\common\utils\web\web_tools_web.dart:105:7 - avoid_print
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\action_bar.dart:77:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\animated_custom_dialog.dart:21:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\back_app_bar.dart:185:40 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\bank_bottom_navigation.dart:68:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\bank_bottom_navigation.dart:74:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\bank_bottom_navigation.dart:255:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\bank_bottom_navigation.dart:261:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\bank_scaffold.dart:263:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\bank_scaffold.dart:266:31 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\confirmation_dialog.dart:120:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\country_picker.dart:180:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\country_picker.dart:222:58 - deprecated_member_use
+warning - Unused import: 'package:qyflutter/common/theme/base/theme_colors.dart' - lib\common\widgets\custom_bottom_navigation.dart:14:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_calender.dart:89:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_calender.dart:186:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_card.dart:39:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_drawer.dart:424:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_drawer.dart:461:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_drawer.dart:491:39 - deprecated_member_use
+   info - 'onPopInvoked' is deprecated and shouldn't be used. Use onPopInvokedWithResult instead. This feature was deprecated after v3.22.0-12.0.pre - lib\common\widgets\custom_drawer.dart:597:9 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_drop_down_item.dart:47:59 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\common\widgets\custom_icon_label.dart:29:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_icon_label.dart:59:64 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\common\widgets\custom_icon_label_group.dart:21:9 - use_super_parameters
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\common\widgets\custom_icon_label_group.dart:43:9 - sized_box_for_whitespace
+   info - Parameter 'key' could be a super parameter - lib\common\widgets\custom_image_icon_label.dart:34:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_image_icon_label.dart:79:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_image_icon_label.dart:81:87 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\common\widgets\custom_image_icon_label_group.dart:83:9 - use_super_parameters
+   info - The variable name 'search_placeholder' isn't a lowerCamelCase identifier - lib\common\widgets\custom_search_input.dart:17:16 - non_constant_identifier_names
+   info - Parameter 'key' could be a super parameter - lib\common\widgets\custom_search_input.dart:28:9 - use_super_parameters
+   info - The variable name 'search_placeholder' isn't a lowerCamelCase identifier - lib\common\widgets\custom_search_input.dart:30:10 - non_constant_identifier_names
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_search_input.dart:48:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_search_input.dart:73:41 - deprecated_member_use
+   info - Missing type annotation - lib\common\widgets\custom_swipable_button\swipeable_button_view.dart:83:3 - strict_top_level_inference
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\custom_swipable_button\swipeable_button_view.dart:244:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\enhanced_bottom_navigation.dart:91:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\enhanced_top_menu.dart:95:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\enhanced_top_menu.dart:153:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\enhanced_top_menu.dart:197:38 - deprecated_member_use
+warning - The value of the local variable 'index' isn't used - lib\common\widgets\enhanced_top_menu.dart:346:17 - unused_local_variable
+   info - Constructors in '@immutable' classes should be declared as 'const' - lib\common\widgets\enhanced_top_menu.dart:378:3 - prefer_const_constructors_in_immutables
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\image_dialog.dart:58:34 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\image_dialog.dart:67:59 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\image_dialog.dart:95:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\outelineborder.dart:38:61 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\payment_item_info.dart:62:61 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\common\widgets\responsive_layout.dart:22:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\segmented_button.dart:83:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\segmented_button.dart:101:53 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\segmented_button.dart:161:49 - deprecated_member_use
+   info - The 'child' argument should be last in widget constructor invocations - lib\common\widgets\settings_page_example.dart:74:9 - sort_child_properties_last
+   info - Don't use 'BuildContext's across async gaps - lib\common\widgets\settings_page_example.dart:300:32 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\common\widgets\settings_page_example.dart:332:28 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\common\widgets\settings_page_example.dart:346:7 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\common\widgets\settings_page_example.dart:383:26 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\common\widgets\settings_page_example.dart:410:26 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\common\widgets\type_button_widget.dart:65:59 - deprecated_member_use
+
+800 issues found. (ran in 4.4s)
+$ cd D:\programing\core_node\poly_apps\flutter_bloom && flutter analyze lib/apps/app_wuy
+Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
+Analyzing app_wuy...                                            
+
+   info - Dangling library doc comment - lib\apps\app_wuy\config_app_wuy\api_data_models_app_wuy.dart:14:1 - dangling_library_doc_comments
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\about\views\about_screen.dart:78:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\about\views\about_screen.dart:101:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\chat\views\chat_screen.dart:291:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\dashboard\views\dashboard_screen.dart:88:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\friends\views\add_friend_screen.dart:104:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\friends\views\add_friend_screen.dart:122:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\friends\views\friend_info_screen.dart:87:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\friends\views\friend_info_screen.dart:105:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\friends\views\friend_info_screen.dart:125:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\friends\views\friend_info_screen.dart:183:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\friends\views\friend_info_screen.dart:243:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\history\views\history_tracking_screen.dart:123:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\history\views\history_tracking_screen.dart:141:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\history\views\history_tracking_screen.dart:175:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\history\views\history_tracking_screen.dart:240:26 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\map\views\map_screen.dart:80:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\map\views\map_screen.dart:93:37 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\map\views\map_screen.dart:208:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\network\views\network_records_screen.dart:128:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\network\views\network_records_screen.dart:146:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\network\views\network_records_screen.dart:180:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\network\views\network_records_screen.dart:247:26 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\network\views\network_records_screen.dart:283:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\profile\views\personal_info_screen.dart:115:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\profile\views\personal_info_screen.dart:147:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\search\views\search_screen.dart:168:74 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\search\views\search_screen.dart:223:74 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\search\views\search_screen.dart:278:51 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\features_app_wuy\search\views\search_screen.dart:284:54 - deprecated_member_use
+   info - Missing type annotation - lib\apps\app_wuy\features_app_wuy\splash\views\splash_screen.dart:31:3 - strict_top_level_inference
+  error - The name 'displayName' is already defined - lib\apps\app_wuy\models_app_wuy\friend_model_app_wuy.dart:126:14 - duplicate_definition
+  error - Undefined name 'nickname' - lib\apps\app_wuy\models_app_wuy\friend_model_app_wuy.dart:126:29 - undefined_identifier
+   info - The 'if' statement could be replaced by a null-aware assignment - lib\apps\app_wuy\providers_app_wuy\app_prefs_app_wuy.dart:34:5 - prefer_conditional_assignment
+   info - Use 'TypeName _' instead of a type literal - lib\apps\app_wuy\providers_app_wuy\app_prefs_app_wuy.dart:55:12 - type_literal_in_constant_pattern
+   info - Use 'TypeName _' instead of a type literal - lib\apps\app_wuy\providers_app_wuy\app_prefs_app_wuy.dart:57:12 - type_literal_in_constant_pattern
+   info - Use 'TypeName _' instead of a type literal - lib\apps\app_wuy\providers_app_wuy\app_prefs_app_wuy.dart:59:12 - type_literal_in_constant_pattern
+   info - Use 'TypeName _' instead of a type literal - lib\apps\app_wuy\providers_app_wuy\app_prefs_app_wuy.dart:61:12 - type_literal_in_constant_pattern
+   info - Use 'TypeName _' instead of a type literal - lib\apps\app_wuy\providers_app_wuy\app_prefs_app_wuy.dart:77:12 - type_literal_in_constant_pattern
+   info - Use 'TypeName _' instead of a type literal - lib\apps\app_wuy\providers_app_wuy\app_prefs_app_wuy.dart:79:12 - type_literal_in_constant_pattern
+   info - Use 'TypeName _' instead of a type literal - lib\apps\app_wuy\providers_app_wuy\app_prefs_app_wuy.dart:81:12 - type_literal_in_constant_pattern
+   info - Use 'TypeName _' instead of a type literal - lib\apps\app_wuy\providers_app_wuy\app_prefs_app_wuy.dart:83:12 - type_literal_in_constant_pattern
+   info - The constant name 'wuy_logo' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:20:23 - constant_identifier_names
+   info - The constant name 'wuy_app_icon' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:21:23 - constant_identifier_names
+   info - The constant name 'wuy_home' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:24:23 - constant_identifier_names
+   info - The constant name 'wuy_profile' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:25:23 - constant_identifier_names
+   info - The constant name 'wuy_settings' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:26:23 - constant_identifier_names
+   info - The constant name 'wuy_dashboard' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:27:23 - constant_identifier_names
+   info - The constant name 'wuy_search' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:30:23 - constant_identifier_names
+   info - The constant name 'wuy_notification' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:31:23 - constant_identifier_names
+   info - The constant name 'wuy_menu' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:32:23 - constant_identifier_names
+   info - The constant name 'wuy_back' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:33:23 - constant_identifier_names
+   info - The constant name 'wuy_user' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:36:23 - constant_identifier_names
+   info - The constant name 'wuy_guest' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:37:23 - constant_identifier_names
+   info - The constant name 'wuy_success' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:40:23 - constant_identifier_names
+   info - The constant name 'wuy_error' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:41:23 - constant_identifier_names
+   info - The constant name 'wuy_warning' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:42:23 - constant_identifier_names
+   info - The constant name 'wuy_info' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_icons_app_wuy.dart:43:23 - constant_identifier_names
+   info - The constant name 'wuy_splash_background' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:20:23 - constant_identifier_names
+   info - The constant name 'wuy_home_background' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:21:23 - constant_identifier_names
+   info - The constant name 'wuy_login_background' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:22:23 - constant_identifier_names
+   info - The constant name 'wuy_avatar_placeholder' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:25:23 - constant_identifier_names
+   info - The constant name 'wuy_image_placeholder' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:26:23 - constant_identifier_names
+   info - The constant name 'wuy_banner_placeholder' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:27:23 - constant_identifier_names
+   info - The constant name 'wuy_empty_state' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:30:23 - constant_identifier_names
+   info - The constant name 'wuy_error_state' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:31:23 - constant_identifier_names
+   info - The constant name 'wuy_no_internet' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:32:23 - constant_identifier_names
+   info - The constant name 'wuy_maintenance' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:33:23 - constant_identifier_names
+   info - The constant name 'wuy_onboarding_1' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:36:23 - constant_identifier_names
+   info - The constant name 'wuy_onboarding_2' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:37:23 - constant_identifier_names
+   info - The constant name 'wuy_onboarding_3' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_images_app_wuy.dart:38:23 - constant_identifier_names
+   info - The constant name 'wuy_launch' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_launch_app_wuy.dart:20:23 - constant_identifier_names
+   info - The constant name 'wuy_dark_launch' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_launch_app_wuy.dart:21:23 - constant_identifier_names
+   info - The constant name 'wuy_light_launch' isn't a lowerCamelCase identifier - lib\apps\app_wuy\resources_app_wuy\assets_launch_app_wuy.dart:22:23 - constant_identifier_names
+   info - The private field _chatOnlineStatus could be 'final' - lib\apps\app_wuy\services_app_wuy\wuy_data_center.dart:40:21 - prefer_final_fields
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:58:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:66:32 - deprecated_member_use
+   info - 'MaterialStateProperty' is deprecated and shouldn't be used. Use WidgetStateProperty instead. Moved to the Widgets layer to make code available outside of Material. This feature was deprecated after v3.19.0-0.3.pre - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:157:17 - deprecated_member_use
+   info - 'MaterialState' is deprecated and shouldn't be used. Use WidgetState instead. Moved to the Widgets layer to make code available outside of Material. This feature was deprecated after v3.19.0-0.3.pre - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:158:27 - deprecated_member_use
+   info - 'MaterialStateProperty' is deprecated and shouldn't be used. Use WidgetStateProperty instead. Moved to the Widgets layer to make code available outside of Material. This feature was deprecated after v3.19.0-0.3.pre - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:163:17 - deprecated_member_use
+   info - 'MaterialState' is deprecated and shouldn't be used. Use WidgetState instead. Moved to the Widgets layer to make code available outside of Material. This feature was deprecated after v3.19.0-0.3.pre - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:164:27 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:165:32 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:167:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:238:29 - deprecated_member_use
+   info - 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:271:5 - deprecated_member_use
+   info - 'onBackground' is deprecated and shouldn't be used. Use onSurface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:276:5 - deprecated_member_use
+   info - 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:306:7 - deprecated_member_use
+   info - 'onBackground' is deprecated and shouldn't be used. Use onSurface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\apps\app_wuy\theme_app_wuy\theme_config_app_wuy.dart:308:7 - deprecated_member_use
+
+88 issues found. (ran in 7.0s)
