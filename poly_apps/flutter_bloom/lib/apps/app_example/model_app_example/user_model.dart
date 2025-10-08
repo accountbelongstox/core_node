@@ -10,42 +10,71 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+import 'package:qyflutter/common/provider_status/user_provider.dart';
+
 // CREATED BY: AI Assistant for Example App-specific UserModel
 // NOTE FOR OTHER AIs: This is Example App-specific UserModel, not a common one
 // Each app should have its own UserModel with app-specific fields
 
 /// Example App specific User Model
 /// Contains user data specific to Example application
-class UserModel {
-  String? id;
+class UserModel extends BaseUserModel {
+  @override
+  int? id;
+  @override
   String name;
+  @override
   String? nickname;
+  @override
   String? username;
+  @override
   String? avatar;
+  @override
   String? about;
+  @override
   String? followers;
+  @override
   String? website;
+  @override
   String? github;
+  @override
   String? wechat;
+  @override
   String? weibo;
+  @override
   String? qq;
+  @override
   String? age;
+  @override
   String? gender;
+  @override
   String? birthday;
+  @override
   String? city;
+  @override
   String? education;
+  @override
   String? occupation;
+  @override
   String? language;
+  @override
   String? religion;
+  @override
   int? roleLevel;
+  @override
   String? roleName;
+  @override
   String email;
   String? phone;
   String? bio;
-  String? emailVerifiedAt;
-  String? createdAt;
-  String? updatedAt;
+  @override
+  DateTime? emailVerifiedAt;
+  @override
+  DateTime? createdAt;
+  @override
+  DateTime? updatedAt;
   String? token;
+  @override
   String? userToken;
   String? tokenType;
   String? expiration;
@@ -94,39 +123,77 @@ class UserModel {
     this.learningGoals,
     this.studyStreak,
     this.preferences,
-  });
+  }) : super(
+          id: id,
+          name: name,
+          nickname: nickname,
+          username: username,
+          email: email,
+          emailVerifiedAt: emailVerifiedAt,
+          avatar: avatar,
+          about: about,
+          followers: followers,
+          website: website,
+          github: github,
+          wechat: wechat,
+          weibo: weibo,
+          qq: qq,
+          age: age,
+          gender: gender,
+          birthday: birthday,
+          city: city,
+          education: education,
+          occupation: occupation,
+          language: language,
+          religion: religion,
+          roleLevel: roleLevel,
+          roleName: roleName,
+          userToken: userToken,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+        );
 
   UserModel.fromJson(Map<String, dynamic> json)
       : name = json['name'] ?? '',
-        email = json['email'] ?? '' {
-    id = json['id'];
-    nickname = json['nickname'];
-    username = json['username'];
-    avatar = json['avatar'];
-    about = json['about'];
-    followers = json['followers'];
-    website = json['website'];
-    github = json['github'];
-    wechat = json['wechat'];
-    weibo = json['weibo'];
-    qq = json['qq'];
-    age = json['age'];
-    gender = json['gender'];
-    birthday = json['birthday'];
-    city = json['city'];
-    education = json['education'];
-    occupation = json['occupation'];
-    language = json['language'];
-    religion = json['religion'];
-    roleLevel = json['role_level'];
-    roleName = json['role_name'];
+        email = json['email'] ?? '',
+        super(
+          id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
+          name: json['name'] ?? '',
+          nickname: json['nickname'],
+          username: json['username'],
+          email: json['email'] ?? '',
+          emailVerifiedAt: json['email_verified_at'] != null 
+              ? DateTime.tryParse(json['email_verified_at']) 
+              : null,
+          avatar: json['avatar'],
+          about: json['about'],
+          followers: json['followers'],
+          website: json['website'],
+          github: json['github'],
+          wechat: json['wechat'],
+          weibo: json['weibo'],
+          qq: json['qq'],
+          age: json['age'],
+          gender: json['gender'],
+          birthday: json['birthday'],
+          city: json['city'],
+          education: json['education'],
+          occupation: json['occupation'],
+          language: json['language'],
+          religion: json['religion'],
+          roleLevel: json['role_level'],
+          roleName: json['role_name'],
+          userToken: json['user_token'],
+          createdAt: json['created_at'] != null 
+              ? DateTime.tryParse(json['created_at']) 
+              : null,
+          updatedAt: json['updated_at'] != null 
+              ? DateTime.tryParse(json['updated_at']) 
+              : null,
+        ) {
     phone = json['phone'];
     bio = json['bio'];
-    emailVerifiedAt = json['email_verified_at'];
-    createdAt = json['created_at'];
-    updatedAt = json['updated_at'];
     token = json['token'];
-    userToken = json['user_token'];
     tokenType = json['token_type'];
     expiration = json['expiration'];
     
@@ -187,7 +254,7 @@ class UserModel {
 
   /// Create a copy of UserModel with updated fields
   UserModel copyWith({
-    String? id,
+    int? id,
     String? name,
     String? nickname,
     String? username,
@@ -212,9 +279,9 @@ class UserModel {
     String? email,
     String? phone,
     String? bio,
-    String? emailVerifiedAt,
-    String? createdAt,
-    String? updatedAt,
+    DateTime? emailVerifiedAt,
+    DateTime? createdAt,
+    DateTime? updatedAt,
     String? token,
     String? userToken,
     String? tokenType,

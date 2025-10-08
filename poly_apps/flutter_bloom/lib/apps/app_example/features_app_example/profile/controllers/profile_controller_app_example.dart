@@ -92,7 +92,7 @@ class ProfileControllerAppExample extends GetxController {
 
     // Initialize user API service with context
     if (Get.context != null) {
-      _userApiService = UserApiAppExampleService.withContext(Get.context!);
+      _userApiService = UserApiAppExampleService(Get.context!);
     }
   }
 
@@ -121,11 +121,11 @@ class ProfileControllerAppExample extends GetxController {
 
       // Create a mock profile for now - this should come from API
       _currentProfile.value = UserModel(
-        id: '1',
+        id: 1,
         name: 'User Name',
         email: 'user@example.com',
         phone: '',
-        bio: '',
+        about: '',
         avatar: null,
       );
       _populateFormControllers();
@@ -317,7 +317,7 @@ class ProfileControllerAppExample extends GetxController {
       nameController.text = profile.name;
       emailController.text = profile.email;
       phoneController.text = profile.phone ?? '';
-      bioController.text = profile.bio ?? '';
+      bioController.text = profile.about ?? '';
     }
   }
 
@@ -327,8 +327,8 @@ class ProfileControllerAppExample extends GetxController {
       name: nameController.text.trim(),
       email: emailController.text.trim(),
       phone: phoneController.text.trim(),
-      bio: bioController.text.trim(),
-      updatedAt: DateTime.now().toIso8601String(),
+      about: bioController.text.trim(),
+      updatedAt: DateTime.now(),
     );
   }
 

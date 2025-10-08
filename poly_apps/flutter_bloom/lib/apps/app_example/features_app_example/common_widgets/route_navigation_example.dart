@@ -11,7 +11,6 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/common/router/route_manager.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
@@ -47,7 +46,7 @@ class RouteNavigationExample extends StatelessWidget {
           children: [
             Text(
               'Route Keys Management',
-              style: ThemeTextStyles.headlineSmall,
+              style: ThemeTextStyles.titleLarge,
             ),
             SizedBox(height: ThemeDimensions.spacing16),
             Text(
@@ -127,7 +126,7 @@ class RouteNavigationExample extends StatelessWidget {
           ],
         ),
         trailing: ElevatedButton(
-          onPressed: () => RouteManager.goTo(context, routePath),
+          onPressed: () => Navigator.pushNamed(context, routePath),
           child: const Text('Go'),
         ),
       ),

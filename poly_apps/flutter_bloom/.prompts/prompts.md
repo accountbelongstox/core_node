@@ -34,57 +34,16 @@
 D:\programing\core_node\poly_apps\flutter_bloom\debug.txt  显然还有很多问题，但这只是告诉你还有很多问题，并不是让你根据错误不顾及代码的整体性修复，而是要 再检查一下遗漏，你看看api的配置应该如何放到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_achat 基对应的域名是https://api.si.12gm.com  对应的后端为 D:\programing\core_node\poly_apps\laravel_main\app\Apps\BankV1  后端文档参考 D:\programing\core_node\poly_apps\laravel_main\development-guides\LARAVEL_GUIDE_THIS_FILE_NO_AI_EDIT.md ，总之现在是跨越app的数据一至性开发。D:\programing\core_node\poly_apps\laravel_main\laravel_main_tree.md  目前flutter的后端已经有了，但这个功能中包括登陆等去掉，目前并前端是一个测试APP并不需要 登陆， 只需要 心跳API，以及修改信息后上传到API，以及前端会生成一个毓信息，当然你要先整体查看一下代码，你需要 聚合优化以前的代码，而不是不读取以前的代码就直接开写。同时在fluuter端你要引用 D:\programing\core_node\poly_apps\flutter_bloom\lib\common
 
 
-│   ├── network/
-│   │   ├── auth/
-│   │   │   └── unified_auth_manager.dart
-│   │   ├── client/
-│   │   │   ├── enhanced_http_client.dart
-│   │   │   └── legacy_network_client.dart
-│   │   ├── core/
-│   │   │   ├── endpoint_network_models.dart
-│   │   │   ├── network_config.dart
-│   │   │   ├── network_queue_and_offline.dart
-│   │   │   ├── network_retry_manager.dart
-│   │   │   ├── network_service_locator.dart
-│   │   │   ├── network_types.dart
-│   │   │   └── unified_network_client.dart
-│   │   ├── doc/
-│   │   │   ├── REFACTORING_LOG.md
-│   │   │   └── REFACTORING_SUMMARY.md
-│   │   ├── endpoints/
-│   │   │   ├── endpoint_config.dart
-│   │   │   └── laravel_endpoints.dart
-│   │   ├── integration/
-│   │   │   └── network_user_integration.dart
-│   │   ├── interceptors/
-│   │   │   ├── auth_interceptor.dart
-│   │   │   ├── error_interceptor.dart
-│   │   │   ├── logging_interceptor.dart
-│   │   │   └── network_interceptors.dart
-│   │   ├── loading/
-│   │   │   └── loading_manager.dart
-│   │   ├── models/
-│   │   │   ├── api_config.dart
-│   │   │   ├── api_response.dart
-│   │   │   └── enhanced_api_response.dart
-│   │   ├── parsers/
-│   │   │   └── adaptive_data_parser.dart
-│   │   ├── queue/
-│   │   │   └── request_queue.dart
-│   │   ├── security/
-│   │   │   └── device_security_manager.dart
-│   │   ├── services/
-│   │   │   ├── advanced_network_service.dart
-│   │   │   ├── base_service.dart
-│   │   │   └── enhanced_base_service.dart
-│   │   ├── storage/
-│   │   │   └── secure_storage.dart
-│   │   ├── ui/
-│   │   │   └── global_loading_system.dart
-│   │   ├── utils/
-│   │   │   └── network_utils.dart
-│   │   ├── widgets/
-│   │   │   └── adaptive_loading_widgets.dart
-│   │   ├── network_framework.dart
+For the code present, we get this error:
+```
+The argument type 'AuthMetadata (where AuthMetadata is defined in D:\programing\core_node\poly_apps\flutter_bloom\lib\common\network\core\network_types.dart)' can't be assigned to the parameter type 'AuthMetadata (where AuthMetadata is defined in D:\programing\core_node\poly_apps\flutter_bloom\lib\common\provider_status\user_provider.dart)'. 
+```
+How can I resolve this? If you propose a fix, please make it concise.
+For the code present, we get this error:
+```
+The name 'CacheManager' is defined in the libraries 'package:qyflutter/common/cache_manager/cache_manager.dart' and 'package:qyflutter/common/network/core/network_types.dart'.
+Try using 'as prefix' for one of the import directives, or hiding the name from all but one of the imports.
+```
+How can I resolve this? If you propose a fix, please make it concise.
 
-继续深入分析， 整体看一下有没有冗余代码，以及有没有重复定义的功能，以及有没有不合理之处。 结果更新在 D:\programing\core_node\poly_apps\flutter_bloom\lib\common\network\doc\REFACTORING_LOG.md
+D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_example\error.txt 你先查看错误，然后了解一下项目的结构，D:\programing\core_node\poly_apps\flutter_bloom\lib\lib_tree.md 然后进行修复，注意，你能单独的修复一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范可以查看 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md

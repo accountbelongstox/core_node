@@ -3,6 +3,7 @@
 
 import 'package:flutter/foundation.dart';
 import '../auth/unified_auth_manager.dart';
+import '../core/network_types.dart' as network_types;
 import '../../provider_status/user_provider.dart';
 
 /// Network User Integration Manager
@@ -41,7 +42,7 @@ class NetworkUserIntegration {
 
     // Update auth manager based on user provider auth metadata
     switch (authMetadata.authType) {
-      case AuthType.jwt:
+      case network_types.AuthType.jwt:
         if (authMetadata.jwtToken != null) {
           authManager.setToken(
             authMetadata.jwtToken!,
@@ -50,7 +51,7 @@ class NetworkUserIntegration {
           );
         }
         break;
-      case AuthType.clientId:
+      case network_types.AuthType.clientId:
         if (authMetadata.clientId != null) {
           authManager.setClientCredentials(
             authMetadata.clientId!,
@@ -58,27 +59,30 @@ class NetworkUserIntegration {
           );
         }
         break;
-      case AuthType.session:
+      case network_types.AuthType.clientKey:
+        // Handle client key authentication
+        break;
+      case network_types.AuthType.session:
         if (authMetadata.sessionId != null) {
           authManager.setSessionId(authMetadata.sessionId!);
         }
         break;
-      case AuthType.custom:
+      case network_types.AuthType.custom:
         if (authMetadata.customHeaders != null) {
           authManager.setCustomAuthFields(authMetadata.customHeaders!);
         }
         break;
-      case AuthType.headerKey:
+      case network_types.AuthType.headerKey:
         if (authMetadata.headerKey != null && authMetadata.headerValue != null) {
           authManager.setCustomAuthFields({
             authMetadata.headerKey!: authMetadata.headerValue!,
           });
         }
         break;
-      case AuthType.none:
+      case network_types.AuthType.none:
         // No action needed
         break;
-      case AuthType.multiple:
+      case network_types.AuthType.multiple:
         // Handle multiple auth types
         if (authMetadata.jwtToken != null) {
           authManager.setToken(
@@ -110,7 +114,7 @@ class NetworkUserIntegration {
 
     // Update user provider
     _userProvider!.updateAuthMetadata(
-      authType: AuthType.jwt,
+      authType: network_types.AuthType.jwt,
       jwtToken: token,
       refreshToken: refreshToken,
       expiresAt: expiresAt,
@@ -135,7 +139,7 @@ class NetworkUserIntegration {
 
     // Update user provider
     _userProvider!.updateAuthMetadata(
-      authType: AuthType.clientId,
+      authType: network_types.AuthType.clientId,
       clientId: clientId,
       headerKey: headerKey ?? 'X-Client-ID',
       isAuthenticated: true,
@@ -155,7 +159,7 @@ class NetworkUserIntegration {
 
     // Update user provider
     _userProvider!.updateAuthMetadata(
-      authType: AuthType.headerKey,
+      authType: network_types.AuthType.headerKey,
       headerKey: headerKey,
       headerValue: headerValue,
       isAuthenticated: true,
@@ -177,7 +181,7 @@ class NetworkUserIntegration {
 
     // Update user provider
     _userProvider!.updateAuthMetadata(
-      authType: AuthType.session,
+      authType: network_types.AuthType.session,
       sessionId: sessionId,
       expiresAt: expiresAt,
       isAuthenticated: true,
@@ -196,7 +200,7 @@ class NetworkUserIntegration {
 
     // Update user provider
     _userProvider!.updateAuthMetadata(
-      authType: AuthType.custom,
+      authType: network_types.AuthType.custom,
       customHeaders: customHeaders,
       isAuthenticated: true,
       authenticatedAt: DateTime.now(),

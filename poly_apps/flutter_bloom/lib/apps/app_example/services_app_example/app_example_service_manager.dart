@@ -11,66 +11,48 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import '../../../common/controller/auth_controller.dart';
-import '../config_app_example/api_config_app_example.dart';
+import '../../../common/network/network_framework.dart';
 import 'auth_api_app_example_service.dart';
 import 'user_api_app_example_service.dart';
 import 'product_api_app_example_service.dart';
 
-/// Service manager that coordinates all API services with shared authentication
+/// Service manager that coordinates all API services with the new network framework
 /// This is the recommended way to use the API services in your app
 class AppExampleServiceManager {
   final BuildContext context;
-  late final AuthObject _sharedAuthObject;
   late final AuthApiAppExampleService _authService;
   late final UserApiAppExampleService _userService;
   late final ProductApiAppExampleService _productService;
 
   AppExampleServiceManager({required this.context}) {
-    // Create shared auth object
-    _sharedAuthObject = AuthController.createAuthObject(
-      apiConfig: AppEnvironmentConfig.currentApiConfig,
-      authEndpoints: ApiConfigAppExample.authEndpoints,
-      userDataParser: ApiConfigAppExample.parseUserFromResponse,
-      tokenExtractor: ApiConfigAppExample.extractTokenFromResponse,
-      tokenTypeExtractor: ApiConfigAppExample.extractTokenTypeFromResponse,
-      expirationExtractor: ApiConfigAppExample.extractExpirationFromResponse,
-      messageExtractor: ApiConfigAppExample.extractMessageFromResponse,
-      errorExtractor: ApiConfigAppExample.extractErrorFromResponse,
-      context: context,
-    );
-    
-    // Create services with shared auth object
+    // Create services with the new network framework
     _authService = AuthApiAppExampleService(context: context);
-    _userService = UserApiAppExampleService.withSharedAuth(_sharedAuthObject);
-    _productService = ProductApiAppExampleService.withSharedAuth(_sharedAuthObject);
+    _userService = UserApiAppExampleService(context);
+    _productService = ProductApiAppExampleService(context);
   }
 
   
   AuthApiAppExampleService get auth => _authService;
   UserApiAppExampleService get user => _userService;
   ProductApiAppExampleService get product => _productService;
-  AuthObject get authObject => _sharedAuthObject;
 
-  
   /// Check if user is authenticated across all services
-  bool get isAuthenticated => _sharedAuthObject.isLoggedIn();
+  bool get isAuthenticated => _authService.isLoggedIn;
   
   /// Get current user info
-  Map<String, dynamic>? get currentUser => _sharedAuthObject.getUserInfo();
+  Map<String, dynamic>? get currentUser => _authService.getQyUserInfo();
   
   /// Get username
-  String? get username => _sharedAuthObject.getUsername();
+  String? get username => _authService.getUsername();
   
   /// Get user email
-  String? get userEmail => _sharedAuthObject.getUserEmail();
+  String? get userEmail => _authService.getUserEmail();
   
   /// Get user display name
-  String? get userDisplayName => _sharedAuthObject.getUserDisplayName();
+  String? get userDisplayName => _authService.getUsername();
 
-  
   /// Login user
-  Future<AuthResult> login({
+  Future<NetworkResponse<Map<String, dynamic>>> login({
     required String username,
     required String password,
     bool remember = false,
@@ -83,7 +65,7 @@ class AppExampleServiceManager {
   }
   
   /// Register user
-  Future<AuthResult> register({
+  Future<NetworkResponse<Map<String, dynamic>>> register({
     required String email,
     required String password,
     required String username,
@@ -100,7 +82,7 @@ class AppExampleServiceManager {
   }
   
   /// Logout user
-  Future<AuthResult> logout() async {
+  Future<NetworkResponse<Map<String, dynamic>>> logout() async {
     return await _authService.logout();
   }
 
@@ -109,9 +91,9 @@ class AppExampleServiceManager {
   Map<String, dynamic> getServiceStatus() {
     return {
       'manager': 'AppExampleServiceManager',
-      'shared_auth_status': _sharedAuthObject.getAuthStatus(),
+      'auth_status': isAuthenticated,
       'services': {
-        'auth': _authService.getAuthStatus(),
+        'auth': _authService.getServiceStatus(),
         'user': _userService.getServiceStatus(),
         'product': _productService.getServiceStatus(),
       },
@@ -120,15 +102,14 @@ class AppExampleServiceManager {
   
   /// Clear all caches
   void clearAllCaches() {
-    _sharedAuthObject.clearCache();
+    // Services handle their own cache management
   }
   
   /// Dispose all resources
   void dispose() {
     _authService.dispose();
-    _userService.clearCache();
-    _productService.clearCache();
-    _sharedAuthObject.dispose();
+    _userService.dispose();
+    _productService.dispose();
   }
 }
 
@@ -176,7 +157,7 @@ class _AppExampleUsageWidgetState extends State<AppExampleUsageWidget> {
         print('Content list: ${contentList.length} items');
       } else {
         setState(() {
-          errorMessage = result.error;
+          errorMessage = result.message ?? 'Login failed';
         });
       }
     } catch (e) {
@@ -276,7 +257,7 @@ class AppExampleUsageExamples {
       final userProfile = await serviceManager.user.getUserProfile();
       final contentList = await serviceManager.product.getContentList();
       
-      print('User: ${userProfile?.displayName}');
+      print('User: ${userProfile?.username}');
       print('Content count: ${contentList.length}');
     }
     
@@ -296,15 +277,15 @@ class AppExampleUsageExamples {
     );
     
     if (loginResult.isSuccess) {
-      // Create other services with shared auth object
-      final userService = UserApiAppExampleService.withSharedAuth(authService.authObject);
-      final productService = ProductApiAppExampleService.withSharedAuth(authService.authObject);
+      // Create other services
+      final userService = UserApiAppExampleService(context);
+      final productService = ProductApiAppExampleService(context);
       
       // Use services
       final userProfile = await userService.getUserProfile();
       final contentList = await productService.getContentList();
       
-      print('User: ${userProfile?.displayName}');
+      print('User: ${userProfile?.username}');
       print('Content count: ${contentList.length}');
     }
     

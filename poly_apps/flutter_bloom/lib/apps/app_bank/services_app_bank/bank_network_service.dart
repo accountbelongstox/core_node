@@ -13,7 +13,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../common/network/network_framework.dart';
-import '../../../common/network/integration/network_user_integration.dart';
 import '../config_app_bank/api_config_app_bank.dart';
 import '../config_app_bank/bank_endpoint_config.dart';
 import '../providers_app_bank/bank_user_provider.dart';
@@ -27,6 +26,7 @@ class BankNetworkService extends AdvancedNetworkService {
 
   BankUserProvider? _userProvider;
   bool _isIntegrationInitialized = false;
+  final GlobalLoadingSystem _loadingManager = GlobalLoadingSystem.instance;
 
   @override
   String get serviceName => 'BankNetworkService';
@@ -69,10 +69,6 @@ class BankNetworkService extends AdvancedNetworkService {
     return true;
   }
 
-  /// Get authentication headers from user provider
-  Map<String, String> _getAuthHeaders() {
-    return _userProvider?.getAuthHeaders() ?? {};
-  }
 
   // Authentication methods
   Future<NetworkResponse<LoginResponseAppBank>> login({
@@ -407,10 +403,35 @@ class BankNetworkService extends AdvancedNetworkService {
     
     if (response.isSuccess && response.data != null) {
       final history = response.data!['history'] as List<dynamic>? ?? [];
-      return response.copyWith<List<dynamic>>(data: history);
+      return NetworkResponse<List<dynamic>>(
+        data: history,
+        statusCode: response.statusCode,
+        message: response.message,
+        error: response.error,
+        headers: response.headers,
+        isFromCache: response.isFromCache,
+        isStale: response.isStale,
+        isOffline: response.isOffline,
+        timestamp: response.timestamp,
+        latency: response.latency,
+        retryCount: response.retryCount,
+        metadata: response.metadata,
+      );
     }
     
-    return response.copyWith<List<dynamic>>();
+    return NetworkResponse<List<dynamic>>(
+      statusCode: response.statusCode,
+      message: response.message,
+      error: response.error,
+      headers: response.headers,
+      isFromCache: response.isFromCache,
+      isStale: response.isStale,
+      isOffline: response.isOffline,
+      timestamp: response.timestamp,
+      latency: response.latency,
+      retryCount: response.retryCount,
+      metadata: response.metadata,
+    );
   }
 
   Future<NetworkResponse<Map<String, dynamic>>> getAccountDetails() async {
@@ -428,10 +449,35 @@ class BankNetworkService extends AdvancedNetworkService {
     
     if (response.isSuccess && response.data != null) {
       final transactions = response.data!['transactions'] as List<dynamic>? ?? [];
-      return response.copyWith<List<dynamic>>(data: transactions);
+      return NetworkResponse<List<dynamic>>(
+        data: transactions,
+        statusCode: response.statusCode,
+        message: response.message,
+        error: response.error,
+        headers: response.headers,
+        isFromCache: response.isFromCache,
+        isStale: response.isStale,
+        isOffline: response.isOffline,
+        timestamp: response.timestamp,
+        latency: response.latency,
+        retryCount: response.retryCount,
+        metadata: response.metadata,
+      );
     }
     
-    return response.copyWith<List<dynamic>>();
+    return NetworkResponse<List<dynamic>>(
+      statusCode: response.statusCode,
+      message: response.message,
+      error: response.error,
+      headers: response.headers,
+      isFromCache: response.isFromCache,
+      isStale: response.isStale,
+      isOffline: response.isOffline,
+      timestamp: response.timestamp,
+      latency: response.latency,
+      retryCount: response.retryCount,
+      metadata: response.metadata,
+    );
   }
 
   Future<NetworkResponse<Map<String, dynamic>>> transfer({
@@ -496,16 +542,20 @@ class BankNetworkService extends AdvancedNetworkService {
     String? deviceId,
     String? appSignature,
   }) async {
-    return await withLoading<LoginResponseAppBank>(
-      () => login(
+    // Show loading
+    _loadingManager.show(message: 'Logging in...', type: LoadingType.request);
+    
+    try {
+      final response = await login(
         username: username,
         password: password,
         deviceId: deviceId,
         appSignature: appSignature,
-      ),
-      loadingMessage: 'Logging in...',
-      loadingType: LoadingType.auth,
-    );
+      );
+      return response;
+    } finally {
+      _loadingManager.hide();
+    }
   }
 
   Future<NetworkResponse<Map<String, dynamic>>> transferWithLoading({
@@ -514,15 +564,19 @@ class BankNetworkService extends AdvancedNetworkService {
     String? description,
     String? transferType,
   }) async {
-    return await withLoading<Map<String, dynamic>>(
-      () => transfer(
+    // Show loading
+    _loadingManager.show(message: 'Processing transfer...', type: LoadingType.request);
+    
+    try {
+      final response = await transfer(
         toAccount: toAccount,
         amount: amount,
         description: description,
         transferType: transferType,
-      ),
-      loadingMessage: 'Processing transfer...',
-      loadingType: LoadingType.request,
-    );
+      );
+      return response;
+    } finally {
+      _loadingManager.hide();
+    }
   }
 }

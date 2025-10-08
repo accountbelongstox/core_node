@@ -14,7 +14,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localization/flutter_localization.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/apps/app_example/controller_app_example/settings_controller_app_example.dart';
-import 'package:qyflutter/apps/app_example/localization_app_example/localization_manager_app_example.dart';
+
+// Placeholder for localization manager
+class LocalizationManagerAppExample {
+  static LocalizationManagerAppExample get instance => LocalizationManagerAppExample._();
+  LocalizationManagerAppExample._();
+  
+  String get language => 'Language';
+}
 
 class LanguageSelector extends StatelessWidget {
   const LanguageSelector({Key? key}) : super(key: key);

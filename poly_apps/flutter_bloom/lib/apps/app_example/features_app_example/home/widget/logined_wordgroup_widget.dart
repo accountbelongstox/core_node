@@ -12,9 +12,69 @@
 
 import 'dart:developer';
 import 'package:flutter/material.dart';
-import 'package:qyflutter/common/network/api_group.dart';
+import 'package:qyflutter/common/network/network_framework.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+
+// Placeholder classes for app_example specific functionality
+class WordGroup {
+  final String id;
+  final String gname;
+  final String description;
+  final int totalWords;
+  final List<String> gwords;
+  
+  WordGroup({
+    required this.id,
+    required this.gname,
+    required this.description,
+    required this.totalWords,
+    required this.gwords,
+  });
+  
+  factory WordGroup.fromJson(Map<String, dynamic> json) {
+    return WordGroup(
+      id: json['id']?.toString() ?? '',
+      gname: json['gname'] ?? json['name'] ?? '',
+      description: json['description'] ?? '',
+      totalWords: json['total_words'] ?? json['word_count'] ?? 0,
+      gwords: (json['gwords'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+    );
+  }
+}
+
+class GroupApi extends AdvancedNetworkService {
+  GroupApi(BuildContext context) : super();
+  
+  @override
+  String get serviceName => 'GroupApi';
+  
+  @override
+  ApiConfig get apiConfig => ApiConfig.jwtAuth(
+    baseUrl: 'https://api.example.com',
+    responseValidation: ResponseValidationConfig.defaultConfig(),
+  );
+  
+  @override
+  EndpointConfig get endpointConfig => EndpointConfig(appName: 'app_example');
+  
+  Future<List<WordGroup>> getWordGroups() async {
+    try {
+      final response = await get('word-groups');
+      if (response.isSuccess && response.data != null) {
+        final List<dynamic> groups = response.data!['groups'] ?? [];
+        return groups.map((json) => WordGroup.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  Future<List<WordGroup>> fetchWordGroups() async {
+    return getWordGroups();
+  }
+}
 
 class LoginedWordGroupWidget extends StatefulWidget {
   const LoginedWordGroupWidget({super.key});

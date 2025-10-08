@@ -258,16 +258,16 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
         checked ?? false,
       );
 
-      if (response.statusCode == 200) {
+      if (response.isSuccess) {
         // Save credentials first if remember me is checked
         await _saveCredentials();
 
         // Create user model from response
-        final userData = response.body['user'] as Map<String, dynamic>;
+        final userData = response.data!['user'] as Map<String, dynamic>;
         final user = UserModel.fromJson(userData);
-        user.token = response.body['token'];
-        user.tokenType = response.body['token_type'];
-        user.expiration = response.body['expiration']?.toString();
+        user.token = response.data!['token'];
+        user.tokenType = response.data!['token_type'];
+        user.expiration = response.data!['expiration']?.toString();
 
         // Update user provider
         userProvider.setUser(user);
@@ -288,7 +288,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
       } else {
         if (mounted) {
           setState(() {
-            _infoMessage = response.statusText ?? 'login.failed'.tr(context);
+            _infoMessage = response.message ?? 'login.failed'.tr(context);
             _isError = true;
           });
         }
@@ -365,7 +365,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
         }
       } else {
         setState(() {
-          _infoMessage = response.statusText ?? 'signup.failed'.tr(context);
+          _infoMessage = response.message ?? 'signup.failed'.tr(context);
           _isError = true;
         });
       }

@@ -38,6 +38,9 @@
 
 library network_framework;
 
+import 'core/network_types.dart' as network_types;
+import '../cache_manager/cache_manager.dart';
+
 // FIXED: Resolved export conflicts by hiding duplicate type definitions
 // Core exports - network_types.dart is the primary source for shared types
 export 'core/network_types.dart'; // Primary source for all shared types
@@ -142,7 +145,7 @@ class NetworkFramework {
     int? maxConcurrentRequests,
     int? maxQueueSize,
     Map<String, String>? globalHeaders,
-    AuthConfig? authConfig,
+    network_types.AuthConfig? authConfig,
     bool? enableLogging,
     LogLevel? logLevel,
     bool? enableGlobalLoading,
@@ -217,7 +220,7 @@ class NetworkFramework {
     int? maxConcurrentRequests,
     int? maxQueueSize,
     Map<String, String>? globalHeaders,
-    AuthType? authType,
+    network_types.AuthType? authType,
     String? tokenKey,
     String? tokenPrefix,
     String? refreshTokenKey,

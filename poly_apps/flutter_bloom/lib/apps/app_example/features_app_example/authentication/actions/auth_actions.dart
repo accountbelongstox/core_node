@@ -60,11 +60,11 @@ class AuthActions {
           CacheOperations.set('remember_me', credentialsJson);
         }
 
-        final userData = response.body['user'] as Map<String, dynamic>;
+        final userData = response.data!['user'] as Map<String, dynamic>;
         final user = UserModel.fromJson(userData);
-        user.token = response.body['token'];
-        user.tokenType = response.body['token_type'];
-        user.expiration = response.body['expiration']?.toString();
+        user.token = response.data!['token'];
+        user.tokenType = response.data!['token_type'];
+        user.expiration = response.data!['expiration']?.toString();
 
         // Fix: Use setAppUser method from ExampleUserProvider
         userProvider.setAppUser(profile: user);
@@ -73,7 +73,7 @@ class AuthActions {
         await Future.delayed(const Duration(milliseconds: 100));
         context.pushReplacement(ExampleAppRoutesProvider.routeHome);
       } else {
-        onResult(response.statusText ?? 'login.failed'.tr(context), true);
+        onResult(response.message ?? 'login.failed'.tr(context), true);
       }
     } catch (e) {
       debugPrint('Error logging in: $e');
@@ -112,12 +112,12 @@ class AuthActions {
         username: username,
       );
 
-      if (response.statusCode == 200) {
+      if (response.isSuccess) {
         onResult('signup.success'.tr(context), false);
         await Future.delayed(const Duration(milliseconds: 100));
         context.pushReplacement(ExampleAppRoutesProvider.routeCongratulations);
       } else {
-        onResult(response.statusText ?? 'signup.failed'.tr(context), true);
+        onResult(response.message ?? 'signup.failed'.tr(context), true);
       }
     } catch (e) {
       debugPrint('Error signing up: $e');

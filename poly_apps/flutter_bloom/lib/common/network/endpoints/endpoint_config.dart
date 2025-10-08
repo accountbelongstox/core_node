@@ -1,8 +1,8 @@
 import '../core/network_config.dart';
 // REFACTOR: Renamed network_models.dart to endpoint_network_models.dart
 import '../core/endpoint_network_models.dart';
-// REFACTOR: Import CancelToken from network_types.dart
-import '../core/network_types.dart' show CancelToken;
+// REFACTOR: Import all required types from network_types.dart
+import '../core/network_types.dart' show CancelToken, RequestType, AuthType, CacheStrategy, RequestPriority;
 import 'package:qyflutter/common/constants/app_constants.dart';
 
 /// Endpoint configuration for sub-applications
@@ -197,7 +197,7 @@ class EndpointDefinition {
     final group = getEffectiveGroup(config);
     if (group?.cacheStrategy != null) return group!.cacheStrategy!;
     
-    return CacheStrategy.both;
+    return CacheStrategy.cacheFirst;
   }
 
   /// Get effective max retries
