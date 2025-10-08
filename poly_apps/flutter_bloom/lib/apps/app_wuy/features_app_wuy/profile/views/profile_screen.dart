@@ -11,9 +11,13 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 class WuyProfileScreen extends StatelessWidget {
   const WuyProfileScreen({super.key});
@@ -24,7 +28,7 @@ class WuyProfileScreen extends StatelessWidget {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'Profile',
+          LocalizationKeysAppWuy.wuyProfileTitle.tr(context),
           style: ThemeTextStyles.displayMedium,
         ),
         backgroundColor: ThemeColors.primary,
@@ -82,13 +86,13 @@ class WuyProfileScreen extends StatelessWidget {
         padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
         child: Column(
           children: [
-            _buildInfoRow('Username', 'wuy_user'),
+            _buildInfoRow(LocalizationKeysAppWuy.wuyProfileUsername.tr(context), 'wuy_user'),
             Divider(),
-            _buildInfoRow('Email', 'user@wuyapp.com'),
+            _buildInfoRow(LocalizationKeysAppWuy.wuyProfileEmail.tr(context), 'user@wuyapp.com'),
             Divider(),
-            _buildInfoRow('Phone', '+1 234 567 8900'),
+            _buildInfoRow(LocalizationKeysAppWuy.wuyProfilePhone.tr(context), '+1 234 567 8900'),
             Divider(),
-            _buildInfoRow('Member Since', 'January 2024'),
+            _buildInfoRow(LocalizationKeysAppWuy.wuyProfileMemberSince.tr(context), 'January 2024'),
           ],
         ),
       ),
@@ -131,14 +135,14 @@ class WuyProfileScreen extends StatelessWidget {
             ),
           ),
           child: Text(
-            'Edit Profile',
+            LocalizationKeysAppWuy.wuyProfileEditProfile.tr(context),
             style: ThemeTextStyles.buttonLarge,
           ),
         ),
         SizedBox(height: ThemeDimensions.spacingMedium),
         OutlinedButton(
           onPressed: () {
-            Navigator.pushReplacementNamed(context, '/wuy/login');
+            context.go(WuyAppRouter.routeLoginEntry);
           },
           style: OutlinedButton.styleFrom(
             minimumSize: Size(double.infinity, 50),
@@ -147,7 +151,7 @@ class WuyProfileScreen extends StatelessWidget {
             ),
           ),
           child: Text(
-            'Sign Out',
+            LocalizationKeysAppWuy.wuyProfileLogout.tr(context),
             style: ThemeTextStyles.buttonLarge.copyWith(
               color: ThemeColors.error,
             ),

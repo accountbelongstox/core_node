@@ -17,7 +17,34 @@ class WuUserProvider extends EnhancedUserProvider {
   static const String _namespace = 'app_wuy';
   static const String _appProfileKey = 'app_wuy_profile';
 
-  WuUserProvider() : super(appNamespace: _namespace);
+  WuUserProvider() : super(appNamespace: _namespace) {
+    // Initialize with fake data for testing
+    _initializeFakeUser();
+  }
+
+  /// Initialize fake user for testing
+  void _initializeFakeUser() {
+    // Check if user is already authenticated
+    if (isAuthenticated) {
+      return;
+    }
+    
+    // Create a fake user for testing
+    final fakeUser = UserModelAppWuy(
+      id: 'test_user_001',
+      username: 'testuser',
+      nickname: '测试用户',
+      email: 'test@anwuyou.test',
+      phone: '13800138000',
+      avatar: 'assets/common/icons/people.png',
+      isOnline: true,
+      lastSeen: DateTime.now(),
+      createdAt: DateTime.now().subtract(const Duration(days: 30)),
+      updatedAt: DateTime.now(),
+    );
+    
+    setAppUser(profile: fakeUser);
+  }
 
   UserModelAppWuy? get appProfile {
     // Fix: Cast BaseUserModel? to LaravelUserModel? since user getter returns BaseUserModel

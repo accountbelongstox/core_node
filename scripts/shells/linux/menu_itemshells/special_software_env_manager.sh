@@ -56,6 +56,20 @@ test_admin_privileges() {
     [ "$EUID" -eq 0 ]
 }
 
+# Print colored text: $1=color (yellow/red/green), $2=message
+print_color() {
+    local color="$1"
+    local message="$2"
+    local code=""
+    case "$color" in
+        yellow) code='\033[33m' ;;
+        red)    code='\033[31m' ;;
+        green)  code='\033[32m' ;;
+        *)      code='' ;;
+    esac
+    echo -e "${code}${message}\033[0m"
+}
+
 ensure_array() {
     local input="$1"
     if [ -z "$input" ]; then
@@ -1072,14 +1086,233 @@ show_all_environment_variables() {
     read -n 1
 }
 
-# Main Menu for this script
+# Show scripts functionality (Linux equivalent of Windows View Scripts)
+show_list_scripts() {
+    local config_name="$1"
+
+    local command_prefix=$(get_command_prefix "$config_name")
+    if [[ -z "$command_prefix" ]]; then
+        print_color red "No command prefix found for $config_name"
+        return
+    fi
+
+    if [[ ! -d "$LINUX_ENVS_DIR" ]]; then
+        print_color red "$LINUX_ENVS_DIR directory not found"
+        return
+    fi
+
+    local existing_scripts=$(get_existing_scripts "$config_name")
+
+    clear
+    print_color green "Available Files for $config_name"
+    print_color green "Pattern: ${command_prefix}*"
+    print_color green "$(printf '='%.0s $(seq 1 50))"
+
+    if [[ -z "$existing_scripts" ]]; then
+        print_color yellow "No files found matching pattern: ${command_prefix}*"
+    else
+        while IFS= read -r script_path; do
+            if [[ -n "$script_path" ]]; then
+                local script_name=$(basename "$script_path")
+                print_color green "  $script_name"
+            fi
+        done <<< "$existing_scripts"
+    fi
+
+    local list_script_name="${command_prefix}list"
+    print_color green "\nList script: $list_script_name"
+    print_color green "Press any key to continue..."
+    read -n 1
+}
+
+# Refresh Current Terminal Environment (Linux equivalent of Windows functionality)
+refresh_current_terminal_environment() {
+    clear
+    print_color green "Refresh Current Terminal Environment"
+    print_color green "===================================="
+    print_color green "This will refresh all environment variables in the current terminal session."
+    print_color green "No system changes will be made - only current terminal will be updated."
+    echo ""
+
+    print_color green "Refreshing all environment variables..."
+
+    # Reload environment variables from global var directory
+    if [[ -d "$GLOBAL_VAR_DIR" ]]; then
+        local refreshed_count=0
+        for var_file in "$GLOBAL_VAR_DIR"/*; do
+            if [[ -f "$var_file" ]]; then
+                local var_name=$(basename "$var_file")
+                local var_value=$(cat "$var_file" 2>/dev/null | tr -d '\0' | head -n 1)
+                if [[ -n "$var_value" ]]; then
+                    export "$var_name=$var_value"
+                    refreshed_count=$((refreshed_count + 1))
+                fi
+            fi
+        done
+
+        if [[ $refreshed_count -gt 0 ]]; then
+            print_color green "Environment variables refreshed successfully!"
+            print_color green "Refreshed $refreshed_count environment variables in current session."
+
+            # Show status of all configured environment variables
+            echo ""
+            print_color green "Current status of configured environment variables:"
+            print_color green "================================================="
+
+            for config_name in "${!ENVIRONMENT_CONFIGS[@]}"; do
+                local config_str="${ENVIRONMENT_CONFIGS[$config_name]}"
+                local title=$(get_config_value "$config_name" "title")
+                local vars_str=$(get_config_value "$config_name" "vars")
+                local secrets_str=$(get_config_value "$config_name" "secrets")
+
+                local -a var_names=($(echo "$vars_str" | tr ',' ' '))
+                local -a secret_vars=($(echo "$secrets_str" | tr ',' ' '))
+
+                print_color green "$title:"
+
+                for var_name in "${var_names[@]}"; do
+                    local current_value=$(get_env_variable "$var_name")
+                    if [[ -n "$current_value" ]]; then
+                        local is_secret=0
+                        for secret_var in "${secret_vars[@]}"; do
+                            if [[ "$var_name" == "$secret_var" ]]; then
+                                is_secret=1
+                                break
+                            fi
+                        done
+                        if [[ "$is_secret" -eq 1 ]]; then
+                            print_color green "  $var_name: [HIDDEN - Set]"
+                        else
+                            print_color green "  $var_name: $current_value"
+                        fi
+                    else
+                        print_color yellow "  $var_name: [Not set]"
+                    fi
+                done
+                echo ""
+            done
+        else
+            print_color yellow "No environment variables found to refresh."
+        fi
+    else
+        print_color red "Global variable directory not found: $GLOBAL_VAR_DIR"
+    fi
+
+    echo ""
+    print_color green "Press any key to continue..."
+    read -n 1
+}
+
+# Sub-menu for each configuration (1:1 match with Windows submenu structure)
+show_config_submenu() {
+    local config_name="$1"
+    local title=$(get_config_value "$config_name" "title")
+
+    local menu_options=(
+        "Add $title Global Command"
+        "Set $title Environment Variables"
+        "View $title Scripts"
+        "Back to Main Menu"
+    )
+
+    local selected_index=0
+    local num_options=${#menu_options[@]}
+
+    # Save current terminal settings
+    local old_settings=$(stty -g)
+    stty -icanon -echo
+    trap 'stty "$old_settings"' EXIT
+
+    while true; do
+        clear
+        print_color green "$title - Sub Menu"
+        print_color green "Use Up/Down arrows to navigate, Enter to select"
+        print_color green "=============================================="
+
+        for i in "${!menu_options[@]}"; do
+            if [[ "$i" -eq "$selected_index" ]]; then
+                print_color yellow "> ${menu_options[$i]}"
+            else
+                print_color green "  ${menu_options[$i]}"
+            fi
+        done
+
+        local key
+        if ! IFS= read -rsn1 key; then
+            continue
+        fi
+
+        case "$key" in
+            $'\x1b')
+                local seq=""
+                local next
+                if IFS= read -rsn1 -t 0.05 next; then
+                    if [[ "$next" == "[" ]]; then
+                        local final
+                        if IFS= read -rsn1 -t 0.05 final; then
+                            seq="[${final}"
+                        else
+                            seq="["
+                        fi
+                    else
+                        seq="$next"
+                    fi
+                fi
+
+                case "$seq" in
+                    '[A')
+                        selected_index=$(( (selected_index - 1 + num_options) % num_options ))
+                        ;;
+                    '[B')
+                        selected_index=$(( (selected_index + 1) % num_options ))
+                        ;;
+                esac
+                ;;
+            $'\n')
+                local selected_option="${menu_options[$selected_index]}"
+                stty "$old_settings"
+                case "$selected_option" in
+                    "Add $title Global Command")
+                        # Show file management menu first (1:1 match with Windows behavior)
+                        local existing_scripts=$(get_existing_scripts "$config_name")
+                        show_existing_files_menu "$config_name" "$existing_scripts"
+                        # Use global variables to determine action
+                        if [[ "$IS_REPLACING_FILE" == "true" ]]; then
+                            generate_global_command "$config_name" "$TARGET_FILE_PATH"
+                        else
+                            generate_global_command "$config_name"
+                        fi
+                        ;;
+                    "Set $title Environment Variables")
+                        set_environment_variables "$config_name"
+                        ;;
+                    "View $title Scripts")
+                        show_list_scripts "$config_name"
+                        ;;
+                    "Back to Main Menu")
+                        trap - EXIT
+                        return
+                        ;;
+                esac
+                stty -icanon -echo
+                trap 'stty "$old_settings"' EXIT
+                ;;
+            $'\x03'|$'\x1a')
+                trap - EXIT
+                stty "$old_settings"
+                exit 0
+                ;;
+        esac
+    done
+}
+
+# Main Menu for this script (Updated to match Windows structure 1:1)
 main_special_env_menu() {
     local menu_options=(
-        "Set Claude AI Environment Variables"
-        "Set Alibaba Cloud Environment Variables"
-        "Generate Claude AI Global Command"
-        "Generate Alibaba Cloud Global Command"
+        "Claude AI"
+        "Alibaba Cloud"
         "View All Environment Variables"
+        "Refresh Current Terminal Environment"
         "Back to Main Menu"
         "Exit"
     )
@@ -1097,13 +1330,26 @@ main_special_env_menu() {
         print_color green "Special Software Environment Variables Manager"
         print_color green "Use Up/Down arrows to navigate, Enter to select"
         print_color green "=============================================="
-        
+
         for i in "${!menu_options[@]}"; do
-            if [[ "$i" -eq "$selected_index" ]]; then
-                print_color yellow "> ${menu_options[$i]}"
-            else
-                print_color green "  ${menu_options[$i]}"
-            fi
+            local menu_item="${menu_options[$i]}"
+            # Add submenu indicator for services (1:1 match with Windows behavior)
+            case "$menu_item" in
+                "Claude AI"|"Alibaba Cloud")
+                    if [[ "$i" -eq "$selected_index" ]]; then
+                        print_color yellow "> $menu_item >"
+                    else
+                        print_color green "  $menu_item >"
+                    fi
+                    ;;
+                *)
+                    if [[ "$i" -eq "$selected_index" ]]; then
+                        print_color yellow "> $menu_item"
+                    else
+                        print_color green "  $menu_item"
+                    fi
+                    ;;
+            esac
         done
         
         local key
@@ -1141,26 +1387,19 @@ main_special_env_menu() {
                 local selected_option="${menu_options[$selected_index]}"
                 stty "$old_settings"
                 case "$selected_option" in
-                    "Set Claude AI Environment Variables")
-                        set_environment_variables "Claude AI"
+                    "Claude AI")
+                        # Show submenu for Claude AI (1:1 match with Windows behavior)
+                        show_config_submenu "Claude AI"
                         ;;
-                    "Set Alibaba Cloud Environment Variables")
-                        set_environment_variables "Alibaba Cloud"
-                        ;;
-                    "Generate Claude AI Global Command")
-                        # Show file management menu first
-                        local existing_scripts=$(get_existing_scripts "Claude AI")
-                        show_existing_files_menu "Claude AI" "$existing_scripts"
-                        generate_global_command "Claude AI"
-                        ;;
-                    "Generate Alibaba Cloud Global Command")
-                        # Show file management menu first
-                        local existing_scripts=$(get_existing_scripts "Alibaba Cloud")
-                        show_existing_files_menu "Alibaba Cloud" "$existing_scripts"
-                        generate_global_command "Alibaba Cloud"
+                    "Alibaba Cloud")
+                        # Show submenu for Alibaba Cloud (1:1 match with Windows behavior)
+                        show_config_submenu "Alibaba Cloud"
                         ;;
                     "View All Environment Variables")
                         show_all_environment_variables
+                        ;;
+                    "Refresh Current Terminal Environment")
+                        refresh_current_terminal_environment
                         ;;
                     "Back to Main Menu")
                         trap - EXIT

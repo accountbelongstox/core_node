@@ -293,10 +293,10 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () {
-                context.go('/wuy/history-tracks');
+                context.go(WuyAppRouter.routeHistoryTracks);
               },
               icon: Icon(Icons.history),
-              label: Text('History Tracks'),
+              label: Text(LocalizationKeysAppWuy.wuyFriendInfoHistoryTracks.tr(context)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: ThemeColors.primary,
                 shape: RoundedRectangleBorder(
@@ -309,10 +309,10 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () {
-                context.go('/wuy/network-records');
+                context.go(WuyAppRouter.routeNetworkRecords);
               },
               icon: Icon(Icons.network_check),
-              label: Text('Network Records'),
+              label: Text(LocalizationKeysAppWuy.wuyFriendInfoNetworkRecords.tr(context)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 shape: RoundedRectangleBorder(

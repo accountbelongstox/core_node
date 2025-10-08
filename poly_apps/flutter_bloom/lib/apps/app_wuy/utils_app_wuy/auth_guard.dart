@@ -12,7 +12,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../providers_app_wuy/wu_user_provider.dart';
+import '../router_app_wuy/router_app_wuy.dart';
 
 /// Authentication Guard for Wuy App
 /// Handles authentication state checking and route protection
@@ -31,8 +33,8 @@ class AuthGuard {
   /// Get initial route based on authentication status
   static String getInitialRoute(BuildContext context) {
     return isAuthenticated(context) 
-        ? '/wuy/friends'  // Friends list as home page
-        : '/wuy/login';
+        ? WuyAppRouter.routeFriends  // Friends list as home page
+        : WuyAppRouter.routeLoginEntry;
   }
 
   /// Check authentication and redirect if needed
@@ -40,9 +42,9 @@ class AuthGuard {
     if (isAuthenticated(context)) {
       return child;
     } else {
-      // Redirect to login page
+      // Redirect to login page using GoRouter
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.of(context).pushReplacementNamed('/wuy/login');
+        context.go(WuyAppRouter.routeLoginEntry);
       });
       return const Scaffold(
         body: Center(
@@ -68,9 +70,9 @@ class AuthGuard {
         if (snapshot.data == true) {
           return child;
         } else {
-          // Redirect to login
+          // Redirect to login using GoRouter
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            Navigator.of(context).pushReplacementNamed('/wuy/login');
+            context.go(WuyAppRouter.routeLoginEntry);
           });
           return const Scaffold(
             body: Center(
@@ -94,11 +96,11 @@ class AuthGuard {
 
   /// Handle login success
   static void onLoginSuccess(BuildContext context) {
-    Navigator.of(context).pushReplacementNamed('/wuy/friends');
+    context.go(WuyAppRouter.routeFriends);
   }
 
   /// Handle logout
   static void onLogout(BuildContext context) {
-    Navigator.of(context).pushReplacementNamed('/wuy/login');
+    context.go(WuyAppRouter.routeLoginEntry);
   }
 }

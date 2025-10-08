@@ -17,6 +17,8 @@ import 'package:flutter/material.dart';
 import '../features_app_wuy/profile/views/profile_screen.dart';
 import '../features_app_wuy/settings/views/settings_screen.dart';
 import '../features_app_wuy/authentication/views/login_screen.dart';
+import '../features_app_wuy/authentication/views/login_entry_screen.dart';
+import '../features_app_wuy/authentication/views/phone_login_screen.dart';
 import '../features_app_wuy/authentication/views/register_screen.dart';
 import '../features_app_wuy/splash/views/splash_screen.dart';
 import '../features_app_wuy/dashboard/views/dashboard_screen.dart';
@@ -40,6 +42,8 @@ class WuyAppRouter {
   static const String routeSplash = '/wuy/splash';
   static const String routeInitial = '/wuy/initial';
   static const String routeLogin = '/wuy/login';
+  static const String routeLoginEntry = '/wuy/login-entry';
+  static const String routePhoneLogin = '/wuy/phone-login';
   static const String routeRegister = '/wuy/register';
   static const String routeProfile = '/wuy/profile';
   static const String routeSettings = '/wuy/settings';
@@ -53,11 +57,13 @@ class WuyAppRouter {
   static const String routeMap = '/wuy/map';
   static const String routeHistoryTracks = '/wuy/history-tracks';
   static const String routeNetworkRecords = '/wuy/network-records';
+  static const String routePersonalInfo = '/wuy/personal-info';
+  static const String routeAbout = '/wuy/about';
   
   /// Create router for Wuy app - required by development guidelines
   static GoRouter createRouter() {
     return GoRouter(
-      initialLocation: routeHome,
+      initialLocation: routeLoginEntry,
       routes: [
         // Splash route
         GoRoute(
@@ -91,6 +97,18 @@ class WuyAppRouter {
           path: routeLogin,
           name: 'wuy_login',
           builder: (context, state) => const WuyLoginScreen(),
+        ),
+        
+        GoRoute(
+          path: routeLoginEntry,
+          name: 'wuy_login_entry',
+          builder: (context, state) => const WuyLoginEntryScreen(),
+        ),
+        
+        GoRoute(
+          path: routePhoneLogin,
+          name: 'wuy_phone_login',
+          builder: (context, state) => const WuyPhoneLoginScreen(),
         ),
         
         GoRoute(
@@ -215,7 +233,7 @@ class WuyAppRouter {
         
         // Personal info route
         GoRoute(
-          path: '/wuy/personal-info',
+          path: routePersonalInfo,
           name: 'wuy_personal_info',
           builder: (context, state) => AuthGuard.requireAuth(
             context,
@@ -225,7 +243,7 @@ class WuyAppRouter {
         
         // About route
         GoRoute(
-          path: '/wuy/about',
+          path: routeAbout,
           name: 'wuy_about',
           builder: (context, state) => AuthGuard.requireAuth(
             context,
@@ -275,6 +293,8 @@ class WuyAppRouter {
   static String getSplashRoute() => routeSplash;
   static String getHomeRoute() => routeHome;
   static String getLoginRoute() => routeLogin;
+  static String getLoginEntryRoute() => routeLoginEntry;
+  static String getPhoneLoginRoute() => routePhoneLogin;
   static String getRegisterRoute() => routeRegister;
   static String getProfileRoute() => routeProfile;
   static String getSettingsRoute() => routeSettings;
@@ -286,6 +306,8 @@ class WuyAppRouter {
   static String getMapRoute() => routeMap;
   static String getHistoryTracksRoute() => routeHistoryTracks;
   static String getNetworkRecordsRoute() => routeNetworkRecords;
+  static String getPersonalInfoRoute() => routePersonalInfo;
+  static String getAboutRoute() => routeAbout;
 
   /// Get default route for the Wuy app
   static String getDefaultRoute() => routeHome;
@@ -297,6 +319,8 @@ class WuyAppRouter {
       routeSplash,
       routeInitial,
       routeLogin,
+      routeLoginEntry,
+      routePhoneLogin,
       routeRegister,
       routeProfile,
       routeSettings,
@@ -308,6 +332,8 @@ class WuyAppRouter {
       routeMap,
       routeHistoryTracks,
       routeNetworkRecords,
+      routePersonalInfo,
+      routeAbout,
     ];
   }
 }

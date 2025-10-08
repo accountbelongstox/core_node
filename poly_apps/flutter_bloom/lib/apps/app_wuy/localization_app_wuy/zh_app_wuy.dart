@@ -121,6 +121,23 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyAuthSignUp: '注册',
     LocalizationKeysAppWuy.wuyAuthAlreadyHaveAccount: '已有账户？',
     LocalizationKeysAppWuy.wuyAuthDontHaveAccount: '没有账户？',
+    
+    // Login Entry Page
+    LocalizationKeysAppWuy.wuyAppName: '安无忧',
+    LocalizationKeysAppWuy.wuyAppSlogan: '为您精心守护',
+    LocalizationKeysAppWuy.wuyPhoneLoginRegister: '手机号登录/注册',
+    LocalizationKeysAppWuy.wuyUserAgreement: '注册即表示同意《用户服务与隐私协议》',
+    LocalizationKeysAppWuy.wuyOtherLoginMethods: '其他登录方式',
+    LocalizationKeysAppWuy.wuyWeChatLogin: '微信登录',
+    LocalizationKeysAppWuy.wuyQQLogin: 'QQ登录',
+    LocalizationKeysAppWuy.wuyAlipayLogin: '支付宝登录',
+    
+    // Phone Login Page
+    LocalizationKeysAppWuy.wuyPhoneLoginTitle: '登录/注册',
+    LocalizationKeysAppWuy.wuyEnterPhoneNumber: '请输入手机号',
+    LocalizationKeysAppWuy.wuyEnterPassword: '请输入密码',
+    LocalizationKeysAppWuy.wuyLoginButton: '登录',
+    LocalizationKeysAppWuy.wuyRegisterButton: '注册',
 
     // Common actions
     LocalizationKeysAppWuy.wuyCommonOk: '确定',
@@ -133,6 +150,121 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyCommonPrevious: '上一步',
     LocalizationKeysAppWuy.wuyCommonRefresh: '刷新',
     LocalizationKeysAppWuy.wuyCommonRetry: '重试',
+
+    // Splash screen
+    LocalizationKeysAppWuy.wuySplashTitle: '安无忧',
+    LocalizationKeysAppWuy.wuySplashSubtitle: '为您精心守护',
+
+    // Home screen
+    LocalizationKeysAppWuy.wuyHomeFeatures: '功能',
+    LocalizationKeysAppWuy.wuyHomeProfile: '个人资料',
+    LocalizationKeysAppWuy.wuyHomeSettings: '设置',
+    LocalizationKeysAppWuy.wuyHomeDashboard: '仪表板',
+    LocalizationKeysAppWuy.wuyHomeViewProfile: '查看和编辑您的个人资料',
+    LocalizationKeysAppWuy.wuyHomeConfigureSettings: '配置应用设置',
+    LocalizationKeysAppWuy.wuyHomeViewDashboard: '查看您的仪表板',
+
+    // Map screen
+    LocalizationKeysAppWuy.wuyMapCurrentLocation: '当前位置',
+    LocalizationKeysAppWuy.wuyMapFriendLocation: '好友位置',
+    LocalizationKeysAppWuy.wuyMapViewDetails: '查看详情',
+    LocalizationKeysAppWuy.wuyMapFriends: '好友',
+    LocalizationKeysAppWuy.wuyMapMine: '我的',
+
+    // Profile screen
+    LocalizationKeysAppWuy.wuyProfileUsername: '用户名',
+    LocalizationKeysAppWuy.wuyProfileEmail: '邮箱',
+    LocalizationKeysAppWuy.wuyProfilePhone: '手机号',
+    LocalizationKeysAppWuy.wuyProfileEditProfile: '编辑个人资料',
+    LocalizationKeysAppWuy.wuyProfileChangePassword: '修改密码',
+    LocalizationKeysAppWuy.wuyProfileNotificationSettings: '通知设置',
+    LocalizationKeysAppWuy.wuyProfilePrivacySettings: '隐私设置',
+    LocalizationKeysAppWuy.wuyProfileHelpSupport: '帮助与支持',
+    LocalizationKeysAppWuy.wuyProfileTermsOfService: '服务条款',
+    LocalizationKeysAppWuy.wuyProfilePrivacyPolicy: '隐私政策',
+    LocalizationKeysAppWuy.wuyProfileLogout: '退出登录',
+
+    // Login screen
+    LocalizationKeysAppWuy.wuyLoginTitle: '登录',
+    LocalizationKeysAppWuy.wuyLoginSubtitle: '欢迎回来',
+    LocalizationKeysAppWuy.wuyLoginEmail: '邮箱',
+    LocalizationKeysAppWuy.wuyLoginEnterEmail: '请输入您的邮箱',
+    LocalizationKeysAppWuy.wuyLoginPassword: '密码',
+    LocalizationKeysAppWuy.wuyLoginEnterPassword: '请输入您的密码',
+    LocalizationKeysAppWuy.wuyLoginRememberMe: '记住我',
+    LocalizationKeysAppWuy.wuyLoginForgotPassword: '忘记密码？',
+    LocalizationKeysAppWuy.wuyLoginSignIn: '登录',
+    LocalizationKeysAppWuy.wuyLoginDontHaveAccount: '没有账户？',
+    LocalizationKeysAppWuy.wuyLoginSignUp: '注册',
+    LocalizationKeysAppWuy.wuyLoginOr: '或',
+    LocalizationKeysAppWuy.wuyLoginWithGoogle: '使用Google登录',
+    LocalizationKeysAppWuy.wuyLoginWithFacebook: '使用Facebook登录',
+
+    // Register screen
+    LocalizationKeysAppWuy.wuyRegisterTitle: '注册',
+    LocalizationKeysAppWuy.wuyRegisterSubtitle: '创建新账户',
+    LocalizationKeysAppWuy.wuyRegisterFullName: '姓名',
+    LocalizationKeysAppWuy.wuyRegisterEnterFullName: '请输入您的姓名',
+    LocalizationKeysAppWuy.wuyRegisterEmail: '邮箱',
+    LocalizationKeysAppWuy.wuyRegisterEnterEmail: '请输入您的邮箱',
+    LocalizationKeysAppWuy.wuyRegisterPassword: '密码',
+    LocalizationKeysAppWuy.wuyRegisterEnterPassword: '请输入您的密码',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPassword: '确认密码',
+    LocalizationKeysAppWuy.wuyRegisterEnterConfirmPassword: '请再次输入您的密码',
+    LocalizationKeysAppWuy.wuyRegisterAgreeTerms: '我同意服务条款和隐私政策',
+    LocalizationKeysAppWuy.wuyRegisterCreateAccount: '创建账户',
+    LocalizationKeysAppWuy.wuyRegisterAlreadyHaveAccount: '已有账户？',
+    LocalizationKeysAppWuy.wuyRegisterSignIn: '登录',
+
+    // Chat screen
+    LocalizationKeysAppWuy.wuyChatOnline: '在线',
+    LocalizationKeysAppWuy.wuyChatLastSeen: '最后在线',
+    LocalizationKeysAppWuy.wuyChatTyping: '正在输入...',
+    LocalizationKeysAppWuy.wuyChatImage: '图片',
+    LocalizationKeysAppWuy.wuyChatFile: '文件',
+    LocalizationKeysAppWuy.wuyChatVoice: '语音',
+    LocalizationKeysAppWuy.wuyChatVideo: '视频',
+
+    // Friend info screen
+    LocalizationKeysAppWuy.wuyFriendInfoTitle: '好友信息',
+    LocalizationKeysAppWuy.wuyFriendInfoPersonalInfo: '个人信息',
+    LocalizationKeysAppWuy.wuyFriendInfoContactInfo: '联系信息',
+    LocalizationKeysAppWuy.wuyFriendInfoActivity: '活动',
+    LocalizationKeysAppWuy.wuyFriendInfoHistoryTracks: '历史轨迹',
+    LocalizationKeysAppWuy.wuyFriendInfoNetworkRecords: '网络记录',
+    LocalizationKeysAppWuy.wuyFriendInfoSendMessage: '发送消息',
+    LocalizationKeysAppWuy.wuyFriendInfoCall: '通话',
+    LocalizationKeysAppWuy.wuyFriendInfoVideoCall: '视频通话',
+
+    // Add friend screen
+    LocalizationKeysAppWuy.wuyAddFriendTitle: '添加好友',
+    LocalizationKeysAppWuy.wuyAddFriendSearch: '搜索',
+    LocalizationKeysAppWuy.wuyAddFriendSearchHint: '输入好友的手机号或用户名',
+    LocalizationKeysAppWuy.wuyAddFriendResults: '搜索结果',
+    LocalizationKeysAppWuy.wuyAddFriendNoResults: '未找到相关好友',
+    LocalizationKeysAppWuy.wuyAddFriendAdd: '添加',
+    LocalizationKeysAppWuy.wuyAddFriendAdded: '已添加',
+    LocalizationKeysAppWuy.wuyAddFriendPending: '等待中',
+
+    // Settings screen
+    LocalizationKeysAppWuy.wuySettingsTitle: '设置',
+    LocalizationKeysAppWuy.wuySettingsGeneral: '通用',
+    LocalizationKeysAppWuy.wuySettingsNotifications: '通知',
+    LocalizationKeysAppWuy.wuySettingsPrivacy: '隐私',
+    LocalizationKeysAppWuy.wuySettingsSecurity: '安全',
+    LocalizationKeysAppWuy.wuySettingsAbout: '关于',
+    LocalizationKeysAppWuy.wuySettingsLanguage: '语言',
+    LocalizationKeysAppWuy.wuySettingsTheme: '主题',
+    LocalizationKeysAppWuy.wuySettingsDarkMode: '深色模式',
+    LocalizationKeysAppWuy.wuySettingsLightMode: '浅色模式',
+    LocalizationKeysAppWuy.wuySettingsSystemMode: '跟随系统',
+
+    // Dashboard screen
+    LocalizationKeysAppWuy.wuyDashboardTitle: '仪表板',
+    LocalizationKeysAppWuy.wuyDashboardOverview: '概览',
+    LocalizationKeysAppWuy.wuyDashboardStats: '统计',
+    LocalizationKeysAppWuy.wuyDashboardRecentActivity: '最近活动',
+    LocalizationKeysAppWuy.wuyDashboardQuickActions: '快速操作',
   };
 }
 

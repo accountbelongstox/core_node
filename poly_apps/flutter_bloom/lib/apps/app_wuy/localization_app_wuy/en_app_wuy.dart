@@ -121,6 +121,23 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyAuthSignUp: 'Sign Up',
     LocalizationKeysAppWuy.wuyAuthAlreadyHaveAccount: 'Already have an account?',
     LocalizationKeysAppWuy.wuyAuthDontHaveAccount: 'Don\'t have an account?',
+    
+    // Login Entry Page
+    LocalizationKeysAppWuy.wuyAppName: 'AnWuYou',
+    LocalizationKeysAppWuy.wuyAppSlogan: 'Carefully Guarding for You',
+    LocalizationKeysAppWuy.wuyPhoneLoginRegister: 'Phone Login/Register',
+    LocalizationKeysAppWuy.wuyUserAgreement: 'Registration means agreeing to the User Service and Privacy Agreement',
+    LocalizationKeysAppWuy.wuyOtherLoginMethods: 'Other Login Methods',
+    LocalizationKeysAppWuy.wuyWeChatLogin: 'WeChat Login',
+    LocalizationKeysAppWuy.wuyQQLogin: 'QQ Login',
+    LocalizationKeysAppWuy.wuyAlipayLogin: 'Alipay Login',
+    
+    // Phone Login Page
+    LocalizationKeysAppWuy.wuyPhoneLoginTitle: 'Login/Register',
+    LocalizationKeysAppWuy.wuyEnterPhoneNumber: 'Please enter phone number',
+    LocalizationKeysAppWuy.wuyEnterPassword: 'Please enter password',
+    LocalizationKeysAppWuy.wuyLoginButton: 'Login',
+    LocalizationKeysAppWuy.wuyRegisterButton: 'Register',
 
     // Common actions
     LocalizationKeysAppWuy.wuyCommonOk: 'OK',
@@ -133,6 +150,121 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyCommonPrevious: 'Previous',
     LocalizationKeysAppWuy.wuyCommonRefresh: 'Refresh',
     LocalizationKeysAppWuy.wuyCommonRetry: 'Retry',
+
+    // Splash screen
+    LocalizationKeysAppWuy.wuySplashTitle: 'AnWuYou',
+    LocalizationKeysAppWuy.wuySplashSubtitle: 'Carefully Guarding for You',
+
+    // Home screen
+    LocalizationKeysAppWuy.wuyHomeFeatures: 'Features',
+    LocalizationKeysAppWuy.wuyHomeProfile: 'Profile',
+    LocalizationKeysAppWuy.wuyHomeSettings: 'Settings',
+    LocalizationKeysAppWuy.wuyHomeDashboard: 'Dashboard',
+    LocalizationKeysAppWuy.wuyHomeViewProfile: 'View and edit your profile',
+    LocalizationKeysAppWuy.wuyHomeConfigureSettings: 'Configure app settings',
+    LocalizationKeysAppWuy.wuyHomeViewDashboard: 'View your dashboard',
+
+    // Map screen
+    LocalizationKeysAppWuy.wuyMapCurrentLocation: 'Current Location',
+    LocalizationKeysAppWuy.wuyMapFriendLocation: 'Friend Location',
+    LocalizationKeysAppWuy.wuyMapViewDetails: 'View Details',
+    LocalizationKeysAppWuy.wuyMapFriends: 'Friends',
+    LocalizationKeysAppWuy.wuyMapMine: 'Mine',
+
+    // Profile screen
+    LocalizationKeysAppWuy.wuyProfileUsername: 'Username',
+    LocalizationKeysAppWuy.wuyProfileEmail: 'Email',
+    LocalizationKeysAppWuy.wuyProfilePhone: 'Phone',
+    LocalizationKeysAppWuy.wuyProfileEditProfile: 'Edit Profile',
+    LocalizationKeysAppWuy.wuyProfileChangePassword: 'Change Password',
+    LocalizationKeysAppWuy.wuyProfileNotificationSettings: 'Notification Settings',
+    LocalizationKeysAppWuy.wuyProfilePrivacySettings: 'Privacy Settings',
+    LocalizationKeysAppWuy.wuyProfileHelpSupport: 'Help & Support',
+    LocalizationKeysAppWuy.wuyProfileTermsOfService: 'Terms of Service',
+    LocalizationKeysAppWuy.wuyProfilePrivacyPolicy: 'Privacy Policy',
+    LocalizationKeysAppWuy.wuyProfileLogout: 'Logout',
+
+    // Login screen
+    LocalizationKeysAppWuy.wuyLoginTitle: 'Login',
+    LocalizationKeysAppWuy.wuyLoginSubtitle: 'Welcome Back',
+    LocalizationKeysAppWuy.wuyLoginEmail: 'Email',
+    LocalizationKeysAppWuy.wuyLoginEnterEmail: 'Enter your email',
+    LocalizationKeysAppWuy.wuyLoginPassword: 'Password',
+    LocalizationKeysAppWuy.wuyLoginEnterPassword: 'Enter your password',
+    LocalizationKeysAppWuy.wuyLoginRememberMe: 'Remember Me',
+    LocalizationKeysAppWuy.wuyLoginForgotPassword: 'Forgot Password?',
+    LocalizationKeysAppWuy.wuyLoginSignIn: 'Sign In',
+    LocalizationKeysAppWuy.wuyLoginDontHaveAccount: 'Don\'t have an account?',
+    LocalizationKeysAppWuy.wuyLoginSignUp: 'Sign Up',
+    LocalizationKeysAppWuy.wuyLoginOr: 'Or',
+    LocalizationKeysAppWuy.wuyLoginWithGoogle: 'Login with Google',
+    LocalizationKeysAppWuy.wuyLoginWithFacebook: 'Login with Facebook',
+
+    // Register screen
+    LocalizationKeysAppWuy.wuyRegisterTitle: 'Register',
+    LocalizationKeysAppWuy.wuyRegisterSubtitle: 'Create New Account',
+    LocalizationKeysAppWuy.wuyRegisterFullName: 'Full Name',
+    LocalizationKeysAppWuy.wuyRegisterEnterFullName: 'Enter your full name',
+    LocalizationKeysAppWuy.wuyRegisterEmail: 'Email',
+    LocalizationKeysAppWuy.wuyRegisterEnterEmail: 'Enter your email',
+    LocalizationKeysAppWuy.wuyRegisterPassword: 'Password',
+    LocalizationKeysAppWuy.wuyRegisterEnterPassword: 'Enter your password',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPassword: 'Confirm Password',
+    LocalizationKeysAppWuy.wuyRegisterEnterConfirmPassword: 'Enter your password again',
+    LocalizationKeysAppWuy.wuyRegisterAgreeTerms: 'I agree to the Terms of Service and Privacy Policy',
+    LocalizationKeysAppWuy.wuyRegisterCreateAccount: 'Create Account',
+    LocalizationKeysAppWuy.wuyRegisterAlreadyHaveAccount: 'Already have an account?',
+    LocalizationKeysAppWuy.wuyRegisterSignIn: 'Sign In',
+
+    // Chat screen
+    LocalizationKeysAppWuy.wuyChatOnline: 'Online',
+    LocalizationKeysAppWuy.wuyChatLastSeen: 'Last Seen',
+    LocalizationKeysAppWuy.wuyChatTyping: 'Typing...',
+    LocalizationKeysAppWuy.wuyChatImage: 'Image',
+    LocalizationKeysAppWuy.wuyChatFile: 'File',
+    LocalizationKeysAppWuy.wuyChatVoice: 'Voice',
+    LocalizationKeysAppWuy.wuyChatVideo: 'Video',
+
+    // Friend info screen
+    LocalizationKeysAppWuy.wuyFriendInfoTitle: 'Friend Info',
+    LocalizationKeysAppWuy.wuyFriendInfoPersonalInfo: 'Personal Info',
+    LocalizationKeysAppWuy.wuyFriendInfoContactInfo: 'Contact Info',
+    LocalizationKeysAppWuy.wuyFriendInfoActivity: 'Activity',
+    LocalizationKeysAppWuy.wuyFriendInfoHistoryTracks: 'History Tracks',
+    LocalizationKeysAppWuy.wuyFriendInfoNetworkRecords: 'Network Records',
+    LocalizationKeysAppWuy.wuyFriendInfoSendMessage: 'Send Message',
+    LocalizationKeysAppWuy.wuyFriendInfoCall: 'Call',
+    LocalizationKeysAppWuy.wuyFriendInfoVideoCall: 'Video Call',
+
+    // Add friend screen
+    LocalizationKeysAppWuy.wuyAddFriendTitle: 'Add Friend',
+    LocalizationKeysAppWuy.wuyAddFriendSearch: 'Search',
+    LocalizationKeysAppWuy.wuyAddFriendSearchHint: 'Enter friend\'s phone or username',
+    LocalizationKeysAppWuy.wuyAddFriendResults: 'Search Results',
+    LocalizationKeysAppWuy.wuyAddFriendNoResults: 'No friends found',
+    LocalizationKeysAppWuy.wuyAddFriendAdd: 'Add',
+    LocalizationKeysAppWuy.wuyAddFriendAdded: 'Added',
+    LocalizationKeysAppWuy.wuyAddFriendPending: 'Pending',
+
+    // Settings screen
+    LocalizationKeysAppWuy.wuySettingsTitle: 'Settings',
+    LocalizationKeysAppWuy.wuySettingsGeneral: 'General',
+    LocalizationKeysAppWuy.wuySettingsNotifications: 'Notifications',
+    LocalizationKeysAppWuy.wuySettingsPrivacy: 'Privacy',
+    LocalizationKeysAppWuy.wuySettingsSecurity: 'Security',
+    LocalizationKeysAppWuy.wuySettingsAbout: 'About',
+    LocalizationKeysAppWuy.wuySettingsLanguage: 'Language',
+    LocalizationKeysAppWuy.wuySettingsTheme: 'Theme',
+    LocalizationKeysAppWuy.wuySettingsDarkMode: 'Dark Mode',
+    LocalizationKeysAppWuy.wuySettingsLightMode: 'Light Mode',
+    LocalizationKeysAppWuy.wuySettingsSystemMode: 'System',
+
+    // Dashboard screen
+    LocalizationKeysAppWuy.wuyDashboardTitle: 'Dashboard',
+    LocalizationKeysAppWuy.wuyDashboardOverview: 'Overview',
+    LocalizationKeysAppWuy.wuyDashboardStats: 'Statistics',
+    LocalizationKeysAppWuy.wuyDashboardRecentActivity: 'Recent Activity',
+    LocalizationKeysAppWuy.wuyDashboardQuickActions: 'Quick Actions',
   };
 }
 

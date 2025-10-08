@@ -173,7 +173,7 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
               SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
               ElevatedButton(
                 onPressed: () {
-                  context.go('/wuy/find-friends');
+                  context.go(WuyAppRouter.routeFindFriends);
                 },
                 style: WuyAppThemeConfig.wuyPrimaryButton,
                 child: Text(LocalizationKeysAppWuy.wuyFriendsAddFriend.tr(context)),
@@ -233,7 +233,7 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
             IconButton(
               icon: const Icon(Icons.info_outline, size: 20),
               onPressed: () {
-                context.go('/wuy/friend/${friend.id}');
+                context.go(WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
               },
               tooltip: 'Info',
             ),
