@@ -11,9 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/foundation.dart';
-import 'package:qyflutter/common/network/api_client.dart';
 import 'package:qyflutter/common/widgets/custom_snackbar.dart';
-import 'package:qyflutter/common/network/api_checker.dart';
 import 'package:qyflutter/common/controller/settings_controller.dart';
 import 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart';
 import 'package:qyflutter/apps/app_example/services_app_example/auth_api_app_example_service.dart';
@@ -43,7 +41,9 @@ class SplashControllerAppExample extends ChangeNotifier {
   /// Initialize controllers
   void _initializeControllers() {
     try {
-      _settingsController = SettingsController();
+      // SettingsController requires SharedPreferences and SettingsStorageManager
+      // For now, we'll set it to null and initialize it later when needed
+      _settingsController = null;
     } catch (e) {
       if (kDebugMode) {
         print('Failed to initialize SettingsController: $e');
@@ -67,9 +67,6 @@ class SplashControllerAppExample extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Use the new API service for configuration
-      final authService = AuthApiAppExampleService(context: null as dynamic); // Context will be provided when needed
-
       // For now, we'll simulate a config check
       // In a real implementation, you would call a specific config endpoint
       await Future.delayed(const Duration(seconds: 1));
@@ -104,7 +101,8 @@ class SplashControllerAppExample extends ChangeNotifier {
       // Check if this is first launch
       if (_storage.isFirstLaunch()) {
         // Set install time if not set
-        if (_storage.getCommon<String>('install_time') == null) {
+        final installTime = await _storage.getCommon<String>('install_time');
+        if (installTime == null || installTime.isEmpty) {
           await _storage.setCommon<String>('install_time', DateTime.now().toIso8601String());
         }
       }

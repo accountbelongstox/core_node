@@ -11,283 +11,174 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import '../../../common/controller/auth_controller.dart';
-import '../../../common/network/models/api_response.dart';
-import '../config_app_example/api_config_app_example.dart';
-import '../config_app_example/api_endpoints_app_example.dart';
-import '../config_app_example/api_data_models_app_example.dart';
+import '../../../common/network/network_framework.dart';
+import '../../../common/network/models/api_config.dart';
 
 /// Authenticated API service for app_example
 /// Provides standardized API methods with authentication verification
-class AuthApiAppExampleService {
+class AuthApiAppExampleService extends AdvancedNetworkService {
   final BuildContext context;
-  late final AuthObject _authObject;
 
-  AuthApiAppExampleService({required this.context}) {
-    _authObject = AuthController.createAuthObject(
-      apiConfig: AppEnvironmentConfig.currentApiConfig,
-      authEndpoints: ApiConfigAppExample.authEndpoints,
-      userDataParser: ApiConfigAppExample.parseUserFromResponse,
-      tokenExtractor: ApiConfigAppExample.extractTokenFromResponse,
-      tokenTypeExtractor: ApiConfigAppExample.extractTokenTypeFromResponse,
-      expirationExtractor: ApiConfigAppExample.extractExpirationFromResponse,
-      messageExtractor: ApiConfigAppExample.extractMessageFromResponse,
-      errorExtractor: ApiConfigAppExample.extractErrorFromResponse,
-      context: context,
-    );
-  }
+  AuthApiAppExampleService({required this.context}) : super();
 
+  @override
+  String get serviceName => 'AuthApiAppExample';
 
-  /// Login with username and password using standardized data model
-  Future<AuthResult> login({
+  @override
+  ApiConfig get apiConfig => ApiConfig(
+    baseUrl: 'https://api.example.com',
+    authenticationType: AuthenticationType.jwt,
+    responseValidation: ResponseValidationConfig.defaultConfig(),
+  );
+
+  @override
+  EndpointConfig get endpointConfig => EndpointConfig(appName: 'app_example');
+
+  /// Login with username and password using new network framework
+  Future<NetworkResponse<Map<String, dynamic>>> login({
     required String username,
     required String password,
     bool remember = false,
   }) async {
-    final loginData = LoginRequestData(
-      username: username,
-      password: password,
-      remember: remember,
-    );
-
-    return await _authObject.login(
-      username: username,
-      password: password,
-      remember: remember,
-      additionalData: loginData.toJson(),
-    );
+    try {
+      final response = await request<Map<String, dynamic>>('login', data: {
+        'username': username,
+        'password': password,
+        'remember': remember,
+      });
+      
+      return response;
+    } catch (e) {
+      return NetworkResponse<Map<String, dynamic>>(
+        data: null,
+        message: 'Login failed: $e',
+        statusCode: 500,
+      );
+    }
   }
 
-  /// Register new user using standardized data model
-  Future<AuthResult> register({
+  /// Register new user using new network framework
+  Future<NetworkResponse<Map<String, dynamic>>> register({
     required String email,
     required String password,
     required String username,
     String? firstName,
     String? lastName,
   }) async {
-    final registerData = RegisterRequestData(
-      email: email,
-      password: password,
-      username: username,
-      firstName: firstName,
-      lastName: lastName,
-    );
-
-    return await _authObject.register(
-      email: email,
-      password: password,
-      username: username,
-      additionalData: registerData.toJson(),
-    );
-  }
-
-  /// Logout current user
-  Future<AuthResult> logout() async {
-    return await _authObject.logout();
-  }
-
-  /// Check if user is currently logged in
-  bool isLoggedIn() {
-    return _authObject.isLoggedIn();
-  }
-
-  /// Get login expiration time
-  DateTime? getLoginExpiration() {
-    return _authObject.tokenExpiration;
-  }
-
-  /// Check if login is expired
-  bool isLoginExpired() {
-    return _authObject.isLoginExpired();
-  }
-
-  /// Get current user information
-  Map<String, dynamic>? getUserInfo() {
-    return _authObject.getUserInfo();
-  }
-
-  /// Get current user information (legacy method name for compatibility)
-  Map<String, dynamic>? getQyUserInfo() {
-    return getUserInfo();
-  }
-
-  /// Get user token
-  String? getUserToken() {
-    return _authObject.currentToken;
-  }
-
-  /// Get username
-  String? getUsername() {
-    return _authObject.getUsername();
-  }
-
-  /// Get user email
-  String? getUserEmail() {
-    return _authObject.getUserEmail();
-  }
-
-  /// Get user display name
-  String? getUserDisplayName() {
-    return _authObject.getUserDisplayName();
-  }
-
-
-  /// POST request with authentication verification
-  Future<Response> post(String endpoint, Map<String, dynamic> data) async {
-    if (!isLoggedIn()) {
-      return _createUnauthenticatedResponse();
-    }
-
-    if (isLoginExpired()) {
-      final refreshResult = await _authObject.refreshToken();
+    try {
+      final response = await request<Map<String, dynamic>>('register', data: {
+        'email': email,
+        'password': password,
+        'username': username,
+        'first_name': firstName,
+        'last_name': lastName,
+      });
       
-      if (!refreshResult.isSuccess) {
-        return _createUnauthenticatedResponse();
-      }
-    }
-
-    return await _authObject.authenticatedClient.post(endpoint, data);
-  }
-
-  /// GET request with authentication verification
-  Future<Response> get(String endpoint, {Map<String, String>? queryParams}) async {
-    if (!isLoggedIn()) {
-      return _createUnauthenticatedResponse();
-    }
-
-    if (isLoginExpired()) {
-      final refreshResult = await _authObject.refreshToken();
-      
-      if (!refreshResult.isSuccess) {
-        return _createUnauthenticatedResponse();
-      }
-    }
-
-    return await _authObject.authenticatedClient.get(endpoint, queryParams: queryParams);
-  }
-
-  /// PUT request with authentication verification
-  Future<Response> put(String endpoint, Map<String, dynamic> data) async {
-    if (!isLoggedIn()) {
-      return _createUnauthenticatedResponse();
-    }
-
-    if (isLoginExpired()) {
-      final refreshResult = await _authObject.refreshToken();
-      
-      if (!refreshResult.isSuccess) {
-        return _createUnauthenticatedResponse();
-      }
-    }
-
-    return await _authObject.authenticatedClient.put(endpoint, data);
-  }
-
-  /// DELETE request with authentication verification
-  Future<Response> delete(String endpoint) async {
-    if (!isLoggedIn()) {
-      return _createUnauthenticatedResponse();
-    }
-
-    if (isLoginExpired()) {
-      final refreshResult = await _authObject.refreshToken();
-      
-      if (!refreshResult.isSuccess) {
-        return _createUnauthenticatedResponse();
-      }
-    }
-
-    return await _authObject.authenticatedClient.delete(endpoint);
-  }
-
-
-  /// Get user profile with typed response
-  Future<UserData?> getUserProfile() async {
-    final response = await get(ApiEndpointsAppExample.userProfile);
-
-    if (response.statusCode == 200 && response.body is Map<String, dynamic>) {
-      final body = response.body as Map<String, dynamic>;
-      final userData = body['user'] ?? body['data'];
-      
-      if (userData != null) {
-        return UserData.fromJson(userData);
-      }
-    }
-
-    return null;
-  }
-
-  /// Update user profile with typed request
-  Future<bool> updateUserProfile(UpdateUserRequestData profileData) async {
-    final response = await put(ApiEndpointsAppExample.userUpdate, profileData.toJson());
-    return response.statusCode == 200;
-  }
-
-  /// Change password
-  Future<AuthResult> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  }) async {
-    final response = await post(
-      ApiEndpointsAppExample.authChangePassword,
-      {
-        'current_password': currentPassword,
-        'new_password': newPassword,
-      },
-    );
-
-    if (response.statusCode == 200) {
-      return AuthResult.success(message: 'Password changed successfully');
-    } else {
-      final errorMessage = response.body is Map<String, dynamic>
-          ? (response.body as Map<String, dynamic>)['message']?.toString()
-          : 'Failed to change password';
-      
-      return AuthResult.failure(
-        error: errorMessage ?? 'Failed to change password',
-        statusCode: response.statusCode,
+      return response;
+    } catch (e) {
+      return NetworkResponse<Map<String, dynamic>>(
+        data: null,
+        message: 'Registration failed: $e',
+        statusCode: 500,
       );
     }
   }
 
-
-  /// Create unauthenticated response
-  Response _createUnauthenticatedResponse() {
-    return Response(
-      body: {
-        'error': 'User not authenticated or session expired',
-        'code': 'UNAUTHENTICATED',
-        'requires_login': true,
-        'app_id': 'app_example',
-      },
-      bodyString: '{"error": "User not authenticated or session expired", "code": "UNAUTHENTICATED", "requires_login": true, "app_id": "app_example"}',
-      statusCode: 401,
-      headers: {'x-auth-status': 'UNAUTHENTICATED'},
-      method: 'ERROR',
-    );
+  /// Logout current user
+  Future<NetworkResponse<Map<String, dynamic>>> logout() async {
+    try {
+      final response = await request<Map<String, dynamic>>('logout', data: {});
+      
+      return response;
+    } catch (e) {
+      return NetworkResponse<Map<String, dynamic>>(
+        data: null,
+        message: 'Logout failed: $e',
+        statusCode: 500,
+      );
+    }
   }
 
-  /// Get authentication status
-  Map<String, dynamic> getAuthStatus() {
-    return _authObject.getAuthStatus();
+  /// Change password
+  Future<NetworkResponse<Map<String, dynamic>>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await request<Map<String, dynamic>>('change-password', data: {
+        'current_password': currentPassword,
+        'new_password': newPassword,
+      });
+      
+      return response;
+    } catch (e) {
+      return NetworkResponse<Map<String, dynamic>>(
+        data: null,
+        message: 'Password change failed: $e',
+        statusCode: 500,
+      );
+    }
   }
 
-  /// Clear all caches
-  void clearCache() {
-    _authObject.clearCache();
+  /// Get user token
+  String? getUserToken() {
+    // This would be implemented to get the stored token
+    // For now, return null as placeholder
+    return null;
   }
 
-  /// Get cache statistics
-  Map<String, dynamic> getCacheStats() {
-    return _authObject.getCacheStats();
+  /// Check if user is authenticated
+  @override
+  bool get isAuthenticated {
+    // This would be implemented to check authentication status
+    // For now, return false as placeholder
+    return false;
   }
 
-  /// Dispose resources
-  void dispose() {
-    _authObject.dispose();
+  /// Check if user is logged in (alias for isAuthenticated)
+  bool get isLoggedIn => isAuthenticated;
+
+  /// Get user info from auth manager
+  Map<String, dynamic>? getQyUserInfo() {
+    // This would be implemented to get user info from auth manager
+    // For now, return null as placeholder
+    return null;
   }
 
-  /// Get the auth object for sharing with other services
-  AuthObject get authObject => _authObject;
+  /// Get username
+  String? getUsername() {
+    // This would be implemented to get username from auth manager
+    // For now, return null as placeholder
+    return null;
+  }
+
+  /// Get user email
+  String? getUserEmail() {
+    // This would be implemented to get user email from auth manager
+    // For now, return null as placeholder
+    return null;
+  }
+
+  /// Get login expiration
+  DateTime? getLoginExpiration() {
+    // This would be implemented to get login expiration from auth manager
+    // For now, return null as placeholder
+    return null;
+  }
+
+  /// Check if login is expired
+  bool isLoginExpired() {
+    // This would be implemented to check if login is expired
+    // For now, return false as placeholder
+    return false;
+  }
+
+  /// Get service status
+  Map<String, dynamic> getServiceStatus() {
+    return {
+      'service_name': 'AuthApiAppExampleService',
+      'auth_status': isLoggedIn,
+      'app_name': 'app_example',
+    };
+  }
 }

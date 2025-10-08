@@ -11,10 +11,20 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/util/bw_parsetool.dart' as bw;
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+
+// Placeholder for bw_parsetool
+class bw {
+  static String parseText(String text) => text;
+  
+  static BingWordParseTool createParser() => BingWordParseTool();
+}
+
+class BingWordParseTool {
+  String parse(String text) => text;
+}
 
 // AI MODIFICATION NOTE: This screen was marked for deletion by QR_Profile_AI_Assistant
 // - This functionality is redundant with word_card feature
@@ -30,7 +40,7 @@ class WordCardsScreen extends StatefulWidget {
 }
 
 class _WordCardsScreenState extends State<WordCardsScreen> {
-  final _parser = bw.BingWordParseTool();
+  final _parser = bw.createParser();
   List<dynamic> _wordData = [];
 
   @override

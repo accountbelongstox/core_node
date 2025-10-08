@@ -12,11 +12,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:qyflutter/common/network/api_client.dart';
+import 'package:qyflutter/common/network/network_framework.dart';
 import 'package:qyflutter/common/constants/app_constants.dart';
 import 'package:qyflutter/apps/app_example/model_app_example/user_model.dart';
-import 'package:qyflutter/common/network/laravel_apis.dart';
-import 'package:qyflutter/common/network/laravel_auth_apis.dart';
 import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart';
 import 'package:qyflutter/apps/app_example/services_app_example/auth_api_app_example_service.dart';
@@ -35,86 +33,53 @@ class AuthControllerAppExample extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
 
-  ApiClient get _apiClient => ApiClient(context: context);
+  // Removed old ApiClient - using new network framework
   BaseUserProvider get _userProvider =>
       Provider.of<BaseUserProvider>(context, listen: false);
 
   // Login function using new auth service
-  Future<Response> login(String username, String password, bool remember) async {
+  Future<NetworkResponse<Map<String, dynamic>>> login(String username, String password, bool remember) async {
     _isLoading = true;
     notifyListeners();
 
     try {
       // Use new auth service for login
-      final authResult = await _authService.login(
+      final response = await _authService.login(
         username: username,
         password: password,
         remember: remember,
       );
 
-      if (authResult.isSuccess) {
+      if (response.isSuccess && response.data != null) {
         // Update user provider with new user data
-        final userInfo = _authService.getQyUserInfo();
+        final userInfo = response.data!['user'];
         if (userInfo != null) {
           final userModel = UserModel.fromJson(userInfo);
           _userProvider.setUser(userModel);
         }
-
-        // Create successful response
-        final response = Response(
-          body: {
-            'success': true,
-            'message': authResult.message,
-            'user': userInfo,
-            'token': _authService.getUserToken(),
-          },
-          bodyString: '',
-          statusCode: 200,
-          headers: {},
-          method: 'POST',
-        );
-
-        _isLoading = false;
-        notifyListeners();
-        return response;
-      } else {
-        // Create error response
-        final response = Response(
-          body: {
-            'success': false,
-            'message': authResult.error,
-            'errors': authResult.error,
-          },
-          bodyString: '',
-          statusCode: authResult.statusCode ?? 400,
-          headers: {},
-          method: 'POST',
-        );
-
-        _isLoading = false;
-        notifyListeners();
-        return response;
       }
+
+      _isLoading = false;
+      notifyListeners();
+      return response;
     } catch (e) {
       _isLoading = false;
       notifyListeners();
       
-      return Response(
-        body: {
+      return NetworkResponse<Map<String, dynamic>>(
+        data: {
           'success': false,
           'message': 'Login failed: $e',
           'errors': e.toString(),
         },
-        bodyString: '',
+        message: 'Login failed: $e',
         statusCode: 500,
-        headers: {},
-        method: 'POST',
       );
     }
   }
 
   // Register function using new auth service
-  Future<Response> register({
+  Future<NetworkResponse<Map<String, dynamic>>> register({
     required String email,
     required String password,
     required String username,
@@ -125,7 +90,7 @@ class AuthControllerAppExample extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final authResult = await _authService.register(
+      final response = await _authService.register(
         email: email,
         password: password,
         username: username,
@@ -133,85 +98,13 @@ class AuthControllerAppExample extends ChangeNotifier {
         lastName: lastName,
       );
 
-      if (authResult.isSuccess) {
-        final userInfo = _authService.getQyUserInfo();
+      if (response.isSuccess && response.data != null) {
+        final userInfo = response.data!['user'];
         if (userInfo != null) {
           final userModel = UserModel.fromJson(userInfo);
           _userProvider.setUser(userModel);
         }
-
-        final response = Response(
-          body: {
-            'success': true,
-            'message': authResult.message,
-            'user': userInfo,
-            'token': _authService.getUserToken(),
-          },
-          bodyString: '',
-          statusCode: 201,
-          headers: {},
-          method: 'POST',
-        );
-
-        _isLoading = false;
-        notifyListeners();
-        return response;
-      } else {
-        final response = Response(
-          body: {
-            'success': false,
-            'message': authResult.error,
-            'errors': authResult.error,
-          },
-          bodyString: '',
-          statusCode: authResult.statusCode ?? 400,
-          headers: {},
-          method: 'POST',
-        );
-
-        _isLoading = false;
-        notifyListeners();
-        return response;
       }
-    } catch (e) {
-      _isLoading = false;
-      notifyListeners();
-      
-      return Response(
-        body: {
-          'success': false,
-          'message': 'Registration failed: $e',
-          'errors': e.toString(),
-        },
-        bodyString: '',
-        statusCode: 500,
-        headers: {},
-        method: 'POST',
-      );
-    }
-  }
-
-  // Logout function using new auth service
-  Future<Response> logout() async {
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      final authResult = await _authService.logout();
-      
-      // Clear user provider
-      _userProvider.clearUser();
-
-      final response = Response(
-        body: {
-          'success': authResult.isSuccess,
-          'message': authResult.message ?? 'Logged out successfully',
-        },
-        bodyString: '',
-        statusCode: authResult.isSuccess ? 200 : 400,
-        headers: {},
-        method: 'POST',
-      );
 
       _isLoading = false;
       notifyListeners();
@@ -220,23 +113,51 @@ class AuthControllerAppExample extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       
-      return Response(
-        body: {
+      return NetworkResponse<Map<String, dynamic>>(
+        data: {
+          'success': false,
+          'message': 'Registration failed: $e',
+          'errors': e.toString(),
+        },
+        message: 'Registration failed: $e',
+        statusCode: 500,
+      );
+    }
+  }
+
+  // Logout function using new auth service
+  Future<NetworkResponse<Map<String, dynamic>>> logout() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await _authService.logout();
+      
+      // Clear user provider
+      _userProvider.clearUser();
+
+      _isLoading = false;
+      notifyListeners();
+      return response;
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      
+      return NetworkResponse<Map<String, dynamic>>(
+        data: {
           'success': false,
           'message': 'Logout failed: $e',
           'errors': e.toString(),
         },
-        bodyString: '',
+        message: 'Logout failed: $e',
         statusCode: 500,
-        headers: {},
-        method: 'POST',
       );
     }
   }
 
   // Check if user is logged in
   bool isLoggedIn() {
-    return _authService.isLoggedIn();
+    return _authService.isLoggedIn;
   }
 
   // Get current user info
@@ -254,7 +175,7 @@ class AuthControllerAppExample extends ChangeNotifier {
   }
 
   // Change password
-  Future<Response> changePassword({
+  Future<NetworkResponse<Map<String, dynamic>>> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
@@ -262,20 +183,9 @@ class AuthControllerAppExample extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final authResult = await _authService.changePassword(
+      final response = await _authService.changePassword(
         currentPassword: currentPassword,
         newPassword: newPassword,
-      );
-
-      final response = Response(
-        body: {
-          'success': authResult.isSuccess,
-          'message': authResult.message,
-        },
-        bodyString: '',
-        statusCode: authResult.isSuccess ? 200 : 400,
-        headers: {},
-        method: 'POST',
       );
 
       _isLoading = false;
@@ -285,16 +195,14 @@ class AuthControllerAppExample extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       
-      return Response(
-        body: {
+      return NetworkResponse<Map<String, dynamic>>(
+        data: {
           'success': false,
           'message': 'Password change failed: $e',
           'errors': e.toString(),
         },
-        bodyString: '',
+        message: 'Password change failed: $e',
         statusCode: 500,
-        headers: {},
-        method: 'POST',
       );
     }
   }

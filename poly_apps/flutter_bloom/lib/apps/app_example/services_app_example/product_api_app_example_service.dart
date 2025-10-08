@@ -11,108 +11,55 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import '../../../common/controller/auth_controller.dart';
-import '../../../common/network/models/api_response.dart';
-import '../config_app_example/api_config_app_example.dart';
+import '../../../common/network/network_framework.dart';
 import '../config_app_example/api_endpoints_app_example.dart';
 import '../config_app_example/api_data_models_app_example.dart';
 
 /// Product management API service for app_example
-/// Demonstrates how to reuse the same AuthObject across different API services
-class ProductApiAppExampleService {
-  final AuthObject authObject;
+/// Uses the new unified network framework
+class ProductApiAppExampleService extends AdvancedNetworkService {
+  ProductApiAppExampleService(BuildContext context) : super();
 
-  ProductApiAppExampleService({required this.authObject});
+  @override
+  String get serviceName => 'ProductApiAppExampleService';
 
-  /// Factory constructor to create service with shared auth object
-  factory ProductApiAppExampleService.withSharedAuth(AuthObject authObject) {
-    return ProductApiAppExampleService(authObject: authObject);
-  }
+  @override
+  ApiConfig get apiConfig => ApiConfig.jwtAuth(
+    baseUrl: 'https://api.example.com',
+    responseValidation: ResponseValidationConfig.defaultConfig(),
+  );
 
-  /// Factory constructor to create service with new auth object
-  factory ProductApiAppExampleService.withContext(BuildContext context) {
-    final authObject = AuthController.createAuthObject(
-      apiConfig: AppEnvironmentConfig.currentApiConfig,
-      authEndpoints: ApiConfigAppExample.authEndpoints,
-      userDataParser: ApiConfigAppExample.parseUserFromResponse,
-      tokenExtractor: ApiConfigAppExample.extractTokenFromResponse,
-      tokenTypeExtractor: ApiConfigAppExample.extractTokenTypeFromResponse,
-      expirationExtractor: ApiConfigAppExample.extractExpirationFromResponse,
-      messageExtractor: ApiConfigAppExample.extractMessageFromResponse,
-      errorExtractor: ApiConfigAppExample.extractErrorFromResponse,
-      context: context,
-    );
-    
-    return ProductApiAppExampleService(authObject: authObject);
-  }
+  @override
+  EndpointConfig get endpointConfig => EndpointConfig(appName: 'app_example');
 
 
   /// POST request with authentication verification
-  Future<Response> post(String endpoint, Map<String, dynamic> data) async {
-    if (!authObject.isLoggedIn()) {
-      return _createUnauthenticatedResponse();
-    }
-
-    if (authObject.isLoginExpired()) {
-      final refreshResult = await authObject.refreshToken();
-      
-      if (!refreshResult.isSuccess) {
-        return _createUnauthenticatedResponse();
-      }
-    }
-
-    return await authObject.authenticatedClient.post(endpoint, data);
+  Future<NetworkResponse<Map<String, dynamic>>> postRequest(String endpoint, Map<String, dynamic> data) async {
+    return await request<Map<String, dynamic>>(
+      endpoint,
+      data: data,
+    );
   }
 
   /// GET request with authentication verification
-  Future<Response> get(String endpoint, {Map<String, String>? queryParams}) async {
-    if (!authObject.isLoggedIn()) {
-      return _createUnauthenticatedResponse();
-    }
-
-    if (authObject.isLoginExpired()) {
-      final refreshResult = await authObject.refreshToken();
-      
-      if (!refreshResult.isSuccess) {
-        return _createUnauthenticatedResponse();
-      }
-    }
-
-    return await authObject.authenticatedClient.get(endpoint, queryParams: queryParams);
+  Future<NetworkResponse<Map<String, dynamic>>> getRequest(String endpoint, {Map<String, String>? queryParams}) async {
+    return await request<Map<String, dynamic>>(
+      endpoint,
+      queryParameters: queryParams,
+    );
   }
 
   /// PUT request with authentication verification
-  Future<Response> put(String endpoint, Map<String, dynamic> data) async {
-    if (!authObject.isLoggedIn()) {
-      return _createUnauthenticatedResponse();
-    }
-
-    if (authObject.isLoginExpired()) {
-      final refreshResult = await authObject.refreshToken();
-      
-      if (!refreshResult.isSuccess) {
-        return _createUnauthenticatedResponse();
-      }
-    }
-
-    return await authObject.authenticatedClient.put(endpoint, data);
+  Future<NetworkResponse<Map<String, dynamic>>> putRequest(String endpoint, Map<String, dynamic> data) async {
+    return await request<Map<String, dynamic>>(
+      endpoint,
+      data: data,
+    );
   }
 
   /// DELETE request with authentication verification
-  Future<Response> delete(String endpoint) async {
-    if (!authObject.isLoggedIn()) {
-      return _createUnauthenticatedResponse();
-    }
-
-    if (authObject.isLoginExpired()) {
-      final refreshResult = await authObject.refreshToken();
-      
-      if (!refreshResult.isSuccess) {
-        return _createUnauthenticatedResponse();
-      }
-    }
-
-    return await authObject.authenticatedClient.delete(endpoint);
+  Future<NetworkResponse<Map<String, dynamic>>> deleteRequest(String endpoint) async {
+    return await request<Map<String, dynamic>>(endpoint);
   }
 
 
@@ -131,14 +78,13 @@ class ProductApiAppExampleService {
       queryParams['category'] = category;
     }
 
-    final response = await authObject.authenticatedClient.get(
+    final response = await getRequest(
       ApiEndpointsAppExample.contentList,
       queryParams: queryParams,
     );
 
-    if (response.statusCode == 200 && response.body is Map<String, dynamic>) {
-      final body = response.body as Map<String, dynamic>;
-      final contentList = body['data'] ?? body['content'];
+    if (response.isSuccess && response.data != null) {
+      final contentList = response.data!['data'] ?? response.data!['content'];
       
       if (contentList is List) {
         return contentList
@@ -152,16 +98,11 @@ class ProductApiAppExampleService {
 
   /// Get content detail by ID
   Future<ContentData?> getContentDetail(String contentId) async {
-    if (!authObject.isLoggedIn()) {
-      return null;
-    }
-
     final endpoint = ApiEndpointsAppExample.getContentDetail(contentId);
-    final response = await authObject.authenticatedClient.get(endpoint);
+    final response = await getRequest(endpoint);
 
-    if (response.statusCode == 200 && response.body is Map<String, dynamic>) {
-      final body = response.body as Map<String, dynamic>;
-      final contentData = body['content'] ?? body['data'];
+    if (response.isSuccess && response.data != null) {
+      final contentData = response.data!['content'] ?? response.data!['data'];
       
       if (contentData != null) {
         return ContentData.fromJson(contentData);
@@ -173,18 +114,13 @@ class ProductApiAppExampleService {
 
   /// Create new content
   Future<ContentData?> createContent(CreateContentRequestData contentData) async {
-    if (!authObject.isLoggedIn()) {
-      return null;
-    }
-
-    final response = await authObject.authenticatedClient.post(
+    final response = await postRequest(
       ApiEndpointsAppExample.contentCreate,
       contentData.toJson(),
     );
 
-    if (response.statusCode == 201 && response.body is Map<String, dynamic>) {
-      final body = response.body as Map<String, dynamic>;
-      final createdContent = body['content'] ?? body['data'];
+    if (response.isSuccess && response.data != null) {
+      final createdContent = response.data!['content'] ?? response.data!['data'];
       
       if (createdContent != null) {
         return ContentData.fromJson(createdContent);
@@ -196,26 +132,18 @@ class ProductApiAppExampleService {
 
   /// Update content
   Future<bool> updateContent(String contentId, Map<String, dynamic> updateData) async {
-    if (!authObject.isLoggedIn()) {
-      return false;
-    }
-
     final endpoint = ApiEndpointsAppExample.getContentUpdate(contentId);
-    final response = await authObject.authenticatedClient.put(endpoint, updateData);
+    final response = await putRequest(endpoint, updateData);
 
-    return response.statusCode == 200;
+    return response.isSuccess;
   }
 
   /// Delete content
   Future<bool> deleteContent(String contentId) async {
-    if (!authObject.isLoggedIn()) {
-      return false;
-    }
-
     final endpoint = ApiEndpointsAppExample.getContentDelete(contentId);
-    final response = await authObject.authenticatedClient.delete(endpoint);
+    final response = await deleteRequest(endpoint);
 
-    return response.statusCode == 200;
+    return response.isSuccess;
   }
 
   /// Search content
@@ -233,14 +161,13 @@ class ProductApiAppExampleService {
     if (category != null) queryParams['category'] = category;
     if (type != null) queryParams['type'] = type.value;
 
-    final response = await authObject.authenticatedClient.get(
+    final response = await getRequest(
       ApiEndpointsAppExample.contentSearch,
       queryParams: queryParams,
     );
 
-    if (response.statusCode == 200 && response.body is Map<String, dynamic>) {
-      final body = response.body as Map<String, dynamic>;
-      final searchResults = body['results'] ?? body['data'];
+    if (response.isSuccess && response.data != null) {
+      final searchResults = response.data!['results'] ?? response.data!['data'];
       
       if (searchResults is List) {
         return searchResults
@@ -254,13 +181,10 @@ class ProductApiAppExampleService {
 
   /// Get content categories
   Future<List<Map<String, dynamic>>> getContentCategories() async {
-    final response = await authObject.authenticatedClient.get(
-      ApiEndpointsAppExample.contentCategories,
-    );
+    final response = await get(ApiEndpointsAppExample.contentCategories);
 
-    if (response.statusCode == 200 && response.body is Map<String, dynamic>) {
-      final body = response.body as Map<String, dynamic>;
-      final categories = body['categories'] ?? body['data'];
+    if (response.isSuccess && response.data != null) {
+      final categories = response.data!['categories'] ?? response.data!['data'];
       
       if (categories is List) {
         return categories.cast<Map<String, dynamic>>();
@@ -275,11 +199,7 @@ class ProductApiAppExampleService {
     int limit = 20,
     int offset = 0,
   }) async {
-    if (!authObject.isLoggedIn()) {
-      return [];
-    }
-
-    final response = await authObject.authenticatedClient.get(
+    final response = await getRequest(
       ApiEndpointsAppExample.contentFavorites,
       queryParams: {
         'limit': limit.toString(),
@@ -287,9 +207,8 @@ class ProductApiAppExampleService {
       },
     );
 
-    if (response.statusCode == 200 && response.body is Map<String, dynamic>) {
-      final body = response.body as Map<String, dynamic>;
-      final favorites = body['favorites'] ?? body['data'];
+    if (response.isSuccess && response.data != null) {
+      final favorites = response.data!['favorites'] ?? response.data!['data'];
       
       if (favorites is List) {
         return favorites
@@ -303,64 +222,33 @@ class ProductApiAppExampleService {
 
   /// Add content to favorites
   Future<bool> addToFavorites(String contentId) async {
-    if (!authObject.isLoggedIn()) {
-      return false;
-    }
-
-    final response = await authObject.authenticatedClient.post(
+    final response = await postRequest(
       ApiEndpointsAppExample.contentFavorites,
       {'content_id': contentId},
     );
 
-    return response.statusCode == 200;
+    return response.isSuccess;
   }
 
   /// Remove content from favorites
   Future<bool> removeFromFavorites(String contentId) async {
-    if (!authObject.isLoggedIn()) {
-      return false;
-    }
-
-    final response = await authObject.authenticatedClient.delete(
+    final response = await deleteRequest(
       '${ApiEndpointsAppExample.contentFavorites}/$contentId',
     );
 
-    return response.statusCode == 200;
+    return response.isSuccess;
   }
 
-
-  /// Check if user is authenticated (delegate to auth object)
-  bool isAuthenticated() {
-    return authObject.isLoggedIn();
-  }
-
-  /// Create unauthenticated response
-  Response _createUnauthenticatedResponse() {
-    return Response(
-      body: {
-        'error': 'User not authenticated or session expired',
-        'code': 'UNAUTHENTICATED',
-        'requires_login': true,
-        'app_id': 'app_example',
-      },
-      bodyString: '{"error": "User not authenticated or session expired", "code": "UNAUTHENTICATED", "requires_login": true, "app_id": "app_example"}',
-      statusCode: 401,
-      headers: {'x-auth-status': 'UNAUTHENTICATED'},
-      method: 'ERROR',
-    );
-  }
+  /// Check if user is authenticated
+  @override
+  bool get isAuthenticated => super.isAuthenticated;
 
   /// Get service status
   Map<String, dynamic> getServiceStatus() {
     return {
       'service_name': 'ProductApiAppExampleService',
-      'auth_status': authObject.getAuthStatus(),
-      'cache_stats': authObject.getCacheStats(),
+      'auth_status': isAuthenticated,
+      'app_name': 'app_example',
     };
-  }
-
-  /// Clear cache (delegate to auth object)
-  void clearCache() {
-    authObject.clearCache();
   }
 }

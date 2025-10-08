@@ -53,7 +53,7 @@ class ExampleUserProvider extends EnhancedUserProvider {
   }) {
     // Convert UserModel to LaravelUserModel
     final LaravelUserModel mapped = LaravelUserModel(
-      id: int.tryParse(profile.id ?? ''),
+      id: profile.id,
       name: profile.name,
       nickname: profile.nickname,
       username: profile.username,
@@ -61,9 +61,9 @@ class ExampleUserProvider extends EnhancedUserProvider {
       avatar: profile.avatar,
       about: profile.about,
       city: profile.city,
-      createdAt: profile.createdAt != null ? DateTime.tryParse(profile.createdAt!) : null,
-      updatedAt: profile.updatedAt != null ? DateTime.tryParse(profile.updatedAt!) : null,
-      emailVerifiedAt: profile.emailVerifiedAt != null ? DateTime.tryParse(profile.emailVerifiedAt!) : null,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+      emailVerifiedAt: profile.emailVerifiedAt,
       phone: profile.phone,
       age: profile.age,
       gender: profile.gender,
@@ -107,12 +107,9 @@ class ExampleUserProvider extends EnhancedUserProvider {
     if (laravelUser.username == null && laravelUser.email == null) {
       return null;
     }
-    
-    final String createdAtStr = laravelUser.createdAt?.toIso8601String() ?? DateTime.now().toIso8601String();
-    final String updatedAtStr = laravelUser.updatedAt?.toIso8601String() ?? createdAtStr;
 
     return UserModel(
-      id: laravelUser.id?.toString() ?? laravelUser.username ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: laravelUser.id ?? (laravelUser.username != null ? int.tryParse(laravelUser.username!) : null) ?? DateTime.now().millisecondsSinceEpoch,
       name: laravelUser.name ?? laravelUser.username ?? laravelUser.email ?? 'User',
       nickname: laravelUser.nickname ?? laravelUser.name,
       username: laravelUser.username ?? laravelUser.email,
@@ -130,9 +127,9 @@ class ExampleUserProvider extends EnhancedUserProvider {
       religion: laravelUser.religion,
       roleLevel: laravelUser.roleLevel,
       roleName: laravelUser.roleName,
-      emailVerifiedAt: laravelUser.emailVerifiedAt?.toIso8601String(),
-      createdAt: createdAtStr,
-      updatedAt: updatedAtStr,
+      emailVerifiedAt: laravelUser.emailVerifiedAt,
+      createdAt: laravelUser.createdAt ?? DateTime.now(),
+      updatedAt: laravelUser.updatedAt ?? DateTime.now(),
       userToken: laravelUser.userToken,
       preferences: laravelUser.preferences,
       // Example App specific fields with defaults
