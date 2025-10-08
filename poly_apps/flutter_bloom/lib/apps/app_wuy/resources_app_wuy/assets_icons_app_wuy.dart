@@ -19,6 +19,8 @@ class WuyAppAssetsIcons {
   // App icons
   static const String wuy_logo = '$_basePath/logo.png';
   static const String wuy_app_icon = '$_basePath/app_icon.png';
+  static const String wuy_logo_blue = '$_basePath/logo_blue.png';
+  static const String wuy_logo_white = '$_basePath/logo_white.png';
   
   // Navigation icons
   static const String wuy_home = '$_basePath/home.png';

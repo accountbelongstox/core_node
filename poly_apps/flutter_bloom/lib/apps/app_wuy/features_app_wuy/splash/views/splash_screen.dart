@@ -11,8 +11,12 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 class WuySplashScreen extends StatefulWidget {
   const WuySplashScreen({super.key});
@@ -31,7 +35,7 @@ class _WuySplashScreenState extends State<WuySplashScreen> {
   _navigateToHome() async {
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/wuy/home');
+      context.go(WuyAppRouter.routeHome);
     }
   }
 
@@ -50,7 +54,7 @@ class _WuySplashScreenState extends State<WuySplashScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Wuy App',
+              LocalizationKeysAppWuy.wuySplashTitle.tr(context),
               style: ThemeTextStyles.displayLarge.copyWith(
                 color: ThemeColors.white,
               ),

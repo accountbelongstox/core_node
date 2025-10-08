@@ -11,9 +11,13 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 class WuyHomeScreen extends StatelessWidget {
   const WuyHomeScreen({super.key});
@@ -24,7 +28,7 @@ class WuyHomeScreen extends StatelessWidget {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'Wuy Home',
+          LocalizationKeysAppWuy.wuyHomeTitle.tr(context),
           style: ThemeTextStyles.headline3,
         ),
         backgroundColor: ThemeColors.primaryColor,
@@ -36,37 +40,37 @@ class WuyHomeScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Welcome to Wuy App',
+              LocalizationKeysAppWuy.wuyHomeWelcome.tr(context),
               style: ThemeTextStyles.headline2,
             ),
             SizedBox(height: ThemeDimensions.spacing16),
             Text(
-              'This is the home screen of Wuy application',
+              LocalizationKeysAppWuy.wuyHomeDescription.tr(context),
               style: ThemeTextStyles.bodyText1,
             ),
             SizedBox(height: ThemeDimensions.spacing24),
             _buildFeatureCard(
               context,
-              'Profile',
-              'View and edit your profile',
+              LocalizationKeysAppWuy.wuyHomeProfile.tr(context),
+              LocalizationKeysAppWuy.wuyHomeViewProfile.tr(context),
               Icons.person,
-              () => Navigator.pushNamed(context, '/wuy/profile'),
+              () => context.go(WuyAppRouter.routeProfile),
             ),
             SizedBox(height: ThemeDimensions.spacing16),
             _buildFeatureCard(
               context,
-              'Settings',
-              'Configure app settings',
+              LocalizationKeysAppWuy.wuyHomeSettings.tr(context),
+              LocalizationKeysAppWuy.wuyHomeConfigureSettings.tr(context),
               Icons.settings,
-              () => Navigator.pushNamed(context, '/wuy/settings'),
+              () => context.go(WuyAppRouter.routeSettings),
             ),
             SizedBox(height: ThemeDimensions.spacing16),
             _buildFeatureCard(
               context,
-              'Dashboard',
-              'View your dashboard',
+              LocalizationKeysAppWuy.wuyHomeDashboard.tr(context),
+              LocalizationKeysAppWuy.wuyHomeViewDashboard.tr(context),
               Icons.dashboard,
-              () => Navigator.pushNamed(context, '/wuy/dashboard'),
+              () => context.go(WuyAppRouter.routeDashboard),
             ),
           ],
         ),

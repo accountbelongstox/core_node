@@ -113,6 +113,23 @@ class LocalizationKeysAppWuy {
   static const String wuyAuthSignUp = "wuy.auth.sign_up";
   static const String wuyAuthAlreadyHaveAccount = "wuy.auth.already_have_account";
   static const String wuyAuthDontHaveAccount = "wuy.auth.dont_have_account";
+  
+  // Login Entry Page
+  static const String wuyAppName = "wuy.app.name";
+  static const String wuyAppSlogan = "wuy.app.slogan";
+  static const String wuyPhoneLoginRegister = "wuy.phone.login_register";
+  static const String wuyUserAgreement = "wuy.user.agreement";
+  static const String wuyOtherLoginMethods = "wuy.other.login_methods";
+  static const String wuyWeChatLogin = "wuy.wechat.login";
+  static const String wuyQQLogin = "wuy.qq.login";
+  static const String wuyAlipayLogin = "wuy.alipay.login";
+  
+  // Phone Login Page
+  static const String wuyPhoneLoginTitle = "wuy.phone.login_title";
+  static const String wuyEnterPhoneNumber = "wuy.enter.phone_number";
+  static const String wuyEnterPassword = "wuy.enter.password";
+  static const String wuyLoginButton = "wuy.login.button";
+  static const String wuyRegisterButton = "wuy.register.button";
 
   // Common actions
   static const String wuyCommonOk = "wuy.common.ok";
@@ -125,4 +142,120 @@ class LocalizationKeysAppWuy {
   static const String wuyCommonPrevious = "wuy.common.previous";
   static const String wuyCommonRefresh = "wuy.common.refresh";
   static const String wuyCommonRetry = "wuy.common.retry";
+
+  // Splash screen
+  static const String wuySplashTitle = "wuy.splash.title";
+  static const String wuySplashSubtitle = "wuy.splash.subtitle";
+
+  // Home screen
+  static const String wuyHomeFeatures = "wuy.home.features";
+  static const String wuyHomeProfile = "wuy.home.profile";
+  static const String wuyHomeSettings = "wuy.home.settings";
+  static const String wuyHomeDashboard = "wuy.home.dashboard";
+  static const String wuyHomeViewProfile = "wuy.home.view_profile";
+  static const String wuyHomeConfigureSettings = "wuy.home.configure_settings";
+  static const String wuyHomeViewDashboard = "wuy.home.view_dashboard";
+
+  // Map screen
+  static const String wuyMapCurrentLocation = "wuy.map.current_location";
+  static const String wuyMapFriendLocation = "wuy.map.friend_location";
+  static const String wuyMapViewDetails = "wuy.map.view_details";
+  static const String wuyMapFriends = "wuy.map.friends";
+  static const String wuyMapMine = "wuy.map.mine";
+
+  // Profile screen
+  static const String wuyProfileUsername = "wuy.profile.username";
+  static const String wuyProfileEmail = "wuy.profile.email";
+  static const String wuyProfilePhone = "wuy.profile.phone";
+  static const String wuyProfileEditProfile = "wuy.profile.edit_profile";
+  static const String wuyProfileChangePassword = "wuy.profile.change_password";
+  static const String wuyProfileNotificationSettings = "wuy.profile.notification_settings";
+  static const String wuyProfilePrivacySettings = "wuy.profile.privacy_settings";
+  static const String wuyProfileHelpSupport = "wuy.profile.help_support";
+  static const String wuyProfileTermsOfService = "wuy.profile.terms_of_service";
+  static const String wuyProfilePrivacyPolicy = "wuy.profile.privacy_policy";
+  static const String wuyProfileLogout = "wuy.profile.logout";
+  static const String wuyProfileMemberSince = "wuy.profile.member_since";
+
+  // Login screen
+  static const String wuyLoginTitle = "wuy.login.title";
+  static const String wuyLoginSubtitle = "wuy.login.subtitle";
+  static const String wuyLoginEmail = "wuy.login.email";
+  static const String wuyLoginEnterEmail = "wuy.login.enter_email";
+  static const String wuyLoginPassword = "wuy.login.password";
+  static const String wuyLoginEnterPassword = "wuy.login.enter_password";
+  static const String wuyLoginRememberMe = "wuy.login.remember_me";
+  static const String wuyLoginForgotPassword = "wuy.login.forgot_password";
+  static const String wuyLoginSignIn = "wuy.login.sign_in";
+  static const String wuyLoginDontHaveAccount = "wuy.login.dont_have_account";
+  static const String wuyLoginSignUp = "wuy.login.sign_up";
+  static const String wuyLoginOr = "wuy.login.or";
+  static const String wuyLoginWithGoogle = "wuy.login.with_google";
+  static const String wuyLoginWithFacebook = "wuy.login.with_facebook";
+
+  // Register screen
+  static const String wuyRegisterTitle = "wuy.register.title";
+  static const String wuyRegisterSubtitle = "wuy.register.subtitle";
+  static const String wuyRegisterFullName = "wuy.register.full_name";
+  static const String wuyRegisterEnterFullName = "wuy.register.enter_full_name";
+  static const String wuyRegisterEmail = "wuy.register.email";
+  static const String wuyRegisterEnterEmail = "wuy.register.enter_email";
+  static const String wuyRegisterPassword = "wuy.register.password";
+  static const String wuyRegisterEnterPassword = "wuy.register.enter_password";
+  static const String wuyRegisterConfirmPassword = "wuy.register.confirm_password";
+  static const String wuyRegisterEnterConfirmPassword = "wuy.register.enter_confirm_password";
+  static const String wuyRegisterAgreeTerms = "wuy.register.agree_terms";
+  static const String wuyRegisterCreateAccount = "wuy.register.create_account";
+  static const String wuyRegisterAlreadyHaveAccount = "wuy.register.already_have_account";
+  static const String wuyRegisterSignIn = "wuy.register.sign_in";
+
+  // Chat screen
+  static const String wuyChatOnline = "wuy.chat.online";
+  static const String wuyChatLastSeen = "wuy.chat.last_seen";
+  static const String wuyChatTyping = "wuy.chat.typing";
+  static const String wuyChatImage = "wuy.chat.image";
+  static const String wuyChatFile = "wuy.chat.file";
+  static const String wuyChatVoice = "wuy.chat.voice";
+  static const String wuyChatVideo = "wuy.chat.video";
+
+  // Friend info screen
+  static const String wuyFriendInfoTitle = "wuy.friend_info.title";
+  static const String wuyFriendInfoPersonalInfo = "wuy.friend_info.personal_info";
+  static const String wuyFriendInfoContactInfo = "wuy.friend_info.contact_info";
+  static const String wuyFriendInfoActivity = "wuy.friend_info.activity";
+  static const String wuyFriendInfoHistoryTracks = "wuy.friend_info.history_tracks";
+  static const String wuyFriendInfoNetworkRecords = "wuy.friend_info.network_records";
+  static const String wuyFriendInfoSendMessage = "wuy.friend_info.send_message";
+  static const String wuyFriendInfoCall = "wuy.friend_info.call";
+  static const String wuyFriendInfoVideoCall = "wuy.friend_info.video_call";
+
+  // Add friend screen
+  static const String wuyAddFriendTitle = "wuy.add_friend.title";
+  static const String wuyAddFriendSearch = "wuy.add_friend.search";
+  static const String wuyAddFriendSearchHint = "wuy.add_friend.search_hint";
+  static const String wuyAddFriendResults = "wuy.add_friend.results";
+  static const String wuyAddFriendNoResults = "wuy.add_friend.no_results";
+  static const String wuyAddFriendAdd = "wuy.add_friend.add";
+  static const String wuyAddFriendAdded = "wuy.add_friend.added";
+  static const String wuyAddFriendPending = "wuy.add_friend.pending";
+
+  // Settings screen
+  static const String wuySettingsTitle = "wuy.settings.title";
+  static const String wuySettingsGeneral = "wuy.settings.general";
+  static const String wuySettingsNotifications = "wuy.settings.notifications";
+  static const String wuySettingsPrivacy = "wuy.settings.privacy";
+  static const String wuySettingsSecurity = "wuy.settings.security";
+  static const String wuySettingsAbout = "wuy.settings.about";
+  static const String wuySettingsLanguage = "wuy.settings.language";
+  static const String wuySettingsTheme = "wuy.settings.theme";
+  static const String wuySettingsDarkMode = "wuy.settings.dark_mode";
+  static const String wuySettingsLightMode = "wuy.settings.light_mode";
+  static const String wuySettingsSystemMode = "wuy.settings.system_mode";
+
+  // Dashboard screen
+  static const String wuyDashboardTitle = "wuy.dashboard.title";
+  static const String wuyDashboardOverview = "wuy.dashboard.overview";
+  static const String wuyDashboardStats = "wuy.dashboard.stats";
+  static const String wuyDashboardRecentActivity = "wuy.dashboard.recent_activity";
+  static const String wuyDashboardQuickActions = "wuy.dashboard.quick_actions";
 }

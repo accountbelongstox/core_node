@@ -15,7 +15,9 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 class WuyMapScreen extends StatefulWidget {
   const WuyMapScreen({super.key});
@@ -31,7 +33,7 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'Map',
+          LocalizationKeysAppWuy.wuyMapTitle.tr(context),
           style: ThemeTextStyles.displayMedium,
         ),
         backgroundColor: ThemeColors.primary,
@@ -145,7 +147,7 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
                   IconButton(
                     icon: Icon(Icons.info_outline, color: ThemeColors.primary),
                     onPressed: () {
-                      context.go('/wuy/friend/1');
+                      context.go(WuyAppRouter.routeFriendInfo.replaceAll(':id', '1'));
                     },
                   ),
                 ],
@@ -219,8 +221,8 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(Icons.map, 'Map', true, null),
-                _buildNavItem(Icons.people, 'Friends', false, () => context.go(WuyAppRouter.routeFriends)),
-                _buildNavItem(Icons.person, 'Mine', false, () => context.go(WuyAppRouter.routeProfile)),
+                _buildNavItem(Icons.people, LocalizationKeysAppWuy.wuyMapFriends.tr(context), false, () => context.go(WuyAppRouter.routeFriends)),
+                _buildNavItem(Icons.person, LocalizationKeysAppWuy.wuyMapMine.tr(context), false, () => context.go(WuyAppRouter.routeProfile)),
               ],
             ),
           ),

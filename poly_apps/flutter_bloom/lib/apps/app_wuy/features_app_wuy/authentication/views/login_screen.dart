@@ -11,9 +11,13 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 class WuyLoginScreen extends StatefulWidget {
   const WuyLoginScreen({super.key});
@@ -42,7 +46,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'Sign In',
+          LocalizationKeysAppWuy.wuyLoginTitle.tr(context),
           style: ThemeTextStyles.displayMedium,
         ),
         backgroundColor: ThemeColors.primary,
@@ -102,8 +106,8 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       controller: _emailController,
       keyboardType: TextInputType.emailAddress,
       decoration: InputDecoration(
-        labelText: 'Email',
-        hintText: 'Enter your email',
+        labelText: LocalizationKeysAppWuy.wuyLoginEmail.tr(context),
+        hintText: LocalizationKeysAppWuy.wuyLoginEnterEmail.tr(context),
         prefixIcon: Icon(Icons.email, color: ThemeColors.primary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
@@ -130,8 +134,8 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       controller: _passwordController,
       obscureText: _obscurePassword,
       decoration: InputDecoration(
-        labelText: 'Password',
-        hintText: 'Enter your password',
+        labelText: LocalizationKeysAppWuy.wuyLoginPassword.tr(context),
+        hintText: LocalizationKeysAppWuy.wuyLoginEnterPassword.tr(context),
         prefixIcon: Icon(Icons.lock, color: ThemeColors.primary),
         suffixIcon: IconButton(
           icon: Icon(
@@ -196,7 +200,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
               valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
             )
           : Text(
-              'Sign In',
+              LocalizationKeysAppWuy.wuyLoginSignIn.tr(context),
               style: ThemeTextStyles.buttonLarge,
             ),
     );
@@ -207,7 +211,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          "Don't have an account? ",
+          LocalizationKeysAppWuy.wuyLoginDontHaveAccount.tr(context),
           style: ThemeTextStyles.bodyMedium,
         ),
         TextButton(
@@ -215,7 +219,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
             // Navigate to sign up
           },
           child: Text(
-            'Sign Up',
+            LocalizationKeysAppWuy.wuyLoginSignUp.tr(context),
             style: ThemeTextStyles.bodyMedium.copyWith(
               color: ThemeColors.primary,
               fontWeight: FontWeight.bold,
@@ -240,7 +244,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       });
 
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/wuy/friends');
+        context.go(WuyAppRouter.routeFriends);
       }
     }
   }

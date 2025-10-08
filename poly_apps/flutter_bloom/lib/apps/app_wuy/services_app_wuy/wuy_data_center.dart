@@ -94,6 +94,45 @@ class WuyDataCenter extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Login with fake data (for offline mode or testing)
+  Future<void> loginWithFakeData({
+    required String phone,
+    required String password,
+  }) async {
+    // Generate fake user data based on phone number
+    final fakeUser = UserModelAppWuy(
+      id: 'user_${phone.hashCode}',
+      username: 'user_${phone.substring(7)}', // Use last 4 digits
+      nickname: '用户${phone.substring(7)}',
+      email: 'user_${phone.substring(7)}@anwuyou.test',
+      phone: phone,
+      avatar: 'assets/common/icons/people.png',
+      isOnline: true,
+      lastSeen: DateTime.now(),
+      createdAt: DateTime.now().subtract(const Duration(days: 30)),
+      updatedAt: DateTime.now(),
+    );
+
+    await setCurrentUser(fakeUser);
+    
+    // Generate fake friends data
+    await _generateFakeFriends();
+    
+    // Generate fake chat messages
+    await _generateFakeChatMessages();
+    
+    // Generate fake location data
+    await _generateFakeLocationData();
+    
+    // Generate fake network records
+    await _generateFakeNetworkRecords();
+    
+    // Generate fake activity history
+    await _generateFakeActivityHistory();
+    
+    debugPrint('Fake login successful for phone: $phone');
+  }
+
   Future<void> updateUserProfile(UserModelAppWuy user) async {
     _currentUser = user;
     _addActivityRecord('profile_update', 'Profile updated: ${user.displayName}');
@@ -357,6 +396,145 @@ class WuyDataCenter extends ChangeNotifier {
         'timestamp': DateTime.now().subtract(Duration(minutes: 20)).toIso8601String(),
       },
     ];
+  }
+
+  /// Generate fake friends data for login
+  Future<void> _generateFakeFriends() async {
+    final fakeFriends = [
+      FriendModelAppWuy(
+        id: '1',
+        username: 'xiaofeixia',
+        displayName: '小飞侠',
+        bio: '热爱生活，积极向上',
+        isOnline: true,
+        avatarUrl: 'assets/common/icons/people.png',
+        phoneNumber: '138****8888',
+        lastSeen: DateTime.now(),
+        createdAt: DateTime.now().subtract(Duration(days: 30)),
+        updatedAt: DateTime.now(),
+      ),
+      FriendModelAppWuy(
+        id: '2',
+        username: 'xiaoming',
+        displayName: '小明',
+        bio: '程序员一枚',
+        isOnline: true,
+        avatarUrl: 'assets/common/icons/people.png',
+        phoneNumber: '139****9999',
+        lastSeen: DateTime.now().subtract(Duration(minutes: 5)),
+        createdAt: DateTime.now().subtract(Duration(days: 25)),
+        updatedAt: DateTime.now(),
+      ),
+      FriendModelAppWuy(
+        id: '3',
+        username: 'xiaohong',
+        displayName: '小红',
+        bio: '热爱生活',
+        isOnline: false,
+        avatarUrl: 'assets/common/icons/people.png',
+        phoneNumber: '137****7000',
+        lastSeen: DateTime.now().subtract(Duration(hours: 2)),
+        createdAt: DateTime.now().subtract(Duration(days: 20)),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+    await setFriends(fakeFriends);
+  }
+
+  /// Generate fake chat messages for login
+  Future<void> _generateFakeChatMessages() async {
+    _chatMessages = {
+      '1': [
+        ChatMessageModelAppWuy(
+          id: '1',
+          chatId: 'chat_1',
+          content: '你好！',
+          senderId: '1',
+          receiverId: _currentUser?.id ?? 'current_user',
+          createdAt: DateTime.now().subtract(Duration(minutes: 10)),
+          isRead: true,
+        ),
+        ChatMessageModelAppWuy(
+          id: '2',
+          chatId: 'chat_1',
+          content: '你好！最近怎么样？',
+          senderId: _currentUser?.id ?? 'current_user',
+          receiverId: '1',
+          createdAt: DateTime.now().subtract(Duration(minutes: 9)),
+          isRead: true,
+        ),
+      ],
+      '2': [
+        ChatMessageModelAppWuy(
+          id: '3',
+          chatId: 'chat_2',
+          content: '今天天气不错',
+          senderId: '2',
+          receiverId: _currentUser?.id ?? 'current_user',
+          createdAt: DateTime.now().subtract(Duration(minutes: 5)),
+          isRead: false,
+        ),
+      ],
+    };
+    notifyListeners();
+  }
+
+  /// Generate fake location data for login
+  Future<void> _generateFakeLocationData() async {
+    _currentLocation = {
+      'latitude': 39.9042,
+      'longitude': 116.4074,
+      'address': '北京市朝阳区',
+      'accuracy': 10.0,
+    };
+    notifyListeners();
+  }
+
+  /// Generate fake network records for login
+  Future<void> _generateFakeNetworkRecords() async {
+    _networkRecords = [
+      {
+        'type': 'login',
+        'description': '登录成功',
+        'status': 'success',
+        'timestamp': DateTime.now().subtract(Duration(minutes: 30)).toIso8601String(),
+      },
+      {
+        'type': 'api_call',
+        'description': '获取好友列表',
+        'status': 'success',
+        'timestamp': DateTime.now().subtract(Duration(minutes: 25)).toIso8601String(),
+      },
+      {
+        'type': 'error',
+        'description': '网络连接超时',
+        'status': 'error',
+        'timestamp': DateTime.now().subtract(Duration(minutes: 20)).toIso8601String(),
+      },
+    ];
+    notifyListeners();
+  }
+
+  /// Generate fake activity history for login
+  Future<void> _generateFakeActivityHistory() async {
+    _activityHistory = [
+      {
+        'type': 'user_login',
+        'description': '用户登录',
+        'timestamp': DateTime.now().subtract(Duration(minutes: 30)).toIso8601String(),
+      },
+      {
+        'type': 'friends_loaded',
+        'description': '加载好友列表',
+        'timestamp': DateTime.now().subtract(Duration(minutes: 25)).toIso8601String(),
+      },
+      {
+        'type': 'message_sent',
+        'description': '发送消息给小明',
+        'timestamp': DateTime.now().subtract(Duration(minutes: 20)).toIso8601String(),
+      },
+    ];
+    notifyListeners();
   }
 
   /// Clear all data
