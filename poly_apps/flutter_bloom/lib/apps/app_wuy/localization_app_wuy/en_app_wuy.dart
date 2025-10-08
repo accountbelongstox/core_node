@@ -183,6 +183,7 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyProfileTermsOfService: 'Terms of Service',
     LocalizationKeysAppWuy.wuyProfilePrivacyPolicy: 'Privacy Policy',
     LocalizationKeysAppWuy.wuyProfileLogout: 'Logout',
+    LocalizationKeysAppWuy.wuyProfileMemberSince: 'Member Since',
 
     // Login screen
     LocalizationKeysAppWuy.wuyLoginTitle: 'Login',

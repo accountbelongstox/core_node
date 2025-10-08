@@ -183,6 +183,7 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyProfileTermsOfService: '服务条款',
     LocalizationKeysAppWuy.wuyProfilePrivacyPolicy: '隐私政策',
     LocalizationKeysAppWuy.wuyProfileLogout: '退出登录',
+    LocalizationKeysAppWuy.wuyProfileMemberSince: '注册时间',
 
     // Login screen
     LocalizationKeysAppWuy.wuyLoginTitle: '登录',
