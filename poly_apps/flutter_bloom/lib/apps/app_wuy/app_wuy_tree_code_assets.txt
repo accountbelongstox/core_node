@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-08 13:08:19
+Generated: 2025-10-09 03:08:56
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -11,8 +11,10 @@ Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
 app_wuy [code_assets]
 ├── lib/apps/app_wuy/
 │   ├── .prompts
+│   │   ├── claude.prompt
 │   │   └── cursor.prompt
 │   ├── app_wuy_tree.md
+│   ├── app_wuy_tree_code_assets.txt
 │   ├── build_config.ini
 │   ├── config_app_wuy
 │   │   ├── api_config_app_wuy.dart
@@ -24,12 +26,13 @@ app_wuy [code_assets]
 │   ├── controller_app_wuy
 │   │   └── settings_controller_app_wuy.dart
 │   ├── doc
-│   │   ├── app_wuy_review_20251008.txt
+│   │   ├── app_wuy_review_20251008_codex.txt
 │   │   ├── awuy.base64.txt
 │   │   ├── awuy.png
+│   │   ├── claude_development_analysis_report.md
 │   │   ├── cursor_architecture_analysis_report.md
+│   │   ├── cursor_development_progress.md
 │   │   ├── cursor_implementation_summary.md
-│   │   ├── development_analysis_report.md
 │   │   ├── pageviews
 │   │   │   ├── 01_profile_page.png
 │   │   │   ├── 02_about_us_page.png
@@ -51,24 +54,8 @@ app_wuy [code_assets]
 │   │   │   ├── manual_mapping.py
 │   │   │   ├── screenshots_catalog.md
 │   │   │   ├── verify_embeddings.py
+│   │   │   ├── wuy_screenshots_composite - Copy.png
 │   │   │   └── wuy_screenshots_composite.png
-│   │   ├── pageviewsfix
-│   │   │   ├── 微信截图_20251008110701.png
-│   │   │   ├── 微信截图_20251008110743.png
-│   │   │   ├── 微信截图_20251008110754.png
-│   │   │   ├── 微信截图_20251008110802.png
-│   │   │   ├── 微信截图_20251008110813.png
-│   │   │   ├── 微信截图_20251008110821.png
-│   │   │   ├── 微信截图_20251008110832.png
-│   │   │   ├── 微信截图_20251008110840.png
-│   │   │   ├── 微信截图_20251008110850.png
-│   │   │   ├── 微信截图_20251008110859.png
-│   │   │   ├── 微信截图_20251008110907.png
-│   │   │   ├── 微信截图_20251008110918.png
-│   │   │   ├── 微信截图_20251008110929.png
-│   │   │   ├── 微信截图_20251008110937.png
-│   │   │   ├── 微信截图_20251008110948.png
-│   │   │   └── 微信截图_20251008111007.png
 │   │   ├── pageviewshtmlclaude
 │   │   │   ├── 02_bottom_navigation.html
 │   │   │   ├── 03_menu_drawer_open.html
@@ -77,23 +64,6 @@ app_wuy [code_assets]
 │   │   │   ├── 06_display_settings.html
 │   │   │   ├── 07_notification_settings.html
 │   │   │   └── 08_privacy_settings.html
-│   │   ├── pageviewshtmlclaude.bak
-│   │   │   ├── 01_homepage_main_view.html
-│   │   │   ├── 02_bottom_navigation.html
-│   │   │   ├── 03_menu_drawer_open.html
-│   │   │   ├── 04_settings_page.html
-│   │   │   ├── 05_account_settings.html
-│   │   │   ├── 06_display_settings.html
-│   │   │   ├── 07_notification_settings.html
-│   │   │   ├── 08_privacy_settings.html
-│   │   │   ├── 09_data_storage_settings.html
-│   │   │   ├── 10_help_feedback_page.html
-│   │   │   ├── 11_about_page.html
-│   │   │   ├── 12_theme_selection_dialog.html
-│   │   │   ├── 13_font_size_adjustment.html
-│   │   │   ├── 14_language_settings.html
-│   │   │   ├── 15_search_functionality.html
-│   │   │   └── 16_app_info_details.html
 │   │   ├── pageviewshtmlcodebuddy
 │   │   │   ├── about.html
 │   │   │   ├── add-friend.html
@@ -130,23 +100,46 @@ app_wuy [code_assets]
 │   │       ├── 15_search_functionality.full.html
 │   │       ├── 16_app_info_details.full.html
 │   │       └── index.full.html
+│   ├── errot.txt
 │   ├── features_app_wuy
+│   │   ├── about
+│   │   │   └── views
+│   │   │       └── about_screen.dart
 │   │   ├── authentication
 │   │   │   └── views
-│   │   │       └── login_screen.dart
+│   │   │       ├── login_screen.dart
+│   │   │       └── register_screen.dart
+│   │   ├── chat
+│   │   │   └── views
+│   │   │       └── chat_screen.dart
 │   │   ├── dashboard
 │   │   │   └── views
 │   │   │       └── dashboard_screen.dart
 │   │   ├── friends
 │   │   │   └── views
+│   │   │       ├── add_friend_screen.dart
+│   │   │       ├── friend_info_screen.dart
 │   │   │       └── friends_list_screen.dart
+│   │   ├── history
+│   │   │   └── views
+│   │   │       └── history_tracking_screen.dart
 │   │   ├── home
 │   │   │   ├── .gitkeep
 │   │   │   └── views
 │   │   │       └── home_screen.dart
+│   │   ├── map
+│   │   │   └── views
+│   │   │       └── map_screen.dart
+│   │   ├── network
+│   │   │   └── views
+│   │   │       └── network_records_screen.dart
 │   │   ├── profile
 │   │   │   └── views
+│   │   │       ├── personal_info_screen.dart
 │   │   │       └── profile_screen.dart
+│   │   ├── search
+│   │   │   └── views
+│   │   │       └── search_screen.dart
 │   │   ├── settings
 │   │   │   └── views
 │   │   │       └── settings_screen.dart
@@ -160,6 +153,10 @@ app_wuy [code_assets]
 │   │   └── zh_app_wuy.dart
 │   ├── main_app_wuy.dart
 │   ├── models_app_wuy
+│   │   ├── chat_message_model_app_wuy.dart
+│   │   ├── friend_model_app_wuy.dart
+│   │   ├── location_model_app_wuy.dart
+│   │   ├── search_filter_model_app_wuy.dart
 │   │   └── user_model_app_wuy.dart
 │   ├── providers_app_wuy
 │   │   ├── app_prefs_app_wuy.dart
@@ -172,6 +169,10 @@ app_wuy [code_assets]
 │   │   ├── router_app_wuy.dart
 │   │   └── routes_provider_app_wuy.dart
 │   ├── services_app_wuy
+│   │   ├── wuy_api_center.dart
+│   │   ├── wuy_app_manager.dart
+│   │   ├── wuy_data_center.dart
+│   │   ├── wuy_network_manager.dart
 │   │   └── wuy_service.dart
 │   ├── settings_app_wuy
 │   │   └── settings_app_wuy.dart
@@ -187,6 +188,7 @@ app_wuy [code_assets]
 │   │   ├── common_assets_icons.dart
 │   │   ├── common_assets_images.dart
 │   │   └── common_assets_launch.dart
+│   ├── auth
 │   ├── cache_manager
 │   │   └── cache_manager.dart
 │   ├── common_tree.md
@@ -299,6 +301,10 @@ app_wuy [code_assets]
 │   │   │   ├── login_manager.dart
 │   │   │   ├── session_auth_strategy.dart
 │   │   │   └── user_provider_auth_coordinator.dart
+│   │   ├── cache
+│   │   │   ├── cache_entry.dart
+│   │   │   ├── cache_store.dart
+│   │   │   └── memory_cache_store.dart
 │   │   ├── core
 │   │   │   ├── http_client.dart
 │   │   │   └── network_manager.dart

@@ -13,7 +13,6 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import '../config_app_wuy/app_config_app_wuy.dart';
 
 /// Wuy App Theme Configuration
@@ -188,7 +187,7 @@ class WuyAppThemeConfig {
   );
   
   // Wuy App specific card theme
-  static CardTheme get wuyCardTheme => CardTheme(
+  static CardThemeData get wuyCardTheme => CardThemeData(
     color: wuyCardColor,
     elevation: 2,
     shape: RoundedRectangleBorder(

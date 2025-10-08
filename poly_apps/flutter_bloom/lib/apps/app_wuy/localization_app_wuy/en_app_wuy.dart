@@ -44,6 +44,95 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyValidationInvalidEmail: 'Please enter a valid email address',
     LocalizationKeysAppWuy.wuyValidationPasswordTooShort: 'Password must be at least 8 characters',
     LocalizationKeysAppWuy.wuyValidationPasswordsNoMatch: 'Passwords do not match',
+
+    // Friends related
+    LocalizationKeysAppWuy.wuyFriendsTitle: 'Friends & Groups',
+    LocalizationKeysAppWuy.wuyFriendsSearch: 'Search Friends',
+    LocalizationKeysAppWuy.wuyFriendsNoFriends: 'No Friends',
+    LocalizationKeysAppWuy.wuyFriendsAddFriend: 'Add Friend',
+    LocalizationKeysAppWuy.wuyFriendsOnline: 'Online',
+    LocalizationKeysAppWuy.wuyFriendsOffline: 'Offline',
+
+    // Chat related
+    LocalizationKeysAppWuy.wuyChatTitle: 'Chat',
+    LocalizationKeysAppWuy.wuyChatTypeMessage: 'Type a message...',
+    LocalizationKeysAppWuy.wuyChatSend: 'Send',
+    LocalizationKeysAppWuy.wuyChatSending: 'Sending',
+    LocalizationKeysAppWuy.wuyChatSent: 'Sent',
+    LocalizationKeysAppWuy.wuyChatRead: 'Read',
+
+    // Search related
+    LocalizationKeysAppWuy.wuySearchTitle: 'Search Friends',
+    LocalizationKeysAppWuy.wuySearchName: 'Name',
+    LocalizationKeysAppWuy.wuySearchSignature: 'Signature',
+    LocalizationKeysAppWuy.wuySearchPhone: 'Phone Number',
+    LocalizationKeysAppWuy.wuySearchGender: 'Gender',
+    LocalizationKeysAppWuy.wuySearchMale: 'Male',
+    LocalizationKeysAppWuy.wuySearchFemale: 'Female',
+    LocalizationKeysAppWuy.wuySearchReset: 'Reset',
+    LocalizationKeysAppWuy.wuySearchNoResults: 'No friends found',
+
+    // Profile related
+    LocalizationKeysAppWuy.wuyProfileTitle: 'Profile',
+    LocalizationKeysAppWuy.wuyProfilePersonalInfo: 'Personal Information',
+    LocalizationKeysAppWuy.wuyProfileAbout: 'About Us',
+    LocalizationKeysAppWuy.wuyProfileEdit: 'Edit',
+    LocalizationKeysAppWuy.wuyProfileSave: 'Save',
+    LocalizationKeysAppWuy.wuyProfileSignOut: 'Sign Out',
+
+    // About related
+    LocalizationKeysAppWuy.wuyAboutTitle: 'About Us',
+    LocalizationKeysAppWuy.wuyAboutFeatures: 'Features',
+    LocalizationKeysAppWuy.wuyAboutVersion: 'Version Update',
+    LocalizationKeysAppWuy.wuyAboutAppInfo: 'App Information',
+    LocalizationKeysAppWuy.wuyAboutVersionInfo: 'View latest version information',
+    LocalizationKeysAppWuy.wuyAboutFeatureInfo: 'Learn about main features',
+
+    // History related
+    LocalizationKeysAppWuy.wuyHistoryTitle: 'History Tracking',
+    LocalizationKeysAppWuy.wuyHistoryActivity: 'Activity History',
+    LocalizationKeysAppWuy.wuyHistoryLogin: 'Login',
+    LocalizationKeysAppWuy.wuyHistorySuccess: 'Success',
+    LocalizationKeysAppWuy.wuyHistoryAction: 'Action',
+    LocalizationKeysAppWuy.wuyHistoryMessage: 'Message',
+    LocalizationKeysAppWuy.wuyHistoryUpdate: 'Update',
+
+    // Network related
+    LocalizationKeysAppWuy.wuyNetworkTitle: 'Network Records',
+    LocalizationKeysAppWuy.wuyNetworkActivity: 'Network Activity',
+    LocalizationKeysAppWuy.wuyNetworkSuccess: 'Success',
+    LocalizationKeysAppWuy.wuyNetworkError: 'Error',
+    LocalizationKeysAppWuy.wuyNetworkPending: 'Pending',
+
+    // Map related
+    LocalizationKeysAppWuy.wuyMapTitle: 'Map',
+    LocalizationKeysAppWuy.wuyMapLocation: 'Location',
+    LocalizationKeysAppWuy.wuyMapSearch: 'Search',
+
+    // Authentication related
+    LocalizationKeysAppWuy.wuyAuthLogin: 'Login',
+    LocalizationKeysAppWuy.wuyAuthRegister: 'Register',
+    LocalizationKeysAppWuy.wuyAuthEmail: 'Email',
+    LocalizationKeysAppWuy.wuyAuthPassword: 'Password',
+    LocalizationKeysAppWuy.wuyAuthConfirmPassword: 'Confirm Password',
+    LocalizationKeysAppWuy.wuyAuthPhone: 'Phone Number',
+    LocalizationKeysAppWuy.wuyAuthForgotPassword: 'Forgot Password?',
+    LocalizationKeysAppWuy.wuyAuthSignIn: 'Sign In',
+    LocalizationKeysAppWuy.wuyAuthSignUp: 'Sign Up',
+    LocalizationKeysAppWuy.wuyAuthAlreadyHaveAccount: 'Already have an account?',
+    LocalizationKeysAppWuy.wuyAuthDontHaveAccount: 'Don\'t have an account?',
+
+    // Common actions
+    LocalizationKeysAppWuy.wuyCommonOk: 'OK',
+    LocalizationKeysAppWuy.wuyCommonCancel: 'Cancel',
+    LocalizationKeysAppWuy.wuyCommonYes: 'Yes',
+    LocalizationKeysAppWuy.wuyCommonNo: 'No',
+    LocalizationKeysAppWuy.wuyCommonClose: 'Close',
+    LocalizationKeysAppWuy.wuyCommonDone: 'Done',
+    LocalizationKeysAppWuy.wuyCommonNext: 'Next',
+    LocalizationKeysAppWuy.wuyCommonPrevious: 'Previous',
+    LocalizationKeysAppWuy.wuyCommonRefresh: 'Refresh',
+    LocalizationKeysAppWuy.wuyCommonRetry: 'Retry',
   };
 }
 

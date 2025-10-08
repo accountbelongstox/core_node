@@ -27,13 +27,13 @@ class AppConfigAppWuy {
   
   
   /// Base API URL for development
-  static const String apiBaseUrlDev = 'https://dev-api.wuy.example.com';
+  static const String apiBaseUrlDev = 'https://api.anwuyou.test/api/v1';
   
   /// Base API URL for staging
-  static const String apiBaseUrlStaging = 'https://staging-api.wuy.example.com';
+  static const String apiBaseUrlStaging = 'https://api.anwuyou.test/api/v1';
   
   /// Base API URL for production
-  static const String apiBaseUrlProd = 'https://api.wuy.example.com';
+  static const String apiBaseUrlProd = 'https://api.anwuyou.test/api/v1';
   
   /// API timeout in seconds
   static const int apiTimeoutSeconds = 30;

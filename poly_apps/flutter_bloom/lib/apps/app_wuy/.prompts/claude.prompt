@@ -6,7 +6,7 @@
 
 现在的任务:
 1: 完成不存在或百未完成的页,同时首页默认指向该我的好友,但是未登陆跳到登陆,首先你要根据现有的构架,以及规范,使用同一个app的主题(未创建则他那),使用同一个数据共享中心
-同时,你要整体分析,构架的缺陷.合并冗余代码,
+同时,你要整体分析,深入分析，整体看一下有没有冗余代码，以及有没有重复定义的功能，以及有没有不合理之处（如果发现你都需要修复）。 
 注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
 分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
 开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 

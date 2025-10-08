@@ -19,6 +19,9 @@ import 'localization_app_wuy/locales_provider_app_wuy.dart';
 import 'utils_app_wuy/app_info_app_wuy.dart';
 import 'providers_app_wuy/app_prefs_app_wuy.dart';
 import 'providers_app_wuy/wu_user_provider.dart';
+import 'services_app_wuy/wuy_data_center.dart';
+import 'services_app_wuy/wuy_network_manager.dart';
+import 'services_app_wuy/wuy_api_center.dart';
 
 /// Wuy App specific widget
 /// This can be customized for Wuy app specific needs
@@ -45,6 +48,17 @@ Future<void> main() async {
   // Initialize app-specific SharedPreferences
   final AppPrefsAppWuy appPrefs = AppPrefsAppWuy.instance;
   await appPrefs.initSharedPreferences();
+
+  // Initialize data center
+  final WuyDataCenter dataCenter = WuyDataCenter();
+  await dataCenter.initialize();
+
+  // Initialize network manager
+  final WuyNetworkManager networkManager = WuyNetworkManager();
+  await networkManager.initialize();
+
+        // Initialize API center
+        WuyApiCenter();
 
   // Create app-specific user provider
   final WuUserProvider userProvider = WuUserProvider();
