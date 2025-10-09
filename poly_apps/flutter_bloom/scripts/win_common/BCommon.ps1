@@ -558,6 +558,25 @@ function Invoke-DebugMode {
 
             Push-Location $projectRoot
             Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
+
+            # Import and run pre-debug splash update
+            $splashManagerPath = Join-Path $WinCommonDir "SplashManager.ps1"
+            if (Test-Path $splashManagerPath) {
+                Write-Host "[DEBUG] Loading SplashManager for pre-debug splash update" -ForegroundColor Magenta
+                . $splashManagerPath
+
+                # Run splash update before debug
+                Write-Host "[INFO] Running pre-debug splash update..." -ForegroundColor Cyan
+                $splashUpdateResult = Invoke-PreDebugSplashUpdate
+                if ($splashUpdateResult) {
+                    Write-Host "[SUCCESS] Pre-debug splash update completed" -ForegroundColor Green
+                } else {
+                    Write-Host "[WARNING] Pre-debug splash update failed, continuing with debug" -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "[WARNING] SplashManager not found at: $splashManagerPath" -ForegroundColor Yellow
+            }
+
             Write-Host "[DEBUG] About to execute: powershell -File $scriptPath" -ForegroundColor Magenta
 
             # Execute the debug script directly (not through new PowerShell process)

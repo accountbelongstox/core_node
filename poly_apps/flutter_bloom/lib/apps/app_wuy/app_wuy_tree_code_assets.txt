@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-09 03:08:56
+Generated: 2025-10-09 06:13:24
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -13,7 +13,6 @@ app_wuy [code_assets]
 │   ├── .prompts
 │   │   ├── claude.prompt
 │   │   └── cursor.prompt
-│   ├── app_wuy_tree.md
 │   ├── app_wuy_tree_code_assets.txt
 │   ├── build_config.ini
 │   ├── config_app_wuy
@@ -28,11 +27,11 @@ app_wuy [code_assets]
 │   ├── doc
 │   │   ├── app_wuy_review_20251008_codex.txt
 │   │   ├── awuy.base64.txt
-│   │   ├── awuy.png
 │   │   ├── claude_development_analysis_report.md
 │   │   ├── cursor_architecture_analysis_report.md
 │   │   ├── cursor_development_progress.md
 │   │   ├── cursor_implementation_summary.md
+│   │   ├── logo.png
 │   │   ├── pageviews
 │   │   │   ├── 01_profile_page.png
 │   │   │   ├── 02_about_us_page.png
@@ -48,13 +47,11 @@ app_wuy [code_assets]
 │   │   │   ├── 12_network_records_page.png
 │   │   │   ├── 13_chat_page.png
 │   │   │   ├── 14_search_functionality.png
-│   │   │   ├── batch_embed.py
+│   │   │   ├── bg.png
 │   │   │   ├── create_composite_image.py
-│   │   │   ├── embed_image_metadata.py
-│   │   │   ├── manual_mapping.py
+│   │   │   ├── login.html
+│   │   │   ├── logo.png
 │   │   │   ├── screenshots_catalog.md
-│   │   │   ├── verify_embeddings.py
-│   │   │   ├── wuy_screenshots_composite - Copy.png
 │   │   │   └── wuy_screenshots_composite.png
 │   │   ├── pageviewshtmlclaude
 │   │   │   ├── 02_bottom_navigation.html
@@ -107,7 +104,9 @@ app_wuy [code_assets]
 │   │   │       └── about_screen.dart
 │   │   ├── authentication
 │   │   │   └── views
+│   │   │       ├── login_entry_screen.dart
 │   │   │       ├── login_screen.dart
+│   │   │       ├── phone_login_screen.dart
 │   │   │       └── register_screen.dart
 │   │   ├── chat
 │   │   │   └── views
@@ -148,7 +147,6 @@ app_wuy [code_assets]
 │   │           └── splash_screen.dart
 │   ├── localization_app_wuy
 │   │   ├── en_app_wuy.dart
-│   │   ├── locales_provider_app_wuy.dart
 │   │   ├── localization_keys_app_wuy.dart
 │   │   └── zh_app_wuy.dart
 │   ├── main_app_wuy.dart
@@ -476,10 +474,23 @@ app_wuy [code_assets]
 │   │   └── .gitkeep
 │   ├── icons
 │   │   ├── .gitkeep
+│   │   ├── avatar_placeholder.png
+│   │   ├── banner_placeholder.png
+│   │   ├── empty_state.png
+│   │   ├── enable.png
+│   │   ├── error_state.png
+│   │   ├── image_placeholder.png
 │   │   ├── logo.png
-│   │   └── logo_bak.png
+│   │   ├── logo_bak.png
+│   │   ├── maintenance.png
+│   │   ├── no_internet.png
+│   │   ├── on1.png
+│   │   ├── onboarding.png
+│   │   ├── onboarding_d.png
+│   │   └── staff_onboarding.png
 │   ├── images
-│   │   └── .gitkeep
+│   │   ├── .gitkeep
+│   │   └── bg.png
 │   └── launch
 │       ├── .gitkeep
 │       ├── luanch.backup.jpg

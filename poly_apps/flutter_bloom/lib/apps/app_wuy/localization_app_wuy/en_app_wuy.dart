@@ -266,6 +266,17 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyDashboardStats: 'Statistics',
     LocalizationKeysAppWuy.wuyDashboardRecentActivity: 'Recent Activity',
     LocalizationKeysAppWuy.wuyDashboardQuickActions: 'Quick Actions',
+
+    // Messages
+    LocalizationKeysAppWuy.wuyMessagePersonalInfoUpdated: 'Personal information updated successfully!',
+    LocalizationKeysAppWuy.wuyMessageFriendAdded: 'Friend added successfully!',
+    LocalizationKeysAppWuy.wuyMessageEnterPhoneFirst: 'Please enter your phone number first',
+    LocalizationKeysAppWuy.wuyMessageVerificationCodeSent: 'Verification code sent to {phone}',
+    LocalizationKeysAppWuy.wuyMessageRegistrationSuccessful: 'Registration successful!',
+    LocalizationKeysAppWuy.wuyMessageFeatureComingSoon: 'Feature information coming soon!',
+    LocalizationKeysAppWuy.wuyMessageVersionComingSoon: 'Version information coming soon!',
+    LocalizationKeysAppWuy.wuyMessageLoginFailed: 'Login failed: {error}',
+    LocalizationKeysAppWuy.wuyMessageLoginSuccessOffline: 'Login successful (offline mode)',
   };
 }
 

@@ -12,28 +12,18 @@
 
 /// Wuy App Images Assets
 /// This file defines all image assets for the Wuy app
+/// Only includes assets that actually exist in the file system
 class WuyAppAssetsImages {
   // Base path for Wuy app images
   static const String _basePath = 'assets/apps/app_wuy/images';
 
-  // Background images
-  static const String wuy_splash_background = '$_basePath/splash_background.png';
-  static const String wuy_home_background = '$_basePath/home_background.png';
-  static const String wuy_login_background = '$_basePath/login_background.png';
-  
-  // Placeholder images
-  static const String wuy_avatar_placeholder = '$_basePath/avatar_placeholder.png';
-  static const String wuy_image_placeholder = '$_basePath/image_placeholder.png';
-  static const String wuy_banner_placeholder = '$_basePath/banner_placeholder.png';
-  
-  // State images
-  static const String wuy_empty_state = '$_basePath/empty_state.png';
-  static const String wuy_error_state = '$_basePath/error_state.png';
-  static const String wuy_no_internet = '$_basePath/no_internet.png';
-  static const String wuy_maintenance = '$_basePath/maintenance.png';
-  
-  // Onboarding images
-  static const String wuy_onboarding_1 = '$_basePath/onboarding_1.png';
-  static const String wuy_onboarding_2 = '$_basePath/onboarding_2.png';
-  static const String wuy_onboarding_3 = '$_basePath/onboarding_3.png';
+  // Background images - only include existing files
+  static const String background = '$_basePath/bg.png';
+
+  /// Get all images as a map for easy access
+  static Map<String, String> getAllImages() {
+    return {
+      'background': background,
+    };
+  }
 }

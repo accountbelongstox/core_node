@@ -66,3 +66,18 @@
 参考结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
 分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
 开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+开发进度文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_development_progress.md(可能有些过时，你要根据实际文件构架来更新)
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+同时你查看错误文件 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\errot.txt
+同时根据页面资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\pageviews\screenshots_catalog.md 
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+开发进度文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_development_progress.md(可能有些过时，你要根据实际文件构架来更新)
+同时,你要整体分析,构架的缺陷.合并冗余代码,
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 

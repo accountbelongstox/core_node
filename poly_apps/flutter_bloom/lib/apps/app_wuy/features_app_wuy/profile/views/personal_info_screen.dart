@@ -15,7 +15,9 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 class WuyPersonalInfoScreen extends StatefulWidget {
   const WuyPersonalInfoScreen({super.key});
@@ -215,7 +217,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
             children: [
               Expanded(
                 child: RadioListTile<String>(
-                  title: Text('男'),
+                  title: Text(LocalizationKeysAppWuy.wuySearchMale.tr(context)),
                   value: '男',
                   groupValue: _selectedGender,
                   onChanged: _isEditing ? (value) {
@@ -227,7 +229,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
               ),
               Expanded(
                 child: RadioListTile<String>(
-                  title: Text('女'),
+                  title: Text(LocalizationKeysAppWuy.wuySearchFemale.tr(context)),
                   value: '女',
                   groupValue: _selectedGender,
                   onChanged: _isEditing ? (value) {

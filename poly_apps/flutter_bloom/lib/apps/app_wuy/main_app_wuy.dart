@@ -15,7 +15,8 @@ import 'package:qyflutter/common/app/main_common.dart';
 import 'config_app_wuy/app_config_app_wuy.dart';
 import 'router_app_wuy/router_app_wuy.dart';
 import 'settings_app_wuy/settings_app_wuy.dart';
-import 'localization_app_wuy/locales_provider_app_wuy.dart';
+import 'localization_app_wuy/en_app_wuy.dart';
+import 'localization_app_wuy/zh_app_wuy.dart';
 import 'utils_app_wuy/app_info_app_wuy.dart';
 import 'providers_app_wuy/app_prefs_app_wuy.dart';
 import 'providers_app_wuy/wu_user_provider.dart';
@@ -67,8 +68,8 @@ Future<void> main() async {
     appName: AppConfigAppWuy.appName,
     appId: AppConfigAppWuy.appId, // Specific app ID for app-specific routing
     appSettings: WuyAppSettings.getWuySettings(), // Wuy specific settings
-    enAppLocales: WuyAppLocales.getEnLocales(),
-    zhAppLocales: WuyAppLocales.getZhLocales(),
+    enAppLocales: [EnAppWuy.locales],
+    zhAppLocales: [ZhAppWuy.locales],
     routerConfig: WuyAppRouter.createRouter(), // Use createRouter method as per guidelines
     initialRoute: WuyAppRouter.getDefaultRoute(),
     homeRoute: WuyAppRouter.getHomeRoute(),

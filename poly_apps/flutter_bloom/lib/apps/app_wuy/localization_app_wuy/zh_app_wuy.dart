@@ -266,6 +266,17 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyDashboardStats: '统计',
     LocalizationKeysAppWuy.wuyDashboardRecentActivity: '最近活动',
     LocalizationKeysAppWuy.wuyDashboardQuickActions: '快速操作',
+
+    // Messages
+    LocalizationKeysAppWuy.wuyMessagePersonalInfoUpdated: '个人信息更新成功！',
+    LocalizationKeysAppWuy.wuyMessageFriendAdded: '好友添加成功！',
+    LocalizationKeysAppWuy.wuyMessageEnterPhoneFirst: '请先输入手机号',
+    LocalizationKeysAppWuy.wuyMessageVerificationCodeSent: '验证码已发送到 {phone}',
+    LocalizationKeysAppWuy.wuyMessageRegistrationSuccessful: '注册成功！',
+    LocalizationKeysAppWuy.wuyMessageFeatureComingSoon: '功能信息即将推出！',
+    LocalizationKeysAppWuy.wuyMessageVersionComingSoon: '版本信息即将推出！',
+    LocalizationKeysAppWuy.wuyMessageLoginFailed: '登录失败: {error}',
+    LocalizationKeysAppWuy.wuyMessageLoginSuccessOffline: '登录成功 (离线模式)',
   };
 }
 

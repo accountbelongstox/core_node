@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>安无忧 - 登录注册</title>
+  <style>
+    :root {
+      --primary: #1a73e8;
+      --primary-end: #2f7bf3;
+      --text-main: #222;
+      --text-sub: #555;
+      --muted: #8fa3b8;
+      --bg: #ffffff;
+      --border: #e6edf5;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      /* 整页背景图：白底 + 居中顶部 + 不重复 + 铺满 */
+      background-color: #ffffff;
+      background-image: url("bg.png");
+      background-repeat: no-repeat;
+      background-position: center top;
+      background-size: contain;
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    }
+    .page {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .container {
+      width: 100%;
+      max-width: 420px; /* 略宽于 375，方便居中显示 */
+      padding: 0 16px 24px;
+    }
+
+
+    .title {
+      margin-top: 12px;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .subtitle {
+      margin-top: 8px;
+      font-size: 16px;
+      color: var(--text-sub);
+      font-weight: 500;
+    }
+
+    .logo-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 24px 0 28px;
+    }
+    .logo-wrap img {
+      width: 84px;
+      height: auto;
+      object-fit: contain;
+      image-rendering: -webkit-optimize-contrast;
+    }
+
+    .primary-btn {
+      display: block;
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      padding: 14px 18px;
+      text-align: center;
+      text-decoration: none;
+      color: #fff;
+      font-weight: 700;
+      font-size: 16px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-end) 100%);
+      box-shadow: 0 8px 16px rgba(47, 123, 243, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .primary-btn:active { transform: scale(0.985); }
+    .primary-btn:hover { box-shadow: 0 10px 22px rgba(47, 123, 243, 0.30); }
+
+    .agreement {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .agreement a {
+      color: var(--primary-end);
+      text-decoration: none;
+    }
+
+    .other-title {
+      text-align: center;
+      margin: 28px 0 14px;
+      font-size: 14px;
+      color: var(--text-sub);
+    }
+
+    .providers {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .provider {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: #f7f9fc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #a0afc2;
+      font-weight: 700;
+      user-select: none;
+    }
+
+    /* 响应式：以 375px 为基准，随宽度微调字号和间距 */
+    @media (max-width: 420px) {
+      .title { font-size: 26px; }
+      .subtitle { font-size: 15px; }
+      .logo-wrap { margin: 20px 0 24px; }
+      .primary-btn { padding: 13px 16px; font-size: 15px; }
+    }
+    @media (max-width: 360px) {
+      .title { font-size: 24px; }
+      .subtitle { font-size: 14px; }
+      .provider { width: 44px; height: 44px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="container">
+
+
+      <h1 class="title">安无忧</h1>
+      <div class="subtitle">为您精心守护</div>
+
+      <div class="logo-wrap">
+        <img src="logo.png" alt="安无忧 Logo" />
+      </div>
+
+      <a class="primary-btn" href="/login">手机号登录注册</a>
+
+      <div class="agreement">
+        注册即表示同意
+        <a href="#" onclick="alert('示例页面：暂无实际协议内容');return false;">《用户服务与隐私协议》</a>
+      </div>
+
+      <div class="other-title">其他登录方式</div>
+      <div class="providers">
+        <div class="provider" title="微信">微</div>
+        <div class="provider" title="QQ">Q</div>
+        <div class="provider" title="钉钉">钉</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -18,6 +18,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 
 class WuyAboutScreen extends StatelessWidget {
   const WuyAboutScreen({super.key});
@@ -25,25 +26,30 @@ class WuyAboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.lightBackground,
-      appBar: AppBar(
-        title: Text(
-          LocalizationKeysAppWuy.wuyAboutTitle.tr(context),
-          style: ThemeTextStyles.displayMedium,
-        ),
-        backgroundColor: ThemeColors.primary,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeProfile),
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeaderSection(),
-            _buildContentSection(context),
-          ],
+      body: Container(
+        decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: Text(
+              LocalizationKeysAppWuy.wuyAboutTitle.tr(context),
+              style: ThemeTextStyles.displayMedium,
+            ),
+            backgroundColor: ThemeColors.primary,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => context.go(WuyAppRouter.routeProfile),
+            ),
+          ),
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildHeaderSection(),
+                _buildContentSection(context),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -45,37 +45,42 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: WuyAppThemeConfig.wuySurfaceColor,
-      appBar: AppBar(
-        title: Text(
-          LocalizationKeysAppWuy.wuyPhoneLoginTitle.tr(context),
-          style: WuyAppThemeConfig.wuyAppBarTitle,
-        ),
-        backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: WuyAppThemeConfig.wuyLargePadding),
-              _buildLogo(),
-              SizedBox(height: WuyAppThemeConfig.wuyLargePadding * 2),
-              _buildPhoneField(),
-              SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
-              _buildPasswordField(),
-              SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
-              _buildLoginButton(),
-              SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
-              _buildRegisterButton(),
-            ],
+      body: Container(
+        decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: Text(
+              LocalizationKeysAppWuy.wuyPhoneLoginTitle.tr(context),
+              style: WuyAppThemeConfig.wuyAppBarTitle,
+            ),
+            backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => context.pop(),
+            ),
+          ),
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: WuyAppThemeConfig.wuyLargePadding),
+                  _buildLogo(),
+                  SizedBox(height: WuyAppThemeConfig.wuyLargePadding * 2),
+                  _buildPhoneField(),
+                  SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
+                  _buildPasswordField(),
+                  SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
+                  _buildLoginButton(),
+                  SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
+                  _buildRegisterButton(),
+                ],
+              ),
+            ),
           ),
         ),
       ),
