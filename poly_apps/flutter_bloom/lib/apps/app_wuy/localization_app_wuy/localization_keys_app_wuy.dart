@@ -258,4 +258,15 @@ class LocalizationKeysAppWuy {
   static const String wuyDashboardStats = "wuy.dashboard.stats";
   static const String wuyDashboardRecentActivity = "wuy.dashboard.recent_activity";
   static const String wuyDashboardQuickActions = "wuy.dashboard.quick_actions";
+
+  // Messages
+  static const String wuyMessagePersonalInfoUpdated = "wuy.message.personal_info_updated";
+  static const String wuyMessageFriendAdded = "wuy.message.friend_added";
+  static const String wuyMessageEnterPhoneFirst = "wuy.message.enter_phone_first";
+  static const String wuyMessageVerificationCodeSent = "wuy.message.verification_code_sent";
+  static const String wuyMessageRegistrationSuccessful = "wuy.message.registration_successful";
+  static const String wuyMessageFeatureComingSoon = "wuy.message.feature_coming_soon";
+  static const String wuyMessageVersionComingSoon = "wuy.message.version_coming_soon";
+  static const String wuyMessageLoginFailed = "wuy.message.login_failed";
+  static const String wuyMessageLoginSuccessOffline = "wuy.message.login_success_offline";
 }

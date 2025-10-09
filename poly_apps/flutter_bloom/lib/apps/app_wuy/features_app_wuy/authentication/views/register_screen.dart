@@ -16,6 +16,7 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 
 class WuyRegisterScreen extends StatefulWidget {
   const WuyRegisterScreen({super.key});
@@ -47,37 +48,42 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.lightBackground,
-      appBar: AppBar(
-        title: Text(
-          'Register',
-          style: ThemeTextStyles.displayMedium,
-        ),
-        backgroundColor: ThemeColors.primary,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: ThemeDimensions.spacingLarge),
-              _buildLogo(),
-              SizedBox(height: ThemeDimensions.spacingXLarge),
-              _buildPhoneField(),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              _buildVerificationCodeField(),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              _buildPasswordField(),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              _buildConfirmPasswordField(),
-              SizedBox(height: ThemeDimensions.spacingLarge),
-              _buildRegisterButton(),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              _buildSignInLink(),
-            ],
+      body: Container(
+        decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: Text(
+              'Register',
+              style: ThemeTextStyles.displayMedium,
+            ),
+            backgroundColor: ThemeColors.primary,
+            elevation: 0,
+          ),
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: ThemeDimensions.spacingLarge),
+                  _buildLogo(),
+                  SizedBox(height: ThemeDimensions.spacingXLarge),
+                  _buildPhoneField(),
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  _buildVerificationCodeField(),
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  _buildPasswordField(),
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  _buildConfirmPasswordField(),
+                  SizedBox(height: ThemeDimensions.spacingLarge),
+                  _buildRegisterButton(),
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  _buildSignInLink(),
+                ],
+              ),
+            ),
           ),
         ),
       ),

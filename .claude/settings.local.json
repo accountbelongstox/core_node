@@ -3,7 +3,8 @@
     "allow": [
       "Bash(for:*)",
       "Bash(chmod:*)",
-      "Bash(do echo:*)"
+      "Bash(do echo:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": [],

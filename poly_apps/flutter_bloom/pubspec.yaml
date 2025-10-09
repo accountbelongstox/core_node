@@ -80,9 +80,9 @@ flutter:
     # - assets/.extra_achat/images/
     # - assets/.extra_achat/launch/
 
-    # - assets/apps/app_wuy/icons/
-    # - assets/apps/app_wuy/images/
-    # - assets/apps/app_wuy/launch/
+    - assets/apps/app_wuy/icons/
+    - assets/apps/app_wuy/images/
+    - assets/apps/app_wuy/launch/
 
     - assets/apps/app_bank/images/
 

@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 
 class WuySettingsScreen extends StatefulWidget {
   const WuySettingsScreen({super.key});
@@ -31,85 +32,90 @@ class _WuySettingsScreenState extends State<WuySettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.lightBackground,
-      appBar: AppBar(
-        title: Text(
-          'Settings',
-          style: ThemeTextStyles.displayMedium,
+      body: Container(
+        decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: Text(
+              'Settings',
+              style: ThemeTextStyles.displayMedium,
+            ),
+            backgroundColor: ThemeColors.primary,
+            elevation: 0,
+          ),
+          body: ListView(
+            padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+            children: [
+              _buildSettingsSection(
+                'General',
+                [
+                  _buildLanguageSelector(),
+                  _buildSwitchTile(
+                    'Dark Mode',
+                    'Enable dark theme',
+                    _darkModeEnabled,
+                    (value) => setState(() => _darkModeEnabled = value),
+                  ),
+                ],
+              ),
+              SizedBox(height: ThemeDimensions.spacingMedium),
+              _buildSettingsSection(
+                'Notifications',
+                [
+                  _buildSwitchTile(
+                    'Push Notifications',
+                    'Receive push notifications',
+                    _notificationsEnabled,
+                    (value) => setState(() => _notificationsEnabled = value),
+                  ),
+                ],
+              ),
+              SizedBox(height: ThemeDimensions.spacingMedium),
+              _buildSettingsSection(
+                'Security',
+                [
+                  _buildSwitchTile(
+                    'Biometric Login',
+                    'Use fingerprint or face ID',
+                    _biometricEnabled,
+                    (value) => setState(() => _biometricEnabled = value),
+                  ),
+                  _buildListTile(
+                    'Change Password',
+                    'Update your password',
+                    Icons.lock,
+                    () {},
+                  ),
+                ],
+              ),
+              SizedBox(height: ThemeDimensions.spacingMedium),
+              _buildSettingsSection(
+                'About',
+                [
+                  _buildListTile(
+                    'Version',
+                    '1.0.0',
+                    Icons.info,
+                    null,
+                  ),
+                  _buildListTile(
+                    'Terms of Service',
+                    'Read our terms',
+                    Icons.description,
+                    () {},
+                  ),
+                  _buildListTile(
+                    'Privacy Policy',
+                    'Read our privacy policy',
+                    Icons.privacy_tip,
+                    () {},
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        backgroundColor: ThemeColors.primary,
-        elevation: 0,
-      ),
-      body: ListView(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        children: [
-          _buildSettingsSection(
-            'General',
-            [
-              _buildLanguageSelector(),
-              _buildSwitchTile(
-                'Dark Mode',
-                'Enable dark theme',
-                _darkModeEnabled,
-                (value) => setState(() => _darkModeEnabled = value),
-              ),
-            ],
-          ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
-          _buildSettingsSection(
-            'Notifications',
-            [
-              _buildSwitchTile(
-                'Push Notifications',
-                'Receive push notifications',
-                _notificationsEnabled,
-                (value) => setState(() => _notificationsEnabled = value),
-              ),
-            ],
-          ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
-          _buildSettingsSection(
-            'Security',
-            [
-              _buildSwitchTile(
-                'Biometric Login',
-                'Use fingerprint or face ID',
-                _biometricEnabled,
-                (value) => setState(() => _biometricEnabled = value),
-              ),
-              _buildListTile(
-                'Change Password',
-                'Update your password',
-                Icons.lock,
-                () {},
-              ),
-            ],
-          ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
-          _buildSettingsSection(
-            'About',
-            [
-              _buildListTile(
-                'Version',
-                '1.0.0',
-                Icons.info,
-                null,
-              ),
-              _buildListTile(
-                'Terms of Service',
-                'Read our terms',
-                Icons.description,
-                () {},
-              ),
-              _buildListTile(
-                'Privacy Policy',
-                'Read our privacy policy',
-                Icons.privacy_tip,
-                () {},
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

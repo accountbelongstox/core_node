@@ -40,7 +40,7 @@ class WuyProfileScreen extends StatelessWidget {
           children: [
             _buildProfileHeader(),
             SizedBox(height: ThemeDimensions.spacingLarge),
-            _buildProfileInfo(),
+            _buildProfileInfo(context),
             SizedBox(height: ThemeDimensions.spacingLarge),
             _buildProfileActions(context),
           ],
@@ -76,7 +76,7 @@ class WuyProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileInfo() {
+  Widget _buildProfileInfo(BuildContext context) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
