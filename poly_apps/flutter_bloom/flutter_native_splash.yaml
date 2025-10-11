@@ -1,12 +1,76 @@
 flutter_native_splash:
-  android: true
+  # Basic splash screen configuration
+  # Either color or background_image is required
+  color: #667eea
+  background_image: assets/apps/app_wuy/launch/splash.png
+  
+  # Splash screen logo/image
+  #image: assets/apps/app_wuy/icons/logo.png
+  
+  # Branding image (appears at bottom)
+  #branding: "assets/common/launch/branding.png"
+  #branding_mode: bottom
+  #branding_bottom_padding: 24
+  
+  # Dark mode variants
+  color_dark: #121212
+  background_image_dark: assets/apps/app_wuy/launch/splash.png
+  #image_dark: assets/apps/app_wuy/icons/logo.png
+  #branding_dark: "assets/common/launch/branding_dark.png"
+  
+  # Android 12+ specific configuration
   android_12:
-    color: '#667eea'
-    color_dark: '#121212'
-    icon_background_color: '#667eea'
-    icon_background_color_dark: '#121212'
-  android_gravity: fill
-  background_image: assets/common/launch/light_launch.jpg
-   : assets/common/launch/splash_bg.png
+    color: #667eea
+    color_dark: #121212
+    icon_background_color: #667eea
+    icon_background_color_dark: #121212
+    #image: assets/apps/app_wuy/icons/logo.png
+    #image_dark: assets/apps/app_wuy/icons/logo.png
+    #branding: "assets/common/launch/branding.png"
+  
+  # Platform toggles
+  android: true
   ios: true
   web: true
+  
+  # Image positioning
+  #android_gravity: center
+  #ios_content_mode: center
+  #web_image_mode: center
+  
+  # Fullscreen mode
+  fullscreen: true
+  
+  # Platform-specific colors
+  color_android: #667eea
+  color_dark_android: #121212
+  color_ios: #667eea
+  color_dark_ios: #121212
+  color_web: #667eea
+  color_dark_web: #121212
+  
+  # Platform-specific images
+  #image_android: "assets/common/launch/splash_logo.png"
+  #image_dark_android: "assets/common/launch/splash_logo_dark.png"
+  #image_ios: "assets/common/launch/splash_logo.png"
+  #image_dark_ios: "assets/common/launch/splash_logo_dark.png"
+  #image_web: "assets/common/launch/splash_logo.png"
+  #image_dark_web: "assets/common/launch/splash_logo_dark.png"
+  
+  # Platform-specific background images
+  #background_image_android: "assets/common/launch/splash_bg.png"
+  #background_image_dark_android: "assets/common/launch/splash_bg_dark.png"
+  #background_image_ios: "assets/common/launch/splash_bg.png"
+  #background_image_dark_ios: "assets/common/launch/splash_bg_dark.png"
+  #background_image_web: "assets/common/launch/splash_bg.png"
+  #background_image_dark_web: "assets/common/launch/splash_bg_dark.png"
+  
+  # Platform-specific branding
+  #branding_android: "assets/common/launch/branding.png"
+  #branding_bottom_padding_android: 24
+  #branding_dark_android: "assets/common/launch/branding_dark.png"
+  #branding_ios: "assets/common/launch/branding.png"
+  #branding_bottom_padding_ios: 24
+  #branding_dark_ios: "assets/common/launch/branding_dark.png"
+  #branding_web: "assets/common/launch/branding.png"
+  #branding_dark_web: "assets/common/launch/branding_dark.png"

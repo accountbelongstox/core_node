@@ -19,8 +19,13 @@ Reads and processes build_config.ini files for Flutter apps
 import configparser
 import random
 import string
+import sys
 from pathlib import Path
 from typing import Dict, Optional, Any
+
+# Add parent directories to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from core.constants.build_constants import (
     DEFAULT_PACKAGE_ID,
     DEFAULT_APP_DISPLAY_NAME_CN,
@@ -112,11 +117,19 @@ class AppConfigReader:
         else:
             resources = self._get_default_resources()
 
+        # Splash config section
+        splash_config = {}
+        if self.config.has_section('splash_config'):
+            splash_config = self._parse_splash_config()
+        else:
+            splash_config = {}
+
         self.config_data = {
             'app_info': app_info,
             'package_settings': package_settings,
             'build_settings': build_settings,
-            'resources': resources
+            'resources': resources,
+            'splash_config': splash_config
         }
 
     def _set_defaults(self):
@@ -125,7 +138,8 @@ class AppConfigReader:
             'app_info': self._get_default_app_info(),
             'package_settings': self._get_default_package_settings(),
             'build_settings': self._get_default_build_settings(),
-            'resources': self._get_default_resources()
+            'resources': self._get_default_resources(),
+            'splash_config': {}
         }
 
     def _get_default_app_info(self) -> Dict[str, str]:
@@ -162,6 +176,91 @@ class AppConfigReader:
             'splash_screen_file': 'splash.png',
             'background_image_file': 'background.png'
         }
+
+    def _parse_splash_config(self) -> Dict[str, Any]:
+        """Parse splash configuration section"""
+        splash_config = {}
+
+        # Basic colors
+        if self.config.has_option('splash_config', 'color'):
+            splash_config['color'] = self.config.get('splash_config', 'color')
+        if self.config.has_option('splash_config', 'color_dark'):
+            splash_config['color_dark'] = self.config.get('splash_config', 'color_dark')
+
+        # Background images
+        if self.config.has_option('splash_config', 'background_image'):
+            splash_config['background_image'] = self.config.get('splash_config', 'background_image')
+        if self.config.has_option('splash_config', 'background_image_dark'):
+            splash_config['background_image_dark'] = self.config.get('splash_config', 'background_image_dark')
+
+        # Splash logo/image
+        if self.config.has_option('splash_config', 'image'):
+            splash_config['image'] = self.config.get('splash_config', 'image')
+        if self.config.has_option('splash_config', 'image_dark'):
+            splash_config['image_dark'] = self.config.get('splash_config', 'image_dark')
+
+        # Branding
+        if self.config.has_option('splash_config', 'branding'):
+            splash_config['branding'] = self.config.get('splash_config', 'branding')
+        if self.config.has_option('splash_config', 'branding_dark'):
+            splash_config['branding_dark'] = self.config.get('splash_config', 'branding_dark')
+        if self.config.has_option('splash_config', 'branding_mode'):
+            splash_config['branding_mode'] = self.config.get('splash_config', 'branding_mode')
+        if self.config.has_option('splash_config', 'branding_bottom_padding'):
+            splash_config['branding_bottom_padding'] = self.config.getint('splash_config', 'branding_bottom_padding')
+
+        # Android 12+ configuration
+        android_12_config = {}
+        if self.config.has_option('splash_config', 'android_12_color'):
+            android_12_config['color'] = self.config.get('splash_config', 'android_12_color')
+        if self.config.has_option('splash_config', 'android_12_color_dark'):
+            android_12_config['color_dark'] = self.config.get('splash_config', 'android_12_color_dark')
+        if self.config.has_option('splash_config', 'android_12_icon_background_color'):
+            android_12_config['icon_background_color'] = self.config.get('splash_config', 'android_12_icon_background_color')
+        if self.config.has_option('splash_config', 'android_12_icon_background_color_dark'):
+            android_12_config['icon_background_color_dark'] = self.config.get('splash_config', 'android_12_icon_background_color_dark')
+        if self.config.has_option('splash_config', 'android_12_image'):
+            android_12_config['image'] = self.config.get('splash_config', 'android_12_image')
+        if self.config.has_option('splash_config', 'android_12_image_dark'):
+            android_12_config['image_dark'] = self.config.get('splash_config', 'android_12_image_dark')
+        if android_12_config:
+            splash_config['android_12'] = android_12_config
+
+        # Platform toggles
+        if self.config.has_option('splash_config', 'android'):
+            splash_config['android'] = self.config.getboolean('splash_config', 'android')
+        if self.config.has_option('splash_config', 'ios'):
+            splash_config['ios'] = self.config.getboolean('splash_config', 'ios')
+        if self.config.has_option('splash_config', 'web'):
+            splash_config['web'] = self.config.getboolean('splash_config', 'web')
+
+        # Image positioning
+        if self.config.has_option('splash_config', 'android_gravity'):
+            splash_config['android_gravity'] = self.config.get('splash_config', 'android_gravity')
+        if self.config.has_option('splash_config', 'ios_content_mode'):
+            splash_config['ios_content_mode'] = self.config.get('splash_config', 'ios_content_mode')
+        if self.config.has_option('splash_config', 'web_image_mode'):
+            splash_config['web_image_mode'] = self.config.get('splash_config', 'web_image_mode')
+
+        # Fullscreen
+        if self.config.has_option('splash_config', 'fullscreen'):
+            splash_config['fullscreen'] = self.config.getboolean('splash_config', 'fullscreen')
+
+        # Platform-specific colors
+        if self.config.has_option('splash_config', 'color_android'):
+            splash_config['color_android'] = self.config.get('splash_config', 'color_android')
+        if self.config.has_option('splash_config', 'color_dark_android'):
+            splash_config['color_dark_android'] = self.config.get('splash_config', 'color_dark_android')
+        if self.config.has_option('splash_config', 'color_ios'):
+            splash_config['color_ios'] = self.config.get('splash_config', 'color_ios')
+        if self.config.has_option('splash_config', 'color_dark_ios'):
+            splash_config['color_dark_ios'] = self.config.get('splash_config', 'color_dark_ios')
+        if self.config.has_option('splash_config', 'color_web'):
+            splash_config['color_web'] = self.config.get('splash_config', 'color_web')
+        if self.config.has_option('splash_config', 'color_dark_web'):
+            splash_config['color_dark_web'] = self.config.get('splash_config', 'color_dark_web')
+
+        return splash_config
 
     def _apply_randomization(self):
         """Apply randomization based on settings"""

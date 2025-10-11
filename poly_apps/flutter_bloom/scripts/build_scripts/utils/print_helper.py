@@ -16,10 +16,10 @@ Provides consistent logging and output formatting with file logging
 """
 
 import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from shared.data_exchange.unified_variable_system import unified_vars
 
 class PrintHelper:
     """Helper class for consistent logging and output with file logging"""
@@ -30,9 +30,27 @@ class PrintHelper:
 
     @classmethod
     def _get_log_dir(cls) -> Path:
-        """Get log directory path"""
-        log_dir = unified_vars.temp_dir / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
+        """Get log directory path - hardcoded to match unified_vars structure"""
+        # Hardcoded path structure from unified_vars
+        # Equivalent to: unified_vars.temp_dir / "logs"
+        # where unified_vars.temp_dir = flutter_build_base / ".cache" / "flutter_bloom"
+        # and flutter_build_base = core_node_base / ".flutter_build"
+        # and core_node_base = Path.home() / ".core_node"
+
+        core_node_base = Path.home() / ".core_node"
+        flutter_build_base = core_node_base / ".flutter_build"
+        temp_dir = flutter_build_base / ".cache" / "flutter_bloom"
+        log_dir = temp_dir / "logs"
+
+        # Ensure directory exists with fallback
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        except (FileExistsError, OSError):
+            # Fallback to temp directory in system temp
+            fallback_log_dir = Path(tempfile.gettempdir()) / "flutter_bloom_logs"
+            fallback_log_dir.mkdir(parents=True, exist_ok=True)
+            log_dir = fallback_log_dir
+
         return log_dir
 
     @classmethod
