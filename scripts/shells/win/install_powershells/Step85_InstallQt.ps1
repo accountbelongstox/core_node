@@ -91,30 +91,157 @@ $qtSrcDownloadPath = Join-Path $Global:DOWNLOADS_DIR $qtSrcFileName
 $qtSrcExtractDir = Join-Path $Global:TEMP_DIR "qt_extract"
 $qtSrcDir = Join-Path $qtSrcExtractDir "qt-everywhere-src-$QtVersion"
 $qtBuildDir = Join-Path $Global:TEMP_DIR "qt_build"
-$qtInstallDir = Join-Path $Global:LANG_COMPILER_DIR "qt\$QtVersion"
+$qtInstallDir = Join-Path $Global:LANG_COMPILER_DIR "Qt\$QtVersion"
 $qtBinPath = Join-Path $qtInstallDir "bin"
 $qtExePath = Join-Path $qtBinPath "qmake.exe"
 $vs2022BatPath = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
 $vs2022DefaultPath = "C:\Program Files\Microsoft Visual Studio\2022"
 $qtInstalledFlag = Join-Path $Global:USER_CACHE_DIR "Qt_${QtVersion}_Installed.flag"
 $qtOfflinePackagePath = Join-Path $Global:DOWNLOADS_DIR "qt_${QtVersion}_offline_package.zip"
+$maintenanceToolPath = Join-Path $Global:LANG_COMPILER_DIR "Qt\MaintenanceTool.exe"
 
 Write-Host "  [$SCRIPT_INDEX] Qt Installation Paths:" -ForegroundColor White
 Write-Host "  [$SCRIPT_INDEX]   - Source URL: $qtSrcFileUrl" -ForegroundColor Gray
 Write-Host "  [$SCRIPT_INDEX]   - Download Path: $qtSrcDownloadPath" -ForegroundColor Gray
 Write-Host "  [$SCRIPT_INDEX]   - Install Directory: $qtInstallDir" -ForegroundColor Gray
+Write-Host "  [$SCRIPT_INDEX]   - Maintenance Tool: $maintenanceToolPath" -ForegroundColor Gray
 Write-Host ""
 
-# Check if Qt is already installed
+# Check if MaintenanceTool exists (Qt already installed via official installer)
+if (Test-Path $maintenanceToolPath) {
+    Write-Host "  [$SCRIPT_INDEX] Qt MaintenanceTool found!" -ForegroundColor Green
+    Write-Host "  [$SCRIPT_INDEX] This means Qt was installed using the official installer." -ForegroundColor Cyan
+    Write-Host ""
+
+    # Check if the specific version already exists
+    if (Test-Path $qtExePath) {
+        Write-Host "  [$SCRIPT_INDEX] Qt $QtVersion is already installed at: $qtInstallDir" -ForegroundColor Green
+        Write-Host "  [$SCRIPT_INDEX] qmake.exe found at: $qtExePath" -ForegroundColor Green
+    } else {
+        Write-Host "  [$SCRIPT_INDEX] Qt $QtVersion is NOT installed yet." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "  [$SCRIPT_INDEX] To install Qt $QtVersion with all required components:" -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX]   1. Run: $maintenanceToolPath" -ForegroundColor White
+        Write-Host "  [$SCRIPT_INDEX]   2. Select 'Add or remove components'" -ForegroundColor White
+        Write-Host "  [$SCRIPT_INDEX]   3. Navigate to Qt -> Qt $qtVersionMajorMinor -> Qt $QtVersion" -ForegroundColor White
+        Write-Host "  [$SCRIPT_INDEX]   4. Check the following components:" -ForegroundColor White
+        Write-Host "  [$SCRIPT_INDEX]      - MSVC 2019 64-bit (or MSVC 2022 64-bit)" -ForegroundColor White
+        Write-Host "  [$SCRIPT_INDEX]      - MinGW 64-bit (if needed)" -ForegroundColor White
+        Write-Host "  [$SCRIPT_INDEX]      - Qt 5 Compatibility Module (REQUIRED for QtScrcpy)" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX]      - Additional Libraries -> Qt Multimedia" -ForegroundColor White
+        Write-Host "  [$SCRIPT_INDEX]      - Additional Libraries -> Qt Network" -ForegroundColor White
+        Write-Host "  [$SCRIPT_INDEX]   5. Click 'Update' to install" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  [$SCRIPT_INDEX] Alternatively, you can use the command line:" -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX]   & '$maintenanceToolPath' --help" -ForegroundColor White
+        Write-Host ""
+    }
+
+    # Update environment variables using WindowsPathFunction.ps1
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] Updating environment variables..." -ForegroundColor Cyan
+
+    # Ensure Qt bin is in PATH
+    if (Test-Path $qtBinPath) {
+        Write-Host "  [$SCRIPT_INDEX] Adding Qt bin to system PATH..." -ForegroundColor Cyan
+        & $windowsPathFuncPath "add" $qtBinPath
+    }
+
+    # Set QTDIR environment variable
+    if (Test-Path $qtInstallDir) {
+        Write-Host "  [$SCRIPT_INDEX] Setting QTDIR environment variable..." -ForegroundColor Cyan
+        & $windowsPathFuncPath "setvar" "QTDIR" $qtInstallDir
+        Write-Host "  [$SCRIPT_INDEX]   - QTDIR = $qtInstallDir" -ForegroundColor Green
+    }
+
+    # Detect Qt CMake config directory
+    $qtCMakeDir = Join-Path $qtInstallDir "lib\cmake\Qt6"
+    if (-not (Test-Path $qtCMakeDir)) {
+        $qtCMakeDir = Join-Path $qtInstallDir "lib\cmake\Qt5"
+    }
+
+    if (Test-Path $qtCMakeDir) {
+        # Update CMAKE_PREFIX_PATH
+        $currentCMakePath = [Environment]::GetEnvironmentVariable("CMAKE_PREFIX_PATH", "Machine")
+        if ($currentCMakePath -and -not $currentCMakePath.Contains($qtInstallDir)) {
+            $newCMakePath = "$qtInstallDir;$currentCMakePath"
+        } elseif (-not $currentCMakePath) {
+            $newCMakePath = $qtInstallDir
+        } else {
+            $newCMakePath = $currentCMakePath
+        }
+
+        & $windowsPathFuncPath "setvar" "CMAKE_PREFIX_PATH" $newCMakePath
+        Write-Host "  [$SCRIPT_INDEX]   - CMAKE_PREFIX_PATH includes: $qtInstallDir" -ForegroundColor Green
+
+        # Set Qt6_DIR or Qt5_DIR
+        $qtVer = if ($qtCMakeDir -match "Qt6") { "Qt6" } else { "Qt5" }
+        & $windowsPathFuncPath "setvar" "${qtVer}_DIR" $qtCMakeDir
+        Write-Host "  [$SCRIPT_INDEX]   - ${qtVersion}_DIR = $qtCMakeDir" -ForegroundColor Green
+    } else {
+        Write-Host "  [$SCRIPT_INDEX]   - WARNING: Qt CMake directory not found" -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] Environment variables updated" -ForegroundColor Green
+    Write-Host "  [$SCRIPT_INDEX] Please restart your terminal or IDE to use the updated environment" -ForegroundColor Yellow
+    Write-Host ""
+    exit 0
+}
+
+# Check if Qt is already installed (built from source)
 if (Test-Path $qtExePath) {
     Write-Host "  [$SCRIPT_INDEX] Qt $QtVersion is already installed at: $qtInstallDir" -ForegroundColor Green
     Write-Host "  [$SCRIPT_INDEX] qmake.exe found at: $qtExePath" -ForegroundColor Green
 
-    # Ensure Qt is in PATH
-    Write-Host "  [$SCRIPT_INDEX] Verifying Qt bin directory in PATH..." -ForegroundColor Cyan
-    Add-ToPath -PathToAdd $qtBinPath -Scope "Machine"
+    # Update environment variables using WindowsPathFunction.ps1
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] Updating environment variables..." -ForegroundColor Cyan
 
-    Write-Host "  [$SCRIPT_INDEX] Qt installation verified and PATH updated" -ForegroundColor Green
+    # Ensure Qt bin is in PATH
+    if (Test-Path $qtBinPath) {
+        Write-Host "  [$SCRIPT_INDEX] Adding Qt bin to system PATH..." -ForegroundColor Cyan
+        & $windowsPathFuncPath "add" $qtBinPath
+    }
+
+    # Set QTDIR environment variable
+    if (Test-Path $qtInstallDir) {
+        Write-Host "  [$SCRIPT_INDEX] Setting QTDIR environment variable..." -ForegroundColor Cyan
+        & $windowsPathFuncPath "setvar" "QTDIR" $qtInstallDir
+        Write-Host "  [$SCRIPT_INDEX]   - QTDIR = $qtInstallDir" -ForegroundColor Green
+    }
+
+    # Detect Qt CMake config directory
+    $qtCMakeDir = Join-Path $qtInstallDir "lib\cmake\Qt6"
+    if (-not (Test-Path $qtCMakeDir)) {
+        $qtCMakeDir = Join-Path $qtInstallDir "lib\cmake\Qt5"
+    }
+
+    if (Test-Path $qtCMakeDir) {
+        # Update CMAKE_PREFIX_PATH
+        $currentCMakePath = [Environment]::GetEnvironmentVariable("CMAKE_PREFIX_PATH", "Machine")
+        if ($currentCMakePath -and -not $currentCMakePath.Contains($qtInstallDir)) {
+            $newCMakePath = "$qtInstallDir;$currentCMakePath"
+        } elseif (-not $currentCMakePath) {
+            $newCMakePath = $qtInstallDir
+        } else {
+            $newCMakePath = $currentCMakePath
+        }
+
+        & $windowsPathFuncPath "setvar" "CMAKE_PREFIX_PATH" $newCMakePath
+        Write-Host "  [$SCRIPT_INDEX]   - CMAKE_PREFIX_PATH includes: $qtInstallDir" -ForegroundColor Green
+
+        # Set Qt6_DIR or Qt5_DIR
+        $qtVer = if ($qtCMakeDir -match "Qt6") { "Qt6" } else { "Qt5" }
+        & $windowsPathFuncPath "setvar" "${qtVer}_DIR" $qtCMakeDir
+        Write-Host "  [$SCRIPT_INDEX]   - ${qtVersion}_DIR = $qtCMakeDir" -ForegroundColor Green
+    } else {
+        Write-Host "  [$SCRIPT_INDEX]   - WARNING: Qt CMake directory not found" -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] Qt installation verified and environment variables updated" -ForegroundColor Green
+    Write-Host "  [$SCRIPT_INDEX] Please restart your terminal or IDE to use the updated environment" -ForegroundColor Yellow
     Write-Host ""
     exit 0
 }
@@ -122,19 +249,53 @@ if (Test-Path $qtExePath) {
 Write-Host "  [$SCRIPT_INDEX] Qt not found, proceeding with installation..." -ForegroundColor Yellow
 Write-Host ""
 
+# Function to find tool in dev directory
+function Find-ToolInDevDirectory {
+    param(
+        [string]$ToolName,
+        [string]$DevDir
+    )
+
+    if (-not (Test-Path $DevDir)) {
+        return $null
+    }
+
+    $toolExe = "${ToolName}.exe"
+    $foundTool = Get-ChildItem -Path $DevDir -Recurse -Filter $toolExe -ErrorAction SilentlyContinue | Select-Object -First 1
+
+    if ($foundTool) {
+        return $foundTool.DirectoryName
+    }
+
+    return $null
+}
+
 # Check prerequisites
 Write-Host "  [$SCRIPT_INDEX] Checking required prerequisites..." -ForegroundColor Cyan
 $toolsList = @("cmake", "ninja", "python")
 $missingTools = @()
+$toolPaths = @{}
 
 foreach ($tool in $toolsList) {
+    # First check if tool is in PATH
     $toolExists = Get-Command $tool -ErrorAction SilentlyContinue
-    if (-not $toolExists) {
-        $missingTools += $tool
-        Write-Host "  [$SCRIPT_INDEX]   [X] Missing: $tool" -ForegroundColor Red
+    if ($toolExists) {
+        Write-Host "  [$SCRIPT_INDEX]   [OK] Found $tool in PATH: $($toolExists.Source)" -ForegroundColor Green
+        $toolPaths[$tool] = Split-Path $toolExists.Source -Parent
     }
     else {
-        Write-Host "  [$SCRIPT_INDEX]   [OK] Found: $tool" -ForegroundColor Green
+        # Search in dev directory
+        $toolPath = Find-ToolInDevDirectory -ToolName $tool -DevDir $Global:LANG_COMPILER_DIR
+        if ($toolPath) {
+            Write-Host "  [$SCRIPT_INDEX]   [OK] Found $tool in dev directory: $toolPath" -ForegroundColor Green
+            $toolPaths[$tool] = $toolPath
+            # Add to PATH for this session
+            $env:Path = "$toolPath;$env:Path"
+        }
+        else {
+            $missingTools += $tool
+            Write-Host "  [$SCRIPT_INDEX]   [X] Missing: $tool" -ForegroundColor Red
+        }
     }
 }
 
