@@ -20,7 +20,8 @@
       "Bash(git submodule:*)",
       "Read(//d/.dev_win11/Qt/**)",
       "Bash(powershell.exe:*)",
-      "Read(//d/.dev_win11/**)"
+      "Read(//d/.dev_win11/**)",
+      "Bash(dir .claude)"
     ],
     "deny": [],
     "ask": [],
