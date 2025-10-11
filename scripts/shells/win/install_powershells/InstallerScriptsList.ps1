@@ -35,5 +35,7 @@ $InstallerScripts = @(
     'Step80_InstallWSL.ps1',
     'Step81_InstallWSLUbuntu24.ps1',
     'Step82_SetRootLoginWSLUbuntuDebian.ps1',
-    'Step83_InstallVisualStudio.ps1'
+    'Step83_InstallVisualStudio.ps1',
+    'Step84_InstallQtBuildTools.ps1',
+    'Step85_InstallQt.ps1'
 )

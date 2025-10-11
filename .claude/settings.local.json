@@ -1,10 +1,26 @@
 {
   "permissions": {
     "allow": [
-      "Bash(for:*)",
-      "Bash(chmod:*)",
-      "Bash(do echo:*)",
-      "Bash(python:*)"
+      "Bash(powershell.exe -Command \"Test-Path -Path \"C:Users$env:USERNAME\"\")",
+      "Bash(powershell.exe -File \"Step83_InstallVisualStudio.ps1\")",
+      "Bash(powershell.exe -File \"Step84_InstallQt.ps1\")",
+      "Bash(winget install Kitware.CMake --source MicrosoftStore)",
+      "Bash(winget install Kitware.CMake --source msstore)",
+      "Bash(winget search CMake)",
+      "Bash(winget search CMake --source msstore)",
+      "Bash(winget install Kitware.CMake --source winget)",
+      "Bash(powershell.exe -Command \"winget install Ninja-build.Ninja --source winget\")",
+      "Bash(winget search Python --source winget)",
+      "Bash(winget install Python.Python.3.13 --source winget)",
+      "Bash(npm run build)",
+      "WebFetch(domain:wiki.qt.io)",
+      "WebFetch(domain:doc-snapshots.qt.io)",
+      "WebSearch",
+      "Read(//c//**)",
+      "Bash(git submodule:*)",
+      "Read(//d/.dev_win11/Qt/**)",
+      "Bash(powershell.exe:*)",
+      "Read(//d/.dev_win11/**)"
     ],
     "deny": [],
     "ask": [],

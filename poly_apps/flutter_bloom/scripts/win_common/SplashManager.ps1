@@ -36,50 +36,46 @@ $Global:PythonSplashManager = Join-Path (Split-Path $PSScriptRoot -Parent) "buil
 function Invoke-PythonSplashUpdate {
     <#
     .SYNOPSIS
-    Call Python splash manager to update splash configuration
-
-    .PARAMETER AppName
-    Name of the Flutter app
-
-    .PARAMETER ProjectRoot
-    Path to Flutter project root
+    Call Python splash manager to update splash configuration using file variable system
 
     .RETURNS
     Boolean indicating success or failure
     #>
 
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$AppName,
+    # Read variables from file variable system (like BCommon.ps1)
+    $selectedApp = Get-FileVariable -Name $Global:KEY_SELECTED_APP -DefaultValue ""
+    $selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue ""
+    $selectedPlatform = Get-FileVariable -Name $Global:KEY_SELECTED_PLATFORM -DefaultValue ""
+    $selectedEntryFile = Get-FileVariable -Name $Global:KEY_SELECTED_ENTRY_FILE -DefaultValue ""
+    $appIndex = Get-FileVariable -Name $Global:KEY_APP_INDEX -DefaultValue ""
+    $debugPort = Get-FileVariable -Name $Global:KEY_DEBUG_PORT -DefaultValue ""
+    $scriptPath = Get-FileVariable -Name $Global:KEY_SCRIPT_PATH -DefaultValue ""
 
-        [Parameter(Mandatory=$false)]
-        [string]$ProjectRoot = $Global:FLUTTER_PROJECT_DIR
-    )
+    if (-not $selectedApp) {
+        Write-ColorMessage -Message "[SPLASH-PY] No app selected in file variables" -Type "Warning"
+        return $false
+    }
 
+    Write-ColorMessage -Message "[SPLASH-PY] Starting Python splash update for app: $selectedApp" -Type "Info"
+
+    # Check if Python is available
+    if (-not (Get-Command "python" -ErrorAction SilentlyContinue)) {
+        Write-ColorMessage -Message "[SPLASH-PY] Python command not found in PATH" -Type "Error"
+        return $false
+    }
+
+    # Check if Python splash manager exists
+    if (-not (Test-Path $Global:PythonSplashManager)) {
+        Write-ColorMessage -Message "[SPLASH-PY] Python splash manager not found: $Global:PythonSplashManager" -Type "Error"
+        return $false
+    }
+
+    # No need to pass parameters - Python will read from file variable system
     try {
-        Write-ColorMessage -Message "[SPLASH-PY] Starting Python splash update for app: $AppName" -Type "Info"
-
-        # Check if Python is available
-        if (-not (Get-Command "python" -ErrorAction SilentlyContinue)) {
-            Write-ColorMessage -Message "[SPLASH-PY] Python command not found in PATH" -Type "Error"
-            return $false
-        }
-
-        # Check if Python splash manager exists
-        if (-not (Test-Path $Global:PythonSplashManager)) {
-            Write-ColorMessage -Message "[SPLASH-PY] Python splash manager not found: $Global:PythonSplashManager" -Type "Error"
-            return $false
-        }
-
-        # Call Python splash manager
-        $pythonArgs = @(
-            "`"$Global:PythonSplashManager`"",
-            $AppName,
-            $ProjectRoot
-        )
-
-        $command = "python $($pythonArgs -join ' ')"
+        # Call Python splash manager - uses file variable system (no arguments)
+        $command = "python `"$Global:PythonSplashManager`""
         Write-ColorMessage -Message "[SPLASH-PY] Executing: $command" -Type "Command"
+        Write-ColorMessage -Message "[SPLASH-PY] Python will read app from file variables (KEY_SELECTED_APP = $selectedApp)" -Type "Info"
 
         $result = Invoke-Expression $command
         $exitCode = $LASTEXITCODE
@@ -101,26 +97,35 @@ function Invoke-PythonSplashUpdate {
 function Invoke-FlutterNativeSplash {
     <#
     .SYNOPSIS
-    Execute flutter_native_splash generate command
-
-    .PARAMETER ProjectRoot
-    Path to Flutter project root
+    Execute flutter_native_splash generate command using file variable system
 
     .RETURNS
     Boolean indicating success or failure
     #>
 
-    param(
-        [Parameter(Mandatory=$false)]
-        [string]$ProjectRoot = $Global:FLUTTER_PROJECT_DIR
-    )
+    # Read variables from file variable system (like BCommon.ps1)
+    $selectedApp = Get-FileVariable -Name $Global:KEY_SELECTED_APP -DefaultValue ""
+    $selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue ""
+    $selectedPlatform = Get-FileVariable -Name $Global:KEY_SELECTED_PLATFORM -DefaultValue ""
+    $selectedEntryFile = Get-FileVariable -Name $Global:KEY_SELECTED_ENTRY_FILE -DefaultValue ""
+    $appIndex = Get-FileVariable -Name $Global:KEY_APP_INDEX -DefaultValue ""
+    $debugPort = Get-FileVariable -Name $Global:KEY_DEBUG_PORT -DefaultValue ""
+    $scriptPath = Get-FileVariable -Name $Global:KEY_SCRIPT_PATH -DefaultValue ""
+
+    if (-not $scriptPath) {
+        Write-ColorMessage -Message "[SPLASH-FLUTTER] No script path found in file variables" -Type "Warning"
+        return $false
+    }
+
+    # Get project root from script path directory (2 levels up)
+    $projectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $scriptPath))
+
+    Write-ColorMessage -Message "[SPLASH-FLUTTER] Running flutter_native_splash generate..." -Type "Info"
+
+    # Change to project root directory
+    Push-Location $projectRoot
 
     try {
-        Write-ColorMessage -Message "[SPLASH-FLUTTER] Running flutter_native_splash generate..." -Type "Info"
-
-        # Change to project root directory
-        Push-Location $ProjectRoot
-
         # Check if flutter command is available
         if (-not (Get-Command "flutter" -ErrorAction SilentlyContinue)) {
             Write-ColorMessage -Message "[SPLASH-FLUTTER] Flutter command not found in PATH" -Type "Error"
@@ -137,9 +142,9 @@ function Invoke-FlutterNativeSplash {
             return $false
         }
 
-        # Run flutter_native_splash generate
+        # Run flutter_native_splash generate - wrap risky operation
         Write-ColorMessage -Message "[SPLASH-FLUTTER] Running flutter_native_splash generate..." -Type "Command"
-        $splashResult = flutter_native_splash generate
+        $splashResult = flutter pub run flutter_native_splash:create
         if ($LASTEXITCODE -ne 0) {
             Write-ColorMessage -Message "[SPLASH-FLUTTER] flutter_native_splash generate failed" -Type "Error"
             Pop-Location
@@ -152,7 +157,7 @@ function Invoke-FlutterNativeSplash {
 
     } catch {
         Write-ColorMessage -Message "[SPLASH-FLUTTER] Error running flutter_native_splash: $($_.Exception.Message)" -Type "Error"
-        if (Get-Location -PathType Container) {
+        if (Get-Location) {
             Pop-Location
         }
         return $false
@@ -162,13 +167,7 @@ function Invoke-FlutterNativeSplash {
 function Update-AppSplash {
     <#
     .SYNOPSIS
-    Complete splash update process for an app
-
-    .PARAMETER AppName
-    Name of the Flutter app
-
-    .PARAMETER ProjectRoot
-    Path to Flutter project root
+    Complete splash update process using file variable system
 
     .PARAMETER GenerateOnly
     Only run flutter_native_splash generate, skip config update
@@ -178,35 +177,44 @@ function Update-AppSplash {
     #>
 
     param(
-        [Parameter(Mandatory=$true)]
-        [string]$AppName,
-
         [Parameter(Mandatory=$false)]
-        [string]$ProjectRoot = $Global:FLUTTER_PROJECT_DIR,
-
         [switch]$GenerateOnly = $false
     )
 
-    try {
-        Write-ColorMessage -Message "[SPLASH] Starting complete splash update process for app: $AppName" -Type "Info"
+    # Read variables from file variable system (like BCommon.ps1)
+    $selectedApp = Get-FileVariable -Name $Global:KEY_SELECTED_APP -DefaultValue ""
+    $selectedAction = Get-FileVariable -Name $Global:KEY_SELECTED_ACTION -DefaultValue ""
+    $selectedPlatform = Get-FileVariable -Name $Global:KEY_SELECTED_PLATFORM -DefaultValue ""
+    $selectedEntryFile = Get-FileVariable -Name $Global:KEY_SELECTED_ENTRY_FILE -DefaultValue ""
+    $appIndex = Get-FileVariable -Name $Global:KEY_APP_INDEX -DefaultValue ""
+    $debugPort = Get-FileVariable -Name $Global:KEY_DEBUG_PORT -DefaultValue ""
+    $scriptPath = Get-FileVariable -Name $Global:KEY_SCRIPT_PATH -DefaultValue ""
 
+    if (-not $selectedApp) {
+        Write-ColorMessage -Message "[SPLASH] No app selected in file variables" -Type "Warning"
+        return $false
+    }
+
+    Write-ColorMessage -Message "[SPLASH] Starting complete splash update process for app: $selectedApp" -Type "Info"
+
+    try {
         if ($GenerateOnly) {
             # Only run flutter_native_splash generate
-            return Invoke-FlutterNativeSplash -ProjectRoot $ProjectRoot
+            return Invoke-FlutterNativeSplash
         } else {
             # Step 1: Update splash configuration using Python
-            if (-not (Invoke-PythonSplashUpdate -AppName $AppName -ProjectRoot $ProjectRoot)) {
+            if (-not (Invoke-PythonSplashUpdate)) {
                 Write-ColorMessage -Message "[SPLASH] Splash configuration update failed" -Type "Error"
                 return $false
             }
 
             # Step 2: Run flutter_native_splash to generate resources
-            if (-not (Invoke-FlutterNativeSplash -ProjectRoot $ProjectRoot)) {
+            if (-not (Invoke-FlutterNativeSplash)) {
                 Write-ColorMessage -Message "[SPLASH] flutter_native_splash generation failed" -Type "Error"
                 return $false
             }
 
-            Write-ColorMessage -Message "[SPLASH] Complete splash update process finished for app: $AppName" -Type "Success"
+            Write-ColorMessage -Message "[SPLASH] Complete splash update process finished for app: $selectedApp" -Type "Success"
             return $true
         }
 
@@ -237,8 +245,8 @@ function Invoke-PreDebugSplashUpdate {
 
         Write-ColorMessage -Message "[SPLASH] Pre-debug splash update for app: $selectedApp" -Type "Info"
 
-        # Update splash for selected app
-        $result = Update-AppSplash -AppName $selectedApp
+        # Update splash for selected app (using file variable system)
+        $result = Update-AppSplash
 
         if ($result) {
             Write-ColorMessage -Message "[SPLASH] Splash update completed successfully" -Type "Success"

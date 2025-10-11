@@ -5,9 +5,13 @@ Shared directory management class for handling origin and temp directory switchi
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Optional
-from utils.print_helper import PrintHelper
+
+# Import PrintHelper from utils directory
+sys.path.insert(0, str(Path(__file__).parent.parent / "utils"))
+from print_helper import PrintHelper
 
 
 class DirectoryManager:
