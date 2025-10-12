@@ -10,53 +10,36 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+import 'package:flutter/foundation.dart';
 import '../../../common/provider_status/user_provider.dart';
 import '../models_app_wuy/user_model_app_wuy.dart';
+import '../services_app_wuy/wuy_fake_data_generator.dart';
+import '../services_app_wuy/wuy_auth_state_manager.dart';
 
 class WuUserProvider extends EnhancedUserProvider {
   static const String _namespace = 'app_wuy';
-  static const String _appProfileKey = 'app_wuy_profile';
 
   WuUserProvider() : super(appNamespace: _namespace) {
-    // Initialize with fake data for testing
-    _initializeFakeUser();
+    // Don't initialize fake user automatically to avoid web entrypoint issues
+    // Fake user will be created only when explicitly needed for testing
+    // Storage will be initialized by runCommonApp
   }
 
-  /// Initialize fake user for testing
-  void _initializeFakeUser() {
+  /// Initialize fake user for testing (call explicitly when needed)
+  void initializeFakeUserForTesting() {
     // Check if user is already authenticated
     if (isAuthenticated) {
       return;
     }
     
-    // Create a fake user for testing
-    final fakeUser = UserModelAppWuy(
-      id: 'test_user_001',
-      username: 'testuser',
-      nickname: '测试用户',
-      email: 'test@anwuyou.test',
-      phone: '13800138000',
-      avatar: 'assets/common/icons/people.png',
-      isOnline: true,
-      lastSeen: DateTime.now(),
-      createdAt: DateTime.now().subtract(const Duration(days: 30)),
-      updatedAt: DateTime.now(),
-    );
-    
+    // Create a fake user for testing using independent fake data generator
+    final fakeUser = WuyFakeDataGenerator.generateTestUser();
     setAppUser(profile: fakeUser);
   }
 
   UserModelAppWuy? get appProfile {
-    // Fix: Cast BaseUserModel? to LaravelUserModel? since user getter returns BaseUserModel
-    final LaravelUserModel? laravelUser = user as LaravelUserModel?;
-    if (laravelUser == null) {
-      return null;
-    }
-    final dynamic rawProfile = laravelUser.meta[_appProfileKey];
-    if (rawProfile is Map<String, dynamic>) {
-      return UserModelAppWuy.fromJson(rawProfile);
-    }
-    return _fallbackFromLaravel(laravelUser);
+    // UserModelAppWuy now extends LaravelUserModel, so we can cast directly
+    return user as UserModelAppWuy?;
   }
 
   Map<String, dynamic> get permissionMetadata {
@@ -72,74 +55,41 @@ class WuUserProvider extends EnhancedUserProvider {
     required UserModelAppWuy profile,
     AuthMetadata? metadata,
   }) {
-    final LaravelUserModel mapped = LaravelUserModel(
-      id: int.tryParse(profile.id),
-      name: profile.nickname ?? profile.username,
-      nickname: profile.nickname,
-      username: profile.username,
-      email: profile.email,
-      avatar: profile.avatar,
-      about: profile.bio,
-      city: profile.preferences?['city'] as String?,
-      createdAt: profile.createdAt,
-      updatedAt: profile.updatedAt,
-      emailVerifiedAt: profile.isVerified ? profile.updatedAt : null,
-      phone: profile.phone,
-      lastLoginAt: profile.lastSeen,
-      permissions: const <String>[],
-      permissionGroups: profile.roles ?? const <String>[],
-      roles: profile.roles ?? const <String>[],
-      preferences: profile.preferences ?? const <String, dynamic>{},
-      meta: <String, dynamic>{
-        _appProfileKey: profile.toJson(),
-      },
-    );
-    setUser(mapped);
+    // UserModelAppWuy now extends LaravelUserModel, so we can use it directly
+    setUser(profile);
     if (metadata != null) {
       setAuthMetadata(metadata);
     }
+    
+    // Use auth state manager for consistent state management
+    WuyAuthStateManager.instance.setAuthenticatedUser(profile);
   }
+
+  /// Sync with auth state manager (called from external services)
+  void syncWithAuthStateManager() {
+    final authStateManager = WuyAuthStateManager.instance;
+    if (authStateManager.isAuthenticated && authStateManager.currentUser != null) {
+      setUser(authStateManager.currentUser!);
+      debugPrint('WuUserProvider: Synced with auth state manager - user: ${authStateManager.currentUser!.displayName}');
+    } else if (!authStateManager.isAuthenticated) {
+      clearUser();
+      debugPrint('WuUserProvider: Synced with auth state manager - cleared user');
+    }
+  }
+  
 
   void upsertPreference(String key, dynamic value) {
-    // Fix: Cast BaseUserModel? to LaravelUserModel?
-    final LaravelUserModel? laravelUser = user as LaravelUserModel?;
-    if (laravelUser == null) {
+    final UserModelAppWuy? currentUser = appProfile;
+    if (currentUser == null) {
       return;
     }
-    final Map<String, dynamic> preferences =
-        Map<String, dynamic>.from(laravelUser.preferences);
+    final Map<String, dynamic> preferences = Map<String, dynamic>.from(currentUser.preferences);
     preferences[key] = value;
-    setUser(laravelUser.copyWith(preferences: preferences));
+    final UserModelAppWuy updated = currentUser.copyWith(preferences: preferences);
+    setUser(updated);
+    
+    // Use auth state manager for consistent state management
+    WuyAuthStateManager.instance.setAuthenticatedUser(updated);
   }
 
-  UserModelAppWuy? _fallbackFromLaravel(LaravelUserModel laravelUser) {
-    if (laravelUser.username == null && laravelUser.email == null) {
-      return null;
-    }
-    final DateTime created = laravelUser.createdAt ?? DateTime.now();
-    final DateTime updated = laravelUser.updatedAt ?? created;
-    final List<String> roles = <String>{
-      if (laravelUser.roleName != null) laravelUser.roleName!,
-      ...laravelUser.roles,
-      ...laravelUser.permissionGroups,
-    }.where((String value) => value.isNotEmpty).toList();
-
-    return UserModelAppWuy(
-      id: (laravelUser.id ?? laravelUser.username ?? created.millisecondsSinceEpoch)
-          .toString(),
-      username: laravelUser.username ?? laravelUser.email ?? 'user',
-      email: laravelUser.email ?? '',
-      avatar: laravelUser.avatar,
-      nickname: laravelUser.nickname ?? laravelUser.name,
-      phone: laravelUser.phone,
-      bio: laravelUser.about,
-      lastSeen: laravelUser.lastLoginAt,
-      isOnline: false,
-      isVerified: laravelUser.emailVerifiedAt != null,
-      createdAt: created,
-      updatedAt: updated,
-      preferences: laravelUser.preferences,
-      roles: roles,
-    );
-  }
 }

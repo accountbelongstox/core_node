@@ -15,8 +15,19 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
+/// Add Friend Screen for Wuy App
+/// 
+/// This screen provides functionality to search and add new friends.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyAddFriendTitle.tr(context)
 class WuyAddFriendScreen extends StatefulWidget {
   const WuyAddFriendScreen({super.key});
 
@@ -56,7 +67,7 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeFriends),
+          onPressed: () => context.go(WuyAppRouter.routeHome),
         ),
       ),
       body: SingleChildScrollView(
@@ -164,7 +175,7 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
       controller: _nicknameController,
       decoration: InputDecoration(
         labelText: 'Nickname',
-        hintText: 'Enter friend\'s nickname',
+        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterNickname.tr(context),
         prefixIcon: Icon(Icons.person_outline, color: ThemeColors.primary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
@@ -188,7 +199,7 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
       controller: _genderController,
       decoration: InputDecoration(
         labelText: 'Gender',
-        hintText: 'Enter gender (Male/Female)',
+        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterGender.tr(context),
         prefixIcon: Icon(Icons.wc, color: ThemeColors.primary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
@@ -213,7 +224,7 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
       keyboardType: TextInputType.number,
       decoration: InputDecoration(
         labelText: 'Age',
-        hintText: 'Enter age',
+        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterAge.tr(context),
         prefixIcon: Icon(Icons.cake, color: ThemeColors.primary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
@@ -242,7 +253,7 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
       keyboardType: TextInputType.number,
       decoration: InputDecoration(
         labelText: 'Height (cm)',
-        hintText: 'Enter height in cm',
+        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterHeight.tr(context),
         prefixIcon: Icon(Icons.height, color: ThemeColors.primary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
@@ -271,7 +282,7 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
       keyboardType: TextInputType.number,
       decoration: InputDecoration(
         labelText: 'Weight (kg)',
-        hintText: 'Enter weight in kg',
+        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterWeight.tr(context),
         prefixIcon: Icon(Icons.monitor_weight, color: ThemeColors.primary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
@@ -330,9 +341,9 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Friend added successfully!')),
+          SnackBar(content: Text(LocalizationKeysAppWuy.wuyMessageFriendAdded.tr(context))),
         );
-        context.go(WuyAppRouter.routeFriends);
+        context.go(WuyAppRouter.routeHome);
       }
     }
   }

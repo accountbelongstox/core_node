@@ -5,9 +5,8 @@ import '../auth/auth_coordinator.dart';
 import '../auth/auth_registry.dart';
 import '../auth/login_manager.dart';
 import '../auth/user_provider_auth_coordinator.dart';
-import '../cache/cache_entry.dart';
-import '../cache/cache_store.dart';
-import '../cache/memory_cache_store.dart';
+import '../../cache_manager/cache_manager.dart';
+import '../../network/core/network_types.dart' as network_types;
 import '../loading/loading_controller.dart';
 import '../models/auth_context.dart';
 import '../models/auth_requirement.dart';
@@ -17,7 +16,6 @@ import '../models/endpoint_group.dart';
 import '../models/network_environment.dart';
 import '../models/network_error.dart';
 import '../models/network_request.dart';
-import '../models/network_response.dart';
 import '../models/request_options.dart';
 import '../models/retry_policy.dart';
 import '../parsing/response_parser.dart';
@@ -32,7 +30,7 @@ class NetworkManager {
   NetworkManager({
     required this.environment,
     AuthRegistry? authRegistry,
-    CacheStore? cacheStore,
+    CacheManager? cacheManager,
     SchemaRegistry? schemaRegistry,
     HttpClientAdapter? httpClient,
     RequestQueue? requestQueue,
@@ -44,7 +42,7 @@ class NetworkManager {
     EnhancedUserProvider? userProvider,
     ResponseParser? autoParser,
   })  : authRegistry = authRegistry ?? AuthRegistry(),
-        cacheStore = cacheStore ?? MemoryCacheStore(),
+        cacheManager = cacheManager ?? CacheManager.instance,
         schemaRegistry = schemaRegistry ?? SchemaRegistry(),
         httpClient = httpClient ?? DefaultHttpClientAdapter(),
         requestQueue = requestQueue ?? RequestQueue(),
@@ -58,7 +56,7 @@ class NetworkManager {
 
   final NetworkEnvironment environment;
   final AuthRegistry authRegistry;
-  final CacheStore cacheStore;
+  final CacheManager cacheManager;
   final SchemaRegistry schemaRegistry;
   final HttpClientAdapter httpClient;
   final RequestQueue requestQueue;
@@ -83,7 +81,7 @@ class NetworkManager {
 
   EndpointDescriptor? resolveEndpoint(String id) => _endpoints[id];
 
-  Future<NetworkResponse<T>> requestById<T>(
+  Future<network_types.NetworkResponse<T>> requestById<T>(
     String endpointId, {
     Map<String, dynamic>? params,
     dynamic body,
@@ -106,7 +104,8 @@ class NetworkManager {
     );
   }
 
-  Future<NetworkResponse<T>> execute<T>(NetworkRequest request) async {
+  Future<network_types.NetworkResponse<T>> execute<T>(
+      NetworkRequest request) async {
     final cachePolicy = _resolveCachePolicy(request);
     final cacheKey =
         cachePolicy.enabled ? _buildCacheKey(request, cachePolicy) : null;
@@ -115,7 +114,7 @@ class NetworkManager {
     if (!request.options.forceRefresh &&
         cachePolicy.enabled &&
         cacheKey != null) {
-      final cached = await cacheStore.read(cacheKey);
+      final cached = await cacheManager.getEntry('network', cacheKey);
       if (cached != null && !cached.isExpired) {
         return _fromCache<T>(request, cached);
       }
@@ -136,13 +135,14 @@ class NetworkManager {
 
     loadingController.setQueueDepth(requestQueue.pendingCount + 1);
     final queued = QueuedRequest(request: request, priority: priority);
-    return requestQueue.schedule<NetworkResponse<T>>(queued, () async {
+    return requestQueue.schedule<network_types.NetworkResponse<T>>(queued,
+        () async {
       loadingController.setQueueDepth(requestQueue.pendingCount);
       return _perform<T>(request, cachePolicy, cacheKey, staleEntry);
     });
   }
 
-  Future<NetworkResponse<T>> _perform<T>(
+  Future<network_types.NetworkResponse<T>> _perform<T>(
     NetworkRequest request,
     CachePolicy cachePolicy,
     String? cacheKey,
@@ -165,7 +165,7 @@ class NetworkManager {
     }
   }
 
-  Future<NetworkResponse<T>> _attemptWithRetry<T>({
+  Future<network_types.NetworkResponse<T>> _attemptWithRetry<T>({
     required NetworkRequest request,
     required CachePolicy cachePolicy,
     required String? cacheKey,
@@ -187,7 +187,8 @@ class NetworkManager {
         );
 
         if (!response.isSuccess &&
-            _shouldRetryStatus(response.statusCode, retryPolicy, attempt)) {
+            response.statusCode != null &&
+            _shouldRetryStatus(response.statusCode!, retryPolicy, attempt)) {
           await _sleep(retryPolicy.backoffForAttempt(attempt));
           continue;
         }
@@ -228,7 +229,7 @@ class NetworkManager {
     return retryPolicy.retryOnStatuses.contains(statusCode);
   }
 
-  Future<NetworkResponse<T>> _sendOnce<T>({
+  Future<network_types.NetworkResponse<T>> _sendOnce<T>({
     required NetworkRequest request,
     required CachePolicy cachePolicy,
     required String? cacheKey,
@@ -286,24 +287,27 @@ class NetworkManager {
 
       if (raw.statusCode >= 200 && raw.statusCode < 300) {
         if (cachePolicy.enabled && cacheKey != null) {
-          final entry = CacheEntry(
-            data: parsed,
-            createdAt: DateTime.now(),
-            expiresAt: DateTime.now().add(cachePolicy.ttl),
-            statusCode: raw.statusCode,
-            headers: raw.headers,
-          );
-          await cacheStore.write(cacheKey, entry);
+          await cacheManager.put('network', cacheKey, parsed,
+              ttl: cachePolicy.ttl,
+              metadata: {
+                'statusCode': raw.statusCode,
+                'headers': raw.headers,
+              });
         }
         _maybeUpdateLogin(descriptor, parsed);
         final typed = _castResponseData<T>(parsed);
-        return NetworkResponse<T>(
+        return network_types.NetworkResponse<T>(
+          data: typed,
           statusCode: raw.statusCode,
           headers: raw.headers,
-          duration: raw.duration,
-          data: typed,
-          rawBody: parsed,
-          requestId: request.requestId,
+          isFromCache: false,
+          isStale: false,
+          timestamp: DateTime.now(),
+          latency: raw.duration,
+          metadata: {
+            'requestId': request.requestId,
+            'rawBody': parsed,
+          },
         );
       }
 
@@ -332,8 +336,9 @@ class NetworkManager {
   ) async {
     final Map<String, dynamic> params = <String, dynamic>{...request.params};
     final dynamic body = request.body;
-    final Map<String, dynamic> contextExtra =
-        <String, dynamic>{...request.options.extra};
+    final Map<String, dynamic> contextExtra = <String, dynamic>{
+      ...request.options.extra
+    };
     Map<String, dynamic> sessionAttributes = _sessionAttributes();
     AuthCoordinatorResult? coordinatorResult;
 
@@ -355,8 +360,7 @@ class NetworkManager {
       if (!coordinatorResult.isEmpty) {
         headers.addAll(coordinatorResult.additionalHeaders);
         if (coordinatorResult.metadata.isNotEmpty) {
-          contextExtra['authCoordinatorMetadata'] =
-              coordinatorResult.metadata;
+          contextExtra['authCoordinatorMetadata'] = coordinatorResult.metadata;
         }
         if (coordinatorResult.sessionUpdate.isNotEmpty) {
           sessionAttributes = <String, dynamic>{
@@ -498,17 +502,19 @@ class NetworkManager {
     return buffer.toString();
   }
 
-  NetworkResponse<T> _fromCache<T>(NetworkRequest request, CacheEntry entry,
+  network_types.NetworkResponse<T> _fromCache<T>(
+      NetworkRequest request, CacheEntry entry,
       {bool isStale = false}) {
     final typed = _castResponseData<T>(entry.data);
-    return NetworkResponse<T>(
-      statusCode: entry.statusCode ?? 200,
-      headers: entry.headers,
-      duration: Duration.zero,
+    return network_types.NetworkResponse<T>(
       data: typed,
-      rawBody: entry.data,
-      fromCache: true,
-      requestId: request.requestId,
+      statusCode: entry.metadata?['statusCode'] ?? 200,
+      headers: entry.metadata?['headers'],
+      isFromCache: true,
+      isStale: isStale,
+      timestamp: entry.createdAt,
+      latency: entry.latency,
+      metadata: entry.metadata,
     );
   }
 

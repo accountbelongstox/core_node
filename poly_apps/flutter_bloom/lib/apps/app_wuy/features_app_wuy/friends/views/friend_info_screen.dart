@@ -19,6 +19,15 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
+/// Friend Info Screen for Wuy App
+/// 
+/// This screen displays detailed information about a specific friend.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyFriendInfoTitle.tr(context)
 class WuyFriendInfoScreen extends StatefulWidget {
   final String friendId;
   
@@ -45,7 +54,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeFriends),
+          onPressed: () => context.go(WuyAppRouter.routeHome),
         ),
       ),
       body: SingleChildScrollView(

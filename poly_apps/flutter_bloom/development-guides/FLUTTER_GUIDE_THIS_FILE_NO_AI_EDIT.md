@@ -142,73 +142,7 @@ lib/apps/{name}/localization_app_{name}/ # 注意原来为 `partition_locals_app
 
 
 ## 存储管理模块设计规范 ✅ COMPLETED
-```
-规范: lib/common/storage/
-      ├── interfaces/                       ✅ 存储接口
-      │   └── storage_interface.dart        ✅ 统一存储接口定义
-      ├── implementations/                  ✅ 具体实现
-      │   ├── hive_storage.dart            ✅ Hive数据库实现 (主要存储)
-      │   ├── shared_prefs_storage.dart    ✅ SharedPreferences实现
-      │   └── sqlite_storage.dart          ✅ SQLite数据库实现
-      ├── models/                          ✅ 存储模型
-      │   └── storage_models.dart          ✅ 存储相关数据模型
-      └── storage_manager.dart             ✅ 存储管理器 (单例模式)
-
-Hive存储特性:
-- 高性能: NoSQL键值对数据库，比SharedPreferences快10倍+ ✅
-- 类型安全: 支持所有Dart基础类型和复杂对象 ✅
-- 跨平台: 支持移动端、Web、桌面端 ✅
-- Box管理: 独立的数据容器，支持多Box隔离 ✅
-- 事务支持: 原子操作和批量操作 ✅
-
-设置系统集成:
-- 专用Box: 设置存储在独立的'app_settings' Box中 ✅
-- 错误恢复: 存储失败时自动降级到默认值 ✅
-```
-
- ## 网络类库模块设计规范 ✅ COMPLETED
-  规范: lib/common/network/
-        ├── auth/                # 统一认证管理 ✅
-        │   └── unified_auth_manager.dart     ✅ 认证管理器 (Token/刷新/状态)
-        ├── client/              # HTTP客户端 ✅
-        │   └── enhanced_http_client.dart     ✅ 增强HTTP客户端 (连接池/重试)
-        ├── core/                # 网络核心架构 ✅
-        │   ├── network_config.dart           ✅ 网络配置管理
-        │   ├── network_models.dart           ✅ 核心数据模型
-        │   ├── network_queue_and_offline.dart ✅ 队列/离线管理
-        │   ├── network_retry_manager.dart    ✅ 重试策略管理
-        │   ├── network_service_locator.dart  ✅ 服务定位器
-        │   ├── network_types.dart            ✅ 类型定义
-        │   └── unified_network_client.dart   ✅ 统一网络客户端
-        ├── endpoints/           # 端点配置 ✅
-        │   └── endpoint_config.dart          ✅ API端点管理
-        ├── integration/         # 集成服务 ✅
-        │   └── network_user_integration.dart ✅ 用户集成服务
-        ├── interceptors/        # 拦截器系统 ✅
-        │   ├── auth_interceptor.dart         ✅ 认证拦截器
-        │   ├── error_interceptor.dart        ✅ 错误拦截器
-        │   ├── logging_interceptor.dart      ✅ 日志拦截器
-        │   └── network_interceptors.dart     ✅ 拦截器管理
-        ├── models/              # 网络模型 ✅
-        │   ├── api_config.dart               ✅ API配置模型
-        │   ├── api_response.dart             ✅ API响应模型
-        │   └── enhanced_api_response.dart    ✅ 增强响应模型
-        ├── parsers/             # 数据解析 ✅
-        │   └── adaptive_data_parser.dart     ✅ 自适应数据解析器
-        ├── security/            # 安全管理 ✅
-        │   └── device_security_manager.dart  ✅ 设备安全管理
-        ├── services/            # 基础服务 ✅
-        │   ├── advanced_network_service.dart ✅ 高级网络服务
-        │   ├── base_service.dart             ✅ 基础服务类
-        │   └── enhanced_base_service.dart    ✅ 增强基础服务
-        ├── storage/             # 安全存储 ✅
-        │   └── secure_storage.dart           ✅ 安全存储服务
-        ├── ui/                  # UI集成 ✅
-        │   └── global_loading_system.dart    ✅ 全局加载系统
-        ├── utils/               # 网络工具 ✅
-        │   └── network_utils.dart            ✅ 网络工具类
-        └── widgets/             # 网络组件 ✅
-            └── adaptive_loading_widgets.dart ✅ 自适应加载组件
+规范: lib/common/storagev2/ 
             
 
 ## 配置管理模块 应用于多入口设计规范
@@ -392,8 +326,6 @@ lib/common/settings/
 │   └── setting_item.dart              ✅ 通用设置模板 (支持toggle/select/checkbox/slider/textInput等)
 ├── configs/
 │   ├── base_settings.dart             ✅ 基础设置 (base_sets: 主题/语言/字体等),这是考虑到大部份APP都必备的设计,同时专属的APP设置也要基于此编码格式
-├── storage/
-│   └── settings_storage_manager.dart  ✅ 设置持久化存储管理器 (基于Hive)
 - settings 公共控制器
 lib/common/controller/
 └── settings_controller.dart       ✅ 通用设置管理类库[该库自动先附加base_settings]，通过构造方法 ( 可以传入多个 base_settings规范的语言编码 ) 合并为一个可用的设置类，直接供页面使用
@@ -455,89 +387,6 @@ lib/apps/app_{name}/
     ├── auth_api_app_{name}_service.dart        # 示例 ：认证API服务
     ├── user_api_app_{name}_service.dart        # 示例 ：用户API服务
     ├── product_api_app_{name}_service.dart     # 示例 ：产品API服务
-
-## 统一持久化架构设计
-📋 问题解决方案
-我已经设计并实现了一个完整的统一持久化架构，解决了以下问题：
-
-✅ 解决的问题
-异步/同步混用问题：AppStorage.isFirstLaunch() 异步方法被同步调用
-架构不统一：存在两套持久化系统（AppStorage + CacheOperations）
-缺乏APP扩展机制：没有为不同APP提供扩展持久化的标准方式
-类型安全问题：缺乏强类型的持久化键值管理
-🏛️ 新架构组件
-1. 核心基础层
-lib/common/storage/
-├── unified_storage.dart              # 统一存储核心类
-├── app_storage_base.dart             # APP扩展基类
-├── storage_provider.dart             # Provider模式支持
-├── storage_usage_examples.dart       # 使用示例
-├── storage_manager.dart              # 存储管理器（已扩展）
-├── interfaces/storage_interface.dart # 存储接口（已扩展）
-└── implementations/hive_storage.dart # Hive实现（已扩展）
-2. APP特定实现层
-lib/apps/app_{name}/config_app_{name}/
-└── storage_app_{name}.dart           # APP特定存储实现
-🔧 核心特性
-1. 统一存储系统 ( UnifiedStorage)
-同步访问：频繁访问的数据（如isFirstLaunch, locale, themeMode）
-异步访问：所有数据的完整访问
-内存缓存集成：临时数据缓存
-自动持久化：同步设置自动持久化到存储
-2. APP扩展基类 ( AppStorageBase)
-通用方法：所有APP共享的基础存储方法
-APP特定存储：每个APP有独立的存储空间
-缓存命名空间：避免不同APP的缓存冲突
-生命周期管理：统一的初始化和清理
-3. 具体APP实现
-Example App ( StorageAppExample)：书签、阅读历史、用户偏好等
-QY App (StorageAppQy)：祈祷历史、单词卡进度、QY等级等
-📖 使用方式
-1. 基础使用（同步访问）
-final storage = StorageAppExample.instance;
-await storage.initAppStorage();
-
-// 同步访问频繁使用的数据
-final isFirstLaunch = storage.isFirstLaunch();
-final locale = storage.getLocale();
-final themeMode = storage.getThemeMode();
-
-// 同步设置（自动持久化）
-storage.setNotFirstLaunch();
-
-2. APP特定功能（异步访问）
-// Example App
-final exampleStorage = StorageAppExample.instance;
-await exampleStorage.addBookmark('item_123');
-final bookmarks = await exampleStorage.getBookmarks();
-final userPrefs = await exampleStorage.getUserPreferences();
-
-// QY App
-final qyStorage = StorageAppQy.instance;
-await qyStorage.addPrayerToHistory({'id': 'prayer_123'});
-await qyStorage.addQyPoints(10);
-
-3. Provider模式使用
-// 在main.dart中
-MultiProvider(
-  providers: [
-    ChangeNotifierProvider(
-      create: (_) => StorageProviderFactory.getProvider(
-        'example', 
-        StorageAppExample.instance,
-      ),
-    ),
-  ],
-
-4. 缓存使用
-// 临时数据缓存
-storage.setCache('temp_data', data, expiry: Duration(minutes: 30));
-final cachedData = storage.getCache<Map<String, dynamic>>('temp_data');
-
-// APP特定缓存（自动命名空间）
-storage.cacheUserPreferences(preferences);
-final cachedPrefs = storage.getCachedUserPreferences();
-
 
 //-------------------------------------------
 

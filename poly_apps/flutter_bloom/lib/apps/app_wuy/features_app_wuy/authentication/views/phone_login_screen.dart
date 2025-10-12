@@ -12,15 +12,27 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
+// Provider import removed as WuyDataCenter was deleted
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
-import '../../../services_app_wuy/wuy_data_center.dart';
-import '../../../services_app_wuy/wuy_network_manager.dart';
+// WuyDataCenter functionality merged into WuyUnifiedService
+import '../../../services_app_wuy/wuy_unified_service.dart';
+import '../../../widgets_app_wuy/wuy_background_decoration.dart';
+import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
+import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 
+/// Phone Login Screen for Wuy App
+/// 
+/// This screen provides phone number based login functionality.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyPhoneLoginTitle.tr(context)
 class WuyPhoneLoginScreen extends StatefulWidget {
   const WuyPhoneLoginScreen({super.key});
 
@@ -44,42 +56,41 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: Text(
-              LocalizationKeysAppWuy.wuyPhoneLoginTitle.tr(context),
-              style: WuyAppThemeConfig.wuyAppBarTitle,
-            ),
-            backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => context.pop(),
-            ),
+    return WuyBackgroundDecoration(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(
+            LocalizationKeysAppWuy.wuyPhoneLoginTitle.tr(context),
+            style: WuyAppThemeConfig.wuyAppBarTitle,
           ),
-          body: SingleChildScrollView(
-            padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(height: WuyAppThemeConfig.wuyLargePadding),
-                  _buildLogo(),
-                  SizedBox(height: WuyAppThemeConfig.wuyLargePadding * 2),
-                  _buildPhoneField(),
-                  SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
-                  _buildPasswordField(),
-                  SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
-                  _buildLoginButton(),
-                  SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
-                  _buildRegisterButton(),
-                ],
-              ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: WuyAppThemeConfig.wuyTextPrimary),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(height: WuyAppThemeConfig.wuyLargePadding),
+                _buildLogo(),
+                SizedBox(height: WuyAppThemeConfig.wuyLargePadding * 2),
+                _buildPhoneField(),
+                SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
+                _buildPasswordField(),
+                SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
+                _buildLoginButton(),
+                SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
+                _buildRegisterButton(),
+                SizedBox(height: WuyAppThemeConfig.wuyLargePadding),
+                _buildUserAgreement(),
+              ],
             ),
           ),
         ),
@@ -107,27 +118,18 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
   }
 
   Widget _buildPhoneField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _phoneController,
       keyboardType: TextInputType.phone,
-      decoration: InputDecoration(
-        labelText: LocalizationKeysAppWuy.wuyEnterPhoneNumber.tr(context),
-        hintText: '138****8888',
-        prefixIcon: Icon(Icons.phone, color: WuyAppThemeConfig.wuyPrimaryColor),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-          borderSide: BorderSide(color: WuyAppThemeConfig.wuyPrimaryColor, width: 2),
-        ),
-      ),
+      hintText: LocalizationKeysAppWuy.wuyEnterPhoneNumber.tr(context),
+      prefixIcon: Icons.phone,
+      borderRadius: 12.0,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return LocalizationKeysAppWuy.wuyValidationRequired.tr(context);
         }
         if (value.length < 11) {
-          return '请输入有效的手机号';
+          return LocalizationKeysAppWuy.wuyValidationPhoneInvalid.tr(context);
         }
         return null;
       },
@@ -135,31 +137,22 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
   }
 
   Widget _buildPasswordField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      decoration: InputDecoration(
-        labelText: LocalizationKeysAppWuy.wuyEnterPassword.tr(context),
-        hintText: '请输入密码',
-        prefixIcon: Icon(Icons.lock, color: WuyAppThemeConfig.wuyPrimaryColor),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscurePassword ? Icons.visibility : Icons.visibility_off,
-            color: WuyAppThemeConfig.wuyTextSecondary,
-          ),
-          onPressed: () {
-            setState(() {
-              _obscurePassword = !_obscurePassword;
-            });
-          },
+      hintText: LocalizationKeysAppWuy.wuyEnterPassword.tr(context),
+      prefixIcon: Icons.lock,
+      borderRadius: 12.0,
+      suffixIcon: IconButton(
+        icon: Icon(
+          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+          color: WuyAppThemeConfig.wuyTextSecondary,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-          borderSide: BorderSide(color: WuyAppThemeConfig.wuyPrimaryColor, width: 2),
-        ),
+        onPressed: () {
+          setState(() {
+            _obscurePassword = !_obscurePassword;
+          });
+        },
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -174,43 +167,39 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
   }
 
   Widget _buildLoginButton() {
-    return SizedBox(
-      width: double.infinity,
+    return WuyGradientButton(
+      text: LocalizationKeysAppWuy.wuyLoginButton.tr(context),
+      onPressed: _isLoading ? null : _handleLogin,
+      isLoading: _isLoading,
       height: 50,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleLogin,
-        style: WuyAppThemeConfig.wuyPrimaryButton,
-        child: _isLoading
-            ? CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              )
-            : Text(
-                LocalizationKeysAppWuy.wuyLoginButton.tr(context),
-                style: ThemeTextStyles.buttonLarge.copyWith(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-      ),
+      borderRadius: 12.0,
     );
   }
 
   Widget _buildRegisterButton() {
-    return SizedBox(
-      width: double.infinity,
+    return WuyGradientButton(
+      text: LocalizationKeysAppWuy.wuyRegisterButton.tr(context),
+      onPressed: _isLoading ? null : _handleRegister,
+      isLoading: false,
       height: 50,
-      child: OutlinedButton(
-        onPressed: _isLoading ? null : _handleRegister,
-        style: WuyAppThemeConfig.wuySecondaryButton,
-        child: Text(
-          LocalizationKeysAppWuy.wuyRegisterButton.tr(context),
-          style: ThemeTextStyles.buttonLarge.copyWith(
-            color: WuyAppThemeConfig.wuyPrimaryColor,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+      borderRadius: 12.0,
+      gradientColors: [
+        WuyAppThemeConfig.wuyGradientStart,
+        WuyAppThemeConfig.wuyGradientMiddle,
+      ],
+    );
+  }
+
+  Widget _buildUserAgreement() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: WuyAppThemeConfig.wuyDefaultPadding),
+      child: Text(
+        LocalizationKeysAppWuy.wuyUserAgreement.tr(context),
+        style: ThemeTextStyles.caption1.copyWith(
+          color: WuyAppThemeConfig.wuyTextSecondary,
+          fontSize: 12,
         ),
+        textAlign: TextAlign.center,
       ),
     );
   }
@@ -222,22 +211,13 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
       });
 
       try {
-        // Check if we should use offline mode
-        final networkManager = WuyNetworkManager();
-        final shouldUseOffline = networkManager.shouldUseOfflineMode();
-
-        if (shouldUseOffline) {
-          // Use fake data for offline mode
-          await _handleOfflineLogin();
-        } else {
-          // Use real API for online mode
-          await _handleOnlineLogin();
-        }
+        // Always use online mode for now
+        await _handleOnlineLogin();
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('登录失败: $e'),
+              content: Text(LocalizationKeysAppWuy.wuyMessageLoginFailed.tr(context, ['$e'])),
               backgroundColor: WuyAppThemeConfig.wuyErrorColor,
             ),
           );
@@ -260,23 +240,23 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
     // Simulate network delay
     await Future.delayed(const Duration(seconds: 1));
 
-    // Generate fake user data
-    final dataCenter = Provider.of<WuyDataCenter>(context, listen: false);
-    await dataCenter.loginWithFakeData(
+    // Generate fake user data using unified service
+    final unifiedService = WuyUnifiedService();
+    await unifiedService.loginWithPhone(
       phone: _phoneController.text,
-      password: _passwordController.text,
+      verificationCode: '123456', // Mock verification code
     );
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('登录成功 (离线模式)'),
+          content: Text(LocalizationKeysAppWuy.wuyMessageLoginSuccessOffline.tr(context)),
           backgroundColor: WuyAppThemeConfig.wuySuccessColor,
         ),
       );
 
       // Navigate to friends list
-      context.go(WuyAppRouter.routeFriends);
+      context.go(WuyAppRouter.routeHome);
     }
   }
 

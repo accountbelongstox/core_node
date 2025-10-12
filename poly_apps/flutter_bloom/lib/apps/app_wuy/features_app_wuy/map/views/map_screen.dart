@@ -19,6 +19,15 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
+/// Map Screen for Wuy App
+/// 
+/// This screen displays map functionality and location services.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyMapTitle.tr(context)
 class WuyMapScreen extends StatefulWidget {
   const WuyMapScreen({super.key});
 
@@ -221,7 +230,7 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(Icons.map, 'Map', true, null),
-                _buildNavItem(Icons.people, LocalizationKeysAppWuy.wuyMapFriends.tr(context), false, () => context.go(WuyAppRouter.routeFriends)),
+                _buildNavItem(Icons.people, LocalizationKeysAppWuy.wuyMapFriends.tr(context), false, () => context.go(WuyAppRouter.routeHome)),
                 _buildNavItem(Icons.person, LocalizationKeysAppWuy.wuyMapMine.tr(context), false, () => context.go(WuyAppRouter.routeProfile)),
               ],
             ),
