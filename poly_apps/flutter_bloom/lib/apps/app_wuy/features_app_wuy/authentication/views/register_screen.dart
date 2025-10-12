@@ -15,9 +15,20 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
+/// Register Screen for Wuy App
+/// 
+/// This screen provides user registration functionality.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyRegisterTitle.tr(context)
 class WuyRegisterScreen extends StatefulWidget {
   const WuyRegisterScreen({super.key});
 
@@ -54,7 +65,7 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
           backgroundColor: Colors.transparent,
           appBar: AppBar(
             title: Text(
-              'Register',
+              LocalizationKeysAppWuy.wuyRegisterTitle.tr(context),
               style: ThemeTextStyles.displayMedium,
             ),
             backgroundColor: ThemeColors.primary,
@@ -100,11 +111,11 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
         ),
         SizedBox(height: ThemeDimensions.spacingMedium),
         Text(
-          'Join Wuy App',
+          LocalizationKeysAppWuy.wuyRegisterTitle.tr(context),
           style: ThemeTextStyles.displayMedium,
         ),
         Text(
-          'Create your account',
+          LocalizationKeysAppWuy.wuyRegisterSubtitle.tr(context),
           style: ThemeTextStyles.bodyLarge.copyWith(
             color: ThemeColors.textSecondary,
           ),
@@ -118,8 +129,8 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
       controller: _phoneController,
       keyboardType: TextInputType.phone,
       decoration: InputDecoration(
-        labelText: 'Phone Number',
-        hintText: 'Enter your phone number',
+        labelText: LocalizationKeysAppWuy.wuyAuthPhone.tr(context),
+        hintText: LocalizationKeysAppWuy.wuyRegisterEnterPhone.tr(context),
         prefixIcon: Icon(Icons.phone, color: ThemeColors.primary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
@@ -150,7 +161,7 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               labelText: 'Verification Code',
-              hintText: 'Enter verification code',
+              hintText: LocalizationKeysAppWuy.wuyRegisterEnterVerificationCode.tr(context),
               prefixIcon: Icon(Icons.security, color: ThemeColors.primary),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
@@ -318,7 +329,7 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
   void _sendVerificationCode() async {
     if (_phoneController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter your phone number first')),
+        SnackBar(content: Text(LocalizationKeysAppWuy.wuyMessageEnterPhoneFirst.tr(context))),
       );
       return;
     }
@@ -332,7 +343,7 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
 
     // Simulate sending verification code
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Verification code sent to ${_phoneController.text}')),
+      SnackBar(content: Text(LocalizationKeysAppWuy.wuyMessageVerificationCodeSent.tr(context, [_phoneController.text]))),
     );
   }
 
@@ -362,7 +373,7 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration successful!')),
+          SnackBar(content: Text(LocalizationKeysAppWuy.wuyMessageRegistrationSuccessful.tr(context))),
         );
         context.go(WuyAppRouter.routeHome);
       }

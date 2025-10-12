@@ -20,6 +20,7 @@ import '../features_app_wuy/authentication/views/login_screen.dart';
 import '../features_app_wuy/authentication/views/login_entry_screen.dart';
 import '../features_app_wuy/authentication/views/phone_login_screen.dart';
 import '../features_app_wuy/authentication/views/register_screen.dart';
+import '../features_app_wuy/authentication/views/login_register_screen.dart';
 import '../features_app_wuy/splash/views/splash_screen.dart';
 import '../features_app_wuy/dashboard/views/dashboard_screen.dart';
 import '../features_app_wuy/friends/views/friends_list_screen.dart';
@@ -33,6 +34,7 @@ import '../features_app_wuy/network/views/network_records_screen.dart';
 import '../features_app_wuy/profile/views/personal_info_screen.dart';
 import '../features_app_wuy/about/views/about_screen.dart';
 import '../utils_app_wuy/auth_guard.dart';
+import '../services_app_wuy/wuy_auth_state_manager.dart';
 
 /// Wuy App Router Configuration
 /// Route keys are defined directly in this file to avoid separate constant files
@@ -45,10 +47,11 @@ class WuyAppRouter {
   static const String routeLoginEntry = '/wuy/login-entry';
   static const String routePhoneLogin = '/wuy/phone-login';
   static const String routeRegister = '/wuy/register';
+  static const String routeLoginRegister = '/wuy/login-register';
   static const String routeProfile = '/wuy/profile';
   static const String routeSettings = '/wuy/settings';
   static const String routeDashboard = '/wuy/dashboard';
-  static const String routeFriends = '/wuy/friends';
+  // routeFriends removed - using routeHome instead to avoid confusion
   static const String routeFriendInfo = '/wuy/friend/:id';
   static const String routeFindFriends = '/wuy/find-friends';
   static const String routeAddFriend = '/wuy/add-friend';
@@ -60,10 +63,17 @@ class WuyAppRouter {
   static const String routePersonalInfo = '/wuy/personal-info';
   static const String routeAbout = '/wuy/about';
   
+  /// Get initial route based on authentication state
+  static String _getInitialRoute() {
+    // Use auth state manager directly for route determination
+    final authStateManager = WuyAuthStateManager.instance;
+    return authStateManager.getInitialRoute();
+  }
+  
   /// Create router for Wuy app - required by development guidelines
   static GoRouter createRouter() {
     return GoRouter(
-      initialLocation: routeLoginEntry,
+      initialLocation: _getInitialRoute(),
       routes: [
         // Splash route
         GoRoute(
@@ -72,7 +82,7 @@ class WuyAppRouter {
           builder: (context, state) => const WuySplashScreen(),
         ),
         
-        // Home route (Friends List with Auth Guard)
+        // Home route (Friends List with Auth Guard) - Primary route
         GoRoute(
           path: routeHome,
           name: 'wuy_home',
@@ -82,39 +92,50 @@ class WuyAppRouter {
           ),
         ),
         
-        // Friends list route
-        GoRoute(
-          path: routeFriends,
-          name: 'wuy_friends',
-          builder: (context, state) => AuthGuard.requireAuth(
-            context,
-            const WuyFriendsListScreen(),
-          ),
-        ),
-        
-        // Authentication routes
+        // Authentication routes (with redirect guards)
         GoRoute(
           path: routeLogin,
           name: 'wuy_login',
-          builder: (context, state) => const WuyLoginScreen(),
+          builder: (context, state) => AuthGuard.redirectIfAuthenticated(
+            context,
+            const WuyLoginScreen(),
+          ),
         ),
         
         GoRoute(
           path: routeLoginEntry,
           name: 'wuy_login_entry',
-          builder: (context, state) => const WuyLoginEntryScreen(),
+          builder: (context, state) => AuthGuard.redirectIfAuthenticated(
+            context,
+            const WuyLoginEntryScreen(),
+          ),
         ),
         
         GoRoute(
           path: routePhoneLogin,
           name: 'wuy_phone_login',
-          builder: (context, state) => const WuyPhoneLoginScreen(),
+          builder: (context, state) => AuthGuard.redirectIfAuthenticated(
+            context,
+            const WuyPhoneLoginScreen(),
+          ),
         ),
         
         GoRoute(
           path: routeRegister,
           name: 'wuy_register',
-          builder: (context, state) => const WuyRegisterScreen(),
+          builder: (context, state) => AuthGuard.redirectIfAuthenticated(
+            context,
+            const WuyRegisterScreen(),
+          ),
+        ),
+        
+        GoRoute(
+          path: routeLoginRegister,
+          name: 'wuy_login_register',
+          builder: (context, state) => AuthGuard.redirectIfAuthenticated(
+            context,
+            const WuyLoginRegisterScreen(),
+          ),
         ),
         
         // Dashboard route
@@ -296,10 +317,11 @@ class WuyAppRouter {
   static String getLoginEntryRoute() => routeLoginEntry;
   static String getPhoneLoginRoute() => routePhoneLogin;
   static String getRegisterRoute() => routeRegister;
+  static String getLoginRegisterRoute() => routeLoginRegister;
   static String getProfileRoute() => routeProfile;
   static String getSettingsRoute() => routeSettings;
   static String getDashboardRoute() => routeDashboard;
-  static String getFriendsRoute() => routeFriends;
+  static String getFriendsRoute() => routeHome; // Use routeHome as friends route
   static String getFindFriendsRoute() => routeFindFriends;
   static String getAddFriendRoute() => routeAddFriend;
   static String getSearchRoute() => routeSearch;
@@ -322,10 +344,11 @@ class WuyAppRouter {
       routeLoginEntry,
       routePhoneLogin,
       routeRegister,
+      routeLoginRegister,
       routeProfile,
       routeSettings,
       routeDashboard,
-      routeFriends,
+      routeHome, // routeFriends replaced with routeHome
       routeFindFriends,
       routeAddFriend,
       routeSearch,

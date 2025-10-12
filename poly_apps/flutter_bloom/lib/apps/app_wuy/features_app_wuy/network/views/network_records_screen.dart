@@ -17,6 +17,15 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 
+/// Network Records Screen for Wuy App
+/// 
+/// This screen displays network activity and connection records.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyNetworkTitle.tr(context)
 class WuyNetworkRecordsScreen extends StatefulWidget {
   const WuyNetworkRecordsScreen({super.key});
 
@@ -87,7 +96,7 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeFriends),
+          onPressed: () => context.go(WuyAppRouter.routeHome),
         ),
       ),
       body: Column(

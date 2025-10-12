@@ -11,14 +11,26 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
-import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../widgets_app_wuy/wuy_common_background.dart';
+import '../../../widgets_app_wuy/wuy_common_logo.dart';
+import '../../../utils_app_wuy/auth_guard.dart';
+import '../../../services_app_wuy/wuy_auth_state_manager.dart';
+import '../../../models_app_wuy/user_model_app_wuy.dart';
 
+/// Login Screen for Wuy App
+/// 
+/// This screen provides traditional email/password login functionality.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyLoginTitle.tr(context)
 class WuyLoginScreen extends StatefulWidget {
   const WuyLoginScreen({super.key});
 
@@ -42,36 +54,38 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ThemeColors.lightBackground,
-      appBar: AppBar(
-        title: Text(
-          LocalizationKeysAppWuy.wuyLoginTitle.tr(context),
-          style: ThemeTextStyles.displayMedium,
+    return WuyCommonBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(
+            LocalizationKeysAppWuy.wuyLoginTitle.tr(context),
+            style: ThemeTextStyles.displayMedium,
+          ),
+          backgroundColor: ThemeColors.primary,
+          elevation: 0,
         ),
-        backgroundColor: ThemeColors.primary,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: ThemeDimensions.spacingLarge),
-              _buildLogo(),
-              SizedBox(height: ThemeDimensions.spacingXLarge),
-              _buildEmailField(),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              _buildPasswordField(),
-              SizedBox(height: ThemeDimensions.spacingSmall),
-              _buildForgotPassword(),
-              SizedBox(height: ThemeDimensions.spacingLarge),
-              _buildSignInButton(),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              _buildSignUpLink(),
-            ],
+        body: SingleChildScrollView(
+          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(height: ThemeDimensions.spacingLarge),
+                _buildLogo(),
+                SizedBox(height: ThemeDimensions.spacingXLarge),
+                _buildEmailField(),
+                SizedBox(height: ThemeDimensions.spacingMedium),
+                _buildPasswordField(),
+                SizedBox(height: ThemeDimensions.spacingSmall),
+                _buildForgotPassword(),
+                SizedBox(height: ThemeDimensions.spacingLarge),
+                _buildSignInButton(),
+                SizedBox(height: ThemeDimensions.spacingMedium),
+                _buildSignUpLink(),
+              ],
+            ),
           ),
         ),
       ),
@@ -81,11 +95,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
   Widget _buildLogo() {
     return Column(
       children: [
-        Icon(
-          Icons.apps,
-          size: 80,
-          color: ThemeColors.primary,
-        ),
+        const WuyCommonLogo(),
         SizedBox(height: ThemeDimensions.spacingMedium),
         Text(
           'Welcome to Wuy App',
@@ -236,15 +246,47 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
         _isLoading = true;
       });
 
-      // Simulate login
-      await Future.delayed(const Duration(seconds: 2));
+      try {
+        // Create a mock user for login
+        final mockUser = UserModelAppWuy(
+          id: 1,
+          username: _emailController.text.trim(),
+          name: 'Wuy User',
+          email: _emailController.text.trim(),
+          phoneNumber: '+1234567890',
+          isActive: true,
+          isVerified: true,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
 
-      setState(() {
-        _isLoading = false;
-      });
+        // Use auth state manager to handle login
+        final authStateManager = WuyAuthStateManager.instance;
+        await authStateManager.setAuthenticatedUser(mockUser);
 
-      if (mounted) {
-        context.go(WuyAppRouter.routeFriends);
+        // Use AuthGuard to handle login success
+        await AuthGuard.onLoginSuccess(context);
+
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        debugPrint('Login error: $e');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          
+          // Show error message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Login failed: ${e.toString()}'),
+              backgroundColor: ThemeColors.error,
+            ),
+          );
+        }
       }
     }
   }

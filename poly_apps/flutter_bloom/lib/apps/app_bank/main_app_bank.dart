@@ -47,5 +47,6 @@ Future<void> main() async {
     additionalProviders: [
       ChangeNotifierProvider.value(value: bankUserProvider),
     ],
+    initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + Hive)
   );
 }

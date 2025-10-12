@@ -31,9 +31,7 @@ class AppPrefsAppWuy extends AppPrefsBase {
   
   @override
   Future<SharedPreferences> initSharedPreferences() async {
-    if (_prefs == null) {
-      _prefs = await SharedPreferences.getInstance();
-    }
+    _prefs ??= await SharedPreferences.getInstance();
     return _prefs!;
   }
   
@@ -51,19 +49,18 @@ class AppPrefsAppWuy extends AppPrefsBase {
     
     final String prefixedKey = '$_appPrefix$key';
     
-    switch (T) {
-      case bool:
-        return _prefs!.getBool(prefixedKey) as T? ?? defaultValue;
-      case int:
-        return _prefs!.getInt(prefixedKey) as T? ?? defaultValue;
-      case double:
-        return _prefs!.getDouble(prefixedKey) as T? ?? defaultValue;
-      case String:
-        return _prefs!.getString(prefixedKey) as T? ?? defaultValue;
-      case const (List<String>):
-        return _prefs!.getStringList(prefixedKey) as T? ?? defaultValue;
-      default:
-        return defaultValue;
+    if (T == bool) {
+      return _prefs!.getBool(prefixedKey) as T? ?? defaultValue;
+    } else if (T == int) {
+      return _prefs!.getInt(prefixedKey) as T? ?? defaultValue;
+    } else if (T == double) {
+      return _prefs!.getDouble(prefixedKey) as T? ?? defaultValue;
+    } else if (T == String) {
+      return _prefs!.getString(prefixedKey) as T? ?? defaultValue;
+    } else if (T == const (List<String>,)) {
+      return _prefs!.getStringList(prefixedKey) as T? ?? defaultValue;
+    } else {
+      return defaultValue;
     }
   }
   
@@ -73,19 +70,18 @@ class AppPrefsAppWuy extends AppPrefsBase {
     
     final String prefixedKey = '$_appPrefix$key';
     
-    switch (T) {
-      case bool:
-        return await _prefs!.setBool(prefixedKey, value as bool);
-      case int:
-        return await _prefs!.setInt(prefixedKey, value as int);
-      case double:
-        return await _prefs!.setDouble(prefixedKey, value as double);
-      case String:
-        return await _prefs!.setString(prefixedKey, value as String);
-      case const (List<String>):
-        return await _prefs!.setStringList(prefixedKey, value as List<String>);
-      default:
-        return false;
+    if (T == bool) {
+      return await _prefs!.setBool(prefixedKey, value as bool);
+    } else if (T == int) {
+      return await _prefs!.setInt(prefixedKey, value as int);
+    } else if (T == double) {
+      return await _prefs!.setDouble(prefixedKey, value as double);
+    } else if (T == String) {
+      return await _prefs!.setString(prefixedKey, value as String);
+    } else if (T == const (List<String>,)) {
+      return await _prefs!.setStringList(prefixedKey, value as List<String>);
+    } else {
+      return false;
     }
   }
   

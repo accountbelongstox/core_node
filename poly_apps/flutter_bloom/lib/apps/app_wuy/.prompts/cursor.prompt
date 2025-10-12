@@ -81,3 +81,21 @@
 注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
 分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
 开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+根据我传给你的图,现在进行效果修复,显示你现在做的效果比较老旧且是默认效果,没有达到效果图上的设置效果,比如渐变色\圆色\色彩等,缺少了很多自定义设置.
+同时查看错误  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\errot.txt
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+开发进度文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_development_progress.md(可能有些过时，你要根据实际文件构架来更新)
+现在的任务:
+1:严格按图上的设置，进行更多主题设置,同时,尽可能的使用common中的公共组件,以及你在子app中聚合更多的子app特有的组件
+2:尽量在个各页面各写各的,对于公共组件,首选你引用common中的,然后在 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\子appname\ 中创建个性的公共widgets,同时要使用公共的主题设置.
+重点:首先你要使用common中的公共多语言库,并对每个text都使用多语言库,默认为zh.
+你要整体分析,构架的缺陷.合并冗余代码,
+注意，你不能单独的修复或创建一个文件，而是整体分析然后做处调整甚至可以重构，同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+分析结果写到.D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_architecture_analysis_report.md
+开发结果更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\doc\cursor_implementation_summary.md 
+
+
+注意，你不能单独的修复或创建一个文件，同时要确保引用tr()多语言,而是整体分析然后做处调整甚至可以重构，确保数据模型,api等的数据一至性,自洽性.不要重复定义,以及清除冗余代码.
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 查看所有构架
+你需要优先引用首先你要使用common中的公共库,但是不要在common库中引入外部文件.

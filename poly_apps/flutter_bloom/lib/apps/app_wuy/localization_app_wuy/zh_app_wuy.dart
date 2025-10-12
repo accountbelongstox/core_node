@@ -83,7 +83,6 @@ class WuyZhTranslations {
     // About related
     LocalizationKeysAppWuy.wuyAboutTitle: '关于我们',
     LocalizationKeysAppWuy.wuyAboutFeatures: '功能介绍',
-    LocalizationKeysAppWuy.wuyAboutVersion: '版本更新',
     LocalizationKeysAppWuy.wuyAboutAppInfo: '应用信息',
     LocalizationKeysAppWuy.wuyAboutVersionInfo: '查看最新版本信息',
     LocalizationKeysAppWuy.wuyAboutFeatureInfo: '了解应用的主要功能',
@@ -121,6 +120,8 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyAuthSignUp: '注册',
     LocalizationKeysAppWuy.wuyAuthAlreadyHaveAccount: '已有账户？',
     LocalizationKeysAppWuy.wuyAuthDontHaveAccount: '没有账户？',
+    LocalizationKeysAppWuy.wuyAlreadyHaveAccount: '已有账户？',
+    LocalizationKeysAppWuy.wuyNeedAccount: '需要账户？',
     
     // Login Entry Page
     LocalizationKeysAppWuy.wuyAppName: '安无忧',
@@ -277,6 +278,79 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyMessageVersionComingSoon: '版本信息即将推出！',
     LocalizationKeysAppWuy.wuyMessageLoginFailed: '登录失败: {error}',
     LocalizationKeysAppWuy.wuyMessageLoginSuccessOffline: '登录成功 (离线模式)',
+
+    // About screen specific
+    LocalizationKeysAppWuy.wuyAboutAppName: '安无忧',
+    LocalizationKeysAppWuy.wuyAboutAppNameEn: 'An Wu You',
+    LocalizationKeysAppWuy.wuyAboutVersion: '版本',
+    LocalizationKeysAppWuy.wuyAboutBuild: '构建',
+    LocalizationKeysAppWuy.wuyAboutDeveloper: '开发者',
+    LocalizationKeysAppWuy.wuyAboutPlatform: '平台',
+    LocalizationKeysAppWuy.wuyAboutLicense: '许可证',
+    LocalizationKeysAppWuy.wuyAboutVersionValue: '1.0.0',
+    LocalizationKeysAppWuy.wuyAboutBuildValue: '2025.01.08',
+    LocalizationKeysAppWuy.wuyAboutDeveloperValue: 'Wuy Team',
+    LocalizationKeysAppWuy.wuyAboutPlatformValue: 'Flutter',
+    LocalizationKeysAppWuy.wuyAboutLicenseValue: 'MIT',
+
+    // Validation messages
+    LocalizationKeysAppWuy.wuyValidationPhoneInvalid: '请输入有效的手机号',
+    LocalizationKeysAppWuy.wuyValidationPhoneRequired: '手机号不能为空',
+    LocalizationKeysAppWuy.wuyValidationPhoneFormat: '请输入正确的手机号格式',
+
+    // Search screen specific
+    LocalizationKeysAppWuy.wuySearchSampleUser1: '小飞侠',
+    LocalizationKeysAppWuy.wuySearchSampleUser1Bio: '今天天气真好',
+    LocalizationKeysAppWuy.wuySearchSampleUser2: '阳光明媚',
+    LocalizationKeysAppWuy.wuySearchSampleUser2Bio: '热爱生活，享受每一天',
+
+    // Settings screen specific (additional keys)
+    LocalizationKeysAppWuy.wuySettingsDarkModeDescription: '启用深色主题',
+    LocalizationKeysAppWuy.wuySettingsPushNotifications: '推送通知',
+    LocalizationKeysAppWuy.wuySettingsPushNotificationsDescription: '接收推送通知',
+    LocalizationKeysAppWuy.wuySettingsBiometricLogin: '生物识别登录',
+    LocalizationKeysAppWuy.wuySettingsBiometricLoginDescription: '使用指纹或面部识别',
+    LocalizationKeysAppWuy.wuySettingsChangePassword: '修改密码',
+    LocalizationKeysAppWuy.wuySettingsChangePasswordDescription: '更新您的密码',
+    LocalizationKeysAppWuy.wuySettingsVersion: '版本',
+    LocalizationKeysAppWuy.wuySettingsVersionValue: '1.0.0',
+    LocalizationKeysAppWuy.wuySettingsTermsOfService: '服务条款',
+    LocalizationKeysAppWuy.wuySettingsTermsOfServiceDescription: '阅读我们的条款',
+    LocalizationKeysAppWuy.wuySettingsPrivacyPolicy: '隐私政策',
+    LocalizationKeysAppWuy.wuySettingsPrivacyPolicyDescription: '阅读我们的隐私政策',
+    LocalizationKeysAppWuy.wuySettingsLanguageEnglish: 'English',
+    LocalizationKeysAppWuy.wuySettingsLanguageChinese: '中文',
+
+    // Add friend screen specific
+    LocalizationKeysAppWuy.wuyAddFriendEnterNickname: '输入好友昵称',
+    LocalizationKeysAppWuy.wuyAddFriendEnterGender: '输入性别 (男/女)',
+    LocalizationKeysAppWuy.wuyAddFriendEnterAge: '输入年龄',
+    LocalizationKeysAppWuy.wuyAddFriendEnterHeight: '输入身高 (cm)',
+    LocalizationKeysAppWuy.wuyAddFriendEnterWeight: '输入体重 (kg)',
+
+    // Register screen specific
+    LocalizationKeysAppWuy.wuyRegisterEnterPhone: '请输入手机号',
+    LocalizationKeysAppWuy.wuyRegisterEnterVerificationCode: '请输入验证码',
+
+    // Social login messages
+    LocalizationKeysAppWuy.wuyMessageWeChatApiConnecting: '微信登录API正在接入中',
+    LocalizationKeysAppWuy.wuyMessageQQApiConnecting: 'QQ登录API正在接入中',
+    LocalizationKeysAppWuy.wuyMessageDingTalkApiConnecting: '钉钉登录API正在接入中',
+    LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin: '推荐使用手机号登录',
+
+    // Missing translations
+    LocalizationKeysAppWuy.wuyVerificationCode: '验证码',
+    LocalizationKeysAppWuy.wuyGetCode: '获取验证码',
+    LocalizationKeysAppWuy.wuyRegisterLogin: '注册/登录',
+    LocalizationKeysAppWuy.wuyLogin: '登录',
+    LocalizationKeysAppWuy.wuyValidationVerificationRequired: '请输入验证码',
+    LocalizationKeysAppWuy.wuyValidationVerificationFormat: '验证码格式不正确',
+    LocalizationKeysAppWuy.wuyAgreementText: '注册即表示同意',
+    LocalizationKeysAppWuy.wuyAnd: '和',
+    LocalizationKeysAppWuy.wuyPrivacyPolicy: '隐私政策',
+    LocalizationKeysAppWuy.wuyMessageSendCodeFailed: '发送验证码失败',
+    LocalizationKeysAppWuy.wuyMessageSendCodeError: '发送验证码出错',
+    LocalizationKeysAppWuy.wuyMessageOperationFailed: '操作失败',
   };
 }
 

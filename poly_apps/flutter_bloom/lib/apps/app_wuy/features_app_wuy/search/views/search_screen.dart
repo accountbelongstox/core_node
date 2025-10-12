@@ -14,11 +14,23 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../widgets_app_wuy/wuy_bottom_navigation.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/search_filter_model_app_wuy.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../router_app_wuy/router_app_wuy.dart';
 
+/// Search Screen for Wuy App
+/// 
+/// This screen provides search functionality for finding friends.
+/// Users can search by name, phone number, or other criteria.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuySearchTitle.tr(context)
 class WuySearchScreen extends StatefulWidget {
   const WuySearchScreen({super.key});
 
@@ -75,10 +87,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       FriendModelAppWuy(
         id: '1',
         username: 'xiaofeixia',
-        displayName: '小飞侠',
+        displayName: LocalizationKeysAppWuy.wuySearchSampleUser1.tr(context),
         avatarUrl: null,
         phoneNumber: '138****8888',
-        bio: '今天天气真好',
+        bio: LocalizationKeysAppWuy.wuySearchSampleUser1Bio.tr(context),
         isOnline: true,
         lastSeen: DateTime.now(),
         createdAt: DateTime.now().subtract(const Duration(days: 30)),
@@ -87,10 +99,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       FriendModelAppWuy(
         id: '2',
         username: 'sunny_day',
-        displayName: '阳光明媚',
+        displayName: LocalizationKeysAppWuy.wuySearchSampleUser2.tr(context),
         avatarUrl: null,
         phoneNumber: '139****9999',
-        bio: '热爱生活，享受每一天',
+        bio: LocalizationKeysAppWuy.wuySearchSampleUser2Bio.tr(context),
         isOnline: false,
         lastSeen: DateTime.now().subtract(const Duration(hours: 2)),
         createdAt: DateTime.now().subtract(const Duration(days: 15)),
@@ -143,6 +155,25 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
             _buildSearchResults(),
           ],
         ),
+      ),
+      bottomNavigationBar: WuyBottomNavigation(
+        currentIndex: 2, // Find Friends is the 3rd item (index 2)
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              context.go(WuyAppRouter.routeSearch);
+              break;
+            case 1:
+              context.go(WuyAppRouter.routeHome);
+              break;
+            case 2:
+              // Already on find friends page
+              break;
+            case 3:
+              context.go(WuyAppRouter.routeProfile);
+              break;
+          }
+        },
       ),
     );
   }
