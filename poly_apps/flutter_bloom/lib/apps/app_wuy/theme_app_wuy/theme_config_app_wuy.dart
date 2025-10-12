@@ -45,6 +45,12 @@ class WuyAppThemeConfig {
   static const Color wuyWarningColor = Color(0xFFFF9800);
   static const Color wuySuccessColor = Color(0xFF4CAF50);
   
+  // Input field colors for login-register page
+  static const Color wuyInputBorderDefault = Color(0xFFE0E0E0); // Light gray border
+  static const Color wuyInputBorderFocused = Color(0xFFB0BEC5); // Darker border when focused
+  static const Color wuyInputFillDefault = Color(0xFFFAFAFA); // Light background
+  static const Color wuyInputFillFocused = Color(0xFFF5F5F5); // Light background when focused
+  
   // Wuy App specific dimensions
   static const double wuyBorderRadius = 8.0;
   static const double wuyCardBorderRadius = 12.0;
@@ -142,6 +148,29 @@ class WuyAppThemeConfig {
       wuyPrimaryColor, // #1a73e8
       wuyPrimaryEnd,   // #2f7bf3
     ],
+  );
+  
+  // Button gradients for login-register page
+  static const LinearGradient wuyButtonGradientEnabled = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF2196F3), // Blue
+      Color(0xFF1976D2), // Dark blue
+      Color(0xFF4CAF50), // Green
+    ],
+    stops: [0.0, 0.6, 1.0],
+  );
+  
+  static const LinearGradient wuyButtonGradientDisabled = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFFBBDEFB), // Light blue
+      Color(0xFFE3F2FD), // Lighter blue
+      Color(0xFFC8E6C9), // Light green
+    ],
+    stops: [0.0, 0.6, 1.0],
   );
   
   // Wuy App specific text styles

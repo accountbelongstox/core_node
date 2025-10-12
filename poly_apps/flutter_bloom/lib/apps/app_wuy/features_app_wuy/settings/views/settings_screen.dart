@@ -14,8 +14,19 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
+/// Settings Screen for Wuy App
+/// 
+/// This screen provides app settings and configuration options.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuySettingsTitle.tr(context)
 class WuySettingsScreen extends StatefulWidget {
   const WuySettingsScreen({super.key});
 
@@ -27,7 +38,7 @@ class _WuySettingsScreenState extends State<WuySettingsScreen> {
   bool _notificationsEnabled = true;
   bool _darkModeEnabled = false;
   bool _biometricEnabled = false;
-  String _selectedLanguage = 'English';
+  String _selectedLanguage = 'English'; // Will be updated when context is available
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +49,7 @@ class _WuySettingsScreenState extends State<WuySettingsScreen> {
           backgroundColor: Colors.transparent,
           appBar: AppBar(
             title: Text(
-              'Settings',
+              LocalizationKeysAppWuy.wuySettingsTitle.tr(context),
               style: ThemeTextStyles.displayMedium,
             ),
             backgroundColor: ThemeColors.primary,
@@ -48,12 +59,12 @@ class _WuySettingsScreenState extends State<WuySettingsScreen> {
             padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
             children: [
               _buildSettingsSection(
-                'General',
+                LocalizationKeysAppWuy.wuySettingsGeneral.tr(context),
                 [
                   _buildLanguageSelector(),
                   _buildSwitchTile(
-                    'Dark Mode',
-                    'Enable dark theme',
+                    LocalizationKeysAppWuy.wuySettingsDarkMode.tr(context),
+                    LocalizationKeysAppWuy.wuySettingsDarkModeDescription.tr(context),
                     _darkModeEnabled,
                     (value) => setState(() => _darkModeEnabled = value),
                   ),
@@ -61,11 +72,11 @@ class _WuySettingsScreenState extends State<WuySettingsScreen> {
               ),
               SizedBox(height: ThemeDimensions.spacingMedium),
               _buildSettingsSection(
-                'Notifications',
+                LocalizationKeysAppWuy.wuySettingsNotifications.tr(context),
                 [
                   _buildSwitchTile(
-                    'Push Notifications',
-                    'Receive push notifications',
+                    LocalizationKeysAppWuy.wuySettingsPushNotifications.tr(context),
+                    LocalizationKeysAppWuy.wuySettingsPushNotificationsDescription.tr(context),
                     _notificationsEnabled,
                     (value) => setState(() => _notificationsEnabled = value),
                   ),
@@ -73,17 +84,17 @@ class _WuySettingsScreenState extends State<WuySettingsScreen> {
               ),
               SizedBox(height: ThemeDimensions.spacingMedium),
               _buildSettingsSection(
-                'Security',
+                LocalizationKeysAppWuy.wuySettingsSecurity.tr(context),
                 [
                   _buildSwitchTile(
-                    'Biometric Login',
-                    'Use fingerprint or face ID',
+                    LocalizationKeysAppWuy.wuySettingsBiometricLogin.tr(context),
+                    LocalizationKeysAppWuy.wuySettingsBiometricLoginDescription.tr(context),
                     _biometricEnabled,
                     (value) => setState(() => _biometricEnabled = value),
                   ),
                   _buildListTile(
-                    'Change Password',
-                    'Update your password',
+                    LocalizationKeysAppWuy.wuySettingsChangePassword.tr(context),
+                    LocalizationKeysAppWuy.wuySettingsChangePasswordDescription.tr(context),
                     Icons.lock,
                     () {},
                   ),
@@ -91,23 +102,23 @@ class _WuySettingsScreenState extends State<WuySettingsScreen> {
               ),
               SizedBox(height: ThemeDimensions.spacingMedium),
               _buildSettingsSection(
-                'About',
+                LocalizationKeysAppWuy.wuySettingsAbout.tr(context),
                 [
                   _buildListTile(
-                    'Version',
-                    '1.0.0',
+                    LocalizationKeysAppWuy.wuySettingsVersion.tr(context),
+                    LocalizationKeysAppWuy.wuySettingsVersionValue.tr(context),
                     Icons.info,
                     null,
                   ),
                   _buildListTile(
-                    'Terms of Service',
-                    'Read our terms',
+                    LocalizationKeysAppWuy.wuySettingsTermsOfService.tr(context),
+                    LocalizationKeysAppWuy.wuySettingsTermsOfServiceDescription.tr(context),
                     Icons.description,
                     () {},
                   ),
                   _buildListTile(
-                    'Privacy Policy',
-                    'Read our privacy policy',
+                    LocalizationKeysAppWuy.wuySettingsPrivacyPolicy.tr(context),
+                    LocalizationKeysAppWuy.wuySettingsPrivacyPolicyDescription.tr(context),
                     Icons.privacy_tip,
                     () {},
                   ),
@@ -204,7 +215,7 @@ class _WuySettingsScreenState extends State<WuySettingsScreen> {
   Widget _buildLanguageSelector() {
     return ListTile(
       title: Text(
-        'Language',
+        LocalizationKeysAppWuy.wuySettingsLanguage.tr(context),
         style: ThemeTextStyles.titleMedium,
       ),
       subtitle: Text(
@@ -216,7 +227,7 @@ class _WuySettingsScreenState extends State<WuySettingsScreen> {
       trailing: DropdownButton<String>(
         value: _selectedLanguage,
         underline: Container(),
-        items: ['English', 'Chinese'].map((String value) {
+        items: [LocalizationKeysAppWuy.wuySettingsLanguageEnglish.tr(context), LocalizationKeysAppWuy.wuySettingsLanguageChinese.tr(context)].map((String value) {
           return DropdownMenuItem<String>(
             value: value,
             child: Text(value),

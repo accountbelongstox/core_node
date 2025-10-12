@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-09 06:13:24
+Generated: 2025-10-13 01:05:21
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -12,16 +12,17 @@ app_wuy [code_assets]
 ├── lib/apps/app_wuy/
 │   ├── .prompts
 │   │   ├── claude.prompt
-│   │   └── cursor.prompt
+│   │   ├── cursor.prompt
+│   │   └── promize.txt
+│   ├── Claude_development_result.md
 │   ├── app_wuy_tree_code_assets.txt
 │   ├── build_config.ini
 │   ├── config_app_wuy
 │   │   ├── api_config_app_wuy.dart
-│   │   ├── api_data_models_app_wuy.dart
 │   │   ├── api_endpoints_app_wuy.dart
 │   │   ├── app_config_app_wuy.dart
-│   │   ├── constants_app_wuy.dart
-│   │   └── storage_app_wuy.dart
+│   │   ├── storage_app_wuy.dart
+│   │   └── storage_config_app_wuy.dart
 │   ├── controller_app_wuy
 │   │   └── settings_controller_app_wuy.dart
 │   ├── doc
@@ -61,6 +62,23 @@ app_wuy [code_assets]
 │   │   │   ├── 06_display_settings.html
 │   │   │   ├── 07_notification_settings.html
 │   │   │   └── 08_privacy_settings.html
+│   │   ├── pageviewshtmlclaude.bak
+│   │   │   ├── 01_homepage_main_view.html
+│   │   │   ├── 02_bottom_navigation.html
+│   │   │   ├── 03_menu_drawer_open.html
+│   │   │   ├── 04_settings_page.html
+│   │   │   ├── 05_account_settings.html
+│   │   │   ├── 06_display_settings.html
+│   │   │   ├── 07_notification_settings.html
+│   │   │   ├── 08_privacy_settings.html
+│   │   │   ├── 09_data_storage_settings.html
+│   │   │   ├── 10_help_feedback_page.html
+│   │   │   ├── 11_about_page.html
+│   │   │   ├── 12_theme_selection_dialog.html
+│   │   │   ├── 13_font_size_adjustment.html
+│   │   │   ├── 14_language_settings.html
+│   │   │   ├── 15_search_functionality.html
+│   │   │   └── 16_app_info_details.html
 │   │   ├── pageviewshtmlcodebuddy
 │   │   │   ├── about.html
 │   │   │   ├── add-friend.html
@@ -97,7 +115,7 @@ app_wuy [code_assets]
 │   │       ├── 15_search_functionality.full.html
 │   │       ├── 16_app_info_details.full.html
 │   │       └── index.full.html
-│   ├── errot.txt
+│   ├── error.txt
 │   ├── features_app_wuy
 │   │   ├── about
 │   │   │   └── views
@@ -105,6 +123,7 @@ app_wuy [code_assets]
 │   │   ├── authentication
 │   │   │   └── views
 │   │   │       ├── login_entry_screen.dart
+│   │   │       ├── login_register_screen.dart
 │   │   │       ├── login_screen.dart
 │   │   │       ├── phone_login_screen.dart
 │   │   │       └── register_screen.dart
@@ -167,18 +186,24 @@ app_wuy [code_assets]
 │   │   ├── router_app_wuy.dart
 │   │   └── routes_provider_app_wuy.dart
 │   ├── services_app_wuy
-│   │   ├── wuy_api_center.dart
-│   │   ├── wuy_app_manager.dart
-│   │   ├── wuy_data_center.dart
-│   │   ├── wuy_network_manager.dart
-│   │   └── wuy_service.dart
+│   │   ├── wuy_auth_state_manager.dart
+│   │   ├── wuy_fake_data_generator.dart
+│   │   ├── wuy_sqlite_storage_service.dart
+│   │   └── wuy_unified_service.dart
 │   ├── settings_app_wuy
 │   │   └── settings_app_wuy.dart
 │   ├── theme_app_wuy
 │   │   └── theme_config_app_wuy.dart
-│   └── utils_app_wuy
-│       ├── app_info_app_wuy.dart
-│       └── auth_guard.dart
+│   ├── utils_app_wuy
+│   │   ├── app_info_app_wuy.dart
+│   │   └── auth_guard.dart
+│   └── widgets_app_wuy
+│       ├── wuy_background_decoration.dart
+│       ├── wuy_bottom_navigation.dart
+│       ├── wuy_common_background.dart
+│       ├── wuy_common_logo.dart
+│       ├── wuy_gradient_button.dart
+│       └── wuy_modern_input_field.dart
 ├── lib/common/
 │   ├── app
 │   │   └── main_common.dart
@@ -186,7 +211,6 @@ app_wuy [code_assets]
 │   │   ├── common_assets_icons.dart
 │   │   ├── common_assets_images.dart
 │   │   └── common_assets_launch.dart
-│   ├── auth
 │   ├── cache_manager
 │   │   └── cache_manager.dart
 │   ├── common_tree.md
@@ -299,10 +323,6 @@ app_wuy [code_assets]
 │   │   │   ├── login_manager.dart
 │   │   │   ├── session_auth_strategy.dart
 │   │   │   └── user_provider_auth_coordinator.dart
-│   │   ├── cache
-│   │   │   ├── cache_entry.dart
-│   │   │   ├── cache_store.dart
-│   │   │   └── memory_cache_store.dart
 │   │   ├── core
 │   │   │   ├── http_client.dart
 │   │   │   └── network_manager.dart
@@ -343,6 +363,7 @@ app_wuy [code_assets]
 │   │   └── user_provider.dart
 │   ├── repo
 │   │   └── splash_repo.dart
+│   ├── sdk
 │   ├── settings
 │   │   ├── configs
 │   │   │   └── base_settings.dart
@@ -351,20 +372,72 @@ app_wuy [code_assets]
 │   │   └── storage
 │   │       └── settings_storage_manager.dart
 │   ├── storage
+│   │   ├── adapters
+│   │   │   ├── storage_adapter_factory.dart
+│   │   │   ├── storage_adapter_unified.dart
+│   │   │   └── web_storage_adapter.dart
 │   │   ├── app_prefs_base.dart
-│   │   ├── app_storage.dart
-│   │   ├── app_storage_base.dart
+│   │   ├── cleanup
+│   │   │   └── storage_cleanup_tool.dart
 │   │   ├── implementations
-│   │   │   └── hive_storage.dart
+│   │   │   ├── hive_storage.dart
+│   │   │   └── sqlite_storage_v1.dart
 │   │   ├── interfaces
 │   │   │   └── storage_interface.dart
+│   │   ├── migration
+│   │   │   └── hive_to_sqlite_migration.dart
 │   │   ├── models
 │   │   │   └── storage_models.dart
+│   │   ├── new_architecture
+│   │   │   ├── interfaces
+│   │   │   └── models
+│   │   ├── serialization
 │   │   ├── storage_manager.dart
 │   │   ├── storage_migration_tool.dart
 │   │   ├── storage_provider.dart
-│   │   ├── storage_usage_examples.dart
 │   │   └── unified_storage.dart
+│   ├── storagev2
+│   │   ├── README.md
+│   │   ├── application
+│   │   │   └── storage_application_service.dart
+│   │   ├── business
+│   │   │   ├── config_service.dart
+│   │   │   ├── security_service.dart
+│   │   │   ├── storage_service.dart
+│   │   │   ├── sync_service.dart
+│   │   │   └── user_service.dart
+│   │   ├── config
+│   │   │   └── storage_config.dart
+│   │   ├── data_access
+│   │   │   ├── cache_adapter.dart
+│   │   │   ├── encryption_adapter.dart
+│   │   │   ├── storage_adapter.dart
+│   │   │   └── storage_data_access.dart
+│   │   ├── di
+│   │   │   └── storage_container.dart
+│   │   ├── exceptions
+│   │   │   └── storage_exceptions.dart
+│   │   ├── flutter_storage.dart
+│   │   ├── infrastructure
+│   │   │   ├── hive_storage.dart
+│   │   │   ├── memory_cache.dart
+│   │   │   └── sqlite_storage.dart
+│   │   ├── interfaces
+│   │   │   ├── cache_service_interface.dart
+│   │   │   ├── encryption_service_interface.dart
+│   │   │   ├── storage_adapter_interface.dart
+│   │   │   └── storage_repository_interface.dart
+│   │   ├── migration
+│   │   │   └── storage_migration.dart
+│   │   ├── models
+│   │   │   ├── config_entity.dart
+│   │   │   ├── storage_entity.dart
+│   │   │   ├── storage_result.dart
+│   │   │   └── user_entity.dart
+│   │   ├── repository
+│   │   │   └── storage_repository_impl.dart
+│   │   └── utils
+│   │       └── storage_utils.dart
 │   ├── theme
 │   │   ├── base
 │   │   │   ├── theme_colors.dart
@@ -414,7 +487,8 @@ app_wuy [code_assets]
 │   │   │   └── text_utils.dart
 │   │   ├── utils.dart
 │   │   ├── validation
-│   │   │   └── email_checker.dart
+│   │   │   ├── email_checker.dart
+│   │   │   └── phone_checker.dart
 │   │   └── web
 │   │       ├── web_tools.dart
 │   │       ├── web_tools_non_web.dart
@@ -459,7 +533,6 @@ app_wuy [code_assets]
 │       ├── enhanced_top_menu.dart
 │       ├── image_dialog.dart
 │       ├── navigation_widgets.dart
-│       ├── network_connection_dialog.dart
 │       ├── no_data_screen.dart
 │       ├── open_map.dart
 │       ├── outelineborder.dart
@@ -493,8 +566,7 @@ app_wuy [code_assets]
 │   │   └── bg.png
 │   └── launch
 │       ├── .gitkeep
-│       ├── luanch.backup.jpg
-│       └── luanch.jpg
+│       └── splash.png
 └── assets/common/
     ├── fonts
     │   ├── .gitkeep

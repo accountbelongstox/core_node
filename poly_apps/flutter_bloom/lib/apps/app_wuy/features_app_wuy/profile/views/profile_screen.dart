@@ -16,9 +16,20 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../widgets_app_wuy/wuy_bottom_navigation.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../utils_app_wuy/auth_guard.dart';
 
+/// Profile Screen for Wuy App
+/// 
+/// This screen displays user profile information and settings options.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyProfileTitle.tr(context)
 class WuyProfileScreen extends StatelessWidget {
   const WuyProfileScreen({super.key});
 
@@ -45,6 +56,25 @@ class WuyProfileScreen extends StatelessWidget {
             _buildProfileActions(context),
           ],
         ),
+      ),
+      bottomNavigationBar: WuyBottomNavigation(
+        currentIndex: 3, // Profile is the 4th item (index 3)
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              context.go(WuyAppRouter.routeSearch);
+              break;
+            case 1:
+              context.go(WuyAppRouter.routeHome);
+              break;
+            case 2:
+              context.go(WuyAppRouter.routeFindFriends);
+              break;
+            case 3:
+              // Already on profile page
+              break;
+          }
+        },
       ),
     );
   }
@@ -142,7 +172,7 @@ class WuyProfileScreen extends StatelessWidget {
         SizedBox(height: ThemeDimensions.spacingMedium),
         OutlinedButton(
           onPressed: () {
-            context.go(WuyAppRouter.routeLoginEntry);
+            AuthGuard.onLogout(context);
           },
           style: OutlinedButton.styleFrom(
             minimumSize: Size(double.infinity, 50),

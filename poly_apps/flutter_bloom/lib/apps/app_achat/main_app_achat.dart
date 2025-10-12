@@ -60,5 +60,6 @@ Future<void> main() async {
     appConfig: AChatAppConfig.getConfig(),
     appPrefs: prefsAppAChat, // Pass AChat SharedPreferences instance from provider
     routerConfig: RouterAppAChat.createRouter(), // Pass the router configuration
+    initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + Hive)
   );
 }

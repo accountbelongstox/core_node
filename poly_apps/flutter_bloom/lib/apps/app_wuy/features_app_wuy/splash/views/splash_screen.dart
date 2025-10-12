@@ -18,6 +18,15 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
+/// Splash Screen for Wuy App
+/// 
+/// This screen displays the app splash screen during startup.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuySplashTitle.tr(context)
 class WuySplashScreen extends StatefulWidget {
   const WuySplashScreen({super.key});
 
@@ -32,7 +41,7 @@ class _WuySplashScreenState extends State<WuySplashScreen> {
     _navigateToHome();
   }
 
-  _navigateToHome() async {
+  Future<void> _navigateToHome() async {
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) {
       context.go(WuyAppRouter.routeHome);

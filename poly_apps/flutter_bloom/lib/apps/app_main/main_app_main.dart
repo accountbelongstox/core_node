@@ -30,6 +30,7 @@ void main() async {
     enAppLocales: EnAppMain.locales,
     zhAppLocales: ZhAppMain.locales,
     appPrefs: prefsAppMain,
+    initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + Hive)
   );
 }
 

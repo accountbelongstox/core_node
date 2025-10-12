@@ -144,10 +144,11 @@ class HiveStorage implements KeyValueStorageInterface {
     final box = Hive.box(boxName);
     box.watch().listen((event) {
       final change = StorageChange(
-        boxName: boxName,
         key: event.key?.toString(),
-        value: event.value,
-        deleted: event.deleted,
+        oldValue: null, // Hive doesn't provide old value
+        newValue: event.value,
+        type: event.deleted ? StorageChangeType.deleted : StorageChangeType.updated,
+        timestamp: DateTime.now(),
       );
       _boxControllers[boxName]!.add(change);
       if (kDebugMode) {

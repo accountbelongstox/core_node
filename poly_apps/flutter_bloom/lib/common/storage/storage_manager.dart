@@ -11,18 +11,18 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'interfaces/storage_interface.dart';
-import 'implementations/hive_storage.dart';
+import 'adapters/storage_adapter_factory.dart';
 import 'models/storage_models.dart';
 
 /// Facade manager that exposes a simple and unified API for storage access.
-/// Default backend is Hive; can be swapped if needed in the future.
+/// Platform-aware: uses SQLite on mobile/desktop, localStorage on web.
 class StorageManager implements KeyValueStorageInterface {
   static StorageManager? _instance;
   static StorageManager get instance => _instance ??= StorageManager._internal();
 
   StorageManager._internal();
 
-  final KeyValueStorageInterface _backend = HiveStorage.instance;
+  final KeyValueStorageInterface _backend = StorageAdapterFactory.getAdapter();
 
   @override
   Future<void> init({String? appName, String? subDirectory}) {

@@ -19,6 +19,15 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
+/// Personal Info Screen for Wuy App
+/// 
+/// This screen allows users to view and edit their personal information.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyProfilePersonalInfo.tr(context)
 class WuyPersonalInfoScreen extends StatefulWidget {
   const WuyPersonalInfoScreen({super.key});
 
@@ -255,7 +264,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
       // Save changes
       if (_formKey.currentState!.validate()) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Personal information updated successfully!')),
+          SnackBar(content: Text(LocalizationKeysAppWuy.wuyMessagePersonalInfoUpdated.tr(context))),
         );
       }
     }

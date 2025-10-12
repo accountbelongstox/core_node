@@ -15,6 +15,15 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 
+/// Dashboard Screen for Wuy App
+/// 
+/// This screen displays dashboard with overview and statistics.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyDashboardTitle.tr(context)
 class WuyDashboardScreen extends StatelessWidget {
   const WuyDashboardScreen({super.key});
 

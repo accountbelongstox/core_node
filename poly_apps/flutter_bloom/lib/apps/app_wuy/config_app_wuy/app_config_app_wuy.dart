@@ -21,10 +21,7 @@ class AppConfigAppWuy {
   static const String packageName = 'com.example.wuy';
 
   // API Configuration
-  static const String baseUrl = 'https://api.wuy.example.com';
   static const String apiVersion = 'v1';
-  static const String apiTimeout = '30000'; // milliseconds
-  
   
   /// Base API URL for development
   static const String apiBaseUrlDev = 'https://api.anwuyou.test/api/v1';
@@ -66,17 +63,71 @@ class AppConfigAppWuy {
   static const int imageCompressionQuality = 80;
   static const bool enableImageCaching = true;
   static const bool enableDataCompression = true;
-  static const int networkRetryAttempts = 3;
+
+  // UI Constants (merged from constants_app_wuy.dart)
+  static const double paddingDefault = 16.0;
+  static const double paddingSmall = 8.0;
+  static const double paddingLarge = 24.0;
+  static const double paddingExtraLarge = 32.0;
+  static const double borderRadiusDefault = 8.0;
+  static const double borderRadiusSmall = 4.0;
+  static const double borderRadiusLarge = 16.0;
+  static const double buttonHeight = 48.0;
+  static const double inputFieldHeight = 56.0;
+  static const double appBarHeight = 56.0;
+  static const double bottomNavHeight = 60.0;
+
+  // Animation Constants
+  static const Duration animationFast = Duration(milliseconds: 150);
+  static const Duration animationNormal = Duration(milliseconds: animationDurationMs);
+  static const Duration animationSlow = Duration(milliseconds: 500);
+  static const Duration pageTransitionDuration = Duration(milliseconds: 250);
+
+  // Validation Constants
+  static const int minPasswordLength = 8;
+  static const int maxPasswordLength = 128;
+  static const int minUsernameLength = 3;
+  static const int maxUsernameLength = 50;
+  static const int maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
+
+  // Network Constants (using apiTimeoutSeconds as base)
+  static const int connectionTimeoutSeconds = apiTimeoutSeconds;
+  static const int readTimeoutSeconds = apiTimeoutSeconds;
+  static const int writeTimeoutSeconds = apiTimeoutSeconds;
+  static const int retryDelaySeconds = 2;
+
+  // Cache Constants
+  static const int defaultCacheDurationHours = 24;
+  static const int imageCacheDurationHours = 168; // 7 days
+  static const int apiCacheDurationMinutes = 30;
+
+  // Error Codes
+  static const String errorCodeNetwork = 'NETWORK_ERROR';
+  static const String errorCodeAuth = 'AUTH_ERROR';
+  static const String errorCodeValidation = 'VALIDATION_ERROR';
+  static const String errorCodeServer = 'SERVER_ERROR';
+  static const String errorCodeUnknown = 'UNKNOWN_ERROR';
+
+  // Validation Regex
+  static const String regexEmail = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$';
+  static const String regexPhone = r'^\+?[1-9]\d{1,14}$';
+  static const String regexUsername = r'^[a-zA-Z0-9_]{3,50}$';
+  static const String regexPassword = r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$';
 
   // Debug Configuration
-  static const bool enableDebugMode = false;
+  static const bool enableDebugMode = true; // Set to true for development
+  static const bool enableMockApi = true; // Enable mock API responses in debug mode
+  static const bool enableNetworkLogging = true; // Enable network request logging
   
   
   /// Local storage box name
   static const String storageBoxName = 'wuy_app_storage';
   
-  /// Cache expiration time in hours
-  static const int cacheExpirationHours = 24;
+  /// Storage keys (merged from constants_app_wuy.dart)
+  static const String storageKeyUserPrefs = 'wuy_user_preferences';
+  static const String storageKeyAppSettings = 'wuy_app_settings';
+  static const String storageKeyCacheData = 'wuy_cache_data';
+  static const String storageKeyUserSession = 'wuy_user_session';
   
   /// Maximum cache size in MB
   static const int maxCacheSizeMB = 100;
@@ -127,6 +178,8 @@ class AppConfigAppWuy {
     'imageCaching': enableImageCaching,
     'dataCompression': enableDataCompression,
     'debugMode': enableDebugMode,
+    'mockApi': enableMockApi,
+    'networkLogging': enableNetworkLogging,
     'logging': enableLogging,
   };
 

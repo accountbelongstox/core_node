@@ -14,37 +14,67 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
-import '../../../resources_app_wuy/assets_icons_app_wuy.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
+import '../../../widgets_app_wuy/wuy_common_logo.dart';
+import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 
+/// Login Entry Screen for Wuy App
+/// 
+/// This is the main entry point for user authentication.
+/// Displays the app logo, name, and provides access to login/register functionality.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyAppName.tr(context)
 class WuyLoginEntryScreen extends StatelessWidget {
   const WuyLoginEntryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
-        child: SafeArea(
-          child: Center(
-            child: Container(
-              width: double.infinity,
-              constraints: const BoxConstraints(maxWidth: 420), // Match HTML max-width
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24), // Match HTML padding
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 12), // Match HTML margin-top
-                  _buildHeader(context),
-                  _buildLogo(context),
-                  _buildMainButton(context),
-                  _buildUserAgreement(context),
-                  _buildOtherLoginMethods(context),
-                ],
+    return Container(
+      decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // Header positioned at top left
+              Positioned(
+                top: 32, // Increased from 12 to 32 for better spacing
+                left: 16,
+                child: _buildHeader(context),
               ),
-            ),
+              // Center content (logo, button, agreement)
+              Center(
+                child: Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildLogo(context),
+                      const SizedBox(height: 24),
+                      _buildMainButton(context),
+                      const SizedBox(height: 16),
+                      _buildUserAgreement(context),
+                    ],
+                  ),
+                ),
+              ),
+              // Other login methods positioned at bottom
+              Positioned(
+                bottom: 24,
+                left: 0,
+                right: 0,
+                child: _buildOtherLoginMethods(context),
+              ),
+            ],
           ),
         ),
       ),
@@ -52,104 +82,58 @@ class WuyLoginEntryScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // App name - matching HTML title style
-        Text(
-          LocalizationKeysAppWuy.wuyAppName.tr(context),
-          style: ThemeTextStyles.displayLarge.copyWith(
-            fontSize: 28, // Match HTML font-size: 28px
-            fontWeight: FontWeight.w800, // Match HTML font-weight: 800
-            color: WuyAppThemeConfig.wuyTextMain, // Match HTML --text-main
-            letterSpacing: 0.5, // Match HTML letter-spacing: 0.5px
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // App name - positioned at top left
+          Text(
+            LocalizationKeysAppWuy.wuyAppName.tr(context),
+            style: ThemeTextStyles.displayLarge.copyWith(
+              fontSize: 40, // Doubled from 20px to 40px
+              fontWeight: FontWeight.w800,
+              color: WuyAppThemeConfig.wuyTextMain,
+              letterSpacing: 0.5,
+            ),
           ),
-        ),
-        const SizedBox(height: 8), // Match HTML margin-top: 8px
-        // App slogan - matching HTML subtitle style
-        Text(
-          LocalizationKeysAppWuy.wuyAppSlogan.tr(context),
-          style: ThemeTextStyles.bodyLarge.copyWith(
-            fontSize: 16, // Match HTML font-size: 16px
-            fontWeight: FontWeight.w500, // Match HTML font-weight: 500
-            color: WuyAppThemeConfig.wuyTextSub, // Match HTML --text-sub
+          const SizedBox(height: 4), // Reduced spacing
+          // App slogan - with indentation
+          Padding(
+            padding: const EdgeInsets.only(left: 16), // Indent second line
+            child: Text(
+              LocalizationKeysAppWuy.wuyAppSlogan.tr(context),
+              style: ThemeTextStyles.bodyLarge.copyWith(
+                fontSize: 32, // Doubled from 16px to 32px
+                fontWeight: FontWeight.w500,
+                color: WuyAppThemeConfig.wuyTextSub,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildLogo(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 24), // Match HTML margin: 24px 0 28px
-      child: Center(
-        child:         Image.asset(
-          WuyAppAssetsIcons.logo, // Use common assets management
-          width: 84, // Match HTML width: 84px
-          height: 84, // Match HTML height: auto (84px)
-          fit: BoxFit.contain, // Match HTML object-fit: contain
-          errorBuilder: (context, error, stackTrace) {
-            // Only show fallback if image really fails to load
-            print('Logo image failed to load: $error');
-            return Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                color: WuyAppThemeConfig.wuyPrimaryColor,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.apps,
-                color: Colors.white,
-                size: 48,
-              ),
-            );
-          },
-        ),
-      ),
-    );
+    return const WuyCommonLogo();
   }
 
   Widget _buildMainButton(BuildContext context) {
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(maxWidth: 360), // Match HTML max-width: 360px
-      margin: const EdgeInsets.symmetric(horizontal: 0), // Match HTML margin: 0 auto
-      child: ElevatedButton(
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: WuyGradientButton(
+        text: LocalizationKeysAppWuy.wuyPhoneLoginRegister.tr(context),
         onPressed: () {
-          context.go(WuyAppRouter.routePhoneLogin);
+          context.go(WuyAppRouter.routeLoginRegister);
         },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18), // Match HTML padding: 14px 18px
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999), // Match HTML border-radius: 999px
-          ),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: WuyAppThemeConfig.wuyLoginButtonGradient, // Match HTML gradient
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2F7BF3).withOpacity(0.25), // Match HTML box-shadow rgba(47, 123, 243, 0.25)
-                blurRadius: 16, // Match HTML blur: 16px
-                offset: const Offset(0, 8), // Match HTML offset: 0 8px
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
-          child: Text(
-            LocalizationKeysAppWuy.wuyPhoneLoginRegister.tr(context),
-            style: ThemeTextStyles.buttonLarge.copyWith(
-              color: Colors.white,
-              fontSize: 16, // Match HTML font-size: 16px
-              fontWeight: FontWeight.w700, // Match HTML font-weight: 700
-            ),
-            textAlign: TextAlign.center, // Match HTML text-align: center
-          ),
-        ),
+        height: 50,
+        borderRadius: 25.0, // 50% of height (50/2 = 25)
+        gradientColors: WuyAppThemeConfig.wuyLoginButtonGradient.colors,
+        textColor: Colors.white,
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
       ),
     );
   }
@@ -191,24 +175,18 @@ class WuyLoginEntryScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _buildSocialLoginButton(
-              text: '微', // Match HTML "微"
-              onTap: () {
-                // Handle WeChat login
-              },
+              icon: FontAwesomeIcons.weixin,
+              onTap: () => _handleWeChatLogin(context),
             ),
             const SizedBox(width: 16), // Match HTML gap: 16px
             _buildSocialLoginButton(
-              text: 'Q', // Match HTML "Q"
-              onTap: () {
-                // Handle QQ login
-              },
+              icon: FontAwesomeIcons.qq,
+              onTap: () => _handleQQLogin(context),
             ),
             const SizedBox(width: 16), // Match HTML gap: 16px
             _buildSocialLoginButton(
-              text: '钉', // Match HTML "钉"
-              onTap: () {
-                // Handle DingTalk login
-              },
+              icon: FontAwesomeIcons.mobileScreen,
+              onTap: () => _handleDingTalkLogin(context),
             ),
           ],
         ),
@@ -218,7 +196,8 @@ class WuyLoginEntryScreen extends StatelessWidget {
   }
 
   Widget _buildSocialLoginButton({
-    required String text,
+    String? text,
+    IconData? icon,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -235,15 +214,57 @@ class WuyLoginEntryScreen extends StatelessWidget {
           ),
         ),
         child: Center(
-          child: Text(
-            text,
-            style: ThemeTextStyles.bodyMedium.copyWith(
-              color: const Color(0xFFA0AFC2), // Match HTML color: #a0afc2
-              fontSize: 16,
-              fontWeight: FontWeight.w700, // Match HTML font-weight: 700
-            ),
-          ),
+          child: icon != null
+              ? FaIcon(
+                  icon,
+                  size: 20,
+                  color: const Color(0xFFA0AFC2),
+                )
+              : Text(
+                  text ?? '',
+                  style: ThemeTextStyles.bodyMedium.copyWith(
+                    color: const Color(0xFFA0AFC2), // Match HTML color: #a0afc2
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700, // Match HTML font-weight: 700
+                  ),
+                ),
         ),
+      ),
+    );
+  }
+
+  void _handleWeChatLogin(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${LocalizationKeysAppWuy.wuyMessageWeChatApiConnecting.tr(context)}\n${LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin.tr(context)}',
+        ),
+        duration: const Duration(seconds: 3),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
+  void _handleQQLogin(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${LocalizationKeysAppWuy.wuyMessageQQApiConnecting.tr(context)}\n${LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin.tr(context)}',
+        ),
+        duration: const Duration(seconds: 3),
+        backgroundColor: Colors.blue,
+      ),
+    );
+  }
+
+  void _handleDingTalkLogin(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${LocalizationKeysAppWuy.wuyMessageDingTalkApiConnecting.tr(context)}\n${LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin.tr(context)}',
+        ),
+        duration: const Duration(seconds: 3),
+        backgroundColor: Colors.green,
       ),
     );
   }

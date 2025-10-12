@@ -18,44 +18,50 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
-import '../../../theme_app_wuy/theme_config_app_wuy.dart';
+import '../../../widgets_app_wuy/wuy_common_background.dart';
 
+/// About Screen for Wuy App
+/// 
+/// This screen displays app information, features, and version details.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyAboutTitle.tr(context)
 class WuyAboutScreen extends StatelessWidget {
   const WuyAboutScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            title: Text(
-              LocalizationKeysAppWuy.wuyAboutTitle.tr(context),
-              style: ThemeTextStyles.displayMedium,
-            ),
-            backgroundColor: ThemeColors.primary,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => context.go(WuyAppRouter.routeProfile),
-            ),
+    return WuyCommonBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: Text(
+            LocalizationKeysAppWuy.wuyAboutTitle.tr(context),
+            style: ThemeTextStyles.displayMedium,
           ),
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeaderSection(),
-                _buildContentSection(context),
-              ],
-            ),
+          backgroundColor: ThemeColors.primary,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => context.go(WuyAppRouter.routeProfile),
+          ),
+        ),
+        body: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildHeaderSection(context),
+              _buildContentSection(context),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildHeaderSection() {
+  Widget _buildHeaderSection(BuildContext context) {
     return Container(
       width: double.infinity,
       height: 300,
@@ -95,14 +101,14 @@ class WuyAboutScreen extends StatelessWidget {
             ),
             SizedBox(height: ThemeDimensions.spacingLarge),
             Text(
-              '安无忧',
+              LocalizationKeysAppWuy.wuyAboutAppName.tr(context),
               style: ThemeTextStyles.largeTitle.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
-              'An Wu You',
+              LocalizationKeysAppWuy.wuyAboutAppNameEn.tr(context),
               style: ThemeTextStyles.bodyLarge.copyWith(
                 color: Colors.white.withOpacity(0.9),
               ),
@@ -197,11 +203,11 @@ class WuyAboutScreen extends StatelessWidget {
               style: ThemeTextStyles.title3,
             ),
             SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildInfoRow('Version', '1.0.0'),
-            _buildInfoRow('Build', '2025.01.08'),
-            _buildInfoRow('Developer', 'Wuy Team'),
-            _buildInfoRow('Platform', 'Flutter'),
-            _buildInfoRow('License', 'MIT'),
+            _buildInfoRow(LocalizationKeysAppWuy.wuyAboutVersion.tr(context), LocalizationKeysAppWuy.wuyAboutVersionValue.tr(context)),
+            _buildInfoRow(LocalizationKeysAppWuy.wuyAboutBuild.tr(context), LocalizationKeysAppWuy.wuyAboutBuildValue.tr(context)),
+            _buildInfoRow(LocalizationKeysAppWuy.wuyAboutDeveloper.tr(context), LocalizationKeysAppWuy.wuyAboutDeveloperValue.tr(context)),
+            _buildInfoRow(LocalizationKeysAppWuy.wuyAboutPlatform.tr(context), LocalizationKeysAppWuy.wuyAboutPlatformValue.tr(context)),
+            _buildInfoRow(LocalizationKeysAppWuy.wuyAboutLicense.tr(context), LocalizationKeysAppWuy.wuyAboutLicenseValue.tr(context)),
           ],
         ),
       ),
@@ -235,7 +241,7 @@ class WuyAboutScreen extends StatelessWidget {
     // This would show a dialog with feature information
     // For now, just show a snackbar
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Feature information coming soon!')),
+      SnackBar(content: Text(LocalizationKeysAppWuy.wuyMessageFeatureComingSoon.tr(context))),
     );
   }
 
@@ -243,7 +249,7 @@ class WuyAboutScreen extends StatelessWidget {
     // This would show a dialog with version information
     // For now, just show a snackbar
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Version information coming soon!')),
+      SnackBar(content: Text(LocalizationKeysAppWuy.wuyMessageVersionComingSoon.tr(context))),
     );
   }
 }

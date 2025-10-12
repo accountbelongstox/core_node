@@ -1,0 +1,78 @@
+Package Name: com.example.wuy
+js_primitives.dart:28 Debug Mode: true
+js_primitives.dart:28 Error loading auth state: Bad state: UnifiedStorage not initialized. Call UnifiedStorage.init() first.
+js_primitives.dart:28 WuyAuthStateManager initialized - isAuthenticated: false
+js_primitives.dart:28 Auth state manager: User not authenticated, returning login entry route
+js_primitives.dart:28 WebStorageAdapter initialized successfully for Wuy App
+js_primitives.dart:28 Error checking Hive data: MissingPluginException(No implementation found for method getApplicationDocumentsDirectory on channel plugins.flutter.io/path_provider)
+js_primitives.dart:28 Starting Hive to SQLite migration...
+js_primitives.dart:28 Error checking Hive data: MissingPluginException(No implementation found for method getApplicationDocumentsDirectory on channel plugins.flutter.io/path_provider)
+js_primitives.dart:28 Starting storage system cleanup...
+js_primitives.dart:28 Error removing old databases: MissingPluginException(No implementation found for method getApplicationDocumentsDirectory on channel plugins.flutter.io/path_provider)
+js_primitives.dart:28 Error optimizing database: Bad state: UnifiedSQLiteStorageAdapter not initialized. Call init() first.
+js_primitives.dart:28 Error cleaning up expired entries: Bad state: UnifiedSQLiteStorageAdapter not initialized. Call init() first.
+js_primitives.dart:28 Storage cleanup completed: No cleanup actions needed
+js_primitives.dart:28 Total cleaned items: 0
+js_primitives.dart:28 SharedPreferences initialized successfully and ready for use
+js_primitives.dart:28 ══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═══════════════════════════════════════════════════════════
+js_primitives.dart:28 The following assertion was thrown building FlutterBloomMainApp(dirty, dependencies:
+js_primitives.dart:28 [_InheritedProviderScope<ScreenSizeProvider?>, _InheritedProviderScope<SettingsController?>], state:
+js_primitives.dart:28 _FlutterBloomMainAppState#ad470):
+js_primitives.dart:28 Assertion failed: file:///D:/.dev_win10/flutter/packages/flutter/lib/src/material/app.dart:314:15
+js_primitives.dart:28 routerDelegate != null || routerConfig != null
+js_primitives.dart:28 is not true
+js_primitives.dart:28 
+js_primitives.dart:28 The relevant error-causing widget was:
+js_primitives.dart:28   FlutterBloomMainApp
+js_primitives.dart:28   FlutterBloomMainApp:file:///D:/programing/core_node/poly_apps/flutter_bloom/lib/apps/app_wuy/main_app_wuy.dart:36:12
+js_primitives.dart:28 
+js_primitives.dart:28 When the exception was thrown, this was the stack:
+js_primitives.dart:28 dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/errors.dart 274:3  throw_
+js_primitives.dart:28 dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/errors.dart 44:3   assertFailed
+js_primitives.dart:28 package:flutter/src/material/app.dart 314:53                                 router
+js_primitives.dart:28 package:qyflutter/common/app/main_common.dart 286:24                         build
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5833:27                           build
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5723:15                           performRebuild
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5884:11                           performRebuild
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5435:7                            rebuild
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5705:5                            [_firstBuild]
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5875:11                           [_firstBuild]
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5699:5                            mount
+js_primitives.dart:28 ...     Normal element mounting (13 frames)
+js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
+js_primitives.dart:28 ...     Normal element mounting (7 frames)
+js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
+js_primitives.dart:28 ...     Normal element mounting (7 frames)
+js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
+js_primitives.dart:28 ...     Normal element mounting (7 frames)
+js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
+js_primitives.dart:28 ...     Normal element mounting (7 frames)
+js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
+js_primitives.dart:28 ...     Normal element mounting (7 frames)
+js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
+js_primitives.dart:28 ...     Normal element mounting (7 frames)
+js_primitives.dart:28 package:nested/nested.dart 222:11                                            mount
+js_primitives.dart:28 ...     Normal element mounting (7 frames)
+js_primitives.dart:28 package:nested/nested.dart 187:11                                            mount
+js_primitives.dart:28 ...     Normal element mounting (7 frames)
+js_primitives.dart:28 package:nested/nested.dart 222:11                                            mount
+js_primitives.dart:28 ...     Normal element mounting (63 frames)
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 4548:15                           inflateWidget
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 4004:18                           updateChild
+js_primitives.dart:28 package:flutter/src/widgets/view.dart 481:16                                 [_updateChild]
+js_primitives.dart:28 package:flutter/src/widgets/view.dart 504:5                                  mount
+js_primitives.dart:28 ...     Normal element mounting (15 frames)
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 4548:15                           inflateWidget
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 4004:18                           updateChild
+js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1716:16                             [_rebuild]
+js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1685:5                              mount
+js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1638:16                             <fn>
+js_primitives.dart:28 package:flutter/src/widgets/framework.dart 3046:11                           buildScope
+js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1637:12                             attach
+js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1376:26                             attachToBuildOwner
+js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1361:5                              attachRootWidget
+js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1347:7                              <fn>
+js_primitives.dart:28 dart-sdk/lib/_internal/js_dev_runtime/private/isolate_helper.dart 47:11      internalCallback
+js_primitives.dart:28 
+js_primitives.dart:28 ════════════════════════════════════════════════════════════════════════════════════════════════════
+js_primitives.dart:28 Another exception was thrown: Assertion failed: file:///D:/.dev_win10/flutter/packages/flutter/lib/src/material/app.dart:314:15

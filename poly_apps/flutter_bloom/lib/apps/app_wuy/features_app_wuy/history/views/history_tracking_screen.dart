@@ -17,6 +17,15 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 
+/// History Tracking Screen for Wuy App
+/// 
+/// This screen displays user activity history and tracking information.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyHistoryTitle.tr(context)
 class WuyHistoryTrackingScreen extends StatefulWidget {
   const WuyHistoryTrackingScreen({super.key});
 
@@ -82,7 +91,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeFriends),
+          onPressed: () => context.go(WuyAppRouter.routeHome),
         ),
       ),
       body: Column(

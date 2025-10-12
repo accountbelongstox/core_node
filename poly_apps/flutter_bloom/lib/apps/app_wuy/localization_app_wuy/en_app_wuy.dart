@@ -83,7 +83,6 @@ class WuyEnTranslations {
     // About related
     LocalizationKeysAppWuy.wuyAboutTitle: 'About Us',
     LocalizationKeysAppWuy.wuyAboutFeatures: 'Features',
-    LocalizationKeysAppWuy.wuyAboutVersion: 'Version Update',
     LocalizationKeysAppWuy.wuyAboutAppInfo: 'App Information',
     LocalizationKeysAppWuy.wuyAboutVersionInfo: 'View latest version information',
     LocalizationKeysAppWuy.wuyAboutFeatureInfo: 'Learn about main features',
@@ -121,6 +120,8 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyAuthSignUp: 'Sign Up',
     LocalizationKeysAppWuy.wuyAuthAlreadyHaveAccount: 'Already have an account?',
     LocalizationKeysAppWuy.wuyAuthDontHaveAccount: 'Don\'t have an account?',
+    LocalizationKeysAppWuy.wuyAlreadyHaveAccount: 'Already have an account?',
+    LocalizationKeysAppWuy.wuyNeedAccount: 'Need an account?',
     
     // Login Entry Page
     LocalizationKeysAppWuy.wuyAppName: 'AnWuYou',
@@ -277,6 +278,79 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyMessageVersionComingSoon: 'Version information coming soon!',
     LocalizationKeysAppWuy.wuyMessageLoginFailed: 'Login failed: {error}',
     LocalizationKeysAppWuy.wuyMessageLoginSuccessOffline: 'Login successful (offline mode)',
+
+    // About screen specific
+    LocalizationKeysAppWuy.wuyAboutAppName: 'AnWuYou',
+    LocalizationKeysAppWuy.wuyAboutAppNameEn: 'An Wu You',
+    LocalizationKeysAppWuy.wuyAboutVersion: 'Version',
+    LocalizationKeysAppWuy.wuyAboutBuild: 'Build',
+    LocalizationKeysAppWuy.wuyAboutDeveloper: 'Developer',
+    LocalizationKeysAppWuy.wuyAboutPlatform: 'Platform',
+    LocalizationKeysAppWuy.wuyAboutLicense: 'License',
+    LocalizationKeysAppWuy.wuyAboutVersionValue: '1.0.0',
+    LocalizationKeysAppWuy.wuyAboutBuildValue: '2025.01.08',
+    LocalizationKeysAppWuy.wuyAboutDeveloperValue: 'Wuy Team',
+    LocalizationKeysAppWuy.wuyAboutPlatformValue: 'Flutter',
+    LocalizationKeysAppWuy.wuyAboutLicenseValue: 'MIT',
+
+    // Validation messages
+    LocalizationKeysAppWuy.wuyValidationPhoneInvalid: 'Please enter a valid phone number',
+    LocalizationKeysAppWuy.wuyValidationPhoneRequired: 'Phone number is required',
+    LocalizationKeysAppWuy.wuyValidationPhoneFormat: 'Please enter a valid phone number format',
+
+    // Search screen specific
+    LocalizationKeysAppWuy.wuySearchSampleUser1: 'Little Flying Hero',
+    LocalizationKeysAppWuy.wuySearchSampleUser1Bio: 'The weather is really nice today',
+    LocalizationKeysAppWuy.wuySearchSampleUser2: 'Sunny Day',
+    LocalizationKeysAppWuy.wuySearchSampleUser2Bio: 'Love life, enjoy every day',
+
+    // Settings screen specific (additional keys)
+    LocalizationKeysAppWuy.wuySettingsDarkModeDescription: 'Enable dark theme',
+    LocalizationKeysAppWuy.wuySettingsPushNotifications: 'Push Notifications',
+    LocalizationKeysAppWuy.wuySettingsPushNotificationsDescription: 'Receive push notifications',
+    LocalizationKeysAppWuy.wuySettingsBiometricLogin: 'Biometric Login',
+    LocalizationKeysAppWuy.wuySettingsBiometricLoginDescription: 'Use fingerprint or face ID',
+    LocalizationKeysAppWuy.wuySettingsChangePassword: 'Change Password',
+    LocalizationKeysAppWuy.wuySettingsChangePasswordDescription: 'Update your password',
+    LocalizationKeysAppWuy.wuySettingsVersion: 'Version',
+    LocalizationKeysAppWuy.wuySettingsVersionValue: '1.0.0',
+    LocalizationKeysAppWuy.wuySettingsTermsOfService: 'Terms of Service',
+    LocalizationKeysAppWuy.wuySettingsTermsOfServiceDescription: 'Read our terms',
+    LocalizationKeysAppWuy.wuySettingsPrivacyPolicy: 'Privacy Policy',
+    LocalizationKeysAppWuy.wuySettingsPrivacyPolicyDescription: 'Read our privacy policy',
+    LocalizationKeysAppWuy.wuySettingsLanguageEnglish: 'English',
+    LocalizationKeysAppWuy.wuySettingsLanguageChinese: '中文',
+
+    // Add friend screen specific
+    LocalizationKeysAppWuy.wuyAddFriendEnterNickname: 'Enter friend\'s nickname',
+    LocalizationKeysAppWuy.wuyAddFriendEnterGender: 'Enter gender (Male/Female)',
+    LocalizationKeysAppWuy.wuyAddFriendEnterAge: 'Enter age',
+    LocalizationKeysAppWuy.wuyAddFriendEnterHeight: 'Enter height in cm',
+    LocalizationKeysAppWuy.wuyAddFriendEnterWeight: 'Enter weight in kg',
+
+    // Register screen specific
+    LocalizationKeysAppWuy.wuyRegisterEnterPhone: 'Enter your phone number',
+    LocalizationKeysAppWuy.wuyRegisterEnterVerificationCode: 'Enter verification code',
+
+    // Social login messages
+    LocalizationKeysAppWuy.wuyMessageWeChatApiConnecting: 'WeChat login API is being integrated',
+    LocalizationKeysAppWuy.wuyMessageQQApiConnecting: 'QQ login API is being integrated',
+    LocalizationKeysAppWuy.wuyMessageDingTalkApiConnecting: 'DingTalk login API is being integrated',
+    LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin: 'We recommend using phone number login',
+
+    // Missing translations
+    LocalizationKeysAppWuy.wuyVerificationCode: 'Verification Code',
+    LocalizationKeysAppWuy.wuyGetCode: 'Get Code',
+    LocalizationKeysAppWuy.wuyRegisterLogin: 'Register/Login',
+    LocalizationKeysAppWuy.wuyLogin: 'Login',
+    LocalizationKeysAppWuy.wuyValidationVerificationRequired: 'Please enter verification code',
+    LocalizationKeysAppWuy.wuyValidationVerificationFormat: 'Invalid verification code format',
+    LocalizationKeysAppWuy.wuyAgreementText: 'Registration means agreeing to',
+    LocalizationKeysAppWuy.wuyAnd: 'and',
+    LocalizationKeysAppWuy.wuyPrivacyPolicy: 'Privacy Policy',
+    LocalizationKeysAppWuy.wuyMessageSendCodeFailed: 'Failed to send verification code',
+    LocalizationKeysAppWuy.wuyMessageSendCodeError: 'Error sending verification code',
+    LocalizationKeysAppWuy.wuyMessageOperationFailed: 'Operation failed',
   };
 }
 
