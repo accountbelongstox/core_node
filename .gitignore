@@ -319,3 +319,6 @@ app.*.symbols
 **/*.p7c
 **/*.p8
 **/*.pfx
+
+# QT Build Temp Dir
+**/output_*

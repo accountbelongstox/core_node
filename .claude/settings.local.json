@@ -38,7 +38,15 @@
       "Bash(C:Program FilesCMakebincmake --version)",
       "Bash(C:/Program Files/CMake/bin/cmake --version)",
       "Bash(\"C:/Program Files/CMake/bin/cmake\" --version)",
-      "Bash(/c/Program Files/CMake/bin/cmake --version)"
+      "Bash(/c/Program Files/CMake/bin/cmake --version)",
+      "Bash(cat:*)",
+      "Bash(cmake:*)",
+      "Bash(taskkill:*)",
+      "Bash(Get-Process -Name QtScrcpy -ErrorAction SilentlyContinue)",
+      "Bash(Stop-Process -Force -ErrorAction SilentlyContinue)",
+      "Bash(Get-ChildItem \"D:\\programing\\core_node\\poly_apps\\QtScrcpy\\output\\x64\\RelWithDebInfo\\QtScrcpy.exe\")",
+      "Bash(Select-Object Name,LastWriteTime,Length)",
+      "Bash(Select-String -Pattern \"(error|Build succeeded|Building)\")"
     ],
     "deny": [],
     "ask": [],
