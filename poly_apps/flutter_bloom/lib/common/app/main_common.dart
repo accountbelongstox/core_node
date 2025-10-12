@@ -33,7 +33,6 @@ import 'package:url_strategy/url_strategy.dart';
 import 'package:qyflutter/common/localization/map_locales.dart';
 import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:qyflutter/common/provider_status/screen_size_provider.dart';
-import 'package:qyflutter/common/storage/app_storage.dart';
 import 'package:qyflutter/common/storage/unified_storage.dart';
 import 'package:qyflutter/common/storage/storage_migration_tool.dart';
 import 'package:qyflutter/common/storage/app_prefs_base.dart';
@@ -97,6 +96,8 @@ Future<void> runCommonApp({
   String? homeRoute,
   String? splashRoute,
   List<dynamic>? additionalProviders, // Additional app-specific providers
+  // Storage configuration - control whether to initialize UnifiedStorage
+  bool initializeUnifiedStorage = true, // Default to true for backward compatibility
 }) async {
   // Prevent multiple initializations
   if (_appInitialized) {
@@ -131,23 +132,25 @@ Future<void> runCommonApp({
     initializeWebFeatures();
   }
 
-  await AppStorage.init();
+  // Initialize unified storage system (optional)
+  if (initializeUnifiedStorage) {
+    await UnifiedStorage.init(appName: appName);
 
-  // Initialize unified storage system
-  await UnifiedStorage.init(appName: appName);
-
-  // Check and perform data migration if needed
-  if (await StorageMigrationTool.isMigrationNeeded()) {
-    try {
-      final migrationResult = await StorageMigrationTool.performCommonMigration();
-      if (migrationResult.success) {
-        log('Storage migration completed successfully: ${migrationResult.migratedItems} items migrated');
-      } else {
-        log('Storage migration failed: ${migrationResult.message}');
+    // Check and perform data migration if needed
+    if (await StorageMigrationTool.isMigrationNeeded()) {
+      try {
+        final migrationResult = await StorageMigrationTool.performCommonMigration();
+        if (migrationResult.success) {
+          log('Storage migration completed successfully: ${migrationResult.migratedItems} items migrated');
+        } else {
+          log('Storage migration failed: ${migrationResult.message}');
+        }
+      } catch (e) {
+        log('Storage migration error: $e');
       }
-    } catch (e) {
-      log('Storage migration error: $e');
     }
+  } else {
+    log('Skipping UnifiedStorage initialization - using app-specific storage');
   }
 
   // Inject localization maps based on the entry point

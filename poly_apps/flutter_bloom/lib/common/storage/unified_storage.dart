@@ -11,6 +11,8 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'storage_manager.dart';
 import '../utils/database/cache_operations.dart';
 
@@ -127,25 +129,29 @@ abstract class UnifiedStorage {
     _persistSyncValue(key, value);
   }
   
-  /// Persist sync cache value to storage
+  /// Persist sync cache value to storage with serialization
   static Future<void> _persistSyncValue<T>(String key, T value) async {
-    await StorageManager.instance.putValue<T>(commonBox, key, value);
+    final serializedValue = _serializeValue<T>(value);
+    await StorageManager.instance.putValue<dynamic>(commonBox, key, serializedValue);
   }
   
   
-  /// Get value from persistent storage
-  /// Get value from storage (async)
+  /// Get value from persistent storage with automatic deserialization
   static Future<T?> get<T>(String key, {String? box, T? defaultValue}) async {
     _ensureInitialized();
     final targetBox = box ?? commonBox;
-    return await StorageManager.instance.getValue<T>(targetBox, key, defaultValue: defaultValue);
+    final value = await StorageManager.instance.getValue<dynamic>(targetBox, key, defaultValue: defaultValue);
+    return _deserializeValue<T>(value) ?? defaultValue;
   }
   
-  /// Set value in persistent storage
+  /// Set value in persistent storage with automatic serialization
   static Future<void> set<T>(String key, T value, {String? box}) async {
     _ensureInitialized();
     final targetBox = box ?? commonBox;
-    await StorageManager.instance.putValue<T>(targetBox, key, value);
+    
+    // Serialize complex objects to JSON string to avoid HiveError
+    final serializedValue = _serializeValue<T>(value);
+    await StorageManager.instance.putValue<dynamic>(targetBox, key, serializedValue);
     
     // Update sync cache if it's a common key
     if (targetBox == commonBox && _syncCache.containsKey(key)) {
@@ -198,6 +204,42 @@ abstract class UnifiedStorage {
     CacheOperations.clear();
   }
   
+  /// App-specific storage methods
+  /// Get value from app-specific storage
+  static Future<T?> getApp<T>(String appBox, String key, {T? defaultValue}) async {
+    return await get<T>(key, box: appBox, defaultValue: defaultValue);
+  }
+  
+  /// Set value in app-specific storage
+  static Future<void> setApp<T>(String appBox, String key, T value) async {
+    await set<T>(key, value, box: appBox);
+  }
+  
+  /// Remove value from app-specific storage
+  static Future<void> removeApp(String appBox, String key) async {
+    await remove(key, box: appBox);
+  }
+  
+  /// Clear app-specific storage
+  static Future<void> clearAppStorage(String appBox) async {
+    await clearBox(appBox);
+  }
+  
+  /// Get value from memory cache with namespace
+  static T? getCacheWithNamespace<T>(String namespace, String key) {
+    return getCache<T>('$namespace:$key');
+  }
+  
+  /// Set value in memory cache with namespace
+  static void setCacheWithNamespace<T>(String namespace, String key, T value, {Duration? expiry}) {
+    setCache<T>('$namespace:$key', value, expiry: expiry);
+  }
+  
+  /// Remove value from memory cache with namespace
+  static void removeCacheWithNamespace(String namespace, String key) {
+    removeCache('$namespace:$key');
+  }
+  
   
   /// Check if storage is initialized
   static bool get isInitialized => _initialized;
@@ -207,6 +249,85 @@ abstract class UnifiedStorage {
     if (!_initialized) {
       throw StateError('UnifiedStorage not initialized. Call UnifiedStorage.init() first.');
     }
+  }
+  
+  /// Serialize value for storage to avoid HiveError
+  static dynamic _serializeValue<T>(T value) {
+    if (value == null) return null;
+    
+    // Primitive types can be stored directly
+    if (value is String || value is int || value is double || value is bool) {
+      return value;
+    }
+    
+    // Lists and Maps of primitive types
+    if (value is List<String> || value is List<int> || value is List<double> || value is List<bool>) {
+      return value;
+    }
+    
+    if (value is Map<String, dynamic> || value is Map<String, String> || 
+        value is Map<String, int> || value is Map<String, double> || value is Map<String, bool>) {
+      return value;
+    }
+    
+    // Complex objects - serialize to JSON string
+    try {
+      // Check if object has toMap method
+      if (value.runtimeType.toString().contains('Model') || 
+          value.runtimeType.toString().contains('Data')) {
+        try {
+          final map = (value as dynamic).toMap();
+          return jsonEncode(map);
+        } catch (e) {
+          if (kDebugMode) {
+            print('UnifiedStorage: Failed to serialize $T to JSON: $e');
+          }
+          return jsonEncode({'error': 'serialization_failed', 'type': T.toString()});
+        }
+      }
+      
+      // Fallback to JSON encoding
+      return jsonEncode(value);
+    } catch (e) {
+      if (kDebugMode) {
+        print('UnifiedStorage: JSON serialization failed for $T: $e');
+      }
+      return jsonEncode({'error': 'serialization_failed', 'type': T.toString()});
+    }
+  }
+  
+  /// Deserialize value from storage
+  static T? _deserializeValue<T>(dynamic value) {
+    if (value == null) return null;
+    
+    // If it's already the correct type, return as is
+    if (value is T) return value;
+    
+    // If it's a JSON string, try to deserialize
+    if (value is String) {
+      try {
+        final Map<String, dynamic> map = jsonDecode(value);
+        
+        // Check for serialization error
+        if (map.containsKey('error') && map['error'] == 'serialization_failed') {
+          if (kDebugMode) {
+            print('UnifiedStorage: Deserialization failed for $T');
+          }
+          return null;
+        }
+        
+        // For now, return the map as the object
+        // Specific models should implement fromMap factory
+        return map as T?;
+      } catch (e) {
+        if (kDebugMode) {
+          print('UnifiedStorage: JSON deserialization failed for $T: $e');
+        }
+        return null;
+      }
+    }
+    
+    return value as T?;
   }
   
   /// Get storage statistics

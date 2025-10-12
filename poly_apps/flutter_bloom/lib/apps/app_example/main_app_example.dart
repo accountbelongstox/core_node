@@ -56,5 +56,6 @@ Future<void> main() async {
     appPrefs: prefsAppExample, // Pass Example specific SharedPreferences instance
     customUserProvider: exampleUserProvider, // Pass Example-specific user provider
     customApp: const ExampleApp(),
+    initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + Hive)
   );
 }

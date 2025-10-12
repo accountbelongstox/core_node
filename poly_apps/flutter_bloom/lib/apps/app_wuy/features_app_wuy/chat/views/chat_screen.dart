@@ -16,6 +16,15 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/chat_message_model_app_wuy.dart';
 
+/// Chat Screen for Wuy App
+/// 
+/// This screen provides chat functionality for messaging with friends.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyChatTitle.tr(context)
 class WuyChatScreen extends StatefulWidget {
   final String friendId;
   final String? friendName;

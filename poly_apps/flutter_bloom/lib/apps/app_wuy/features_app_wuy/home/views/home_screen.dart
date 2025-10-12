@@ -19,6 +19,15 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
+/// Home Screen for Wuy App
+/// 
+/// This is the main home screen that displays app features and navigation options.
+/// 
+/// Localization Usage:
+/// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
+/// - Text keys are defined in localization_keys_app_wuy.dart
+/// - Translations are provided in en_app_wuy.dart and zh_app_wuy.dart
+/// - Example: LocalizationKeysAppWuy.wuyHomeTitle.tr(context)
 class WuyHomeScreen extends StatelessWidget {
   const WuyHomeScreen({super.key});
 

@@ -11,6 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:qyflutter/common/app/main_common.dart';
 import 'config_app_wuy/app_config_app_wuy.dart';
 import 'router_app_wuy/router_app_wuy.dart';
@@ -20,9 +21,8 @@ import 'localization_app_wuy/zh_app_wuy.dart';
 import 'utils_app_wuy/app_info_app_wuy.dart';
 import 'providers_app_wuy/app_prefs_app_wuy.dart';
 import 'providers_app_wuy/wu_user_provider.dart';
-import 'services_app_wuy/wuy_data_center.dart';
-import 'services_app_wuy/wuy_network_manager.dart';
-import 'services_app_wuy/wuy_api_center.dart';
+import 'services_app_wuy/wuy_unified_service.dart';
+import 'services_app_wuy/wuy_auth_state_manager.dart';
 
 /// Wuy App specific widget
 /// This can be customized for Wuy app specific needs
@@ -31,8 +31,8 @@ class WuyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // For now, use the common app structure
-    // Later this can be customized for Wuy app specific needs
+    // Use the common app structure with router config
+    // We need to pass routerConfig since we're using customApp
     return FlutterBloomMainApp(
       routerConfig: WuyAppRouter.createRouter(),
     );
@@ -50,19 +50,14 @@ Future<void> main() async {
   final AppPrefsAppWuy appPrefs = AppPrefsAppWuy.instance;
   await appPrefs.initSharedPreferences();
 
-  // Initialize data center
-  final WuyDataCenter dataCenter = WuyDataCenter();
-  await dataCenter.initialize();
-
-  // Initialize network manager
-  final WuyNetworkManager networkManager = WuyNetworkManager();
-  await networkManager.initialize();
-
-        // Initialize API center
-        WuyApiCenter();
-
-  // Create app-specific user provider
+  // Create app-specific user provider first
   final WuUserProvider userProvider = WuUserProvider();
+
+  // Initialize unified service (without storage initialization)
+  final WuyUnifiedService unifiedService = WuyUnifiedService();
+  unifiedService.initializeWithUserProvider(userProvider: userProvider);
+
+  // Note: WuyAuthStateManager will be initialized after runCommonApp initializes UnifiedStorage
 
   await runCommonApp(
     appName: AppConfigAppWuy.appName,
@@ -71,11 +66,20 @@ Future<void> main() async {
     enAppLocales: [EnAppWuy.locales],
     zhAppLocales: [ZhAppWuy.locales],
     routerConfig: WuyAppRouter.createRouter(), // Use createRouter method as per guidelines
-    initialRoute: WuyAppRouter.getDefaultRoute(),
+    initialRoute: WuyAppRouter.getDefaultRoute(), // This will be overridden by GoRouter's initialLocation
     homeRoute: WuyAppRouter.getHomeRoute(),
     appConfig: AppConfigAppWuy.appInfo,
     customApp: const WuyApp(),
     appPrefs: appPrefs, // Provide app-specific SharedPreferences
     customUserProvider: userProvider, // Provide app-specific user provider
+    additionalProviders: [
+      // Register WuUserProvider as a specific type for AuthGuard access
+      ChangeNotifierProvider<WuUserProvider>.value(value: userProvider),
+    ],
+    initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + SQLite)
   );
+
+  // Initialize auth state manager after runCommonApp has initialized UnifiedStorage
+  final WuyAuthStateManager authStateManager = WuyAuthStateManager.instance;
+  await authStateManager.initialize();
 }
