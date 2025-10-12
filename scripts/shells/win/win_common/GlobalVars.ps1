@@ -572,28 +572,25 @@ $Global:VS2022_VERSIONS = @{
         Workloads  = @(
             "Microsoft.VisualStudio.Workload.ManagedDesktop",
             "Microsoft.VisualStudio.Workload.NetWeb",
-            "Microsoft.VisualStudio.Workload.NetCrossPlat",
-            "Microsoft.VisualStudio.Workload.Universal",
-            "Microsoft.VisualStudio.Workload.Xamarin",
             "Microsoft.VisualStudio.Workload.NativeDesktop"
         )
         Components = @(
             "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
             "Microsoft.VisualStudio.Component.VC.14.34.17.4.x86.x64",
-            "Microsoft.VisualStudio.Component.VC.14.29.16.11.x86.x64",
-            "Microsoft.VisualStudio.Component.VC.14.28.16.9.x86.x64",
-            "Microsoft.VisualStudio.Component.Windows11SDK.22621",
-            "Microsoft.VisualStudio.Component.Windows10SDK.20348",
-            "Microsoft.VisualStudio.Component.Windows10SDK.22000",
             "Microsoft.VisualStudio.Component.Windows10SDK.19041",
-            "Microsoft.VisualStudio.ComponentGroup.UWP.VB",
-            "Microsoft.VisualStudio.ComponentGroup.UWP.VC",
             "Microsoft.VisualStudio.Component.CMake.Tools",
             "Microsoft.VisualStudio.Component.VC.CMake.Project",
-            "Microsoft.VisualStudio.Component.IntelliCode",
-            "Component.Android.SDK.MAUI",
-            "Component.Xamarin.RemotedSimulator",
-            "Component.OpenJDK"
+            "Microsoft.VisualStudio.Component.IntelliCode"
+        )
+    }
+    "2022-minimal" = @{
+        WingetId   = "Microsoft.VisualStudio.2022.Community"
+        Workloads  = @(
+            "Microsoft.VisualStudio.Workload.ManagedDesktop"
+        )
+        Components = @(
+            "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+            "Microsoft.VisualStudio.Component.Windows10SDK.19041"
         )
     }
 }

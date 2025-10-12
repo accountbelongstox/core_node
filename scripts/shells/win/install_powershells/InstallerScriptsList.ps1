@@ -14,6 +14,13 @@
 # IMPORTANT: When adding new scripts to this list, maintain the index order sequence
 # Scripts are executed in the order they appear in this array
 # Always follow the existing numbering pattern (Step1_, Step2_, etc.)
+#
+# COMPATIBILITY NOTES:
+# - Step80_InstallWSL.ps1: Enhanced with Windows 10/WSL1 compatibility support
+#   - Automatically detects Windows version and WSL capabilities
+#   - Enables required Windows features based on system version
+#   - Upgrades WSL1 to WSL2 when supported
+#   - Provides fallback installation methods for older systems
 
 $InstallerScripts = @(
     'Step1_InitializeBaseDirectories.ps1',

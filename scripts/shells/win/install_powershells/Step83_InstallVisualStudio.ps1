@@ -18,6 +18,31 @@ $STEP_NUMBER = 81
 function Step81_InstallVisualStudio {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Visual Studio 2022..." -Type "Info"
 
+    # Check Windows version compatibility
+    $osInfo = Get-CimInstance Win32_OperatingSystem
+    $winBuild = [int]$osInfo.BuildNumber
+    $isWin10 = $winBuild -lt 22000
+    $isWin11 = $winBuild -ge 22000
+    
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Windows Build: $winBuild (Win10: $isWin10, Win11: $isWin11)" -Type "Info"
+    
+    # Check available disk space (Visual Studio requires at least 8GB)
+    $drive = Get-WmiObject -Class Win32_LogicalDisk -Filter "DeviceID='C:'"
+    $freeSpaceGB = [math]::Round($drive.FreeSpace / 1GB, 2)
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Available disk space: $freeSpaceGB GB" -Type "Info"
+    
+    if ($freeSpaceGB -lt 8) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Warning: Low disk space ($freeSpaceGB GB). Visual Studio requires at least 8GB." -Type "Warning"
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Using minimal installation to reduce space requirements." -Type "Warning"
+        $Global:VS2022_DEFAULT_VERSION = "2022-minimal"
+    } elseif ($isWin10) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Windows 10 detected. Using Win10-compatible configuration." -Type "Info"
+        $Global:VS2022_DEFAULT_VERSION = "2022"
+    } else {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Windows 11 detected. Using full configuration." -Type "Info"
+        $Global:VS2022_DEFAULT_VERSION = "2022"
+    }
+
     # Create installation directory if it doesn't exist
     if (-not (Test-Path $VS2022_DIR)) {
         New-Item -ItemType Directory -Path $VS2022_DIR -Force | Out-Null
@@ -50,25 +75,69 @@ function Step81_InstallVisualStudio {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Workloads: $workloads" -Type "Info"
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Components: $components" -Type "Info"
     
-    # Start the installation process
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Starting Visual Studio installation..." -Type "Warning"
-    $wingetCommand = "winget install --id $($versionDetails.WingetId) --override `"$installArgs`" --accept-package-agreements --accept-source-agreements"
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Executing command: $wingetCommand" -Type "Warning"
-    $process = Start-Process -FilePath "winget" -ArgumentList "install --id $($versionDetails.WingetId) --override `"$installArgs`" --accept-package-agreements --accept-source-agreements" -Wait -NoNewWindow -PassThru
+    # Start the installation process with retry mechanism
+    $maxRetries = 2
+    $retryCount = 0
+    $installationSuccess = $false
     
-    if ($process.ExitCode -eq 0) {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully installed Visual Studio 2022" -Type "Success"
+    while (-not $installationSuccess -and $retryCount -le $maxRetries) {
+        if ($retryCount -gt 0) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Retry attempt $retryCount of $maxRetries..." -Type "Warning"
+            Start-Sleep -Seconds 10
+        }
         
-        # Verify installation
-        if (Test-Path $vsExePath) {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Visual Studio installation verified" -Type "Success"
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Starting Visual Studio installation..." -Type "Warning"
+        $wingetCommand = "winget install --id $($versionDetails.WingetId) --override `"$installArgs`" --accept-package-agreements --accept-source-agreements"
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Executing command: $wingetCommand" -Type "Warning"
+        
+        $process = Start-Process -FilePath "winget" -ArgumentList "install --id $($versionDetails.WingetId) --override `"$installArgs`" --accept-package-agreements --accept-source-agreements" -Wait -NoNewWindow -PassThru
+        
+        if ($process.ExitCode -eq 0) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully installed Visual Studio 2022" -Type "Success"
+            $installationSuccess = $true
+            
+            # Verify installation
+            if (Test-Path $vsExePath) {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Visual Studio installation verified" -Type "Success"
+            }
+            else {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Warning: Visual Studio installation verification failed" -Type "Warning"
+            }
         }
         else {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Warning: Visual Studio installation verification failed" -Type "Warning"
+            $exitCode = $process.ExitCode
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to install Visual Studio 2022 (Exit Code: $exitCode)" -Type "Error"
+            
+            # Handle specific error codes
+            switch ($exitCode) {
+                2147942512 { # 0x80070070 - Not enough disk space
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Error: Insufficient disk space. Trying minimal installation..." -Type "Error"
+                    if ($Global:VS2022_DEFAULT_VERSION -ne "2022-minimal") {
+                        $Global:VS2022_DEFAULT_VERSION = "2022-minimal"
+                        $versionDetails = $VS2022_VERSIONS[$VS2022_DEFAULT_VERSION]
+                        $workloads = $versionDetails.Workloads -join " "
+                        $components = $versionDetails.Components -join " "
+                        $installArgs = "--wait --quiet --add $workloads $components"
+                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Switched to minimal installation configuration" -Type "Info"
+                        $retryCount++
+                        continue
+                    }
+                }
+                2147942402 { # 0x80070002 - File not found
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Error: Installation file not found. This may be a network issue." -Type "Error"
+                }
+                default {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Error: Unknown installation error (Code: $exitCode)" -Type "Error"
+                }
+            }
+            
+            $retryCount++
         }
     }
-    else {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to install Visual Studio 2022 (Exit Code: $($process.ExitCode))" -Type "Error"
+    
+    if (-not $installationSuccess) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Visual Studio installation failed after $maxRetries retries" -Type "Error"
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] You may need to install Visual Studio manually or free up disk space" -Type "Warning"
     }
 
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Visual Studio 2022 installation completed" -Type "Success"

@@ -442,7 +442,7 @@ invoke_safe_git_pull() {
         write_color_text "Executing: git add ." "DarkGray"
         git add .
         local commit_message=$(get_commit_message)
-        write_color_text "Executing: git commit -m \"$commit_message\"" "DarkGray"
+        write_color_text "Executing: git commit -m '$commit_message'" "DarkGray"
         git commit -m "$commit_message"
     else
         write_color_text "No uncommitted changes found." "Green"
@@ -690,7 +690,7 @@ invoke_git_operations() {
     # Commit changes BEFORE pulling
     local commit_message=$(get_commit_message)
     write_color_text "Committing changes with message: $commit_message" "Cyan"
-    write_color_text "Executing: git commit -m \"$commit_message\"" "DarkGray"
+    write_color_text "Executing: git commit -m '$commit_message'" "DarkGray"
     git commit -m "$commit_message"
     
     # Now handle synchronization

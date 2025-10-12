@@ -671,7 +671,7 @@ function Invoke-GitOperations {
         # Commit changes BEFORE pulling
         $commitMessage = Get-CommitMessage
         Write-ColorText "Committing changes with message: $commitMessage" -ForegroundColor Cyan
-        Write-ColorText "Executing: git commit -m \"$commitMessage\"" -ForegroundColor DarkGray
+        Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
         git commit -m $commitMessage
         
         # Only pull if this is the first remote (should be DEFAULT_REMOTE) and not yet completed
