@@ -1,0 +1,131 @@
+[DEBUG] [STEP12] AdditionalKeywords:
+[Step12] Installing Python 3.13 - Programming Language (Name: python313)
+[Step12] Package ID: Python.Python.3.13
+[Step12] Install Type: winget
+[Step12] Base Directory: BaseDir (D:\.dev_win10)
+[Step12] Install Dir: D:\.dev_win10\python313
+[Step12] ForceToInstallDir: True
+=== Invoke-WingetCommand Parameters ===
+       Id: Python.Python.3.13
+       InstallDir: D:\.dev_win10\python313
+       OnlyCheckFlag: False
+       AllowTryInstall: False
+       Keyword: python.exe
+       AdditionalKeywords:
+       ForceInstall: False
+       RegistrySearchKeyword: python;python313
+       Checking for existing installation...
+[DEBUG] [EXEC] Performing deep search in system directories...
+[DEBUG] [KEYWORD] Added keyword: 'python.exe'
+[DEBUG] [KEYWORD] Deduplicated keywords: python.exe
+[DEBUG] [EXEC] No executable found matching keyword: python.exe,IncludeSystemPaths: False
+[DEBUG] [EXEC] No searched paths found
+       Installing Python.Python.3.13...
+       Running: winget uninstall Python.Python.3.13
+       Successfully cleaned old installation of Python.Python.3.13
+       Uninstall completed in 29.23 seconds
+       Running: winget install --id Python.Python.3.13 --silent --accept-package-agreements --accept-source-agreements --location "D:\.dev_win10\python313"
+已找到 Python 3.13 [Python.Python.3.13] 版本 3.13.8
+此应用程序由其所有者授权给你。
+Microsoft 对第三方程序包概不负责，也不向第三方程序包授予任何许可证。
+正在下载 https://www.python.org/ftp/python/3.13.8/python-3.13.8-amd64.exe
+  ██████████████████████████████  27.4 MB / 27.4 MB
+已成功验证安装程序哈希
+正在启动程序包安装...
+已成功安装
+       Successfully installed Python.Python.3.13
+       Performing final repair check...
+       [REPAIR] Checking for installation mismatch for Python.Python.3.13
+       [REPAIR] Expected location: D:\.dev_win10\python313
+       [REPAIR] No executable path provided, searching in expected directory: D:\.dev_win10\python313[DEBUG] [EXEC] Performing deep search in system directories...
+[DEBUG] [KEYWORD] Added keyword: 'python.exe'
+[DEBUG] [KEYWORD] Deduplicated keywords: python.exe
+[DEBUG] [EXEC] Searching in: D:\.dev_win10\python313
+[DEBUG] [EXEC] Searching for file: 'python.exe' in path: 'D:\.dev_win10\python313' (MaxDepth: 3)
+[DEBUG] [EXEC] Find-FileWithDepth result for 'python.exe': 'D:\.dev_win10\python313\python.exe'
+[DEBUG] [EXEC] Found executable with keyword 'python.exe' and extension '.exe': D:\.dev_win10\python313\python.exe
+       [REPAIR] Found location: D:\.dev_win10\python313\python.exe
+       [REPAIR] Executable already in expected location
+       Repair completed successfully
+[Step12] Found Python313 executable at: D:\.dev_win10\python313\python.exe
+[Step12] Verifying installation with: 'D:\.dev_win10\python313\python.exe --version'
+[Step12] Python313 verification result: Python 3.13.8
+[Step12] Processing AdditionalInstallationPackages for Python313...
+[Step12] Installing additional packages via pip: pipx, uv, poetry, flake8, numpy, pandas, matplotlib, pillow, requests, flask, django, jupyter, scipy, scikit-learn
+[Step12] Installing pip package: pipx
+[DEBUG] [PIP] Processing pip package string: pipx
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: pipx
+[DEBUG] [PIP] Installation error for pipx:   WARNING: The scripts activate-global-python-argcomplete.exe, python-argcomplete-check-easy-install-script.exe and register-python-argcomplete.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[Step12] Failed to install pip package: pipx
+[Step12] Installing pip package: uv
+[DEBUG] [PIP] Processing pip package string: uv
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: uv
+[DEBUG] [PIP] Installation successful for: uv
+[Step12] Successfully installed pip package: uv
+[Step12] Installing pip package: poetry
+[DEBUG] [PIP] Processing pip package string: poetry
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: poetry
+[DEBUG] [PIP] Installation error for poetry:   WARNING: The script trove-classifiers.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[Step12] Failed to install pip package: poetry
+[Step12] Installing pip package: flake8
+[DEBUG] [PIP] Processing pip package string: flake8
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: flake8
+[DEBUG] [PIP] Installation error for flake8:   WARNING: The script pyflakes.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[Step12] Failed to install pip package: flake8
+[Step12] Installing pip package: numpy
+[DEBUG] [PIP] Processing pip package object - Name: numpy, Validation: import, Import: numpy
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: numpy
+[DEBUG] [PIP] Installation error for numpy:   WARNING: The scripts f2py.exe and numpy-config.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[Step12] Failed to install pip package: numpy
+[Step12] Installing pip package: pandas
+[DEBUG] [PIP] Processing pip package object - Name: pandas, Validation: import, Import: pandas
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: pandas
+[DEBUG] [PIP] Installation successful for: pandas
+[Step12] Successfully installed pip package: pandas
+[Step12] Installing pip package: matplotlib
+[DEBUG] [PIP] Processing pip package object - Name: matplotlib, Validation: import, Import: matplotlib
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: matplotlib
+[DEBUG] [PIP] Installation error for matplotlib:   WARNING: The scripts fonttools.exe, pyftmerge.exe, pyftsubset.exe and ttx.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[Step12] Failed to install pip package: matplotlib
+[Step12] Installing pip package: pillow
+[DEBUG] [PIP] Processing pip package object - Name: pillow, Validation: import, Import: PIL
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: pillow
+[DEBUG] [PIP] Installation successful for: pillow
+[Step12] Successfully installed pip package: pillow
+[Step12] Installing pip package: requests
+[DEBUG] [PIP] Processing pip package object - Name: requests, Validation: import, Import: requests
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: requests
+[DEBUG] [PIP] Installation error for requests:   WARNING: The script normalizer.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[Step12] Failed to install pip package: requests
+[Step12] Installing pip package: flask
+[DEBUG] [PIP] Processing pip package string: flask
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: flask
+[DEBUG] [PIP] Installation error for flask:   WARNING: The script flask.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[Step12] Failed to install pip package: flask
+[Step12] Installing pip package: django
+[DEBUG] [PIP] Processing pip package string: django
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: django
+[DEBUG] [PIP] Installation error for django:   WARNING: The script sqlformat.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[Step12] Failed to install pip package: django
+[Step12] Installing pip package: jupyter
+[DEBUG] [PIP] Processing pip package string: jupyter
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: jupyter
+[DEBUG] [PIP] Installation error for jupyter:   WARNING: The scripts pywin32_postinstall.exe and pywin32_testall.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
+[Step12] Failed to install pip package: jupyter
+[Step12] Installing pip package: scipy
+[DEBUG] [PIP] Processing pip package object - Name: scipy, Validation: import, Import: scipy
+[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
+[DEBUG] [PIP] Installing pip package: scipy
+[DEBUG] [PIP] Installation successful for: scipy

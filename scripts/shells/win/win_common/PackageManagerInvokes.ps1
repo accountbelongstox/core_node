@@ -82,7 +82,7 @@ function Invoke-NpmCommand {
         [string]$Keyword = "",
         [array]$AdditionalKeywords = @(),
         [bool]$OnlyCheckFlag = $false,
-        [bool]$ForceInstall = $false
+        [bool]$ForceInstall = $true
     )
 
     # Handle array of packages - batch installation
@@ -445,7 +445,7 @@ function Invoke-PipCommand {
         [string]$Keyword = "",
         [array]$AdditionalKeywords = @(),
         [bool]$OnlyCheckFlag = $false,
-        [bool]$ForceInstall = $true
+        [bool]$ForceInstall = $false
     )
 
     # Handle array of packages - batch installation
@@ -485,8 +485,9 @@ function Invoke-PipCommand {
         return $null
     }
     
-    # Get pip executable path
-    $pipExe = $null
+    # Get Python executable path and force correction logic
+    $pythonExe = $null
+    $pythonScriptsDir = $null
     
     # Find default Python package from BasePackages
     if ($Global:BasePackages) {
@@ -495,34 +496,60 @@ function Invoke-PipCommand {
             $isDefault = if ($packageConfig.ContainsKey("IsDefault")) { $packageConfig.IsDefault } else { $false }
             if ($isDefault -eq $true -and $packageConfig.Exec -eq "python.exe") {
                 $pythonDir = Join-Path $Global:LANG_COMPILER_DIR $packageConfig.Name
-                $derivedPipPath = Join-Path $pythonDir "Scripts\pip.exe"
+                $derivedPythonPath = Join-Path $pythonDir "python.exe"
+                $derivedScriptsDir = Join-Path $pythonDir "Scripts"
                 
-                if (Test-Path $derivedPipPath) {
-                    $pipExe = $derivedPipPath
-                    Write-DebugLog -Message "Using pip: $pipExe" -Category "PIP" -Color "Green"
+                if (Test-Path $derivedPythonPath) {
+                    $pythonExe = $derivedPythonPath
+                    $pythonScriptsDir = $derivedScriptsDir
+                    Write-DebugLog -Message "Using Python: $pythonExe" -Category "PIP" -Color "Green"
+                    Write-DebugLog -Message "Python Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Green"
                     break
                 }
             }
         }
     }
     
-    # Fallback: try to find pip via Get-Command
-    if (-not $pipExe) {
-        $pipCmd = Get-Command "pip" -ErrorAction SilentlyContinue
-        if ($pipCmd) {
-            $pipExe = $pipCmd.Source
-            Write-DebugLog -Message "Found pip via PATH: $pipExe" -Category "PIP" -Color "Green"
+    # Fallback: try to find Python via Get-Command
+    if (-not $pythonExe) {
+        $pythonCmd = Get-Command "python" -ErrorAction SilentlyContinue
+        if ($pythonCmd) {
+            $pythonExe = $pythonCmd.Source
+            $pythonScriptsDir = Join-Path (Split-Path -Parent $pythonExe) "Scripts"
+            Write-DebugLog -Message "Found Python via PATH: $pythonExe" -Category "PIP" -Color "Green"
         } else {
-            Write-DebugLog -Message "pip not found" -Category "PIP" -Color "Red"
+            Write-DebugLog -Message "Python not found" -Category "PIP" -Color "Red"
             return $null
         }
     }
     
-    # Skip all detection - just install directly
+    # Force correction logic: Always ensure Python Scripts directory is in PATH
+    if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
+        $currentPath = $env:PATH
+        if ($currentPath -notlike "*$pythonScriptsDir*") {
+            $env:PATH = "$pythonScriptsDir;$currentPath"
+            Write-DebugLog -Message "Force corrected PATH - Added Python Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
+        }
+        
+        # Clear any conflicting pip global configuration to avoid conflicts with --target parameter
+        try {
+            & $pythonExe -m pip config unset global.target 2>$null
+            & $pythonExe -m pip config unset global.prefix 2>$null
+            Write-DebugLog -Message "Cleared conflicting pip global configuration" -Category "PIP" -Color "Yellow"
+        } catch {
+            Write-DebugLog -Message "Warning: Could not clear pip configuration: $($_.Exception.Message)" -Category "PIP" -Color "Yellow"
+        }
+    }
+    
+    # Install using python -m pip to ensure correct Python environment
     Write-DebugLog -Message "Installing pip package: $actualPackageName" -Category "PIP" -Color "Yellow"
     try {
-        $installArgs = @("install", $actualPackageName)
-        $pipOutput = & $pipExe $installArgs 2>&1
+        $installArgs = @("-m", "pip", "install", $actualPackageName)
+
+        $Command = "$pythonExe $($installArgs -join ' ')"
+        Write-DebugLog -Message "Command: $Command" -Category "PIP" -Color "Magenta"
+        
+        $pipOutput = & $pythonExe @installArgs 2>&1
         
         if ($LASTEXITCODE -eq 0) {
             Write-DebugLog -Message "Installation successful for: $actualPackageName" -Category "PIP" -Color "Green"
@@ -652,9 +679,6 @@ function Install-PipPackagesBatch {
 
         try {
             $installArgs = @("install") + $simplePackages
-            if ($ForceInstall) {
-                $installArgs += "--force-reinstall"
-            }
 
             $pipOutput = & $pipExe $installArgs 2>&1
 
@@ -1052,9 +1076,6 @@ function Invoke-UvCommand {
     try {
         # Use pip install directly
         $installArgs = @("install", $PackageName)
-        if ($ForceInstall) {
-            $installArgs += "--force-reinstall"
-        }
 
         $Command = "pip $($installArgs -join ' ')"
         Write-DebugLog -Message "Command: $Command" -Category "UV" -Color "Magenta"
