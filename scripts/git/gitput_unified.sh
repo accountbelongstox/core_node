@@ -688,9 +688,10 @@ invoke_git_operations() {
     git add .
     
     # Commit changes BEFORE pulling
-    write_color_text "Committing changes with timestamp: $TIMESTAMP" "Cyan"
-    write_color_text "Executing: git commit -m \"$TIMESTAMP\"" "DarkGray"
-    git commit -m "$TIMESTAMP"
+    local commit_message=$(get_commit_message)
+    write_color_text "Committing changes with message: $commit_message" "Cyan"
+    write_color_text "Executing: git commit -m \"$commit_message\"" "DarkGray"
+    git commit -m "$commit_message"
     
     # Now handle synchronization
     local current_branch=$(get_current_branch)
