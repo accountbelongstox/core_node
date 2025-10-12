@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\programing\core_node\poly_apps\QtScrcpy\build_msvc_2022\CMakeFiles\53ad5d54937ddb26492a8b93d1369b5a\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{AC7DD0F2-D011-39B0-A71F-237579788580}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

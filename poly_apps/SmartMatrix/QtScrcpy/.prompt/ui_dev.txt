@@ -1,0 +1,1 @@
+行记录，然后现在编译的只有旧的UI，你先参考 其是怎么扩展的（注意不要再使用参数 控制UI，而硬编码只编译最新的UI）， D:\programing\core_node\poly_apps\qtscrcpy_tc\qtscrcpy_tc_tree.md 注意这是一个过时的实现，但其对qtscrcpy 进行了UI扩展，现在你要分析其扩展部份及代码，然后与原版的  D:\programing\core_node\poly_apps\QtScrcpy 参考 是怎么扩展UI的。。

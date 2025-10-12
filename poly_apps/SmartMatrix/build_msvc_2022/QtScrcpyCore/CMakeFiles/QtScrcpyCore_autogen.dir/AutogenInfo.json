@@ -1,0 +1,618 @@
+{
+	"AUTOGEN_COMMAND_LINE_LENGTH_MAX" : 32000,
+	"BUILD_DIR" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen",
+	"CMAKE_BINARY_DIR" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022",
+	"CMAKE_CURRENT_BINARY_DIR" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore",
+	"CMAKE_CURRENT_SOURCE_DIR" : "D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore",
+	"CMAKE_EXECUTABLE" : "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe",
+	"CMAKE_LIST_FILES" : 
+	[
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/CMakeLists.txt",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/Qt6ConfigVersion.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/Qt6Config.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicCMakeEarlyPolicyHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/Qt6ConfigExtras.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicCMakeVersionHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicCMakeHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtInstallPaths.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/Qt6Targets.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/Qt6VersionlessAliasTargets.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtFeature.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CheckCXXCompilerFlag.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtFeatureCommon.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicAndroidHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicAppleHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicCMakeHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicCMakeVersionHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicDependencyHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicExternalProjectHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicFinalizerHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicFindPackageHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicGitHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicPluginHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicPluginHelpers_v2.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomAttributionHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomCpeHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomDepHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomFileHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomGenerationHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomLicenseHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomOpsHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomPurlHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomPythonHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomQtEntityHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicSbomSystemDepHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicTargetHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicTestHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicToolHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicWalkLibsHelpers.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/QtPublicWindowsHelpers.cmake",
+		"C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-3.31/Modules/CMakeFindDependencyMacro.cmake",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/lib/cmake/Qt6/Qt6Dependencies.cmake"
+	],
+	"CMAKE_SOURCE_DIR" : "D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy",
+	"CROSS_CONFIG" : false,
+	"DEP_FILE" : "",
+	"DEP_FILE_RULE_NAME" : "",
+	"HEADERS" : 
+	[
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/include/QtScrcpyCore.h",
+			"MU",
+			"6YEA5652QU/moc_QtScrcpyCore.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/include/QtScrcpyCoreDef.h",
+			"MU",
+			"6YEA5652QU/moc_QtScrcpyCoreDef.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/include/adbprocess.h",
+			"MU",
+			"6YEA5652QU/moc_adbprocess.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/adb/adbprocessimpl.h",
+			"MU",
+			"QBQSNTONFS/moc_adbprocessimpl.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/common/qscrcpyevent.h",
+			"MU",
+			"2PZEZPHIBF/moc_qscrcpyevent.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/android/input.h",
+			"MU",
+			"5XQ2NA3WYH/moc_input.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/android/keycodes.h",
+			"MU",
+			"5XQ2NA3WYH/moc_keycodes.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/compat.h",
+			"MU",
+			"R27GN3UPJU/moc_compat.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/bufferutil.h",
+			"MU",
+			"VGKDREYSTA/moc_bufferutil.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/controller.h",
+			"MU",
+			"VGKDREYSTA/moc_controller.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/controlmsg.h",
+			"MU",
+			"FIT7WCBYQG/moc_controlmsg.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/inputconvertbase.h",
+			"MU",
+			"FIT7WCBYQG/moc_inputconvertbase.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/inputconvertgame.h",
+			"MU",
+			"FIT7WCBYQG/moc_inputconvertgame.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/inputconvertnormal.h",
+			"MU",
+			"FIT7WCBYQG/moc_inputconvertnormal.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/keymap/keymap.h",
+			"MU",
+			"F2Z3URE5CP/moc_keymap.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/receiver/devicemsg.h",
+			"MU",
+			"E5IYPM23Q7/moc_devicemsg.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/receiver/receiver.h",
+			"MU",
+			"E5IYPM23Q7/moc_receiver.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder/avframeconvert.h",
+			"MU",
+			"TZCQTYOKL3/moc_avframeconvert.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder/decoder.h",
+			"MU",
+			"TZCQTYOKL3/moc_decoder.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder/fpscounter.h",
+			"MU",
+			"TZCQTYOKL3/moc_fpscounter.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder/videobuffer.h",
+			"MU",
+			"TZCQTYOKL3/moc_videobuffer.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/demuxer/demuxer.h",
+			"MU",
+			"XS5GD45QW7/moc_demuxer.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/device.h",
+			"MU",
+			"R27GN3UPJU/moc_device.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/filehandler/filehandler.h",
+			"MU",
+			"KQXXML3GD5/moc_filehandler.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/recorder/recorder.h",
+			"MU",
+			"V6TAWOZAWB/moc_recorder.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server/server.h",
+			"MU",
+			"B4U5HBF4HE/moc_server.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server/tcpserver.h",
+			"MU",
+			"B4U5HBF4HE/moc_tcpserver.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server/videosocket.h",
+			"MU",
+			"B4U5HBF4HE/moc_videosocket.cpp",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/devicemanage/devicemanage.h",
+			"MU",
+			"XA5EKVFPEJ/moc_devicemanage.cpp",
+			null
+		]
+	],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/include",
+	"INCLUDE_DIR_Debug" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/include_Debug",
+	"INCLUDE_DIR_MinSizeRel" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/include_MinSizeRel",
+	"INCLUDE_DIR_RelWithDebInfo" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/include_RelWithDebInfo",
+	"INCLUDE_DIR_Release" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/include_Release",
+	"MOC_COMPILATION_FILE" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/mocs_compilation.cpp",
+	"MOC_COMPILATION_FILE_Debug" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/mocs_compilation_Debug.cpp",
+	"MOC_COMPILATION_FILE_MinSizeRel" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/mocs_compilation_MinSizeRel.cpp",
+	"MOC_COMPILATION_FILE_RelWithDebInfo" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/mocs_compilation_RelWithDebInfo.cpp",
+	"MOC_COMPILATION_FILE_Release" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/QtScrcpyCore_autogen/mocs_compilation_Release.cpp",
+	"MOC_DEFINITIONS" : [],
+	"MOC_DEFINITIONS_Debug" : 
+	[
+		"MINGW_HAS_SECURE_API=1",
+		"NOMINMAX",
+		"QT_CORE_LIB",
+		"QT_DISABLE_DEPRECATED_BEFORE=0x050F00",
+		"QT_GUI_LIB",
+		"QT_NETWORK_LIB",
+		"QT_WIDGETS_LIB",
+		"UNICODE",
+		"VERSION_MAJOR=0",
+		"VERSION_MINOR=0",
+		"VERSION_PATCH=0",
+		"VERSION_RC_STR=\"..\"",
+		"WIN32",
+		"WIN32_LEAN_AND_MEAN",
+		"WIN64",
+		"_ENABLE_EXTENDED_ALIGNED_STORAGE",
+		"_UNICODE",
+		"_WIN64"
+	],
+	"MOC_DEFINITIONS_MinSizeRel" : 
+	[
+		"MINGW_HAS_SECURE_API=1",
+		"NOMINMAX",
+		"QT_CORE_LIB",
+		"QT_DISABLE_DEPRECATED_BEFORE=0x050F00",
+		"QT_GUI_LIB",
+		"QT_NETWORK_LIB",
+		"QT_NO_DEBUG",
+		"QT_WIDGETS_LIB",
+		"UNICODE",
+		"VERSION_MAJOR=0",
+		"VERSION_MINOR=0",
+		"VERSION_PATCH=0",
+		"VERSION_RC_STR=\"..\"",
+		"WIN32",
+		"WIN32_LEAN_AND_MEAN",
+		"WIN64",
+		"_ENABLE_EXTENDED_ALIGNED_STORAGE",
+		"_UNICODE",
+		"_WIN64"
+	],
+	"MOC_DEFINITIONS_RelWithDebInfo" : 
+	[
+		"MINGW_HAS_SECURE_API=1",
+		"NOMINMAX",
+		"QT_CORE_LIB",
+		"QT_DISABLE_DEPRECATED_BEFORE=0x050F00",
+		"QT_GUI_LIB",
+		"QT_NETWORK_LIB",
+		"QT_NO_DEBUG",
+		"QT_WIDGETS_LIB",
+		"UNICODE",
+		"VERSION_MAJOR=0",
+		"VERSION_MINOR=0",
+		"VERSION_PATCH=0",
+		"VERSION_RC_STR=\"..\"",
+		"WIN32",
+		"WIN32_LEAN_AND_MEAN",
+		"WIN64",
+		"_ENABLE_EXTENDED_ALIGNED_STORAGE",
+		"_UNICODE",
+		"_WIN64"
+	],
+	"MOC_DEFINITIONS_Release" : 
+	[
+		"MINGW_HAS_SECURE_API=1",
+		"NOMINMAX",
+		"QT_CORE_LIB",
+		"QT_DISABLE_DEPRECATED_BEFORE=0x050F00",
+		"QT_GUI_LIB",
+		"QT_NETWORK_LIB",
+		"QT_NO_DEBUG",
+		"QT_WIDGETS_LIB",
+		"UNICODE",
+		"VERSION_MAJOR=0",
+		"VERSION_MINOR=0",
+		"VERSION_PATCH=0",
+		"VERSION_RC_STR=\"..\"",
+		"WIN32",
+		"WIN32_LEAN_AND_MEAN",
+		"WIN64",
+		"_ENABLE_EXTENDED_ALIGNED_STORAGE",
+		"_UNICODE",
+		"_WIN64"
+	],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : [],
+	"MOC_INCLUDES_Debug" : 
+	[
+		"D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/include",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/adb",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/common",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/filehandler",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/android",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/receiver",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/keymap",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/demuxer",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/ui",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/recorder",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/devicemanage",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/third_party/ffmpeg/include",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtWidgets",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtCore",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/mkspecs/win32-g++",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtGui",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtNetwork"
+	],
+	"MOC_INCLUDES_MinSizeRel" : 
+	[
+		"D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/include",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/adb",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/common",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/filehandler",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/android",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/receiver",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/keymap",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/demuxer",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/ui",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/recorder",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/devicemanage",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/third_party/ffmpeg/include",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtWidgets",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtCore",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/mkspecs/win32-g++",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtGui",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtNetwork"
+	],
+	"MOC_INCLUDES_RelWithDebInfo" : 
+	[
+		"D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/include",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/adb",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/common",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/filehandler",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/android",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/receiver",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/keymap",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/demuxer",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/ui",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/recorder",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/devicemanage",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/third_party/ffmpeg/include",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtWidgets",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtCore",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/mkspecs/win32-g++",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtGui",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtNetwork"
+	],
+	"MOC_INCLUDES_Release" : 
+	[
+		"D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/include",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/adb",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/common",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/filehandler",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/android",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/receiver",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/keymap",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/demuxer",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/ui",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/recorder",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/devicemanage",
+		"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/third_party/ffmpeg/include",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtWidgets",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtCore",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/mkspecs/win32-g++",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtGui",
+		"D:/.dev_win11/Qt/6.9.3/mingw_64/include/QtNetwork"
+	],
+	"MOC_MACRO_NAMES" : 
+	[
+		"Q_OBJECT",
+		"Q_GADGET",
+		"Q_NAMESPACE",
+		"Q_NAMESPACE_EXPORT",
+		"Q_GADGET_EXPORT",
+		"Q_ENUM_NS"
+	],
+	"MOC_OPTIONS" : [],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : [],
+	"MOC_PREDEFS_FILE" : "",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : [],
+	"MULTI_CONFIG" : true,
+	"PARALLEL" : 16,
+	"PARSE_CACHE_FILE" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/ParseCache.txt",
+	"PARSE_CACHE_FILE_Debug" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/ParseCache_Debug.txt",
+	"PARSE_CACHE_FILE_MinSizeRel" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/ParseCache_MinSizeRel.txt",
+	"PARSE_CACHE_FILE_RelWithDebInfo" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/ParseCache_RelWithDebInfo.txt",
+	"PARSE_CACHE_FILE_Release" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/ParseCache_Release.txt",
+	"QT_MOC_EXECUTABLE" : "",
+	"QT_MOC_EXECUTABLE_Debug" : "D:/.dev_win11/Qt/6.9.3/mingw_64/bin/moc.exe",
+	"QT_MOC_EXECUTABLE_MinSizeRel" : "D:/.dev_win11/Qt/6.9.3/mingw_64/bin/moc.exe",
+	"QT_MOC_EXECUTABLE_RelWithDebInfo" : "D:/.dev_win11/Qt/6.9.3/mingw_64/bin/moc.exe",
+	"QT_MOC_EXECUTABLE_Release" : "D:/.dev_win11/Qt/6.9.3/mingw_64/bin/moc.exe",
+	"QT_UIC_EXECUTABLE" : "",
+	"QT_UIC_EXECUTABLE_Debug" : "D:/.dev_win11/Qt/6.9.3/mingw_64/bin/uic.exe",
+	"QT_UIC_EXECUTABLE_MinSizeRel" : "D:/.dev_win11/Qt/6.9.3/mingw_64/bin/uic.exe",
+	"QT_UIC_EXECUTABLE_RelWithDebInfo" : "D:/.dev_win11/Qt/6.9.3/mingw_64/bin/uic.exe",
+	"QT_UIC_EXECUTABLE_Release" : "D:/.dev_win11/Qt/6.9.3/mingw_64/bin/uic.exe",
+	"QT_VERSION_MAJOR" : 6,
+	"QT_VERSION_MINOR" : 9,
+	"SETTINGS_FILE" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/AutogenUsed.txt",
+	"SETTINGS_FILE_Debug" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/AutogenUsed_Debug.txt",
+	"SETTINGS_FILE_MinSizeRel" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/AutogenUsed_MinSizeRel.txt",
+	"SETTINGS_FILE_RelWithDebInfo" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/AutogenUsed_RelWithDebInfo.txt",
+	"SETTINGS_FILE_Release" : "D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore_autogen.dir/AutogenUsed_Release.txt",
+	"SOURCES" : 
+	[
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/adb/adbprocess.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/adb/adbprocessimpl.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/bufferutil.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/controller.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/controlmsg.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/inputconvertbase.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/inputconvertgame.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/inputconvertnormal.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/keymap/keymap.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/receiver/devicemsg.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/controller/receiver/receiver.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder/avframeconvert.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder/decoder.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder/fpscounter.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/decoder/videobuffer.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/demuxer/demuxer.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/device.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/filehandler/filehandler.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/recorder/recorder.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server/server.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server/tcpserver.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/device/server/videosocket.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/programing/core_node/poly_apps/QtScrcpy/QtScrcpy/QtScrcpyCore/src/devicemanage/devicemanage.cpp",
+			"MU",
+			null
+		]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : [],
+	"UIC_UI_FILES" : [],
+	"USE_BETTER_GRAPH" : true,
+	"VERBOSITY" : 0
+}
