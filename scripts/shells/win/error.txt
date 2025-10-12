@@ -1,131 +1,272 @@
-[DEBUG] [STEP12] AdditionalKeywords:
-[Step12] Installing Python 3.13 - Programming Language (Name: python313)
-[Step12] Package ID: Python.Python.3.13
-[Step12] Install Type: winget
-[Step12] Base Directory: BaseDir (D:\.dev_win10)
-[Step12] Install Dir: D:\.dev_win10\python313
-[Step12] ForceToInstallDir: True
-=== Invoke-WingetCommand Parameters ===
-       Id: Python.Python.3.13
-       InstallDir: D:\.dev_win10\python313
-       OnlyCheckFlag: False
-       AllowTryInstall: False
-       Keyword: python.exe
-       AdditionalKeywords:
-       ForceInstall: False
-       RegistrySearchKeyword: python;python313
-       Checking for existing installation...
-[DEBUG] [EXEC] Performing deep search in system directories...
-[DEBUG] [KEYWORD] Added keyword: 'python.exe'
-[DEBUG] [KEYWORD] Deduplicated keywords: python.exe
-[DEBUG] [EXEC] No executable found matching keyword: python.exe,IncludeSystemPaths: False
-[DEBUG] [EXEC] No searched paths found
-       Installing Python.Python.3.13...
-       Running: winget uninstall Python.Python.3.13
-       Successfully cleaned old installation of Python.Python.3.13
-       Uninstall completed in 29.23 seconds
-       Running: winget install --id Python.Python.3.13 --silent --accept-package-agreements --accept-source-agreements --location "D:\.dev_win10\python313"
-已找到 Python 3.13 [Python.Python.3.13] 版本 3.13.8
-此应用程序由其所有者授权给你。
-Microsoft 对第三方程序包概不负责，也不向第三方程序包授予任何许可证。
-正在下载 https://www.python.org/ftp/python/3.13.8/python-3.13.8-amd64.exe
-  ██████████████████████████████  27.4 MB / 27.4 MB
-已成功验证安装程序哈希
-正在启动程序包安装...
-已成功安装
-       Successfully installed Python.Python.3.13
-       Performing final repair check...
-       [REPAIR] Checking for installation mismatch for Python.Python.3.13
-       [REPAIR] Expected location: D:\.dev_win10\python313
-       [REPAIR] No executable path provided, searching in expected directory: D:\.dev_win10\python313[DEBUG] [EXEC] Performing deep search in system directories...
-[DEBUG] [KEYWORD] Added keyword: 'python.exe'
-[DEBUG] [KEYWORD] Deduplicated keywords: python.exe
-[DEBUG] [EXEC] Searching in: D:\.dev_win10\python313
-[DEBUG] [EXEC] Searching for file: 'python.exe' in path: 'D:\.dev_win10\python313' (MaxDepth: 3)
-[DEBUG] [EXEC] Find-FileWithDepth result for 'python.exe': 'D:\.dev_win10\python313\python.exe'
-[DEBUG] [EXEC] Found executable with keyword 'python.exe' and extension '.exe': D:\.dev_win10\python313\python.exe
-       [REPAIR] Found location: D:\.dev_win10\python313\python.exe
-       [REPAIR] Executable already in expected location
-       Repair completed successfully
-[Step12] Found Python313 executable at: D:\.dev_win10\python313\python.exe
-[Step12] Verifying installation with: 'D:\.dev_win10\python313\python.exe --version'
-[Step12] Python313 verification result: Python 3.13.8
-[Step12] Processing AdditionalInstallationPackages for Python313...
-[Step12] Installing additional packages via pip: pipx, uv, poetry, flake8, numpy, pandas, matplotlib, pillow, requests, flask, django, jupyter, scipy, scikit-learn
-[Step12] Installing pip package: pipx
-[DEBUG] [PIP] Processing pip package string: pipx
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: pipx
-[DEBUG] [PIP] Installation error for pipx:   WARNING: The scripts activate-global-python-argcomplete.exe, python-argcomplete-check-easy-install-script.exe and register-python-argcomplete.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
-[Step12] Failed to install pip package: pipx
-[Step12] Installing pip package: uv
-[DEBUG] [PIP] Processing pip package string: uv
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: uv
-[DEBUG] [PIP] Installation successful for: uv
-[Step12] Successfully installed pip package: uv
-[Step12] Installing pip package: poetry
-[DEBUG] [PIP] Processing pip package string: poetry
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: poetry
-[DEBUG] [PIP] Installation error for poetry:   WARNING: The script trove-classifiers.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
-[Step12] Failed to install pip package: poetry
-[Step12] Installing pip package: flake8
-[DEBUG] [PIP] Processing pip package string: flake8
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: flake8
-[DEBUG] [PIP] Installation error for flake8:   WARNING: The script pyflakes.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
-[Step12] Failed to install pip package: flake8
-[Step12] Installing pip package: numpy
-[DEBUG] [PIP] Processing pip package object - Name: numpy, Validation: import, Import: numpy
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: numpy
-[DEBUG] [PIP] Installation error for numpy:   WARNING: The scripts f2py.exe and numpy-config.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
-[Step12] Failed to install pip package: numpy
-[Step12] Installing pip package: pandas
-[DEBUG] [PIP] Processing pip package object - Name: pandas, Validation: import, Import: pandas
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: pandas
-[DEBUG] [PIP] Installation successful for: pandas
-[Step12] Successfully installed pip package: pandas
-[Step12] Installing pip package: matplotlib
-[DEBUG] [PIP] Processing pip package object - Name: matplotlib, Validation: import, Import: matplotlib
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: matplotlib
-[DEBUG] [PIP] Installation error for matplotlib:   WARNING: The scripts fonttools.exe, pyftmerge.exe, pyftsubset.exe and ttx.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
-[Step12] Failed to install pip package: matplotlib
-[Step12] Installing pip package: pillow
-[DEBUG] [PIP] Processing pip package object - Name: pillow, Validation: import, Import: PIL
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: pillow
-[DEBUG] [PIP] Installation successful for: pillow
-[Step12] Successfully installed pip package: pillow
-[Step12] Installing pip package: requests
-[DEBUG] [PIP] Processing pip package object - Name: requests, Validation: import, Import: requests
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: requests
-[DEBUG] [PIP] Installation error for requests:   WARNING: The script normalizer.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
-[Step12] Failed to install pip package: requests
-[Step12] Installing pip package: flask
-[DEBUG] [PIP] Processing pip package string: flask
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: flask
-[DEBUG] [PIP] Installation error for flask:   WARNING: The script flask.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
-[Step12] Failed to install pip package: flask
-[Step12] Installing pip package: django
-[DEBUG] [PIP] Processing pip package string: django
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: django
-[DEBUG] [PIP] Installation error for django:   WARNING: The script sqlformat.exe is installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
-[Step12] Failed to install pip package: django
-[Step12] Installing pip package: jupyter
-[DEBUG] [PIP] Processing pip package string: jupyter
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: jupyter
-[DEBUG] [PIP] Installation error for jupyter:   WARNING: The scripts pywin32_postinstall.exe and pywin32_testall.exe are installed in 'D:\.dev_win10\python313\Scripts' which is not on PATH.
-[Step12] Failed to install pip package: jupyter
-[Step12] Installing pip package: scipy
-[DEBUG] [PIP] Processing pip package object - Name: scipy, Validation: import, Import: scipy
-[DEBUG] [PIP] Using pip: D:\.dev_win10\python313\Scripts\pip.exe
-[DEBUG] [PIP] Installing pip package: scipy
-[DEBUG] [PIP] Installation successful for: scipy
+[OK] [Step 66] Flutter installation completed
+[*] ----------------------------------------------------------------
+Checking script: Step80_InstallWSL.ps1
+Script is running from BASE_DIR subdirectory and file exists at: D:\programing\core_node\scripts\shells\win\install_powershells\Step80_InstallWSL.ps1
+Skipping download for: shells\win\install_powershells\Step80_InstallWSL.ps1
+Executing script: D:\programing\core_node\scripts\shells\win\install_powershells\Step80_InstallWSL.ps1
+[*] [Step 77] Checking WSL installation...
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] Please enter 'Y' or 'N' (case-insensitive).
+[!] [Step 77] The Windows Subsystem for Linux is not installed. Do you want to install it now? [Y/n] (Auto-continue in 10 seconds with 'Y')
+[!] [Step 77] Installing WSL...
+版权所有(c) Microsoft Corporation。保留所有权利。
+
+用法: wsl.exe [Argument] [Options...] [CommandLine]
+
+运行 Linux 二进制文件的参数:
+
+    如果未提供命令行，wsl.exe 将启动默认 shell。
+
+    --exec, -e <CommandLine>
+        在不使用默认 Linux Shell 的情况下执行指定的命令。
+
+    --
+        按原样传递其余命令行。
+
+选项:
+    --cd <Directory>
+        将指定目录设置为当前工作目录。
+        如果使用了 ~，则将使用 Linux 用户的主页路径。如果路径
+        以 / 字符开头，将被解释为绝对 Linux 路径。
+        否则，该值一定是绝对 Windows 路径。
+
+    --distribution, -d <Distro>
+        运行指定分发。
+
+    --user, -u <UserName>
+        以指定用户身份运行。
+
+管理适用于 Linux 的 Windows 子系统的参数:
+
+    --help
+        显示用法信息。
+
+    --install [选项]
+        安装额外的适用于 Linux 的 Windows 子系统分发。
+         要获得有效分发列表，请使用“wsl --list --online”。
+
+        选项:
+            --distribution, -d [参数]
+                按名称下载并安装分发。
+
+                参数:
+                    有效分发名称(不区分大小写)。
+
+                示例:
+                    wsl --install -d Ubuntu
+                    wsl --install --distribution Debian
+
+    --set-default-version <Version>
+        更改新分发的默认安装版本。
+
+    --shutdown
+         立即终止所有运行的分发及 WSL 2
+        轻型实用工具虚拟机。
+
+    --status
+        显示适用于 Linux 的 Windows 子系统的状态。
+
+    --update [Options]
+        如果未指定任何选项，则将 WSL 2 内核更新
+        为最新版本。
+
+        选项:
+            --rollback
+                恢复为 WSL 2 内核的先前版本。
+
+            --inbox
+                仅更新收件箱 WSL 2 内核。不要从 Microsoft Store 下载 WSL。
+
+            --web-download
+                从 Internet 而不是 Microsoft Store 下载最新版本的 WSL。
+
+用于管理适用于 Linux 的 Windows 子系统中的分发的参数:
+
+    --export <Distro> <FileName>
+        将分发导出到 tar 文件。
+        对于标准输出，文件名可以是 -。
+
+    --import <Distro> <InstallLocation> <FileName> [Options]
+        将指定的 tar 文件作为新分发导入。
+        对于标准输入，文件名可以是 -。
+
+        选项:
+            --version <Version>
+                指定要用于新分发的版本。
+
+    --list, -l [Options]
+        列出分发。
+
+        选项:
+            --all
+                列出所有分发，包括
+                当前正在安装或卸载的分发。
+
+            --running
+                仅列出当前正在运行的分发。
+
+            --quiet, -q
+                仅显示分发名称。
+
+            --verbose, -v
+                显示所有分发的详细信息。
+
+            --online, -o
+                显示使用“wsl --install”进行安装的可用分发列表。
+
+    --set-default, -s <分发>
+        将分发设置为默认值。
+
+    --set-version <分发> <版本>
+        更改指定分发的版本。
+
+    --terminate, -t <分发>
+        终止指定的分发。
+
+    --unregister <分发>
+        注销分发并删除根文件系统。
+[X] [Step 77] WSL installation failed.
+[*] [Step 77] Checking WSL configuration files...
+[*] [Step 77] Checking wsl.conf...
+[!] [Step 77] wsl.conf needs to be configured
+[*] [Step 77] Please follow these steps:
+[*] 1. Open Ubuntu 24.04 terminal
+[*] 2. Run: sudo nano /etc/wsl.conf
+[*] 3. Copy and paste the following content:
+[boot]
+systemd=true
+
+[network]
+generateResolvConf = true
+
+[interop]
+enabled = true
+appendWindowsPath = true
+
+[user]
+default = root
+[*] 4. Press Ctrl+X, then Y, then Enter to save
+[*] 5. After saving, run these commands to verify:
+[*]    - cat /etc/wsl.conf (to verify content)
+[*]    - whoami (should show 'root')
+[*] 6. Exit Ubuntu terminal
+[*] 7. In PowerShell, run: wsl --shutdown
+[*] 8. Wait 10 seconds, then restart Ubuntu
+[!] 9. Type 'yes' here when you have completed all steps
+Have you completed all configuration steps? (yes/no):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
