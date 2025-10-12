@@ -1,0 +1,201 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\build_msvc_2022\QtScrcpyCore\QtScrcpyCore_autogen\mocs_compilation_Debug.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\adb\adbprocessimpl.cpp">
+      <Filter>src\adb</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\adb\adbprocess.cpp">
+      <Filter>src\adb</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\device.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\controller.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\bufferutil.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\inputconvertbase.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\inputconvertnormal.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\inputconvertgame.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\controlmsg.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\keymap\keymap.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\receiver\devicemsg.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\receiver\receiver.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\decoder\avframeconvert.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\decoder\decoder.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\decoder\fpscounter.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\decoder\videobuffer.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\filehandler\filehandler.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\recorder\recorder.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\server\server.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\server\tcpserver.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\server\videosocket.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\demuxer\demuxer.cpp">
+      <Filter>src\device</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\devicemanage\devicemanage.cpp">
+      <Filter>src\devicemanage</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\build_msvc_2022\QtScrcpyCore\QtScrcpyCore_autogen\mocs_compilation_Release.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\build_msvc_2022\QtScrcpyCore\QtScrcpyCore_autogen\mocs_compilation_MinSizeRel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\programing\core_node\poly_apps\QtScrcpy\build_msvc_2022\QtScrcpyCore\QtScrcpyCore_autogen\mocs_compilation_RelWithDebInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\adb\adbprocessimpl.h">
+      <Filter>src\adb</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\common\qscrcpyevent.h">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\include\QtScrcpyCore.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\include\QtScrcpyCoreDef.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\include\adbprocess.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\device.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\compat.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\android\input.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\android\keycodes.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\controller.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\bufferutil.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\inputconvertbase.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\inputconvertnormal.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\inputconvertgame.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\controlmsg.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\inputconvert\keymap\keymap.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\receiver\devicemsg.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\controller\receiver\receiver.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\decoder\avframeconvert.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\decoder\decoder.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\decoder\fpscounter.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\decoder\videobuffer.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\filehandler\filehandler.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\recorder\recorder.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\server\server.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\server\tcpserver.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\server\videosocket.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\device\demuxer\demuxer.h">
+      <Filter>src\device</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\src\devicemanage\devicemanage.h">
+      <Filter>src\devicemanage</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy\QtScrcpyCore\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{B87F4B5F-0BED-36F9-B941-E591BEBCB43E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{58C82339-003B-3E81-811D-A2C1EFDD6A89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{63AF8DF6-52E0-3B99-9D88-2EB07378B98F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\adb">
+      <UniqueIdentifier>{A89A1B20-FD53-38C3-8C47-1CF28D747298}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\common">
+      <UniqueIdentifier>{B91B21ED-05DE-3752-BF6F-C2DE57360F37}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\device">
+      <UniqueIdentifier>{EE62E71A-8A4D-3BB3-A250-0C0853B5A2B7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\devicemanage">
+      <UniqueIdentifier>{1A6BE8DD-AB7E-3873-9125-914F5DDDA869}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

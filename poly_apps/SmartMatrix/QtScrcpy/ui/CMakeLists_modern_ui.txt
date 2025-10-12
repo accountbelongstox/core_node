@@ -1,0 +1,162 @@
+# Modern UI Extension Components for QtScrcpy
+# This file contains the CMake configuration for all modern UI components
+
+# Modern UI Source Files
+set(MODERN_UI_HEADERS
+    moderndevicegroupmanager.h
+    devicevideowidget.h
+    moderngridlayoutmanager.h
+    moderndevicetreewidget.h
+    modernmainwindow.h
+)
+
+set(MODERN_UI_SOURCES
+    moderndevicegroupmanager.cpp
+    devicevideowidget.cpp
+    moderngridlayoutmanager.cpp
+    moderndevicetreewidget.cpp
+    modernmainwindow.cpp
+)
+
+# Modern UI Resource Files
+set(MODERN_UI_RESOURCES
+    icons/group.png
+    icons/device.png
+    icons/device_connected.png
+    icons/device_disconnected.png
+    res/phone.png
+    res/phone-v.png
+    image/tray/logo.png
+    image/videoform/phone-v.png
+    image/videoform/phone-h.png
+)
+
+# Create resource file for modern UI
+qt6_add_resources(MODERN_UI_RESOURCE_FILE
+    PREFIX "/modern_ui"
+    FILES ${MODERN_UI_RESOURCES}
+)
+
+# Add modern UI components to main target
+target_sources(QtScrcpy PRIVATE
+    ${MODERN_UI_HEADERS}
+    ${MODERN_UI_SOURCES}
+    ${MODERN_UI_RESOURCE_FILE}
+)
+
+# Link modern UI components
+target_link_libraries(QtScrcpy PRIVATE
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Gui
+)
+
+# Include directories for modern UI
+target_include_directories(QtScrcpy PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui
+)
+
+# Compile definitions for modern UI
+target_compile_definitions(QtScrcpy PRIVATE
+    QT_DEPRECATED_WARNINGS
+    QT_DISABLE_DEPRECATED_BEFORE=0x060000
+)
+
+# Modern UI specific compiler flags
+if(MSVC)
+    target_compile_options(QtScrcpy PRIVATE /W4)
+else()
+    target_compile_options(QtScrcpy PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# Enable MOC for modern UI headers
+set_target_properties(QtScrcpy PROPERTIES
+    AUTOMOC ON
+    AUTORCC ON
+    AUTOUIC ON
+)
+
+# Modern UI specific features
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui)
+
+# Check for Qt6.9 specific features
+if(Qt6_VERSION VERSION_GREATER_EQUAL "6.9.0")
+    target_compile_definitions(QtScrcpy PRIVATE
+        QT_HAS_QT69_FEATURES=1
+    )
+    message(STATUS "Qt6.9 features enabled for modern UI")
+else()
+    message(WARNING "Qt6.9 features may not be fully available. Consider upgrading Qt.")
+endif()
+
+# Modern UI installation
+install(TARGETS QtScrcpy
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+)
+
+# Install modern UI resources
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui/icons/
+    DESTINATION share/QtScrcpy/icons
+    FILES_MATCHING PATTERN "*.png"
+)
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui/res/
+    DESTINATION share/QtScrcpy/res
+    FILES_MATCHING PATTERN "*.png"
+)
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui/image/
+    DESTINATION share/QtScrcpy/image
+    FILES_MATCHING PATTERN "*.png"
+)
+
+# Modern UI documentation
+if(BUILD_DOCUMENTATION)
+    find_package(Doxygen)
+    if(DOXYGEN_FOUND)
+        configure_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui/Doxyfile.in
+            ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+            @ONLY
+        )
+        
+        add_custom_target(modern_ui_docs
+            ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            COMMENT "Generating modern UI documentation with Doxygen"
+            VERBATIM
+        )
+    endif()
+endif()
+
+# Modern UI testing
+if(BUILD_TESTING)
+    enable_testing()
+    
+    # Add unit tests for modern UI components
+    add_subdirectory(tests/modern_ui)
+endif()
+
+# Modern UI packaging
+if(CPACK_PACKAGE_NAME)
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "QtScrcpy with Modern UI Extension")
+    set(CPACK_PACKAGE_VENDOR "QtScrcpy Modern UI Team")
+    set(CPACK_PACKAGE_VERSION_MAJOR "1")
+    set(CPACK_PACKAGE_VERSION_MINOR "0")
+    set(CPACK_PACKAGE_VERSION_PATCH "0")
+    
+    # Include modern UI resources in package
+    set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+    set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+endif()
+
+# Print modern UI configuration summary
+message(STATUS "Modern UI Extension Configuration:")
+message(STATUS "  Headers: ${MODERN_UI_HEADERS}")
+message(STATUS "  Sources: ${MODERN_UI_SOURCES}")
+message(STATUS "  Resources: ${MODERN_UI_RESOURCES}")
+message(STATUS "  Qt Version: ${Qt6_VERSION}")
+message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "  Install Prefix: ${CMAKE_INSTALL_PREFIX}")

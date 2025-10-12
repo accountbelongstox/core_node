@@ -1,0 +1,47 @@
+现在我们来移置到全部QT6 升级所有你知道的qt5->qt6.9，注意QT6和QT5的特性不同、我提供给你的文档有可能是6.x的过时版本、你应该以6.9.3为准，同时我们使用的是QT6.9.3版本，所以你应该以最新的文档为准，我提供给你的资料只做为参考，
+任务 1：你要确保你更新的代码被备份，备份格式为复制一份 时间戳+backpu 文件名
+任务 2：确保代码被升级（并在升级后的代码中，保留原代码只是注释），并注释原代码和升级后的对比。
+任务 3：确保编译脚本等配置被升级，同样要注释原来的代码和升级后的对比。
+D:\programing\core_node\poly_apps\QtScrcpy\docs\oldnewclasses515.md
+D:\programing\core_node\poly_apps\QtScrcpy\docs\WhatsNewInQt6.9.md
+参考文件： D:\programing\core_node\poly_apps\QtScrcpy\docs\ChangesToQt6Widgets.md
+D:\programing\core_node\poly_apps\QtScrcpy\docs\Qt6Core.md
+
+
+D:\programing\core_node\poly_apps\QtScrcpy\docs\upgrade\QtScrcpy_tree.md 
+查看整个项目结构，渐进式升级 现在重构OpenGL （如果你确认全部升级完了-可以直接报告而不必再改代码）...
+现在我们来移置到全部QT6 升级所有你知道的qt5->qt6.9，注意QT6和QT5的特性不同、我提供给你的文档有可能是6.x的过时版本、你应该以6.9.3为准，同时我们使用的是QT6.9.3版本，所以你应该以最新的文档为准，我提供给你的资料只做为参考，
+任务 1：你要确保你更新的代码被备份，备份格式为复制一份 时间戳+backpu 文件名
+任务 2：确保代码被升级（并在升级后的代码中，保留原代码只是注释），并注释原代码和升级后的对比。
+任务 3：注意你要根据整个项目整体分析、你不用一步到位的升级根据不同的文档来确认升级计划，确保编译脚本等配置被升级，同样要注释原来的代码和升级后的对比。
+任务 4：将你的升级别进度放到 D:\programing\core_node\poly_apps\QtScrcpy\docs\upgrade\qt5toqt6_upgrade_progress.md、对于已经分析过的文档在进度中标示。
+参考文件：
+```
+docs/
+├── upgrade/
+├── Qt6OpenGL.md
+├── BuildQtFromGit.md
+├── ChangesToQt6Widgets.md
+├── DEVELOP.md
+├── FAQ.md
+├── KeyMapDes.md
+├── KeyMapDes_zh.md
+├── NewClassesAndFunctionsInQt6.9.md
+├── NewQMetaTypeQVariant.md
+├── NewQt6.md
+├── ObsoleteMembersForQtWin.md
+├── Qt45ToQt6UpgradePainfulExperienceSummaryV202308.md
+├── Qt5AndQt6compatibility.md
+├── Qt5CoreCompatibilityAPIs.md
+├── Qt5to6MigrationTutorial.md
+├── Qt5toQt6MigrationCriticalSteps.md
+├── Qt6Core.md
+├── Qt6UpgradePainfulExperienceSummary.md
+├── QtDevelopmentExperience.md
+├── QtExtrasModulesQt6.md
+├── TODO.md
+├── WhatsNewInQt6.9.md
+├── oldnewclasses515.md
+├── porting-from-qt-5-to-qt-6-using-qt5compat-library
+└── qt4-qt5-to-qt6-migration-summary.md
+```
