@@ -1,4 +1,0 @@
-D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/CMakeFiles/QtScrcpy.dir
-D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/CMakeFiles/ALL_BUILD.dir
-D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/CMakeFiles/ZERO_CHECK.dir
-D:/programing/core_node/poly_apps/QtScrcpy/build_msvc_2022/QtScrcpyCore/CMakeFiles/QtScrcpyCore.dir

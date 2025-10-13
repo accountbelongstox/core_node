@@ -26,7 +26,7 @@ QString s_keyMapPath = "";
 const QString &getKeyMapPath()
 {
     if (s_keyMapPath.isEmpty()) {
-        s_keyMapPath = QString::fromLocal8Bit(qgetenv("QTSCRCPY_KEYMAP_PATH"));
+        s_keyMapPath = QString::fromLocal8Bit(qgetenv("SmartMatrix_KEYMAP_PATH"));
         QFileInfo fileInfo(s_keyMapPath);
         if (s_keyMapPath.isEmpty() || !fileInfo.isDir()) {
             s_keyMapPath = QCoreApplication::applicationDirPath() + "/keymap";
@@ -777,7 +777,7 @@ const QString &Dialog::getServerPath()
 {
     static QString serverPath;
     if (serverPath.isEmpty()) {
-        serverPath = QString::fromLocal8Bit(qgetenv("QTSCRCPY_SERVER_PATH"));
+        serverPath = QString::fromLocal8Bit(qgetenv("SmartMatrix_SERVER_PATH"));
         QFileInfo fileInfo(serverPath);
         if (serverPath.isEmpty() || !fileInfo.isFile()) {
             serverPath = QCoreApplication::applicationDirPath() + "/scrcpy-server";

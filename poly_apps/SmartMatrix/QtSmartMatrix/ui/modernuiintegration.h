@@ -1,4 +1,4 @@
-#ifndef MODERNUIINTEGRATION_H
+﻿#ifndef MODERNUIINTEGRATION_H
 #define MODERNUIINTEGRATION_H
 
 #include <QObject>
@@ -25,7 +25,7 @@ class ModernStyleSystem;
 /**
  * @brief Modern UI Integration Manager
  * 
- * Manages the integration between legacy QtScrcpy UI and modern UI components
+ * Manages the integration between legacy SmartMatrix UI and modern UI components
  * Provides seamless switching between UI modes and data synchronization
  */
 class ModernUIIntegration : public QObject

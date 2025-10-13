@@ -35,7 +35,8 @@ void InputConvertNormal::mouseEvent(const QMouseEvent *from, const QSize &frameS
     }
 
     // pos
-    QPointF pos = from->localPos();
+    // Qt 6: localPos() deprecated, use position() instead
+    QPointF pos = from->position();
     // convert pos
     pos.setX(pos.x() * frameSize.width() / showSize.width());
     pos.setY(pos.y() * frameSize.height() / showSize.height());
@@ -64,7 +65,8 @@ void InputConvertNormal::wheelEvent(const QWheelEvent *from, const QSize &frameS
     qint32 vScroll = from->angleDelta().y() == 0 ? 0 : from->angleDelta().y() / abs(from->angleDelta().y()) * 2;
 
     // pos
-    QPointF pos = from->posF();
+    // Qt 6: posF() deprecated, use position() instead
+    QPointF pos = from->position();
     // convert pos
     pos.setX(pos.x() * frameSize.width() / showSize.width());
     pos.setY(pos.y() * frameSize.height() / showSize.height());
@@ -132,7 +134,8 @@ AndroidMotioneventButtons InputConvertNormal::convertMouseButtons(Qt::MouseButto
     if (buttonState & Qt::RightButton) {
         buttons |= AMOTION_EVENT_BUTTON_SECONDARY;
     }
-    if (buttonState & Qt::MidButton) {
+    // Qt 6: Qt::MidButton renamed to Qt::MiddleButton
+    if (buttonState & Qt::MiddleButton) {
         buttons |= AMOTION_EVENT_BUTTON_TERTIARY;
     }
     if (buttonState & Qt::XButton1) {

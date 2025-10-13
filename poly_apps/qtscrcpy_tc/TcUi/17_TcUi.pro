@@ -1,9 +1,9 @@
 QT += core gui
-QT += network
+QT += network widgets
+# Qt 6: OpenGL support modularized - need explicit module inclusion
+QT += opengl openglwidgets
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
-
-CONFIG += c++11
+CONFIG += c++17
 TEMPLATE = app
 
 # The following define makes your compiler emit warnings if you use
@@ -14,17 +14,25 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 # You can also make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
-# You can also select to disable deprecated APIs only up to a certain version of Qt.
-#DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
-msvc{
-    QMAKE_CFLAGS += -source-charset:utf-8
-    QMAKE_CXXFLAGS += -source-charset:utf-8
-}
+# Disable deprecated APIs before Qt 6.0.0
+DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000
+
+# Qt 6.9+ automatically enforces UTF-8 source encoding for MSVC
+# Manual -source-charset:utf-8 conflicts with automatic -utf-8 flag (MSVC error D8016)
+# Removed charset specification - handled automatically by Qt 6.9.3
 
 # warning as error
 #4566 https://github.com/Chuyu-Team/VC-LTL/issues/27
+# Temporarily disabled /WX for Qt 6.9.3 compatibility
 *g++*: QMAKE_CXXFLAGS += -Werror
-*msvc*: QMAKE_CXXFLAGS += /WX /wd4566
+#*msvc*: QMAKE_CXXFLAGS += /WX /wd4566
+*msvc*: QMAKE_CXXFLAGS += /wd4566
+# Qt 6.9.3 automatically adds -source-charset:utf-8 which conflicts with -utf-8
+# Remove the conflicting flag to allow MSVC to use -utf-8 only
+*msvc*: QMAKE_CXXFLAGS -= -source-charset:utf-8
+
+# Disable precompiled headers for Qt 6.9.3 compatibility
+CONFIG -= precompile_header
 
 # 源码
 SOURCES += \
@@ -68,7 +76,7 @@ INCLUDEPATH += \
         $$PWD/fontawesome
 
 # 从文件读取版本号
-CAT_VERSION = $$cat($$PWD/version)
+CAT_VERSION = $$cat($$PWD/version.txt)
 # 拆分出版本号
 VERSION_MAJOR = $$section(CAT_VERSION, ., 0, 0)
 VERSION_MINOR = $$section(CAT_VERSION, ., 1, 1)
@@ -90,11 +98,11 @@ win32 {
 
     contains(QT_ARCH, x86_64) {
         message("x64")
-        # 输出目录
+        # 输出目录 - 移到项目根目录避免占用问题
         CONFIG(debug, debug|release) {
-            DESTDIR = $$PWD/output/win/x64/debug
+            DESTDIR = $$PWD/../output/win/x64/debug
         } else {
-            DESTDIR = $$PWD/output/win/x64/release
+            DESTDIR = $$PWD/../output/win/x64/release
         }
 
         # 依赖模块
@@ -107,11 +115,11 @@ win32 {
         WIN_FFMPEG_SRC = $$PWD/third_party/ffmpeg/bin/x64/*.dll
     } else {
         message("x86")
-        # 输出目录
+        # 输出目录 - 移到项目根目录避免占用问题
         CONFIG(debug, debug|release) {
-            DESTDIR = $$PWD/output/win/x86/debug
+            DESTDIR = $$PWD/../output/win/x86/debug
         } else {
-            DESTDIR = $$PWD/output/win/x86/release
+            DESTDIR = $$PWD/../output/win/x86/release
         }
 
         # 依赖模块

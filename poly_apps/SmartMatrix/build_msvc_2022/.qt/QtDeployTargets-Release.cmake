@@ -1,5 +1,0 @@
-set(__QT_DEPLOY_TARGET_QtScrcpyCore_FILE D:/programing/core_node/poly_apps/QtScrcpy/output/x64/RelWithDebInfo/QtScrcpyCore.lib)
-set(__QT_DEPLOY_TARGET_QtScrcpyCore_TYPE STATIC_LIBRARY)
-set(__QT_DEPLOY_TARGET_QtScrcpy_FILE D:/programing/core_node/poly_apps/QtScrcpy/output/x64/RelWithDebInfo/QtScrcpy.exe)
-set(__QT_DEPLOY_TARGET_QtScrcpy_TYPE EXECUTABLE)
-set(__QT_DEPLOY_TARGET_QtScrcpy_RUNTIME_DLLS D:/.dev_win11/Qt/6.9.3/mingw_64/bin/Qt6Multimedia.dll;D:/.dev_win11/Qt/6.9.3/mingw_64/bin/Qt6OpenGLWidgets.dll;D:/.dev_win11/Qt/6.9.3/mingw_64/bin/Qt6OpenGL.dll;D:/.dev_win11/Qt/6.9.3/mingw_64/bin/Qt6Widgets.dll;D:/.dev_win11/Qt/6.9.3/mingw_64/bin/Qt6Gui.dll;D:/.dev_win11/Qt/6.9.3/mingw_64/bin/Qt6Network.dll;D:/.dev_win11/Qt/6.9.3/mingw_64/bin/Qt6Core.dll)

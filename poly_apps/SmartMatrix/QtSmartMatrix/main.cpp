@@ -23,24 +23,24 @@ int main(int argc, char *argv[])
 {
     // set env
 #ifdef Q_OS_WIN32
-    qputenv("QTSCRCPY_ADB_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/adb/win/adb.exe");
-    qputenv("QTSCRCPY_SERVER_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/scrcpy-server");
-    qputenv("QTSCRCPY_KEYMAP_PATH", "../../../keymap");
-    qputenv("QTSCRCPY_CONFIG_PATH", "../../../config");
+    qputenv("SmartMatrix_ADB_PATH", "../../../SmartMatrix/SmartMatrixCore/src/third_party/adb/win/adb.exe");
+    qputenv("SmartMatrix_SERVER_PATH", "../../../SmartMatrix/SmartMatrixCore/src/third_party/scrcpy-server");
+    qputenv("SmartMatrix_KEYMAP_PATH", "../../../keymap");
+    qputenv("SmartMatrix_CONFIG_PATH", "../../../config");
 #endif
 
 #ifdef Q_OS_OSX
-    qputenv("QTSCRCPY_ADB_PATH", "../../../../../../QtScrcpy/QtScrcpyCore/src/third_party/adb/mac/adb");
-    qputenv("QTSCRCPY_SERVER_PATH", "../../../../../../QtScrcpy/QtScrcpyCore/src/third_party/scrcpy-server");
-    qputenv("QTSCRCPY_KEYMAP_PATH", "../../../../../../keymap");
-    qputenv("QTSCRCPY_CONFIG_PATH", "../../../../../../config");
+    qputenv("SmartMatrix_ADB_PATH", "../../../../../../SmartMatrix/SmartMatrixCore/src/third_party/adb/mac/adb");
+    qputenv("SmartMatrix_SERVER_PATH", "../../../../../../SmartMatrix/SmartMatrixCore/src/third_party/scrcpy-server");
+    qputenv("SmartMatrix_KEYMAP_PATH", "../../../../../../keymap");
+    qputenv("SmartMatrix_CONFIG_PATH", "../../../../../../config");
 #endif
 
 #ifdef Q_OS_LINUX
-    qputenv("QTSCRCPY_ADB_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/adb/linux/adb");
-    qputenv("QTSCRCPY_SERVER_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/scrcpy-server");
-    qputenv("QTSCRCPY_KEYMAP_PATH", "../../../keymap");
-    qputenv("QTSCRCPY_CONFIG_PATH", "../../../config");
+    qputenv("SmartMatrix_ADB_PATH", "../../../SmartMatrix/SmartMatrixCore/src/third_party/adb/linux/adb");
+    qputenv("SmartMatrix_SERVER_PATH", "../../../SmartMatrix/SmartMatrixCore/src/third_party/scrcpy-server");
+    qputenv("SmartMatrix_KEYMAP_PATH", "../../../keymap");
+    qputenv("SmartMatrix_CONFIG_PATH", "../../../config");
 #endif
 
     g_msgType = covertLogLevel(Config::getInstance().getLogLevel());

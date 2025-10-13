@@ -1,4 +1,5 @@
-#include <QX11Info>
+#include <QGuiApplication>
+#include <qpa/qplatformnativeinterface.h>
 
 #include <xcb/xproto.h>
 #include <stdlib.h>
@@ -52,14 +53,28 @@ void XMouseTap::enableMouseEventTap(QRect rc, bool enabled) {
         return;
     }
 
-    xcb_connection_t *dpy = QX11Info::connection();
+    // Qt6: QX11Info replaced with QPlatformNativeInterface
+    QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+    if (!native) {
+        return;
+    }
+
+    xcb_connection_t *dpy = static_cast<xcb_connection_t*>(
+        native->nativeResourceForIntegration(QByteArrayLiteral("connection")));
+    if (!dpy) {
+        return;
+    }
 
     if (enabled) {
         // We grab the top-most smallest window
         xcb_window_t grab_window = 0;
         uint32_t grab_window_size = 0;
 
-        find_grab_window_recursive(dpy, QX11Info::appRootWindow(QX11Info::appScreen()),
+        // Get root window
+        auto rootWindow = static_cast<xcb_window_t>(
+            reinterpret_cast<quintptr>(native->nativeResourceForIntegration(QByteArrayLiteral("rootwindow"))));
+
+        find_grab_window_recursive(dpy, rootWindow,
                 rc, 0, 0, &grab_window, &grab_window_size);
 
         if (grab_window) {
