@@ -1,17 +1,17 @@
-# QtScrcpy
+﻿# SmartMatrix
 
-![Windows](https://github.com/barry-ran/QtScrcpy/workflows/Windows/badge.svg)
-![MacOS](https://github.com/barry-ran/QtScrcpy/workflows/MacOS/badge.svg)
-![Ubuntu](https://github.com/barry-ran/QtScrcpy/workflows/Ubuntu/badge.svg)
+![Windows](https://github.com/barry-ran/SmartMatrix/workflows/Windows/badge.svg)
+![MacOS](https://github.com/barry-ran/SmartMatrix/workflows/MacOS/badge.svg)
+![Ubuntu](https://github.com/barry-ran/SmartMatrix/workflows/Ubuntu/badge.svg)
 
 ![license](https://img.shields.io/badge/license-Apache2.0-blue.svg)
-![release](https://img.shields.io/github/v/release/barry-ran/QtScrcpy.svg)
-![star](https://img.shields.io/github/stars/barry-ran/QtScrcpy.svg)
-![star](https://gitcode.com/barry-ran/QtScrcpy/star/badge.svg)
+![release](https://img.shields.io/github/v/release/barry-ran/SmartMatrix.svg)
+![star](https://img.shields.io/github/stars/barry-ran/SmartMatrix.svg)
+![star](https://gitcode.com/barry-ran/SmartMatrix/star/badge.svg)
 
 [Speaks English? Click me for English introduction.](README.md)
 
-QtScrcpy 可以通过 USB / 网络连接Android设备，并进行显示和控制。无需root权限。
+SmartMatrix 可以通过 USB / 网络连接Android设备，并进行显示和控制。无需root权限。
 
 同时支持 GNU/Linux ，Windows 和 MacOS 三大主流桌面平台。
 
@@ -87,7 +87,7 @@ QtScrcpy 可以通过 USB / 网络连接Android设备，并进行显示和控制
 
 ## Star历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=barry-ran/QtScrcpy&type=Date)](https://star-history.com/#barry-ran/QtScrcpy&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=barry-ran/SmartMatrix&type=Date)](https://star-history.com/#barry-ran/SmartMatrix&Date)
 
 ![gc](docs/image/group-control.gif)
 
@@ -96,8 +96,8 @@ QtScrcpy 可以通过 USB / 网络连接Android设备，并进行显示和控制
 基于[Genymobile](https://github.com/Genymobile)的[scrcpy](https://github.com/Genymobile/scrcpy)项目进行复刻，重构，非常感谢。
 
 ## 比较
-QtScrcpy 和 Scrcpy 区别如下：
-关键点|scrcpy|QtScrcpy
+SmartMatrix 和 Scrcpy 区别如下：
+关键点|scrcpy|SmartMatrix
 --|:--:|:--:
 界面|sdl|qt
 视频解码|ffmpeg|ffmpeg
@@ -116,11 +116,11 @@ QtScrcpy 和 Scrcpy 区别如下：
 
 ## 学习它
 如果你对它感兴趣，想学习它的实现原理而又感觉无从下手，可以选择购买我录制的视频课程，
-里面详细介绍了整个软件的开发架构以及开发流程，带你从无到有的开发 QtScrcpy：
+里面详细介绍了整个软件的开发架构以及开发流程，带你从无到有的开发 SmartMatrix：
 
 课程介绍：[https://blog.csdn.net/rankun1/article/details/87970523](https://blog.csdn.net/rankun1/article/details/87970523)
 
-或者你也可以加入我的 QtScrcpy QQ 群，和志同道合的朋友一块互相交流技术：
+或者你也可以加入我的 SmartMatrix QQ 群，和志同道合的朋友一块互相交流技术：
 
 QQ群号：901736468
 
@@ -135,8 +135,8 @@ Android 部分至少需要 API 21（Android 5.0）。
 
 ## 下载
 
-[gitee-download]: https://gitee.com/Barryda/QtScrcpy/releases
-[github-download]: https://github.com/barry-ran/QtScrcpy/releases
+[gitee-download]: https://gitee.com/Barryda/SmartMatrix/releases
+[github-download]: https://github.com/barry-ran/SmartMatrix/releases
 
 ### Windows
 
@@ -158,13 +158,13 @@ Mac OS 平台，你可以直接使用我编译好的可执行程序:
 
 ### Linux
 
-对于 Arch Linux 用户，可以使用 AUR 安装：`yay -Syu qtscrcpy`（可能版本并非最新；维护者：[yochananmarqos](https://aur.archlinux.org/account/yochananmarqos)）
+对于 Arch Linux 用户，可以使用 AUR 安装：`yay -Syu SmartMatrix`（可能版本并非最新；维护者：[yochananmarqos](https://aur.archlinux.org/account/yochananmarqos)）
 
 其他发行版的用户可以直接使用我编译好的可执行程序:
 
 - [国外下载][github-download]
 
-你也可以从 [GitHub Actions](https://github.com/UjhhgtgTeams/QtScrcpy/actions/workflows/ubuntu.yml) 获取最新的自动编译好的软件
+你也可以从 [GitHub Actions](https://github.com/UjhhgtgTeams/SmartMatrix/actions/workflows/ubuntu.yml) 获取最新的自动编译好的软件
 
 当然，你也可以[自己编译](##编译)（不推荐，需要准备环境）
 
@@ -269,7 +269,7 @@ Mac OS 平台，你可以直接使用我编译好的可执行程序:
 3. PR 请以少量多次的原则提交（即一个功能点提交一个 PR）
 4. 代码风格请保持和原有风格一致
 
-## 为什么开发 QtScrcpy？
+## 为什么开发 SmartMatrix？
 综合起来有以下几个原因，比重从大到小排列：
 1. 学习Qt的过程中需要一个项目实战一下
 2. 本身具有音视频相关技能，对音视频很感兴趣
@@ -280,18 +280,18 @@ Mac OS 平台，你可以直接使用我编译好的可执行程序:
 ## 编译
 尽量提供了所有依赖资源，方便傻瓜式编译。
 
-### QtScrcpy
+### SmartMatrix
 #### 非  Arch Linux
 1. 使用官方 Qt Installer 或非官方工具（如 [aqt](https://github.com/miurahr/aqtinstall)）在目标平台上搭建Qt开发环境。
 需要 5.12 以上版本 Qt（在 Windows 上使用 MSVC 2019）
-2. 克隆该项目：`git clone --recurse-submodules git@github.com:barry-ran/QtScrcpy.git`
+2. 克隆该项目：`git clone --recurse-submodules git@github.com:barry-ran/SmartMatrix.git`
 3. Windows 使用 QtCreator 打开项目下 CMakeLists.txt 并编译 Release
 4. Linux 用终端执行  `./ci/linux/build_for_linux.sh "Release"`
 注：编译结果位于 `output/x64/Release` 中
 
 #### Arch Linux
 1. 安装以下包：`qt5-base qt5-multimedia qt5-x11extras`（推荐安装 `qtcreator`）
-2. 克隆该项目：`git clone --recurse-submodules git@github.com:barry-ran/QtScrcpy.git`
+2. 克隆该项目：`git clone --recurse-submodules git@github.com:barry-ran/SmartMatrix.git`
 3. 用终端执行  `./ci/linux/build_for_linux.sh "Release"`
 注：编译结果位于 `output/x64/Release` 中
 

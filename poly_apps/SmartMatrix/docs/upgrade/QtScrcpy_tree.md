@@ -1,14 +1,14 @@
-# Directory Tree: QtScrcpy
+﻿# Directory Tree: SmartMatrix
 
-**Path:** `D:\programing\core_node\poly_apps\QtScrcpy`
+**Path:** `D:\programing\core_node\poly_apps\SmartMatrix`
 
 ```
-QtScrcpy/
-├── QtScrcpy/
-│   ├── QtScrcpyCore/
+SmartMatrix/
+├── SmartMatrix/
+│   ├── SmartMatrixCore/
 │   │   ├── include/
-│   │   │   ├── QtScrcpyCore.h
-│   │   │   ├── QtScrcpyCoreDef.h
+│   │   │   ├── SmartMatrixCore.h
+│   │   │   ├── SmartMatrixCoreDef.h
 │   │   │   └── adbprocess.h
 │   │   ├── src/
 │   │   │   ├── adb/
@@ -338,9 +338,9 @@ QtScrcpy/
 │   │   │   │   └── radiobutton_unchecked_disable.png
 │   │   │   └── psblack.css
 │   │   ├── Info_Mac.plist.in
-│   │   ├── QtScrcpy.icns
-│   │   ├── QtScrcpy.ico
-│   │   ├── QtScrcpy.rc
+│   │   ├── SmartMatrix.icns
+│   │   ├── SmartMatrix.ico
+│   │   ├── SmartMatrix.rc
 │   │   └── res.qrc
 │   ├── sndcpy/
 │   │   ├── sndcpy.apk
@@ -461,35 +461,35 @@ QtScrcpy/
 │   │   │   ├── generate.stamp
 │   │   │   ├── generate.stamp.depend
 │   │   │   └── generate.stamp.list
-│   │   ├── QtScrcpy/
+│   │   ├── SmartMatrix/
 │   │   │   ├── CMakeFiles/
-│   │   │   │   ├── QtScrcpy_autogen.dir/
+│   │   │   │   ├── SmartMatrix_autogen.dir/
 │   │   │   │   │   ├── AutoRcc_res_PNK5WDWK6L_Info.json
 │   │   │   │   │   └── AutogenInfo.json
 │   │   │   │   ├── generate.stamp
 │   │   │   │   └── generate.stamp.depend
-│   │   │   ├── QtScrcpyCore/
+│   │   │   ├── SmartMatrixCore/
 │   │   │   │   ├── CMakeFiles/
-│   │   │   │   │   ├── QtScrcpyCore_autogen.dir/
+│   │   │   │   │   ├── SmartMatrixCore_autogen.dir/
 │   │   │   │   │   │   ├── AutogenInfo.json
 │   │   │   │   │   │   ├── AutogenUsed_RelWithDebInfo.txt
 │   │   │   │   │   │   └── ParseCache_RelWithDebInfo.txt
 │   │   │   │   │   ├── generate.stamp
 │   │   │   │   │   └── generate.stamp.depend
-│   │   │   │   ├── QtScrcpyCore.dir/
+│   │   │   │   ├── SmartMatrixCore.dir/
 │   │   │   │   │   └── RelWithDebInfo/
-│   │   │   │   │       └── QtScrcpyCore.tlog/
+│   │   │   │   │       └── SmartMatrixCore.tlog/
 │   │   │   │   │           ├── CL.command.1.tlog
 │   │   │   │   │           ├── CustomBuild.command.1.tlog
 │   │   │   │   │           ├── CustomBuild.read.1.tlog
 │   │   │   │   │           ├── CustomBuild.write.1.tlog
-│   │   │   │   │           ├── QtScrcpyCore.lastbuildstate
+│   │   │   │   │           ├── SmartMatrixCore.lastbuildstate
 │   │   │   │   │           └── unsuccessfulbuild
-│   │   │   │   ├── QtScrcpyCore_autogen/
+│   │   │   │   ├── SmartMatrixCore_autogen/
 │   │   │   │   │   ├── include_RelWithDebInfo/
 │   │   │   │   │   │   ├── 6YEA5652QU/
-│   │   │   │   │   │   │   ├── moc_QtScrcpyCore.cpp
-│   │   │   │   │   │   │   ├── moc_QtScrcpyCore.cpp.d
+│   │   │   │   │   │   │   ├── moc_SmartMatrixCore.cpp
+│   │   │   │   │   │   │   ├── moc_SmartMatrixCore.cpp.d
 │   │   │   │   │   │   │   ├── moc_adbprocess.cpp
 │   │   │   │   │   │   │   └── moc_adbprocess.cpp.d
 │   │   │   │   │   │   ├── B4U5HBF4HE/
@@ -543,14 +543,14 @@ QtScrcpy/
 │   │   │   │   │   │       ├── moc_demuxer.cpp
 │   │   │   │   │   │       └── moc_demuxer.cpp.d
 │   │   │   │   │   └── mocs_compilation_RelWithDebInfo.cpp
-│   │   │   │   ├── QtScrcpyCore.vcxproj
-│   │   │   │   ├── QtScrcpyCore.vcxproj.filters
+│   │   │   │   ├── SmartMatrixCore.vcxproj
+│   │   │   │   ├── SmartMatrixCore.vcxproj.filters
 │   │   │   │   └── cmake_install.cmake
 │   │   │   ├── ALL_BUILD.vcxproj
 │   │   │   ├── ALL_BUILD.vcxproj.filters
-│   │   │   ├── QtScrcpy.sln
-│   │   │   ├── QtScrcpy.vcxproj
-│   │   │   ├── QtScrcpy.vcxproj.filters
+│   │   │   ├── SmartMatrix.sln
+│   │   │   ├── SmartMatrix.vcxproj
+│   │   │   ├── SmartMatrix.vcxproj.filters
 │   │   │   └── cmake_install.cmake
 │   │   ├── x64/
 │   │   │   └── RelWithDebInfo/
@@ -625,7 +625,7 @@ QtScrcpy/
 ├── output/
 │   └── x64/
 │       └── RelWithDebInfo/
-│           └── QtScrcpyCore.pdb
+│           └── SmartMatrixCore.pdb
 ├── screenshot/
 ├── .gitignore
 ├── README.md

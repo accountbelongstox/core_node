@@ -1,4 +1,4 @@
-// #include <QDesktopWidget>
+﻿// #include <QDesktopWidget>
 #include <QFileInfo>
 #include <QLabel>
 #include <QMessageBox>
@@ -801,7 +801,7 @@ void VideoForm::dropEvent(QDropEvent *event)
         QFileInfo fileInfo(file);
 
         if (!fileInfo.exists()) {
-            QMessageBox::warning(this, "QtScrcpy", tr("file does not exist"), QMessageBox::Ok);
+            QMessageBox::warning(this, "SmartMatrix", tr("file does not exist"), QMessageBox::Ok);
             continue;
         }
 

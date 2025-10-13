@@ -80,16 +80,19 @@ public:
     Q_PROPERTY(QList<DeviceInfo> devices MEMBER m_devices)
     Q_PROPERTY(bool isSelected MEMBER m_isSelected)
     Q_PROPERTY(bool isExpanded MEMBER m_isExpanded)
+    Q_PROPERTY(QColor color MEMBER m_color)
     Q_PROPERTY(int deviceCount READ getDeviceCount)
     Q_PROPERTY(int connectedCount READ getConnectedCount)
-    
+
     QString m_name;
     QList<DeviceInfo> m_devices;
     bool m_isSelected = false;
     bool m_isExpanded = true;
+    QColor m_color = QColor(100, 149, 237); // Default: Cornflower blue
     
     DeviceGroup() = default;
-    DeviceGroup(const QString &name) : m_name(name) {}
+    DeviceGroup(const QString &name) : m_name(name), m_color(QColor(100, 149, 237)) {}
+    DeviceGroup(const QString &name, const QColor &color) : m_name(name), m_color(color) {}
     
     // Get device count
     int getDeviceCount() const { return m_devices.size(); }
@@ -149,14 +152,18 @@ public:
     int selectedGroupCount() const;
     int totalDeviceCount() const;
     int connectedDeviceCount() const;
+    int selectedDeviceCount() const;
     QString configPath() const;
     void setConfigPath(const QString &path);
 
     // Device group operations
     void addDeviceGroup(const QString &groupName);
+    void addDeviceGroup(const QString &groupName, const QColor &color);
     void removeDeviceGroup(const QString &groupName);
     void renameDeviceGroup(const QString &oldName, const QString &newName);
+    void setGroupColor(const QString &groupName, const QColor &color);
     bool hasDeviceGroup(const QString &groupName) const;
+    QColor getGroupColor(const QString &groupName) const;
 
     // Device operations
     void addDevice(const QString &serial, const QString &name, const QString &groupName = "Unassigned Devices");
@@ -240,6 +247,10 @@ private:
     static const int AUTO_SAVE_INTERVAL_MS = 5000; // 5 seconds auto save
     static const QString DEFAULT_GROUP_NAME;
     static const QString DEFAULT_CONFIG_FILE;
+
+    // Predefined group colors
+    static QColor getNextGroupColor(int index);
+    static const QList<QColor> GROUP_COLORS;
 };
 
 #endif // MODERNDEVICEGROUPMANAGER_H

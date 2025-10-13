@@ -1,7 +1,7 @@
-# QtScrcpy Automation & Control Capabilities Analysis
+﻿# SmartMatrix Automation & Control Capabilities Analysis
 
 **Analysis Date**: 2025-10-10
-**Project**: QtScrcpy - Android Control & Automation Features
+**Project**: SmartMatrix - Android Control & Automation Features
 
 ---
 
@@ -9,7 +9,7 @@
 
 ### ⚠️ 重要发现
 
-**QtScrcpy 不仅仅是投屏软件！**
+**SmartMatrix 不仅仅是投屏软件！**
 
 它包含了丰富的手机控制和半自动化功能，但**不是完整的自动化测试框架**。
 
@@ -31,7 +31,7 @@
 
 ### 1.1 核心控制能力
 
-QtScrcpy 提供了**三层控制架构**：
+SmartMatrix 提供了**三层控制架构**：
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -65,7 +65,7 @@ QtScrcpy 提供了**三层控制架构**：
 
 ### 1.2 GroupController - 批量控制模块
 
-**位置**: `QtScrcpy/groupcontroller/groupcontroller.h`
+**位置**: `SmartMatrix/groupcontroller/groupcontroller.h`
 
 **功能**: 将控制指令**同步广播**到多台设备
 
@@ -101,7 +101,7 @@ class GroupController : public QObject, public qsc::DeviceObserver
 
 ### 2.1 功能概述
 
-**这是 QtScrcpy 最接近"自动化"的功能！**
+**这是 SmartMatrix 最接近"自动化"的功能！**
 
 可以通过 **JSON 脚本**定义复杂的按键映射规则。
 
@@ -206,7 +206,7 @@ class GroupController : public QObject, public qsc::DeviceObserver
 
 ### 3.1 功能描述
 
-**位置**: `QtScrcpy/ui/dialog.cpp`
+**位置**: `SmartMatrix/ui/dialog.cpp`
 
 可以通过界面执行**自定义 ADB 命令**。
 
@@ -263,7 +263,7 @@ adb shell screenrecord /sdcard/demo.mp4
 
 ### 4.1 与专业自动化工具对比
 
-| 功能 | Appium | UIAutomator | QtScrcpy |
+| 功能 | Appium | UIAutomator | SmartMatrix |
 |------|--------|-------------|----------|
 | **UI 元素定位** | ✅ XPath/ID | ✅ Selector | ❌ 无 |
 | **条件判断** | ✅ if-else | ✅ if-else | ❌ 无 |
@@ -279,7 +279,7 @@ adb shell screenrecord /sdcard/demo.mp4
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│           QtScrcpy 的定位                            │
+│           SmartMatrix 的定位                            │
 └─────────────────────────────────────────────────────┘
 
 ✅ 适合场景:
@@ -303,7 +303,7 @@ adb shell screenrecord /sdcard/demo.mp4
 
 ### 5.1 现有可扩展点
 
-虽然 QtScrcpy 本身不是自动化框架，但可以作为**底层控制引擎**配合其他工具：
+虽然 SmartMatrix 本身不是自动化框架，但可以作为**底层控制引擎**配合其他工具：
 
 #### 方案 A: Python + ADB 脚本
 ```python
@@ -311,7 +311,7 @@ import subprocess
 import time
 
 def auto_tiktok():
-    # 使用 QtScrcpy 投屏显示
+    # 使用 SmartMatrix 投屏显示
     # 使用 Python 脚本通过 ADB 控制
 
     for i in range(10):
@@ -336,7 +336,7 @@ def auto_tiktok():
 
 #### 方案 B: 配合 Appium
 ```python
-# 使用 QtScrcpy 观察屏幕
+# 使用 SmartMatrix 观察屏幕
 # 使用 Appium 执行自动化
 
 from appium import webdriver
@@ -360,7 +360,7 @@ import cv2
 import numpy as np
 import subprocess
 
-# 使用 QtScrcpy 获取屏幕截图
+# 使用 SmartMatrix 获取屏幕截图
 subprocess.run(["adb", "shell", "screencap", "/sdcard/screen.png"])
 subprocess.run(["adb", "pull", "/sdcard/screen.png"])
 
@@ -378,7 +378,7 @@ if len(loc[0]) > 0:
 
 ### 5.2 二次开发可能性
 
-QtScrcpy 的架构允许扩展：
+SmartMatrix 的架构允许扩展：
 
 ```cpp
 // 可以扩展的模块
@@ -472,7 +472,7 @@ public:
 ### 7.1 核心结论
 
 ```
-QtScrcpy 定位:
+SmartMatrix 定位:
 ╔═══════════════════════════════════════════════════╗
 ║  投屏显示 + 实时控制 + 脚本化按键映射             ║
 ║  (Screen Mirroring + Control + Keymap Scripting)  ║
@@ -502,7 +502,7 @@ NOT:
 
 **1. 游戏控制 / 手动测试**
 ```
-✅ 使用 QtScrcpy
+✅ 使用 SmartMatrix
 - 低延迟投屏
 - 自定义按键映射
 - 实时操作反馈
@@ -510,14 +510,14 @@ NOT:
 
 **2. 自动化测试 / UI 测试**
 ```
-❌ 不推荐 QtScrcpy
+❌ 不推荐 SmartMatrix
 ✅ 推荐组合:
-   QtScrcpy (观察屏幕) + Appium/UIAutomator (自动化)
+   SmartMatrix (观察屏幕) + Appium/UIAutomator (自动化)
 ```
 
 **3. 批量设备管理**
 ```
-✅ 使用 QtScrcpy GroupController
+✅ 使用 SmartMatrix GroupController
 - 批量安装 APK
 - 批量推送文件
 - 同步操作
@@ -528,7 +528,7 @@ NOT:
 **4. 复杂自动化流程**
 ```
 ✅ 推荐自行扩展:
-   QtScrcpy (底层控制) + Python脚本 + OpenCV
+   SmartMatrix (底层控制) + Python脚本 + OpenCV
 ```
 
 ### 7.4 未来改进方向
@@ -561,9 +561,9 @@ NOT:
 
 ## 8. 参考资料
 
-- **QtScrcpy 源码**: https://github.com/barry-ran/QtScrcpy
+- **SmartMatrix 源码**: https://github.com/barry-ran/SmartMatrix
 - **按键映射文档**: `docs/KeyMapDes_zh.md`
-- **批量控制**: `QtScrcpy/groupcontroller/`
+- **批量控制**: `SmartMatrix/groupcontroller/`
 - **ADB 文档**: https://developer.android.com/studio/command-line/adb
 
 ---
@@ -576,4 +576,4 @@ NOT:
 
 ## License
 
-Same as QtScrcpy - Apache License 2.0
+Same as SmartMatrix - Apache License 2.0

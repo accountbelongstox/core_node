@@ -86,7 +86,8 @@ void ToolForm::updateGroupControl()
 void ToolForm::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
-        m_dragPosition = event->globalPos() - frameGeometry().topLeft();
+        // Qt 6: globalPos() deprecated, use globalPosition() instead
+        m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
         event->accept();
     }
 }

@@ -56,7 +56,10 @@ int main(int argc, char *argv[])
         QApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
     }
 
+    // Qt 6.0+ enables High DPI scaling by default, no need to set explicitly
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
 
     QSurfaceFormat varFormat = QSurfaceFormat::defaultFormat();
     varFormat.setVersion(2, 0);
@@ -130,6 +133,8 @@ void installTranslator()
         languagePath += "QtScrcpy_en.qm";
     }
 
-    translator.load(languagePath);
+    if (!translator.load(languagePath)) {
+        qWarning() << "Failed to load translation:" << languagePath;
+    }
     qApp->installTranslator(&translator);
 }

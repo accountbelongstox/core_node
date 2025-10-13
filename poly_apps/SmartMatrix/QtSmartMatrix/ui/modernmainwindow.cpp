@@ -1,286 +1,663 @@
-#include "modernmainwindow.h"
+﻿#include "modernmainwindow.h"
 #include <QApplication>
-#include <QCloseEvent>
-#include <QKeyEvent>
-#include <QResizeEvent>
-#include <QMessageBox>
-#include <QSettings>
-#include <QDebug>
+#include <QScreen>
+#include <QDir>
+#include <QStandardPaths>
+#include <QFileDialog>
 #include <QInputDialog>
-#include <QLineEdit>
+#include <QColorDialog>
+#include <QMessageBox>
+#include <QDebug>
 
-// Static constants are defined in the header file
+// 测试数据函数声明
+void addTestData(ModernDeviceGroupManager *manager);
 
 ModernMainWindow::ModernMainWindow(QWidget *parent)
     : QMainWindow(parent)
-    , m_deviceGroupManager(new ModernDeviceGroupManager(this))
-    , m_gridLayoutManager(nullptr)
-    , m_deviceTreeWidget(nullptr)
+    , m_centralWidget(nullptr)
     , m_mainSplitter(nullptr)
-    , m_leftPanel(nullptr)
+    , m_centralLayout(nullptr)
+    , m_deviceTreeWidget(nullptr)
     , m_rightPanel(nullptr)
-    , m_gridContainer(nullptr)
+    , m_deviceGroupManager(nullptr)
     , m_menuBar(nullptr)
     , m_toolBar(nullptr)
     , m_statusBar(nullptr)
-    , m_statusUpdateTimer(new QTimer(this))
+    , m_fileMenu(nullptr)
+    , m_editMenu(nullptr)
+    , m_viewMenu(nullptr)
+    , m_toolsMenu(nullptr)
+    , m_helpMenu(nullptr)
+    , m_trayMenu(nullptr)
+    , m_newGroupAction(nullptr)
+    , m_deleteGroupAction(nullptr)
+    , m_groupSettingsAction(nullptr)
+    , m_deviceSettingsAction(nullptr)
+    , m_globalSettingsAction(nullptr)
+    , m_aboutAction(nullptr)
+    , m_exitAction(nullptr)
+    , m_minimizeToTrayAction(nullptr)
+    , m_showWindowAction(nullptr)
+    , m_quitApplicationAction(nullptr)
+    , m_statusLabel(nullptr)
+    , m_deviceCountLabel(nullptr)
+    , m_connectionStatusLabel(nullptr)
+    , m_operationProgressBar(nullptr)
+    , m_trayIcon(nullptr)
+    , m_settings(nullptr)
+    , m_minimizeToTray(true)
+    , m_startMinimized(false)
+    , m_showNotifications(true)
+    , m_autoConnect(false)
+    , m_connectionTimeout(30)
+    , m_quality(80)
+    , m_resolution("1080p")
+    , m_statusUpdateTimer(nullptr)
 {
+    // 初始化设置
+    m_settings = new QSettings("SmartMatrix", "ModernUI", this);
+    loadSettings();
+
+    // 设置窗口属性
+    setWindowTitle("SmartMatrix - Modern Device Manager");
+    setMinimumSize(1000, 700);
+    resize(1200, 800);
+
+    // 创建UI
     setupUI();
+    createMenuBar();
+    createToolBar();
+    createStatusBar();
+    createSystemTray();
     setupConnections();
-    setupShortcuts();
+    applyModernStyle();
 
-    // Connect to device manager for real device events
-    connect(&qsc::IDeviceManage::getInstance(), &qsc::IDeviceManage::deviceConnected,
-            this, &ModernMainWindow::onRealDeviceConnected);
-    connect(&qsc::IDeviceManage::getInstance(), &qsc::IDeviceManage::deviceDisconnected,
-            this, &ModernMainWindow::onRealDeviceDisconnected);
-
-    // Start status update timer
-    m_statusUpdateTimer->setInterval(STATUS_UPDATE_INTERVAL_MS);
-    m_statusUpdateTimer->setSingleShot(false);
+    // 启动状态更新定时器
+    m_statusUpdateTimer = new QTimer(this);
     connect(m_statusUpdateTimer, &QTimer::timeout, this, &ModernMainWindow::updateStatusBar);
-    m_statusUpdateTimer->start();
+    m_statusUpdateTimer->start(1000); // 每秒更新一次
 
-    // Restore window state
-    restoreWindowState();
-
-    // Update initial status
+    // 初始状态更新
     updateStatusBar();
     updateWindowTitle();
 
-    // Show welcome message
-    qInfo() << "Modern UI initialized successfully";
-    qInfo() << "Ready to manage devices with group control";
-}
-
-ModernMainWindow::~ModernMainWindow()
-{
-    saveWindowState();
-}
-
-void ModernMainWindow::setGroupMode(bool enabled)
-{
-    if (m_isGroupMode != enabled) {
-        m_isGroupMode = enabled;
-        emit groupModeChanged();
-        emit groupModeToggled(enabled);
-        
-        // Update UI based on group mode
-        updateMenuStates();
-        updateToolBarStates();
-        updateStatusBar();
-    }
-}
-
-int ModernMainWindow::connectedDeviceCount() const
-{
-    return m_deviceGroupManager ? m_deviceGroupManager->connectedDeviceCount() : 0;
-}
-
-int ModernMainWindow::totalDeviceCount() const
-{
-    return m_deviceGroupManager ? m_deviceGroupManager->totalDeviceCount() : 0;
-}
-
-void ModernMainWindow::addDevice(const QString &serial, const QString &name, const QString &groupName)
-{
-    if (m_deviceGroupManager) {
-        m_deviceGroupManager->addDevice(serial, name, groupName);
-    }
-}
-
-void ModernMainWindow::removeDevice(const QString &serial)
-{
-    if (m_deviceGroupManager) {
-        m_deviceGroupManager->removeDevice(serial);
-    }
-}
-
-void ModernMainWindow::updateDeviceStatus(const QString &serial, DeviceStatus status)
-{
-    if (m_deviceGroupManager) {
-        m_deviceGroupManager->updateDeviceStatus(serial, status);
-    }
-}
-
-void ModernMainWindow::refreshDevices()
-{
-    if (m_deviceGroupManager) {
-        m_deviceGroupManager->loadDeviceGroups();
-    }
-    
-    updateDeviceGrid();
-    updateDeviceTree();
-}
-
-void ModernMainWindow::setSplitterSizes(const QList<int> &sizes)
-{
-    if (m_mainSplitter) {
-        m_mainSplitter->setSizes(sizes);
-    }
-}
-
-void ModernMainWindow::setTreeWidgetWidth(int width)
-{
-    if (m_mainSplitter) {
-        QList<int> sizes = m_mainSplitter->sizes();
-        if (sizes.size() >= 2) {
-            sizes[0] = width;
-            m_mainSplitter->setSizes(sizes);
+    // 如果设置了启动时最小化，则最小化到托盘
+    if (m_startMinimized) {
+        hide();
+        if (m_trayIcon) {
+            m_trayIcon->show();
         }
     }
 }
 
-void ModernMainWindow::setGridLayoutColumns(int columns)
+ModernMainWindow::~ModernMainWindow()
 {
-    if (m_gridLayoutManager) {
-        m_gridLayoutManager->setColumnCount(columns);
-    }
-}
-
-void ModernMainWindow::setAutoAdjustColumns(bool enabled)
-{
-    if (m_gridLayoutManager) {
-        m_gridLayoutManager->setAutoAdjustColumns(enabled);
-    }
+    saveSettings();
 }
 
 void ModernMainWindow::closeEvent(QCloseEvent *event)
 {
-    saveWindowState();
-    event->accept();
+    if (m_minimizeToTray && m_trayIcon && m_trayIcon->isVisible()) {
+        hide();
+        if (m_showNotifications) {
+            m_trayIcon->showMessage("SmartMatrix", "Application minimized to tray", 
+                                  QSystemTrayIcon::Information, 2000);
+        }
+        event->ignore();
+    } else {
+        event->accept();
+    }
+}
+
+void ModernMainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    updateStatusBar();
+}
+
+void ModernMainWindow::hideEvent(QHideEvent *event)
+{
+    QMainWindow::hideEvent(event);
 }
 
 void ModernMainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
-    
-    // Update grid layout when window is resized
-    if (m_gridLayoutManager) {
-        m_gridLayoutManager->refreshLayout();
-    }
+    saveSettings();
 }
 
-void ModernMainWindow::keyPressEvent(QKeyEvent *event)
+void ModernMainWindow::moveEvent(QMoveEvent *event)
 {
-    // Handle global shortcuts
-    if (event->modifiers() & Qt::ControlModifier) {
-        switch (event->key()) {
-        case Qt::Key_N:
-            onNewGroup();
-            return;
-        case Qt::Key_R:
-            onRefreshDevices();
-            return;
-        case Qt::Key_A:
-            onSelectAllDevices();
-            return;
-        case Qt::Key_D:
-            onDeselectAllDevices();
-            return;
-        case Qt::Key_G:
-            onToggleGroupMode();
-            return;
-        }
-    }
-    
-    QMainWindow::keyPressEvent(event);
+    QMainWindow::moveEvent(event);
+    saveSettings();
 }
 
+void ModernMainWindow::setupUI()
+{
+    // 创建中央部件
+    m_centralWidget = new QWidget(this);
+    setCentralWidget(m_centralWidget);
+
+    // 创建主布局
+    m_centralLayout = new QHBoxLayout(m_centralWidget);
+    m_centralLayout->setContentsMargins(0, 0, 0, 0);
+    m_centralLayout->setSpacing(0);
+
+    // 创建分割器
+    m_mainSplitter = new QSplitter(Qt::Horizontal, this);
+    m_centralLayout->addWidget(m_mainSplitter);
+
+    // 创建设备组管理器
+    m_deviceGroupManager = new ModernDeviceGroupManager(this);
+    
+    // 添加测试数据
+    addTestData(m_deviceGroupManager);
+
+    // 创建设备树部件
+    m_deviceTreeWidget = new ModernDeviceTreeWidget(this);
+    m_deviceTreeWidget->setDeviceGroupManager(m_deviceGroupManager);
+    m_deviceTreeWidget->setCheckboxEnabled(true);
+    m_deviceTreeWidget->setShowRootGroup(true);
+    m_deviceTreeWidget->setShowGroupColorIndicator(true);
+    m_mainSplitter->addWidget(m_deviceTreeWidget);
+
+    // 创建右侧面板
+    m_rightPanel = new ModernRightPanel(this);
+    m_rightPanel->setDeviceGroupManager(m_deviceGroupManager);
+    m_mainSplitter->addWidget(m_rightPanel);
+
+    // 设置分割器比例 (左侧60%, 右侧40%)
+    m_mainSplitter->setSizes({600, 400});
+    m_mainSplitter->setStretchFactor(0, 3);
+    m_mainSplitter->setStretchFactor(1, 2);
+}
+
+void ModernMainWindow::createMenuBar()
+{
+    m_menuBar = menuBar();
+
+    // 文件菜单
+    m_fileMenu = m_menuBar->addMenu("&File");
+    
+    m_newGroupAction = new QAction("&New Group", this);
+    m_newGroupAction->setShortcut(QKeySequence::New);
+    m_newGroupAction->setStatusTip("Create a new device group");
+    m_fileMenu->addAction(m_newGroupAction);
+
+    m_fileMenu->addSeparator();
+
+    m_exitAction = new QAction("E&xit", this);
+    m_exitAction->setShortcut(QKeySequence::Quit);
+    m_exitAction->setStatusTip("Exit the application");
+    m_fileMenu->addAction(m_exitAction);
+
+    // 编辑菜单
+    m_editMenu = m_menuBar->addMenu("&Edit");
+    
+    m_deleteGroupAction = new QAction("&Delete Group", this);
+    m_deleteGroupAction->setShortcut(QKeySequence::Delete);
+    m_deleteGroupAction->setStatusTip("Delete selected group");
+    m_editMenu->addAction(m_deleteGroupAction);
+
+    // 视图菜单
+    m_viewMenu = m_menuBar->addMenu("&View");
+    
+    QAction *toggleTreeAction = new QAction("Toggle &Device Tree", this);
+    toggleTreeAction->setCheckable(true);
+    toggleTreeAction->setChecked(true);
+    toggleTreeAction->setShortcut(QKeySequence("Ctrl+T"));
+    m_viewMenu->addAction(toggleTreeAction);
+
+    QAction *togglePanelAction = new QAction("Toggle &Right Panel", this);
+    togglePanelAction->setCheckable(true);
+    togglePanelAction->setChecked(true);
+    togglePanelAction->setShortcut(QKeySequence("Ctrl+P"));
+    m_viewMenu->addAction(togglePanelAction);
+
+    // 工具菜单
+    m_toolsMenu = m_menuBar->addMenu("&Tools");
+    
+    m_globalSettingsAction = new QAction("&Global Settings", this);
+    m_globalSettingsAction->setShortcut(QKeySequence::Preferences);
+    m_globalSettingsAction->setStatusTip("Open global settings");
+    m_toolsMenu->addAction(m_globalSettingsAction);
+
+    m_toolsMenu->addSeparator();
+
+    m_groupSettingsAction = new QAction("&Group Settings", this);
+    m_groupSettingsAction->setStatusTip("Open group settings");
+    m_toolsMenu->addAction(m_groupSettingsAction);
+
+    m_deviceSettingsAction = new QAction("&Device Settings", this);
+    m_deviceSettingsAction->setStatusTip("Open device settings");
+    m_toolsMenu->addAction(m_deviceSettingsAction);
+
+    // 帮助菜单
+    m_helpMenu = m_menuBar->addMenu("&Help");
+    
+    m_aboutAction = new QAction("&About", this);
+    m_aboutAction->setStatusTip("About SmartMatrix");
+    m_helpMenu->addAction(m_aboutAction);
+
+    // 连接信号
+    connect(m_newGroupAction, &QAction::triggered, this, &ModernMainWindow::onNewGroup);
+    connect(m_deleteGroupAction, &QAction::triggered, this, &ModernMainWindow::onDeleteGroup);
+    connect(m_groupSettingsAction, &QAction::triggered, this, &ModernMainWindow::onGroupSettings);
+    connect(m_deviceSettingsAction, &QAction::triggered, this, &ModernMainWindow::onDeviceSettings);
+    connect(m_globalSettingsAction, &QAction::triggered, this, &ModernMainWindow::onGlobalSettings);
+    connect(m_aboutAction, &QAction::triggered, this, &ModernMainWindow::onAbout);
+    connect(m_exitAction, &QAction::triggered, this, &ModernMainWindow::onExit);
+
+    connect(toggleTreeAction, &QAction::toggled, this, [this](bool visible) {
+        m_deviceTreeWidget->setVisible(visible);
+    });
+
+    connect(togglePanelAction, &QAction::toggled, this, [this](bool visible) {
+        m_rightPanel->setVisible(visible);
+    });
+}
+
+void ModernMainWindow::createToolBar()
+{
+    m_toolBar = addToolBar("Main Toolbar");
+    m_toolBar->setMovable(false);
+    m_toolBar->setFloatable(false);
+
+    // 添加工具栏动作
+    m_toolBar->addAction(m_newGroupAction);
+    m_toolBar->addAction(m_deleteGroupAction);
+    m_toolBar->addSeparator();
+    m_toolBar->addAction(m_globalSettingsAction);
+}
+
+void ModernMainWindow::createStatusBar()
+{
+    m_statusBar = statusBar();
+
+    // 状态标签
+    m_statusLabel = new QLabel("Ready");
+    m_statusBar->addWidget(m_statusLabel);
+
+    // 设备计数标签
+    m_deviceCountLabel = new QLabel("Devices: 0");
+    m_statusBar->addPermanentWidget(m_deviceCountLabel);
+
+    // 连接状态标签
+    m_connectionStatusLabel = new QLabel("Disconnected");
+    m_statusBar->addPermanentWidget(m_connectionStatusLabel);
+
+    // 进度条
+    m_operationProgressBar = new QProgressBar();
+    m_operationProgressBar->setVisible(false);
+    m_operationProgressBar->setMaximumWidth(200);
+    m_statusBar->addPermanentWidget(m_operationProgressBar);
+}
+
+void ModernMainWindow::createSystemTray()
+{
+    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+        return;
+    }
+
+    m_trayIcon = new QSystemTrayIcon(this);
+    m_trayIcon->setIcon(QIcon(":/icons/smartmatrix.png")); // 需要添加图标资源
+
+    // 创建托盘菜单
+    m_trayMenu = new QMenu(this);
+    
+    m_showWindowAction = new QAction("&Show Window", this);
+    m_trayMenu->addAction(m_showWindowAction);
+
+    m_trayMenu->addSeparator();
+
+    m_minimizeToTrayAction = new QAction("&Minimize to Tray", this);
+    m_minimizeToTrayAction->setCheckable(true);
+    m_minimizeToTrayAction->setChecked(m_minimizeToTray);
+    m_trayMenu->addAction(m_minimizeToTrayAction);
+
+    m_trayMenu->addSeparator();
+
+    m_quitApplicationAction = new QAction("&Quit", this);
+    m_trayMenu->addAction(m_quitApplicationAction);
+
+    m_trayIcon->setContextMenu(m_trayMenu);
+
+    // 连接信号
+    connect(m_trayIcon, &QSystemTrayIcon::activated, this, &ModernMainWindow::onTrayIconActivated);
+    connect(m_showWindowAction, &QAction::triggered, this, &ModernMainWindow::onShowWindow);
+    connect(m_minimizeToTrayAction, &QAction::toggled, this, [this](bool enabled) {
+        m_minimizeToTray = enabled;
+        saveSettings();
+    });
+    connect(m_quitApplicationAction, &QAction::triggered, this, &ModernMainWindow::onQuitApplication);
+
+    m_trayIcon->show();
+}
+
+void ModernMainWindow::setupConnections()
+{
+    // 设备树信号连接
+    connect(m_deviceTreeWidget, &ModernDeviceTreeWidget::selectedDeviceSerialsChanged,
+            this, [this]() {
+                QStringList serials = m_deviceTreeWidget->selectedDeviceSerials();
+                onDeviceSelectionChanged(serials);
+            });
+    connect(m_deviceTreeWidget, &ModernDeviceTreeWidget::selectedGroupNameChanged,
+            this, [this]() {
+                QString groupName = m_deviceTreeWidget->selectedGroupName();
+                onGroupSelectionChanged(groupName);
+            });
+    connect(m_deviceTreeWidget, &ModernDeviceTreeWidget::deviceDoubleClicked,
+            this, &ModernMainWindow::onDeviceDoubleClicked);
+    connect(m_deviceTreeWidget, &ModernDeviceTreeWidget::deviceGroupDoubleClicked,
+            this, &ModernMainWindow::onGroupDoubleClicked);
+
+    // 右侧面板信号连接
+    connect(m_rightPanel, &ModernRightPanel::deviceOperationRequested,
+            this, &ModernMainWindow::onDeviceOperationRequested);
+    connect(m_rightPanel, &ModernRightPanel::groupOperationRequested,
+            this, &ModernMainWindow::onGroupOperationRequested);
+    connect(m_rightPanel, &ModernRightPanel::globalOperationRequested,
+            this, &ModernMainWindow::onGlobalOperationRequested);
+    connect(m_rightPanel, &ModernRightPanel::settingsChanged,
+            this, &ModernMainWindow::onSettingsChanged);
+
+    // 设备管理器信号连接
+    connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceStatusChanged,
+            this, &ModernMainWindow::onDeviceStatusChanged);
+    connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceNameChanged,
+            this, &ModernMainWindow::onDeviceNameChanged);
+    connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceGroupAdded,
+            this, &ModernMainWindow::onDeviceGroupAdded);
+    connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceGroupRemoved,
+            this, &ModernMainWindow::onDeviceGroupRemoved);
+}
+
+void ModernMainWindow::loadSettings()
+{
+    m_settings->beginGroup("Window");
+    restoreGeometry(m_settings->value("geometry").toByteArray());
+    restoreState(m_settings->value("windowState").toByteArray());
+    m_settings->endGroup();
+
+    m_settings->beginGroup("Preferences");
+    m_minimizeToTray = m_settings->value("minimizeToTray", true).toBool();
+    m_startMinimized = m_settings->value("startMinimized", false).toBool();
+    m_showNotifications = m_settings->value("showNotifications", true).toBool();
+    m_autoConnect = m_settings->value("autoConnect", false).toBool();
+    m_connectionTimeout = m_settings->value("connectionTimeout", 30).toInt();
+    m_quality = m_settings->value("quality", 80).toInt();
+    m_resolution = m_settings->value("resolution", "1080p").toString();
+    m_settings->endGroup();
+}
+
+void ModernMainWindow::saveSettings()
+{
+    m_settings->beginGroup("Window");
+    m_settings->setValue("geometry", saveGeometry());
+    m_settings->setValue("windowState", saveState());
+    m_settings->endGroup();
+
+    m_settings->beginGroup("Preferences");
+    m_settings->setValue("minimizeToTray", m_minimizeToTray);
+    m_settings->setValue("startMinimized", m_startMinimized);
+    m_settings->setValue("showNotifications", m_showNotifications);
+    m_settings->setValue("autoConnect", m_autoConnect);
+    m_settings->setValue("connectionTimeout", m_connectionTimeout);
+    m_settings->setValue("quality", m_quality);
+    m_settings->setValue("resolution", m_resolution);
+    m_settings->endGroup();
+}
+
+void ModernMainWindow::applyModernStyle()
+{
+    setStyleSheet(R"(
+        QMainWindow {
+            background-color: #2b2b2b;
+            color: #ffffff;
+        }
+        
+        QMenuBar {
+            background-color: #353535;
+            color: #ffffff;
+            border-bottom: 1px solid #555555;
+        }
+        
+        QMenuBar::item {
+            background-color: transparent;
+            padding: 4px 8px;
+        }
+        
+        QMenuBar::item:selected {
+            background-color: #404040;
+        }
+        
+        QMenu {
+            background-color: #353535;
+            color: #ffffff;
+            border: 1px solid #555555;
+        }
+        
+        QMenu::item {
+            padding: 6px 20px;
+        }
+        
+        QMenu::item:selected {
+            background-color: #404040;
+        }
+        
+        QToolBar {
+            background-color: #353535;
+            border: none;
+            spacing: 3px;
+        }
+        
+        QToolBar QToolButton {
+            background-color: transparent;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            padding: 6px 12px;
+        }
+        
+        QToolBar QToolButton:hover {
+            background-color: #404040;
+            border-color: #555555;
+        }
+        
+        QToolBar QToolButton:pressed {
+            background-color: #353535;
+        }
+        
+        QStatusBar {
+            background-color: #353535;
+            color: #ffffff;
+            border-top: 1px solid #555555;
+        }
+        
+        QSplitter::handle {
+            background-color: #555555;
+        }
+        
+        QSplitter::handle:horizontal {
+            width: 2px;
+        }
+        
+        QSplitter::handle:vertical {
+            height: 2px;
+        }
+    )");
+}
+
+// 槽函数实现
 void ModernMainWindow::onNewGroup()
 {
-    if (m_deviceTreeWidget) {
-        // Trigger create group action in tree widget
-        m_deviceTreeWidget->triggerCreateGroup();
+    bool ok;
+    QString groupName = QInputDialog::getText(this, "New Group", "Enter group name:", 
+                                            QLineEdit::Normal, "", &ok);
+    if (ok && !groupName.isEmpty()) {
+        m_deviceGroupManager->addDeviceGroup(groupName);
+        m_statusLabel->setText(QString("Created group: %1").arg(groupName));
     }
 }
 
 void ModernMainWindow::onDeleteGroup()
 {
-    if (m_deviceTreeWidget) {
-        // Trigger delete group action in tree widget
-        m_deviceTreeWidget->triggerDeleteGroup();
+    QString selectedGroup = m_rightPanel->selectedGroupName();
+    if (selectedGroup.isEmpty()) {
+        QMessageBox::information(this, "Delete Group", "Please select a group to delete.");
+        return;
+    }
+
+    int ret = QMessageBox::question(this, "Delete Group", 
+                                  QString("Are you sure you want to delete group '%1'?").arg(selectedGroup),
+                                  QMessageBox::Yes | QMessageBox::No);
+    if (ret == QMessageBox::Yes) {
+        m_deviceGroupManager->removeDeviceGroup(selectedGroup);
+        m_statusLabel->setText(QString("Deleted group: %1").arg(selectedGroup));
     }
 }
 
-void ModernMainWindow::onRenameGroup()
+void ModernMainWindow::onGroupSettings()
 {
-    if (m_deviceTreeWidget) {
-        // Trigger rename group action in tree widget
-        m_deviceTreeWidget->triggerRenameGroup();
+    QString selectedGroup = m_rightPanel->selectedGroupName();
+    if (selectedGroup.isEmpty()) {
+        QMessageBox::information(this, "Group Settings", "Please select a group to configure.");
+        return;
+    }
+
+    // 这里可以打开组设置对话框
+    QMessageBox::information(this, "Group Settings", 
+                           QString("Group settings for: %1").arg(selectedGroup));
+}
+
+void ModernMainWindow::onDeviceSettings()
+{
+    QStringList selectedDevices = m_rightPanel->selectedDeviceSerials();
+    if (selectedDevices.isEmpty()) {
+        QMessageBox::information(this, "Device Settings", "Please select devices to configure.");
+        return;
+    }
+
+    // 这里可以打开设备设置对话框
+    QMessageBox::information(this, "Device Settings", 
+                           QString("Device settings for %1 device(s)").arg(selectedDevices.size()));
+}
+
+void ModernMainWindow::onGlobalSettings()
+{
+    // 这里可以打开全局设置对话框
+    QMessageBox::information(this, "Global Settings", "Global settings dialog");
+}
+
+void ModernMainWindow::onAbout()
+{
+    QMessageBox::about(this, "About SmartMatrix", 
+                      "SmartMatrix Modern Device Manager\n\n"
+                      "Version 2.0\n"
+                      "A modern Qt-based device management application.");
+}
+
+void ModernMainWindow::onExit()
+{
+    close();
+}
+
+void ModernMainWindow::onMinimizeToTray()
+{
+    hide();
+    if (m_trayIcon) {
+        m_trayIcon->show();
     }
 }
 
-void ModernMainWindow::onRefreshDevices()
+void ModernMainWindow::onShowWindow()
 {
-    refreshDevices();
+    show();
+    raise();
+    activateWindow();
 }
 
-void ModernMainWindow::onSelectAllDevices()
+void ModernMainWindow::onQuitApplication()
 {
-    if (m_deviceGroupManager) {
-        m_deviceGroupManager->selectAllDevices();
+    QApplication::quit();
+}
+
+void ModernMainWindow::onDeviceSelectionChanged(const QStringList &serials)
+{
+    m_rightPanel->onDeviceSelectionChanged(serials);
+    updateStatusBar();
+}
+
+void ModernMainWindow::onGroupSelectionChanged(const QString &groupName)
+{
+    m_rightPanel->onGroupSelectionChanged(groupName);
+    updateStatusBar();
+}
+
+void ModernMainWindow::onDeviceDoubleClicked(const QString &serial)
+{
+    // 双击设备时的处理
+    m_statusLabel->setText(QString("Double-clicked device: %1").arg(serial));
+}
+
+void ModernMainWindow::onGroupDoubleClicked(const QString &groupName)
+{
+    // 双击组时的处理
+    m_statusLabel->setText(QString("Double-clicked group: %1").arg(groupName));
+}
+
+void ModernMainWindow::onDeviceOperationRequested(const QString &operation, const QStringList &serials)
+{
+    m_statusLabel->setText(QString("Device operation: %1 on %2 device(s)").arg(operation).arg(serials.size()));
+    
+    // 这里实现具体的设备操作
+    if (operation == "connect_device") {
+        // 连接设备
+    } else if (operation == "disconnect_device") {
+        // 断开设备
+    } else if (operation == "device_settings") {
+        onDeviceSettings();
+    } else if (operation == "remove_device") {
+        // 移除设备
     }
 }
 
-void ModernMainWindow::onDeselectAllDevices()
+void ModernMainWindow::onGroupOperationRequested(const QString &operation, const QString &groupName)
 {
-    if (m_deviceGroupManager) {
-        m_deviceGroupManager->deselectAllDevices();
+    m_statusLabel->setText(QString("Group operation: %1 on group %2").arg(operation).arg(groupName));
+    
+    // 这里实现具体的组操作
+    if (operation == "connect_group") {
+        // 连接组
+    } else if (operation == "disconnect_group") {
+        // 断开组
+    } else if (operation == "group_settings") {
+        onGroupSettings();
+    } else if (operation == "delete_group") {
+        onDeleteGroup();
     }
 }
 
-void ModernMainWindow::onToggleGroupMode()
+void ModernMainWindow::onGlobalOperationRequested(const QString &operation)
 {
-    setGroupMode(!m_isGroupMode);
+    m_statusLabel->setText(QString("Global operation: %1").arg(operation));
+    
+    // 这里实现具体的全局操作
+    if (operation == "connect_all") {
+        // 连接所有设备
+    } else if (operation == "disconnect_all") {
+        // 断开所有设备
+    } else if (operation == "refresh") {
+        // 刷新设备列表
+    } else if (operation == "global_settings") {
+        onGlobalSettings();
+    }
 }
 
-void ModernMainWindow::onShowSettings()
+void ModernMainWindow::onSettingsChanged(const QString &key, const QVariant &value)
 {
-    // TODO: Implement settings dialog
-    QMessageBox::information(this, "Settings", "Settings dialog not implemented yet.");
-}
-
-void ModernMainWindow::onShowAbout()
-{
-    QMessageBox::about(this, "About QtScrcpy Modern UI", 
-                      "QtScrcpy Modern UI Extension\n\n"
-                      "A modern device management interface built with Qt6.9\n"
-                      "Features:\n"
-                      "- Device group management\n"
-                      "- Responsive grid layout\n"
-                      "- Modern animations and interactions\n"
-                      "- Drag-and-drop support\n"
-                      "- Real-time status updates");
-}
-
-void ModernMainWindow::onDeviceGroupAdded(const QString &groupName)
-{
-    Q_UNUSED(groupName)
-    updateStatusBar();
-    updateWindowTitle();
-}
-
-void ModernMainWindow::onDeviceGroupRemoved(const QString &groupName)
-{
-    Q_UNUSED(groupName)
-    updateStatusBar();
-    updateWindowTitle();
-}
-
-void ModernMainWindow::onDeviceAdded(const QString &serial, const QString &groupName)
-{
-    Q_UNUSED(serial)
-    Q_UNUSED(groupName)
-    updateStatusBar();
-    updateWindowTitle();
-}
-
-void ModernMainWindow::onDeviceRemoved(const QString &serial)
-{
-    Q_UNUSED(serial)
-    updateStatusBar();
-    updateWindowTitle();
+    m_settings->setValue(QString("Preferences/%1").arg(key), value);
+    m_statusLabel->setText(QString("Setting changed: %1 = %2").arg(key).arg(value.toString()));
 }
 
 void ModernMainWindow::onDeviceStatusChanged(const QString &serial, DeviceStatus status)
@@ -288,447 +665,82 @@ void ModernMainWindow::onDeviceStatusChanged(const QString &serial, DeviceStatus
     Q_UNUSED(serial)
     Q_UNUSED(status)
     updateStatusBar();
-    updateWindowTitle();
 }
 
-void ModernMainWindow::onDeviceSelectionChanged(const QString &serial, bool selected)
+void ModernMainWindow::onDeviceNameChanged(const QString &serial, const QString &name)
 {
     Q_UNUSED(serial)
-    Q_UNUSED(selected)
+    Q_UNUSED(name)
     updateStatusBar();
 }
 
-void ModernMainWindow::onGroupSelected(const QString &groupName)
+void ModernMainWindow::onDeviceGroupAdded(const QString &groupName)
 {
-    if (m_currentGroupName != groupName) {
-        m_currentGroupName = groupName;
-        emit currentGroupNameChanged();
-        emit groupSelected(groupName);
-        
-        // Apply group filter to grid
-        applyGroupFilter();
-        updateStatusBar();
-    }
-}
-
-void ModernMainWindow::onDeviceSelected(const QString &serial)
-{
-    emit deviceSelected(serial);
+    m_statusLabel->setText(QString("Group added: %1").arg(groupName));
     updateStatusBar();
 }
 
-void ModernMainWindow::onDeviceDoubleClicked(const QString &serial)
+void ModernMainWindow::onDeviceGroupRemoved(const QString &groupName)
 {
-    emit deviceDoubleClicked(serial);
-}
-
-void ModernMainWindow::onDeviceRightClicked(const QString &serial, const QPoint &globalPos)
-{
-    Q_UNUSED(serial)
-    Q_UNUSED(globalPos)
-    // Handle device right-click in tree
-}
-
-void ModernMainWindow::onDeviceClicked(const QString &serial)
-{
-    emit deviceSelected(serial);
+    m_statusLabel->setText(QString("Group removed: %1").arg(groupName));
     updateStatusBar();
-}
-
-void ModernMainWindow::onDeviceDoubleClickedGrid(const QString &serial)
-{
-    emit deviceDoubleClicked(serial);
-}
-
-void ModernMainWindow::onDeviceRightClickedGrid(const QString &serial, const QPoint &globalPos)
-{
-    Q_UNUSED(serial)
-    Q_UNUSED(globalPos)
-    // Handle device right-click in grid
 }
 
 void ModernMainWindow::updateStatusBar()
 {
-    if (!m_statusBar) {
+    if (!m_deviceGroupManager) {
         return;
     }
     
-    // Update device count
-    int total = totalDeviceCount();
-    int connected = connectedDeviceCount();
-    m_deviceCountLabel->setText(QString("Devices: %1/%2 connected").arg(connected).arg(total));
+    // 更新设备计数
+    int totalDevices = m_deviceGroupManager->totalDeviceCount();
+    int connectedDevices = m_deviceGroupManager->connectedDeviceCount();
+    int selectedDevices = m_deviceGroupManager->selectedDeviceCount();
     
-    // Update connection status
-    if (total > 0) {
-        m_connectionStatusLabel->setText(QString("Connection: %1%").arg((connected * 100) / total));
-        m_connectionProgressBar->setValue((connected * 100) / total);
+    m_deviceCountLabel->setText(QString("Devices: %1 | Connected: %2 | Selected: %3")
+                               .arg(totalDevices)
+                               .arg(connectedDevices)
+                               .arg(selectedDevices));
+
+    // 更新连接状态
+    if (connectedDevices > 0) {
+        m_connectionStatusLabel->setText(QString("Connected: %1").arg(connectedDevices));
+        m_connectionStatusLabel->setStyleSheet("color: #4CAF50;");
     } else {
-        m_connectionStatusLabel->setText("Connection: No devices");
-        m_connectionProgressBar->setValue(0);
-    }
-    
-    // Update status label
-    if (m_isGroupMode) {
-        m_statusLabel->setText(QString("Group Mode: %1").arg(m_currentGroupName));
-    } else {
-        m_statusLabel->setText("Individual Mode");
+        m_connectionStatusLabel->setText("Disconnected");
+        m_connectionStatusLabel->setStyleSheet("color: #F44336;");
     }
 }
 
 void ModernMainWindow::updateWindowTitle()
 {
-    int total = totalDeviceCount();
-    int connected = connectedDeviceCount();
-    setWindowTitle(QString("QtScrcpy Modern UI - %1/%2 devices connected").arg(connected).arg(total));
-}
-
-void ModernMainWindow::setupUI()
-{
-    // Set window properties
-    setWindowTitle("QtScrcpy Modern UI");
-    setMinimumSize(800, 600);
-    resize(1200, 800);
-    
-    // Create central widget
-    QWidget *centralWidget = createCentralWidget();
-    setCentralWidget(centralWidget);
-    
-    // Setup menu bar, toolbar, and status bar
-    setupMenuBar();
-    setupToolBar();
-    setupStatusBar();
-}
-
-void ModernMainWindow::setupMenuBar()
-{
-    m_menuBar = menuBar();
-    
-    // File menu
-    QMenu *fileMenu = m_menuBar->addMenu("&File");
-    m_refreshDevicesAction = fileMenu->addAction("&Refresh Devices", this, &ModernMainWindow::onRefreshDevices);
-    m_refreshDevicesAction->setShortcut(QKeySequence::Refresh);
-    fileMenu->addSeparator();
-    QAction *exitAction = fileMenu->addAction("E&xit");
-    exitAction->setShortcut(QKeySequence::Quit);
-    connect(exitAction, &QAction::triggered, this, &QWidget::close);
-    
-    // Group menu
-    QMenu *groupMenu = m_menuBar->addMenu("&Group");
-    m_newGroupAction = groupMenu->addAction("&New Group", this, &ModernMainWindow::onNewGroup);
-    m_newGroupAction->setShortcut(QKeySequence::New);
-    m_deleteGroupAction = groupMenu->addAction("&Delete Group", this, &ModernMainWindow::onDeleteGroup);
-    m_renameGroupAction = groupMenu->addAction("&Rename Group", this, &ModernMainWindow::onRenameGroup);
-    
-    // Device menu
-    QMenu *deviceMenu = m_menuBar->addMenu("&Device");
-    m_selectAllAction = deviceMenu->addAction("Select &All", this, &ModernMainWindow::onSelectAllDevices);
-    m_selectAllAction->setShortcut(QKeySequence::SelectAll);
-    m_deselectAllAction = deviceMenu->addAction("&Deselect All", this, &ModernMainWindow::onDeselectAllDevices);
-    
-    // View menu
-    QMenu *viewMenu = m_menuBar->addMenu("&View");
-    m_toggleGroupModeAction = viewMenu->addAction("Toggle &Group Mode", this, &ModernMainWindow::onToggleGroupMode);
-    m_toggleGroupModeAction->setShortcut(QKeySequence("Ctrl+G"));
-    m_toggleGroupModeAction->setCheckable(true);
-    
-    // Help menu
-    QMenu *helpMenu = m_menuBar->addMenu("&Help");
-    m_showAboutAction = helpMenu->addAction("&About", this, &ModernMainWindow::onShowAbout);
-    m_showSettingsAction = helpMenu->addAction("&Settings", this, &ModernMainWindow::onShowSettings);
-}
-
-void ModernMainWindow::setupToolBar()
-{
-    m_toolBar = addToolBar("Main Toolbar");
-    m_toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    
-    // Add toolbar actions
-    m_toolBar->addAction(m_newGroupAction);
-    m_toolBar->addAction(m_refreshDevicesAction);
-    m_toolBar->addSeparator();
-    m_toolBar->addAction(m_selectAllAction);
-    m_toolBar->addAction(m_deselectAllAction);
-    m_toolBar->addSeparator();
-    m_toolBar->addAction(m_toggleGroupModeAction);
-}
-
-void ModernMainWindow::setupStatusBar()
-{
-    m_statusBar = statusBar();
-    
-    // Create status widgets
-    m_statusLabel = new QLabel("Ready");
-    m_deviceCountLabel = new QLabel("Devices: 0/0 connected");
-    m_connectionStatusLabel = new QLabel("Connection: No devices");
-    m_connectionProgressBar = new QProgressBar();
-    
-    // Configure progress bar
-    m_connectionProgressBar->setMaximumWidth(100);
-    m_connectionProgressBar->setMaximumHeight(16);
-    
-    // Add widgets to status bar
-    m_statusBar->addWidget(m_statusLabel, 1);
-    m_statusBar->addPermanentWidget(m_deviceCountLabel);
-    m_statusBar->addPermanentWidget(m_connectionStatusLabel);
-    m_statusBar->addPermanentWidget(m_connectionProgressBar);
-}
-
-void ModernMainWindow::setupConnections()
-{
-    // Connect device group manager signals
-    if (m_deviceGroupManager) {
-        connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceGroupAdded,
-                this, &ModernMainWindow::onDeviceGroupAdded);
-        connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceGroupRemoved,
-                this, &ModernMainWindow::onDeviceGroupRemoved);
-        connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceAdded,
-                this, &ModernMainWindow::onDeviceAdded);
-        connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceRemoved,
-                this, &ModernMainWindow::onDeviceRemoved);
-        connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceStatusChanged,
-                this, &ModernMainWindow::onDeviceStatusChanged);
-        connect(m_deviceGroupManager, &ModernDeviceGroupManager::deviceSelectionChanged,
-                this, &ModernMainWindow::onDeviceSelectionChanged);
-    }
-    
-    // Connect tree widget signals
-    if (m_deviceTreeWidget) {
-        connect(m_deviceTreeWidget, &ModernDeviceTreeWidget::deviceGroupSelected,
-                this, &ModernMainWindow::onGroupSelected);
-        connect(m_deviceTreeWidget, &ModernDeviceTreeWidget::deviceSelected,
-                this, &ModernMainWindow::onDeviceSelected);
-        connect(m_deviceTreeWidget, &ModernDeviceTreeWidget::deviceDoubleClicked,
-                this, &ModernMainWindow::onDeviceDoubleClicked);
-        connect(m_deviceTreeWidget, &ModernDeviceTreeWidget::deviceRightClicked,
-                this, &ModernMainWindow::onDeviceRightClicked);
-    }
-    
-    // Connect grid layout manager signals
-    if (m_gridLayoutManager) {
-        connect(m_gridLayoutManager, &ModernGridLayoutManager::deviceClicked,
-                this, &ModernMainWindow::onDeviceClicked);
-        connect(m_gridLayoutManager, &ModernGridLayoutManager::deviceDoubleClicked,
-                this, &ModernMainWindow::onDeviceDoubleClickedGrid);
-        connect(m_gridLayoutManager, &ModernGridLayoutManager::deviceRightClicked,
-                this, &ModernMainWindow::onDeviceRightClickedGrid);
-    }
-}
-
-void ModernMainWindow::setupShortcuts()
-{
-    // Global shortcuts are handled in keyPressEvent
-    // Additional shortcuts can be added here if needed
-}
-
-QWidget* ModernMainWindow::createCentralWidget()
-{
-    // Create main splitter
-    m_mainSplitter = new QSplitter(Qt::Horizontal, this);
-    
-    // Create left panel (tree widget)
-    m_leftPanel = createLeftPanel();
-    m_mainSplitter->addWidget(m_leftPanel);
-    
-    // Create right panel (grid layout)
-    m_rightPanel = createRightPanel();
-    m_mainSplitter->addWidget(m_rightPanel);
-    
-    // Set splitter sizes
-    m_mainSplitter->setSizes({DEFAULT_TREE_WIDTH, 800});
-    m_mainSplitter->setStretchFactor(0, 0);
-    m_mainSplitter->setStretchFactor(1, 1);
-    
-    return m_mainSplitter;
-}
-
-QWidget* ModernMainWindow::createLeftPanel()
-{
-    QWidget *panel = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(panel);
-    layout->setContentsMargins(0, 0, 0, 0);
-    
-    // Create device tree widget
-    m_deviceTreeWidget = new ModernDeviceTreeWidget(panel);
-    m_deviceTreeWidget->setDeviceGroupManager(m_deviceGroupManager);
-    
-    layout->addWidget(m_deviceTreeWidget);
-    
-    return panel;
-}
-
-QWidget* ModernMainWindow::createRightPanel()
-{
-    QWidget *panel = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(panel);
-    layout->setContentsMargins(0, 0, 0, 0);
-    
-    // Create grid container
-    m_gridContainer = createGridContainer();
-    layout->addWidget(m_gridContainer);
-    
-    return panel;
-}
-
-QWidget* ModernMainWindow::createGridContainer()
-{
-    QWidget *container = new QWidget();
-    QVBoxLayout *layout = new QVBoxLayout(container);
-    layout->setContentsMargins(8, 8, 8, 8);
-    
-    // Create grid layout manager
-    m_gridLayoutManager = new ModernGridLayoutManager(container);
-    m_gridLayoutManager->setParentWidget(container);
-    m_gridLayoutManager->setColumnCount(DEFAULT_GRID_COLUMNS);
-    m_gridLayoutManager->setAutoAdjustColumns(true);
-    
-    return container;
-}
-
-void ModernMainWindow::updateDeviceGrid()
-{
-    if (!m_gridLayoutManager || !m_deviceGroupManager) {
+    if (!m_deviceGroupManager) {
         return;
     }
     
-    // Get devices based on current group or all devices
-    QList<DeviceInfo> devices;
-    if (m_isGroupMode && !m_currentGroupName.isEmpty()) {
-        devices = m_deviceGroupManager->getDevicesInGroup(m_currentGroupName);
+    int totalDevices = m_deviceGroupManager->totalDeviceCount();
+    int connectedDevices = m_deviceGroupManager->connectedDeviceCount();
+    
+    QString title = QString("SmartMatrix - %1 devices (%2 connected)")
+                   .arg(totalDevices)
+                   .arg(connectedDevices);
+    setWindowTitle(title);
+}
+
+void ModernMainWindow::onTrayIconActivated(QSystemTrayIcon::ActivationReason reason)
+{
+    switch (reason) {
+    case QSystemTrayIcon::DoubleClick:
+        onShowWindow();
+        break;
+    case QSystemTrayIcon::Trigger:
+        if (isVisible()) {
+            hide();
     } else {
-        // Get all devices
-        QStringList groupNames = m_deviceGroupManager->deviceGroups();
-        for (const QString &groupName : groupNames) {
-            devices.append(m_deviceGroupManager->getDevicesInGroup(groupName));
+            show();
         }
-    }
-    
-    m_gridLayoutManager->setDevices(devices);
-}
-
-void ModernMainWindow::updateDeviceTree()
-{
-    if (m_deviceTreeWidget) {
-        m_deviceTreeWidget->refreshTree();
-    }
-}
-
-void ModernMainWindow::syncDeviceSelection()
-{
-    // Sync selection between tree and grid
-    // This can be implemented based on specific requirements
-}
-
-void ModernMainWindow::applyGroupFilter()
-{
-    updateDeviceGrid();
-}
-
-void ModernMainWindow::saveWindowState()
-{
-    QSettings settings;
-    settings.beginGroup("MainWindow");
-    settings.setValue("geometry", saveGeometry());
-    settings.setValue("windowState", saveState());
-    if (m_mainSplitter) {
-        QList<int> sizes = m_mainSplitter->sizes();
-        QVariantList sizeList;
-        for (int size : sizes) {
-            sizeList.append(size);
-        }
-        settings.setValue("splitterSizes", sizeList);
-    } else {
-        settings.setValue("splitterSizes", QVariant());
-    }
-    settings.setValue("groupMode", m_isGroupMode);
-    settings.endGroup();
-}
-
-void ModernMainWindow::restoreWindowState()
-{
-    QSettings settings;
-    settings.beginGroup("MainWindow");
-    restoreGeometry(settings.value("geometry").toByteArray());
-    restoreState(settings.value("windowState").toByteArray());
-    
-    QVariant splitterSizes = settings.value("splitterSizes");
-    if (splitterSizes.isValid() && m_mainSplitter) {
-        QList<QVariant> sizeList = splitterSizes.toList();
-        QList<int> intList;
-        for (const QVariant &size : sizeList) {
-            intList.append(size.toInt());
-        }
-        m_mainSplitter->setSizes(intList);
-    }
-    
-    m_isGroupMode = settings.value("groupMode", false).toBool();
-    settings.endGroup();
-}
-
-void ModernMainWindow::updateMenuStates()
-{
-    if (m_toggleGroupModeAction) {
-        m_toggleGroupModeAction->setChecked(m_isGroupMode);
-    }
-    
-    // Update other menu states based on current selection
-    bool hasSelection = !m_currentGroupName.isEmpty();
-    if (m_deleteGroupAction) {
-        m_deleteGroupAction->setEnabled(hasSelection && m_currentGroupName != "Unassigned Devices");
-    }
-    if (m_renameGroupAction) {
-        m_renameGroupAction->setEnabled(hasSelection && m_currentGroupName != "Unassigned Devices");
-    }
-}
-
-void ModernMainWindow::updateToolBarStates()
-{
-    // Update toolbar button states
-    updateMenuStates();
-}
-
-// Real device management implementation
-void ModernMainWindow::onRealDeviceConnected(bool success, const QString& serial, const QString& deviceName, const QSize& size)
-{
-    Q_UNUSED(size)
-
-    if (!success) {
-        qWarning() << "Device connection failed:" << serial;
-        return;
-    }
-
-    qInfo() << "Device connected to Modern UI:" << deviceName << "-" << serial;
-
-    // Add device to device group manager
-    QString groupName = "Unassigned Devices";  // Default group
-    addDevice(serial, deviceName.isEmpty() ? serial : deviceName, groupName);
-
-    // Update device grid and tree
-    updateDeviceGrid();
-    updateDeviceTree();
-    updateStatusBar();
-    updateWindowTitle();
-
-    // Show notification in status bar
-    if (m_statusBar) {
-        m_statusBar->showMessage(QString("Device connected: %1 - %2").arg(deviceName).arg(serial), 3000);
-    }
-}
-
-void ModernMainWindow::onRealDeviceDisconnected(QString serial)
-{
-    qInfo() << "Device disconnected from Modern UI:" << serial;
-
-    // Remove device from device group manager
-    removeDevice(serial);
-
-    // Update device grid and tree
-    updateDeviceGrid();
-    updateDeviceTree();
-    updateStatusBar();
-    updateWindowTitle();
-
-    // Show notification in status bar
-    if (m_statusBar) {
-        m_statusBar->showMessage(QString("Device disconnected: %1").arg(serial), 3000);
+        break;
+    default:
+        break;
     }
 }
