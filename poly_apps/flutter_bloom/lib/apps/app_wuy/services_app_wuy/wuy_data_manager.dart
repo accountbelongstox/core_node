@@ -19,7 +19,7 @@ import '../models_app_wuy/location_model_app_wuy.dart';
 import 'wuy_fake_data_generator.dart';
 import 'wuy_auth_state_manager.dart';
 import 'wuy_unified_service.dart';
-import '../../providers_app_wuy/wu_user_provider.dart';
+import '../providers_app_wuy/wu_user_provider.dart';
 
 /// Unified Data Manager for Wuy App
 /// Single source of truth for all user data and application state
@@ -61,7 +61,6 @@ class WuyDataManager {
 
     // Load current user if authenticated
     if (_authStateManager.isAuthenticated) {
-      _currentUser = _authStateManager.currentUser;
       await _loadUserData();
     }
 
@@ -219,7 +218,8 @@ class WuyDataManager {
         final fakeLocation = WuyFakeDataGenerator.generateFakeCurrentLocation();
         _currentLocation = LocationModelAppWuy(
           id: 'loc1',
-          userId: _authStateManager.currentUser?.id?.toString() ?? 'current_user',
+          userId:
+              _authStateManager.currentUser?.id?.toString() ?? 'current_user',
           latitude: fakeLocation['latitude'] as double,
           longitude: fakeLocation['longitude'] as double,
           address: fakeLocation['address'] as String,
