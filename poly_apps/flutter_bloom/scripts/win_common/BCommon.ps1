@@ -659,40 +659,56 @@ function Invoke-BuildMode {
         Write-Host "[BUILD] Current working directory: $(Get-Location)" -ForegroundColor Yellow
 
         try {
-            # Execute clean command if available
-            $cleanCommandVar = Get-FileVariable -Name "clean_command" -DefaultValue ""
-            $cleanScriptPath = Get-FileVariable -Name "clean_script_path" -DefaultValue ""
+            # Execute clean command only if compilation option is 'clean'
+            $compilationOption = Get-FileVariable -Name $Global:KEY_COMPILATION_OPTION -DefaultValue ""
 
-            if ($cleanCommandVar -and $cleanCommandVar.Trim() -ne "") {
-                Write-Host "[BUILD] Executing clean command..." -ForegroundColor Yellow
+            if ($compilationOption -eq "clean") {
+                Write-Host "[BUILD] Clean mode detected - executing clean command" -ForegroundColor Yellow
 
-                if ($cleanScriptPath -and (Test-Path $cleanScriptPath)) {
-                    Write-Host "[BUILD] Clean Script: $cleanScriptPath" -ForegroundColor Gray
-                    & powershell -File $cleanScriptPath
+                $cleanCommandVar = Get-FileVariable -Name $Global:KEY_CLEAN_COMMAND -DefaultValue ""
+                $cleanScriptPath = Get-FileVariable -Name $Global:KEY_CLEAN_SCRIPT_PATH -DefaultValue ""
+
+                if ($cleanCommandVar -and $cleanCommandVar.Trim() -ne "") {
+                    Write-Host "[BUILD] Executing clean command..." -ForegroundColor Yellow
+
+                    if ($cleanScriptPath -and (Test-Path $cleanScriptPath)) {
+                        Write-Host "[BUILD] Clean Script: $cleanScriptPath" -ForegroundColor Gray
+                        & powershell -File $cleanScriptPath
+                    } else {
+                        Write-Host "[BUILD] Clean Command: $cleanCommandVar" -ForegroundColor Gray
+                        Invoke-Expression $cleanCommandVar
+                    }
+
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Warning "[BUILD] Clean command failed but continuing with build..."
+                    }
                 } else {
-                    Write-Host "[BUILD] Clean Command: $cleanCommandVar" -ForegroundColor Gray
-                    Invoke-Expression $cleanCommandVar
+                    Write-Warning "[BUILD] Clean mode selected but no clean command found"
                 }
-
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Warning "[BUILD] Clean command failed but continuing with build..."
-                }
+            } else {
+                Write-Host "[BUILD] Compilation option is '$compilationOption' - skipping clean command" -ForegroundColor Gray
             }
 
             # Execute main compilation command
             Write-Host "[BUILD] Executing compilation command..." -ForegroundColor Yellow
 
-            $buildScriptPath = Get-FileVariable -Name "script_path" -DefaultValue ""
-            $buildCommand = Get-FileVariable -Name "command" -DefaultValue ""
+            $buildScriptPath = Get-FileVariable -Name $Global:KEY_SCRIPT_PATH -DefaultValue ""
+            $buildCommand = Get-FileVariable -Name $Global:KEY_COMMAND -DefaultValue ""
+
+            # Determine log file path
+            $logFile = Join-Path $buildRoot "build_log.txt"
 
             if ($buildScriptPath -and (Test-Path $buildScriptPath)) {
                 Write-Host "[BUILD] Build Script: $buildScriptPath" -ForegroundColor Gray
+                Write-Host "[BUILD] Log File: $logFile" -ForegroundColor Gray
                 & powershell -File $buildScriptPath
             } elseif ($buildCommand -and $buildCommand.Trim() -ne "") {
                 Write-Host "[BUILD] Build Command: $buildCommand" -ForegroundColor Gray
+                Write-Host "[BUILD] Log File: $logFile" -ForegroundColor Gray
                 Invoke-Expression $buildCommand
             } else {
                 Write-Host "[BUILD] Compilation Command: $compilationCommand" -ForegroundColor Gray
+                Write-Host "[BUILD] Log File: $logFile" -ForegroundColor Gray
                 Invoke-Expression $compilationCommand
             }
 
@@ -703,12 +719,25 @@ function Invoke-BuildMode {
                 return $true
             } else {
                 Write-ErrorMsg "[BUILD] Compilation failed with exit code: $LASTEXITCODE"
+                Write-Host "[ERROR] Press any key to view error details..." -ForegroundColor Red
+                $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                 return $false
             }
 
         } finally {
             Pop-Location
             Write-Host "[BUILD] Restored working directory: $(Get-Location)" -ForegroundColor Yellow
+
+            # Open log file in explorer if it exists
+            $logFile = Join-Path $buildRoot "build_log.txt"
+            if (Test-Path $logFile) {
+                Write-Host "[BUILD] Opening build log file..." -ForegroundColor Cyan
+                try {
+                    Start-Process "explorer.exe" -ArgumentList "/select,`"$logFile`""
+                } catch {
+                    Write-Warning "[BUILD] Could not open log file: $_"
+                }
+            }
         }
 
     } catch {

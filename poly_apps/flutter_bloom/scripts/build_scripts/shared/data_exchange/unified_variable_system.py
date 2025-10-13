@@ -168,6 +168,13 @@ class UnifiedVariableSystem:
         self.KEY_BUILD_TIMESTAMP = "KEY_BUILD_TIMESTAMP"
         self.KEY_APK_FILE_NAME = "KEY_APK_FILE_NAME"
 
+        # Script path keys for compilation
+        self.KEY_COMMAND = "KEY_COMMAND"
+        self.KEY_SCRIPT_PATH = "KEY_SCRIPT_PATH"  # Already defined above, but kept for clarity
+        self.KEY_CLEAN_SCRIPT_PATH = "KEY_CLEAN_SCRIPT_PATH"
+        self.KEY_BUILD_COMMAND = "KEY_BUILD_COMMAND"
+        self.KEY_BUILD_SCRIPT_PATH = "KEY_BUILD_SCRIPT_PATH"
+
         # Build system constants
         self.TEMP_BUILD_DIR_FILE = "temp_build_dir.txt"
 
