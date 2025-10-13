@@ -88,7 +88,14 @@
       "stop_rosbot": "Stop ROSBOT",
       "rosbot_log": "ROSBOT Log",
       "start_functionality": "ROSBOT Start Functionality",
-      "stop_functionality": "ROSBOT Stop Functionality"
+      "stop_functionality": "ROSBOT Stop Functionality",
+      "auto_enable_latest_ros": "Auto Enable Latest ROS",
+      "auto_start_other_exe": "Auto Start Other EXE",
+      "force_cleanup_restart": "Force Cleanup Restart",
+      "auto_configure_ui": "Auto Configure UI",
+      "detailed_logging": "Detailed Logging",
+      "startup": "Startup on Boot",
+      "monitor_start_rosbot": "Monitor Start ROSBOT"
     }
   }
 }

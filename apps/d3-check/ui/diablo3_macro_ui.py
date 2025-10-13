@@ -53,9 +53,9 @@ class Diablo3MacroUI:
 
         # Set window title
         self.root.title(i18n_manager.get_ui_text("main_window.title"))
-        self.root.geometry("540x468")  # Scaled to 60% of original 900x780
-        self.root.minsize(420, 330)    # Scaled to 60% of original 700x550
-        self.root.resizable(True, True) # Allow resizing
+        self.root.geometry("540x620")
+        self.root.minsize(420, 400)
+        self.root.resizable(True, True)
         self.root.configure(bg=UITheme.get_color('bg_dark'))
 
         # Apply theme
@@ -171,14 +171,14 @@ class Diablo3MacroUI:
         new_y = self.resize_start_y_root
         
         if 'e' in direction:
-            new_width = max(420, self.resize_start_width + delta_x)  # Scaled to 60% of 700
+            new_width = max(420, self.resize_start_width + delta_x)
         if 'w' in direction:
-            new_width = max(420, self.resize_start_width - delta_x)  # Scaled to 60% of 700
+            new_width = max(420, self.resize_start_width - delta_x)
             new_x = self.resize_start_x_root + delta_x
         if 's' in direction:
-            new_height = max(330, self.resize_start_height + delta_y)  # Scaled to 60% of 550
+            new_height = max(400, self.resize_start_height + delta_y)
         if 'n' in direction:
-            new_height = max(330, self.resize_start_height - delta_y)  # Scaled to 60% of 550
+            new_height = max(400, self.resize_start_height - delta_y)
             new_y = self.resize_start_y_root + delta_y
         
         # Apply new geometry
@@ -574,15 +574,6 @@ class Diablo3MacroUI:
         
         # Create log panel
         self.log_panel = LogPanel(self.table3_frame)
-        
-        # Set callbacks
-        if hasattr(self.log_panel, 'set_test_function_callback'):
-            self.log_panel.set_test_function_callback(self._on_test_function)
-    
-    def _on_back(self):
-        """Handle back button click"""
-        ColorPrint.blue("[UI] Back button clicked")
-        # Add back button functionality here
 
     def _on_language_changed(self, new_language: str):
         """Handle language change event - unified UI rebuild with deduplication"""
@@ -783,40 +774,6 @@ class Diablo3MacroUI:
         except Exception as e:
             ColorPrint.red(f"[UI] Skill config switch error: {e}")
 
-    def _on_test_function(self, test_number: int):
-        """Handle test function callback"""
-        try:
-            ColorPrint.blue(f"[UI] Test function {test_number} called")
-
-            from d3utils.interface_manager import D3InterfaceManager
-            manager = D3InterfaceManager()
-
-            if test_number == 1:
-                # Test 1: Bag Information Collection (Anchor-based)
-                ColorPrint.blue("[Test 1] Collecting bag information (anchor-based)...")
-                bag_coords = manager.collect_bag_info_anchor(save_screenshot=True)
-
-                if bag_coords:
-                    ColorPrint.green(f"[Test 1] Success! Bag collected (anchor)")
-                    manager.print_summary()
-                else:
-                    ColorPrint.red("[Test 1] Failed to collect bag information (anchor)")
-
-            elif test_number == 2:
-                # Test 2: Bag Information Collection
-                ColorPrint.blue("[Test 2] Collecting bag information...")
-                bag_coords = manager.collect_bag_info_quik(save_screenshot=True)
-
-                if bag_coords:
-                    ColorPrint.green(f"[Test 2] Success! Bag collected")
-                    manager.print_summary()
-                else:
-                    ColorPrint.red("[Test 2] Failed to collect bag information")
-
-        except Exception as e:
-            ColorPrint.red(f"[UI] Test function error: {e}")
-            import traceback
-            traceback.print_exc()
 
     # Public API methods for external control
 
