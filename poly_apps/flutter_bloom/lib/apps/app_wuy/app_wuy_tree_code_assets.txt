@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-13 01:05:21
+Generated: 2025-10-13 15:51:34
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -187,6 +187,7 @@ app_wuy [code_assets]
 │   │   └── routes_provider_app_wuy.dart
 │   ├── services_app_wuy
 │   │   ├── wuy_auth_state_manager.dart
+│   │   ├── wuy_data_manager.dart
 │   │   ├── wuy_fake_data_generator.dart
 │   │   ├── wuy_sqlite_storage_service.dart
 │   │   └── wuy_unified_service.dart
@@ -531,7 +532,9 @@ app_wuy [code_assets]
 │       ├── digital_payment_dialog.dart
 │       ├── enhanced_bottom_navigation.dart
 │       ├── enhanced_top_menu.dart
+│       ├── floating_avatar_header.dart
 │       ├── image_dialog.dart
+│       ├── info_row_widget.dart
 │       ├── navigation_widgets.dart
 │       ├── no_data_screen.dart
 │       ├── open_map.dart
@@ -543,10 +546,13 @@ app_wuy [code_assets]
 │       ├── settings_page_example.dart
 │       └── type_button_widget.dart
 ├── assets/apps/app_wuy/
+│   ├── app_wuy_tree.md
 │   ├── fonts
 │   │   └── .gitkeep
 │   ├── icons
 │   │   ├── .gitkeep
+│   │   ├── avatar2_placeholder.jpg
+│   │   ├── avatar3_placeholder.png
 │   │   ├── avatar_placeholder.png
 │   │   ├── banner_placeholder.png
 │   │   ├── empty_state.png
@@ -563,6 +569,8 @@ app_wuy [code_assets]
 │   │   └── staff_onboarding.png
 │   ├── images
 │   │   ├── .gitkeep
+│   │   ├── background1.jpg
+│   │   ├── background2.jpg
 │   │   └── bg.png
 │   └── launch
 │       ├── .gitkeep

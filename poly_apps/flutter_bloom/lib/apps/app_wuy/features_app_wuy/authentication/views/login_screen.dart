@@ -19,13 +19,12 @@ import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../widgets_app_wuy/wuy_common_background.dart';
 import '../../../widgets_app_wuy/wuy_common_logo.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
-import '../../../services_app_wuy/wuy_auth_state_manager.dart';
-import '../../../models_app_wuy/user_model_app_wuy.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 
 /// Login Screen for Wuy App
-/// 
+///
 /// This screen provides traditional email/password login functionality.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -120,10 +119,12 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
         hintText: LocalizationKeysAppWuy.wuyLoginEnterEmail.tr(context),
         prefixIcon: Icon(Icons.email, color: ThemeColors.primary),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+          borderRadius:
+              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+          borderRadius:
+              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
           borderSide: BorderSide(color: ThemeColors.primary, width: 2),
         ),
       ),
@@ -159,10 +160,12 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
           },
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+          borderRadius:
+              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+          borderRadius:
+              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
           borderSide: BorderSide(color: ThemeColors.primary, width: 2),
         ),
       ),
@@ -202,7 +205,8 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
         backgroundColor: ThemeColors.primary,
         minimumSize: Size(double.infinity, 50),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+          borderRadius:
+              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
         ),
       ),
       child: _isLoading
@@ -247,25 +251,26 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       });
 
       try {
-        // Create a mock user for login
-        final mockUser = UserModelAppWuy(
-          id: 1,
-          username: _emailController.text.trim(),
-          name: 'Wuy User',
-          email: _emailController.text.trim(),
-          phoneNumber: '+1234567890',
-          isActive: true,
-          isVerified: true,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
+        // Use unified service for login to ensure data consistency
+        final unifiedService = WuyUnifiedService();
+
+        // For email login, we'll use the email as phone for mock data generation
+        final email = _emailController.text.trim();
+        final mockPhone =
+            '138${email.hashCode.abs().toString().substring(0, 8)}';
+
+        // Use unified service login method
+        final result = await unifiedService.loginWithPhone(
+          phone: mockPhone,
+          verificationCode: '123456', // Mock verification code
         );
 
-        // Use auth state manager to handle login
-        final authStateManager = WuyAuthStateManager.instance;
-        await authStateManager.setAuthenticatedUser(mockUser);
-
-        // Use AuthGuard to handle login success
-        await AuthGuard.onLoginSuccess(context);
+        if (result.isSuccess) {
+          // Use AuthGuard to handle login success
+          await AuthGuard.onLoginSuccess(context);
+        } else {
+          throw Exception(result.error ?? 'Login failed');
+        }
 
         if (mounted) {
           setState(() {
@@ -278,7 +283,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
           setState(() {
             _isLoading = false;
           });
-          
+
           // Show error message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

@@ -12,17 +12,19 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../providers_app_wuy/wu_user_provider.dart';
 
 /// Map Screen for Wuy App
-/// 
+///
 /// This screen displays map functionality and location services.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -111,77 +113,88 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
   }
 
   Widget _buildFloatingProfileCard() {
-    return Positioned(
-      top: 100,
-      left: 20,
-      right: 20,
-      child: Card(
-        elevation: 8,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-          child: Column(
-            children: [
-              Row(
+    return Consumer<WuUserProvider>(
+      builder: (context, userProvider, child) {
+        final user = userProvider.appProfile;
+
+        return Positioned(
+          top: 100,
+          left: 20,
+          right: 20,
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+              child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: ThemeColors.primary,
-                    child: Icon(
-                      Icons.person,
-                      size: 30,
-                      color: Colors.white,
-                    ),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: ThemeColors.primary,
+                        child: Icon(
+                          Icons.person,
+                          size: 30,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: ThemeDimensions.spacingMedium),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user?.displayName ?? '',
+                              style: ThemeTextStyles.title3,
+                            ),
+                            Text(
+                              user?.about ?? '',
+                              style: ThemeTextStyles.bodyMedium.copyWith(
+                                color: ThemeColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.info_outline,
+                            color: ThemeColors.primary),
+                        onPressed: () {
+                          context.go(WuyAppRouter.getFriendInfoRoute('1'));
+                        },
+                      ),
+                    ],
                   ),
-                  SizedBox(width: ThemeDimensions.spacingMedium),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  Container(
+                    padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(
+                          ThemeDimensions.borderRadiusMedium),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Text(
-                          '小飞侠',
-                          style: ThemeTextStyles.title3,
-                        ),
-                        Text(
-                          '守护的未来',
-                          style: ThemeTextStyles.bodyMedium.copyWith(
-                            color: ThemeColors.textSecondary,
-                          ),
-                        ),
+                        _buildInfoItem(Icons.directions_walk, 'Steps', '8,432'),
+                        _buildInfoItem(Icons.favorite, 'Heart Rate', '72'),
+                        _buildInfoItem(
+                            Icons.thermostat, 'Temperature', '36.5°C'),
+                        _buildInfoItem(
+                            Icons.local_fire_department, 'Calories', '245'),
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.info_outline, color: ThemeColors.primary),
-                    onPressed: () {
-                      context.go(WuyAppRouter.routeFriendInfo.replaceAll(':id', '1'));
-                    },
-                  ),
                 ],
               ),
-              SizedBox(height: ThemeDimensions.spacingMedium),
-              Container(
-                padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildInfoItem(Icons.directions_walk, 'Steps', '8,432'),
-                    _buildInfoItem(Icons.favorite, 'Heart Rate', '72'),
-                    _buildInfoItem(Icons.thermostat, 'Temperature', '36.5°C'),
-                    _buildInfoItem(Icons.local_fire_department, 'Calories', '245'),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -225,13 +238,22 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
         child: SafeArea(
           child: Container(
             height: 60,
-            padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultPadding),
+            padding: EdgeInsets.symmetric(
+                horizontal: ThemeDimensions.defaultPadding),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(Icons.map, 'Map', true, null),
-                _buildNavItem(Icons.people, LocalizationKeysAppWuy.wuyMapFriends.tr(context), false, () => context.go(WuyAppRouter.routeHome)),
-                _buildNavItem(Icons.person, LocalizationKeysAppWuy.wuyMapMine.tr(context), false, () => context.go(WuyAppRouter.routeProfile)),
+                _buildNavItem(
+                    Icons.people,
+                    LocalizationKeysAppWuy.wuyMapFriends.tr(context),
+                    false,
+                    () => context.go(WuyAppRouter.getFriendsRoute())),
+                _buildNavItem(
+                    Icons.person,
+                    LocalizationKeysAppWuy.wuyMapMine.tr(context),
+                    false,
+                    () => context.go(WuyAppRouter.getProfileRoute())),
               ],
             ),
           ),
@@ -240,7 +262,8 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isSelected, VoidCallback? onTap) {
+  Widget _buildNavItem(
+      IconData icon, String label, bool isSelected, VoidCallback? onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -253,17 +276,16 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
           children: [
             Icon(
               icon,
-              color: isSelected 
-                  ? ThemeColors.primary 
-                  : ThemeColors.textSecondary,
+              color:
+                  isSelected ? ThemeColors.primary : ThemeColors.textSecondary,
               size: 24,
             ),
             SizedBox(height: ThemeDimensions.spacing4),
             Text(
               label,
               style: ThemeTextStyles.bodySmall.copyWith(
-                color: isSelected 
-                    ? ThemeColors.primary 
+                color: isSelected
+                    ? ThemeColors.primary
                     : ThemeColors.textSecondary,
               ),
             ),

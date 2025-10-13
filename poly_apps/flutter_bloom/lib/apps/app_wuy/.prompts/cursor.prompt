@@ -99,3 +99,16 @@
 注意，你不能单独的修复或创建一个文件，同时要确保引用tr()多语言,而是整体分析然后做处调整甚至可以重构，确保数据模型,api等的数据一至性,自洽性.不要重复定义,以及清除冗余代码.
 同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 查看所有构架
 你需要优先引用首先你要使用common中的公共库,但是不要在common库中引入外部文件.
+
+
+根据我传给你的图,现在进行效果修复,显示你现在做的效果比较老旧且是默认效果,没有达到效果图上的设置效果,比如渐变色\圆色\色彩等,缺少了很多自定义设置.
+同时查看错误 D:\programing\core_node\poly_apps\flutter_bloom\assets\apps\app_wuy\app_wuy_tree.md
+同时根据现在文件结构资料:D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt查看所有构架
+现在的任务:
+你要区分common共公的widgets区和子aqq的widgets区,比如本例为 lib\apps\app_wuy\widgets_app_wuy
+1:更新公共asset,加入背景1,背景2,
+2:创建公司的头部widgets,使用背景1作为背景,然后应用在profile中,
+3:使用公共数据,注意一定要登陆时的公共用户数据,在/#/wuy/profile 全页调整profile 使用公共widget,以及登陆时的用户数据,在此处按我传给你的图显示.同时,保留 底部菜单,编辑用户资料,退出登陆.
+4:保费底部菜单,但是无关的就可以移除掉,比如头部标题.保留一个back 的 < 图标即可,参考 pubspec yaml中的图标库.
+注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 

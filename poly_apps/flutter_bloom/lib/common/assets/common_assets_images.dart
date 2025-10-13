@@ -78,6 +78,10 @@ class CommonAssetsImages {
   static const String homeBackgroundLight = '$_base/child1.jpeg';
   static const String settingsBackgroundDark = '$_base/user.png';
   static const String settingsBackgroundLight = '$_base/user.png';
+  
+  // Wuy App specific backgrounds
+  static const String wuyBackground1 = 'assets/apps/app_wuy/images/background1.jpg';
+  static const String wuyBackground2 = 'assets/apps/app_wuy/images/background2.jpg';
 
   // UI state images - using actual existing files
   static const String placeholder = '$_base/user.png';
@@ -151,6 +155,10 @@ class CommonAssetsImages {
       'food2': food2,
       'urgent3': urgent3,
       'urgent4': urgent4,
+      
+      // Wuy App specific backgrounds
+      'wuyBackground1': wuyBackground1,
+      'wuyBackground2': wuyBackground2,
     };
   }
 }

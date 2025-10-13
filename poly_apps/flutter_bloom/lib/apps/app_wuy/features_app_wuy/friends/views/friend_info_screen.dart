@@ -18,11 +18,15 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../models_app_wuy/friend_model_app_wuy.dart';
+import '../../../services_app_wuy/wuy_fake_data_generator.dart';
+import 'package:qyflutter/common/widgets/floating_avatar_header.dart';
+import 'package:qyflutter/common/assets/common_assets_images.dart';
 
 /// Friend Info Screen for Wuy App
-/// 
+///
 /// This screen displays detailed information about a specific friend.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -30,7 +34,7 @@ import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 /// - Example: LocalizationKeysAppWuy.wuyFriendInfoTitle.tr(context)
 class WuyFriendInfoScreen extends StatefulWidget {
   final String friendId;
-  
+
   const WuyFriendInfoScreen({
     super.key,
     required this.friendId,
@@ -41,6 +45,24 @@ class WuyFriendInfoScreen extends StatefulWidget {
 }
 
 class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
+  FriendModelAppWuy? friend;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFriendData();
+  }
+
+  void _loadFriendData() {
+    // Load friend data based on friendId
+    // For now, use fake data generator
+    final friends = WuyFakeDataGenerator.generateFakeFriends();
+    friend = friends.firstWhere(
+      (f) => f.id == widget.friendId,
+      orElse: () => friends.first,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,55 +94,24 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
   }
 
   Widget _buildHeaderSection() {
-    return Container(
-      width: double.infinity,
-      height: 300,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.blue.shade400,
-            Colors.blue.shade600,
-          ],
+    return Column(
+      children: [
+        FloatingAvatarHeader(
+          backgroundImage: CommonAssetsImages.wuyBackground2,
+          avatarImage: friend?.avatarUrl,
+          displayName: friend?.displayName ?? '',
+          subtitle: friend?.bio ?? '',
+          onBackTap: () => Navigator.of(context).pop(),
+          onAvatarTap: () {
+            // Handle friend avatar tap
+          },
+          showBackButton: true,
+          backgroundHeight: 200.0,
+          avatarSize: 120.0,
         ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: 50,
-            left: 0,
-            right: 0,
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 60,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  child: Icon(
-                    Icons.person,
-                    size: 60,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: ThemeDimensions.spacingMedium),
-                Text(
-                  '小飞侠',
-                  style: ThemeTextStyles.title2.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '守护的未来',
-                  style: ThemeTextStyles.bodyLarge.copyWith(
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        // Add space for floating avatar (half of avatar size)
+        SizedBox(height: 60),
+      ],
     );
   }
 
@@ -144,7 +135,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
         children: [
           Text(
             'TA的健康',
-              style: ThemeTextStyles.title3,
+            style: ThemeTextStyles.title3,
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
           Row(
@@ -202,7 +193,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
         children: [
           Text(
             'TA今天去过的地方',
-              style: ThemeTextStyles.title3,
+            style: ThemeTextStyles.title3,
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
           Row(
@@ -262,7 +253,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
         children: [
           Text(
             'TA今天的成就',
-              style: ThemeTextStyles.title3,
+            style: ThemeTextStyles.title3,
           ),
           SizedBox(height: ThemeDimensions.spacingMedium),
           _buildAchievementItem('跑步公里', '5.2 km'),
@@ -307,11 +298,13 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
                 context.go(WuyAppRouter.routeHistoryTracks);
               },
               icon: Icon(Icons.history),
-              label: Text(LocalizationKeysAppWuy.wuyFriendInfoHistoryTracks.tr(context)),
+              label: Text(LocalizationKeysAppWuy.wuyFriendInfoHistoryTracks
+                  .tr(context)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: ThemeColors.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
                 ),
               ),
             ),
@@ -323,11 +316,13 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
                 context.go(WuyAppRouter.routeNetworkRecords);
               },
               icon: Icon(Icons.network_check),
-              label: Text(LocalizationKeysAppWuy.wuyFriendInfoNetworkRecords.tr(context)),
+              label: Text(LocalizationKeysAppWuy.wuyFriendInfoNetworkRecords
+                  .tr(context)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+                  borderRadius:
+                      BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
                 ),
               ),
             ),

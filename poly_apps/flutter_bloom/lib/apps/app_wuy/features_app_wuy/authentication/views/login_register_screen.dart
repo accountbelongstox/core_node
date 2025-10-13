@@ -17,7 +17,7 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
-import '../../../services_app_wuy/wuy_unified_service.dart';
+import '../../../services_app_wuy/wuy_data_manager.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
 import '../../../../../common/utils/validation/phone_checker.dart';
 import '../../../widgets_app_wuy/wuy_common_logo.dart';
@@ -25,10 +25,10 @@ import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
 import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 
 /// Login/Register Screen for Wuy App
-/// 
+///
 /// This screen provides a unified interface for both login and registration.
 /// Users can enter their phone number and verification code to access the app.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -49,7 +49,7 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
   bool _isRegisterMode = false; // Default to login mode
   bool _canSendCode = false;
   int _countdown = 0;
-  final WuyUnifiedService _authService = WuyUnifiedService();
+  final WuyDataManager _dataManager = WuyDataManager.instance;
 
   @override
   void dispose() {
@@ -68,7 +68,8 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: WuyAppThemeConfig.wuyTextPrimary),
+            icon: const Icon(Icons.arrow_back,
+                color: WuyAppThemeConfig.wuyTextPrimary),
             onPressed: () => context.pop(),
           ),
         ),
@@ -149,12 +150,16 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
       hintText: LocalizationKeysAppWuy.wuyVerificationCode.tr(context),
       borderRadius: 12.0,
       suffixIcon: TextButton(
-        onPressed: (_isLoading || !_canSendCode || _countdown > 0) ? null : _sendVerificationCode,
+        onPressed: (_isLoading || !_canSendCode || _countdown > 0)
+            ? null
+            : _sendVerificationCode,
         child: Text(
-          _countdown > 0 ? '${_countdown}s' : LocalizationKeysAppWuy.wuyGetCode.tr(context),
+          _countdown > 0
+              ? '${_countdown}s'
+              : LocalizationKeysAppWuy.wuyGetCode.tr(context),
           style: ThemeTextStyles.buttonSmall.copyWith(
-            color: (_canSendCode && _countdown == 0) 
-                ? WuyAppThemeConfig.wuyPrimaryColor 
+            color: (_canSendCode && _countdown == 0)
+                ? WuyAppThemeConfig.wuyPrimaryColor
                 : WuyAppThemeConfig.wuyTextSub,
             fontSize: 14,
           ),
@@ -162,10 +167,12 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return LocalizationKeysAppWuy.wuyValidationVerificationRequired.tr(context);
+          return LocalizationKeysAppWuy.wuyValidationVerificationRequired
+              .tr(context);
         }
         if (value.length < 4) {
-          return LocalizationKeysAppWuy.wuyValidationVerificationFormat.tr(context);
+          return LocalizationKeysAppWuy.wuyValidationVerificationFormat
+              .tr(context);
         }
         return null;
       },
@@ -174,7 +181,9 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
 
   Widget _buildActionButton() {
     return WuyGradientButton(
-      text: _isRegisterMode ? LocalizationKeysAppWuy.wuyRegisterLogin.tr(context) : LocalizationKeysAppWuy.wuyLogin.tr(context),
+      text: _isRegisterMode
+          ? LocalizationKeysAppWuy.wuyRegisterLogin.tr(context)
+          : LocalizationKeysAppWuy.wuyLogin.tr(context),
       onPressed: _isLoading ? null : _handleAction,
       isLoading: _isLoading,
       height: 50,
@@ -197,7 +206,7 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
           });
         },
         child: Text(
-          _isRegisterMode 
+          _isRegisterMode
               ? LocalizationKeysAppWuy.wuyAlreadyHaveAccount.tr(context)
               : LocalizationKeysAppWuy.wuyNeedAccount.tr(context),
           style: ThemeTextStyles.buttonSmall.copyWith(
@@ -211,7 +220,8 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
 
   Widget _buildUserAgreement() {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: WuyAppThemeConfig.wuyDefaultPadding),
+      padding:
+          EdgeInsets.symmetric(horizontal: WuyAppThemeConfig.wuyDefaultPadding),
       child: RichText(
         textAlign: TextAlign.center,
         text: TextSpan(
@@ -244,11 +254,12 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
 
   void _sendVerificationCode() async {
     final phone = _phoneController.text.trim();
-    
+
     if (!PhoneChecker.isValidPhone(phone)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(LocalizationKeysAppWuy.wuyValidationPhoneFormat.tr(context)),
+          content:
+              Text(LocalizationKeysAppWuy.wuyValidationPhoneFormat.tr(context)),
           backgroundColor: WuyAppThemeConfig.wuyErrorColor,
         ),
       );
@@ -260,8 +271,8 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
     });
 
     try {
-      final result = await _authService.sendVerificationCode(phone);
-      
+      final result = await _dataManager.sendVerificationCode(phone);
+
       if (result.isSuccess) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -277,7 +288,8 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result.error ?? LocalizationKeysAppWuy.wuyMessageSendCodeFailed.tr(context)),
+              content: Text(result.error ??
+                  LocalizationKeysAppWuy.wuyMessageSendCodeFailed.tr(context)),
               backgroundColor: WuyAppThemeConfig.wuyErrorColor,
             ),
           );
@@ -287,7 +299,8 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(LocalizationKeysAppWuy.wuyMessageSendCodeError.tr(context, ['$e'])),
+            content: Text(LocalizationKeysAppWuy.wuyMessageSendCodeError
+                .tr(context, ['$e'])),
             backgroundColor: WuyAppThemeConfig.wuyErrorColor,
           ),
         );
@@ -305,13 +318,13 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
     setState(() {
       _countdown = 60;
     });
-    
+
     Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
           _countdown--;
         });
-        
+
         if (_countdown <= 0) {
           timer.cancel();
         }
@@ -333,33 +346,35 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
 
         AuthResult result;
         if (_isRegisterMode) {
-          result = await _authService.registerWithPhone(
+          result = await _dataManager.registerWithPhone(
             phone: phone,
             verificationCode: verificationCode,
           );
         } else {
-          result = await _authService.loginWithPhone(
+          result = await _dataManager.loginWithPhone(
             phone: phone,
             verificationCode: verificationCode,
           );
         }
 
-            if (result.isSuccess) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(result.message),
-                    backgroundColor: WuyAppThemeConfig.wuySuccessColor,
-                  ),
-                );
-                // Navigate to friends list using AuthGuard method with proper async handling
-                await AuthGuard.onLoginSuccess(context);
-              }
-            } else {
+        if (result.isSuccess) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(result.error ?? LocalizationKeysAppWuy.wuyMessageOperationFailed.tr(context)),
+                content: Text(result.message),
+                backgroundColor: WuyAppThemeConfig.wuySuccessColor,
+              ),
+            );
+            // Navigate to friends list using AuthGuard method with proper async handling
+            await AuthGuard.onLoginSuccess(context);
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result.error ??
+                    LocalizationKeysAppWuy.wuyMessageOperationFailed
+                        .tr(context)),
                 backgroundColor: WuyAppThemeConfig.wuyErrorColor,
               ),
             );
@@ -369,7 +384,8 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(LocalizationKeysAppWuy.wuyMessageLoginFailed.tr(context, ['$e'])),
+              content: Text(LocalizationKeysAppWuy.wuyMessageLoginFailed
+                  .tr(context, ['$e'])),
               backgroundColor: WuyAppThemeConfig.wuyErrorColor,
             ),
           );
@@ -383,5 +399,4 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
       }
     }
   }
-
 }

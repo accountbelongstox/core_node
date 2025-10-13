@@ -20,10 +20,10 @@ import '../router_app_wuy/router_app_wuy.dart';
 import '../localization_app_wuy/localization_keys_app_wuy.dart';
 
 /// Wuy App Bottom Navigation Component
-/// 
+///
 /// This is a Wuy app-specific bottom navigation component.
 /// It provides consistent navigation across all Wuy app pages.
-/// 
+///
 /// Features:
 /// - Consistent styling with Wuy app theme
 /// - Localization support
@@ -52,46 +52,47 @@ class WuyBottomNavigation extends StatelessWidget {
           ),
         ],
       ),
-      child: SafeArea(
-        child: Container(
-          height: 70,
-          padding: EdgeInsets.symmetric(
-            horizontal: ThemeDimensions.paddingSizeDefault,
-            vertical: ThemeDimensions.paddingSizeSmall,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                context,
-                Icons.chat,
-                LocalizationKeysAppWuy.wuyMenuMessages.tr(context),
-                WuyAppRouter.routeSearch,
-                0,
-              ),
-              _buildNavItem(
-                context,
-                Icons.people,
-                LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
-                WuyAppRouter.routeHome,
-                1,
-              ),
-              _buildNavItem(
-                context,
-                Icons.explore,
-                LocalizationKeysAppWuy.wuySearchTitle.tr(context),
-                WuyAppRouter.routeFindFriends,
-                2,
-              ),
-              _buildNavItem(
-                context,
-                Icons.person,
-                LocalizationKeysAppWuy.wuyMenuProfile.tr(context),
-                WuyAppRouter.routeProfile,
-                3,
-              ),
-            ],
-          ),
+      child: Container(
+        height: 70 + MediaQuery.of(context).padding.bottom,
+        padding: EdgeInsets.only(
+          left: ThemeDimensions.paddingSizeDefault,
+          right: ThemeDimensions.paddingSizeDefault,
+          top: ThemeDimensions.paddingSizeSmall,
+          bottom: MediaQuery.of(context).padding.bottom +
+              ThemeDimensions.paddingSizeSmall,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(
+              context,
+              Icons.chat,
+              LocalizationKeysAppWuy.wuyMenuMessages.tr(context),
+              WuyAppRouter.getSearchRoute(),
+              0,
+            ),
+            _buildNavItem(
+              context,
+              Icons.people,
+              LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
+              WuyAppRouter.getFriendsRoute(),
+              1,
+            ),
+            _buildNavItem(
+              context,
+              Icons.explore,
+              LocalizationKeysAppWuy.wuySearchTitle.tr(context),
+              WuyAppRouter.getFindFriendsRoute(),
+              2,
+            ),
+            _buildNavItem(
+              context,
+              Icons.person,
+              LocalizationKeysAppWuy.wuyMenuProfile.tr(context),
+              WuyAppRouter.getProfileRoute(),
+              3,
+            ),
+          ],
         ),
       ),
     );
