@@ -10,6 +10,7 @@
 
 // Static constants
 const QString ModernDeviceTreeWidget::DRAG_DROP_MIME_TYPE = "application/x-device-item";
+const QString ModernDeviceTreeWidget::ROOT_GROUP_NAME = "TcAllDevicesGroup";
 
 ModernDeviceTreeWidget::ModernDeviceTreeWidget(QWidget *parent)
     : QTreeWidget(parent)
@@ -73,13 +74,13 @@ void ModernDeviceTreeWidget::setupConnections()
         emit selectedGroupNameChanged();
         emit selectedDeviceSerialsChanged();
     });
-    
+
     // Connect double click
     connect(this, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *item, int column) {
         Q_UNUSED(column)
-        
+
         if (!item) return;
-        
+
         if (item->type() == GROUP_ITEM_TYPE) {
             QString groupName = item->data(0, Qt::UserRole).toString();
             emit deviceGroupDoubleClicked(groupName);
@@ -88,6 +89,9 @@ void ModernDeviceTreeWidget::setupConnections()
             emit deviceDoubleClicked(serial);
         }
     });
+
+    // Connect checkbox changes
+    connect(this, &QTreeWidget::itemChanged, this, &ModernDeviceTreeWidget::onItemChanged);
 }
 
 void ModernDeviceTreeWidget::setupContextMenu()
@@ -167,45 +171,83 @@ void ModernDeviceTreeWidget::setDeviceGroupManager(ModernDeviceGroupManager *man
 void ModernDeviceTreeWidget::refreshTree()
 {
     clear();
-    
+
     if (!m_deviceGroupManager) {
         return;
     }
-    
+
+    QTreeWidgetItem *rootItem = nullptr;
+
+    // Create root group if enabled
+    if (m_showRootGroup) {
+        rootItem = createRootGroupItem();
+        addTopLevelItem(rootItem);
+    }
+
     // Add all device groups
     QStringList groupNames = m_deviceGroupManager->deviceGroups();
     for (const QString &groupName : groupNames) {
         if (groupName == "Unassigned Devices") {
             continue; // Skip default group for now
         }
-        
+
         QTreeWidgetItem *groupItem = createGroupItem(groupName);
-        addTopLevelItem(groupItem);
-        
+
+        if (rootItem) {
+            rootItem->addChild(groupItem);
+        } else {
+            addTopLevelItem(groupItem);
+        }
+
         // Add devices in this group
         QList<DeviceInfo> devices = m_deviceGroupManager->getDevicesInGroup(groupName);
         for (const DeviceInfo &device : devices) {
             QTreeWidgetItem *deviceItem = createDeviceItem(device);
             groupItem->addChild(deviceItem);
         }
-        
+
         updateGroupItemAppearance(groupItem);
+
+        // Update group checkbox state
+        if (m_checkboxEnabled) {
+            updateGroupCheckState(groupItem);
+        }
     }
-    
+
     // Add unassigned devices
     QList<DeviceInfo> unassignedDevices = m_deviceGroupManager->getDevicesInGroup("Unassigned Devices");
     if (!unassignedDevices.isEmpty()) {
         QTreeWidgetItem *unassignedItem = createGroupItem("Unassigned Devices");
-        addTopLevelItem(unassignedItem);
-        
+
+        if (rootItem) {
+            rootItem->addChild(unassignedItem);
+        } else {
+            addTopLevelItem(unassignedItem);
+        }
+
         for (const DeviceInfo &device : unassignedDevices) {
             QTreeWidgetItem *deviceItem = createDeviceItem(device);
             unassignedItem->addChild(deviceItem);
         }
-        
+
         updateGroupItemAppearance(unassignedItem);
+
+        // Update group checkbox state
+        if (m_checkboxEnabled) {
+            updateGroupCheckState(unassignedItem);
+        }
     }
-    
+
+    // Update root group if it exists
+    if (rootItem) {
+        updateRootGroupItem(rootItem);
+
+        // Update root checkbox state
+        if (m_checkboxEnabled) {
+            updateRootGroupCheckState();
+        }
+    }
+
     expandAll();
 }
 
@@ -257,6 +299,33 @@ void ModernDeviceTreeWidget::setContextMenuEnabled(bool enabled)
     if (m_contextMenuEnabled != enabled) {
         m_contextMenuEnabled = enabled;
         emit contextMenuEnabledChanged();
+    }
+}
+
+void ModernDeviceTreeWidget::setCheckboxEnabled(bool enabled)
+{
+    if (m_checkboxEnabled != enabled) {
+        m_checkboxEnabled = enabled;
+        refreshTree();
+        emit checkboxEnabledChanged();
+    }
+}
+
+void ModernDeviceTreeWidget::setShowRootGroup(bool show)
+{
+    if (m_showRootGroup != show) {
+        m_showRootGroup = show;
+        refreshTree();
+        emit showRootGroupChanged();
+    }
+}
+
+void ModernDeviceTreeWidget::setShowGroupColorIndicator(bool show)
+{
+    if (m_showGroupColorIndicator != show) {
+        m_showGroupColorIndicator = show;
+        refreshTree();
+        emit showGroupColorIndicatorChanged();
     }
 }
 
@@ -517,11 +586,50 @@ void ModernDeviceTreeWidget::onDeviceNameChanged(const QString &serial, const QS
 void ModernDeviceTreeWidget::onDeviceSelectionChanged(const QString &serial, bool selected)
 {
     Q_UNUSED(selected)
-    
+
     QTreeWidgetItem *item = findDeviceItem(serial);
     if (item) {
         updateItemAppearance(item);
     }
+}
+
+void ModernDeviceTreeWidget::onItemChanged(QTreeWidgetItem *item, int column)
+{
+    if (!item || column != 0 || m_updatingCheckState || !m_checkboxEnabled) {
+        return;
+    }
+
+    m_updatingCheckState = true;
+
+    if (item->type() == ROOT_GROUP_ITEM_TYPE) {
+        // Root group checkbox changed - propagate to all groups
+        Qt::CheckState state = item->checkState(0);
+        for (int i = 0; i < item->childCount(); ++i) {
+            QTreeWidgetItem *groupItem = item->child(i);
+            if (groupItem && groupItem->type() == GROUP_ITEM_TYPE) {
+                setGroupChildrenCheckState(groupItem, state);
+                groupItem->setCheckState(0, state);
+            }
+        }
+    } else if (item->type() == GROUP_ITEM_TYPE) {
+        // Group checkbox changed - propagate to all children devices
+        Qt::CheckState state = item->checkState(0);
+        setGroupChildrenCheckState(item, state);
+
+        // Update root group check state
+        updateRootGroupCheckState();
+    } else if (item->type() == DEVICE_ITEM_TYPE) {
+        // Device checkbox changed - update parent group check state
+        QTreeWidgetItem *parent = item->parent();
+        if (parent && parent->type() == GROUP_ITEM_TYPE) {
+            updateGroupCheckState(parent);
+        }
+
+        // Update root group check state
+        updateRootGroupCheckState();
+    }
+
+    m_updatingCheckState = false;
 }
 
 void ModernDeviceTreeWidget::triggerCreateGroup()
@@ -639,13 +747,52 @@ void ModernDeviceTreeWidget::onRefreshDevice()
     }
 }
 
+QTreeWidgetItem* ModernDeviceTreeWidget::createRootGroupItem()
+{
+    QTreeWidgetItem *item = new QTreeWidgetItem(ROOT_GROUP_ITEM_TYPE);
+    item->setData(0, Qt::UserRole, ROOT_GROUP_NAME);
+    item->setIcon(0, m_groupIcon);
+    item->setText(0, ROOT_GROUP_NAME);
+    item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled);
+
+    if (m_checkboxEnabled) {
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
+        item->setCheckState(0, Qt::Unchecked);
+    }
+
+    QFont font = item->font(0);
+    font.setBold(true);
+    item->setFont(0, font);
+
+    return item;
+}
+
 QTreeWidgetItem* ModernDeviceTreeWidget::createGroupItem(const QString &groupName)
 {
     QTreeWidgetItem *item = new QTreeWidgetItem(GROUP_ITEM_TYPE);
     item->setData(0, Qt::UserRole, groupName);
     item->setIcon(0, m_groupIcon);
-    item->setText(0, groupName);
+
+    // Add color indicator if enabled
+    QString displayText = groupName;
+    if (m_showGroupColorIndicator && m_deviceGroupManager) {
+        QColor groupColor = m_deviceGroupManager->getGroupColor(groupName);
+        // Use colored circle Unicode character with color styling
+        QString colorDot = QString("● ");
+        displayText = colorDot + groupName;
+
+        // Set text color for the dot using rich text
+        item->setForeground(0, QBrush(groupColor));
+    }
+
+    item->setText(0, displayText);
     item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled);
+
+    if (m_checkboxEnabled) {
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
+        item->setCheckState(0, Qt::Unchecked);
+    }
+
     return item;
 }
 
@@ -656,19 +803,56 @@ QTreeWidgetItem* ModernDeviceTreeWidget::createDeviceItem(const DeviceInfo &devi
     item->setIcon(0, getDeviceIcon(device));
     item->setText(0, formatDeviceText(device));
     item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled);
+
+    if (m_checkboxEnabled) {
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(0, Qt::Unchecked);
+    }
+
     return item;
+}
+
+QTreeWidgetItem* ModernDeviceTreeWidget::findRootGroupItem() const
+{
+    if (!m_showRootGroup) {
+        return nullptr;
+    }
+
+    for (int i = 0; i < topLevelItemCount(); ++i) {
+        QTreeWidgetItem *item = topLevelItem(i);
+        if (item && item->type() == ROOT_GROUP_ITEM_TYPE) {
+            return item;
+        }
+    }
+    return nullptr;
 }
 
 QTreeWidgetItem* ModernDeviceTreeWidget::findGroupItem(const QString &groupName) const
 {
-    for (int i = 0; i < topLevelItemCount(); ++i) {
-        QTreeWidgetItem *item = topLevelItem(i);
-        if (item && item->type() == GROUP_ITEM_TYPE) {
-            if (item->data(0, Qt::UserRole).toString() == groupName) {
-                return item;
+    QTreeWidgetItem *rootItem = findRootGroupItem();
+
+    if (rootItem) {
+        // Search under root group
+        for (int i = 0; i < rootItem->childCount(); ++i) {
+            QTreeWidgetItem *item = rootItem->child(i);
+            if (item && item->type() == GROUP_ITEM_TYPE) {
+                if (item->data(0, Qt::UserRole).toString() == groupName) {
+                    return item;
+                }
+            }
+        }
+    } else {
+        // Search at top level
+        for (int i = 0; i < topLevelItemCount(); ++i) {
+            QTreeWidgetItem *item = topLevelItem(i);
+            if (item && item->type() == GROUP_ITEM_TYPE) {
+                if (item->data(0, Qt::UserRole).toString() == groupName) {
+                    return item;
+                }
             }
         }
     }
+
     return nullptr;
 }
 
@@ -690,12 +874,42 @@ QTreeWidgetItem* ModernDeviceTreeWidget::findDeviceItem(const QString &serial) c
     return nullptr;
 }
 
+void ModernDeviceTreeWidget::updateRootGroupItem(QTreeWidgetItem *item)
+{
+    if (!item || item->type() != ROOT_GROUP_ITEM_TYPE) {
+        return;
+    }
+
+    int totalDevices = 0;
+    int connectedDevices = 0;
+
+    for (int i = 0; i < item->childCount(); ++i) {
+        QTreeWidgetItem *groupItem = item->child(i);
+        if (groupItem && groupItem->type() == GROUP_ITEM_TYPE && m_deviceGroupManager) {
+            QString groupName = groupItem->data(0, Qt::UserRole).toString();
+            QList<DeviceInfo> devices = m_deviceGroupManager->getDevicesInGroup(groupName);
+            totalDevices += devices.size();
+            for (const DeviceInfo &device : devices) {
+                if (device.m_status == DeviceStatus::Connected) {
+                    connectedDevices++;
+                }
+            }
+        }
+    }
+
+    QString displayText = QString("%1 (%2 devices, %3 connected)")
+                              .arg(ROOT_GROUP_NAME)
+                              .arg(totalDevices)
+                              .arg(connectedDevices);
+    item->setText(0, displayText);
+}
+
 void ModernDeviceTreeWidget::updateGroupItem(QTreeWidgetItem *item, const QString &groupName)
 {
     if (!item || item->type() != GROUP_ITEM_TYPE) {
         return;
     }
-    
+
     item->setData(0, Qt::UserRole, groupName);
     item->setText(0, groupName);
     updateGroupItemAppearance(item);
@@ -734,12 +948,103 @@ void ModernDeviceTreeWidget::removeDeviceItem(const QString &serial)
     }
 }
 
+void ModernDeviceTreeWidget::updateGroupCheckState(QTreeWidgetItem *groupItem)
+{
+    if (!groupItem || groupItem->type() != GROUP_ITEM_TYPE || !m_checkboxEnabled) {
+        return;
+    }
+
+    m_updatingCheckState = true;
+
+    int childCount = groupItem->childCount();
+    int checkedCount = 0;
+    int uncheckedCount = 0;
+
+    for (int i = 0; i < childCount; ++i) {
+        QTreeWidgetItem *child = groupItem->child(i);
+        if (child && child->type() == DEVICE_ITEM_TYPE) {
+            if (child->checkState(0) == Qt::Checked) {
+                checkedCount++;
+            } else if (child->checkState(0) == Qt::Unchecked) {
+                uncheckedCount++;
+            }
+        }
+    }
+
+    if (checkedCount == childCount) {
+        groupItem->setCheckState(0, Qt::Checked);
+    } else if (uncheckedCount == childCount) {
+        groupItem->setCheckState(0, Qt::Unchecked);
+    } else {
+        groupItem->setCheckState(0, Qt::PartiallyChecked);
+    }
+
+    m_updatingCheckState = false;
+}
+
+void ModernDeviceTreeWidget::setGroupChildrenCheckState(QTreeWidgetItem *groupItem, Qt::CheckState state)
+{
+    if (!groupItem || !m_checkboxEnabled) {
+        return;
+    }
+
+    m_updatingCheckState = true;
+
+    for (int i = 0; i < groupItem->childCount(); ++i) {
+        QTreeWidgetItem *child = groupItem->child(i);
+        if (child && child->type() == DEVICE_ITEM_TYPE) {
+            child->setCheckState(0, state);
+        }
+    }
+
+    m_updatingCheckState = false;
+}
+
+void ModernDeviceTreeWidget::updateRootGroupCheckState()
+{
+    if (!m_checkboxEnabled || !m_showRootGroup) {
+        return;
+    }
+
+    QTreeWidgetItem *rootItem = findRootGroupItem();
+    if (!rootItem) {
+        return;
+    }
+
+    m_updatingCheckState = true;
+
+    int groupCount = rootItem->childCount();
+    int checkedCount = 0;
+    int uncheckedCount = 0;
+
+    for (int i = 0; i < groupCount; ++i) {
+        QTreeWidgetItem *groupItem = rootItem->child(i);
+        if (groupItem && groupItem->type() == GROUP_ITEM_TYPE) {
+            if (groupItem->checkState(0) == Qt::Checked) {
+                checkedCount++;
+            } else if (groupItem->checkState(0) == Qt::Unchecked) {
+                uncheckedCount++;
+            }
+        }
+    }
+
+    if (checkedCount == groupCount) {
+        rootItem->setCheckState(0, Qt::Checked);
+    } else if (uncheckedCount == groupCount) {
+        rootItem->setCheckState(0, Qt::Unchecked);
+    } else {
+        rootItem->setCheckState(0, Qt::PartiallyChecked);
+    }
+
+    m_updatingCheckState = false;
+}
+
 bool ModernDeviceTreeWidget::canDropOnItem(QTreeWidgetItem *item, const QMimeData *mimeData) const
 {
     if (!item || !mimeData->hasFormat(DRAG_DROP_MIME_TYPE)) {
         return false;
     }
-    
+
     // Can drop on group items
     return item->type() == GROUP_ITEM_TYPE;
 }

@@ -29,6 +29,9 @@ public:
     // Using Qt6.9's QProperty system
     Q_PROPERTY(bool dragDropEnabled READ dragDropEnabled WRITE setDragDropEnabled NOTIFY dragDropEnabledChanged)
     Q_PROPERTY(bool contextMenuEnabled READ contextMenuEnabled WRITE setContextMenuEnabled NOTIFY contextMenuEnabledChanged)
+    Q_PROPERTY(bool checkboxEnabled READ checkboxEnabled WRITE setCheckboxEnabled NOTIFY checkboxEnabledChanged)
+    Q_PROPERTY(bool showRootGroup READ showRootGroup WRITE setShowRootGroup NOTIFY showRootGroupChanged)
+    Q_PROPERTY(bool showGroupColorIndicator READ showGroupColorIndicator WRITE setShowGroupColorIndicator NOTIFY showGroupColorIndicatorChanged)
     Q_PROPERTY(QString selectedGroupName READ selectedGroupName NOTIFY selectedGroupNameChanged)
     Q_PROPERTY(QStringList selectedDeviceSerials READ selectedDeviceSerials NOTIFY selectedDeviceSerialsChanged)
 
@@ -49,6 +52,18 @@ public:
     void setDragDropEnabled(bool enabled);
     bool contextMenuEnabled() const { return m_contextMenuEnabled; }
     void setContextMenuEnabled(bool enabled);
+
+    // Checkbox support
+    bool checkboxEnabled() const { return m_checkboxEnabled; }
+    void setCheckboxEnabled(bool enabled);
+
+    // Root group support
+    bool showRootGroup() const { return m_showRootGroup; }
+    void setShowRootGroup(bool show);
+
+    // Group color indicator
+    bool showGroupColorIndicator() const { return m_showGroupColorIndicator; }
+    void setShowGroupColorIndicator(bool show);
 
     // Selection
     QString selectedGroupName() const;
@@ -83,6 +98,9 @@ protected:
 signals:
     void dragDropEnabledChanged();
     void contextMenuEnabledChanged();
+    void checkboxEnabledChanged();
+    void showRootGroupChanged();
+    void showGroupColorIndicatorChanged();
     void selectedGroupNameChanged();
     void selectedDeviceSerialsChanged();
     
@@ -112,7 +130,10 @@ private slots:
     void onDeviceStatusChanged(const QString &serial, DeviceStatus status);
     void onDeviceNameChanged(const QString &serial, const QString &name);
     void onDeviceSelectionChanged(const QString &serial, bool selected);
-    
+
+    // Checkbox handling
+    void onItemChanged(QTreeWidgetItem *item, int column);
+
     // Context menu actions
     void onCreateGroup();
     void onDeleteGroup();
@@ -128,14 +149,22 @@ private:
     void setupDragDrop();
     
     // Tree item management
+    QTreeWidgetItem* createRootGroupItem();
     QTreeWidgetItem* createGroupItem(const QString &groupName);
     QTreeWidgetItem* createDeviceItem(const DeviceInfo &device);
+    QTreeWidgetItem* findRootGroupItem() const;
     QTreeWidgetItem* findGroupItem(const QString &groupName) const;
     QTreeWidgetItem* findDeviceItem(const QString &serial) const;
+    void updateRootGroupItem(QTreeWidgetItem *item);
     void updateGroupItem(QTreeWidgetItem *item, const QString &groupName);
     void updateDeviceItem(QTreeWidgetItem *item, const DeviceInfo &device);
     void removeGroupItem(const QString &groupName);
     void removeDeviceItem(const QString &serial);
+
+    // Checkbox management
+    void updateGroupCheckState(QTreeWidgetItem *groupItem);
+    void setGroupChildrenCheckState(QTreeWidgetItem *groupItem, Qt::CheckState state);
+    void updateRootGroupCheckState();
     
     // Drag and drop helpers
     bool canDropOnItem(QTreeWidgetItem *item, const QMimeData *mimeData) const;
@@ -168,8 +197,14 @@ private:
     // UI settings
     bool m_dragDropEnabled = true;
     bool m_contextMenuEnabled = true;
+    bool m_checkboxEnabled = true;
+    bool m_showRootGroup = true;
+    bool m_showGroupColorIndicator = true;
     bool m_showDeviceCount = true;
     bool m_showConnectionStatus = true;
+
+    // Internal state
+    bool m_updatingCheckState = false;
     
     // Icons
     QIcon m_groupIcon;
@@ -182,9 +217,11 @@ private:
     QString m_dragSourceDevice;
     
     // Constants
+    static const int ROOT_GROUP_ITEM_TYPE = QTreeWidgetItem::UserType;
     static const int GROUP_ITEM_TYPE = QTreeWidgetItem::UserType + 1;
     static const int DEVICE_ITEM_TYPE = QTreeWidgetItem::UserType + 2;
     static const QString DRAG_DROP_MIME_TYPE;
+    static const QString ROOT_GROUP_NAME;
 };
 
 #endif // MODERNDEVICETREEWIDGET_H

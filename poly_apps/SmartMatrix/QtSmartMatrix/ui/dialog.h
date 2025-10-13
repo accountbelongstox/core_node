@@ -11,7 +11,7 @@
 
 
 #include "adbprocess.h"
-#include "../QtScrcpyCore/include/QtScrcpyCore.h"
+#include "../SmartMatrixCore/include/SmartMatrixCore.h"
 #include "audio/audiooutput.h"
 
 namespace Ui

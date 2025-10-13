@@ -1,4 +1,4 @@
-#include <QApplication>
+﻿#include <QApplication>
 #include <QDebug>
 #include <QFile>
 #include <QSurfaceFormat>
@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
     // Parse command line arguments
     QApplication a(argc, argv);
     QCommandLineParser parser;
-    parser.setApplicationDescription("QtScrcpy with Modern UI Extension");
+    parser.setApplicationDescription("SmartMatrix with Modern UI Extension");
     parser.addHelpOption();
     parser.addVersionOption();
     
@@ -46,24 +46,24 @@ int main(int argc, char *argv[])
 
     // Set environment variables
 #ifdef Q_OS_WIN32
-    qputenv("QTSCRCPY_ADB_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/adb/win/adb.exe");
-    qputenv("QTSCRCPY_SERVER_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/scrcpy-server");
-    qputenv("QTSCRCPY_KEYMAP_PATH", "../../../keymap");
-    qputenv("QTSCRCPY_CONFIG_PATH", "../../../config");
+    qputenv("SmartMatrix_ADB_PATH", "../../../SmartMatrix/SmartMatrixCore/src/third_party/adb/win/adb.exe");
+    qputenv("SmartMatrix_SERVER_PATH", "../../../SmartMatrix/SmartMatrixCore/src/third_party/scrcpy-server");
+    qputenv("SmartMatrix_KEYMAP_PATH", "../../../keymap");
+    qputenv("SmartMatrix_CONFIG_PATH", "../../../config");
 #endif
 
 #ifdef Q_OS_OSX
-    qputenv("QTSCRCPY_ADB_PATH", "../../../../../../QtScrcpy/QtScrcpyCore/src/third_party/adb/mac/adb");
-    qputenv("QTSCRCPY_SERVER_PATH", "../../../../../../QtScrcpy/QtScrcpyCore/src/third_party/scrcpy-server");
-    qputenv("QTSCRCPY_KEYMAP_PATH", "../../../../../../keymap");
-    qputenv("QTSCRCPY_CONFIG_PATH", "../../../../../../config");
+    qputenv("SmartMatrix_ADB_PATH", "../../../../../../SmartMatrix/SmartMatrixCore/src/third_party/adb/mac/adb");
+    qputenv("SmartMatrix_SERVER_PATH", "../../../../../../SmartMatrix/SmartMatrixCore/src/third_party/scrcpy-server");
+    qputenv("SmartMatrix_KEYMAP_PATH", "../../../../../../keymap");
+    qputenv("SmartMatrix_CONFIG_PATH", "../../../../../../config");
 #endif
 
 #ifdef Q_OS_LINUX
-    qputenv("QTSCRCPY_ADB_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/adb/linux/adb");
-    qputenv("QTSCRCPY_SERVER_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/scrcpy-server");
-    qputenv("QTSCRCPY_KEYMAP_PATH", "../../../keymap");
-    qputenv("QTSCRCPY_CONFIG_PATH", "../../../config");
+    qputenv("SmartMatrix_ADB_PATH", "../../../SmartMatrix/SmartMatrixCore/src/third_party/adb/linux/adb");
+    qputenv("SmartMatrix_SERVER_PATH", "../../../SmartMatrix/SmartMatrixCore/src/third_party/scrcpy-server");
+    qputenv("SmartMatrix_KEYMAP_PATH", "../../../keymap");
+    qputenv("SmartMatrix_CONFIG_PATH", "../../../config");
 #endif
 
     g_msgType = covertLogLevel(Config::getInstance().getLogLevel());
@@ -91,10 +91,10 @@ int main(int argc, char *argv[])
     g_oldMessageHandler = qInstallMessageHandler(myMessageOutput);
 
     // Set application properties
-    a.setApplicationName("QtScrcpy Modern UI");
+    a.setApplicationName("SmartMatrix Modern UI");
     a.setApplicationVersion("2.0.0");
-    a.setOrganizationName("QtScrcpy");
-    a.setOrganizationDomain("qtscrcpy.com");
+    a.setOrganizationName("SmartMatrix");
+    a.setOrganizationDomain("SmartMatrix.com");
 
     // Update version
     QStringList versionList = QCoreApplication::applicationVersion().split(".");
@@ -134,8 +134,8 @@ int main(int argc, char *argv[])
     g_modernMainWindow->show();
 
     // Print application information
-    qInfo() << QObject::tr("QtScrcpy Modern UI Extension v2.0.0");
-    qInfo() << QObject::tr("Copyright © 2025 QtScrcpy Modern UI Team. All rights reserved.");
+    qInfo() << QObject::tr("SmartMatrix Modern UI Extension v2.0.0");
+    qInfo() << QObject::tr("Copyright © 2025 SmartMatrix Modern UI Team. All rights reserved.");
     qInfo() << QObject::tr("Professional mirror software with modern UI capabilities.");
     qInfo() << QObject::tr("Built with Qt6.9 and modern C++ features.");
 

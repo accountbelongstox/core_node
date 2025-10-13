@@ -1,10 +1,10 @@
-# QtScrcpy UI Extension Analysis Report
+﻿# SmartMatrix UI Extension Analysis Report
 
 ## Overview
 
-This report analyzes how `qtscrcpy_tc` extended the original QtScrcpy UI and provides guidance for implementing similar extensions in the modern QtScrcpy project.
+This report analyzes how `SmartMatrix_tc` extended the original SmartMatrix UI and provides guidance for implementing similar extensions in the modern SmartMatrix project.
 
-## qtscrcpy_tc Extension Analysis
+## SmartMatrix_tc Extension Analysis
 
 ### 1. Core Extension Components
 
@@ -101,12 +101,12 @@ class DeviceItemWidget : public QWidget {
 - **Group Operations**: Group-level operation signals
 - **UI Updates**: Real-time UI update signals
 
-## Modern QtScrcpy Integration Strategy
+## Modern SmartMatrix Integration Strategy
 
 ### 1. Integration Approach
 
 #### A. Modular Extension
-- **Keep Original**: Preserve existing QtScrcpy functionality
+- **Keep Original**: Preserve existing SmartMatrix functionality
 - **Add Modern Components**: Integrate new UI components alongside existing ones
 - **Gradual Migration**: Allow users to choose between old and new UI
 
@@ -186,7 +186,7 @@ set(MODERN_UI_SOURCES
 )
 
 # Add to main target
-target_sources(QtScrcpy PRIVATE ${MODERN_UI_SOURCES})
+target_sources(SmartMatrix PRIVATE ${MODERN_UI_SOURCES})
 ```
 
 ### 4. Configuration Integration
@@ -261,11 +261,11 @@ class Config {
 
 ## Conclusion
 
-The qtscrcpy_tc extension provides a solid foundation for understanding how to extend QtScrcpy with modern UI components. The key is to:
+The SmartMatrix_tc extension provides a solid foundation for understanding how to extend SmartMatrix with modern UI components. The key is to:
 
 1. **Preserve Existing Functionality**: Maintain backward compatibility
 2. **Add Modern Components**: Integrate new UI components alongside existing ones
 3. **Provide User Choice**: Allow users to choose between UI modes
 4. **Ensure Data Consistency**: Synchronize data between different UI modes
 
-This approach ensures a smooth transition to modern UI while maintaining the stability and functionality of the original QtScrcpy application.
+This approach ensures a smooth transition to modern UI while maintaining the stability and functionality of the original SmartMatrix application.

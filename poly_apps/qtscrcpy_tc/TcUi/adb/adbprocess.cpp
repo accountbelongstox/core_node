@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 
 #include "adbprocess.h"
 #include "config.h"
@@ -29,7 +30,7 @@ const QString &AdbProcess::getAdbPath()
         if (s_adbPath.isEmpty() || !fileInfo.isFile()) {
             s_adbPath = Config::getInstance().getAdbPath();
         }
-        fileInfo = s_adbPath;
+        fileInfo.setFile(s_adbPath);  // Qt 6: QFileInfo no longer accepts QString assignment
         if (s_adbPath.isEmpty() || !fileInfo.isFile()) {
             s_adbPath = QCoreApplication::applicationDirPath() + "/adb";
         }
@@ -117,9 +118,10 @@ QStringList AdbProcess::getDevicesSerialFromStdOut()
 {
     // get devices serial by adb devices
     QStringList serials;
-    QStringList devicesInfoList = m_standardOutput.split(QRegExp("\r\n|\n"), QString::SkipEmptyParts);
+    // Qt6: QRegExp replaced with QRegularExpression, QString::SkipEmptyParts replaced with Qt::SkipEmptyParts
+    QStringList devicesInfoList = m_standardOutput.split(QRegularExpression("\r\n|\n"), Qt::SkipEmptyParts);
     for (QString deviceInfo : devicesInfoList) {
-        QStringList deviceInfos = deviceInfo.split(QRegExp("\t"), QString::SkipEmptyParts);
+        QStringList deviceInfos = deviceInfo.split(QRegularExpression("\t"), Qt::SkipEmptyParts);
         if (2 == deviceInfos.count() && 0 == deviceInfos[1].compare("device")) {
             serials << deviceInfos[0];
         }
@@ -132,16 +134,19 @@ QString AdbProcess::getDeviceIPFromStdOut()
     QString ip = "";
 #if 0
     QString strIPExp = "inet [\\d.]*";
-    QRegExp ipRegExp(strIPExp,Qt::CaseInsensitive);
-    if (ipRegExp.indexIn(m_standardOutput) != -1) {
-        ip = ipRegExp.cap(0);
+    QRegularExpression ipRegExp(strIPExp, QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = ipRegExp.match(m_standardOutput);
+    if (match.hasMatch()) {
+        ip = match.captured(0);
         ip = ip.right(ip.size() - 5);
     }
 #else
+    // Qt6: QRegExp replaced with QRegularExpression
     QString strIPExp = "inet addr:[\\d.]*";
-    QRegExp ipRegExp(strIPExp, Qt::CaseInsensitive);
-    if (ipRegExp.indexIn(m_standardOutput) != -1) {
-        ip = ipRegExp.cap(0);
+    QRegularExpression ipRegExp(strIPExp, QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = ipRegExp.match(m_standardOutput);
+    if (match.hasMatch()) {
+        ip = match.captured(0);
         ip = ip.right(ip.size() - 10);
     }
 #endif
@@ -153,10 +158,12 @@ QString AdbProcess::getDeviceIPByIpFromStdOut()
 {
     QString ip = "";
 
+    // Qt6: QRegExp replaced with QRegularExpression
     QString strIPExp = "wlan0    inet [\\d.]*";
-    QRegExp ipRegExp(strIPExp, Qt::CaseInsensitive);
-    if (ipRegExp.indexIn(m_standardOutput) != -1) {
-        ip = ipRegExp.cap(0);
+    QRegularExpression ipRegExp(strIPExp, QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = ipRegExp.match(m_standardOutput);
+    if (match.hasMatch()) {
+        ip = match.captured(0);
         ip = ip.right(ip.size() - 14);
     }
     qDebug() << "get ip: " << ip;

@@ -1,5 +1,5 @@
-# QtScrcpy Qt5 to Qt6.9.3 Upgrade Progress
-**Project**: QtScrcpy
+﻿# SmartMatrix Qt5 to Qt6.9.3 Upgrade Progress
+**Project**: SmartMatrix
 **Target Qt Version**: Qt 6.9.3
 **Upgrade Date**: 2025-10-12
 **Backup Timestamp**: 20251012_044031
@@ -13,14 +13,14 @@
 - [Known Issues](#known-issues)
 - [Testing Checklist](#testing-checklist)
 ## Overview
-This document tracks the complete migration of QtScrcpy from Qt5 to Qt6.9.3. All Qt5-specific APIs have been replaced with their Qt6 equivalents, and all conditional compilation blocks have been removed for a pure Qt6 codebase.
+This document tracks the complete migration of SmartMatrix from Qt5 to Qt6.9.3. All Qt5-specific APIs have been replaced with their Qt6 equivalents, and all conditional compilation blocks have been removed for a pure Qt6 codebase.
 ### Analyzed Documents
 | Document | Priority | Key Findings | Action |
 |----------|----------|--------------|--------|
-| `ChangesToQt6Widgets.md` | High | Widget API removals (QDesktopWidget, event adjustments) confirmed against QtScrcpy UI code. | Reviewed |
+| `ChangesToQt6Widgets.md` | High | Widget API removals (QDesktopWidget, event adjustments) confirmed against SmartMatrix UI code. | Reviewed |
 | `oldnewclasses515.md` | Medium | Lists Qt 5.15 additions and replaced classes; confirms we already target modern Qt6 equivalents. | Reference |
 | `WhatsNewInQt6.9.md` | Info | Highlights Qt 6.9 improvements (graphics, logging, containers) available after upgrade. | Optional adoption |
-| `Qt5to6MigrationTutorial.md` | Info | QML-focused migration tips; no direct impact on widget-based QtScrcpy. | No change |
+| `Qt5to6MigrationTutorial.md` | Info | QML-focused migration tips; no direct impact on widget-based SmartMatrix. | No change |
 | `Qt5toQt6MigrationCriticalSteps.md` | High | Requires `QT_DISABLE_DEPRECATED_BEFORE` and Clazy Qt6 rules to keep deprecated Qt5 APIs out. | Pending macro & analysis |
 | `NewClassesAndFunctionsInQt6.9.md` | Info | Catalog of new Qt 6.9 APIs for future enhancements; no blockers identified. | Monitor |
 | `Qt6OpenGL.md` | Medium | Qt OpenGL classes moved to `Qt6::OpenGL` / `Qt6::OpenGLWidgets`; ANGLE removed; may need explicit backend selection. | Confirm build links & runtime backend |
@@ -45,42 +45,42 @@ This document tracks the complete migration of QtScrcpy from Qt5 to Qt6.9.3. All
 All modified files have been backed up with the naming convention: `{timestamp}_backup_{filename}`
 | Original File | Backup File |
 |---------------|-------------|
-| `QtScrcpy/ui/dialog.cpp` | `20251012_044031_backup_dialog.cpp` |
-| `QtScrcpy/ui/dialog.h` | `20251012_044031_backup_dialog.h` |
-| `QtScrcpy/ui/videoform.cpp` | `20251012_044031_backup_videoform.cpp` |
-| `QtScrcpy/ui/videoform.h` | `20251012_044031_backup_videoform.h` |
-| `QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/keymap/keymap.h` | `20251012_044031_backup_keymap.h` |
-| `QtScrcpy/audio/audiooutput.h` | `20251012_044031_backup_audiooutput.h` |
-| `QtScrcpy/audio/audiooutput.cpp` | `20251012_044031_backup_audiooutput.cpp` |
-| `QtScrcpy/groupcontroller/groupcontroller.h` | `20251012_044031_backup_groupcontroller.h` |
-| `QtScrcpy/CMakeLists.txt` | `20251012_042444_backup_CMakeLists.txt` |
-| `QtScrcpy/QtScrcpyCore/src/adb/adbprocessimpl.cpp` | `20251012_042444_backup_adbprocessimpl.cpp` |
+| `SmartMatrix/ui/dialog.cpp` | `20251012_044031_backup_dialog.cpp` |
+| `SmartMatrix/ui/dialog.h` | `20251012_044031_backup_dialog.h` |
+| `SmartMatrix/ui/videoform.cpp` | `20251012_044031_backup_videoform.cpp` |
+| `SmartMatrix/ui/videoform.h` | `20251012_044031_backup_videoform.h` |
+| `SmartMatrix/SmartMatrixCore/src/device/controller/inputconvert/keymap/keymap.h` | `20251012_044031_backup_keymap.h` |
+| `SmartMatrix/audio/audiooutput.h` | `20251012_044031_backup_audiooutput.h` |
+| `SmartMatrix/audio/audiooutput.cpp` | `20251012_044031_backup_audiooutput.cpp` |
+| `SmartMatrix/groupcontroller/groupcontroller.h` | `20251012_044031_backup_groupcontroller.h` |
+| `SmartMatrix/CMakeLists.txt` | `20251012_042444_backup_CMakeLists.txt` |
+| `SmartMatrix/SmartMatrixCore/src/adb/adbprocessimpl.cpp` | `20251012_042444_backup_adbprocessimpl.cpp` |
 ### 2. API Migration
 #### 2.1 QRegExp  ->  QRegularExpression
 **Files Modified**:
-- `QtScrcpy/QtScrcpyCore/src/adb/adbprocessimpl.cpp`
-- `QtScrcpy/ui/dialog.cpp`
+- `SmartMatrix/SmartMatrixCore/src/adb/adbprocessimpl.cpp`
+- `SmartMatrix/ui/dialog.cpp`
 **Status**: Complete - All instances migrated with detailed comments
 #### 2.2 QTime  ->  QElapsedTimer
-**Files Modified**: `QtScrcpy/ui/dialog.cpp`
+**Files Modified**: `SmartMatrix/ui/dialog.cpp`
 **Reason**: `QTime::currentTime()` is deprecated in Qt6. `QElapsedTimer` provides better performance.
 **Status**: Complete
 #### 2.3 QVector  ->  QList
 **Files Modified**:
-- `QtScrcpy/QtScrcpyCore/src/device/controller/inputconvert/keymap/keymap.h`
-- `QtScrcpy/audio/audiooutput.h`
-- `QtScrcpy/groupcontroller/groupcontroller.h`
+- `SmartMatrix/SmartMatrixCore/src/device/controller/inputconvert/keymap/keymap.h`
+- `SmartMatrix/audio/audiooutput.h`
+- `SmartMatrix/groupcontroller/groupcontroller.h`
 **Status**: Complete - All QVector instances replaced
 #### 2.4 QAudioOutput  ->  QAudioSink
 **Files Modified**:
-- `QtScrcpy/audio/audiooutput.h`
-- `QtScrcpy/audio/audiooutput.cpp`
+- `SmartMatrix/audio/audiooutput.h`
+- `SmartMatrix/audio/audiooutput.cpp`
 **Status**: Complete - Full audio subsystem migrated
 #### 2.5 QString::split() Parameter
-**Files Modified**: `QtScrcpy/ui/dialog.cpp`
+**Files Modified**: `SmartMatrix/ui/dialog.cpp`
 **Status**: Complete
 #### 2.6 QAbstractSocket::error  ->  errorOccurred
-**Files Modified**: `QtScrcpy/audio/audiooutput.cpp`
+**Files Modified**: `SmartMatrix/audio/audiooutput.cpp`
 **Status**: Complete
 ### 3. Conditional Compilation Removal
 **Files Affected**:
@@ -88,7 +88,7 @@ All modified files have been backed up with the naming convention: `{timestamp}_
 **Result**: Pure Qt6 codebase with no conditional compilation
 **Status**: Complete
 ### 4. Build Configuration
-**File**: `QtScrcpy/CMakeLists.txt`
+**File**: `SmartMatrix/CMakeLists.txt`
 **Status**: Complete - `Qt6::Core5Compat` dependency fully removed
 ### 5. High Priority Documentation Review 
 **Completed**: 2025-10-12
@@ -106,13 +106,13 @@ From `Qt5toQt6MigrationCriticalSteps.md`, two important items were identified:
 **Tasks Completed**:
 
 #### 6.1 Compiler Configuration Fix
-- **File**: `QtScrcpy/CMakeLists.txt`
+- **File**: `SmartMatrix/CMakeLists.txt`
 - **Issue**: Qt6 requires C++17 compiler with proper `__cplusplus` macro
 - **Solution**: Added `/Zc:__cplusplus` flag for MSVC compiler
 - **Status**: Complete
 
 #### 6.2 Deprecation Check Macro
-- **File**: `QtScrcpy/CMakeLists.txt`
+- **File**: `SmartMatrix/CMakeLists.txt`
 - **Addition**: `QT_DISABLE_DEPRECATED_BEFORE=0x050F00`
 - **Purpose**: Ensure Qt5-only APIs fail to compile
 - **Status**: Complete
@@ -121,8 +121,8 @@ From `Qt5toQt6MigrationCriticalSteps.md`, two important items were identified:
 **Files Modified**:
 - `main.cpp` - Removed Qt5 High DPI scaling conditionals
 - `ui/videoform.cpp` - Removed Qt5/Qt6 event position conditionals
-- `QtScrcpyCore/src/device/controller/inputconvert/inputconvertgame.cpp` - Removed Qt5/Qt6 mouse event conditionals
-- `QtScrcpyCore/src/device/controller/inputconvert/inputconvertnormal.cpp` - Removed Qt5/Qt6 wheel event conditionals
+- `SmartMatrixCore/src/device/controller/inputconvert/inputconvertgame.cpp` - Removed Qt5/Qt6 mouse event conditionals
+- `SmartMatrixCore/src/device/controller/inputconvert/inputconvertnormal.cpp` - Removed Qt5/Qt6 wheel event conditionals
 - `ui/toolform.cpp` - Removed Qt5/Qt6 drag position conditionals
 - `util/config.cpp` - Removed Qt5 INI codec conditionals
 - `util/mousetap/xmousetap.cpp` - Removed Qt5 X11Extras conditionals
@@ -158,7 +158,7 @@ From `Qt5toQt6MigrationCriticalSteps.md`, two important items were identified:
 ---
 ## Pending Tasks
 ### High Priority
-- [x] **Add Deprecation Check Macro**: add `QT_DISABLE_DEPRECATED_BEFORE=0x050F00` in `QtScrcpy/CMakeLists.txt` so Qt5-only APIs fail to compile.
+- [x] **Add Deprecation Check Macro**: add `QT_DISABLE_DEPRECATED_BEFORE=0x050F00` in `SmartMatrix/CMakeLists.txt` so Qt5-only APIs fail to compile.
 - [x] **Investigate Build Errors**: Qt 6.9.3 build still fails; review MinGW64 toolchain logs and Qt6 API gaps.
 - [x] **Fix C++17 Compiler Issues**: Added `/Zc:__cplusplus` flag for MSVC to properly support Qt6 C++17 requirements.
 - [x] **Clean Conditional Compilation**: Removed all Qt5/Qt6 conditional compilation blocks from source files.

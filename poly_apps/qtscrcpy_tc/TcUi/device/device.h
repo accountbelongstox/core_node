@@ -1,6 +1,7 @@
 #ifndef DEVICE_H
 #define DEVICE_H
 
+#include <QObject>
 #include <QElapsedTimer>
 #include <QPointer>
 #include <QTime>

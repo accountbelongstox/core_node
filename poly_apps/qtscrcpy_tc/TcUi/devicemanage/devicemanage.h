@@ -1,6 +1,7 @@
 #ifndef DEVICEMANAGE_H
 #define DEVICEMANAGE_H
 
+#include <QObject>
 #include <QMap>
 #include <QPointer>
 #include <QGridLayout>

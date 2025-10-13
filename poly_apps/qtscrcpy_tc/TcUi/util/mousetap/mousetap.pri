@@ -21,5 +21,6 @@ linux {
     HEADERS += $$PWD/xmousetap.h
     SOURCES += $$PWD/xmousetap.cpp
     LIBS    += -lxcb
-    QT      += x11extras
+    # Qt6: x11extras removed, functionality now in QtGui
+    # QT      += x11extras
 }
