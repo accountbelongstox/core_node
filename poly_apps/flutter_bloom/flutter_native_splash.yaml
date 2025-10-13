@@ -2,7 +2,7 @@ flutter_native_splash:
   # Basic splash screen configuration
   # Either color or background_image is required
   color: #667eea
-  background_image: assets/apps/app_wuy/launch/splash.png
+  background_image: assets/apps/app_wuy/launch/background.png
   
   # Splash screen logo/image
   #image: assets/apps/app_wuy/icons/logo.png
@@ -14,7 +14,7 @@ flutter_native_splash:
   
   # Dark mode variants
   color_dark: #121212
-  background_image_dark: assets/apps/app_wuy/launch/splash.png
+  background_image_dark: assets/apps/app_wuy/launch/background.png
   #image_dark: assets/apps/app_wuy/icons/logo.png
   #branding_dark: "assets/common/launch/branding_dark.png"
   
