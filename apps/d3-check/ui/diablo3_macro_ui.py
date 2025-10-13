@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sys
 import os
+import time
 from typing import Optional, Callable
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from providor.common_imports import ColorPrint, ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config, CONFIG_USER_PATH
 
 # Import UI components
-from .components import TitleBar, MenuBar, BottomBar, MacroControls, SystemTray, StatusBar
+from .components import TitleBar, MenuBar, BottomBar, MacroControls, SystemTray
 
 # Import panels
 from .panels.main_functions_panel import MainFunctionsPanel
@@ -56,7 +57,7 @@ class Diablo3MacroUI:
 
         # Set window title
         self.root.title(i18n_manager.get_ui_text("main_window.title"))
-        self.root.geometry("540x615")
+        self.root.geometry("540x550")
         self.root.minsize(420, 400)
         self.root.resizable(True, True)
         self.root.configure(bg=UITheme.get_color('bg_dark'))
@@ -210,12 +211,9 @@ class Diablo3MacroUI:
         # Pack bottom bar
         self.bottom_bar.pack(fill=tk.X, padx=5, pady=3)
 
-        # Status bar (create after bottom bar)
-        self.status_bar = StatusBar(self.root)
-
-        # Note: Status bar callback registration is handled by system_initializer
+        # Note: Bottom bar callback registration is handled by system_initializer
         # UI does not import timer system - decoupled architecture
-        # Flow: system_initializer -> registers status_bar.on_window_status_update to window_monitor
+        # Flow: system_initializer -> registers bottom_bar.on_window_status_update to window_monitor
 
         # Macro controls (inside bottom bar)
         self.macro_controls = MacroControls(
@@ -223,22 +221,19 @@ class Diablo3MacroUI:
             on_start=self._on_start_macro,
             on_stop=self._on_stop_macro
         )
-        self.macro_controls.pack(side=tk.LEFT, padx=(20, 0))
+        self.macro_controls.grid(row=2, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
 
-        # Pack status bar at bottom
-        self.status_bar.pack(fill=tk.X, padx=5, pady=(0, 3))
-
-    def get_status_bar_callback(self):
+    def get_window_status_callback(self):
         """
-        Get status bar update callback for system_initializer to register
+        Get window status update callback for system_initializer to register
 
         This method allows system_initializer to register the callback without
         UI importing timer system - maintaining decoupled architecture.
 
         Returns:
-            Callable: status_bar.on_window_status_update method
+            Callable: bottom_bar.on_window_status_update method
         """
-        return self.status_bar.on_window_status_update
+        return self.bottom_bar.on_window_status_update
 
     def _create_system_tray(self):
         """Create system tray icon"""
@@ -289,7 +284,7 @@ class Diablo3MacroUI:
     def _create_main_tabs(self):
         """Create main tabbed interface"""
         # Create notebook for main tabs
-        self.main_notebook = ttk.Notebook(self.root, height=420)
+        self.main_notebook = ttk.Notebook(self.root, height=370)
         self.main_notebook.pack(fill=tk.X, padx=8, pady=3)
         
         # Apply dark theme to notebook
@@ -557,7 +552,7 @@ class Diablo3MacroUI:
         self._register_panel_language_listeners()
 
         if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.pack(side=tk.LEFT, padx=(20, 0))
+            self.macro_controls.grid(row=2, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
 
     def _recreate_ui_for_language_change(self):
         """Recreate UI specifically for language change - no panel listeners"""
@@ -577,7 +572,7 @@ class Diablo3MacroUI:
             )
 
         if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.pack(side=tk.LEFT, padx=(20, 0))
+            self.macro_controls.grid(row=2, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
 
         self._reregister_log_callback()
 
@@ -728,7 +723,6 @@ class Diablo3MacroUI:
     
     def destroy(self):
         """Destroy the UI completely - called by shutdown manager"""
-        import time
         ColorPrint.blue("[UI] Starting UI destruction...")
 
         if hasattr(self, 'system_tray') and self.system_tray:

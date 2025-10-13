@@ -66,7 +66,7 @@ Examples:
         from providor.common_imports import ColorPrint
 
         ColorPrint.blue("\n" + "=" * 80)
-        ColorPrint.blue("🎮 D3Check - UI Mode")
+        ColorPrint.blue("D3Check - UI Mode")
         ColorPrint.blue("=" * 80)
 
         try:

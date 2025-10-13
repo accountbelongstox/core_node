@@ -13,6 +13,9 @@ import os
 # Import unified styles
 from ..unified_styles import UnifiedStyles
 
+# Import from common_imports
+from providor.common_imports import ColorPrint
+
 # Import CONFIG from providor
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 from providor.providor_index import CONFIG
@@ -21,6 +24,11 @@ from providor.providor_index import CONFIG
 from d3utils.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
 
+# Import game state and task thread manager
+from d3utils.game_state import get_game_state, register_state_callback
+from d3utils.task_thread_manager import get_task_manager, set_task_status, TaskStatus
+import d3utils.rosbot_task_processor as rosbot_processor
+
 
 class RosbotExtensionPanel:
     """ROSBOT Extension panel with unified styling"""
@@ -28,17 +36,22 @@ class RosbotExtensionPanel:
     def __init__(self, parent):
         """Initialize ROSBOT extension panel"""
         self.parent = parent
-        self.vars = {}
-        
+
         # Configure TTK styles
         self.style = UnifiedStyles.configure_ttk_styles()
-        
+
+        # ROSBOT running state
+        self.rosbot_running = False
+
+        # Get game state instance
+        self.game_state = get_game_state()
+
         # Create main container
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
-        self.container.pack(fill=tk.BOTH, expand=True, 
-                           padx=UnifiedStyles.SPACING['md'], 
+        self.container.pack(fill=tk.BOTH, expand=True,
+                           padx=UnifiedStyles.SPACING['md'],
                            pady=UnifiedStyles.SPACING['md'])
-        
+
         # Configure grid - 2 rows, 2 columns in first row, 1 column in second row
         self.container.grid_columnconfigure(0, weight=1)
         self.container.grid_columnconfigure(1, weight=1)
@@ -48,8 +61,11 @@ class RosbotExtensionPanel:
         # Create content
         self.create_content()
 
-        # Load configuration
-        self._load_rosbot_config()
+        # Register as ColorPrint callback for rosbot-specific logs
+        ColorPrint.register_callback(self.add_log_message)
+
+        # Register game state callback for UI updates (after UI is fully created)
+        register_state_callback(self._on_game_state_changed)
 
         # Note: Language change is handled by main UI, not individual panels
 
@@ -86,38 +102,66 @@ class RosbotExtensionPanel:
                                   bg=UnifiedStyles.COLORS['bg_secondary'],
                                   fg=UnifiedStyles.COLORS['text_primary'],
                                   font=UnifiedStyles.FONTS['subheading'])
-        path_frame.grid(row=0, column=0, columnspan=2, sticky="ew", 
-                       padx=UnifiedStyles.SPACING['sm'], 
+        path_frame.grid(row=0, column=0, columnspan=2, sticky="ew",
+                       padx=UnifiedStyles.SPACING['sm'],
                        pady=UnifiedStyles.SPACING['sm'])
         path_frame.grid_columnconfigure(1, weight=1)
-        
+
         # ROSBOT executable path
         exe_label = tk.Label(path_frame, text=i18n_manager.get_ui_text("rosbot.rosbot_path") + ":",
                             bg=UnifiedStyles.COLORS['bg_secondary'],
                             fg=UnifiedStyles.COLORS['text_primary'],
                             font=UnifiedStyles.FONTS['label'])
-        exe_label.grid(row=0, column=0, sticky="w", 
-                      padx=UnifiedStyles.SPACING['sm'], 
+        exe_label.grid(row=0, column=0, sticky="w",
+                      padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['xs'])
-        
+
         # ROSBOT path using ConfigBinding
         exe_entry = ConfigBinding.create_input_binding(
             path_frame, "ros_settings.ros_directory",
             default_value="D:\\applications\\GamesBot\\ros-bot7.18\\ros-bot7.18", width=50,
             bg=UnifiedStyles.COLORS['input_bg'],
             fg=UnifiedStyles.COLORS['input_text'],
-                            font=UnifiedStyles.FONTS['input'])
-        exe_entry.grid(row=0, column=1, sticky="ew", 
-                      padx=UnifiedStyles.SPACING['sm'], 
+            font=UnifiedStyles.FONTS['input'])
+        exe_entry.grid(row=0, column=1, sticky="ew",
+                      padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['xs'])
-        
+
         browse_btn = tk.Button(path_frame, text=i18n_manager.get_ui_text("rosbot.browse"),
                               bg=UnifiedStyles.COLORS['btn_secondary'],
                               fg=UnifiedStyles.COLORS['text_primary'],
                               font=UnifiedStyles.FONTS['button'],
                               command=self._browse_rosbot_path)
-        browse_btn.grid(row=0, column=2, padx=(0, UnifiedStyles.SPACING['sm']), 
+        browse_btn.grid(row=0, column=2, padx=(0, UnifiedStyles.SPACING['sm']),
                        pady=UnifiedStyles.SPACING['xs'])
+
+        # Battle.net executable path
+        battlenet_label = tk.Label(path_frame, text=i18n_manager.get_ui_text("rosbot.battlenet_path") + ":",
+                                  bg=UnifiedStyles.COLORS['bg_secondary'],
+                                  fg=UnifiedStyles.COLORS['text_primary'],
+                                  font=UnifiedStyles.FONTS['label'])
+        battlenet_label.grid(row=1, column=0, sticky="w",
+                            padx=UnifiedStyles.SPACING['sm'],
+                            pady=UnifiedStyles.SPACING['xs'])
+
+        # Battle.net path using ConfigBinding
+        battlenet_entry = ConfigBinding.create_input_binding(
+            path_frame, "battlenet.battlenet_path",
+            default_value="D:\\applications\\Games\\Battle.net\\Battle.net.exe", width=50,
+            bg=UnifiedStyles.COLORS['input_bg'],
+            fg=UnifiedStyles.COLORS['input_text'],
+            font=UnifiedStyles.FONTS['input'])
+        battlenet_entry.grid(row=1, column=1, sticky="ew",
+                            padx=UnifiedStyles.SPACING['sm'],
+                            pady=UnifiedStyles.SPACING['xs'])
+
+        battlenet_browse_btn = tk.Button(path_frame, text=i18n_manager.get_ui_text("rosbot.browse"),
+                                        bg=UnifiedStyles.COLORS['btn_secondary'],
+                                        fg=UnifiedStyles.COLORS['text_primary'],
+                                        font=UnifiedStyles.FONTS['button'],
+                                        command=self._browse_battlenet_path)
+        battlenet_browse_btn.grid(row=1, column=2, padx=(0, UnifiedStyles.SPACING['sm']),
+                                 pady=UnifiedStyles.SPACING['xs'])
 
     def _create_bot_settings(self, parent):
         """Create bot settings section"""
@@ -182,59 +226,112 @@ class RosbotExtensionPanel:
         self._create_status_display(control_frame)
 
     def _create_control_buttons(self, parent):
-        """Create control buttons"""
+        """Create control buttons with toggle functionality"""
         button_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
         button_frame.grid(row=0, column=0, sticky="ew", 
                          padx=UnifiedStyles.SPACING['sm'], 
                          pady=UnifiedStyles.SPACING['sm'])
         button_frame.grid_columnconfigure(0, weight=1)
-        button_frame.grid_columnconfigure(1, weight=1)
         
-        # Start button
-        start_btn = tk.Button(button_frame, text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
-                             bg=UnifiedStyles.COLORS['btn_success'],
-                             fg=UnifiedStyles.COLORS['text_primary'],
-                             font=UnifiedStyles.FONTS['button'],
-                             command=self._start_rosbot)
-        start_btn.grid(row=0, column=0, sticky="ew", 
-                      padx=(0, UnifiedStyles.SPACING['xs']))
+        # Single toggle button for start/stop
+        self.control_btn = tk.Button(button_frame, text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
+                                    bg=UnifiedStyles.COLORS['btn_success'],
+                                    fg=UnifiedStyles.COLORS['text_primary'],
+                                    font=UnifiedStyles.FONTS['button'],
+                                    command=self._toggle_rosbot)
+        self.control_btn.grid(row=0, column=0, sticky="ew", 
+                             padx=UnifiedStyles.SPACING['xs'])
         
-        # Stop button
-        stop_btn = tk.Button(button_frame, text=i18n_manager.get_ui_text("rosbot.stop_rosbot"),
-                            bg=UnifiedStyles.COLORS['btn_danger'],
-                            fg=UnifiedStyles.COLORS['text_primary'],
-                            font=UnifiedStyles.FONTS['button'],
-                            command=self._stop_rosbot)
-        stop_btn.grid(row=0, column=1, sticky="ew", 
-                     padx=(UnifiedStyles.SPACING['xs'], 0))
+        # Update button state based on current ROSBOT status
+        self._update_control_button()
 
     def _create_status_display(self, parent):
-        """Create status display"""
+        """Create status display with ROS/D3/Map/Stage"""
         status_frame = tk.LabelFrame(parent, text=i18n_manager.get_ui_text("rosbot.status_info"),
                                     bg=UnifiedStyles.COLORS['bg_secondary'],
                                     fg=UnifiedStyles.COLORS['text_primary'],
                                     font=UnifiedStyles.FONTS['subheading'])
-        status_frame.grid(row=1, column=0, sticky="ew", 
-                         padx=UnifiedStyles.SPACING['sm'], 
+        status_frame.grid(row=1, column=0, sticky="ew",
+                         padx=UnifiedStyles.SPACING['sm'],
                          pady=UnifiedStyles.SPACING['sm'])
-        
-        # Status labels
-        self.status_var = tk.StringVar(value=i18n_manager.get_ui_text("rosbot.not_running"))
-        status_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.status") + ":",
-                               bg=UnifiedStyles.COLORS['bg_secondary'],
-                               fg=UnifiedStyles.COLORS['text_primary'],
-                               font=UnifiedStyles.FONTS['label'])
-        status_label.grid(row=0, column=0, sticky="w", 
-                         padx=UnifiedStyles.SPACING['sm'], 
-                         pady=UnifiedStyles.SPACING['xs'])
-        
-        status_value = tk.Label(status_frame, textvariable=self.status_var,
-                               bg=UnifiedStyles.COLORS['bg_secondary'],
-                               fg=UnifiedStyles.COLORS['success'],
-                               font=UnifiedStyles.FONTS['label'])
-        status_value.grid(row=0, column=1, sticky="w", 
-                         padx=UnifiedStyles.SPACING['sm'], 
-                         pady=UnifiedStyles.SPACING['xs'])
+
+        # Configure grid for status display (4 rows x 2 columns)
+        for i in range(4):
+            status_frame.grid_rowconfigure(i, weight=0)
+        status_frame.grid_columnconfigure(0, weight=0)
+        status_frame.grid_columnconfigure(1, weight=1)
+
+        # ROS Status
+        ros_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.ros_status") + ":",
+                            bg=UnifiedStyles.COLORS['bg_secondary'],
+                            fg=UnifiedStyles.COLORS['text_primary'],
+                            font=UnifiedStyles.FONTS['label'])
+        ros_label.grid(row=0, column=0, sticky="w",
+                      padx=UnifiedStyles.SPACING['sm'],
+                      pady=UnifiedStyles.SPACING['xs'])
+
+        self.ros_status_var = tk.StringVar(value=i18n_manager.get_ui_text("rosbot.not_running"))
+        self.ros_status_label = tk.Label(status_frame, textvariable=self.ros_status_var,
+                                        bg=UnifiedStyles.COLORS['bg_secondary'],
+                                        fg=UnifiedStyles.COLORS['error'],
+                                        font=UnifiedStyles.FONTS['label'])
+        self.ros_status_label.grid(row=0, column=1, sticky="w",
+                                  padx=UnifiedStyles.SPACING['sm'],
+                                  pady=UnifiedStyles.SPACING['xs'])
+
+        # D3 Status
+        d3_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.d3_status") + ":",
+                           bg=UnifiedStyles.COLORS['bg_secondary'],
+                           fg=UnifiedStyles.COLORS['text_primary'],
+                           font=UnifiedStyles.FONTS['label'])
+        d3_label.grid(row=1, column=0, sticky="w",
+                     padx=UnifiedStyles.SPACING['sm'],
+                     pady=UnifiedStyles.SPACING['xs'])
+
+        self.d3_status_var = tk.StringVar(value=i18n_manager.get_ui_text("rosbot.not_running"))
+        self.d3_status_label = tk.Label(status_frame, textvariable=self.d3_status_var,
+                                       bg=UnifiedStyles.COLORS['bg_secondary'],
+                                       fg=UnifiedStyles.COLORS['error'],
+                                       font=UnifiedStyles.FONTS['label'])
+        self.d3_status_label.grid(row=1, column=1, sticky="w",
+                                 padx=UnifiedStyles.SPACING['sm'],
+                                 pady=UnifiedStyles.SPACING['xs'])
+
+        # Map Status
+        map_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.map_status") + ":",
+                            bg=UnifiedStyles.COLORS['bg_secondary'],
+                            fg=UnifiedStyles.COLORS['text_primary'],
+                            font=UnifiedStyles.FONTS['label'])
+        map_label.grid(row=2, column=0, sticky="w",
+                      padx=UnifiedStyles.SPACING['sm'],
+                      pady=UnifiedStyles.SPACING['xs'])
+
+        self.map_status_var = tk.StringVar(value=i18n_manager.get_ui_text("rosbot.map_unknown"))
+        self.map_status_label = tk.Label(status_frame, textvariable=self.map_status_var,
+                                        bg=UnifiedStyles.COLORS['bg_secondary'],
+                                        fg=UnifiedStyles.COLORS['text_muted'],
+                                        font=UnifiedStyles.FONTS['label'])
+        self.map_status_label.grid(row=2, column=1, sticky="w",
+                                  padx=UnifiedStyles.SPACING['sm'],
+                                  pady=UnifiedStyles.SPACING['xs'])
+
+        # Stage Status
+        stage_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.stage") + ":",
+                              bg=UnifiedStyles.COLORS['bg_secondary'],
+                              fg=UnifiedStyles.COLORS['text_primary'],
+                              font=UnifiedStyles.FONTS['label'])
+        stage_label.grid(row=3, column=0, sticky="w",
+                        padx=UnifiedStyles.SPACING['sm'],
+                        pady=UnifiedStyles.SPACING['xs'])
+
+        self.stage_var = tk.StringVar(value=i18n_manager.get_ui_text("rosbot.stage_unknown"))
+        self.stage_label = tk.Label(status_frame, textvariable=self.stage_var,
+                                   bg=UnifiedStyles.COLORS['bg_secondary'],
+                                   fg=UnifiedStyles.COLORS['text_muted'],
+                                   font=UnifiedStyles.FONTS['label'])
+        self.stage_label.grid(row=3, column=1, sticky="w",
+                             padx=UnifiedStyles.SPACING['sm'],
+                             pady=UnifiedStyles.SPACING['xs'])
 
     def _create_log_display_row(self):
         """Create log display in its own row (row 2)"""
@@ -265,34 +362,110 @@ class RosbotExtensionPanel:
         scrollbar.grid(row=0, column=1, sticky="ns",
                       padx=(0, UnifiedStyles.SPACING['sm']),
                       pady=UnifiedStyles.SPACING['sm'])
-    
+
+    def add_log_message(self, message, level="INFO", color=None):
+        """Add a log message to the rosbot log display"""
+        self.log_text.configure(state=tk.NORMAL)
+        self.log_text.insert(tk.END, f"{message}\n")
+        self.log_text.see(tk.END)
+        self.log_text.configure(state=tk.DISABLED)
+
     def _browse_rosbot_path(self):
         """Browse for ROSBOT executable"""
         filename = filedialog.askopenfilename(
             title=i18n_manager.get_ui_text("rosbot.select_rosbot_executable"),
-        filetypes=[(i18n_manager.get_ui_text("rosbot.executable_files"), "*.exe"), (i18n_manager.get_ui_text("rosbot.all_files"), "*.*")]
+            filetypes=[(i18n_manager.get_ui_text("rosbot.executable_files"), "*.exe"), (i18n_manager.get_ui_text("rosbot.all_files"), "*.*")]
         )
         if filename:
-            self.vars['rosbot_path'].set(filename)
+            ConfigBinding.set_config_value("ros_settings.ros_directory", filename)
+
+    def _browse_battlenet_path(self):
+        """Browse for Battle.net executable"""
+        filename = filedialog.askopenfilename(
+            title=i18n_manager.get_ui_text("rosbot.select_battlenet_executable"),
+            filetypes=[(i18n_manager.get_ui_text("rosbot.executable_files"), "*.exe"), (i18n_manager.get_ui_text("rosbot.all_files"), "*.*")]
+        )
+        if filename:
+            ConfigBinding.set_config_value("battlenet.battlenet_path", filename)
+
+    def _toggle_rosbot(self):
+        """Toggle ROSBOT start/stop"""
+        if self.rosbot_running:
+            self._stop_rosbot()
+        else:
+            self._start_rosbot()
 
     def _start_rosbot(self):
         """Start ROSBOT"""
-        messagebox.showinfo("ROSBOT", i18n_manager.get_ui_text("rosbot.start_functionality"))
-    
+        if not self.rosbot_running:
+            # Update UI state immediately to provide feedback
+            self.rosbot_running = True
+            self._update_control_button()
+            
+            # Enable ROSBOT task thread
+            set_task_status('rosbot_task', TaskStatus.ENABLED)
+            
+            # Start ROSBOT operations in task thread
+            rosbot_processor.start_rosbot_task()
+            
+            ColorPrint.green("[ROSBOT] Started monitoring")
+
     def _stop_rosbot(self):
         """Stop ROSBOT"""
-        messagebox.showinfo("ROSBOT", i18n_manager.get_ui_text("rosbot.stop_functionality"))
+        if self.rosbot_running:
+            # Disable ROSBOT task thread
+            set_task_status('rosbot_task', TaskStatus.DISABLED)
+            
+            # Stop ROSBOT operations in task thread
+            rosbot_processor.stop_rosbot_task()
+            
+            # Update UI state
+            self.rosbot_running = False
+            self._update_control_button()
+            
+            ColorPrint.yellow("[ROSBOT] Stopped monitoring")
 
-    def _load_rosbot_config(self):
-        """Load ROSBOT configuration"""
-        try:
-            # Load from CONFIG if available
-            if hasattr(CONFIG, 'rosbot_path'):
-                self.vars['rosbot_path'].set(CONFIG.rosbot_path)
+    def _update_control_button(self):
+        """Update control button appearance based on ROSBOT status"""
+        if self.rosbot_running:
+            self.control_btn.config(
+                text=i18n_manager.get_ui_text("rosbot.stop_rosbot"),
+                bg=UnifiedStyles.COLORS['btn_danger']
+            )
+        else:
+            self.control_btn.config(
+                text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
+                bg=UnifiedStyles.COLORS['btn_success']
+            )
 
-            from providor.common_imports import ColorPrint
-            ColorPrint.blue("[ROSBOT] Configuration loaded successfully")
+    def _on_game_state_changed(self, state):
+        """Handle game state changes (called from background thread)"""
+        # Schedule UI update on main thread to avoid tkinter thread safety issues
+        self.container.after(0, lambda: self._update_ui_from_state(state))
+    
+    def _update_ui_from_state(self, state):
+        """Update UI elements from game state (called on main thread)"""
+        # Check if UI elements exist before updating
+        if not hasattr(self, 'ros_status_var') or not hasattr(self, 'd3_status_var'):
+            return  # UI not fully initialized yet
+        
+        # Update ROS status
+        ros_text = i18n_manager.get_ui_text("rosbot.running" if state['rosbot_running'] else "rosbot.not_running")
+        self.ros_status_var.set(ros_text)
+        self.ros_status_label.config(fg=UnifiedStyles.COLORS['success' if state['rosbot_running'] else 'error'])
+        
+        # Update D3 status
+        d3_text = i18n_manager.get_ui_text("rosbot.running" if state['d3_running'] else "rosbot.not_running")
+        self.d3_status_var.set(d3_text)
+        self.d3_status_label.config(fg=UnifiedStyles.COLORS['success' if state['d3_running'] else 'error'])
+        
+        # Update map status
+        map_key = f"rosbot.map_{state['map_type']}"
+        map_text = i18n_manager.get_ui_text(map_key)
+        self.map_status_var.set(map_text)
+        
+        # Update stage status
+        stage_key = f"rosbot.stage_{state['game_stage']}"
+        stage_text = i18n_manager.get_ui_text(stage_key)
+        self.stage_var.set(stage_text)
 
-        except Exception as e:
-            from providor.common_imports import ColorPrint
-            ColorPrint.red(f"[ROSBOT] Failed to load configuration: {e}")
