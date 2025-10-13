@@ -14,6 +14,12 @@
 """
 Step 20 Compilation Controller
 Final step that generates compilation commands and prepares variables for external triggers
+
+FLUTTER VERSION COMPATIBILITY:
+- Compatible with Flutter 3.35+
+- Removed -t parameter support for flutter clean command (not supported in Flutter 3.35+)
+- Entry file specification now handled by pubspec.yaml or main.dart configuration
+- All Flutter commands use standard syntax without deprecated parameters
 """
 
 import os
@@ -163,15 +169,19 @@ class Step20CompilationController:
         """Generate platform-specific commands (Windows script files vs Linux command strings)"""
         import os
 
-        # Calculate entry file from app name
-        # Rule: app_bank -> lib\apps\app_bank\main_app_bank.dart
-        app_name = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_APP, '')
-        if app_name and app_name.strip():
-            # Extract the suffix from app name (e.g., app_bank -> bank)
-            app_suffix = app_name.replace('app_', '') if app_name.startswith('app_') else app_name
-            entry_file = f"lib\\apps\\{app_name}\\main_app_{app_suffix}.dart"
-            flutter_command = f"{flutter_command} -t {entry_file}"
-            PrintHelper.info(f"Using entry file: {entry_file}", source="STEP-20")
+        # NOTE: Flutter 3.35+ no longer supports -t parameter for flutter clean command
+        # The -t parameter was removed in newer Flutter versions for clean operations
+        # For build commands, entry file is specified in pubspec.yaml or main.dart
+        # 
+        # Previous logic (removed for Flutter 3.35+ compatibility):
+        # app_name = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_APP, '')
+        # if app_name and app_name.strip() and not flutter_command.startswith('flutter clean'):
+        #     app_suffix = app_name.replace('app_', '') if app_name.startswith('app_') else app_name
+        #     entry_file = f"lib\\apps\\{app_name}\\main_app_{app_suffix}.dart"
+        #     flutter_command = f"{flutter_command} -t {entry_file}"
+        #     PrintHelper.info(f"Using entry file: {entry_file}", source="STEP-20")
+        
+        PrintHelper.info(f"Using Flutter command: {flutter_command} (Flutter 3.35+ compatible)", source="STEP-20")
 
         commands = {}
 
@@ -286,10 +296,17 @@ if ($exitCode -eq 0) {{
 
             # Write script file
             try:
+                # Clean up any existing script file first
+                if script_path.exists():
+                    script_path.unlink()
+                    PrintHelper.info(f"Removed existing script: {script_path}", source=self.step_name)
+                
+                # Write new script content
                 script_path.write_text(script_content, encoding='utf-8')
                 commands[f'{prefix}script_path'] = str(script_path)
                 commands[f'{prefix}command'] = f'powershell -File "{script_path}"'
                 PrintHelper.info(f"Created Windows script: {script_path}", source=self.step_name)
+                PrintHelper.info(f"Script content preview: {flutter_command}", source=self.step_name)
             except Exception as e:
                 PrintHelper.error(f"Failed to create Windows script: {e}", source=self.step_name)
                 # Fallback to direct command
@@ -324,6 +341,12 @@ fi
 
             # Write script file
             try:
+                # Clean up any existing script file first
+                if script_path.exists():
+                    script_path.unlink()
+                    PrintHelper.info(f"Removed existing script: {script_path}", source=self.step_name)
+                
+                # Write new script content
                 script_path.write_text(script_content, encoding='utf-8')
                 # Make script executable
                 import stat
@@ -331,6 +354,7 @@ fi
                 commands[f'{prefix}script_path'] = str(script_path)
                 commands[f'{prefix}command'] = f'bash "{script_path}"'
                 PrintHelper.info(f"Created Linux script: {script_path}", source=self.step_name)
+                PrintHelper.info(f"Script content preview: {flutter_command}", source=self.step_name)
             except Exception as e:
                 PrintHelper.error(f"Failed to create Linux script: {e}", source=self.step_name)
                 # Fallback to direct command

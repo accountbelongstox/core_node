@@ -17,6 +17,7 @@ import 'package:qyflutter/common/network/network_framework.dart'
 import 'package:qyflutter/common/network/core/endpoint_network_models.dart'
     as models;
 import 'package:qyflutter/common/utils/validation/phone_checker.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../config_app_wuy/app_config_app_wuy.dart';
 import '../config_app_wuy/api_config_app_wuy.dart';
 import '../config_app_wuy/api_endpoints_app_wuy.dart';
@@ -24,6 +25,7 @@ import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
 import '../models_app_wuy/chat_message_model_app_wuy.dart';
 import '../models_app_wuy/location_model_app_wuy.dart';
+import '../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../providers_app_wuy/wu_user_provider.dart';
 import 'wuy_fake_data_generator.dart';
 import 'wuy_auth_state_manager.dart';
@@ -193,7 +195,8 @@ class WuyUnifiedService extends AdvancedNetworkService {
   /// Get initial route based on authentication status
   String getInitialRoute() {
     final route = _authStateManager.getInitialRoute();
-    debugPrint('WuyUnifiedService: getInitialRoute() = $route');
+    debugPrint(
+        'WuyUnifiedService: ${LocalizationKeysAppWuy.wuyDebugGetInitialRoute.tr()} = $route');
     return route;
   }
 
@@ -276,7 +279,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
     // Ensure state is fully synchronized
     await Future.delayed(const Duration(milliseconds: 50));
 
-    return AuthResult.success(user, 'Login successful (Mock mode)');
+    return AuthResult.success(user, 'Login successful');
   }
 
   /// Mock registration API call
@@ -301,14 +304,13 @@ class WuyUnifiedService extends AdvancedNetworkService {
     // Ensure state is fully synchronized
     await Future.delayed(const Duration(milliseconds: 50));
 
-    return AuthResult.success(user, 'Registration successful (Mock mode)');
+    return AuthResult.success(user, 'Registration successful');
   }
 
   /// Mock send verification code API call
   Future<AuthResult> _mockSendVerificationCode(String phone) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    return AuthResult.success(
-        null, 'Verification code sent successfully (Debug mode: 123456)');
+    return AuthResult.success(null, 'Verification code sent successfully');
   }
 
   /// Mock logout API call
@@ -421,7 +423,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
 
       await _networkClient!.request<Map<String, dynamic>>(request);
     } catch (e) {
-      debugPrint('Real logout API call failed: $e');
+      debugPrint('${LocalizationKeysAppWuy.wuyDebugRealLogoutFailed.tr()}: $e');
     } finally {
       // Clear user data - functionality removed as WuyDataCenter was deleted
     }
@@ -705,11 +707,11 @@ class WuyUnifiedService extends AdvancedNetworkService {
   }) async {
     if (AppConfigAppWuy.enableMockApi) {
       debugPrint(
-          'WuyUnifiedService: Using fake data for $operationName (offline mode)');
+          'WuyUnifiedService: ${LocalizationKeysAppWuy.wuyDebugUsingFakeData.tr()} for $operationName');
       final data = offlineDataProvider();
       return Future.value(_createSuccessResponse(
         data: data,
-        message: offlineMessage ?? '$operationName successful (offline mode)',
+        message: offlineMessage ?? '$operationName successful',
       ));
     }
 
@@ -869,5 +871,3 @@ class WuyUnifiedService extends AdvancedNetworkService {
     );
   }
 }
-
-// AuthResult class moved to wuy_auth_state_manager.dart to avoid duplication
