@@ -22,10 +22,10 @@ import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 
 /// Search Screen for Wuy App
-/// 
+///
 /// This screen provides search functionality for finding friends.
 /// Users can search by name, phone number, or other criteria.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -42,7 +42,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _signatureController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  
+
   SearchFilterModelAppWuy _searchFilter = const SearchFilterModelAppWuy();
   String? _selectedGender;
   bool _isSearching = false;
@@ -63,9 +63,15 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
 
     // Update search filter
     _searchFilter = _searchFilter.copyWith(
-      name: _nameController.text.trim().isEmpty ? null : _nameController.text.trim(),
-      signature: _signatureController.text.trim().isEmpty ? null : _signatureController.text.trim(),
-      phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+      name: _nameController.text.trim().isEmpty
+          ? null
+          : _nameController.text.trim(),
+      signature: _signatureController.text.trim().isEmpty
+          ? null
+          : _signatureController.text.trim(),
+      phone: _phoneController.text.trim().isEmpty
+          ? null
+          : _phoneController.text.trim(),
       gender: _selectedGender,
     );
 
@@ -79,7 +85,6 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       }
     });
   }
-
 
   List<FriendModelAppWuy> _generateMockResults() {
     // Mock search results based on the screenshot
@@ -135,13 +140,14 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
             _buildSearchSection(
               title: LocalizationKeysAppWuy.wuySearchName.tr(context),
               controller: _nameController,
-              hintText: '小飞侠',
+              hintText: LocalizationKeysAppWuy.wuySearchNameHint.tr(context),
             ),
             const SizedBox(height: 24),
             _buildSearchSection(
               title: LocalizationKeysAppWuy.wuySearchSignature.tr(context),
               controller: _signatureController,
-              hintText: '今天天气真好',
+              hintText:
+                  LocalizationKeysAppWuy.wuySearchSignatureHint.tr(context),
             ),
             const SizedBox(height: 24),
             _buildGenderSearchSection(),
@@ -149,7 +155,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
             _buildSearchSection(
               title: LocalizationKeysAppWuy.wuySearchPhone.tr(context),
               controller: _phoneController,
-              hintText: '138****8888',
+              hintText: LocalizationKeysAppWuy.wuySearchPhoneHint.tr(context),
             ),
             const SizedBox(height: 32),
             _buildSearchResults(),
@@ -197,8 +203,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-            border: Border.all(color: WuyAppThemeConfig.wuyTextSecondary.withOpacity(0.3)),
+            borderRadius:
+                BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
+            border: Border.all(
+                color: WuyAppThemeConfig.wuyTextSecondary.withOpacity(0.3)),
           ),
           child: TextField(
             controller: controller,
@@ -206,7 +214,8 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
               hintText: hintText,
               hintStyle: TextStyle(color: WuyAppThemeConfig.wuyTextHint),
               border: InputBorder.none,
-              contentPadding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
+              contentPadding:
+                  EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
             ),
           ),
         ),
@@ -252,17 +261,22 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-            border: Border.all(color: WuyAppThemeConfig.wuyTextSecondary.withOpacity(0.3)),
+            borderRadius:
+                BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
+            border: Border.all(
+                color: WuyAppThemeConfig.wuyTextSecondary.withOpacity(0.3)),
           ),
           child: Row(
             children: [
               Expanded(
-                child: _buildGenderOption(LocalizationKeysAppWuy.wuySearchMale.tr(context), 'male'),
+                child: _buildGenderOption(
+                    LocalizationKeysAppWuy.wuySearchMale.tr(context), 'male'),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: _buildGenderOption(LocalizationKeysAppWuy.wuySearchFemale.tr(context), 'female'),
+                child: _buildGenderOption(
+                    LocalizationKeysAppWuy.wuySearchFemale.tr(context),
+                    'female'),
               ),
             ],
           ),
@@ -297,7 +311,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
 
   Widget _buildGenderOption(String label, String value) {
     final isSelected = _selectedGender == value;
-    
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -307,12 +321,12 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          color: isSelected 
+          color: isSelected
               ? WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected 
+            color: isSelected
                 ? WuyAppThemeConfig.wuyPrimaryColor
                 : WuyAppThemeConfig.wuyTextSecondary.withOpacity(0.3),
           ),
@@ -321,8 +335,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: isSelected 
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected
                   ? WuyAppThemeConfig.wuyPrimaryColor
                   : WuyAppThemeConfig.wuyTextSecondary,
               size: 20,
@@ -331,7 +347,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
             Text(
               label,
               style: TextStyle(
-                color: isSelected 
+                color: isSelected
                     ? WuyAppThemeConfig.wuyPrimaryColor
                     : WuyAppThemeConfig.wuyTextSecondary,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
@@ -351,15 +367,14 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: isPrimary 
-            ? WuyAppThemeConfig.wuyPrimaryColor
-            : Colors.grey[200],
-        foregroundColor: isPrimary 
-            ? Colors.white
-            : WuyAppThemeConfig.wuyTextSecondary,
+        backgroundColor:
+            isPrimary ? WuyAppThemeConfig.wuyPrimaryColor : Colors.grey[200],
+        foregroundColor:
+            isPrimary ? Colors.white : WuyAppThemeConfig.wuyTextSecondary,
         padding: const EdgeInsets.symmetric(vertical: 12),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
+          borderRadius:
+              BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
         ),
       ),
       child: Text(
@@ -411,12 +426,13 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
         children: [
           CircleAvatar(
             radius: WuyAppThemeConfig.wuyAvatarRadius,
-            backgroundColor: friend.isOnline 
+            backgroundColor: friend.isOnline
                 ? WuyAppThemeConfig.wuyOnlineColor
                 : WuyAppThemeConfig.wuyOfflineColor,
             child: Text(
               friend.displayName[0].toUpperCase(),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(width: 12),
@@ -446,7 +462,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
                     Icon(
                       friend.isOnline ? Icons.circle : Icons.circle_outlined,
                       size: 8,
-                      color: friend.isOnline 
+                      color: friend.isOnline
                           ? WuyAppThemeConfig.wuyOnlineColor
                           : WuyAppThemeConfig.wuyOfflineColor,
                     ),
