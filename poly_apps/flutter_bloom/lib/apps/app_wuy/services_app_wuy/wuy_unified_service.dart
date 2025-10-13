@@ -68,18 +68,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
     // Auth state manager is initialized separately to avoid circular dependency
   }
 
-  /// Save user data to v1 storage system
-  Future<void> _saveUserToStorage(UserModelAppWuy user) async {
-    try {
-      // Save user profile to v1 storage
-      await UnifiedStorage.set('user_profile', user.toJson());
-      await UnifiedStorage.set('user_preferences', user.preferences);
-
-      debugPrint('User data saved to v1 storage successfully');
-    } catch (e) {
-      debugPrint('Failed to save user to v1 storage: $e');
-    }
-  }
+  // Storage operations moved to WuyAuthStateManager to avoid duplication
 
   /// Initialize network client
   void _initializeNetworkClient() {
@@ -354,9 +343,6 @@ class WuyUnifiedService extends AdvancedNetworkService {
       if (userData != null) {
         final user = UserModelAppWuy.fromJson(userData);
         _userProvider?.setAppUser(profile: user);
-
-        // Save to v1 storage
-        await _saveUserToStorage(user);
 
         return AuthResult.success(user, 'Login successful');
       }

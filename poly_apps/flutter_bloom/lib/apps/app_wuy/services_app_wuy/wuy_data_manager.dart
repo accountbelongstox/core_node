@@ -219,7 +219,7 @@ class WuyDataManager {
         final fakeLocation = WuyFakeDataGenerator.generateFakeCurrentLocation();
         _currentLocation = LocationModelAppWuy(
           id: 'loc1',
-          userId: _currentUser?.id?.toString() ?? 'current_user',
+          userId: _authStateManager.currentUser?.id?.toString() ?? 'current_user',
           latitude: fakeLocation['latitude'] as double,
           longitude: fakeLocation['longitude'] as double,
           address: fakeLocation['address'] as String,
