@@ -19,7 +19,7 @@ import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../widgets_app_wuy/wuy_common_background.dart';
 import '../../../widgets_app_wuy/wuy_common_logo.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
-import '../../../services_app_wuy/wuy_unified_service.dart';
+import '../../../services_app_wuy/wuy_data_manager.dart';
 
 /// Login Screen for Wuy App
 ///
@@ -251,16 +251,16 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       });
 
       try {
-        // Use unified service for login to ensure data consistency
-        final unifiedService = WuyUnifiedService();
+        // Use data manager for login to ensure data consistency
+        final dataManager = WuyDataManager.instance;
 
         // For email login, we'll use the email as phone for mock data generation
         final email = _emailController.text.trim();
         final mockPhone =
             '138${email.hashCode.abs().toString().substring(0, 8)}';
 
-        // Use unified service login method
-        final result = await unifiedService.loginWithPhone(
+        // Use data manager login method
+        final result = await dataManager.loginWithPhone(
           phone: mockPhone,
           verificationCode: '123456', // Mock verification code
         );
