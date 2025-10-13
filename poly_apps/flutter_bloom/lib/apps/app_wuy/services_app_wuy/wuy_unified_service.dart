@@ -12,11 +12,11 @@
 
 import 'package:flutter/foundation.dart';
 // Connectivity functionality removed as WuyDataCenter was deleted
-import 'package:qyflutter/common/network/network_framework.dart';
+import 'package:qyflutter/common/network/network_framework.dart'
+    hide AuthResult;
 import 'package:qyflutter/common/network/core/endpoint_network_models.dart'
     as models;
 import 'package:qyflutter/common/utils/validation/phone_checker.dart';
-import 'package:qyflutter/common/storage/unified_storage.dart';
 import '../config_app_wuy/app_config_app_wuy.dart';
 import '../config_app_wuy/api_config_app_wuy.dart';
 import '../config_app_wuy/api_endpoints_app_wuy.dart';
@@ -374,9 +374,6 @@ class WuyUnifiedService extends AdvancedNetworkService {
       if (userData != null) {
         final user = UserModelAppWuy.fromJson(userData);
         _userProvider?.setAppUser(profile: user);
-
-        // Save to v1 storage
-        await _saveUserToStorage(user);
 
         return AuthResult.success(user, 'Registration successful');
       }

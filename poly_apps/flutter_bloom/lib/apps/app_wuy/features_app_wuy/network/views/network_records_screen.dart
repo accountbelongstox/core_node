@@ -16,6 +16,7 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../services_app_wuy/wuy_data_manager.dart';
 
 /// Network Records Screen for Wuy App
 /// 
@@ -143,7 +144,7 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
                 ),
                 SizedBox(height: ThemeDimensions.spacingMedium),
                 Text(
-                  '小飞侠',
+                  WuyDataManager.instance.currentUser?.displayName ?? 'User',
                   style: ThemeTextStyles.title2.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,

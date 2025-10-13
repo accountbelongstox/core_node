@@ -64,9 +64,35 @@ class WuyZhTranslations {
     // Search related
     LocalizationKeysAppWuy.wuySearchTitle: '搜索好友',
     LocalizationKeysAppWuy.wuySearchName: '姓名',
+    LocalizationKeysAppWuy.wuySearchNameHint: '请输入姓名',
     LocalizationKeysAppWuy.wuySearchSignature: '个性签名',
+    LocalizationKeysAppWuy.wuySearchSignatureHint: '请输入个性签名',
     LocalizationKeysAppWuy.wuySearchPhone: '电话号码',
+    LocalizationKeysAppWuy.wuySearchPhoneHint: '请输入电话号码',
     LocalizationKeysAppWuy.wuySearchGender: '性别',
+
+    // History related
+    LocalizationKeysAppWuy.wuyHistoryLoginAccount: '登录到账户',
+    LocalizationKeysAppWuy.wuyHistoryLoginSuccess: '登录成功',
+    LocalizationKeysAppWuy.wuyHistoryViewFriends: '查看好友列表',
+    LocalizationKeysAppWuy.wuyHistorySendMessage: '发送消息',
+    LocalizationKeysAppWuy.wuyHistoryUpdateProfile: '更新个人资料',
+
+    // Chat related
+    LocalizationKeysAppWuy.wuyChatHelloMessage: '你好，请问有什么可以帮助你的吗？',
+    LocalizationKeysAppWuy.wuyChatLookingForChat: '我想找一个可以聊天的人',
+    LocalizationKeysAppWuy.wuyChatInputHint: '输入',
+
+    // Profile form fields
+    LocalizationKeysAppWuy.wuyProfileNickname: '昵称',
+    LocalizationKeysAppWuy.wuyProfileSignature: '个性签名',
+    LocalizationKeysAppWuy.wuyProfileGender: '性别',
+    LocalizationKeysAppWuy.wuyProfilePhone: '手机号',
+    LocalizationKeysAppWuy.wuyProfileBirthday: '出生日期',
+    LocalizationKeysAppWuy.wuyProfileAddress: '居住地址',
+    LocalizationKeysAppWuy.wuyProfileEmail: '邮箱',
+    LocalizationKeysAppWuy.wuyProfileIdNumber: '身份证号码',
+
     LocalizationKeysAppWuy.wuySearchMale: '男',
     LocalizationKeysAppWuy.wuySearchFemale: '女',
     LocalizationKeysAppWuy.wuySearchReset: '重置',
@@ -174,8 +200,6 @@ class WuyZhTranslations {
 
     // Profile screen
     LocalizationKeysAppWuy.wuyProfileUsername: '用户名',
-    LocalizationKeysAppWuy.wuyProfileEmail: '邮箱',
-    LocalizationKeysAppWuy.wuyProfilePhone: '手机号',
     LocalizationKeysAppWuy.wuyProfileEditProfile: '编辑个人资料',
     LocalizationKeysAppWuy.wuyProfileChangePassword: '修改密码',
     LocalizationKeysAppWuy.wuyProfileNotificationSettings: '通知设置',
@@ -188,11 +212,8 @@ class WuyZhTranslations {
 
     // Profile detailed info
     LocalizationKeysAppWuy.wuyProfileName: '名字',
-    LocalizationKeysAppWuy.wuyProfileSignature: '个性签名',
-    LocalizationKeysAppWuy.wuyProfileGender: '性别',
     LocalizationKeysAppWuy.wuyProfileBirthDate: '出生日期',
     LocalizationKeysAppWuy.wuyProfileLocation: '所在地址',
-    LocalizationKeysAppWuy.wuyProfileIdNumber: '身份证号码',
     LocalizationKeysAppWuy.wuyProfileMale: '男',
     LocalizationKeysAppWuy.wuyProfileFemale: '女',
 

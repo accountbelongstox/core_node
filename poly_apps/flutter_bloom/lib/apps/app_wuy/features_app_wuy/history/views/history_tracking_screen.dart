@@ -15,12 +15,15 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_data_manager.dart';
 
 /// History Tracking Screen for Wuy App
-/// 
+///
 /// This screen displays user activity history and tracking information.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -30,7 +33,8 @@ class WuyHistoryTrackingScreen extends StatefulWidget {
   const WuyHistoryTrackingScreen({super.key});
 
   @override
-  State<WuyHistoryTrackingScreen> createState() => _WuyHistoryTrackingScreenState();
+  State<WuyHistoryTrackingScreen> createState() =>
+      _WuyHistoryTrackingScreenState();
 }
 
 class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
@@ -48,31 +52,31 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
       HistoryRecord(
         date: '2025-10-20',
         time: '20:00',
-        description: '登录到小飞侠的账户',
+        description: LocalizationKeysAppWuy.wuyHistoryLoginAccount.tr(context),
         type: HistoryType.login,
       ),
       HistoryRecord(
         date: '2025-10-20',
         time: '20:00',
-        description: '登录成功',
+        description: LocalizationKeysAppWuy.wuyHistoryLoginSuccess.tr(context),
         type: HistoryType.success,
       ),
       HistoryRecord(
         date: '2025-10-20',
         time: '19:30',
-        description: '查看好友列表',
+        description: LocalizationKeysAppWuy.wuyHistoryViewFriends.tr(context),
         type: HistoryType.action,
       ),
       HistoryRecord(
         date: '2025-10-20',
         time: '19:15',
-        description: '发送消息给小明',
+        description: LocalizationKeysAppWuy.wuyHistorySendMessage.tr(context),
         type: HistoryType.message,
       ),
       HistoryRecord(
         date: '2025-10-20',
         time: '18:45',
-        description: '更新个人资料',
+        description: LocalizationKeysAppWuy.wuyHistoryUpdateProfile.tr(context),
         type: HistoryType.update,
       ),
     ];
@@ -138,7 +142,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
                 ),
                 SizedBox(height: ThemeDimensions.spacingMedium),
                 Text(
-                  '小飞侠',
+                  WuyDataManager.instance.currentUser?.displayName ?? 'User',
                   style: ThemeTextStyles.title2.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,

@@ -59,9 +59,35 @@ class LocalizationKeysAppWuy {
   // Search related
   static const String wuySearchTitle = "wuy.search.title";
   static const String wuySearchName = "wuy.search.name";
+  static const String wuySearchNameHint = "wuy.search.name_hint";
   static const String wuySearchSignature = "wuy.search.signature";
+  static const String wuySearchSignatureHint = "wuy.search.signature_hint";
   static const String wuySearchPhone = "wuy.search.phone";
+  static const String wuySearchPhoneHint = "wuy.search.phone_hint";
   static const String wuySearchGender = "wuy.search.gender";
+
+  // History related
+  static const String wuyHistoryLoginAccount = "wuy.history.login_account";
+  static const String wuyHistoryLoginSuccess = "wuy.history.login_success";
+  static const String wuyHistoryViewFriends = "wuy.history.view_friends";
+  static const String wuyHistorySendMessage = "wuy.history.send_message";
+  static const String wuyHistoryUpdateProfile = "wuy.history.update_profile";
+
+  // Chat related
+  static const String wuyChatHelloMessage = "wuy.chat.hello_message";
+  static const String wuyChatLookingForChat = "wuy.chat.looking_for_chat";
+  static const String wuyChatInputHint = "wuy.chat.input_hint";
+
+  // Profile form fields
+  static const String wuyProfileNickname = "wuy.profile.nickname";
+  static const String wuyProfileSignature = "wuy.profile.signature";
+  static const String wuyProfileGender = "wuy.profile.gender";
+  static const String wuyProfilePhone = "wuy.profile.phone";
+  static const String wuyProfileBirthday = "wuy.profile.birthday";
+  static const String wuyProfileAddress = "wuy.profile.address";
+  static const String wuyProfileEmail = "wuy.profile.email";
+  static const String wuyProfileIdNumber = "wuy.profile.id_number";
+
   static const String wuySearchMale = "wuy.search.male";
   static const String wuySearchFemale = "wuy.search.female";
   static const String wuySearchReset = "wuy.search.reset";
@@ -171,8 +197,6 @@ class LocalizationKeysAppWuy {
 
   // Profile screen
   static const String wuyProfileUsername = "wuy.profile.username";
-  static const String wuyProfileEmail = "wuy.profile.email";
-  static const String wuyProfilePhone = "wuy.profile.phone";
   static const String wuyProfileEditProfile = "wuy.profile.edit_profile";
   static const String wuyProfileChangePassword = "wuy.profile.change_password";
   static const String wuyProfileNotificationSettings =
@@ -187,11 +211,8 @@ class LocalizationKeysAppWuy {
 
   // Profile detailed info
   static const String wuyProfileName = "wuy.profile.name";
-  static const String wuyProfileSignature = "wuy.profile.signature";
-  static const String wuyProfileGender = "wuy.profile.gender";
   static const String wuyProfileBirthDate = "wuy.profile.birth_date";
   static const String wuyProfileLocation = "wuy.profile.location";
-  static const String wuyProfileIdNumber = "wuy.profile.id_number";
   static const String wuyProfileMale = "wuy.profile.male";
   static const String wuyProfileFemale = "wuy.profile.female";
 

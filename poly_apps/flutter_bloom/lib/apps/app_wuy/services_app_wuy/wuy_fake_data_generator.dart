@@ -19,14 +19,29 @@ import '../models_app_wuy/chat_message_model_app_wuy.dart';
 /// Independent fake data generation library for development and testing
 /// Can be easily removed by deleting references without affecting data models
 class WuyFakeDataGenerator {
-  static final WuyFakeDataGenerator _instance = WuyFakeDataGenerator._internal();
+  static final WuyFakeDataGenerator _instance =
+      WuyFakeDataGenerator._internal();
   factory WuyFakeDataGenerator() => _instance;
   WuyFakeDataGenerator._internal();
 
   // Fake user data templates
   static const List<String> _fakeNames = [
-    '小飞侠', '小明', '小红', '小李', '小王', '小张', '小陈', '小刘',
-    '小黄', '小周', '小吴', '小郑', '小冯', '小韩', '小杨', '小朱'
+    '小飞侠',
+    '小明',
+    '小红',
+    '小李',
+    '小王',
+    '小张',
+    '小陈',
+    '小刘',
+    '小黄',
+    '小周',
+    '小吴',
+    '小郑',
+    '小冯',
+    '小韩',
+    '小杨',
+    '小朱'
   ];
 
   static const List<String> _fakeBios = [
@@ -60,16 +75,19 @@ class WuyFakeDataGenerator {
     String? nickname,
     String? email,
   }) {
-    final phoneSuffix = phone.length >= 4 ? phone.substring(phone.length - 4) : '0000';
+    final phoneSuffix =
+        phone.length >= 4 ? phone.substring(phone.length - 4) : '0000';
     final nameIndex = phone.hashCode.abs() % _fakeNames.length;
-    
+
     return UserModelAppWuy(
       id: phone.hashCode,
       username: username ?? 'user_$phoneSuffix',
       nickname: nickname ?? _fakeNames[nameIndex],
       email: email ?? 'user_$phoneSuffix@anwuyou.test',
       phone: phone,
+      phoneNumber: phone, // Ensure phoneNumber is set
       avatar: 'assets/common/icons/people.png',
+      avatarUrl: 'assets/common/icons/people.png', // Ensure avatarUrl is set
       isOnline: true,
       isVerified: true,
       bio: _fakeBios[nameIndex % _fakeBios.length],
@@ -238,21 +256,24 @@ class WuyFakeDataGenerator {
         'longitude': 116.4074,
         'address': '北京市朝阳区',
         'accuracy': 10.0,
-        'timestamp': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
+        'timestamp':
+            DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
       },
       {
         'latitude': 39.9142,
         'longitude': 116.4174,
         'address': '北京市海淀区',
         'accuracy': 15.0,
-        'timestamp': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
+        'timestamp':
+            DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
       },
       {
         'latitude': 39.9242,
         'longitude': 116.4274,
         'address': '北京市西城区',
         'accuracy': 12.0,
-        'timestamp': DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
+        'timestamp':
+            DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
       },
     ];
   }
@@ -266,25 +287,33 @@ class WuyFakeDataGenerator {
         'type': 'login',
         'description': '登录成功',
         'status': 'success',
-        'timestamp': DateTime.now().subtract(const Duration(minutes: 30)).toIso8601String(),
+        'timestamp': DateTime.now()
+            .subtract(const Duration(minutes: 30))
+            .toIso8601String(),
       },
       {
         'type': 'api_call',
         'description': '获取好友列表',
         'status': 'success',
-        'timestamp': DateTime.now().subtract(const Duration(minutes: 25)).toIso8601String(),
+        'timestamp': DateTime.now()
+            .subtract(const Duration(minutes: 25))
+            .toIso8601String(),
       },
       {
         'type': 'error',
         'description': '网络连接超时',
         'status': 'error',
-        'timestamp': DateTime.now().subtract(const Duration(minutes: 20)).toIso8601String(),
+        'timestamp': DateTime.now()
+            .subtract(const Duration(minutes: 20))
+            .toIso8601String(),
       },
       {
         'type': 'api_call',
         'description': '发送消息',
         'status': 'success',
-        'timestamp': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
+        'timestamp': DateTime.now()
+            .subtract(const Duration(minutes: 15))
+            .toIso8601String(),
       },
     ];
   }
@@ -297,22 +326,30 @@ class WuyFakeDataGenerator {
       {
         'type': 'user_login',
         'description': '用户登录',
-        'timestamp': DateTime.now().subtract(const Duration(minutes: 30)).toIso8601String(),
+        'timestamp': DateTime.now()
+            .subtract(const Duration(minutes: 30))
+            .toIso8601String(),
       },
       {
         'type': 'friends_loaded',
         'description': '加载好友列表',
-        'timestamp': DateTime.now().subtract(const Duration(minutes: 25)).toIso8601String(),
+        'timestamp': DateTime.now()
+            .subtract(const Duration(minutes: 25))
+            .toIso8601String(),
       },
       {
         'type': 'message_sent',
         'description': '发送消息给小明',
-        'timestamp': DateTime.now().subtract(const Duration(minutes: 20)).toIso8601String(),
+        'timestamp': DateTime.now()
+            .subtract(const Duration(minutes: 20))
+            .toIso8601String(),
       },
       {
         'type': 'location_updated',
         'description': '位置信息更新',
-        'timestamp': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
+        'timestamp': DateTime.now()
+            .subtract(const Duration(minutes: 15))
+            .toIso8601String(),
       },
     ];
   }
@@ -322,12 +359,13 @@ class WuyFakeDataGenerator {
   /// Generate fake search results
   static List<FriendModelAppWuy> generateFakeSearchResults(String query) {
     if (query.isEmpty) return [];
-    
+
     final allFriends = generateFakeFriends();
-    return allFriends.where((friend) => 
-      friend.displayName.contains(query) || 
-      friend.username.contains(query)
-    ).toList();
+    return allFriends
+        .where((friend) =>
+            friend.displayName.contains(query) ||
+            friend.username.contains(query))
+        .toList();
   }
 
   // ==================== UTILITY METHODS ====================
