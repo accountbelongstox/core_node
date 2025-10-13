@@ -51,21 +51,14 @@ function Get-GlobalVar {
     return $null
 }
 
-# Function to get commit message (with user input on first use)
+# Function to get commit message (session-scoped only)
 function Get-CommitMessage {
+    # If we already have a commit message in this session, use it
     if ($script:CommitMessage) {
         return $script:CommitMessage
     }
     
-    # Check if we have a saved commit message
-    $savedMessage = Get-GlobalVar -Key "GIT_COMMIT_MESSAGE"
-    if ($savedMessage) {
-        $script:CommitMessage = $savedMessage
-        Write-ColorText "Using saved commit message: $savedMessage" -ForegroundColor Green
-        return $savedMessage
-    }
-    
-    # First time - ask user for input
+    # Ask user for input
     Write-ColorText "Enter commit message (press Enter to use timestamp): " -ForegroundColor Yellow -NoNewline
     $userInput = Read-Host
     
@@ -76,14 +69,6 @@ function Get-CommitMessage {
         $script:CommitMessage = $userInput
         Write-ColorText "Using custom commit message: $userInput" -ForegroundColor Green
     }
-    
-    # Save the commit message for future use
-    $globalVarDir = Join-Path $env:USERPROFILE ".core_node\.global_vars"
-    if (-not (Test-Path $globalVarDir)) {
-        New-Item -ItemType Directory -Path $globalVarDir -Force | Out-Null
-    }
-    $filePath = Join-Path $globalVarDir "GIT_COMMIT_MESSAGE"
-    Set-Content -Path $filePath -Value $script:CommitMessage -Encoding UTF8
     
     return $script:CommitMessage
 }

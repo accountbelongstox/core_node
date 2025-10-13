@@ -13,7 +13,7 @@ from typing import Optional, Callable
 from pathlib import Path
 
 # Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+from providor.common_imports import ColorPrint, ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config, CONFIG_USER_PATH
 
 # Import UI components
@@ -30,6 +30,9 @@ from .theme import UITheme
 
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
+
+# Import shutdown manager
+from d3utils.shutdown_manager import request_shutdown
 
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
@@ -53,7 +56,7 @@ class Diablo3MacroUI:
 
         # Set window title
         self.root.title(i18n_manager.get_ui_text("main_window.title"))
-        self.root.geometry("540x620")
+        self.root.geometry("540x615")
         self.root.minsize(420, 400)
         self.root.resizable(True, True)
         self.root.configure(bg=UITheme.get_color('bg_dark'))
@@ -74,7 +77,6 @@ class Diablo3MacroUI:
         self.on_skill_config_switch: Optional[Callable] = None
 
         # Store UI instance in ENCYCLOPEDIA for global access
-        from providor.common_imports import ENCYCLOPEDIA
         ENCYCLOPEDIA['ui'] = self
         ColorPrint.blue("[UI] UI instance stored in ENCYCLOPEDIA")
 
@@ -194,7 +196,7 @@ class Diablo3MacroUI:
         
         # Title bar with language switch and window controls
         self.title_bar = TitleBar(self)
-        self.title_bar.pack(fill=tk.X, padx=5, pady=5)
+        self.title_bar.pack(fill=tk.X, padx=5, pady=3)
 
         # Menu bar (hidden since language switch is now in title bar)
         # self.menu_bar = MenuBar(self.root, on_language_change=self._on_language_changed)
@@ -206,7 +208,7 @@ class Diablo3MacroUI:
         self._create_main_tabs()
 
         # Pack bottom bar
-        self.bottom_bar.pack(fill=tk.X, padx=5, pady=5)
+        self.bottom_bar.pack(fill=tk.X, padx=5, pady=3)
 
         # Status bar (create after bottom bar)
         self.status_bar = StatusBar(self.root)
@@ -224,7 +226,7 @@ class Diablo3MacroUI:
         self.macro_controls.pack(side=tk.LEFT, padx=(20, 0))
 
         # Pack status bar at bottom
-        self.status_bar.pack(fill=tk.X, padx=5, pady=(0, 5))
+        self.status_bar.pack(fill=tk.X, padx=5, pady=(0, 3))
 
     def get_status_bar_callback(self):
         """
@@ -240,94 +242,55 @@ class Diablo3MacroUI:
 
     def _create_system_tray(self):
         """Create system tray icon"""
-        try:
-            self.system_tray = SystemTray(self)
-            
-            # Set up tray callbacks
-            self.system_tray.set_show_callback(self._tray_show_window)
-            self.system_tray.set_hide_callback(self._tray_hide_window)
-            self.system_tray.set_exit_callback(self._tray_exit_application)
-            
-            # Start the system tray
-            if self.system_tray.start():
-                ColorPrint.green("[UI] System tray started successfully")
-                
-                # Bind window close event to hide instead of close
-                self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
-            else:
-                ColorPrint.yellow("[UI] System tray failed to start")
-                
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to create system tray: {e}")
-            self.system_tray = None
+        self.system_tray = SystemTray(self)
+
+        self.system_tray.set_show_callback(self._tray_show_window)
+        self.system_tray.set_hide_callback(self._tray_hide_window)
+        self.system_tray.set_exit_callback(self._tray_exit_application)
+
+        if self.system_tray.start():
+            ColorPrint.green("[UI] System tray started successfully")
+            self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
+        else:
+            ColorPrint.yellow("[UI] System tray failed to start")
     
     def _tray_show_window(self):
         """Show window from tray"""
-        try:
-            # Try to schedule on main thread, but don't fail if not possible
-            try:
-                self.root.after(0, self._do_show_window)
-            except:
-                # If main thread is not available, try direct execution
-                self._do_show_window()
-            ColorPrint.blue("[UI] Window show requested from tray")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Error requesting window show from tray: {e}")
+        self.root.after(0, self._do_show_window)
+        ColorPrint.blue("[UI] Window show requested from tray")
     
     def _do_show_window(self):
         """Actually show window"""
-        try:
-            self.root.deiconify()
-            self.root.lift()
-            self.root.focus_force()
-            ColorPrint.blue("[UI] Window shown from tray")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Error showing window from tray: {e}")
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+        ColorPrint.blue("[UI] Window shown from tray")
     
     def _tray_hide_window(self):
         """Hide window to tray"""
-        try:
-            # Try to schedule on main thread, but don't fail if not possible
-            try:
-                self.root.after(0, self._do_hide_window)
-            except:
-                # If main thread is not available, try direct execution
-                self._do_hide_window()
-            ColorPrint.blue("[UI] Window hide requested from tray")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Error requesting window hide from tray: {e}")
+        self.root.after(0, self._do_hide_window)
+        ColorPrint.blue("[UI] Window hide requested from tray")
     
     def _do_hide_window(self):
         """Actually hide window"""
-        try:
-            self.root.withdraw()
-            ColorPrint.blue("[UI] Window hidden to tray")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Error hiding window from tray: {e}")
+        self.root.withdraw()
+        ColorPrint.blue("[UI] Window hidden to tray")
     
     def _tray_exit_application(self):
         """Exit application from tray - send shutdown request to main thread"""
-        try:
-            from d3utils.shutdown_manager import request_shutdown
-            ColorPrint.blue("[UI] Exit requested from tray - sending shutdown request")
-            request_shutdown()
-        except Exception as e:
-            ColorPrint.red(f"[UI] Error requesting shutdown from tray: {e}")
+        ColorPrint.blue("[UI] Exit requested from tray - sending shutdown request")
+        request_shutdown()
 
     def _on_window_close(self):
         """Handle window close event - send shutdown request to main thread"""
-        try:
-            from d3utils.shutdown_manager import request_shutdown
-            ColorPrint.blue("[UI] Window close button clicked - sending shutdown request")
-            request_shutdown()
-        except Exception as e:
-            ColorPrint.red(f"[UI] Error requesting shutdown: {e}")
+        ColorPrint.blue("[UI] Window close button clicked - sending shutdown request")
+        request_shutdown()
     
     def _create_main_tabs(self):
         """Create main tabbed interface"""
-        # Create notebook for main tabs with fixed height (scaled to 60% of original 480)
-        self.main_notebook = ttk.Notebook(self.root, height=288)
-        self.main_notebook.pack(fill=tk.X, padx=10, pady=5)
+        # Create notebook for main tabs
+        self.main_notebook = ttk.Notebook(self.root, height=420)
+        self.main_notebook.pack(fill=tk.X, padx=8, pady=3)
         
         # Apply dark theme to notebook
         self._apply_notebook_theme()
@@ -350,12 +313,8 @@ class Diablo3MacroUI:
     def _apply_notebook_theme(self):
         """Apply dark theme to notebook with multiple methods"""
         style = ttk.Style()
-        
-        # Method 1: Set theme to avoid Windows theme interference
-        try:
-            style.theme_use('clam')  # Use clam theme as base
-        except:
-            pass
+
+        style.theme_use('clam')
         
         # Method 2: Configure notebook style with consistent tab margins (scaled to 60%)
         style.configure('Dark.TNotebook',
@@ -412,90 +371,71 @@ class Diablo3MacroUI:
 
     def _force_style_update(self):
         """Force style update for all notebook tabs"""
-        try:
-            style = ttk.Style()
-            
-            # Re-apply all style configurations (scaled to 60%)
-            style.configure('Dark.TNotebook.Tab',
+        style = ttk.Style()
+
+        style.configure('Dark.TNotebook.Tab',
+                       background=UITheme.get_color('tab_unselected_bg'),
+                       foreground=UITheme.get_color('tab_unselected_fg'),
+                       padding=[12, 6],
+                       borderwidth=1,
+                       focuscolor='none',
+                       lightcolor=UITheme.get_color('tab_unselected_bg'),
+                       darkcolor=UITheme.get_color('tab_unselected_bg'),
+                       relief='flat')
+
+        self.main_notebook.update()
+        ColorPrint.green("[UI] Forced notebook style update")
+
+    def _apply_all_tab_styles(self):
+        """Apply styles to all tabs using ttk.Style only"""
+        style = ttk.Style()
+
+        for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
+            style.configure(style_name,
                            background=UITheme.get_color('tab_unselected_bg'),
                            foreground=UITheme.get_color('tab_unselected_fg'),
-                           padding=[12, 6],  # [20,10] * 0.6 = [12,6]
+                           padding=[12, 6],
                            borderwidth=1,
                            focuscolor='none',
                            lightcolor=UITheme.get_color('tab_unselected_bg'),
                            darkcolor=UITheme.get_color('tab_unselected_bg'),
                            relief='flat')
-            
-            # Force style refresh
-            self.main_notebook.update()
-            
-            ColorPrint.green("[UI] Forced notebook style update")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to force style update: {e}")
 
-    def _apply_all_tab_styles(self):
-        """Apply styles to all tabs using ttk.Style only"""
-        try:
-            style = ttk.Style()
-            
-            # Reconfigure all style variants (scaled to 60%)
-            for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
-                style.configure(style_name,
-                               background=UITheme.get_color('tab_unselected_bg'),
-                               foreground=UITheme.get_color('tab_unselected_fg'),
-                               padding=[12, 6],  # [20,10] * 0.6 = [12,6]
-                               borderwidth=1,
-                               focuscolor='none',
-                               lightcolor=UITheme.get_color('tab_unselected_bg'),
-                               darkcolor=UITheme.get_color('tab_unselected_bg'),
-                               relief='flat')
-            
-            # Force update
-            self.main_notebook.update_idletasks()
-            self.main_notebook.update()
-            
-            ColorPrint.green("[UI] Applied styles to all tabs")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to apply all tab styles: {e}")
+        self.main_notebook.update_idletasks()
+        self.main_notebook.update()
+        ColorPrint.green("[UI] Applied styles to all tabs")
 
     def _apply_tab_style(self, tab_id):
         """Apply style to a specific tab using ttk.Style only"""
-        try:
-            style = ttk.Style()
-            
-            # Create multiple style variants with new tab colors (scaled to 60%)
-            for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
-                style.configure(style_name,
-                               background=UITheme.get_color('tab_unselected_bg'),
-                               foreground=UITheme.get_color('tab_unselected_fg'),
-                               padding=[12, 6],  # [20,10] * 0.6 = [12,6]
-                               borderwidth=1,
-                               focuscolor='none',
-                               lightcolor=UITheme.get_color('tab_unselected_bg'),
-                               darkcolor=UITheme.get_color('tab_unselected_bg'))
-                
-                # Map all states with new tab colors
-                style.map(style_name,
-                         background=[('selected', UITheme.get_color('bg_secondary')),
-                                   ('active', UITheme.get_color('tab_active_bg')),
-                                   ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                         foreground=[('selected', UITheme.get_color('text_primary')),
-                                   ('active', UITheme.get_color('tab_active_fg')),
-                                   ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                         lightcolor=[('selected', UITheme.get_color('bg_secondary')),
-                                   ('active', UITheme.get_color('tab_active_bg')),
-                                   ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                         darkcolor=[('selected', UITheme.get_color('bg_secondary')),
-                                  ('active', UITheme.get_color('tab_active_bg')),
-                                  ('!selected', UITheme.get_color('tab_unselected_bg'))])
-            
-            # Force update
-            self.main_notebook.update_idletasks()
-            self.main_notebook.update()
-            
-            ColorPrint.green(f"[UI] Applied style to tab: {tab_id}")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to apply tab style to {tab_id}: {e}")
+        style = ttk.Style()
+
+        for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
+            style.configure(style_name,
+                           background=UITheme.get_color('tab_unselected_bg'),
+                           foreground=UITheme.get_color('tab_unselected_fg'),
+                           padding=[12, 6],
+                           borderwidth=1,
+                           focuscolor='none',
+                           lightcolor=UITheme.get_color('tab_unselected_bg'),
+                           darkcolor=UITheme.get_color('tab_unselected_bg'))
+
+            style.map(style_name,
+                     background=[('selected', UITheme.get_color('bg_secondary')),
+                               ('active', UITheme.get_color('tab_active_bg')),
+                               ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                     foreground=[('selected', UITheme.get_color('text_primary')),
+                               ('active', UITheme.get_color('tab_active_fg')),
+                               ('!selected', UITheme.get_color('tab_unselected_fg'))],
+                     lightcolor=[('selected', UITheme.get_color('bg_secondary')),
+                               ('active', UITheme.get_color('tab_active_bg')),
+                               ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                     darkcolor=[('selected', UITheme.get_color('bg_secondary')),
+                              ('active', UITheme.get_color('tab_active_bg')),
+                              ('!selected', UITheme.get_color('tab_unselected_bg'))])
+
+        self.main_notebook.update_idletasks()
+        self.main_notebook.update()
+        ColorPrint.green(f"[UI] Applied style to tab: {tab_id}")
     
     def _create_table1_tab(self):
         """Create TABLE1 - Main functions tab"""
