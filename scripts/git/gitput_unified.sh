@@ -81,23 +81,15 @@ get_global_var() {
     fi
 }
 
-# Function to get commit message (with user input on first use)
+# Function to get commit message (session-scoped only)
 get_commit_message() {
+    # If we already have a commit message in this session, use it
     if [ -n "$COMMIT_MESSAGE" ]; then
         echo "$COMMIT_MESSAGE"
         return
     fi
     
-    # Check if we have a saved commit message
-    local saved_message=$(get_global_var "GIT_COMMIT_MESSAGE")
-    if [ -n "$saved_message" ]; then
-        COMMIT_MESSAGE="$saved_message"
-        write_color_text "Using saved commit message: $saved_message" "Green"
-        echo "$saved_message"
-        return
-    fi
-    
-    # First time - ask user for input
+    # Ask user for input
     write_color_text "Enter commit message (press Enter to use timestamp): " "Yellow"
     read -r user_input
     
@@ -108,29 +100,6 @@ get_commit_message() {
         COMMIT_MESSAGE="$user_input"
         write_color_text "Using custom commit message: $user_input" "Green"
     fi
-    
-    # Save the commit message for future use
-    local global_var_dir
-    if [ -d "/mnt/c/Users" ]; then
-        # WSL environment
-        for user_dir in /mnt/c/Users/*; do
-            if [ -d "$user_dir/.core_node/global_var" ]; then
-                global_var_dir="$user_dir/.core_node/global_var"
-                break
-            fi
-        done
-    fi
-    
-    # Fallback to default directory
-    if [ -z "$global_var_dir" ]; then
-        global_var_dir="/usr/core_node/global_var"
-    fi
-    
-    # Create directory if it doesn't exist
-    mkdir -p "$global_var_dir"
-    
-    # Save the commit message
-    echo "$COMMIT_MESSAGE" > "$global_var_dir/GIT_COMMIT_MESSAGE"
     
     echo "$COMMIT_MESSAGE"
 }
