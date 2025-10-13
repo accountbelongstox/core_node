@@ -48,7 +48,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
   final _emailController = TextEditingController();
   final _idController = TextEditingController();
 
-  String _selectedGender = '男';
+  String _selectedGender = 'male';
   bool _isEditing = false;
 
   @override
@@ -69,7 +69,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
     _addressController.text = user?.city ?? '';
     _emailController.text = user?.email ?? '';
     _idController.text = user?.meta['id_number']?.toString() ?? '';
-    _selectedGender = user?.gender ?? '男';
+    _selectedGender = user?.gender ?? 'male';
   }
 
   @override
@@ -147,14 +147,31 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildInfoField('昵称', _nicknameController, Icons.person_outline),
-            _buildInfoField('个性签名', _signatureController, Icons.edit),
+            _buildInfoField(
+                LocalizationKeysAppWuy.wuyProfileNickname.tr(context),
+                _nicknameController,
+                Icons.person_outline),
+            _buildInfoField(
+                LocalizationKeysAppWuy.wuyProfileSignature.tr(context),
+                _signatureController,
+                Icons.edit),
             _buildGenderField(),
-            _buildInfoField('手机号', _phoneController, Icons.phone),
-            _buildInfoField('出生日期', _birthdayController, Icons.cake),
-            _buildInfoField('居住地址', _addressController, Icons.location_on),
-            _buildInfoField('邮箱', _emailController, Icons.email),
-            _buildInfoField('身份证号码', _idController, Icons.credit_card),
+            _buildInfoField(LocalizationKeysAppWuy.wuyProfilePhone.tr(context),
+                _phoneController, Icons.phone),
+            _buildInfoField(
+                LocalizationKeysAppWuy.wuyProfileBirthday.tr(context),
+                _birthdayController,
+                Icons.cake),
+            _buildInfoField(
+                LocalizationKeysAppWuy.wuyProfileAddress.tr(context),
+                _addressController,
+                Icons.location_on),
+            _buildInfoField(LocalizationKeysAppWuy.wuyProfileEmail.tr(context),
+                _emailController, Icons.email),
+            _buildInfoField(
+                LocalizationKeysAppWuy.wuyProfileIdNumber.tr(context),
+                _idController,
+                Icons.credit_card),
           ],
         ),
       ),
@@ -200,7 +217,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '性别',
+            LocalizationKeysAppWuy.wuyProfileGender.tr(context),
             style: ThemeTextStyles.bodyMedium.copyWith(
               color: ThemeColors.textSecondary,
             ),
@@ -211,7 +228,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
               Expanded(
                 child: RadioListTile<String>(
                   title: Text(LocalizationKeysAppWuy.wuySearchMale.tr(context)),
-                  value: '男',
+                  value: 'male',
                   groupValue: _selectedGender,
                   onChanged: _isEditing
                       ? (value) {
@@ -226,7 +243,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
                 child: RadioListTile<String>(
                   title:
                       Text(LocalizationKeysAppWuy.wuySearchFemale.tr(context)),
-                  value: '女',
+                  value: 'female',
                   groupValue: _selectedGender,
                   onChanged: _isEditing
                       ? (value) {

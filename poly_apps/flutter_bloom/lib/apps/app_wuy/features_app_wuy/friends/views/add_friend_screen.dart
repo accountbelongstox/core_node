@@ -18,6 +18,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_data_manager.dart';
 
 /// Add Friend Screen for Wuy App
 /// 
@@ -121,7 +122,7 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
             ),
             SizedBox(height: ThemeDimensions.spacingMedium),
             Text(
-              '小飞侠',
+              WuyDataManager.instance.currentUser?.displayName ?? 'User',
               style: ThemeTextStyles.title2.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

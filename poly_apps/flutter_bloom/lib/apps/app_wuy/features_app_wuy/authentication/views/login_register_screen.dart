@@ -18,6 +18,7 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_auth_state_manager.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
 import '../../../../../common/utils/validation/phone_checker.dart';
 import '../../../widgets_app_wuy/wuy_common_logo.dart';

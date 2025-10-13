@@ -13,13 +13,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/chat_message_model_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 /// Chat Screen for Wuy App
-/// 
+///
 /// This screen provides chat functionality for messaging with friends.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -158,7 +160,8 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
                 ? _buildEmptyState()
                 : ListView.builder(
                     controller: _scrollController,
-                    padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
+                    padding:
+                        EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final message = _messages[index];
@@ -197,13 +200,12 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
 
   Widget _buildMessageBubble(ChatMessageModelAppWuy message) {
     final isFromCurrentUser = message.senderId == _currentUserId;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment: isFromCurrentUser 
-            ? MainAxisAlignment.end 
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isFromCurrentUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isFromCurrentUser) ...[
@@ -224,7 +226,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isFromCurrentUser 
+                color: isFromCurrentUser
                     ? WuyAppThemeConfig.wuyPrimaryColor
                     : Colors.grey[200],
                 borderRadius: BorderRadius.circular(18),
@@ -246,8 +248,8 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
                       Text(
                         message.timeText,
                         style: TextStyle(
-                          color: isFromCurrentUser 
-                              ? Colors.white70 
+                          color: isFromCurrentUser
+                              ? Colors.white70
                               : Colors.grey[600],
                           fontSize: 12,
                         ),
@@ -315,7 +317,8 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
                 child: TextField(
                   controller: _messageController,
                   decoration: InputDecoration(
-                    hintText: '输入',
+                    hintText:
+                        LocalizationKeysAppWuy.wuyChatInputHint.tr(context),
                     hintStyle: TextStyle(color: WuyAppThemeConfig.wuyTextHint),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(
