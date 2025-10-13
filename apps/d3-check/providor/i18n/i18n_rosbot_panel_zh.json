@@ -86,7 +86,14 @@
       "config_loaded": "配置已加载",
       "config_saved": "配置已保存",
       "load_config_failed": "加载配置失败",
-      "save_config_failed": "保存配置失败"
+      "save_config_failed": "保存配置失败",
+      "auto_enable_latest_ros": "自动启用最新ROS",
+      "auto_start_other_exe": "自动启动其他EXE",
+      "force_cleanup_restart": "强制清理重启",
+      "auto_configure_ui": "自动配置UI",
+      "detailed_logging": "详细日志",
+      "startup": "开机启动",
+      "monitor_start_rosbot": "监控启动ROSBOT"
     }
   }
 }
