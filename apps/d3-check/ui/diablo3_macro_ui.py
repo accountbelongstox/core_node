@@ -517,32 +517,20 @@ class Diablo3MacroUI:
 
     def _on_language_changed(self, new_language: str):
         """Handle language change event - unified UI rebuild with deduplication"""
-        try:
-            # Prevent multiple simultaneous language changes
-            if self._language_change_in_progress:
-                ColorPrint.blue(f"[UI] Language change to {new_language} already in progress, skipping")
-                return
+        if self._language_change_in_progress:
+            ColorPrint.blue(f"[UI] Language change to {new_language} already in progress, skipping")
+            return
 
-            self._language_change_in_progress = True
-            ColorPrint.green(f"[UI] Language changed to: {new_language}")
+        self._language_change_in_progress = True
+        ColorPrint.green(f"[UI] Language changed to: {new_language}")
 
-            # Update window title
-            self.root.title(i18n_manager.get_ui_text("main_window.title"))
+        self.root.title(i18n_manager.get_ui_text("main_window.title"))
+        self.title_bar.update_title(i18n_manager.get_ui_text("main_window.title"))
+        self.macro_controls.update_text()
+        self._recreate_ui_for_language_change()
 
-            # Update components
-            self.title_bar.update_title(i18n_manager.get_ui_text("main_window.title"))
-            # self.menu_bar.update_labels()  # Menu bar is now integrated into title bar
-            self.macro_controls.update_text()
-
-            # Recreate tabs with new language (one-time rebuild)
-            self._recreate_ui_for_language_change()
-
-            ColorPrint.green(f"[UI] UI updated for language: {new_language}")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to update UI for language change: {e}")
-        finally:
-            # Reset flag after a short delay to allow for event completion
-            self.root.after(1000, self._reset_language_change_flag)
+        ColorPrint.green(f"[UI] UI updated for language: {new_language}")
+        self.root.after(1000, self._reset_language_change_flag)
 
     def _reset_language_change_flag(self):
         """Reset language change flag"""
@@ -551,134 +539,92 @@ class Diablo3MacroUI:
 
     def _recreate_ui(self):
         """Recreate UI with current language"""
-        try:
-            # Clear existing tabs
-            for widget in self.main_notebook.winfo_children():
-                widget.destroy()
+        for widget in self.main_notebook.winfo_children():
+            widget.destroy()
 
-            # Recreate tabs
-            self._create_table1_tab()
-            self._create_table2_tab()
-            self._create_rosbot_tab()
-            self._create_table3_tab()
+        self._create_table1_tab()
+        self._create_table2_tab()
+        self._create_rosbot_tab()
+        self._create_table3_tab()
 
-            # Recreate macro controls if they don't exist
-            if not hasattr(self, 'macro_controls') or not self.macro_controls:
-                self.macro_controls = MacroControls(
-                    self.bottom_bar.frame,
-                    on_start=self._on_start_macro,
-                    on_stop=self._on_stop_macro
-                )
+        if not hasattr(self, 'macro_controls') or not self.macro_controls:
+            self.macro_controls = MacroControls(
+                self.bottom_bar.frame,
+                on_start=self._on_start_macro,
+                on_stop=self._on_stop_macro
+            )
 
-            # Re-register language change listeners for new panels
-            self._register_panel_language_listeners()
+        self._register_panel_language_listeners()
 
-            # Pack macro controls
-            if hasattr(self, 'macro_controls') and self.macro_controls:
-                self.macro_controls.pack(side=tk.LEFT, padx=(20, 0))
-
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to recreate UI: {e}")
+        if hasattr(self, 'macro_controls') and self.macro_controls:
+            self.macro_controls.pack(side=tk.LEFT, padx=(20, 0))
 
     def _recreate_ui_for_language_change(self):
         """Recreate UI specifically for language change - no panel listeners"""
-        try:
-            # Clear existing tabs
-            for widget in self.main_notebook.winfo_children():
-                widget.destroy()
+        for widget in self.main_notebook.winfo_children():
+            widget.destroy()
 
-            # Recreate tabs (panels will be created fresh with new language)
-            self._create_table1_tab()
-            self._create_table2_tab()
-            self._create_rosbot_tab()
-            self._create_table3_tab()
+        self._create_table1_tab()
+        self._create_table2_tab()
+        self._create_rosbot_tab()
+        self._create_table3_tab()
 
-            # Recreate macro controls if they don't exist
-            if not hasattr(self, 'macro_controls') or not self.macro_controls:
-                self.macro_controls = MacroControls(
-                    self.bottom_bar.frame,
-                    on_start=self._on_start_macro,
-                    on_stop=self._on_stop_macro
-                )
+        if not hasattr(self, 'macro_controls') or not self.macro_controls:
+            self.macro_controls = MacroControls(
+                self.bottom_bar.frame,
+                on_start=self._on_start_macro,
+                on_stop=self._on_stop_macro
+            )
 
-            # Pack macro controls
-            if hasattr(self, 'macro_controls') and self.macro_controls:
-                self.macro_controls.pack(side=tk.LEFT, padx=(20, 0))
+        if hasattr(self, 'macro_controls') and self.macro_controls:
+            self.macro_controls.pack(side=tk.LEFT, padx=(20, 0))
 
-            # Re-register ColorPrint callback for log panel
-            self._reregister_log_callback()
-
-            # DO NOT re-register panel language listeners - only main UI listens
-
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to recreate UI for language change: {e}")
+        self._reregister_log_callback()
 
     def _reregister_log_callback(self):
         """Re-register ColorPrint callback for log panel after UI rebuild"""
-        try:
-            # Clear old callbacks to avoid invalid widget references
-            old_count = ColorPrint.get_callback_count()
-            ColorPrint.clear_all_callbacks()
-            ColorPrint.blue(f"[UI] Cleared {old_count} old ColorPrint callbacks")
+        old_count = ColorPrint.get_callback_count()
+        ColorPrint.clear_all_callbacks()
+        ColorPrint.blue(f"[UI] Cleared {old_count} old ColorPrint callbacks")
 
-            # Find log panel in tabs and re-register
-            for i in range(self.main_notebook.index("end")):
-                tab_frame = self.main_notebook.nametowidget(self.main_notebook.tabs()[i])
-                for child in tab_frame.winfo_children():
-                    if hasattr(child, 'add_log_message'):
-                        # Re-register as ColorPrint callback
-                        ColorPrint.register_callback(child.add_log_message)
-                        ColorPrint.blue("[UI] Re-registered log panel callback")
-                        return
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to re-register log callback: {e}")
+        for i in range(self.main_notebook.index("end")):
+            tab_frame = self.main_notebook.nametowidget(self.main_notebook.tabs()[i])
+            for child in tab_frame.winfo_children():
+                if hasattr(child, 'add_log_message'):
+                    ColorPrint.register_callback(child.add_log_message)
+                    ColorPrint.blue("[UI] Re-registered log panel callback")
+                    return
 
     def _register_panel_language_listeners(self):
         """Register language change listeners for all panels"""
-        try:
-            # Register listeners for panels that support language changes
-            panels_to_register = []
+        panels_to_register = []
 
-            # Get all tab panels
-            for i in range(self.main_notebook.index("end")):
-                tab_frame = self.main_notebook.nametowidget(self.main_notebook.tabs()[i])
-                # Find panel widgets in the tab
-                for child in tab_frame.winfo_children():
-                    if hasattr(child, '_on_language_changed'):
-                        panels_to_register.append(child)
+        for i in range(self.main_notebook.index("end")):
+            tab_frame = self.main_notebook.nametowidget(self.main_notebook.tabs()[i])
+            for child in tab_frame.winfo_children():
+                if hasattr(child, '_on_language_changed'):
+                    panels_to_register.append(child)
 
-            # Register each panel
-            for panel in panels_to_register:
-                i18n_manager.add_language_change_listener(panel._on_language_changed)
-                ColorPrint.blue(f"[UI] Registered language listener for: {panel.__class__.__name__}")
-
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to register panel language listeners: {e}")
+        for panel in panels_to_register:
+            i18n_manager.add_language_change_listener(panel._on_language_changed)
+            ColorPrint.blue(f"[UI] Registered language listener for: {panel.__class__.__name__}")
 
     def _load_last_tab(self):
         """Load last selected tab from configuration"""
-        try:
-            last_tab = CONFIG.get('ui_settings', {}).get('last_selected_tab', 0)
-            self.last_selected_tab = last_tab
-        except Exception as e:
-            ColorPrint.yellow(f"[UI] Failed to load last tab: {e}")
-            self.last_selected_tab = 0
+        last_tab = CONFIG.get('ui_settings', {}).get('last_selected_tab', 0)
+        self.last_selected_tab = last_tab
     
     def _on_tab_changed(self, event=None):
         """Handle tab change event"""
-        try:
-            selected_tab = self.main_notebook.index(self.main_notebook.select())
-            self.last_selected_tab = selected_tab
-            
-            # Save to configuration
-            if 'ui_settings' not in CONFIG:
-                CONFIG['ui_settings'] = {}
-            CONFIG['ui_settings']['last_selected_tab'] = selected_tab
-            save_config()
+        selected_tab = self.main_notebook.index(self.main_notebook.select())
+        self.last_selected_tab = selected_tab
 
-            ColorPrint.blue(f"[UI] Tab changed to: {selected_tab}")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Error handling tab change: {e}")
+        if 'ui_settings' not in CONFIG:
+            CONFIG['ui_settings'] = {}
+        CONFIG['ui_settings']['last_selected_tab'] = selected_tab
+        save_config()
+
+        ColorPrint.blue(f"[UI] Tab changed to: {selected_tab}")
     
     def _on_start_macro(self):
         """Handle start macro button click"""
@@ -694,87 +640,51 @@ class Diablo3MacroUI:
 
     def _on_config_change(self):
         """Handle configuration change"""
-        try:
-            if self.on_config_change:
-                self.on_config_change()
-            ColorPrint.blue("[UI] Configuration changed")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Configuration change error: {e}")
+        if self.on_config_change:
+            self.on_config_change()
+        ColorPrint.blue("[UI] Configuration changed")
 
     def _on_skill_config_switch(self, config_name: str):
         """Handle skill configuration switch"""
-        try:
-            self.current_config = config_name
-            self.bottom_bar.update_config_status(config_name)
+        self.current_config = config_name
+        self.bottom_bar.update_config_status(config_name)
 
-            if self.on_skill_config_switch:
-                self.on_skill_config_switch(config_name)
+        if self.on_skill_config_switch:
+            self.on_skill_config_switch(config_name)
 
-            ColorPrint.blue(f"[UI] Switched to skill configuration: {config_name}")
-        except Exception as e:
-            ColorPrint.red(f"[UI] Skill config switch error: {e}")
+        ColorPrint.blue(f"[UI] Switched to skill configuration: {config_name}")
 
 
     # Public API methods for external control
 
     def set_bag_correction_image(self, image_input, display_size=(200, 150)):
-        """
-        Set bag correction image with flexible input support
-
-        Args:
-            image_input: Image path, PIL Image, or numpy array
-            display_size: Display size tuple (width, height)
-
-        Returns:
-            bool: Success status
-        """
-        try:
-            if hasattr(self, 'auxiliary_functions_panel'):
-                if hasattr(self.auxiliary_functions_panel, 'set_bag_correction_image'):
-                    return self.auxiliary_functions_panel.set_bag_correction_image(
-                        image_input,
-                        display_size
-                    )
-            ColorPrint.yellow("[UI] Auxiliary functions panel not available")
-            return False
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to set bag correction image: {e}")
-            return False
+        """Set bag correction image with flexible input support"""
+        if hasattr(self, 'auxiliary_functions_panel'):
+            if hasattr(self.auxiliary_functions_panel, 'set_bag_correction_image'):
+                return self.auxiliary_functions_panel.set_bag_correction_image(image_input, display_size)
+        ColorPrint.yellow("[UI] Auxiliary functions panel not available")
+        return False
 
     def get_bag_correction_image(self):
         """Get current bag correction image"""
-        try:
-            if hasattr(self, 'auxiliary_functions_panel'):
-                if hasattr(self.auxiliary_functions_panel, 'get_bag_correction_image'):
-                    return self.auxiliary_functions_panel.get_bag_correction_image()
-            return None
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to get bag correction image: {e}")
-            return None
+        if hasattr(self, 'auxiliary_functions_panel'):
+            if hasattr(self.auxiliary_functions_panel, 'get_bag_correction_image'):
+                return self.auxiliary_functions_panel.get_bag_correction_image()
+        return None
 
     def capture_bag_correction_image(self, screenshot_callback=None):
         """Capture bag correction image from game"""
-        try:
-            if hasattr(self, 'auxiliary_functions_panel'):
-                if hasattr(self.auxiliary_functions_panel, 'capture_bag_correction_image'):
-                    return self.auxiliary_functions_panel.capture_bag_correction_image(
-                        screenshot_callback
-                    )
-            return False
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to capture bag correction image: {e}")
-            return False
+        if hasattr(self, 'auxiliary_functions_panel'):
+            if hasattr(self.auxiliary_functions_panel, 'capture_bag_correction_image'):
+                return self.auxiliary_functions_panel.capture_bag_correction_image(screenshot_callback)
+        return False
 
     def generate_bag_correction_image(self):
-        """Generate bag correction image using GameAssistantController""" 
-        try:
-            if hasattr(self, 'auxiliary_functions_panel'):
-                if hasattr(self.auxiliary_functions_panel, '_generate_bag_correction_image'):
-                    return self.auxiliary_functions_panel._generate_bag_correction_image()
-            return False
-        except Exception as e:
-            ColorPrint.red(f"[UI] Failed to generate bag correction image: {e}")
-            return False
+        """Generate bag correction image using GameAssistantController"""
+        if hasattr(self, 'auxiliary_functions_panel'):
+            if hasattr(self.auxiliary_functions_panel, '_generate_bag_correction_image'):
+                return self.auxiliary_functions_panel._generate_bag_correction_image()
+        return False
 
     # Callback setters
     
@@ -818,48 +728,23 @@ class Diablo3MacroUI:
     
     def destroy(self):
         """Destroy the UI completely - called by shutdown manager"""
-        try:
-            ColorPrint.blue("[UI] Starting UI destruction...")
+        import time
+        ColorPrint.blue("[UI] Starting UI destruction...")
 
-            # Stop system tray if running
-            if hasattr(self, 'system_tray') and self.system_tray:
-                try:
-                    ColorPrint.blue("[UI] Stopping system tray...")
-                    self.system_tray.stop()
-                    # Wait a bit for tray to stop
-                    import time
-                    time.sleep(0.2)
-                    ColorPrint.blue("[UI] System tray stopped")
-                except Exception as e:
-                    ColorPrint.red(f"[UI] Error stopping system tray: {e}")
+        if hasattr(self, 'system_tray') and self.system_tray:
+            ColorPrint.blue("[UI] Stopping system tray...")
+            self.system_tray.stop()
+            time.sleep(0.2)
+            ColorPrint.blue("[UI] System tray stopped")
 
-            # Quit the mainloop first
-            try:
-                self.root.quit()
-            except:
-                pass
+        self.root.quit()
 
-            # Destroy all widgets
-            try:
-                for widget in self.root.winfo_children():
-                    try:
-                        widget.destroy()
-                    except:
-                        pass
-            except:
-                pass
+        for widget in self.root.winfo_children():
+            widget.destroy()
 
-            # Finally destroy the root window
-            try:
-                self.root.destroy()
-                ColorPrint.blue("[UI] Root window destroyed")
-            except:
-                pass
-
-            ColorPrint.green("[UI] UI destruction completed")
-
-        except Exception as e:
-            ColorPrint.red(f"[UI] Error during UI destruction: {e}")
+        self.root.destroy()
+        ColorPrint.blue("[UI] Root window destroyed")
+        ColorPrint.green("[UI] UI destruction completed")
 
 # Example usage
 if __name__ == "__main__":
