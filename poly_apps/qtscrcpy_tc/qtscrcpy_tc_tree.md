@@ -113,6 +113,11 @@ qtscrcpy_tc/
 │   │   ├── identityv.json
 │   │   ├── test.json
 │   │   └── tiktok.json
+│   ├── output/
+│   │   └── win/
+│   │       └── x64/
+│   │           ├── debug/
+│   │           └── release/
 │   ├── res/
 │   │   ├── font/
 │   │   │   ├── fontawesome-webfont.pdf
@@ -122,6 +127,7 @@ qtscrcpy_tc/
 │   │   │   ├── QtScrcpy_en.ts
 │   │   │   ├── QtScrcpy_zh.qm
 │   │   │   ├── QtScrcpy_zh.ts
+│   │   │   ├── myTc_zh_CN.qm
 │   │   │   └── myTc_zh_CN.ts
 │   │   ├── image/
 │   │   │   └── tray/
@@ -402,7 +408,64 @@ qtscrcpy_tc/
 │   ├── mainwindow.cpp
 │   ├── mainwindow.h
 │   ├── mainwindow.ui
-│   └── version
+│   └── version.txt
+├── docs/
+│   ├── TC软件概要设计文档.docx
+│   └── TC软件详细设计文档.docx
+├── output/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config/
+│               │   │   ├── config.ini
+│               │   │   └── deviceGroups.json
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── keymap/
+│               │   ├── keymap/
+│               │   │   ├── FRAG.json
+│               │   │   ├── gameforpeace.json
+│               │   │   ├── identityv.json
+│               │   │   ├── test.json
+│               │   │   └── tiktok.json
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   └── myTc_zh_CN.qm
+│               ├── 17_TcUi.exe
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251013_150930/
+│   └── win/
+│       └── x64/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               └── translations/
+│                   ├── QtScrcpy_en.qm
+│                   ├── QtScrcpy_zh.qm
+│                   └── myTc_zh_CN.qm
 ├── test/
 │   ├── 01_mainwindow/
 │   │   ├── main.cpp
@@ -410,11 +473,13 @@ qtscrcpy_tc/
 │   │   ├── mainwindow.h
 │   │   ├── mainwindow.ui
 │   │   ├── qt_learn.pro
+│   │   ├── qt_learn.pro.qt5_backup
 │   │   ├── qt_learn_zh_CN.ts
 │   │   └── readme.md
 │   ├── 02_widget/
 │   │   ├── .gitignore
 │   │   ├── 02_widget.pro
+│   │   ├── 02_widget.pro.qt5_backup
 │   │   ├── 02_widget_zh_CN.ts
 │   │   ├── main.cpp
 │   │   ├── widget.cpp
@@ -423,12 +488,14 @@ qtscrcpy_tc/
 │   ├── 03_dialog/
 │   │   ├── .gitignore
 │   │   ├── 03_dialog.pro
+│   │   ├── 03_dialog.pro.qt5_backup
 │   │   ├── dialog.cpp
 │   │   ├── dialog.h
 │   │   ├── dialog.ui
 │   │   └── main.cpp
 │   ├── 04_multWindow/
 │   │   ├── 04_multWindow1.pro
+│   │   ├── 04_multWindow1.pro.qt5_backup
 │   │   ├── 04_multWindow1_zh_CN.ts
 │   │   ├── main.cpp
 │   │   ├── mywidget.cpp
@@ -440,6 +507,7 @@ qtscrcpy_tc/
 │   │   └── quick.qml
 │   ├── 06_windowSwitch/
 │   │   ├── 06_windowSwitch.pro
+│   │   ├── 06_windowSwitch.pro.qt5_backup
 │   │   ├── 06_windowSwitch_zh_CN.ts
 │   │   ├── main.cpp
 │   │   ├── mainwindow.cpp
@@ -447,6 +515,7 @@ qtscrcpy_tc/
 │   │   └── mainwindow.ui
 │   ├── 07_dynamicWindow/
 │   │   ├── 07_dynamicWindow.pro
+│   │   ├── 07_dynamicWindow.pro.qt5_backup
 │   │   ├── 07_dynamicWindow_zh_CN.ts
 │   │   ├── main.cpp
 │   │   ├── mainwindow.cpp
@@ -454,6 +523,7 @@ qtscrcpy_tc/
 │   │   └── mainwindow.ui
 │   ├── 08_dynamicDialog_passed/
 │   │   ├── 8_dynamicDialog.pro
+│   │   ├── 8_dynamicDialog.pro.qt5_backup
 │   │   ├── 8_dynamicDialog_zh_CN.ts
 │   │   ├── dialog.cpp
 │   │   ├── dialog.h
@@ -461,6 +531,7 @@ qtscrcpy_tc/
 │   │   └── main.cpp
 │   ├── 09_multiWindow/
 │   │   ├── 09_multiWindow.pro
+│   │   ├── 09_multiWindow.pro.qt5_backup
 │   │   ├── 09_multiWindow_zh_CN.ts
 │   │   ├── main.cpp
 │   │   ├── mainwindow.cpp
@@ -468,6 +539,7 @@ qtscrcpy_tc/
 │   │   └── mainwindow.ui
 │   ├── 10_verticalLayout/
 │   │   ├── 10_verticalLayout.pro
+│   │   ├── 10_verticalLayout.pro.qt5_backup
 │   │   ├── 10_verticalLayout_zh_CN.ts
 │   │   ├── main.cpp
 │   │   ├── widget.cpp
@@ -476,6 +548,7 @@ qtscrcpy_tc/
 │   ├── 11_mytc_dynamicWidget/
 │   │   ├── main.cpp
 │   │   ├── mytc.pro
+│   │   ├── mytc.pro.qt5_backup
 │   │   ├── mytc_zh_CN.ts
 │   │   ├── mytcwindow.cpp
 │   │   ├── mytcwindow.h
@@ -484,24 +557,28 @@ qtscrcpy_tc/
 │   │   └── videopanel.h
 │   ├── 12_gridLayout/
 │   │   ├── 12_gridLayout.pro
+│   │   ├── 12_gridLayout.pro.qt5_backup
 │   │   ├── main.cpp
 │   │   ├── mainwindow.cpp
 │   │   ├── mainwindow.h
 │   │   └── mainwindow.ui
 │   ├── 13_dynamicList/
 │   │   ├── 13_dynamicList.pro
+│   │   ├── 13_dynamicList.pro.qt5_backup
 │   │   ├── main.cpp
 │   │   ├── mainwindow.cpp
 │   │   ├── mainwindow.h
 │   │   └── mainwindow.ui
 │   ├── 14_dynamicList_used/
 │   │   ├── 14_dynamicList.pro
+│   │   ├── 14_dynamicList.pro.qt5_backup
 │   │   ├── CustomTreeWidget.cpp
 │   │   ├── CustomTreeWidget.h
 │   │   ├── CustomTreeWidget.ui
 │   │   └── main.cpp
 │   ├── 15_dynamicList/
 │   │   ├── 15_dynamicList.pro
+│   │   ├── 15_dynamicList.pro.qt5_backup
 │   │   ├── LockerButton.cpp
 │   │   ├── LockerButton.h
 │   │   ├── LockerWidget.cpp
@@ -710,7 +787,8 @@ qtscrcpy_tc/
 │   │   │   │                       ├── ControlMessageReaderTest.java
 │   │   │   │                       ├── DeviceMessageWriterTest.java
 │   │   │   │                       └── StringUtilsTest.java
-│   │   │   └── proguard-rules.pro
+│   │   │   ├── proguard-rules.pro
+│   │   │   └── proguard-rules.pro.qt5_backup
 │   │   ├── third_party/
 │   │   │   ├── adb/
 │   │   │   │   ├── linux/
@@ -904,23 +982,47 @@ qtscrcpy_tc/
 │   │   ├── mainwindow.h
 │   │   ├── mainwindow.ui
 │   │   ├── myTc.pro
+│   │   ├── myTc.pro.qt5_backup
 │   │   └── version
 │   ├── 18_jsonReadWrite/
 │   │   ├── 18_jsonReadWrite.pro
+│   │   ├── 18_jsonReadWrite.pro.qt5_backup
 │   │   └── main.cpp
 │   └── 19_textDoubleClickEdit/
 │       ├── 19_textDoubleClickEdit.pro
+│       ├── 19_textDoubleClickEdit.pro.qt5_backup
 │       ├── main.cpp
 │       ├── mainwindow.cpp
 │       ├── mainwindow.h
 │       └── mainwindow.ui
 ├── .gitignore
-├── TC软件概要设计文档.docx
-├── TC软件详细设计文档.docx
+├── BUILD_CHANGELOG.md
+├── BUILD_FEATURES_COMPARISON.md
+├── BUILD_GUIDE.md
+├── QT6_MIGRATION_ANALYSIS_REPORT.md
+├── QT6_UPGRADE_SUMMARY.md
+├── TC软件文档.md
 ├── UI_EXTENSION_ANALYSIS_REPORT.md
+├── build.ps1
+├── build.sh
+├── build_all_fixes.txt
+├── build_complete.bat
+├── build_complete.txt
+├── build_final.txt
+├── build_log.txt
+├── build_log_verbose.txt
+├── build_new_output.txt
+├── build_qt693_final.txt
+├── build_success.txt
+├── build_with_fixes.txt
+├── fix_makefile.ps1
+├── qtscrcpy_tc_tree.md
 ├── readme.md
+├── temp_qmake.bat
+├── test_regex.ps1
+├── upgrade_qt6_script.sh
 ├── 运行效果1.png
-└── 运行效果2.png
+└── 预期.png
 ```
 
 ---

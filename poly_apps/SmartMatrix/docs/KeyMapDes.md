@@ -1,6 +1,6 @@
-# Custom key mapping instructions
+﻿# Custom key mapping instructions
 
-The key map file is in json format, and the new key map file needs to be placed in the keymap directory to be recognized by QtScrcpy.
+The key map file is in json format, and the new key map file needs to be placed in the keymap directory to be recognized by SmartMatrix.
 
 The specific writing format of the button mapping file will be introduced below, and you can also refer to the button mapping file that comes with it.
 

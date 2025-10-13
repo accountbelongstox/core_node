@@ -1,17 +1,17 @@
-# QtScrcpy 
+﻿# SmartMatrix 
 
-[![Financial Contributors to Open Collective](https://opencollective.com/QtScrcpy/all/badge.svg?label=financial+contributors)](https://opencollective.com/QtScrcpy)
-![Windows](https://github.com/barry-ran/QtScrcpy/workflows/Windows/badge.svg)
-![MacOS](https://github.com/barry-ran/QtScrcpy/workflows/MacOS/badge.svg)
-![Ubuntu](https://github.com/barry-ran/QtScrcpy/workflows/Ubuntu/badge.svg)
+[![Financial Contributors to Open Collective](https://opencollective.com/SmartMatrix/all/badge.svg?label=financial+contributors)](https://opencollective.com/SmartMatrix)
+![Windows](https://github.com/barry-ran/SmartMatrix/workflows/Windows/badge.svg)
+![MacOS](https://github.com/barry-ran/SmartMatrix/workflows/MacOS/badge.svg)
+![Ubuntu](https://github.com/barry-ran/SmartMatrix/workflows/Ubuntu/badge.svg)
 
 ![license](https://img.shields.io/badge/license-Apache2.0-blue.svg)
-![release](https://img.shields.io/github/v/release/barry-ran/QtScrcpy.svg)
-![star](https://img.shields.io/github/stars/barry-ran/QtScrcpy.svg)
+![release](https://img.shields.io/github/v/release/barry-ran/SmartMatrix.svg)
+![star](https://img.shields.io/github/stars/barry-ran/SmartMatrix.svg)
 
 [中文用户？点我查看中文介绍](README_zh.md)
 
-QtScrcpy supports displaying and controlling Android devices via USB or over network. It does NOT require root privileges.
+SmartMatrix supports displaying and controlling Android devices via USB or over network. It does NOT require root privileges.
 
 It supports three major platforms: GNU/Linux, Windows and macOS.
 
@@ -90,15 +90,15 @@ You can control all your phones at the same time.
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=barry-ran/QtScrcpy&type=Date)](https://star-history.com/#barry-ran/QtScrcpy&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=barry-ran/SmartMatrix&type=Date)](https://star-history.com/#barry-ran/SmartMatrix&Date)
 
 ## Thanks
 
-QtScrcpy is based on [Genymobile](https://github.com/Genymobile)'s [scrcpy](https://github.com/Genymobile/scrcpy) project. Thanks a lot!
+SmartMatrix is based on [Genymobile](https://github.com/Genymobile)'s [scrcpy](https://github.com/Genymobile/scrcpy) project. Thanks a lot!
 
-The difference between QtScrcpy and the original scrcpy is as follows:
+The difference between SmartMatrix and the original scrcpy is as follows:
 
-key points|scrcpy|QtScrcpy
+key points|scrcpy|SmartMatrix
 --|:--:|:--:
 ui|sdl|qt
 video encode|ffmpeg|ffmpeg
@@ -118,11 +118,11 @@ build|meson+gradle|qmake or CMake
 ## Learn
 
 If you are interested in it and want to learn how it works but do not know how to get started, you can choose to purchase my recorded video lessons.
-It details the development architecture and the development process of the entire software and helps you develop QtScrcpy from scratch.
+It details the development architecture and the development process of the entire software and helps you develop SmartMatrix from scratch.
 
 Course introduction：[https://blog.csdn.net/rankun1/article/details/87970523](https://blog.csdn.net/rankun1/article/details/87970523)
 
-You can join Telegram Group for QtScrcpy and exchange ideas with like-minded friends.：
+You can join Telegram Group for SmartMatrix and exchange ideas with like-minded friends.：
 
 Telegram Group：https://t.me/+EnQNmb47C_liYmRl
 
@@ -137,31 +137,31 @@ Make sure you have enabled [ADB debugging][enable-adb] on your device(s).
 
 ## Download
 
-[gitee-download]: https://gitee.com/Barryda/QtScrcpy/releases
-[github-download]: https://github.com/barry-ran/QtScrcpy/releases
+[gitee-download]: https://gitee.com/Barryda/SmartMatrix/releases
+[github-download]: https://github.com/barry-ran/SmartMatrix/releases
 
 ### Windows
 On Windows, for simplicity, prebuilt archives with all the dependencies (including ADB) are available at Releases:
 
- - [`QtScrcpy`][github-download]
+ - [`SmartMatrix`][github-download]
 
 or you can [build it yourself](#Build)
 
 ### Mac OS
 On Mac OS, for simplicity, prebuilt archives with all the dependencies (including ADB) are available at Releases:
 
-- [`QtScrcpy`][github-download]
+- [`SmartMatrix`][github-download]
 
 or you can [build it yourself](#Build)
 
 ### Linux
-For Arch Linux Users, you can use AUR to install: `yay -Syu qtscrcpy` (may be outdated; maintainer: [yochananmarqos](https://aur.archlinux.org/account/yochananmarqos))
+For Arch Linux Users, you can use AUR to install: `yay -Syu SmartMatrix` (may be outdated; maintainer: [yochananmarqos](https://aur.archlinux.org/account/yochananmarqos))
 
 For users in other distros, you can use the prebuilt archives from Releases:
 
-- [`QtScrcpy`][github-download]
+- [`SmartMatrix`][github-download]
 
-or you can get it at [GitHub Actions](https://github.com/barry-ran/QtScrcpy/actions/workflows/ubuntu.yml), in branch `dev` and download the latest artifact.
+or you can get it at [GitHub Actions](https://github.com/barry-ran/SmartMatrix/actions/workflows/ubuntu.yml), in branch `dev` and download the latest artifact.
 
 or you can [build it yourself](#Build) (not recommended, get it in Actions if you can)
 
@@ -270,7 +270,7 @@ Everyone is welcome to maintain this project and contribute your own code, but p
 3. Please submit PRs on the principle of "small amounts, many times" (one PR for a change is recommended)
 4. Please keep the code style consistent with the existing style.
 
-## Why develop QtScrcpy?
+## Why develop SmartMatrix?
 There are several reasons listed below according to importance (high to low).
 1. In the process of learning Qt, I need a real project to try.
 2. I have some background skills in audio and video and I am interested in them.
@@ -281,25 +281,25 @@ There are several reasons listed below according to importance (high to low).
 ## Build
 All the dependencies are provided and it is easy to compile.
 
-### QtScrcpy
+### SmartMatrix
 #### Non-Arch Linux Users
 1. Set up the Qt development environment with the official Qt installer or third-party tools such as [aqt](https://github.com/miurahr/aqtinstall) on the target platform.
    Qt version bigger than 5.12 is required. (use MSVC 2019 on Windows)
-2. Clone the project with `git clone --recurse-submodules git@github.com:barry-ran/QtScrcpy.git`
+2. Clone the project with `git clone --recurse-submodules git@github.com:barry-ran/SmartMatrix.git`
 3. For Windows, open CMakeLists.txt with QtCreator and compile Release
 4. For Linux, directly run `./ci/linux/build_for_linux.sh "Release"`
 Note: compiled artifacts are located at `output/x64/Release`
 
 #### Arch Linux Users
 1. Install packages: `base-devel cmake qt5-base qt5-multimedia qt5-x11extras` (`qtcreator` is recommended)
-2. Clone the project with `git clone --recurse-submodules git@github.com:barry-ran/QtScrcpy.git`
+2. Clone the project with `git clone --recurse-submodules git@github.com:barry-ran/SmartMatrix.git`
 3. Run `./ci/linux/build_for_linux.sh "Release"`
 
 ### Scrcpy-Server
 1. Set up Android development environment on the target platform
 2. Open server project in project root with Android Studio
 3. The first time you open it, if you do not have the corresponding version of Gradle, you will be prompted to find Gradle, whether to upgrade Gradle or create it. Select Cancel. After cancelling, you will be prompted to select the location of existing Gradle. Cancel it too and it will download automatically.
-4. After compiling the apk, rename it to scrcpy-server and replace QtScrcpy/QtScrcpyCore/src/third_party/scrcpy-server.
+4. After compiling the apk, rename it to scrcpy-server and replace SmartMatrix/SmartMatrixCore/src/third_party/scrcpy-server.
 
 ## Licence
 Since it is based on scrcpy, it uses the same license as scrcpy
@@ -329,27 +329,27 @@ An ordinary programmer, working mainly in C++ for desktop client development, gr
 ### Code Contributors
 
 This project exists thanks to all the people who contribute. [[Contribute](CONTRIBUTING.md)].
-<a href="https://github.com/barry-ran/QtScrcpy/graphs/contributors"><img src="https://opencollective.com/QtScrcpy/contributors.svg?width=890&button=false" /></a>
+<a href="https://github.com/barry-ran/SmartMatrix/graphs/contributors"><img src="https://opencollective.com/SmartMatrix/contributors.svg?width=890&button=false" /></a>
 
 ### Financial Contributors
 
-Become a financial contributor and help us sustain our community. [[Contribute](https://opencollective.com/QtScrcpy/contribute)]
+Become a financial contributor and help us sustain our community. [[Contribute](https://opencollective.com/SmartMatrix/contribute)]
 
 #### Individuals
 
-<a href="https://opencollective.com/QtScrcpy"><img src="https://opencollective.com/QtScrcpy/individuals.svg?width=890"></a>
+<a href="https://opencollective.com/SmartMatrix"><img src="https://opencollective.com/SmartMatrix/individuals.svg?width=890"></a>
 
 #### Organizations
 
-Support this project with your organization. Your logo will show up here with a link to your website. [[Contribute](https://opencollective.com/QtScrcpy/contribute)]
+Support this project with your organization. Your logo will show up here with a link to your website. [[Contribute](https://opencollective.com/SmartMatrix/contribute)]
 
-<a href="https://opencollective.com/QtScrcpy/organization/0/website"><img src="https://opencollective.com/QtScrcpy/organization/0/avatar.svg"></a>
-<a href="https://opencollective.com/QtScrcpy/organization/1/website"><img src="https://opencollective.com/QtScrcpy/organization/1/avatar.svg"></a>
-<a href="https://opencollective.com/QtScrcpy/organization/2/website"><img src="https://opencollective.com/QtScrcpy/organization/2/avatar.svg"></a>
-<a href="https://opencollective.com/QtScrcpy/organization/3/website"><img src="https://opencollective.com/QtScrcpy/organization/3/avatar.svg"></a>
-<a href="https://opencollective.com/QtScrcpy/organization/4/website"><img src="https://opencollective.com/QtScrcpy/organization/4/avatar.svg"></a>
-<a href="https://opencollective.com/QtScrcpy/organization/5/website"><img src="https://opencollective.com/QtScrcpy/organization/5/avatar.svg"></a>
-<a href="https://opencollective.com/QtScrcpy/organization/6/website"><img src="https://opencollective.com/QtScrcpy/organization/6/avatar.svg"></a>
-<a href="https://opencollective.com/QtScrcpy/organization/7/website"><img src="https://opencollective.com/QtScrcpy/organization/7/avatar.svg"></a>
-<a href="https://opencollective.com/QtScrcpy/organization/8/website"><img src="https://opencollective.com/QtScrcpy/organization/8/avatar.svg"></a>
-<a href="https://opencollective.com/QtScrcpy/organization/9/website"><img src="https://opencollective.com/QtScrcpy/organization/9/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/0/website"><img src="https://opencollective.com/SmartMatrix/organization/0/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/1/website"><img src="https://opencollective.com/SmartMatrix/organization/1/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/2/website"><img src="https://opencollective.com/SmartMatrix/organization/2/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/3/website"><img src="https://opencollective.com/SmartMatrix/organization/3/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/4/website"><img src="https://opencollective.com/SmartMatrix/organization/4/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/5/website"><img src="https://opencollective.com/SmartMatrix/organization/5/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/6/website"><img src="https://opencollective.com/SmartMatrix/organization/6/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/7/website"><img src="https://opencollective.com/SmartMatrix/organization/7/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/8/website"><img src="https://opencollective.com/SmartMatrix/organization/8/avatar.svg"></a>
+<a href="https://opencollective.com/SmartMatrix/organization/9/website"><img src="https://opencollective.com/SmartMatrix/organization/9/avatar.svg"></a>

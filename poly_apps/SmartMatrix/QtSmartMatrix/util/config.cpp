@@ -141,14 +141,14 @@ Config &Config::getInstance()
 const QString &Config::getConfigPath()
 {
     if (s_configPath.isEmpty()) {
-        s_configPath = QString::fromLocal8Bit(qgetenv("QTSCRCPY_CONFIG_PATH"));
+        s_configPath = QString::fromLocal8Bit(qgetenv("SmartMatrix_CONFIG_PATH"));
         QFileInfo fileInfo(s_configPath);
         if (s_configPath.isEmpty() || !fileInfo.isDir()) {
             // default application dir
             // mac系统当从finder打开app时，默认工作目录不再是可执行程序的目录了，而是"/"
             // 而Qt的获取工作目录的api都依赖QCoreApplication的初始化，所以使用mac api获取当前目录
 #ifdef Q_OS_OSX
-            // get */QtScrcpy.app path
+            // get */SmartMatrix.app path
             s_configPath = Path::GetCurrentPath();
             s_configPath += "/Contents/MacOS/config";
 #else

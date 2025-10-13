@@ -1,13 +1,13 @@
-# Directory Tree: QtScrcpy
+﻿# Directory Tree: SmartMatrix
 
-**Path:** `D:\programing\core_node\poly_apps\QtScrcpy\QtScrcpy`
+**Path:** `D:\programing\core_node\poly_apps\SmartMatrix\SmartMatrix`
 
 ```
-QtScrcpy/
-├── QtScrcpyCore/
+SmartMatrix/
+├── SmartMatrixCore/
 │   ├── include/
-│   │   ├── QtScrcpyCore.h
-│   │   ├── QtScrcpyCoreDef.h
+│   │   ├── SmartMatrixCore.h
+│   │   ├── SmartMatrixCoreDef.h
 │   │   └── adbprocess.h
 │   ├── src/
 │   │   ├── adb/
@@ -346,9 +346,9 @@ QtScrcpy/
 │   │   │   └── radiobutton_unchecked_disable.png
 │   │   └── psblack.css
 │   ├── Info_Mac.plist.in
-│   ├── QtScrcpy.icns
-│   ├── QtScrcpy.ico
-│   ├── QtScrcpy.rc
+│   ├── SmartMatrix.icns
+│   ├── SmartMatrix.ico
+│   ├── SmartMatrix.rc
 │   └── res.qrc
 ├── sndcpy/
 │   ├── sndcpy.apk

@@ -1,10 +1,10 @@
-#ifndef TOOLFORM_H
+﻿#ifndef TOOLFORM_H
 #define TOOLFORM_H
 
 #include <QPointer>
 #include <QWidget>
 
-#include "../QtScrcpyCore/include/QtScrcpyCore.h"
+#include "../SmartMatrixCore/include/SmartMatrixCore.h"
 #include "magneticwidget.h"
 
 namespace Ui

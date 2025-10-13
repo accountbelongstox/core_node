@@ -1,4 +1,5 @@
-#include <QDesktopWidget>
+// Qt6: QDesktopWidget is deprecated, use QScreen instead
+// #include <QDesktopWidget>
 #include <QFileInfo>
 #include <QLabel>
 #include <QMessageBox>
@@ -12,6 +13,11 @@
 #include <QTimer>
 #include <QWindow>
 #include <QtWidgets/QHBoxLayout>
+
+// Windows API header for SetThreadExecutionState
+#ifdef Q_OS_WIN32
+#include <Windows.h>
+#endif
 
 #include "config.h"
 #include "controller.h"
@@ -560,19 +566,24 @@ void VideoForm::mousePressEvent(QMouseEvent *event)
         if (!m_device) {
             return;
         }
-        event->setLocalPos(m_videoWidget->mapFrom(this, event->localPos().toPoint()));
-        emit m_device->mouseEvent(event, m_videoWidget->frameSize(), m_videoWidget->size());
+        // Qt 6: setLocalPos() removed - create new QMouseEvent with transformed position
+        QPointF newPos = m_videoWidget->mapFrom(this, event->position().toPoint());
+        QMouseEvent newEvent(event->type(), newPos, event->globalPosition(),
+                             event->button(), event->buttons(), event->modifiers());
+        emit m_device->mouseEvent(&newEvent, m_videoWidget->frameSize(), m_videoWidget->size());
 
         // debug keymap pos
         if (event->button() == Qt::LeftButton) {
-            qreal x = event->localPos().x() / m_videoWidget->size().width();
-            qreal y = event->localPos().y() / m_videoWidget->size().height();
+            // Qt 6: localPos() deprecated, use position() instead
+            qreal x = event->position().x() / m_videoWidget->size().width();
+            qreal y = event->position().y() / m_videoWidget->size().height();
             QString posTip = QString(R"("pos": {"x": %1, "y": %2})").arg(x).arg(y);
             qInfo() << posTip.toStdString().c_str();
         }
     } else {
         if (event->button() == Qt::LeftButton) {
-            m_dragPosition = event->globalPos() - frameGeometry().topLeft();
+            // Qt 6: globalPos() deprecated, use globalPosition() instead
+            m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
             event->accept();
         }
     }
@@ -584,23 +595,27 @@ void VideoForm::mouseReleaseEvent(QMouseEvent *event)
         if (!m_device) {
             return;
         }
-        event->setLocalPos(m_videoWidget->mapFrom(this, event->localPos().toPoint()));
+        // Qt 6: setLocalPos() removed - transform position and create new event
+        // Qt 6: localPos() deprecated, use position() instead
+        QPointF newPos = m_videoWidget->mapFrom(this, event->position().toPoint());
+
         // local check
-        QPointF local = event->localPos();
-        if (local.x() < 0) {
-            local.setX(0);
+        if (newPos.x() < 0) {
+            newPos.setX(0);
         }
-        if (local.x() > m_videoWidget->width()) {
-            local.setX(m_videoWidget->width());
+        if (newPos.x() > m_videoWidget->width()) {
+            newPos.setX(m_videoWidget->width());
         }
-        if (local.y() < 0) {
-            local.setY(0);
+        if (newPos.y() < 0) {
+            newPos.setY(0);
         }
-        if (local.y() > m_videoWidget->height()) {
-            local.setY(m_videoWidget->height());
+        if (newPos.y() > m_videoWidget->height()) {
+            newPos.setY(m_videoWidget->height());
         }
-        event->setLocalPos(local);
-        emit m_device->mouseEvent(event, m_videoWidget->frameSize(), m_videoWidget->size());
+
+        QMouseEvent newEvent(event->type(), newPos, event->globalPosition(),
+                             event->button(), event->buttons(), event->modifiers());
+        emit m_device->mouseEvent(&newEvent, m_videoWidget->frameSize(), m_videoWidget->size());
     } else {
         m_dragPosition = QPoint(0, 0);
     }
@@ -612,11 +627,14 @@ void VideoForm::mouseMoveEvent(QMouseEvent *event)
         if (!m_device) {
             return;
         }
-        event->setLocalPos(m_videoWidget->mapFrom(this, event->localPos().toPoint()));
-        emit m_device->mouseEvent(event, m_videoWidget->frameSize(), m_videoWidget->size());
+        // Qt 6: setLocalPos() removed - create new QMouseEvent with transformed position
+        QPointF newPos = m_videoWidget->mapFrom(this, event->position().toPoint());
+        QMouseEvent newEvent(event->type(), newPos, event->globalPosition(),
+                             event->button(), event->buttons(), event->modifiers());
+        emit m_device->mouseEvent(&newEvent, m_videoWidget->frameSize(), m_videoWidget->size());
     } else if (!m_dragPosition.isNull()) {
         if (event->buttons() & Qt::LeftButton) {
-            // move(event->globalPos() - m_dragPosition);
+            // move(event->globalPosition().toPoint() - m_dragPosition);
             event->accept();
         }
     }
@@ -638,8 +656,11 @@ void VideoForm::mouseDoubleClickEvent(QMouseEvent *event)
         if (!m_device) {
             return;
         }
-        event->setLocalPos(m_videoWidget->mapFrom(this, event->localPos().toPoint()));
-        emit m_device->mouseEvent(event, m_videoWidget->frameSize(), m_videoWidget->size());
+        // Qt 6: setLocalPos() removed - create new QMouseEvent with transformed position
+        QPointF newPos = m_videoWidget->mapFrom(this, event->position().toPoint());
+        QMouseEvent newEvent(event->type(), newPos, event->globalPosition(),
+                             event->button(), event->buttons(), event->modifiers());
+        emit m_device->mouseEvent(&newEvent, m_videoWidget->frameSize(), m_videoWidget->size());
     }
 }
 
@@ -680,7 +701,8 @@ void VideoForm::paintEvent(QPaintEvent *paint)
 {
     Q_UNUSED(paint)
     QStyleOption opt;
-    opt.init(this);
+    // Qt 6: init() deprecated, use initFrom() instead
+    opt.initFrom(this);
     QPainter p(this);
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
 }

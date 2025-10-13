@@ -1,4 +1,4 @@
-# Modern UI Extension Components for QtScrcpy
+﻿# Modern UI Extension Components for SmartMatrix
 # This file contains the CMake configuration for all modern UI components
 
 # Modern UI Source Files
@@ -38,39 +38,39 @@ qt6_add_resources(MODERN_UI_RESOURCE_FILE
 )
 
 # Add modern UI components to main target
-target_sources(QtScrcpy PRIVATE
+target_sources(SmartMatrix PRIVATE
     ${MODERN_UI_HEADERS}
     ${MODERN_UI_SOURCES}
     ${MODERN_UI_RESOURCE_FILE}
 )
 
 # Link modern UI components
-target_link_libraries(QtScrcpy PRIVATE
+target_link_libraries(SmartMatrix PRIVATE
     Qt6::Core
     Qt6::Widgets
     Qt6::Gui
 )
 
 # Include directories for modern UI
-target_include_directories(QtScrcpy PRIVATE
+target_include_directories(SmartMatrix PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/ui
 )
 
 # Compile definitions for modern UI
-target_compile_definitions(QtScrcpy PRIVATE
+target_compile_definitions(SmartMatrix PRIVATE
     QT_DEPRECATED_WARNINGS
     QT_DISABLE_DEPRECATED_BEFORE=0x060000
 )
 
 # Modern UI specific compiler flags
 if(MSVC)
-    target_compile_options(QtScrcpy PRIVATE /W4)
+    target_compile_options(SmartMatrix PRIVATE /W4)
 else()
-    target_compile_options(QtScrcpy PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(SmartMatrix PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 # Enable MOC for modern UI headers
-set_target_properties(QtScrcpy PROPERTIES
+set_target_properties(SmartMatrix PROPERTIES
     AUTOMOC ON
     AUTORCC ON
     AUTOUIC ON
@@ -81,7 +81,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui)
 
 # Check for Qt6.9 specific features
 if(Qt6_VERSION VERSION_GREATER_EQUAL "6.9.0")
-    target_compile_definitions(QtScrcpy PRIVATE
+    target_compile_definitions(SmartMatrix PRIVATE
         QT_HAS_QT69_FEATURES=1
     )
     message(STATUS "Qt6.9 features enabled for modern UI")
@@ -90,7 +90,7 @@ else()
 endif()
 
 # Modern UI installation
-install(TARGETS QtScrcpy
+install(TARGETS SmartMatrix
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
@@ -98,17 +98,17 @@ install(TARGETS QtScrcpy
 
 # Install modern UI resources
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui/icons/
-    DESTINATION share/QtScrcpy/icons
+    DESTINATION share/SmartMatrix/icons
     FILES_MATCHING PATTERN "*.png"
 )
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui/res/
-    DESTINATION share/QtScrcpy/res
+    DESTINATION share/SmartMatrix/res
     FILES_MATCHING PATTERN "*.png"
 )
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ui/image/
-    DESTINATION share/QtScrcpy/image
+    DESTINATION share/SmartMatrix/image
     FILES_MATCHING PATTERN "*.png"
 )
 
@@ -141,8 +141,8 @@ endif()
 
 # Modern UI packaging
 if(CPACK_PACKAGE_NAME)
-    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "QtScrcpy with Modern UI Extension")
-    set(CPACK_PACKAGE_VENDOR "QtScrcpy Modern UI Team")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "SmartMatrix with Modern UI Extension")
+    set(CPACK_PACKAGE_VENDOR "SmartMatrix Modern UI Team")
     set(CPACK_PACKAGE_VERSION_MAJOR "1")
     set(CPACK_PACKAGE_VERSION_MINOR "0")
     set(CPACK_PACKAGE_VERSION_PATCH "0")
