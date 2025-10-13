@@ -21,7 +21,7 @@ cd /d "D:\programing\core_node\poly_apps\qtscrcpy_tc\build_temp"
 echo ============================================================
 echo Running qmake...
 echo ============================================================
-"D:\.dev_win11\Qt\6.9.3\msvc2022_64\bin\qmake.exe" ..\TcUi\17_TcUi.pro -spec win32-msvc "CONFIG+=qtquickcompiler"
+"D:\.dev_win11\Qt\6.9.3\msvc2022_64\bin\qmake.exe" ..\SmartMatrix\17_SmartMatrix.pro -spec win32-msvc "CONFIG+=qtquickcompiler"
 if errorlevel 1 (
     echo ERROR: qmake failed
     exit /b 1

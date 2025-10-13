@@ -4,7 +4,7 @@
 
 ```
 qtscrcpy_tc/
-├── TcUi/
+├── SmartMatrix/
 │   ├── adb/
 │   │   ├── adb.pri
 │   │   ├── adbprocess.cpp
@@ -153,8 +153,8 @@ qtscrcpy_tc/
 │   │   │   │   ├── radiobutton_unchecked.png
 │   │   │   │   └── radiobutton_unchecked_disable.png
 │   │   │   └── psblack.css
-│   │   ├── TcUi.ico
-│   │   ├── TcUi.rc
+│   │   ├── SmartMatrix.ico
+│   │   ├── SmartMatrix.rc
 │   │   └── res.qrc
 │   ├── server/
 │   │   ├── config/
@@ -374,6 +374,9 @@ qtscrcpy_tc/
 │   │   │       ├── libswscale.5.dylib
 │   │   │       └── libswscale.a
 │   │   └── scrcpy-server
+│   ├── ui/
+│   │   ├── customtitlebar.cpp
+│   │   └── customtitlebar.h
 │   ├── uibase/
 │   │   ├── keepratiowidget.cpp
 │   │   ├── keepratiowidget.h
@@ -400,7 +403,7 @@ qtscrcpy_tc/
 │   │   ├── logout.h
 │   │   └── util.pri
 │   ├── .gitignore
-│   ├── 17_TcUi.pro
+│   ├── SmartMatrix.pro
 │   ├── dialog.cpp
 │   ├── dialog.h
 │   ├── dialog.ui
@@ -409,9 +412,18 @@ qtscrcpy_tc/
 │   ├── mainwindow.h
 │   ├── mainwindow.ui
 │   └── version.txt
+├── config/
+│   └── userdata.ini
+├── dev_docs/
+│   ├── 01_architecture_analysis.md
+│   ├── 02_custom_titlebar_design.md
+│   ├── 03_implementation_summary.md
+│   └── README.md
 ├── docs/
+│   ├── TC软件文档.md
 │   ├── TC软件概要设计文档.docx
-│   └── TC软件详细设计文档.docx
+│   ├── TC软件详细设计文档.docx
+│   └── upFixCharNewQtScrapy.md
 ├── output/
 │   └── win/
 │       └── x64/
@@ -466,6 +478,745 @@ qtscrcpy_tc/
 │                   ├── QtScrcpy_en.qm
 │                   ├── QtScrcpy_zh.qm
 │                   └── myTc_zh_CN.qm
+├── output_20251013_151717/
+│   └── win/
+│       └── x64/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               └── translations/
+│                   ├── QtScrcpy_en.qm
+│                   ├── QtScrcpy_zh.qm
+│                   └── myTc_zh_CN.qm
+├── output_20251013_152847/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   └── myTc_zh_CN.qm
+│               ├── 17_TcUi.exe
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251013_160533/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   └── myTc_zh_CN.qm
+│               ├── 17_TcUi.exe
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251013_160618/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   └── myTc_zh_CN.qm
+│               ├── 17_TcUi.exe
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251013_200951/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── generic/
+│               │   └── qtuiotouchplugin.dll
+│               ├── iconengines/
+│               │   └── qsvgicon.dll
+│               ├── imageformats/
+│               │   ├── qgif.dll
+│               │   ├── qicns.dll
+│               │   ├── qico.dll
+│               │   ├── qjpeg.dll
+│               │   ├── qsvg.dll
+│               │   ├── qtga.dll
+│               │   ├── qtiff.dll
+│               │   ├── qwbmp.dll
+│               │   └── qwebp.dll
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── networkinformation/
+│               │   └── qnetworklistmanager.dll
+│               ├── platforms/
+│               │   └── qwindows.dll
+│               ├── styles/
+│               │   └── qmodernwindowsstyle.dll
+│               ├── tls/
+│               │   ├── qcertonlybackend.dll
+│               │   └── qschannelbackend.dll
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   ├── myTc_zh_CN.qm
+│               │   ├── qt_ar.qm
+│               │   ├── qt_bg.qm
+│               │   ├── qt_ca.qm
+│               │   ├── qt_cs.qm
+│               │   ├── qt_da.qm
+│               │   ├── qt_de.qm
+│               │   ├── qt_en.qm
+│               │   ├── qt_es.qm
+│               │   ├── qt_fa.qm
+│               │   ├── qt_fi.qm
+│               │   ├── qt_fr.qm
+│               │   ├── qt_gd.qm
+│               │   ├── qt_he.qm
+│               │   ├── qt_hr.qm
+│               │   ├── qt_hu.qm
+│               │   ├── qt_it.qm
+│               │   ├── qt_ja.qm
+│               │   ├── qt_ka.qm
+│               │   ├── qt_ko.qm
+│               │   ├── qt_lg.qm
+│               │   ├── qt_lv.qm
+│               │   ├── qt_nl.qm
+│               │   ├── qt_nn.qm
+│               │   ├── qt_pl.qm
+│               │   ├── qt_pt_BR.qm
+│               │   ├── qt_ru.qm
+│               │   ├── qt_sk.qm
+│               │   ├── qt_sv.qm
+│               │   ├── qt_tr.qm
+│               │   ├── qt_uk.qm
+│               │   ├── qt_zh_CN.qm
+│               │   └── qt_zh_TW.qm
+│               ├── 17_TcUi.exe
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── D3Dcompiler_47.dll
+│               ├── Qt6Core.dll
+│               ├── Qt6Gui.dll
+│               ├── Qt6Network.dll
+│               ├── Qt6OpenGL.dll
+│               ├── Qt6OpenGLWidgets.dll
+│               ├── Qt6Svg.dll
+│               ├── Qt6Widgets.dll
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── opengl32sw.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251013_205859/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── generic/
+│               │   └── qtuiotouchplugin.dll
+│               ├── iconengines/
+│               │   └── qsvgicon.dll
+│               ├── imageformats/
+│               │   ├── qgif.dll
+│               │   ├── qicns.dll
+│               │   ├── qico.dll
+│               │   ├── qjpeg.dll
+│               │   ├── qsvg.dll
+│               │   ├── qtga.dll
+│               │   ├── qtiff.dll
+│               │   ├── qwbmp.dll
+│               │   └── qwebp.dll
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── networkinformation/
+│               │   └── qnetworklistmanager.dll
+│               ├── platforms/
+│               │   └── qwindows.dll
+│               ├── styles/
+│               │   └── qmodernwindowsstyle.dll
+│               ├── tls/
+│               │   ├── qcertonlybackend.dll
+│               │   └── qschannelbackend.dll
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   ├── myTc_zh_CN.qm
+│               │   ├── qt_ar.qm
+│               │   ├── qt_bg.qm
+│               │   ├── qt_ca.qm
+│               │   ├── qt_cs.qm
+│               │   ├── qt_da.qm
+│               │   ├── qt_de.qm
+│               │   ├── qt_en.qm
+│               │   ├── qt_es.qm
+│               │   ├── qt_fa.qm
+│               │   ├── qt_fi.qm
+│               │   ├── qt_fr.qm
+│               │   ├── qt_gd.qm
+│               │   ├── qt_he.qm
+│               │   ├── qt_hr.qm
+│               │   ├── qt_hu.qm
+│               │   ├── qt_it.qm
+│               │   ├── qt_ja.qm
+│               │   ├── qt_ka.qm
+│               │   ├── qt_ko.qm
+│               │   ├── qt_lg.qm
+│               │   ├── qt_lv.qm
+│               │   ├── qt_nl.qm
+│               │   ├── qt_nn.qm
+│               │   ├── qt_pl.qm
+│               │   ├── qt_pt_BR.qm
+│               │   ├── qt_ru.qm
+│               │   ├── qt_sk.qm
+│               │   ├── qt_sv.qm
+│               │   ├── qt_tr.qm
+│               │   ├── qt_uk.qm
+│               │   ├── qt_zh_CN.qm
+│               │   └── qt_zh_TW.qm
+│               ├── 17_TcUi.exe
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── D3Dcompiler_47.dll
+│               ├── Qt6Core.dll
+│               ├── Qt6Gui.dll
+│               ├── Qt6Network.dll
+│               ├── Qt6OpenGL.dll
+│               ├── Qt6OpenGLWidgets.dll
+│               ├── Qt6Svg.dll
+│               ├── Qt6Widgets.dll
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── opengl32sw.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251013_213233/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   └── myTc_zh_CN.qm
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── SmartMatrix.exe
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251013_213617/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   └── myTc_zh_CN.qm
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── SmartMatrix.exe
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251014_041159/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── generic/
+│               │   └── qtuiotouchplugin.dll
+│               ├── iconengines/
+│               │   └── qsvgicon.dll
+│               ├── imageformats/
+│               │   ├── qgif.dll
+│               │   ├── qicns.dll
+│               │   ├── qico.dll
+│               │   ├── qjpeg.dll
+│               │   ├── qsvg.dll
+│               │   ├── qtga.dll
+│               │   ├── qtiff.dll
+│               │   ├── qwbmp.dll
+│               │   └── qwebp.dll
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── networkinformation/
+│               │   └── qnetworklistmanager.dll
+│               ├── platforms/
+│               │   └── qwindows.dll
+│               ├── styles/
+│               │   └── qmodernwindowsstyle.dll
+│               ├── tls/
+│               │   ├── qcertonlybackend.dll
+│               │   └── qschannelbackend.dll
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   ├── myTc_zh_CN.qm
+│               │   ├── qt_ar.qm
+│               │   ├── qt_bg.qm
+│               │   ├── qt_ca.qm
+│               │   ├── qt_cs.qm
+│               │   ├── qt_da.qm
+│               │   ├── qt_de.qm
+│               │   ├── qt_en.qm
+│               │   ├── qt_es.qm
+│               │   ├── qt_fa.qm
+│               │   ├── qt_fi.qm
+│               │   ├── qt_fr.qm
+│               │   ├── qt_gd.qm
+│               │   ├── qt_he.qm
+│               │   ├── qt_hr.qm
+│               │   ├── qt_hu.qm
+│               │   ├── qt_it.qm
+│               │   ├── qt_ja.qm
+│               │   ├── qt_ka.qm
+│               │   ├── qt_ko.qm
+│               │   ├── qt_lg.qm
+│               │   ├── qt_lv.qm
+│               │   ├── qt_nl.qm
+│               │   ├── qt_nn.qm
+│               │   ├── qt_pl.qm
+│               │   ├── qt_pt_BR.qm
+│               │   ├── qt_ru.qm
+│               │   ├── qt_sk.qm
+│               │   ├── qt_sv.qm
+│               │   ├── qt_tr.qm
+│               │   ├── qt_uk.qm
+│               │   ├── qt_zh_CN.qm
+│               │   └── qt_zh_TW.qm
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── D3Dcompiler_47.dll
+│               ├── Qt6Core.dll
+│               ├── Qt6Gui.dll
+│               ├── Qt6Network.dll
+│               ├── Qt6OpenGL.dll
+│               ├── Qt6OpenGLWidgets.dll
+│               ├── Qt6Svg.dll
+│               ├── Qt6Widgets.dll
+│               ├── SmartMatrix.exe
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── opengl32sw.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251014_042544/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── generic/
+│               │   └── qtuiotouchplugin.dll
+│               ├── iconengines/
+│               │   └── qsvgicon.dll
+│               ├── imageformats/
+│               │   ├── qgif.dll
+│               │   ├── qicns.dll
+│               │   ├── qico.dll
+│               │   ├── qjpeg.dll
+│               │   ├── qsvg.dll
+│               │   ├── qtga.dll
+│               │   ├── qtiff.dll
+│               │   ├── qwbmp.dll
+│               │   └── qwebp.dll
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── networkinformation/
+│               │   └── qnetworklistmanager.dll
+│               ├── platforms/
+│               │   └── qwindows.dll
+│               ├── styles/
+│               │   └── qmodernwindowsstyle.dll
+│               ├── tls/
+│               │   ├── qcertonlybackend.dll
+│               │   └── qschannelbackend.dll
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   ├── myTc_zh_CN.qm
+│               │   ├── qt_ar.qm
+│               │   ├── qt_bg.qm
+│               │   ├── qt_ca.qm
+│               │   ├── qt_cs.qm
+│               │   ├── qt_da.qm
+│               │   ├── qt_de.qm
+│               │   ├── qt_en.qm
+│               │   ├── qt_es.qm
+│               │   ├── qt_fa.qm
+│               │   ├── qt_fi.qm
+│               │   ├── qt_fr.qm
+│               │   ├── qt_gd.qm
+│               │   ├── qt_he.qm
+│               │   ├── qt_hr.qm
+│               │   ├── qt_hu.qm
+│               │   ├── qt_it.qm
+│               │   ├── qt_ja.qm
+│               │   ├── qt_ka.qm
+│               │   ├── qt_ko.qm
+│               │   ├── qt_lg.qm
+│               │   ├── qt_lv.qm
+│               │   ├── qt_nl.qm
+│               │   ├── qt_nn.qm
+│               │   ├── qt_pl.qm
+│               │   ├── qt_pt_BR.qm
+│               │   ├── qt_ru.qm
+│               │   ├── qt_sk.qm
+│               │   ├── qt_sv.qm
+│               │   ├── qt_tr.qm
+│               │   ├── qt_uk.qm
+│               │   ├── qt_zh_CN.qm
+│               │   └── qt_zh_TW.qm
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── D3Dcompiler_47.dll
+│               ├── Qt6Core.dll
+│               ├── Qt6Gui.dll
+│               ├── Qt6Network.dll
+│               ├── Qt6OpenGL.dll
+│               ├── Qt6OpenGLWidgets.dll
+│               ├── Qt6Svg.dll
+│               ├── Qt6Widgets.dll
+│               ├── SmartMatrix.exe
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── opengl32sw.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251014_043127/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── generic/
+│               │   └── qtuiotouchplugin.dll
+│               ├── iconengines/
+│               │   └── qsvgicon.dll
+│               ├── imageformats/
+│               │   ├── qgif.dll
+│               │   ├── qicns.dll
+│               │   ├── qico.dll
+│               │   ├── qjpeg.dll
+│               │   ├── qsvg.dll
+│               │   ├── qtga.dll
+│               │   ├── qtiff.dll
+│               │   ├── qwbmp.dll
+│               │   └── qwebp.dll
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── networkinformation/
+│               │   └── qnetworklistmanager.dll
+│               ├── platforms/
+│               │   └── qwindows.dll
+│               ├── styles/
+│               │   └── qmodernwindowsstyle.dll
+│               ├── tls/
+│               │   ├── qcertonlybackend.dll
+│               │   └── qschannelbackend.dll
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   ├── myTc_zh_CN.qm
+│               │   ├── qt_ar.qm
+│               │   ├── qt_bg.qm
+│               │   ├── qt_ca.qm
+│               │   ├── qt_cs.qm
+│               │   ├── qt_da.qm
+│               │   ├── qt_de.qm
+│               │   ├── qt_en.qm
+│               │   ├── qt_es.qm
+│               │   ├── qt_fa.qm
+│               │   ├── qt_fi.qm
+│               │   ├── qt_fr.qm
+│               │   ├── qt_gd.qm
+│               │   ├── qt_he.qm
+│               │   ├── qt_hr.qm
+│               │   ├── qt_hu.qm
+│               │   ├── qt_it.qm
+│               │   ├── qt_ja.qm
+│               │   ├── qt_ka.qm
+│               │   ├── qt_ko.qm
+│               │   ├── qt_lg.qm
+│               │   ├── qt_lv.qm
+│               │   ├── qt_nl.qm
+│               │   ├── qt_nn.qm
+│               │   ├── qt_pl.qm
+│               │   ├── qt_pt_BR.qm
+│               │   ├── qt_ru.qm
+│               │   ├── qt_sk.qm
+│               │   ├── qt_sv.qm
+│               │   ├── qt_tr.qm
+│               │   ├── qt_uk.qm
+│               │   ├── qt_zh_CN.qm
+│               │   └── qt_zh_TW.qm
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── D3Dcompiler_47.dll
+│               ├── Qt6Core.dll
+│               ├── Qt6Gui.dll
+│               ├── Qt6Network.dll
+│               ├── Qt6OpenGL.dll
+│               ├── Qt6OpenGLWidgets.dll
+│               ├── Qt6Svg.dll
+│               ├── Qt6Widgets.dll
+│               ├── SmartMatrix.exe
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── opengl32sw.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251014_043524/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── generic/
+│               │   └── qtuiotouchplugin.dll
+│               ├── iconengines/
+│               │   └── qsvgicon.dll
+│               ├── imageformats/
+│               │   ├── qgif.dll
+│               │   ├── qicns.dll
+│               │   ├── qico.dll
+│               │   ├── qjpeg.dll
+│               │   ├── qsvg.dll
+│               │   ├── qtga.dll
+│               │   ├── qtiff.dll
+│               │   ├── qwbmp.dll
+│               │   └── qwebp.dll
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── networkinformation/
+│               │   └── qnetworklistmanager.dll
+│               ├── platforms/
+│               │   └── qwindows.dll
+│               ├── styles/
+│               │   └── qmodernwindowsstyle.dll
+│               ├── tls/
+│               │   ├── qcertonlybackend.dll
+│               │   └── qschannelbackend.dll
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   ├── myTc_zh_CN.qm
+│               │   ├── qt_ar.qm
+│               │   ├── qt_bg.qm
+│               │   ├── qt_ca.qm
+│               │   ├── qt_cs.qm
+│               │   ├── qt_da.qm
+│               │   ├── qt_de.qm
+│               │   ├── qt_en.qm
+│               │   ├── qt_es.qm
+│               │   ├── qt_fa.qm
+│               │   ├── qt_fi.qm
+│               │   ├── qt_fr.qm
+│               │   ├── qt_gd.qm
+│               │   ├── qt_he.qm
+│               │   ├── qt_hr.qm
+│               │   ├── qt_hu.qm
+│               │   ├── qt_it.qm
+│               │   ├── qt_ja.qm
+│               │   ├── qt_ka.qm
+│               │   ├── qt_ko.qm
+│               │   ├── qt_lg.qm
+│               │   ├── qt_lv.qm
+│               │   ├── qt_nl.qm
+│               │   ├── qt_nn.qm
+│               │   ├── qt_pl.qm
+│               │   ├── qt_pt_BR.qm
+│               │   ├── qt_ru.qm
+│               │   ├── qt_sk.qm
+│               │   ├── qt_sv.qm
+│               │   ├── qt_tr.qm
+│               │   ├── qt_uk.qm
+│               │   ├── qt_zh_CN.qm
+│               │   └── qt_zh_TW.qm
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── D3Dcompiler_47.dll
+│               ├── Qt6Core.dll
+│               ├── Qt6Gui.dll
+│               ├── Qt6Network.dll
+│               ├── Qt6OpenGL.dll
+│               ├── Qt6OpenGLWidgets.dll
+│               ├── Qt6Svg.dll
+│               ├── Qt6Widgets.dll
+│               ├── SmartMatrix.exe
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── opengl32sw.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── output_20251014_045544/
+│   └── win/
+│       └── x64/
+│           ├── debug/
+│           └── release/
+│               ├── config/
+│               │   ├── config.ini
+│               │   └── deviceGroups.json
+│               ├── keymap/
+│               │   ├── FRAG.json
+│               │   ├── gameforpeace.json
+│               │   ├── identityv.json
+│               │   ├── test.json
+│               │   └── tiktok.json
+│               ├── translations/
+│               │   ├── QtScrcpy_en.qm
+│               │   ├── QtScrcpy_zh.qm
+│               │   └── myTc_zh_CN.qm
+│               ├── AdbWinApi.dll
+│               ├── AdbWinUsbApi.dll
+│               ├── adb.exe
+│               ├── avcodec-58.dll
+│               ├── avformat-58.dll
+│               ├── avutil-56.dll
+│               ├── scrcpy-server
+│               ├── swresample-3.dll
+│               └── swscale-5.dll
+├── scripts/
+│   ├── README.md
+│   └── build.ps1
 ├── test/
 │   ├── 01_mainwindow/
 │   │   ├── main.cpp
@@ -1001,13 +1752,14 @@ qtscrcpy_tc/
 ├── BUILD_GUIDE.md
 ├── QT6_MIGRATION_ANALYSIS_REPORT.md
 ├── QT6_UPGRADE_SUMMARY.md
-├── TC软件文档.md
 ├── UI_EXTENSION_ANALYSIS_REPORT.md
+├── build.bat
 ├── build.ps1
 ├── build.sh
 ├── build_all_fixes.txt
 ├── build_complete.bat
 ├── build_complete.txt
+├── build_customtitlebar.txt
 ├── build_final.txt
 ├── build_log.txt
 ├── build_log_verbose.txt
@@ -1018,6 +1770,7 @@ qtscrcpy_tc/
 ├── fix_makefile.ps1
 ├── qtscrcpy_tc_tree.md
 ├── readme.md
+├── task.txt
 ├── temp_qmake.bat
 ├── test_regex.ps1
 ├── upgrade_qt6_script.sh
