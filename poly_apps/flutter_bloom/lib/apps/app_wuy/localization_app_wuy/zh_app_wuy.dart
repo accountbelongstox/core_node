@@ -122,7 +122,7 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyAuthDontHaveAccount: '没有账户？',
     LocalizationKeysAppWuy.wuyAlreadyHaveAccount: '已有账户？',
     LocalizationKeysAppWuy.wuyNeedAccount: '需要账户？',
-    
+
     // Login Entry Page
     LocalizationKeysAppWuy.wuyAppName: '安无忧',
     LocalizationKeysAppWuy.wuyAppSlogan: '为您精心守护',
@@ -132,7 +132,7 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyWeChatLogin: '微信登录',
     LocalizationKeysAppWuy.wuyQQLogin: 'QQ登录',
     LocalizationKeysAppWuy.wuyAlipayLogin: '支付宝登录',
-    
+
     // Phone Login Page
     LocalizationKeysAppWuy.wuyPhoneLoginTitle: '登录/注册',
     LocalizationKeysAppWuy.wuyEnterPhoneNumber: '请输入手机号',
@@ -185,6 +185,16 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyProfilePrivacyPolicy: '隐私政策',
     LocalizationKeysAppWuy.wuyProfileLogout: '退出登录',
     LocalizationKeysAppWuy.wuyProfileMemberSince: '注册时间',
+
+    // Profile detailed info
+    LocalizationKeysAppWuy.wuyProfileName: '名字',
+    LocalizationKeysAppWuy.wuyProfileSignature: '个性签名',
+    LocalizationKeysAppWuy.wuyProfileGender: '性别',
+    LocalizationKeysAppWuy.wuyProfileBirthDate: '出生日期',
+    LocalizationKeysAppWuy.wuyProfileLocation: '所在地址',
+    LocalizationKeysAppWuy.wuyProfileIdNumber: '身份证号码',
+    LocalizationKeysAppWuy.wuyProfileMale: '男',
+    LocalizationKeysAppWuy.wuyProfileFemale: '女',
 
     // Login screen
     LocalizationKeysAppWuy.wuyLoginTitle: '登录',

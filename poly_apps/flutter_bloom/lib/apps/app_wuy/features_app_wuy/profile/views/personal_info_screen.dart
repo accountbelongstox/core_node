@@ -16,13 +16,16 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/common/widgets/floating_avatar_header.dart';
+import 'package:qyflutter/common/assets/common_assets_images.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_data_manager.dart';
 
 /// Personal Info Screen for Wuy App
-/// 
+///
 /// This screen allows users to view and edit their personal information.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -37,16 +40,37 @@ class WuyPersonalInfoScreen extends StatefulWidget {
 
 class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nicknameController = TextEditingController(text: '小飞侠');
-  final _signatureController = TextEditingController(text: '守护的未来');
-  final _phoneController = TextEditingController(text: '138****8000');
-  final _birthdayController = TextEditingController(text: '1990-01-01');
-  final _addressController = TextEditingController(text: '北京市朝阳区');
-  final _emailController = TextEditingController(text: 'user@example.com');
-  final _idController = TextEditingController(text: '110101199001011234');
-  
+  final _nicknameController = TextEditingController();
+  final _signatureController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _birthdayController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _idController = TextEditingController();
+
   String _selectedGender = '男';
   bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeFormData();
+  }
+
+  void _initializeFormData() {
+    // Initialize form data from data manager
+    final dataManager = WuyDataManager.instance;
+    final user = dataManager.currentUser;
+
+    _nicknameController.text = user?.displayName ?? user?.name ?? '';
+    _signatureController.text = user?.about ?? '';
+    _phoneController.text = user?.phoneNumber ?? user?.phone ?? '';
+    _birthdayController.text = user?.birthday ?? '';
+    _addressController.text = user?.city ?? '';
+    _emailController.text = user?.email ?? '';
+    _idController.text = user?.meta['id_number']?.toString() ?? '';
+    _selectedGender = user?.gender ?? '男';
+  }
 
   @override
   void dispose() {
@@ -62,83 +86,41 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final dataManager = WuyDataManager.instance;
+    final user = dataManager.currentUser;
+
     return Scaffold(
       backgroundColor: ThemeColors.lightBackground,
-      appBar: AppBar(
-        title: Text(
-          'Personal Information',
-          style: ThemeTextStyles.displayMedium,
-        ),
-        backgroundColor: ThemeColors.primary,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.go(WuyAppRouter.routeProfile),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _toggleEdit,
-            child: Text(
-              _isEditing ? 'Save' : 'Edit',
-              style: ThemeTextStyles.bodyMedium.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeaderSection(),
-            _buildFormSection(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderSection() {
-    return Container(
-      width: double.infinity,
-      height: 200,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.green.shade400,
-            Colors.green.shade600,
-          ],
-        ),
-      ),
-      child: Stack(
+      body: Column(
         children: [
-          Positioned(
-            top: 50,
-            left: 0,
-            right: 0,
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  child: Icon(
-                    Icons.person,
-                    size: 50,
-                    color: Colors.white,
+          // Floating avatar header with background2
+          FloatingAvatarHeader(
+            backgroundImage: CommonAssetsImages.wuyBackground2,
+            avatarImage: user?.avatarUrl ?? user?.avatar,
+            displayName: user?.displayName ?? user?.name ?? '',
+            subtitle: user?.about ?? '',
+            onBackTap: () => context.go(WuyAppRouter.getProfileRoute()),
+            onAvatarTap: () {
+              // Handle avatar tap - could open image picker
+            },
+            showBackButton: true,
+            backgroundHeight: 200.0,
+            avatarSize: 120.0,
+          ),
+          // Form content with space for floating avatar
+          Expanded(
+            child: Container(
+              margin: EdgeInsets.only(top: 60), // Space for floating avatar
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+                  child: Column(
+                    children: [
+                      _buildFormSection(),
+                    ],
                   ),
                 ),
-                SizedBox(height: ThemeDimensions.spacingMedium),
-                Text(
-                  'Personal Information',
-                  style: ThemeTextStyles.title2.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -148,7 +130,6 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
   Widget _buildFormSection() {
     return Container(
-      margin: EdgeInsets.all(ThemeDimensions.defaultPadding),
       padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -180,7 +161,8 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
     );
   }
 
-  Widget _buildInfoField(String label, TextEditingController controller, IconData icon) {
+  Widget _buildInfoField(
+      String label, TextEditingController controller, IconData icon) {
     return Padding(
       padding: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
       child: TextFormField(
@@ -190,10 +172,12 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
           labelText: label,
           prefixIcon: Icon(icon, color: ThemeColors.primary),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+            borderRadius:
+                BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+            borderRadius:
+                BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
             borderSide: BorderSide(color: ThemeColors.primary, width: 2),
           ),
           filled: !_isEditing,
@@ -229,23 +213,28 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
                   title: Text(LocalizationKeysAppWuy.wuySearchMale.tr(context)),
                   value: '男',
                   groupValue: _selectedGender,
-                  onChanged: _isEditing ? (value) {
-                    setState(() {
-                      _selectedGender = value!;
-                    });
-                  } : null,
+                  onChanged: _isEditing
+                      ? (value) {
+                          setState(() {
+                            _selectedGender = value!;
+                          });
+                        }
+                      : null,
                 ),
               ),
               Expanded(
                 child: RadioListTile<String>(
-                  title: Text(LocalizationKeysAppWuy.wuySearchFemale.tr(context)),
+                  title:
+                      Text(LocalizationKeysAppWuy.wuySearchFemale.tr(context)),
                   value: '女',
                   groupValue: _selectedGender,
-                  onChanged: _isEditing ? (value) {
-                    setState(() {
-                      _selectedGender = value!;
-                    });
-                  } : null,
+                  onChanged: _isEditing
+                      ? (value) {
+                          setState(() {
+                            _selectedGender = value!;
+                          });
+                        }
+                      : null,
                 ),
               ),
             ],
@@ -253,20 +242,5 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
         ],
       ),
     );
-  }
-
-  void _toggleEdit() {
-    setState(() {
-      _isEditing = !_isEditing;
-    });
-
-    if (!_isEditing) {
-      // Save changes
-      if (_formKey.currentState!.validate()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(LocalizationKeysAppWuy.wuyMessagePersonalInfoUpdated.tr(context))),
-        );
-      }
-    }
   }
 }

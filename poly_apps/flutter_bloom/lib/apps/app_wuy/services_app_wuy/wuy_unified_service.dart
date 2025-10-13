@@ -13,7 +13,8 @@
 import 'package:flutter/foundation.dart';
 // Connectivity functionality removed as WuyDataCenter was deleted
 import 'package:qyflutter/common/network/network_framework.dart';
-import 'package:qyflutter/common/network/core/endpoint_network_models.dart' as models;
+import 'package:qyflutter/common/network/core/endpoint_network_models.dart'
+    as models;
 import 'package:qyflutter/common/utils/validation/phone_checker.dart';
 import 'package:qyflutter/common/storage/unified_storage.dart';
 import '../config_app_wuy/app_config_app_wuy.dart';
@@ -46,17 +47,19 @@ class WuyUnifiedService extends AdvancedNetworkService {
   ApiConfig get apiConfig => ApiConfigAppWuy.currentApiConfig;
 
   @override
-  EndpointConfig get endpointConfig => EndpointConfig(appName: AppConfigAppWuy.appId);
+  EndpointConfig get endpointConfig =>
+      EndpointConfig(appName: AppConfigAppWuy.appId);
 
   /// Initialize the unified service
   @override
   Future<void> initialize() async {
     await super.initialize();
-    
+
     // Storage will be initialized by runCommonApp
     // No need to initialize storage here to avoid binding issues
-    
-    debugPrint('WuyUnifiedService initialized (storage handled by runCommonApp)');
+
+    debugPrint(
+        'WuyUnifiedService initialized (storage handled by runCommonApp)');
   }
 
   /// Initialize with user provider
@@ -71,7 +74,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
       // Save user profile to v1 storage
       await UnifiedStorage.set('user_profile', user.toJson());
       await UnifiedStorage.set('user_preferences', user.preferences);
-      
+
       debugPrint('User data saved to v1 storage successfully');
     } catch (e) {
       debugPrint('Failed to save user to v1 storage: $e');
@@ -112,11 +115,16 @@ class WuyUnifiedService extends AdvancedNetworkService {
       final userContext = _authStateManager.getUserContext();
       if (userContext != null) {
         mergedHeaders['X-User-ID'] = userContext['user_id']?.toString() ?? '';
-        mergedHeaders['X-User-Name'] = userContext['user_name']?.toString() ?? '';
-        mergedHeaders['X-User-Phone'] = userContext['user_phone']?.toString() ?? '';
-        mergedHeaders['X-User-Verified'] = userContext['is_verified']?.toString() ?? 'false';
-        mergedHeaders['X-User-Active'] = userContext['is_active']?.toString() ?? 'false';
-        mergedHeaders['X-Auth-Timestamp'] = userContext['auth_timestamp']?.toString() ?? '';
+        mergedHeaders['X-User-Name'] =
+            userContext['user_name']?.toString() ?? '';
+        mergedHeaders['X-User-Phone'] =
+            userContext['user_phone']?.toString() ?? '';
+        mergedHeaders['X-User-Verified'] =
+            userContext['is_verified']?.toString() ?? 'false';
+        mergedHeaders['X-User-Active'] =
+            userContext['is_active']?.toString() ?? 'false';
+        mergedHeaders['X-Auth-Timestamp'] =
+            userContext['auth_timestamp']?.toString() ?? '';
       }
     }
 
@@ -261,50 +269,64 @@ class WuyUnifiedService extends AdvancedNetworkService {
   /// Mock login API call
   Future<AuthResult> _mockLogin(String phone, String verificationCode) async {
     await Future.delayed(const Duration(seconds: 1));
-    
-    final user = WuyFakeDataGenerator.generateFakeUser(phone: phone);
-    
+
+    // Generate user with phone-based data for consistency
+    final user = WuyFakeDataGenerator.generateFakeUser(
+      phone: phone,
+      username: 'user_${phone.substring(phone.length - 4)}',
+      nickname: WuyFakeDataGenerator.generateRandomName(),
+      email: 'user_${phone.substring(phone.length - 4)}@anwuyou.test',
+    );
+
     // Use auth state manager for consistent state management
     await _authStateManager.setAuthenticatedUser(user);
-    
+
     // Sync user provider state immediately
     _userProvider?.syncWithAuthStateManager();
-    
+
     // Ensure state is fully synchronized
     await Future.delayed(const Duration(milliseconds: 50));
-    
+
     return AuthResult.success(user, 'Login successful (Mock mode)');
   }
 
   /// Mock registration API call
-  Future<AuthResult> _mockRegister(String phone, String verificationCode) async {
+  Future<AuthResult> _mockRegister(
+      String phone, String verificationCode) async {
     await Future.delayed(const Duration(seconds: 1));
-    
-    final user = WuyFakeDataGenerator.generateFakeUser(phone: phone);
-    
+
+    // Generate user with phone-based data for consistency
+    final user = WuyFakeDataGenerator.generateFakeUser(
+      phone: phone,
+      username: 'user_${phone.substring(phone.length - 4)}',
+      nickname: WuyFakeDataGenerator.generateRandomName(),
+      email: 'user_${phone.substring(phone.length - 4)}@anwuyou.test',
+    );
+
     // Use auth state manager for consistent state management
     await _authStateManager.setAuthenticatedUser(user);
-    
+
     // Sync user provider state immediately
     _userProvider?.syncWithAuthStateManager();
-    
+
     // Ensure state is fully synchronized
     await Future.delayed(const Duration(milliseconds: 50));
-    
+
     return AuthResult.success(user, 'Registration successful (Mock mode)');
   }
 
   /// Mock send verification code API call
   Future<AuthResult> _mockSendVerificationCode(String phone) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    return AuthResult.success(null, 'Verification code sent successfully (Debug mode: 123456)');
+    return AuthResult.success(
+        null, 'Verification code sent successfully (Debug mode: 123456)');
   }
 
   /// Mock logout API call
   Future<void> _mockLogout() async {
     // Use auth state manager for consistent state management
     await _authStateManager.clearAuthentication();
-    
+
     // Sync user provider state
     _userProvider?.syncWithAuthStateManager();
   }
@@ -314,7 +336,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
   /// Real login API call
   Future<AuthResult> _realLogin(String phone, String verificationCode) async {
     _initializeNetworkClient();
-    
+
     final request = createPublicRequest(
       endpoint: ApiEndpointsAppWuy.authLogin,
       method: RequestMethod.post,
@@ -324,17 +346,18 @@ class WuyUnifiedService extends AdvancedNetworkService {
       },
     );
 
-    final response = await _networkClient!.request<Map<String, dynamic>>(request);
+    final response =
+        await _networkClient!.request<Map<String, dynamic>>(request);
 
     if (response.statusCode == 200 && response.data != null) {
       final userData = ApiConfigAppWuy.parseUserFromResponse(response.data!);
       if (userData != null) {
         final user = UserModelAppWuy.fromJson(userData);
         _userProvider?.setAppUser(profile: user);
-        
+
         // Save to v1 storage
         await _saveUserToStorage(user);
-        
+
         return AuthResult.success(user, 'Login successful');
       }
     }
@@ -344,9 +367,10 @@ class WuyUnifiedService extends AdvancedNetworkService {
   }
 
   /// Real registration API call
-  Future<AuthResult> _realRegister(String phone, String verificationCode) async {
+  Future<AuthResult> _realRegister(
+      String phone, String verificationCode) async {
     _initializeNetworkClient();
-    
+
     final request = createPublicRequest(
       endpoint: ApiEndpointsAppWuy.authRegister,
       method: RequestMethod.post,
@@ -356,17 +380,18 @@ class WuyUnifiedService extends AdvancedNetworkService {
       },
     );
 
-    final response = await _networkClient!.request<Map<String, dynamic>>(request);
+    final response =
+        await _networkClient!.request<Map<String, dynamic>>(request);
 
     if (response.statusCode == 200 && response.data != null) {
       final userData = ApiConfigAppWuy.parseUserFromResponse(response.data!);
       if (userData != null) {
         final user = UserModelAppWuy.fromJson(userData);
         _userProvider?.setAppUser(profile: user);
-        
+
         // Save to v1 storage
         await _saveUserToStorage(user);
-        
+
         return AuthResult.success(user, 'Registration successful');
       }
     }
@@ -378,7 +403,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
   /// Real send verification code API call
   Future<AuthResult> _realSendVerificationCode(String phone) async {
     _initializeNetworkClient();
-    
+
     final request = createPublicRequest(
       endpoint: ApiEndpointsAppWuy.authSendCode,
       method: RequestMethod.post,
@@ -387,10 +412,13 @@ class WuyUnifiedService extends AdvancedNetworkService {
       },
     );
 
-    final response = await _networkClient!.request<Map<String, dynamic>>(request);
+    final response =
+        await _networkClient!.request<Map<String, dynamic>>(request);
 
     if (response.statusCode == 200 && response.data != null) {
-      final message = ApiConfigAppWuy.extractMessageFromResponse(response.data!) ?? 'Verification code sent';
+      final message =
+          ApiConfigAppWuy.extractMessageFromResponse(response.data!) ??
+              'Verification code sent';
       return AuthResult.success(null, message);
     }
 
@@ -402,7 +430,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
   Future<void> _realLogout() async {
     try {
       _initializeNetworkClient();
-      
+
       final request = createAuthenticatedRequest(
         endpoint: ApiEndpointsAppWuy.authLogout,
         method: RequestMethod.post,
@@ -440,7 +468,8 @@ class WuyUnifiedService extends AdvancedNetworkService {
         'avatar': avatar,
         'phone': phone,
       },
-      offlineDataProvider: () => WuyFakeDataGenerator.generateTestUser().copyWith(
+      offlineDataProvider: () =>
+          WuyFakeDataGenerator.generateTestUser().copyWith(
         nickname: nickname,
         avatar: avatar,
         phone: phone,
@@ -467,11 +496,12 @@ class WuyUnifiedService extends AdvancedNetworkService {
     return _postApiCall<FriendModelAppWuy>(
       endpoint: 'friend/add',
       data: {'username': username},
-      offlineDataProvider: () => WuyFakeDataGenerator.generateFakeFriends().first.copyWith(
-        id: '3',
-        username: username,
-        displayName: username,
-      ),
+      offlineDataProvider: () =>
+          WuyFakeDataGenerator.generateFakeFriends().first.copyWith(
+                id: '3',
+                username: username,
+                displayName: username,
+              ),
       operationName: 'Add friend',
     );
   }
@@ -582,39 +612,42 @@ class WuyUnifiedService extends AdvancedNetworkService {
     if (title.trim().isEmpty) {
       return false;
     }
-    
+
     if (title.length > 200) {
       return false;
     }
-    
+
     final description = contentData['description']?.toString();
     if (description != null && description.length > 1000) {
       return false;
     }
-    
+
     return true;
   }
 
   /// Validate user update data
   static bool validateUserUpdateData(Map<String, dynamic> userData) {
-    final firstName = userData['firstName']?.toString() ?? userData['first_name']?.toString();
+    final firstName =
+        userData['firstName']?.toString() ?? userData['first_name']?.toString();
     if (firstName != null && firstName.length > 50) {
       return false;
     }
-    
-    final lastName = userData['lastName']?.toString() ?? userData['last_name']?.toString();
+
+    final lastName =
+        userData['lastName']?.toString() ?? userData['last_name']?.toString();
     if (lastName != null && lastName.length > 50) {
       return false;
     }
-    
-    final phoneNumber = userData['phoneNumber']?.toString() ?? userData['phone_number']?.toString();
+
+    final phoneNumber = userData['phoneNumber']?.toString() ??
+        userData['phone_number']?.toString();
     if (phoneNumber != null) {
       final phoneRegex = RegExp(AppConfigAppWuy.regexPhone);
       if (!phoneRegex.hasMatch(phoneNumber)) {
         return false;
       }
     }
-    
+
     return true;
   }
 
@@ -623,31 +656,32 @@ class WuyUnifiedService extends AdvancedNetworkService {
     final email = regData['email']?.toString() ?? '';
     final username = regData['username']?.toString() ?? '';
     final password = regData['password']?.toString() ?? '';
-    
+
     // Validate email
     final emailRegex = RegExp(AppConfigAppWuy.regexEmail);
     if (!emailRegex.hasMatch(email)) {
       return false;
     }
-    
+
     // Validate username
-    if (username.length < AppConfigAppWuy.minUsernameLength || username.length > AppConfigAppWuy.maxUsernameLength) {
+    if (username.length < AppConfigAppWuy.minUsernameLength ||
+        username.length > AppConfigAppWuy.maxUsernameLength) {
       return false;
     }
-    
+
     // Validate password
     if (password.length < AppConfigAppWuy.minPasswordLength) {
       return false;
     }
-    
+
     // Check password strength
     final hasLetter = RegExp(r'[a-zA-Z]').hasMatch(password);
     final hasNumber = RegExp(r'[0-9]').hasMatch(password);
-    
+
     if (!hasLetter || !hasNumber) {
       return false;
     }
-    
+
     return true;
   }
 
@@ -655,7 +689,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
   static String formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-    
+
     if (difference.inDays > 7) {
       return '${date.day}/${date.month}/${date.year}';
     } else if (difference.inDays > 0) {
@@ -687,7 +721,8 @@ class WuyUnifiedService extends AdvancedNetworkService {
     String? offlineMessage,
   }) async {
     if (AppConfigAppWuy.enableMockApi) {
-      debugPrint('WuyUnifiedService: Using fake data for $operationName (offline mode)');
+      debugPrint(
+          'WuyUnifiedService: Using fake data for $operationName (offline mode)');
       final data = offlineDataProvider();
       return Future.value(_createSuccessResponse(
         data: data,
@@ -723,10 +758,12 @@ class WuyUnifiedService extends AdvancedNetworkService {
           statusCode: response.statusCode ?? 200,
           data: response.data,
           message: response.message,
-          error: response.error != null ? models.NetworkError.server(
-            statusCode: response.statusCode ?? 500,
-            message: response.error!,
-          ) : null,
+          error: response.error != null
+              ? models.NetworkError.server(
+                  statusCode: response.statusCode ?? 500,
+                  message: response.error!,
+                )
+              : null,
           headers: response.headers,
           isSuccess: response.isSuccess,
           isFromCache: response.isFromCache,
@@ -751,16 +788,19 @@ class WuyUnifiedService extends AdvancedNetworkService {
       operationName: operationName,
       offlineDataProvider: offlineDataProvider,
       onlineApiCall: () async {
-        final response = await get<T>(endpoint, queryParameters: queryParameters);
+        final response =
+            await get<T>(endpoint, queryParameters: queryParameters);
         return models.NetworkResponse<T>(
           requestId: _generateRequestId(),
           statusCode: response.statusCode ?? 200,
           data: response.data,
           message: response.message,
-          error: response.error != null ? models.NetworkError.server(
-            statusCode: response.statusCode ?? 500,
-            message: response.error!,
-          ) : null,
+          error: response.error != null
+              ? models.NetworkError.server(
+                  statusCode: response.statusCode ?? 500,
+                  message: response.error!,
+                )
+              : null,
           headers: response.headers,
           isSuccess: response.isSuccess,
           isFromCache: response.isFromCache,
@@ -791,10 +831,12 @@ class WuyUnifiedService extends AdvancedNetworkService {
           statusCode: response.statusCode ?? 200,
           data: response.data,
           message: response.message,
-          error: response.error != null ? models.NetworkError.server(
-            statusCode: response.statusCode ?? 500,
-            message: response.error!,
-          ) : null,
+          error: response.error != null
+              ? models.NetworkError.server(
+                  statusCode: response.statusCode ?? 500,
+                  message: response.error!,
+                )
+              : null,
           headers: response.headers,
           isSuccess: response.isSuccess,
           isFromCache: response.isFromCache,
@@ -845,33 +887,4 @@ class WuyUnifiedService extends AdvancedNetworkService {
   }
 }
 
-/// Authentication result
-class AuthResult {
-  final bool isSuccess;
-  final UserModelAppWuy? user;
-  final String message;
-  final String? error;
-
-  const AuthResult._({
-    required this.isSuccess,
-    this.user,
-    required this.message,
-    this.error,
-  });
-
-  factory AuthResult.success(UserModelAppWuy? user, String message) {
-    return AuthResult._(
-      isSuccess: true,
-      user: user,
-      message: message,
-    );
-  }
-
-  factory AuthResult.error(String error) {
-    return AuthResult._(
-      isSuccess: false,
-      message: error,
-      error: error,
-    );
-  }
-}
+// AuthResult class moved to wuy_auth_state_manager.dart to avoid duplication
