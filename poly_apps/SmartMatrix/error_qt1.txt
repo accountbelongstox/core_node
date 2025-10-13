@@ -1,4 +1,3 @@
-SmartMatrix.exe-系统错误
 由于找不到 Qt6Multimedia.dll,无法继续执行代码。重新:装程序可能会解决此问题。
 OK
 由于找不到 Qt60penGL.d,无法继续执行代码。重新安装程席可能会解决此问题.

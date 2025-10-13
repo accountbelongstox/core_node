@@ -11,7 +11,7 @@ qtscrcpy_tc/
 │   ├── build.ps1          # PowerShell build script
 │   ├── build.bat          # Batch wrapper for PowerShell script
 │   └── README.md          # This file
-├── TcUi/                  # Qt project files
+├── SmartMatrix/                  # Qt project files
 └── output_YYYYMMDD_HHMMSS/ # Build output directories
 ```
 
@@ -86,7 +86,7 @@ output_YYYYMMDD_HHMMSS/
 └── win/
     └── x64/
         └── release/
-            ├── TcUi.exe
+            ├── SmartMatrix.exe
             ├── Qt6*.dll
             └── [other dependencies]
 ```
