@@ -120,7 +120,13 @@
 先分析 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt  注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
 你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考  ，你至少要分析与之相关的至少20个文件再开始改动。这是一个很复杂的过程，请多设置一点步骤。······
 
-
-先分析 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt  注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+查看错误 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\error.txt
+先分析 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
 你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考  
 
+项目起点  D:\programing\core_node\poly_apps\flutter_bloom
+ 查看错误 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\error.txt
+ 本项目有多个子APP
+先分析 D:\programing\core_node\poly_apps\flutter_bloom\flutter_tree_code_assets.txt  注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考  
+如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
