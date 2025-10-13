@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import messagebox
 import sys
 import os
+import time
 import threading
 from typing import Optional, Callable
 
@@ -139,7 +140,6 @@ class SystemTray:
                     # Stop the tray icon
                     self.tray_icon.stop()
                     # Wait a bit for the tray to stop
-                    import time
                     time.sleep(0.1)
                     # Remove the icon reference
                     self.tray_icon = None

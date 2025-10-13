@@ -22,6 +22,9 @@ from providor.providor_index import initialize_config
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
 from d3utils.shutdown_manager import request_shutdown, is_shutdown_requested, register_hotkey_listener
+import d3utils.log_monitor as log_monitor_module
+from d3utils.task_thread_manager import get_task_manager, register_task, start_all_tasks, TaskStatus
+import d3utils.rosbot_task_processor as rosbot_processor
 
 class SystemInitializer:
     """System-wide initialization manager"""
@@ -121,11 +124,25 @@ class SystemInitializer:
         try:
             ColorPrint.blue("[INIT] Initializing timer system...")
 
+            # Initialize task thread manager
+            self._init_task_thread_manager()
+
             # Initialize window monitor and register with timer manager (static global)
             window_monitor.initialize_and_register(
                 interval=10.0,  # Check every 10 seconds
                 enabled=True
             )
+
+            # Register log monitor with timer manager (static global, always enabled with interceptor)
+            timer_manager.register_task(
+                name='log_monitor',
+                interval=1.5,  # Always 1.5 seconds
+                callback=log_monitor_module.check_logs,
+                enabled=True  # Always enabled, controlled by interceptor
+            )
+            
+            # Set default interceptor (10-second throttling when ROSBOT not running)
+            timer_manager.set_task_interceptor('log_monitor', log_monitor_module.get_default_interceptor())
 
             # Start timer manager (static global)
             timer_manager.start()
@@ -137,6 +154,27 @@ class SystemInitializer:
         except Exception as e:
             ColorPrint.red(f"[INIT] Failed to initialize timer system: {e}")
             return False
+
+    def _init_task_thread_manager(self):
+        """Initialize task thread manager"""
+        try:
+            ColorPrint.blue("[INIT] Initializing task thread manager...")
+            
+            # Register ROSBOT task
+            register_task(
+                name='rosbot_task',
+                task_func=rosbot_processor.process_rosbot_task,
+                interval=1.0  # Check every second
+            )
+            
+            # Start all task threads
+            start_all_tasks()
+            
+            ColorPrint.green("[INIT] Task thread manager initialized successfully")
+            
+        except Exception as e:
+            ColorPrint.red(f"[INIT] Failed to initialize task thread manager: {e}")
+            raise
 
     def initialize_system(self):
         """Initialize the entire system"""
@@ -194,21 +232,14 @@ class SystemInitializer:
         Returns:
             True if registered successfully, False otherwise
         """
-        try:
-            # Register window status callback to window monitor (static global)
-            if hasattr(ui_instance, 'get_status_bar_callback'):
-                callback = ui_instance.get_status_bar_callback()
-                window_monitor.add_callback(callback)
-                ColorPrint.green("[SYSTEM] UI callback registered to window_monitor")
+        # Register window status callback to window monitor (static global)
+        if hasattr(ui_instance, 'get_window_status_callback'):
+            callback = ui_instance.get_window_status_callback()
+            window_monitor.add_callback(callback)
+            ColorPrint.green("[SYSTEM] UI callback registered to window_monitor")
 
-            ColorPrint.green("[SYSTEM] UI instance registered to system")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[SYSTEM] Error registering UI instance: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+        ColorPrint.green("[SYSTEM] UI instance registered to system")
+        return True
 
 # Global system initializer instance
 _system_initializer: Optional[SystemInitializer] = None
