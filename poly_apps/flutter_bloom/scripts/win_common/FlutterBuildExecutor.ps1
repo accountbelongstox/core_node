@@ -99,7 +99,7 @@ function Invoke-PreBuildScripts {
     )
 
     try {
-        $devScriptDir = Get-FileVariable -Name "KEY_DEV_SCRIPT_DIR" -DefaultValue ""
+        $devScriptDir = Get-FileVariable -Name $Global:KEY_DEV_SCRIPT_DIR -DefaultValue ""
         $pythonHelperDir = Join-Path $devScriptDir "py_helper"
 
         Write-Host "Executing pre-build scripts for app: $AppName" -ForegroundColor Yellow
@@ -124,7 +124,7 @@ function Invoke-PreBuildScripts {
         }
 
         # Store current app name in Gvar for Python scripts
-        Set-FileVariable -Name "KEY_CURRENT_APP_NAME" -Value $AppName
+        Set-FileVariable -Name $Global:KEY_CURRENT_APP_NAME -Value $AppName
         # Store build options as individual variables
         foreach ($kvp in $BuildOptions.GetEnumerator()) {
             Set-FileVariable -Name "KEY_BUILD_OPTION_$($kvp.Key)" -Value $kvp.Value
@@ -290,7 +290,7 @@ function Invoke-PostBuildCleanup {
         if (Test-ExternalBuildActive) {
             Write-Host "Cleaning up external build environment" -ForegroundColor Yellow
 
-            $devScriptDir = Get-FileVariable -Name "KEY_DEV_SCRIPT_DIR" -DefaultValue ""
+            $devScriptDir = Get-FileVariable -Name $Global:KEY_DEV_SCRIPT_DIR -DefaultValue ""
             $pythonHelperDir = Join-Path $devScriptDir "py_helper"
             $externalBuildScript = Join-Path $pythonHelperDir "external_safe_build.py"
 
@@ -335,7 +335,7 @@ function Get-BuildOptions {
     )
 
     try {
-        $devScriptDir = Get-FileVariable -Name "KEY_DEV_SCRIPT_DIR" -DefaultValue ""
+        $devScriptDir = Get-FileVariable -Name $Global:KEY_DEV_SCRIPT_DIR -DefaultValue ""
         $buildOptionsFile = Join-Path $devScriptDir "build_option.ini"
 
         if (-not (Test-Path $buildOptionsFile)) {
@@ -482,11 +482,11 @@ function Invoke-CompleteBuildProcess {
         Write-Host "=" * 60 -ForegroundColor Green
 
         # Save last successful build info
-        Set-FileVariable -Name "KEY_LAST_BUILD_APP_NAME" -Value $AppName
-        Set-FileVariable -Name "KEY_LAST_BUILD_ACTION" -Value $BuildAction
-        Set-FileVariable -Name "KEY_LAST_BUILD_PLATFORM" -Value $Platform
-        Set-FileVariable -Name "KEY_LAST_BUILD_TIMESTAMP" -Value (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-        Set-FileVariable -Name "KEY_LAST_BUILD_SUCCESS" -Value "true"
+        Set-FileVariable -Name $Global:KEY_LAST_BUILD_APP_NAME -Value $AppName
+        Set-FileVariable -Name $Global:KEY_LAST_BUILD_ACTION -Value $BuildAction
+        Set-FileVariable -Name $Global:KEY_LAST_BUILD_PLATFORM -Value $Platform
+        Set-FileVariable -Name $Global:KEY_LAST_BUILD_TIMESTAMP -Value (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+        Set-FileVariable -Name $Global:KEY_LAST_BUILD_SUCCESS -Value "true"
 
         return $true
 
@@ -504,11 +504,11 @@ function Show-BuildSummary {
     #>
 
     try {
-        $appName = Get-FileVariable -Name "KEY_LAST_BUILD_APP_NAME" -DefaultValue ""
-        $buildAction = Get-FileVariable -Name "KEY_LAST_BUILD_ACTION" -DefaultValue ""
-        $platform = Get-FileVariable -Name "KEY_LAST_BUILD_PLATFORM" -DefaultValue ""
-        $timestamp = Get-FileVariable -Name "KEY_LAST_BUILD_TIMESTAMP" -DefaultValue ""
-        $success = Get-FileVariable -Name "KEY_LAST_BUILD_SUCCESS" -DefaultValue ""
+        $appName = Get-FileVariable -Name $Global:KEY_LAST_BUILD_APP_NAME -DefaultValue ""
+        $buildAction = Get-FileVariable -Name $Global:KEY_LAST_BUILD_ACTION -DefaultValue ""
+        $platform = Get-FileVariable -Name $Global:KEY_LAST_BUILD_PLATFORM -DefaultValue ""
+        $timestamp = Get-FileVariable -Name $Global:KEY_LAST_BUILD_TIMESTAMP -DefaultValue ""
+        $success = Get-FileVariable -Name $Global:KEY_LAST_BUILD_SUCCESS -DefaultValue ""
 
         if ($appName -and $buildAction -and $platform) {
             Write-Host ""

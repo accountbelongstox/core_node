@@ -88,8 +88,8 @@ function Backup-PubspecYaml {
         }
 
         # Store backup info in file variables
-        Set-FileVariable -Name "KEY_LAST_PUBSPEC_BACKUP_PATH" -Value $backupPath
-        Set-FileVariable -Name "KEY_LAST_PUBSPEC_BACKUP_TIME" -Value (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+        Set-FileVariable -Name $Global:KEY_LAST_PUBSPEC_BACKUP_PATH -Value $backupPath
+        Set-FileVariable -Name $Global:KEY_LAST_PUBSPEC_BACKUP_TIME -Value (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
         return $backupPath
 
@@ -118,7 +118,7 @@ function Backup-OriginalConfig {
     )
 
     try {
-        $devScriptDir = Get-FileVariable -Name "KEY_DEV_SCRIPT_DIR" -DefaultValue ""
+        $devScriptDir = Get-FileVariable -Name $Global:KEY_DEV_SCRIPT_DIR -DefaultValue ""
         $originalConfigPath = Join-Path $devScriptDir "original_config.ini"
 
         if (-not (Test-Path $originalConfigPath)) {
@@ -281,7 +281,7 @@ function Invoke-CleanupRestore {
     )
 
     try {
-        $devScriptDir = Get-FileVariable -Name "KEY_DEV_SCRIPT_DIR" -DefaultValue ""
+        $devScriptDir = Get-FileVariable -Name $Global:KEY_DEV_SCRIPT_DIR -DefaultValue ""
         $cleanupScript = Join-Path $devScriptDir "py_helper\cleanup_restore.py"
 
         if (-not (Test-Path $cleanupScript)) {
