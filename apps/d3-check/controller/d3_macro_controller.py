@@ -238,10 +238,11 @@ class D3MacroController:
 
             # Register window status callback to window monitor (static global)
             # UI calls request_shutdown directly when close/exit is requested
-            if hasattr(self.ui, 'get_status_bar_callback'):
+            if hasattr(self.ui, 'get_window_status_callback'):
                 import timers.window_monitor_timer as window_monitor
-                callback = self.ui.get_status_bar_callback()
+                callback = self.ui.get_window_status_callback()
                 window_monitor.add_callback(callback)
+                ColorPrint.green("[Controller] Registered UI window status callback to window monitor")
 
             # Run UI (BLOCKING)
             self.ui.run()

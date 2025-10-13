@@ -833,6 +833,59 @@ function Invoke-McpProcessor {
             Write-Host "$LogPrefix Note: Package is installed via uvx and will be managed by AI IDE" -ForegroundColor Yellow
             return $true
         }
+        "exec_command" {
+            # Handle generic command execution
+            $command = if ($McpCallback.ContainsKey("Command")) { $McpCallback.Command } else { "" }
+            $workingDirectory = if ($McpCallback.ContainsKey("WorkingDirectory")) { $McpCallback.WorkingDirectory } else { "" }
+            $description = if ($McpCallback.ContainsKey("Description")) { $McpCallback.Description } else { "Command execution" }
+            
+            if ([string]::IsNullOrEmpty($command)) {
+                Write-Host "$LogPrefix Error: exec_command operation missing Command parameter" -ForegroundColor Red
+                return $false
+            }
+            
+            Write-Host "$LogPrefix Executing command: $description" -ForegroundColor Cyan
+            Write-Host "$LogPrefix Command: $command" -ForegroundColor Cyan
+            if ($workingDirectory) {
+                Write-Host "$LogPrefix Working Directory: $workingDirectory" -ForegroundColor Cyan
+            }
+            
+            try {
+                # Set working directory if specified
+                $originalLocation = Get-Location
+                if ($workingDirectory -and (Test-Path $workingDirectory)) {
+                    Set-Location $workingDirectory
+                    Write-Host "$LogPrefix Changed working directory to: $workingDirectory" -ForegroundColor Yellow
+                }
+                
+                Write-Host "$LogPrefix Executing: $command" -ForegroundColor Yellow
+                
+                $result = Invoke-Expression $command 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "$LogPrefix Command executed successfully" -ForegroundColor Green
+                    if ($result) {
+                        Write-Host "$LogPrefix Output: $result" -ForegroundColor Green
+                    }
+                    return $true
+                } else {
+                    Write-Host "$LogPrefix Command failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+                    if ($result) {
+                        Write-Host "$LogPrefix Error: $result" -ForegroundColor Red
+                    }
+                    return $false
+                }
+            }
+            catch {
+                Write-Host "$LogPrefix Error executing command: $($_.Exception.Message)" -ForegroundColor Red
+                return $false
+            }
+            finally {
+                # Restore original working directory
+                if ($workingDirectory) {
+                    Set-Location $originalLocation
+                }
+            }
+        }
         default {
             Write-Host "$LogPrefix Error: Unknown MCP operation: $mcpOperation" -ForegroundColor Red
             return $false

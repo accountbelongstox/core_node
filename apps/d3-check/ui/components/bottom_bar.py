@@ -6,9 +6,11 @@ Bottom status bar with options and status displays
 """
 
 import tkinter as tk
+import winsound
 from typing import Optional
 from ..theme import UITheme
 from ..widgets import ThemedFrame, ThemedLabel, ThemedCheckbutton, ThemedEntry
+from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import I18nManager
 i18n_manager = I18nManager()
 
@@ -30,6 +32,8 @@ class BottomBar:
         self.smart_pause_var = tk.BooleanVar(value=True)
         self.custom_stand_var = tk.BooleanVar(value=False)
         self.custom_stand_key_var = tk.StringVar(value='Shift')
+        self.game_status = tk.StringVar(value=i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
+        self.window_size = tk.StringVar(value="0x0")
 
         # Create bottom bar frame
         self.frame = tk.Frame(
@@ -39,22 +43,31 @@ class BottomBar:
             bd=2
         )
 
+        # Configure grid for 3 rows (row 2 for macro controls)
+        self.frame.grid_rowconfigure(0, weight=0)
+        self.frame.grid_rowconfigure(1, weight=0)
+        self.frame.grid_rowconfigure(2, weight=0)
+
         self._create_content()
 
     def _create_content(self):
-        """Create bottom bar content"""
-        # Left side - options
-        self._create_left_options()
+        """Create bottom bar content - 2 rows"""
+        # Row 1: Options and status
+        self._create_row1_options_status()
 
-        # Right side - status and github link
-        self._create_right_status()
+        # Row 2: Game status and window size
+        self._create_row2_game_window_status()
 
-    def _create_left_options(self):
-        """Create left side options"""
-        left_frame = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'))
-        left_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+    def _create_row1_options_status(self):
+        """Create row 1 with options and status"""
+        row1_frame = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'))
+        row1_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=3)
+        row1_frame.grid_columnconfigure(1, weight=1)
 
-        # Sound feedback checkbox
+        # Left: Options
+        left_frame = tk.Frame(row1_frame, bg=UITheme.get_color('bg_primary'))
+        left_frame.grid(row=0, column=0, sticky="w")
+
         sound_check = ThemedCheckbutton.create(
             left_frame,
             text=i18n_manager.get_ui_text("options.play_sound_on_switch"),
@@ -62,11 +75,8 @@ class BottomBar:
             bg_color='bg_primary',
             select_color='text_secondary'
         )
-        sound_check.pack(side=tk.LEFT, padx=(UITheme.get_size('padding_medium'),
-                                             UITheme.get_size('padding_large')),
-                        pady=UITheme.get_size('padding_small'))
+        sound_check.pack(side=tk.LEFT, padx=(5, 15))
 
-        # Smart pause checkbox
         smart_check = ThemedCheckbutton.create(
             left_frame,
             text=i18n_manager.get_ui_text("options.smart_pause"),
@@ -74,12 +84,10 @@ class BottomBar:
             bg_color='bg_primary',
             select_color='text_secondary'
         )
-        smart_check.pack(side=tk.LEFT, padx=(0, UITheme.get_size('padding_large')),
-                        pady=UITheme.get_size('padding_small'))
+        smart_check.pack(side=tk.LEFT, padx=(0, 15))
 
-        # Custom stand key frame
         custom_frame = tk.Frame(left_frame, bg=UITheme.get_color('bg_primary'))
-        custom_frame.pack(side=tk.LEFT, padx=(0, UITheme.get_size('padding_large')))
+        custom_frame.pack(side=tk.LEFT)
 
         custom_check = ThemedCheckbutton.create(
             custom_frame,
@@ -95,36 +103,72 @@ class BottomBar:
             textvariable=self.custom_stand_key_var,
             width=8
         )
-        custom_entry.pack(side=tk.LEFT, padx=UITheme.get_size('padding_small'))
+        custom_entry.pack(side=tk.LEFT, padx=5)
 
-    def _create_right_status(self):
-        """Create right side status"""
-        status_frame = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'))
-        status_frame.pack(side=tk.RIGHT)
+        # Right: Config status
+        right_frame = tk.Frame(row1_frame, bg=UITheme.get_color('bg_primary'))
+        right_frame.grid(row=0, column=1, sticky="e")
 
-        # Current config label
         self.status_config_label = ThemedLabel.create(
-            status_frame,
+            right_frame,
             text=i18n_manager.get_ui_text("options.current_active_config") + ": Config 1",
             font_type='body',
             fg_color='text_success',
             bg_color='bg_primary'
         )
-        self.status_config_label.pack(side=tk.LEFT, padx=UITheme.get_size('padding_small'),
-                                      pady=UITheme.get_size('padding_small'))
+        self.status_config_label.pack(side=tk.LEFT, padx=5)
 
-        # Key send mode label
         self.status_mode_label = ThemedLabel.create(
-            status_frame,
+            right_frame,
             text=i18n_manager.get_ui_text("options.key_send_mode") + ": Event",
             font_type='body',
             fg_color='text_success',
             bg_color='bg_primary'
         )
-        self.status_mode_label.pack(side=tk.LEFT, padx=UITheme.get_size('padding_small'),
-                                    pady=UITheme.get_size('padding_small'))
+        self.status_mode_label.pack(side=tk.LEFT, padx=5)
 
-        # Note: Removed GitHub link as requested by user
+    def _create_row2_game_window_status(self):
+        """Create row 2 with game status and window size"""
+        row2_frame = tk.Frame(self.frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        row2_frame.grid(row=1, column=0, sticky="ew", padx=5, pady=(0, 3))
+
+        # Game status
+        status_label_frame = tk.LabelFrame(
+            row2_frame,
+            text=i18n_manager.get_ui_text("ui.status_bar.game_status"),
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['default']
+        )
+        status_label_frame.pack(side=tk.LEFT, padx=5, pady=2)
+
+        self.game_status_label = tk.Label(
+            status_label_frame,
+            textvariable=self.game_status,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['error'],
+            font=UnifiedStyles.FONTS['default']
+        )
+        self.game_status_label.pack(padx=10, pady=2)
+
+        # Window size
+        window_label_frame = tk.LabelFrame(
+            row2_frame,
+            text=i18n_manager.get_ui_text("ui.status_bar.window_size"),
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['default']
+        )
+        window_label_frame.pack(side=tk.LEFT, padx=5, pady=2)
+
+        self.window_size_label = tk.Label(
+            window_label_frame,
+            textvariable=self.window_size,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['code']
+        )
+        self.window_size_label.pack(padx=10, pady=2)
 
     def pack(self, **kwargs):
         """Pack the bottom bar"""
@@ -135,14 +179,12 @@ class BottomBar:
         self.frame.grid(**kwargs)
 
     def update_config_status(self, config_name: str):
-        """
-        Update current config status - simplified to show config name directly
-
-        Args:
-            config_name: Current configuration name
-        """
+        """Update current config status and play sound if enabled"""
         text = f"{i18n_manager.get_ui_text('options.current_active_config')}: {config_name}"
         self.status_config_label.configure(text=text)
+
+        if self.sound_var.get():
+            winsound.Beep(1000, 100)
 
     def get_sound_enabled(self) -> bool:
         """Get sound feedback enabled status"""
@@ -157,4 +199,18 @@ class BottomBar:
         if self.custom_stand_var.get():
             return self.custom_stand_key_var.get()
         return None
+
+    def on_window_status_update(self, window_info):
+        """Callback for window monitor timer updates"""
+        if window_info:
+            width = window_info.get('width', 0)
+            height = window_info.get('height', 0)
+            self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_running"))
+            self.game_status_label.config(fg=UnifiedStyles.COLORS['success'])
+            size_text = i18n_manager.get_ui_text("ui.status_bar.size_format").format(width=width, height=height)
+            self.window_size.set(size_text)
+        else:
+            self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
+            self.game_status_label.config(fg=UnifiedStyles.COLORS['error'])
+            self.window_size.set("0x0")
 
