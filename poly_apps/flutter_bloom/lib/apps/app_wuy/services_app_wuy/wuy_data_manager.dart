@@ -11,11 +11,13 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/foundation.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../config_app_wuy/app_config_app_wuy.dart';
 import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
 import '../models_app_wuy/chat_message_model_app_wuy.dart';
 import '../models_app_wuy/location_model_app_wuy.dart';
+import '../localization_app_wuy/localization_keys_app_wuy.dart';
 import 'wuy_fake_data_generator.dart';
 import 'wuy_auth_state_manager.dart';
 import 'wuy_unified_service.dart';
@@ -94,7 +96,8 @@ class WuyDataManager {
 
       return result;
     } catch (e) {
-      debugPrint('WuyDataManager: Login error - $e');
+      debugPrint(
+          'WuyDataManager: ${LocalizationKeysAppWuy.wuyDebugLoginError.tr()} - $e');
       return AuthResult.error('Login failed: $e');
     }
   }
@@ -119,7 +122,8 @@ class WuyDataManager {
 
       return result;
     } catch (e) {
-      debugPrint('WuyDataManager: Registration error - $e');
+      debugPrint(
+          'WuyDataManager: ${LocalizationKeysAppWuy.wuyDebugRegistrationError.tr()} - $e');
       return AuthResult.error('Registration failed: $e');
     }
   }
@@ -129,7 +133,8 @@ class WuyDataManager {
     try {
       return await _unifiedService.sendVerificationCode(phone);
     } catch (e) {
-      debugPrint('WuyDataManager: Send verification code error - $e');
+      debugPrint(
+          'WuyDataManager: ${LocalizationKeysAppWuy.wuyDebugVerificationCodeError.tr()} - $e');
       return AuthResult.error('Failed to send verification code: $e');
     }
   }
@@ -139,9 +144,11 @@ class WuyDataManager {
     try {
       await _unifiedService.logout();
       _clearUserData();
-      debugPrint('WuyDataManager: User logged out successfully');
+      debugPrint(
+          'WuyDataManager: ${LocalizationKeysAppWuy.wuyDebugLogoutHandled.tr()}');
     } catch (e) {
-      debugPrint('WuyDataManager: Logout error - $e');
+      debugPrint(
+          'WuyDataManager: ${LocalizationKeysAppWuy.wuyDebugLogoutError.tr()} - $e');
     }
   }
 
@@ -270,7 +277,7 @@ class WuyDataManager {
         // Sync user provider
         _userProvider?.syncWithAuthStateManager();
 
-        debugPrint('WuyDataManager: Updated user profile in mock mode');
+        debugPrint('WuyDataManager: Updated user profile');
         return updatedUser;
       } else {
         final response = await _unifiedService.updateUserProfile(

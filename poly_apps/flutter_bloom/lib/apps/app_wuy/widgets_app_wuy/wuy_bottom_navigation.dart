@@ -52,47 +52,48 @@ class WuyBottomNavigation extends StatelessWidget {
           ),
         ],
       ),
-      child: Container(
-        height: 70 + MediaQuery.of(context).padding.bottom,
-        padding: EdgeInsets.only(
-          left: ThemeDimensions.paddingSizeDefault,
-          right: ThemeDimensions.paddingSizeDefault,
-          top: ThemeDimensions.paddingSizeSmall,
-          bottom: MediaQuery.of(context).padding.bottom +
-              ThemeDimensions.paddingSizeSmall,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(
-              context,
-              Icons.chat,
-              LocalizationKeysAppWuy.wuyMenuMessages.tr(context),
-              WuyAppRouter.getSearchRoute(),
-              0,
-            ),
-            _buildNavItem(
-              context,
-              Icons.people,
-              LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
-              WuyAppRouter.getFriendsRoute(),
-              1,
-            ),
-            _buildNavItem(
-              context,
-              Icons.explore,
-              LocalizationKeysAppWuy.wuySearchTitle.tr(context),
-              WuyAppRouter.getFindFriendsRoute(),
-              2,
-            ),
-            _buildNavItem(
-              context,
-              Icons.person,
-              LocalizationKeysAppWuy.wuyMenuProfile.tr(context),
-              WuyAppRouter.getProfileRoute(),
-              3,
-            ),
-          ],
+      child: SafeArea(
+        child: Container(
+          height: 70,
+          padding: EdgeInsets.only(
+            left: ThemeDimensions.paddingSizeDefault,
+            right: ThemeDimensions.paddingSizeDefault,
+            top: ThemeDimensions.paddingSizeSmall,
+            bottom: ThemeDimensions.paddingSizeSmall,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(
+                context,
+                Icons.chat,
+                LocalizationKeysAppWuy.wuyMenuMessages.tr(context),
+                WuyAppRouter.getSearchRoute(),
+                0,
+              ),
+              _buildNavItem(
+                context,
+                Icons.people,
+                LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
+                WuyAppRouter.getFriendsRoute(),
+                1,
+              ),
+              _buildNavItem(
+                context,
+                Icons.explore,
+                LocalizationKeysAppWuy.wuySearchTitle.tr(context),
+                WuyAppRouter.getFindFriendsRoute(),
+                2,
+              ),
+              _buildNavItem(
+                context,
+                Icons.person,
+                LocalizationKeysAppWuy.wuyMenuProfile.tr(context),
+                WuyAppRouter.getProfileRoute(),
+                3,
+              ),
+            ],
+          ),
         ),
       ),
     );

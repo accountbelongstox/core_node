@@ -18,7 +18,8 @@ class WuyEnTranslations {
   static const Map<String, String> translations = {
     LocalizationKeysAppWuy.wuyHomeTitle: 'Wuy Test App',
     LocalizationKeysAppWuy.wuyHomeWelcome: 'Welcome to Wuy App',
-    LocalizationKeysAppWuy.wuyHomeDescription: 'This is a test page for the Wuy application.',
+    LocalizationKeysAppWuy.wuyHomeDescription:
+        'This is a test page for the Wuy application.',
     LocalizationKeysAppWuy.wuyHomeTestButton: 'Test Button',
 
     LocalizationKeysAppWuy.wuyMenuHome: 'Home',
@@ -41,9 +42,12 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyStatusNoData: 'No data available',
 
     LocalizationKeysAppWuy.wuyValidationRequired: 'This field is required',
-    LocalizationKeysAppWuy.wuyValidationInvalidEmail: 'Please enter a valid email address',
-    LocalizationKeysAppWuy.wuyValidationPasswordTooShort: 'Password must be at least 8 characters',
-    LocalizationKeysAppWuy.wuyValidationPasswordsNoMatch: 'Passwords do not match',
+    LocalizationKeysAppWuy.wuyValidationInvalidEmail:
+        'Please enter a valid email address',
+    LocalizationKeysAppWuy.wuyValidationPasswordTooShort:
+        'Password must be at least 8 characters',
+    LocalizationKeysAppWuy.wuyValidationPasswordsNoMatch:
+        'Passwords do not match',
 
     // Friends related
     LocalizationKeysAppWuy.wuyFriendsTitle: 'Friends & Groups',
@@ -84,7 +88,8 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyAboutTitle: 'About Us',
     LocalizationKeysAppWuy.wuyAboutFeatures: 'Features',
     LocalizationKeysAppWuy.wuyAboutAppInfo: 'App Information',
-    LocalizationKeysAppWuy.wuyAboutVersionInfo: 'View latest version information',
+    LocalizationKeysAppWuy.wuyAboutVersionInfo:
+        'View latest version information',
     LocalizationKeysAppWuy.wuyAboutFeatureInfo: 'Learn about main features',
 
     // History related
@@ -118,21 +123,23 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyAuthForgotPassword: 'Forgot Password?',
     LocalizationKeysAppWuy.wuyAuthSignIn: 'Sign In',
     LocalizationKeysAppWuy.wuyAuthSignUp: 'Sign Up',
-    LocalizationKeysAppWuy.wuyAuthAlreadyHaveAccount: 'Already have an account?',
+    LocalizationKeysAppWuy.wuyAuthAlreadyHaveAccount:
+        'Already have an account?',
     LocalizationKeysAppWuy.wuyAuthDontHaveAccount: 'Don\'t have an account?',
     LocalizationKeysAppWuy.wuyAlreadyHaveAccount: 'Already have an account?',
     LocalizationKeysAppWuy.wuyNeedAccount: 'Need an account?',
-    
+
     // Login Entry Page
     LocalizationKeysAppWuy.wuyAppName: 'AnWuYou',
     LocalizationKeysAppWuy.wuyAppSlogan: 'Carefully Guarding for You',
     LocalizationKeysAppWuy.wuyPhoneLoginRegister: 'Phone Login/Register',
-    LocalizationKeysAppWuy.wuyUserAgreement: 'Registration means agreeing to the User Service and Privacy Agreement',
+    LocalizationKeysAppWuy.wuyUserAgreement:
+        'Registration means agreeing to the User Service and Privacy Agreement',
     LocalizationKeysAppWuy.wuyOtherLoginMethods: 'Other Login Methods',
     LocalizationKeysAppWuy.wuyWeChatLogin: 'WeChat Login',
     LocalizationKeysAppWuy.wuyQQLogin: 'QQ Login',
     LocalizationKeysAppWuy.wuyAlipayLogin: 'Alipay Login',
-    
+
     // Phone Login Page
     LocalizationKeysAppWuy.wuyPhoneLoginTitle: 'Login/Register',
     LocalizationKeysAppWuy.wuyEnterPhoneNumber: 'Please enter phone number',
@@ -178,7 +185,8 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyProfilePhone: 'Phone',
     LocalizationKeysAppWuy.wuyProfileEditProfile: 'Edit Profile',
     LocalizationKeysAppWuy.wuyProfileChangePassword: 'Change Password',
-    LocalizationKeysAppWuy.wuyProfileNotificationSettings: 'Notification Settings',
+    LocalizationKeysAppWuy.wuyProfileNotificationSettings:
+        'Notification Settings',
     LocalizationKeysAppWuy.wuyProfilePrivacySettings: 'Privacy Settings',
     LocalizationKeysAppWuy.wuyProfileHelpSupport: 'Help & Support',
     LocalizationKeysAppWuy.wuyProfileTermsOfService: 'Terms of Service',
@@ -212,10 +220,13 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyRegisterPassword: 'Password',
     LocalizationKeysAppWuy.wuyRegisterEnterPassword: 'Enter your password',
     LocalizationKeysAppWuy.wuyRegisterConfirmPassword: 'Confirm Password',
-    LocalizationKeysAppWuy.wuyRegisterEnterConfirmPassword: 'Enter your password again',
-    LocalizationKeysAppWuy.wuyRegisterAgreeTerms: 'I agree to the Terms of Service and Privacy Policy',
+    LocalizationKeysAppWuy.wuyRegisterEnterConfirmPassword:
+        'Enter your password again',
+    LocalizationKeysAppWuy.wuyRegisterAgreeTerms:
+        'I agree to the Terms of Service and Privacy Policy',
     LocalizationKeysAppWuy.wuyRegisterCreateAccount: 'Create Account',
-    LocalizationKeysAppWuy.wuyRegisterAlreadyHaveAccount: 'Already have an account?',
+    LocalizationKeysAppWuy.wuyRegisterAlreadyHaveAccount:
+        'Already have an account?',
     LocalizationKeysAppWuy.wuyRegisterSignIn: 'Sign In',
 
     // Chat screen
@@ -241,7 +252,8 @@ class WuyEnTranslations {
     // Add friend screen
     LocalizationKeysAppWuy.wuyAddFriendTitle: 'Add Friend',
     LocalizationKeysAppWuy.wuyAddFriendSearch: 'Search',
-    LocalizationKeysAppWuy.wuyAddFriendSearchHint: 'Enter friend\'s phone or username',
+    LocalizationKeysAppWuy.wuyAddFriendSearchHint:
+        'Enter friend\'s phone or username',
     LocalizationKeysAppWuy.wuyAddFriendResults: 'Search Results',
     LocalizationKeysAppWuy.wuyAddFriendNoResults: 'No friends found',
     LocalizationKeysAppWuy.wuyAddFriendAdd: 'Add',
@@ -269,15 +281,103 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyDashboardQuickActions: 'Quick Actions',
 
     // Messages
-    LocalizationKeysAppWuy.wuyMessagePersonalInfoUpdated: 'Personal information updated successfully!',
+    LocalizationKeysAppWuy.wuyMessagePersonalInfoUpdated:
+        'Personal information updated successfully!',
     LocalizationKeysAppWuy.wuyMessageFriendAdded: 'Friend added successfully!',
-    LocalizationKeysAppWuy.wuyMessageEnterPhoneFirst: 'Please enter your phone number first',
-    LocalizationKeysAppWuy.wuyMessageVerificationCodeSent: 'Verification code sent to {phone}',
-    LocalizationKeysAppWuy.wuyMessageRegistrationSuccessful: 'Registration successful!',
-    LocalizationKeysAppWuy.wuyMessageFeatureComingSoon: 'Feature information coming soon!',
-    LocalizationKeysAppWuy.wuyMessageVersionComingSoon: 'Version information coming soon!',
+    LocalizationKeysAppWuy.wuyMessageEnterPhoneFirst:
+        'Please enter your phone number first',
+    LocalizationKeysAppWuy.wuyMessageVerificationCodeSent:
+        'Verification code sent to {phone}',
+    LocalizationKeysAppWuy.wuyMessageRegistrationSuccessful:
+        'Registration successful!',
+    LocalizationKeysAppWuy.wuyMessageFeatureComingSoon:
+        'Feature information coming soon!',
+    LocalizationKeysAppWuy.wuyMessageVersionComingSoon:
+        'Version information coming soon!',
     LocalizationKeysAppWuy.wuyMessageLoginFailed: 'Login failed: {error}',
-    LocalizationKeysAppWuy.wuyMessageLoginSuccessOffline: 'Login successful (offline mode)',
+    LocalizationKeysAppWuy.wuyMessageLoginSuccessOffline:
+        'Login successful (offline mode)',
+    LocalizationKeysAppWuy.wuyMessageApiKeyNotConfigured:
+        'Backend API key not configured, using non-API mode',
+
+    // Debug messages
+    LocalizationKeysAppWuy.wuyDebugLoginError: 'Login error',
+    LocalizationKeysAppWuy.wuyDebugRegistrationError: 'Registration error',
+    LocalizationKeysAppWuy.wuyDebugVerificationCodeError:
+        'Verification code error',
+    LocalizationKeysAppWuy.wuyDebugLogoutError: 'Logout error',
+    LocalizationKeysAppWuy.wuyDebugGetFriendsError: 'Get friends error',
+    LocalizationKeysAppWuy.wuyDebugGetChatMessagesError:
+        'Get chat messages error',
+    LocalizationKeysAppWuy.wuyDebugGetLocationError: 'Get location error',
+    LocalizationKeysAppWuy.wuyDebugUpdateProfileError: 'Update profile error',
+    LocalizationKeysAppWuy.wuyDebugLoadUserDataError: 'Load user data error',
+    LocalizationKeysAppWuy.wuyDebugAuthStateValidationFailed:
+        'Auth state validation failed',
+    LocalizationKeysAppWuy.wuyDebugAuthStateError: 'Auth state error',
+    LocalizationKeysAppWuy.wuyDebugStorageError: 'Storage error',
+    LocalizationKeysAppWuy.wuyDebugStorageNotInitialized:
+        'Storage not initialized',
+    LocalizationKeysAppWuy.wuyDebugUserNotFound: 'User not found',
+    LocalizationKeysAppWuy.wuyDebugCannotUpdateProfile:
+        'Cannot update profile, no current user',
+    LocalizationKeysAppWuy.wuyDebugNoAuthStateFound:
+        'No auth state found in storage',
+    LocalizationKeysAppWuy.wuyDebugErrorLoadingAuthState:
+        'Error loading auth state',
+    LocalizationKeysAppWuy.wuyDebugErrorSettingUser: 'Error setting user',
+    LocalizationKeysAppWuy.wuyDebugErrorClearingAuth: 'Error clearing auth',
+    LocalizationKeysAppWuy.wuyDebugErrorInAuthCheck: 'Error in auth check',
+    LocalizationKeysAppWuy.wuyDebugLoginSuccessNoUser:
+        'Login success but no user found',
+    LocalizationKeysAppWuy.wuyDebugErrorInLoginSuccess:
+        'Error in login success',
+    LocalizationKeysAppWuy.wuyDebugFallbackNavigation: 'Fallback navigation',
+    LocalizationKeysAppWuy.wuyDebugRedirectingToHome: 'Redirecting to home',
+    LocalizationKeysAppWuy.wuyDebugCheckingAuthState: 'Checking auth state',
+    LocalizationKeysAppWuy.wuyDebugFinalAuthCheck: 'Final auth check result',
+    LocalizationKeysAppWuy.wuyDebugLoginSuccess: 'Login success',
+    LocalizationKeysAppWuy.wuyDebugNavigatingToHome: 'Navigating to home',
+    LocalizationKeysAppWuy.wuyDebugUserAuthenticated: 'User authenticated',
+    LocalizationKeysAppWuy.wuyDebugUserNotAuthenticated:
+        'User not authenticated',
+    LocalizationKeysAppWuy.wuyDebugAuthCleared: 'Auth cleared',
+    LocalizationKeysAppWuy.wuyDebugLogoutHandled: 'Logout handled',
+    LocalizationKeysAppWuy.wuyDebugLoginSuccessHandled: 'Login success handled',
+    LocalizationKeysAppWuy.wuyDebugAuthStateLoaded:
+        'Auth state loaded from storage',
+    LocalizationKeysAppWuy.wuyDebugUserDataLoaded:
+        'User data loaded successfully',
+    LocalizationKeysAppWuy.wuyDebugUserDataCleared: 'User data cleared',
+    LocalizationKeysAppWuy.wuyDebugUserSaved: 'User saved successfully',
+    LocalizationKeysAppWuy.wuyDebugUserUpdated: 'User updated successfully',
+    LocalizationKeysAppWuy.wuyDebugUserDeleted: 'User deleted successfully',
+    LocalizationKeysAppWuy.wuyDebugStorageInitialized:
+        'Storage initialized successfully',
+    LocalizationKeysAppWuy.wuyDebugStorageInitError:
+        'Storage initialization error',
+    LocalizationKeysAppWuy.wuyDebugStorageInitFailed:
+        'Storage initialization failed',
+    LocalizationKeysAppWuy.wuyDebugSaveUserError: 'Save user error',
+    LocalizationKeysAppWuy.wuyDebugGetUserError: 'Get user error',
+    LocalizationKeysAppWuy.wuyDebugUpdateUserError: 'Update user error',
+    LocalizationKeysAppWuy.wuyDebugDeleteUserError: 'Delete user error',
+    LocalizationKeysAppWuy.wuyDebugFakeDataEnabled:
+        'Fake data generation enabled',
+    LocalizationKeysAppWuy.wuyDebugFakeDataDisabled:
+        'Fake data generation disabled',
+    LocalizationKeysAppWuy.wuyDebugUsingFakeData: 'Using fake data',
+    LocalizationKeysAppWuy.wuyDebugLoadedFromFakeData: 'Loaded from fake data',
+    LocalizationKeysAppWuy.wuyDebugLoadedFromApi: 'Loaded from API',
+    LocalizationKeysAppWuy.wuyDebugProfileUpdated: 'Profile updated',
+    LocalizationKeysAppWuy.wuyDebugProfileUpdatedViaApi:
+        'Profile updated via API',
+    LocalizationKeysAppWuy.wuyDebugSyncedWithAuth:
+        'Synced with auth state manager',
+    LocalizationKeysAppWuy.wuyDebugClearedUser: 'Cleared user',
+    LocalizationKeysAppWuy.wuyDebugRealLogoutFailed:
+        'Real logout API call failed',
+    LocalizationKeysAppWuy.wuyDebugGetInitialRoute: 'Get initial route',
 
     // About screen specific
     LocalizationKeysAppWuy.wuyAboutAppName: 'AnWuYou',
@@ -294,62 +394,83 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyAboutLicenseValue: 'MIT',
 
     // Validation messages
-    LocalizationKeysAppWuy.wuyValidationPhoneInvalid: 'Please enter a valid phone number',
-    LocalizationKeysAppWuy.wuyValidationPhoneRequired: 'Phone number is required',
-    LocalizationKeysAppWuy.wuyValidationPhoneFormat: 'Please enter a valid phone number format',
+    LocalizationKeysAppWuy.wuyValidationPhoneInvalid:
+        'Please enter a valid phone number',
+    LocalizationKeysAppWuy.wuyValidationPhoneRequired:
+        'Phone number is required',
+    LocalizationKeysAppWuy.wuyValidationPhoneFormat:
+        'Please enter a valid phone number format',
 
     // Search screen specific
     LocalizationKeysAppWuy.wuySearchSampleUser1: 'Little Flying Hero',
-    LocalizationKeysAppWuy.wuySearchSampleUser1Bio: 'The weather is really nice today',
+    LocalizationKeysAppWuy.wuySearchSampleUser1Bio:
+        'The weather is really nice today',
     LocalizationKeysAppWuy.wuySearchSampleUser2: 'Sunny Day',
-    LocalizationKeysAppWuy.wuySearchSampleUser2Bio: 'Love life, enjoy every day',
+    LocalizationKeysAppWuy.wuySearchSampleUser2Bio:
+        'Love life, enjoy every day',
 
     // Settings screen specific (additional keys)
     LocalizationKeysAppWuy.wuySettingsDarkModeDescription: 'Enable dark theme',
     LocalizationKeysAppWuy.wuySettingsPushNotifications: 'Push Notifications',
-    LocalizationKeysAppWuy.wuySettingsPushNotificationsDescription: 'Receive push notifications',
+    LocalizationKeysAppWuy.wuySettingsPushNotificationsDescription:
+        'Receive push notifications',
     LocalizationKeysAppWuy.wuySettingsBiometricLogin: 'Biometric Login',
-    LocalizationKeysAppWuy.wuySettingsBiometricLoginDescription: 'Use fingerprint or face ID',
+    LocalizationKeysAppWuy.wuySettingsBiometricLoginDescription:
+        'Use fingerprint or face ID',
     LocalizationKeysAppWuy.wuySettingsChangePassword: 'Change Password',
-    LocalizationKeysAppWuy.wuySettingsChangePasswordDescription: 'Update your password',
+    LocalizationKeysAppWuy.wuySettingsChangePasswordDescription:
+        'Update your password',
     LocalizationKeysAppWuy.wuySettingsVersion: 'Version',
     LocalizationKeysAppWuy.wuySettingsVersionValue: '1.0.0',
     LocalizationKeysAppWuy.wuySettingsTermsOfService: 'Terms of Service',
-    LocalizationKeysAppWuy.wuySettingsTermsOfServiceDescription: 'Read our terms',
+    LocalizationKeysAppWuy.wuySettingsTermsOfServiceDescription:
+        'Read our terms',
     LocalizationKeysAppWuy.wuySettingsPrivacyPolicy: 'Privacy Policy',
-    LocalizationKeysAppWuy.wuySettingsPrivacyPolicyDescription: 'Read our privacy policy',
+    LocalizationKeysAppWuy.wuySettingsPrivacyPolicyDescription:
+        'Read our privacy policy',
     LocalizationKeysAppWuy.wuySettingsLanguageEnglish: 'English',
     LocalizationKeysAppWuy.wuySettingsLanguageChinese: '中文',
 
     // Add friend screen specific
-    LocalizationKeysAppWuy.wuyAddFriendEnterNickname: 'Enter friend\'s nickname',
-    LocalizationKeysAppWuy.wuyAddFriendEnterGender: 'Enter gender (Male/Female)',
+    LocalizationKeysAppWuy.wuyAddFriendEnterNickname:
+        'Enter friend\'s nickname',
+    LocalizationKeysAppWuy.wuyAddFriendEnterGender:
+        'Enter gender (Male/Female)',
     LocalizationKeysAppWuy.wuyAddFriendEnterAge: 'Enter age',
     LocalizationKeysAppWuy.wuyAddFriendEnterHeight: 'Enter height in cm',
     LocalizationKeysAppWuy.wuyAddFriendEnterWeight: 'Enter weight in kg',
 
     // Register screen specific
     LocalizationKeysAppWuy.wuyRegisterEnterPhone: 'Enter your phone number',
-    LocalizationKeysAppWuy.wuyRegisterEnterVerificationCode: 'Enter verification code',
+    LocalizationKeysAppWuy.wuyRegisterEnterVerificationCode:
+        'Enter verification code',
 
     // Social login messages
-    LocalizationKeysAppWuy.wuyMessageWeChatApiConnecting: 'WeChat login API is being integrated',
-    LocalizationKeysAppWuy.wuyMessageQQApiConnecting: 'QQ login API is being integrated',
-    LocalizationKeysAppWuy.wuyMessageDingTalkApiConnecting: 'DingTalk login API is being integrated',
-    LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin: 'We recommend using phone number login',
+    LocalizationKeysAppWuy.wuyMessageWeChatApiConnecting:
+        'WeChat login API is being integrated',
+    LocalizationKeysAppWuy.wuyMessageQQApiConnecting:
+        'QQ login API is being integrated',
+    LocalizationKeysAppWuy.wuyMessageDingTalkApiConnecting:
+        'DingTalk login API is being integrated',
+    LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin:
+        'We recommend using phone number login',
 
     // Missing translations
     LocalizationKeysAppWuy.wuyVerificationCode: 'Verification Code',
     LocalizationKeysAppWuy.wuyGetCode: 'Get Code',
     LocalizationKeysAppWuy.wuyRegisterLogin: 'Register/Login',
     LocalizationKeysAppWuy.wuyLogin: 'Login',
-    LocalizationKeysAppWuy.wuyValidationVerificationRequired: 'Please enter verification code',
-    LocalizationKeysAppWuy.wuyValidationVerificationFormat: 'Invalid verification code format',
+    LocalizationKeysAppWuy.wuyValidationVerificationRequired:
+        'Please enter verification code',
+    LocalizationKeysAppWuy.wuyValidationVerificationFormat:
+        'Invalid verification code format',
     LocalizationKeysAppWuy.wuyAgreementText: 'Registration means agreeing to',
     LocalizationKeysAppWuy.wuyAnd: 'and',
     LocalizationKeysAppWuy.wuyPrivacyPolicy: 'Privacy Policy',
-    LocalizationKeysAppWuy.wuyMessageSendCodeFailed: 'Failed to send verification code',
-    LocalizationKeysAppWuy.wuyMessageSendCodeError: 'Error sending verification code',
+    LocalizationKeysAppWuy.wuyMessageSendCodeFailed:
+        'Failed to send verification code',
+    LocalizationKeysAppWuy.wuyMessageSendCodeError:
+        'Error sending verification code',
     LocalizationKeysAppWuy.wuyMessageOperationFailed: 'Operation failed',
   };
 }
