@@ -172,14 +172,15 @@ class Step20CompilationController:
         # NOTE: Flutter 3.35+ no longer supports -t parameter for flutter clean command
         # The -t parameter was removed in newer Flutter versions for clean operations
         # For build commands, entry file is specified in pubspec.yaml or main.dart
-        # 
+        
         # Previous logic (removed for Flutter 3.35+ compatibility):
-        # app_name = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_APP, '')
-        # if app_name and app_name.strip() and not flutter_command.startswith('flutter clean'):
-        #     app_suffix = app_name.replace('app_', '') if app_name.startswith('app_') else app_name
-        #     entry_file = f"lib\\apps\\{app_name}\\main_app_{app_suffix}.dart"
-        #     flutter_command = f"{flutter_command} -t {entry_file}"
-        #     PrintHelper.info(f"Using entry file: {entry_file}", source="STEP-20")
+        app_name = unified_vars.get_file_variable(unified_vars.KEY_SELECTED_APP, '')
+        if app_name and app_name.strip() and not flutter_command.startswith('flutter clean'):
+            app_suffix = app_name.replace('app_', '') if app_name.startswith('app_') else app_name
+            entry_file = f"lib\\apps\\{app_name}\\main_app_{app_suffix}.dart"
+            # flutter_command = f"{flutter_command} -t {entry_file}"
+            flutter_command = f"{flutter_command}"
+            PrintHelper.info(f"Using entry file: {entry_file}", source="STEP-20")
         
         PrintHelper.info(f"Using Flutter command: {flutter_command} (Flutter 3.35+ compatible)", source="STEP-20")
 
