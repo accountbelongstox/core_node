@@ -1236,6 +1236,12 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
                 Operation = "copy_config"
                 TargetDirectory = "$env:USERPROFILE\.claude"
             }
+            @{
+                Type = "mcp"
+                Operation = "exec_command"
+                Command = 'npx claude mcp add context7 -- cmd /c "npx -y @upstash/context7-mcp"'
+                Description = "Add context7 MCP service to Claude"
+            }
         )
     }
     ClaudeCodeRouter = @{

@@ -46,7 +46,9 @@
       "Bash(Stop-Process -Force -ErrorAction SilentlyContinue)",
       "Bash(Get-ChildItem \"D:\\programing\\core_node\\poly_apps\\QtScrcpy\\output\\x64\\RelWithDebInfo\\QtScrcpy.exe\")",
       "Bash(Select-Object Name,LastWriteTime,Length)",
-      "Bash(Select-String -Pattern \"(error|Build succeeded|Building)\")"
+      "Bash(Select-String -Pattern \"(error|Build succeeded|Building)\")",
+      "Bash(python -m py_compile:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": [],
