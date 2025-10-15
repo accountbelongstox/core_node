@@ -150,6 +150,7 @@ class TaskThreadManager:
             
             task = self.tasks[name]
             task.set_status(status)
+            ColorPrint.blue(f"[TaskThreadManager] Task '{name}' status set to: {status.value}")
             return True
     
     def set_task_interval(self, name: str, interval: float) -> bool:

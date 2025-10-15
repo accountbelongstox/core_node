@@ -36,18 +36,30 @@ class RosbotTaskProcessor:
     def start_rosbot(self):
         """Start ROSBOT monitoring"""
         try:
+            from tkinter import messagebox
+            messagebox.showinfo("Debug", "RosbotTaskProcessor.start_rosbot() called")
+            
             if not self.initialized:
+                messagebox.showinfo("Debug", "Initializing ROSBOT processor")
                 self.initialize()
+                messagebox.showinfo("Debug", "ROSBOT processor initialized")
             
             # Enable full-speed monitoring
+            messagebox.showinfo("Debug", "Setting ROSBOT running to True")
             set_rosbot_running(True)
+            messagebox.showinfo("Debug", "ROSBOT running set to True")
             
             # Update game state
+            messagebox.showinfo("Debug", "Updating game state")
             self.game_state.set_rosbot_status(True)
+            messagebox.showinfo("Debug", "Game state updated")
             
             ColorPrint.green("[RosbotTaskProcessor] ROSBOT monitoring started")
+            messagebox.showinfo("Debug", "ROSBOT monitoring started successfully")
             
         except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Debug Error", f"Error in RosbotTaskProcessor.start_rosbot(): {e}")
             ColorPrint.red(f"[RosbotTaskProcessor] Error starting ROSBOT: {e}")
             # Update game state to reflect error
             self.game_state.set_rosbot_status(False)
@@ -88,8 +100,19 @@ def get_rosbot_processor() -> RosbotTaskProcessor:
 
 def start_rosbot_task():
     """Start ROSBOT task"""
-    processor = get_rosbot_processor()
-    processor.start_rosbot()
+    try:
+        from tkinter import messagebox
+        messagebox.showinfo("Debug", "Starting ROSBOT task processor")
+        
+        processor = get_rosbot_processor()
+        messagebox.showinfo("Debug", "Got ROSBOT processor instance")
+        
+        processor.start_rosbot()
+        messagebox.showinfo("Debug", "ROSBOT processor start_rosbot() completed")
+        
+    except Exception as e:
+        from tkinter import messagebox
+        messagebox.showerror("Debug Error", f"Error in start_rosbot_task: {e}")
 
 
 def stop_rosbot_task():
