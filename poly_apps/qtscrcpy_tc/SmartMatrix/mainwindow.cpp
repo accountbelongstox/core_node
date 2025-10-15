@@ -15,7 +15,7 @@
 #include "stream.h"
 
 #if defined(Q_OS_WIN32) || defined(Q_OS_OSX)
-#include "mousetap.h"
+#include "mousetap/mousetap.h"
 #endif
 
 using namespace std;

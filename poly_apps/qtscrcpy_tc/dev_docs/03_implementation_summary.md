@@ -2,7 +2,7 @@
 
 **日期**: 2025-10-14
 **版本**: 1.0
-**状态**: 实现完成，等待测试
+**状态**: ✅ 实现完成，构建成功
 
 ---
 
@@ -66,7 +66,7 @@
   - customtitlebar.h
   - devicemanage.h
   - stream.h
-  - mousetap.h (条件编译)
+  - mousetap/mousetap.h (条件编译，使用子目录路径)
 
 - 实现新增函数 (10个):
   1. `setupCustomTitleBar()` - 创建并配置标题栏
@@ -447,6 +447,28 @@ qtscrcpy_tc/
 - `third_party/scrcpy-server`
 - `third_party/ffmpeg/bin/x64/*.dll`
 - `config/config.ini`
+
+### 9.4 构建说明
+
+**重要**: 构建过程中遇到的问题和解决方案:
+
+1. **头文件包含路径问题** (已解决)
+   - **错误**: `Cannot open include file: 'mousetap.h'`
+   - **原因**: `mousetap.h` 位于 `util/mousetap/` 子目录
+   - **解决**: 在 `mainwindow.cpp` 中使用完整路径: `#include "mousetap/mousetap.h"`
+   - **影响文件**: `mainwindow.cpp:18`
+
+2. **构建输出位置**
+   - 输出目录: `output_20251014_061608/win/x64/release/`
+   - 可执行文件: `SmartMatrix.exe` (812KB)
+   - 构建时间: ~2分钟 (首次构建)
+
+3. **构建结果**
+   - ✅ 编译成功 (无错误)
+   - ✅ 链接成功
+   - ✅ Qt依赖部署完成
+   - ✅ 项目依赖复制完成
+   - 退出码: 0
 
 ---
 
