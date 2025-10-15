@@ -1,9 +1,9 @@
-<#
+﻿<#
 .SYNOPSIS
-    QtScrcpy Modern UI Build Script
+    SmartMatrix Modern UI Build Script
 
 .DESCRIPTION
-    Automatically detect environment and build QtScrcpy project with Modern UI
+    Automatically detect environment and build SmartMatrix project with Modern UI
     Support auto-detection of Qt, Visual Studio, CMake from system-specific dev directories
 
 .PARAMETER BuildType
@@ -481,9 +481,9 @@ function Update-Translations {
     )
     
     Write-Section "Updating i18n Translations"
-    
+
     $scriptPath = $PSScriptRoot
-    $i18nPath = Join-Path $scriptPath "QtScrcpy\res\i18n"
+    $i18nPath = Join-Path $scriptPath "QtSmartMatrix\res\i18n"
     
     # Check if i18n directory exists
     if (-not (Test-Path $i18nPath)) {
@@ -713,8 +713,8 @@ function Start-Publish {
     Copy-Item "$releasePath\*" -Destination $publishPath -Recurse -Force
 
     # Copy dependencies
-    $adbPath = Join-Path $scriptPath "QtScrcpy\QtScrcpyCore\src\third_party\adb\win"
-    $jarPath = Join-Path $scriptPath "QtScrcpy\QtScrcpyCore\src\third_party\scrcpy-server"
+    $adbPath = Join-Path $scriptPath "QtSmartMatrix\SmartMatrixCore\src\third_party\adb\win"
+    $jarPath = Join-Path $scriptPath "QtSmartMatrix\SmartMatrixCore\src\third_party\scrcpy-server"
     $keymapPath = Join-Path $scriptPath "keymap"
     $configPath = Join-Path $scriptPath "config"
 
@@ -732,7 +732,7 @@ function Start-Publish {
     }
 
     # Copy translation files
-    $i18nSourcePath = Join-Path $scriptPath "QtScrcpy\res\i18n"
+    $i18nSourcePath = Join-Path $scriptPath "QtSmartMatrix\res\i18n"
     $i18nDestPath = Join-Path $publishPath "translations"
     if (Test-Path $i18nSourcePath) {
         New-Item -ItemType Directory -Path $i18nDestPath -Force | Out-Null
@@ -747,7 +747,7 @@ function Start-Publish {
     # Run windeployqt (with translations support)
     Write-Host "Running windeployqt..." -ForegroundColor Yellow
     $env:Path = "$qtBinPath;$env:Path"
-    $exePath = Join-Path $publishPath "QtScrcpy.exe"
+    $exePath = Join-Path $publishPath "SmartMatrix.exe"
     & windeployqt $exePath
 
     Write-Success "Packaging complete!"
@@ -761,7 +761,7 @@ function Start-Publish {
 Write-Host @"
 
     ================================================================
-                    QtScrcpy Modern UI Build Script
+                    SmartMatrix Modern UI Build Script
     ================================================================
 
 "@ -ForegroundColor Cyan
@@ -835,12 +835,12 @@ $outputDirs = Get-ChildItem -Path $scriptPath -Directory -Filter "output_*" |
 
 if ($outputDirs) {
     $outputPath = Join-Path $outputDirs.FullName "$Architecture\$BuildType"
-    $exePath = Join-Path $outputPath "QtScrcpy.exe"
+    $exePath = Join-Path $outputPath "SmartMatrix.exe"
     Write-Host "Using output directory: $($outputDirs.Name)" -ForegroundColor Cyan
 } else {
     # Fallback to default output directory
     $outputPath = Join-Path $scriptPath "output\$Architecture\$BuildType"
-    $exePath = Join-Path $outputPath "QtScrcpy.exe"
+    $exePath = Join-Path $outputPath "SmartMatrix.exe"
     Write-Warning-Custom "No timestamped output directory found, using default"
 }
 
@@ -880,9 +880,10 @@ if (Test-Path $exePath) {
     if ($qtBinPath) {
         Write-Host "Running windeployqt to deploy Qt dependencies..." -ForegroundColor Yellow
         $env:Path = "$qtBinPath;$env:Path"
-        
+
         try {
-            & windeployqt $exePath
+            # Use verbose mode and ensure all necessary modules are deployed
+            & windeployqt --verbose 1 --force $exePath
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "Qt dependencies deployed successfully"
             } else {
@@ -915,9 +916,9 @@ Write-Section "Copying Modern UI Resources"
     }
 
     $modernUIResources = @(
-        "QtScrcpy\ui\icons",
-        "QtScrcpy\ui\res",
-        "QtScrcpy\ui\image"
+        "QtSmartMatrix\ui\icons",
+        "QtSmartMatrix\ui\res",
+        "QtSmartMatrix\ui\image"
     )
 
     foreach ($Resource in $modernUIResources) {
@@ -991,9 +992,9 @@ Write-Host "  - Drag-and-drop support" -ForegroundColor White
 
 Write-Host "`nUsage:" -ForegroundColor Yellow
 if ($actualOutputDir) {
-    Write-Host "  .\$actualOutputDir\$Architecture\$BuildType\QtScrcpy.exe    # Start with Modern UI" -ForegroundColor White
+    Write-Host "  .\$actualOutputDir\$Architecture\$BuildType\SmartMatrix.exe    # Start with Modern UI" -ForegroundColor White
 } else {
-    Write-Host "  .\output\$Architecture\$BuildType\QtScrcpy.exe    # Start with Modern UI" -ForegroundColor White
+    Write-Host "  .\output\$Architecture\$BuildType\SmartMatrix.exe    # Start with Modern UI" -ForegroundColor White
 }
 
 Write-Host ""

@@ -1,10 +1,10 @@
-#ifndef VIDEOFORM_H
+﻿#ifndef VIDEOFORM_H
 #define VIDEOFORM_H
 
 #include <QPointer>
 #include <QWidget>
 
-#include "../QtScrcpyCore/include/QtScrcpyCore.h"
+#include "../SmartMatrixCore/include/SmartMatrixCore.h"
 
 namespace Ui
 {

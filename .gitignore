@@ -322,6 +322,7 @@ app.*.symbols
 
 # QT Build Temp Dir
 **/output_*
+**/output/
 
 [nN][uU][lL]
 [cC][oO][nN]

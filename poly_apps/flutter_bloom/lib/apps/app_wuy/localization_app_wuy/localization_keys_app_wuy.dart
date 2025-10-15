@@ -322,6 +322,91 @@ class LocalizationKeysAppWuy {
   static const String wuyMessageLoginFailed = "wuy.message.login_failed";
   static const String wuyMessageLoginSuccessOffline =
       "wuy.message.login_success_offline";
+  static const String wuyMessageApiKeyNotConfigured =
+      "wuy.message.api_key_not_configured";
+
+  // Debug messages
+  static const String wuyDebugLoginError = "wuy.debug.login_error";
+  static const String wuyDebugRegistrationError =
+      "wuy.debug.registration_error";
+  static const String wuyDebugVerificationCodeError =
+      "wuy.debug.verification_code_error";
+  static const String wuyDebugLogoutError = "wuy.debug.logout_error";
+  static const String wuyDebugGetFriendsError = "wuy.debug.get_friends_error";
+  static const String wuyDebugGetChatMessagesError =
+      "wuy.debug.get_chat_messages_error";
+  static const String wuyDebugGetLocationError = "wuy.debug.get_location_error";
+  static const String wuyDebugUpdateProfileError =
+      "wuy.debug.update_profile_error";
+  static const String wuyDebugLoadUserDataError =
+      "wuy.debug.load_user_data_error";
+  static const String wuyDebugAuthStateValidationFailed =
+      "wuy.debug.auth_state_validation_failed";
+  static const String wuyDebugAuthStateError = "wuy.debug.auth_state_error";
+  static const String wuyDebugStorageError = "wuy.debug.storage_error";
+  static const String wuyDebugStorageNotInitialized =
+      "wuy.debug.storage_not_initialized";
+  static const String wuyDebugUserNotFound = "wuy.debug.user_not_found";
+  static const String wuyDebugCannotUpdateProfile =
+      "wuy.debug.cannot_update_profile";
+  static const String wuyDebugNoAuthStateFound =
+      "wuy.debug.no_auth_state_found";
+  static const String wuyDebugErrorLoadingAuthState =
+      "wuy.debug.error_loading_auth_state";
+  static const String wuyDebugErrorSettingUser = "wuy.debug.error_setting_user";
+  static const String wuyDebugErrorClearingAuth =
+      "wuy.debug.error_clearing_auth";
+  static const String wuyDebugErrorInAuthCheck =
+      "wuy.debug.error_in_auth_check";
+  static const String wuyDebugLoginSuccessNoUser =
+      "wuy.debug.login_success_no_user";
+  static const String wuyDebugErrorInLoginSuccess =
+      "wuy.debug.error_in_login_success";
+  static const String wuyDebugFallbackNavigation =
+      "wuy.debug.fallback_navigation";
+  static const String wuyDebugRedirectingToHome =
+      "wuy.debug.redirecting_to_home";
+  static const String wuyDebugCheckingAuthState =
+      "wuy.debug.checking_auth_state";
+  static const String wuyDebugFinalAuthCheck = "wuy.debug.final_auth_check";
+  static const String wuyDebugLoginSuccess = "wuy.debug.login_success";
+  static const String wuyDebugNavigatingToHome = "wuy.debug.navigating_to_home";
+  static const String wuyDebugUserAuthenticated =
+      "wuy.debug.user_authenticated";
+  static const String wuyDebugUserNotAuthenticated =
+      "wuy.debug.user_not_authenticated";
+  static const String wuyDebugAuthCleared = "wuy.debug.auth_cleared";
+  static const String wuyDebugLogoutHandled = "wuy.debug.logout_handled";
+  static const String wuyDebugLoginSuccessHandled =
+      "wuy.debug.login_success_handled";
+  static const String wuyDebugAuthStateLoaded = "wuy.debug.auth_state_loaded";
+  static const String wuyDebugUserDataLoaded = "wuy.debug.user_data_loaded";
+  static const String wuyDebugUserDataCleared = "wuy.debug.user_data_cleared";
+  static const String wuyDebugUserSaved = "wuy.debug.user_saved";
+  static const String wuyDebugUserUpdated = "wuy.debug.user_updated";
+  static const String wuyDebugUserDeleted = "wuy.debug.user_deleted";
+  static const String wuyDebugStorageInitialized =
+      "wuy.debug.storage_initialized";
+  static const String wuyDebugStorageInitError = "wuy.debug.storage_init_error";
+  static const String wuyDebugStorageInitFailed =
+      "wuy.debug.storage_init_failed";
+  static const String wuyDebugSaveUserError = "wuy.debug.save_user_error";
+  static const String wuyDebugGetUserError = "wuy.debug.get_user_error";
+  static const String wuyDebugUpdateUserError = "wuy.debug.update_user_error";
+  static const String wuyDebugDeleteUserError = "wuy.debug.delete_user_error";
+  static const String wuyDebugFakeDataEnabled = "wuy.debug.fake_data_enabled";
+  static const String wuyDebugFakeDataDisabled = "wuy.debug.fake_data_disabled";
+  static const String wuyDebugUsingFakeData = "wuy.debug.using_fake_data";
+  static const String wuyDebugLoadedFromFakeData =
+      "wuy.debug.loaded_from_fake_data";
+  static const String wuyDebugLoadedFromApi = "wuy.debug.loaded_from_api";
+  static const String wuyDebugProfileUpdated = "wuy.debug.profile_updated";
+  static const String wuyDebugProfileUpdatedViaApi =
+      "wuy.debug.profile_updated_via_api";
+  static const String wuyDebugSyncedWithAuth = "wuy.debug.synced_with_auth";
+  static const String wuyDebugClearedUser = "wuy.debug.cleared_user";
+  static const String wuyDebugRealLogoutFailed = "wuy.debug.real_logout_failed";
+  static const String wuyDebugGetInitialRoute = "wuy.debug.get_initial_route";
 
   // About screen specific
   static const String wuyAboutAppName = "wuy.about.app_name";

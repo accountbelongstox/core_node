@@ -1,0 +1,162 @@
+36 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Warning: Flutter support for your project's Kotlin version (1.9.20) will soon be dropped. Please upgrade your Kotlin version to a version of at least 2.1.0 soon.
+Alternatively, use the flag "--android-skip-build-dependency-validation" to bypass this check.
+
+Potential fix: Your project's KGP version is typically defined in the plugins block of the `settings.gradle` file (D:\programing\.build_dir\compile_factory\app_wuy_20251013_194647\android/settings.gradle), by a plugin with the id of org.jetbrains.kotlin.android.
+If you don't see a plugins block, your project was likely created with an older template version, in which case it is most likely defined in the top-level build.gradle file (D:\programing\.build_dir\compile_factory\app_wuy_20251013_194647\android/build.gradle) by the ext.kotlin_version property.
+
+Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
+Font asset "CupertinoIcons.ttf" was tree-shaken, reducing it from 257628 to 848 bytes (99.7% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Font asset "Font Awesome 7 Free-Solid-900.otf" was tree-shaken, reducing it from 410468 to 1376 bytes (99.7% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Font asset "Font Awesome 7 Brands-Regular-400.otf" was tree-shaken, reducing it from 199352 to 1664 bytes (99.2% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 8212 bytes (99.5% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+e: Incompatible classes were found in dependencies. Remove them from the classpath or use '-Xskip-metadata-version-check' to suppress errors
+e: file:///C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/META-INF/kotlin-stdlib-jdk7.kotlin_moduleModule was compiled with an incompatible version of Kotlin. The binary version of its metadata is 2.2.0, expected version is 1.8.0.
+e: file:///C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/META-INF/kotlin-stdlib-jdk8.kotlin_moduleModule was compiled with an incompatible version of Kotlin. The binary version of its metadata is 2.2.0, expected version is 1.8.0.
+e: file:///C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/META-INF/kotlin-stdlib.kotlin_moduleModule was compiled with an incompatible version of Kotlin. The binary version of its metadata is 2.2.0, expected version is 1.8.0.
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/DeviceInfoPlusPlugin.kt:16:9 Class 'kotlin.Unit' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.2.0, but the compiler version 1.8.0 can read versions up to 1.9.0.
+The class is loaded from C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/kotlin/Unit.class
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/DeviceInfoPlusPlugin.kt:20:23 Class 'kotlin.Unit' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.2.0, but the compiler version 1.8.0 can read versions up to 1.9.0.
+The class is loaded from C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/kotlin/Unit.class
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/DeviceInfoPlusPlugin.kt:24:9 Class 'kotlin.Unit' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.2.0, but the compiler version 1.8.0 can read versions up to 1.9.0.
+The class is loaded from C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/kotlin/Unit.class
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/DeviceInfoPlusPlugin.kt:30:23 Class 'kotlin.Unit' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.2.0, but the compiler version 1.8.0 can read versions up to 1.9.0.
+The class is loaded from C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/kotlin/Unit.class
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:12:27 Unresolved reference: HashMap
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:27:9 Class 'kotlin.Unit' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.2.0, but the compiler version 1.8.0 can read versions up to 1.9.0.
+The class is loaded from C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/kotlin/Unit.class
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:28:50 Unresolved reference: HashMap
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:30:18 Unresolved reference: build["board"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:30:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:31:18 Unresolved reference: build["bootloader"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:31:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:32:18 Unresolved reference: build["brand"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:32:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:33:18 Unresolved reference: build["device"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:33:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:34:18 Unresolved reference: build["display"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:34:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:35:18 Unresolved reference: build["fingerprint"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:35:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:36:18 Unresolved reference: build["hardware"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:36:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:37:18 Unresolved reference: build["host"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:37:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:38:18 Unresolved reference: build["id"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:38:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:39:18 Unresolved reference: build["manufacturer"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:39:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:40:18 Unresolved reference: build["model"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:40:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:41:18 Unresolved reference: build["product"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:41:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:44:22 Unresolved reference: build["name"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:44:22 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:47:13 Class 'kotlin.Unit' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.2.0, but the compiler version 1.8.0 can read versions up to 1.9.0.
+The class is loaded from C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/kotlin/Unit.class
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:48:22 Unresolved reference: build["supported32BitAbis"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:48:22 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:48:47 Unresolved reference: listOf
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:49:22 Unresolved reference: build["supported64BitAbis"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:49:22 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:49:47 Unresolved reference: listOf
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:50:22 Unresolved reference: build["supportedAbis"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:50:22 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:50:42 Unresolved reference: listOf
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:52:22 Unresolved reference: build["supported32BitAbis"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:52:22 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:52:47 Unresolved reference: emptyList
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:53:22 Unresolved reference: build["supported64BitAbis"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:53:22 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:53:47 Unresolved reference: emptyList
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:54:22 Unresolved reference: build["supportedAbis"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:54:22 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:54:42 Unresolved reference: emptyList
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:57:18 Unresolved reference: build["tags"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:57:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:58:18 Unresolved reference: build["type"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:58:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:59:18 Unresolved reference: build["isPhysicalDevice"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:59:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:60:18 Unresolved reference: build["systemFeatures"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:60:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:63:18 Unresolved reference: build["freeDiskSize"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:63:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:64:18 Unresolved reference: build["totalDiskSize"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:64:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:66:52 Unresolved reference: HashMap
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:68:24 Unresolved reference: version["baseOS"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:68:24 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:69:24 Unresolved reference: version["previewSdkInt"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:69:24 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:70:24 Unresolved reference: version["securityPatch"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:70:24 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:72:20 Unresolved reference: version["codename"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:72:20 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:73:20 Unresolved reference: version["incremental"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:73:20 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:74:20 Unresolved reference: version["release"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:74:20 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:75:20 Unresolved reference: version["sdkInt"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:75:20 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:76:18 Unresolved reference: build["version"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:76:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:79:29 Class 'kotlin.Unit' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.2.0, but the compiler version 1.8.0 can read versions up to 1.9.0.
+The class is loaded from C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/kotlin/Unit.class
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:80:18 Unresolved reference: build["isLowRamDevice"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:80:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:81:18 Unresolved reference: build["physicalRamSize"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:81:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:82:18 Unresolved reference: build["availableRamSize"]
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:82:18 No set method providing array access
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:83:20 Class 'kotlin.Unit' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.2.0, but the compiler version 1.8.0 can read versions up to 1.9.0.
+The class is loaded from C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/kotlin/Unit.class
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:85:20 Class 'kotlin.Unit' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.2.0, but the compiler version 1.8.0 can read versions up to 1.9.0.
+The class is loaded from C:/Users/DSPC/.gradle/caches/8.11.1/transforms/b0be6ebd4333520a7413b4df2a994d5f/transformed/jetified-kotlin-stdlib-2.2.0.jar!/kotlin/Unit.class
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:92:14 Unresolved reference: filterNot
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:92:26 Cannot infer a type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:93:20 Cannot infer a type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:101:31 Unresolved reference: startsWith
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:101:69 Unresolved reference: startsWith
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:102:34 Unresolved reference: startsWith
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:103:34 Unresolved reference: startsWith
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:104:31 Unresolved reference: contains
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:105:31 Unresolved reference: contains
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:106:28 Unresolved reference: contains
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:107:28 Unresolved reference: contains
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:108:28 Unresolved reference: contains
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:109:35 Unresolved reference: contains
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:110:30 Unresolved reference: contains
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:111:30 Unresolved reference: contains
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:112:30 Unresolved reference: contains
+e: file:///C:/Users/DSPC/AppData/Local/Pub/Cache/hosted/pub.dev/device_info_plus-12.1.0/android/src/main/kotlin/dev/fluttercommunity/plus/device_info/MethodCallHandlerImpl.kt:113:30 Unresolved reference: contains
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':device_info_plus:compileReleaseKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 34s
+Running Gradle task 'assembleRelease'...                           34.5s
+
+┌─ Flutter Fix ──────────────────────────────────────────────────────────────────────────────────────────┐
+│ [!] Your project requires a newer version of the Kotlin Gradle plugin.                                 │
+│ Find the latest version on https://kotlinlang.org/docs/releases.html#release-details, then update the  │
+│ version number of the plugin with id "org.jetbrains.kotlin.android" in the plugins block of            │
+│ D:\programing\.build_dir\compile_factory\app_wuy_20251013_194647\android\settings.gradle.              │
+│                                                                                                        │
+│ Alternatively (if your project was created before Flutter 3.19), update                                │
+│ D:\programing\.build_dir\compile_factory\app_wuy_20251013_194647\android\build.gradle                  │
+│ ext.kotlin_version = '<latest-version>'                                                                │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+Gradle task assembleRelease failed with exit code 1
+[BUILD] Command failed with exit code: 1

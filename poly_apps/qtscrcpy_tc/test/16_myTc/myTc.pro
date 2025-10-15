@@ -1,9 +1,8 @@
-QT += core gui
+QT += core gui widgets
 QT += network
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-CONFIG += c++11
+CONFIG += c++17
 TEMPLATE = app
 
 # The following define makes your compiler emit warnings if you use

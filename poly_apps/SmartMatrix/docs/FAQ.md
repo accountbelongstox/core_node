@@ -1,4 +1,4 @@
-# Frequently Asked Questions
+﻿# Frequently Asked Questions
 一些经常问的问题
 
 如果在此文档没有解决你的问题，描述你的问题，截图软件控制台中打印的日志，一起发到QQ群里提问。
@@ -11,10 +11,10 @@ adb server version (41) doesn't match this client (39); killing...
 当你的电脑中运行不同版本的adb时，会发生此错误。你必须保证所有程序使用相同版本的adb。
 现在你有两个办法解决这个问题：
 1. 任务管理器找到adb进程并杀死
-2. 配置QtScrcpy的config.ini中的AdbPath路径指向当前使用的adb
+2. 配置SmartMatrix的config.ini中的AdbPath路径指向当前使用的adb
 
 ## 手机通过数据线连接电脑，刷新设备列表以后，没有任何设备出现
-随便下载一个手机助手，尝试连接成功以后，再用QtScrcpy刷新设备列表连接
+随便下载一个手机助手，尝试连接成功以后，再用SmartMatrix刷新设备列表连接
 
 # 控制问题
 ## 可以看到画面，但无法控制
@@ -29,7 +29,7 @@ adb server version (41) doesn't match this client (39); killing...
 ## 画面不清晰
 在Windows上，您可能需要配置缩放行为。
 
-QtScrcpy.exe>属性>兼容性>更改高DPI设置>覆盖高DPI缩放行为>由以下人员执行缩放：应用程序。
+SmartMatrix.exe>属性>兼容性>更改高DPI设置>覆盖高DPI缩放行为>由以下人员执行缩放：应用程序。
 
 如果视频窗口大小远远小于设备屏幕的大小，则画面会不清晰。这在文字上尤其明显
 

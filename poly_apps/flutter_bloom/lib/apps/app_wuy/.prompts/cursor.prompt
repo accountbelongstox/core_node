@@ -115,5 +115,18 @@
 你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
 
 
-注意，数据中的val不用需要调用tr(),比如聊天记录  同时，回顾以下任务，可以再胡保一遍，当然如果无问题你直接报告即可、不用修改代码， ···D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\services_app_wuy   D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 你先要看其中有没有重复定义的瓿，保证数据一至性， ···现在，从登陆起，到设置 #/wuy/login-entry #/wuy/login-register  /#/wuy/profile /#/wuy/edit-profile 都共用一个数据对象，注意不要再在代码中硬编码数据，所有数据由统一提供方提供，你可能注意到了用户模型和存储是绑定的，同时也是和api绑定的，所以这个任务有点复杂。首先参考全部框架文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt ，1：确保数据源只有一个，不要重复定义，2：你应该整合，现在通过一个全局变量控制表示测试阶段，在访问api时不访问http，而直接使用fake数据，所以应该简化为统一的一个方法提供一个主用户数据对象，去掉重复定义，同时，fake数据中直接提供头像图片，手机号将根据登陆的初始化，登陆的是什么就是什么。3，该数据对象是与存放绑定的，所以即使登陆后退出，再使用同一账号登陆时，也会先读取缓存中的数据。除非清除APP的全部缓存，4，简化重复定义的代码，全面重构。 请先分析 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt  注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+注意，数据中的val不用需要调用tr(),比如聊天记录  同时，回顾以下任务，可以再胡保一遍，当然如果无问题你直接报告即可、不用修改代码， ···D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\services_app_wuy   D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 你先要看其中有没有重复定义的瓿，保证数据一至性， ···现在，从登陆起，到设置 #/wuy/login-entry #/wuy/login-register  /#/wuy/profile /#/wuy/edit-profile 都共用一个数据对象，注意不要再在代码中硬编码数据，所有数据由统一提供方提供，你可能注意到了用户模型和存储是绑定的，同时也是和api绑定的，所以这个任务有点复杂。首先参考全部框架文件  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt ，1：确保数据源只有一个，不要重复定义，2：你应该整合，现在通过一个全局变量控制表示测试阶段，在访问api时不访问http，而直接使用fake数据，所以应该简化为统一的一个方法提供一个主用户数据对象，去掉重复定义，同时，fake数据中直接提供头像图片，手机号将根据登陆的初始化，登陆的是什么就是什么。3，该数据对象是与存放绑定的，所以即使登陆后退出，再使用同一账号登陆时，也会先读取缓存中的数据。除非清除APP的全部缓存，4，简化重复定义的代码，全面重构。 请
+
+先分析 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt  注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
 你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考  ，你至少要分析与之相关的至少20个文件再开始改动。这是一个很复杂的过程，请多设置一点步骤。······
+
+查看错误 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\error.txt
+先分析 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考  
+
+项目起点  D:\programing\core_node\poly_apps\flutter_bloom
+ 查看错误 D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\error.txt
+ 本项目有多个子APP
+先分析 D:\programing\core_node\poly_apps\flutter_bloom\flutter_tree_code_assets.txt  注意规范 :首先你要使用多语言库,使用.tr(content) 函数,你可以参考其他脚本的用法,同时,路由要使用全局的Key,不要在页面中硬编码,请参考其他已经正确的代码. 
+你要整体分析,构架的缺陷.合并冗余代码,不能只单独修改某个一个文件\你要全局分析,同时你要知道 common目录 是不引用户外部文件、且可以扩展为更通用性。如果你要参考 规范你可以参考  
+如果你要参考 规范你可以参考 D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 

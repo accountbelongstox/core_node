@@ -1,4 +1,4 @@
-#ifndef MODERNSTYLESYSTEM_H
+﻿#ifndef MODERNSTYLESYSTEM_H
 #define MODERNSTYLESYSTEM_H
 
 #include <QObject>
@@ -10,7 +10,7 @@
 #include <QSettings>
 
 /**
- * @brief Modern style system for QtScrcpy UI
+ * @brief Modern style system for SmartMatrix UI
  * 
  * Provides customizable themes, colors, fonts, and animations
  * Based on Qt6.9's modern styling capabilities

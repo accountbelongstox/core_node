@@ -12,6 +12,20 @@
 const QString ModernDeviceGroupManager::DEFAULT_GROUP_NAME = "Unassigned Devices";
 const QString ModernDeviceGroupManager::DEFAULT_CONFIG_FILE = "device_groups.json";
 
+// Predefined group colors (modern and visually distinct)
+const QList<QColor> ModernDeviceGroupManager::GROUP_COLORS = {
+    QColor(100, 149, 237), // Cornflower Blue
+    QColor(50, 205, 50),   // Lime Green
+    QColor(255, 140, 0),   // Dark Orange
+    QColor(138, 43, 226),  // Blue Violet
+    QColor(220, 20, 60),   // Crimson
+    QColor(0, 191, 255),   // Deep Sky Blue
+    QColor(255, 215, 0),   // Gold
+    QColor(147, 112, 219), // Medium Purple
+    QColor(64, 224, 208),  // Turquoise
+    QColor(255, 105, 180), // Hot Pink
+};
+
 // DeviceInfo implementation
 QJsonObject DeviceInfo::toJson() const
 {
@@ -119,13 +133,14 @@ QJsonObject DeviceGroup::toJson() const
     obj["name"] = m_name;
     obj["isSelected"] = m_isSelected;
     obj["isExpanded"] = m_isExpanded;
-    
+    obj["color"] = m_color.name();
+
     QJsonArray devicesArray;
     for (const auto &device : m_devices) {
         devicesArray.append(device.toJson());
     }
     obj["devices"] = devicesArray;
-    
+
     return obj;
 }
 
@@ -135,7 +150,11 @@ DeviceGroup DeviceGroup::fromJson(const QJsonObject &json)
     group.m_name = json["name"].toString();
     group.m_isSelected = json["isSelected"].toBool();
     group.m_isExpanded = json["isExpanded"].toBool();
-    
+    group.m_color = QColor(json["color"].toString());
+    if (!group.m_color.isValid()) {
+        group.m_color = QColor(100, 149, 237); // Default color if invalid
+    }
+
     QJsonArray devicesArray = json["devices"].toArray();
     for (const auto &value : devicesArray) {
         if (value.isObject()) {
@@ -143,7 +162,7 @@ DeviceGroup DeviceGroup::fromJson(const QJsonObject &json)
             group.m_devices.append(device);
         }
     }
-    
+
     return group;
 }
 
@@ -225,6 +244,19 @@ int ModernDeviceGroupManager::connectedDeviceCount() const
     return m_cachedConnectedCount;
 }
 
+int ModernDeviceGroupManager::selectedDeviceCount() const
+{
+    int count = 0;
+    for (const auto &group : m_groups) {
+        for (const auto &device : group.m_devices) {
+            if (device.m_isSelected) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
 QString ModernDeviceGroupManager::configPath() const
 {
     return m_configPath;
@@ -243,16 +275,40 @@ void ModernDeviceGroupManager::addDeviceGroup(const QString &groupName)
     if (hasDeviceGroup(groupName)) {
         return;
     }
-    
-    DeviceGroup group(groupName);
+
+    // Auto-assign color based on group index
+    QColor color = getNextGroupColor(m_groups.size());
+    DeviceGroup group(groupName, color);
     m_groups.append(group);
-    
+
     // Clear cache
     m_cachedGroupNames.clear();
     m_cachedSelectedCount = 0;
     m_cachedTotalCount = 0;
     m_cachedConnectedCount = 0;
-    
+
+    emit deviceGroupAdded(groupName);
+    emit deviceGroupsChanged();
+    emit selectedGroupCountChanged();
+    emit totalDeviceCountChanged();
+    emit connectedDeviceCountChanged();
+}
+
+void ModernDeviceGroupManager::addDeviceGroup(const QString &groupName, const QColor &color)
+{
+    if (hasDeviceGroup(groupName)) {
+        return;
+    }
+
+    DeviceGroup group(groupName, color);
+    m_groups.append(group);
+
+    // Clear cache
+    m_cachedGroupNames.clear();
+    m_cachedSelectedCount = 0;
+    m_cachedTotalCount = 0;
+    m_cachedConnectedCount = 0;
+
     emit deviceGroupAdded(groupName);
     emit deviceGroupsChanged();
     emit selectedGroupCountChanged();
@@ -324,6 +380,35 @@ bool ModernDeviceGroupManager::hasDeviceGroup(const QString &groupName) const
         }
     }
     return false;
+}
+
+void ModernDeviceGroupManager::setGroupColor(const QString &groupName, const QColor &color)
+{
+    for (auto &group : m_groups) {
+        if (group.m_name == groupName) {
+            group.m_color = color;
+            emit deviceGroupsChanged();
+            return;
+        }
+    }
+}
+
+QColor ModernDeviceGroupManager::getGroupColor(const QString &groupName) const
+{
+    for (const auto &group : m_groups) {
+        if (group.m_name == groupName) {
+            return group.m_color;
+        }
+    }
+    return QColor(100, 149, 237); // Default color
+}
+
+QColor ModernDeviceGroupManager::getNextGroupColor(int index)
+{
+    if (GROUP_COLORS.isEmpty()) {
+        return QColor(100, 149, 237);
+    }
+    return GROUP_COLORS[index % GROUP_COLORS.size()];
 }
 
 void ModernDeviceGroupManager::addDevice(const QString &serial, const QString &name, const QString &groupName)

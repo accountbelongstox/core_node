@@ -1,10 +1,10 @@
-#ifndef GROUPCONTROLLER_H
+﻿#ifndef GROUPCONTROLLER_H
 #define GROUPCONTROLLER_H
 
 #include <QObject>
 #include <QVector>
 
-#include "QtScrcpyCore.h"
+#include "SmartMatrixCore.h"
 
 class GroupController : public QObject, public qsc::DeviceObserver
 {

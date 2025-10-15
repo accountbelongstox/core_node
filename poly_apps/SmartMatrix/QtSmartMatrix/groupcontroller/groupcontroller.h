@@ -1,4 +1,4 @@
-#ifndef GROUPCONTROLLER_H
+﻿#ifndef GROUPCONTROLLER_H
 #define GROUPCONTROLLER_H
 
 #include <QObject>
@@ -6,7 +6,7 @@
 // Qt6: QVector is an alias for QList, use QList directly for best practice
 #include <QList>
 
-#include "QtScrcpyCore.h"
+#include "SmartMatrixCore.h"
 
 class GroupController : public QObject, public qsc::DeviceObserver
 {
