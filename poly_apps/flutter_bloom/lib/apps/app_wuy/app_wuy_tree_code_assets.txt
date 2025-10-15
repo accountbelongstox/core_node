@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-13 15:51:34
+Generated: 2025-10-13 21:59:12
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -365,6 +365,11 @@ app_wuy [code_assets]
 │   ├── repo
 │   │   └── splash_repo.dart
 │   ├── sdk
+│   │   └── azure_maps
+│   │       ├── azure_maps_config.dart
+│   │       ├── azure_maps_flutter_integration.dart
+│   │       ├── azure_maps_sdk.dart
+│   │       └── azure_maps_service.dart
 │   ├── settings
 │   │   ├── configs
 │   │   │   └── base_settings.dart
@@ -378,6 +383,7 @@ app_wuy [code_assets]
 │   │   │   ├── storage_adapter_unified.dart
 │   │   │   └── web_storage_adapter.dart
 │   │   ├── app_prefs_base.dart
+│   │   ├── app_storage_base.dart
 │   │   ├── cleanup
 │   │   │   └── storage_cleanup_tool.dart
 │   │   ├── implementations
@@ -389,10 +395,6 @@ app_wuy [code_assets]
 │   │   │   └── hive_to_sqlite_migration.dart
 │   │   ├── models
 │   │   │   └── storage_models.dart
-│   │   ├── new_architecture
-│   │   │   ├── interfaces
-│   │   │   └── models
-│   │   ├── serialization
 │   │   ├── storage_manager.dart
 │   │   ├── storage_migration_tool.dart
 │   │   ├── storage_provider.dart
@@ -536,6 +538,7 @@ app_wuy [code_assets]
 │       ├── image_dialog.dart
 │       ├── info_row_widget.dart
 │       ├── navigation_widgets.dart
+│       ├── network_connection_dialog.dart
 │       ├── no_data_screen.dart
 │       ├── open_map.dart
 │       ├── outelineborder.dart
@@ -574,7 +577,7 @@ app_wuy [code_assets]
 │   │   └── bg.png
 │   └── launch
 │       ├── .gitkeep
-│       └── splash.png
+│       └── background.png
 └── assets/common/
     ├── fonts
     │   ├── .gitkeep

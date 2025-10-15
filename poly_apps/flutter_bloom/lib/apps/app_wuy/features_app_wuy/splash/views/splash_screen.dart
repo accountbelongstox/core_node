@@ -17,11 +17,12 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_auth_state_manager.dart';
 
 /// Splash Screen for Wuy App
-/// 
+///
 /// This screen displays the app splash screen during startup.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -44,7 +45,11 @@ class _WuySplashScreenState extends State<WuySplashScreen> {
   Future<void> _navigateToHome() async {
     await Future.delayed(const Duration(seconds: 2));
     if (mounted) {
-      context.go(WuyAppRouter.routeHome);
+      // Use auth state manager to determine the correct initial route
+      final authStateManager = WuyAuthStateManager.instance;
+      final initialRoute = authStateManager.getInitialRoute();
+      debugPrint('Splash: Navigating to initial route: $initialRoute');
+      context.go(initialRoute);
     }
   }
 

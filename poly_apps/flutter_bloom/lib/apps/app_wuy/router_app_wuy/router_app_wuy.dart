@@ -75,7 +75,7 @@ class WuyAppRouter {
   /// Create router for Wuy app - required by development guidelines
   static GoRouter createRouter() {
     return GoRouter(
-      initialLocation: _getInitialRoute(),
+      initialLocation: routeSplash, // Always start with splash screen
       routes: [
         // Splash route
         GoRoute(

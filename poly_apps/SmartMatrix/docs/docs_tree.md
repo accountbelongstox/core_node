@@ -1,6 +1,6 @@
-# Directory Tree: docs
+﻿# Directory Tree: docs
 
-**Path:** `D:\programing\core_node\poly_apps\QtScrcpy\docs`
+**Path:** `D:\programing\core_node\poly_apps\SmartMatrix\docs`
 
 ```
 docs/

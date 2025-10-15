@@ -22,6 +22,8 @@ import 'utils_app_wuy/app_info_app_wuy.dart';
 import 'providers_app_wuy/app_prefs_app_wuy.dart';
 import 'providers_app_wuy/wu_user_provider.dart';
 import 'services_app_wuy/wuy_data_manager.dart';
+import 'services_app_wuy/wuy_auth_state_manager.dart';
+import 'models_app_wuy/user_model_app_wuy.dart';
 
 /// Wuy App specific widget
 /// This can be customized for Wuy app specific needs
@@ -54,6 +56,29 @@ Future<void> main() async {
 
   // Initialize unified data manager
   final WuyDataManager dataManager = WuyDataManager.instance;
+
+  // Initialize auth state manager BEFORE runCommonApp
+  final WuyAuthStateManager authStateManager = WuyAuthStateManager.instance;
+  await authStateManager.initialize();
+
+  // For testing: Create a test user if no user is authenticated
+  if (!authStateManager.isAuthenticated) {
+    debugPrint(
+        'No authenticated user found, creating test user for development');
+    // Create a test user for development
+    final testUser = UserModelAppWuy(
+      id: 1,
+      name: 'Test User',
+      username: 'test_user_001',
+      email: 'test@example.com',
+      phoneNumber: '+1234567890',
+      isActive: true,
+      isVerified: true,
+      preferences: {},
+    );
+    await authStateManager.setAuthenticatedUser(testUser);
+    debugPrint('Test user created and authenticated');
+  }
 
   await runCommonApp(
     appName: AppConfigAppWuy.appName,

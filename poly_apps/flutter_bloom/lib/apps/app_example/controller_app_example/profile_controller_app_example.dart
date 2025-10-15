@@ -58,8 +58,8 @@ class ProfileControllerAppExample extends ChangeNotifier {
 
   bool get isFormValid {
     return nameController.text.trim().isNotEmpty &&
-           emailController.text.trim().isNotEmpty &&
-           _isValidEmail(emailController.text.trim());
+        emailController.text.trim().isNotEmpty &&
+        _isValidEmail(emailController.text.trim());
   }
 
   ProfileControllerAppExample(BuildContext context) {
@@ -197,7 +197,8 @@ class ProfileControllerAppExample extends ChangeNotifier {
 
   /// Get user bookmarks
   Future<List<String>> getUserBookmarks() async {
-    return await _storage.getBookmarks();
+    final bookmarks = await _storage.getBookmarks();
+    return bookmarks.cast<String>();
   }
 
   /// Add bookmark
@@ -214,7 +215,8 @@ class ProfileControllerAppExample extends ChangeNotifier {
 
   /// Get reading history
   Future<List<Map<String, dynamic>>> getReadingHistory() async {
-    return await _storage.getReadingHistory();
+    final history = await _storage.getReadingHistory();
+    return history.cast<Map<String, dynamic>>();
   }
 
   /// Add to reading history
@@ -258,16 +260,16 @@ class ProfileControllerAppExample extends ChangeNotifier {
   /// Get profile completion percentage
   double get profileCompletionPercentage {
     if (_user == null) return 0.0;
-    
+
     int completedFields = 0;
     int totalFields = 5; // name, email, phone, avatar, bio
-    
+
     if (_user!.name.isNotEmpty) completedFields++;
     if (_user!.email.isNotEmpty) completedFields++;
     if (_user!.phone?.isNotEmpty == true) completedFields++;
     if (_user!.avatar?.isNotEmpty == true) completedFields++;
     if (_user!.bio?.isNotEmpty == true) completedFields++;
-    
+
     return completedFields / totalFields;
   }
 

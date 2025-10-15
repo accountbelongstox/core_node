@@ -1,4 +1,4 @@
-# Qt6 Deployment Script for QtScrcpy
+﻿# Qt6 Deployment Script for SmartMatrix
 # This script deploys Qt6 DLLs and dependencies to make the application runnable
 
 param(
@@ -8,7 +8,7 @@ param(
     [switch]$Force = $false
 )
 
-Write-Host "=== Qt6 Deployment Script for QtScrcpy ===" -ForegroundColor Green
+Write-Host "=== Qt6 Deployment Script for SmartMatrix ===" -ForegroundColor Green
 
 # Set error action preference
 $ErrorActionPreference = "Stop"
@@ -29,10 +29,10 @@ if (-not (Test-Path $OutputDir)) {
     exit 1
 }
 
-# Check if QtScrcpy.exe exists
-$ExePath = Join-Path $OutputDir "QtScrcpy.exe"
+# Check if SmartMatrix.exe exists
+$ExePath = Join-Path $OutputDir "SmartMatrix.exe"
 if (-not (Test-Path $ExePath)) {
-    Write-Error "QtScrcpy.exe not found: $ExePath"
+    Write-Error "SmartMatrix.exe not found: $ExePath"
     Write-Host "Please build the project first using build.ps1" -ForegroundColor Yellow
     exit 1
 }
@@ -145,7 +145,7 @@ if (Test-Path $ConfigSource) {
 }
 
 # Copy translation files
-$I18nSource = Join-Path $ScriptDir "QtScrcpy\res\i18n"
+$I18nSource = Join-Path $ScriptDir "SmartMatrix\res\i18n"
 $I18nDest = Join-Path $PublishDir "translations"
 if (Test-Path $I18nSource) {
     New-Item -ItemType Directory -Path $I18nDest -Force | Out-Null
@@ -158,7 +158,7 @@ if (Test-Path $I18nSource) {
 
 # Run windeployqt6
 Write-Host "Running windeployqt6 to deploy Qt6 dependencies..." -ForegroundColor Yellow
-$PublishExePath = Join-Path $PublishDir "QtScrcpy.exe"
+$PublishExePath = Join-Path $PublishDir "SmartMatrix.exe"
 
 # Set up environment
 $env:Path = "$(Join-Path $QtInstallPath 'bin');$env:Path"
@@ -261,6 +261,6 @@ if ($MissingDlls.Count -eq 0) {
 
 Write-Host "`nTo run the application:" -ForegroundColor Cyan
 Write-Host "  cd `"$PublishDir`"" -ForegroundColor Cyan
-Write-Host "  .\QtScrcpy.exe" -ForegroundColor Cyan
+Write-Host "  .\SmartMatrix.exe" -ForegroundColor Cyan
 
 Write-Host "`n=== Deployment completed! ===" -ForegroundColor Green

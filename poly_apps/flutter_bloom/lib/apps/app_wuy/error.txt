@@ -1,78 +1,473 @@
-Package Name: com.example.wuy
-js_primitives.dart:28 Debug Mode: true
-js_primitives.dart:28 Error loading auth state: Bad state: UnifiedStorage not initialized. Call UnifiedStorage.init() first.
-js_primitives.dart:28 WuyAuthStateManager initialized - isAuthenticated: false
-js_primitives.dart:28 Auth state manager: User not authenticated, returning login entry route
-js_primitives.dart:28 WebStorageAdapter initialized successfully for Wuy App
-js_primitives.dart:28 Error checking Hive data: MissingPluginException(No implementation found for method getApplicationDocumentsDirectory on channel plugins.flutter.io/path_provider)
-js_primitives.dart:28 Starting Hive to SQLite migration...
-js_primitives.dart:28 Error checking Hive data: MissingPluginException(No implementation found for method getApplicationDocumentsDirectory on channel plugins.flutter.io/path_provider)
-js_primitives.dart:28 Starting storage system cleanup...
-js_primitives.dart:28 Error removing old databases: MissingPluginException(No implementation found for method getApplicationDocumentsDirectory on channel plugins.flutter.io/path_provider)
-js_primitives.dart:28 Error optimizing database: Bad state: UnifiedSQLiteStorageAdapter not initialized. Call init() first.
-js_primitives.dart:28 Error cleaning up expired entries: Bad state: UnifiedSQLiteStorageAdapter not initialized. Call init() first.
-js_primitives.dart:28 Storage cleanup completed: No cleanup actions needed
-js_primitives.dart:28 Total cleaned items: 0
-js_primitives.dart:28 SharedPreferences initialized successfully and ready for use
-js_primitives.dart:28 ══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═══════════════════════════════════════════════════════════
-js_primitives.dart:28 The following assertion was thrown building FlutterBloomMainApp(dirty, dependencies:
-js_primitives.dart:28 [_InheritedProviderScope<ScreenSizeProvider?>, _InheritedProviderScope<SettingsController?>], state:
-js_primitives.dart:28 _FlutterBloomMainAppState#ad470):
-js_primitives.dart:28 Assertion failed: file:///D:/.dev_win10/flutter/packages/flutter/lib/src/material/app.dart:314:15
-js_primitives.dart:28 routerDelegate != null || routerConfig != null
-js_primitives.dart:28 is not true
-js_primitives.dart:28 
-js_primitives.dart:28 The relevant error-causing widget was:
-js_primitives.dart:28   FlutterBloomMainApp
-js_primitives.dart:28   FlutterBloomMainApp:file:///D:/programing/core_node/poly_apps/flutter_bloom/lib/apps/app_wuy/main_app_wuy.dart:36:12
-js_primitives.dart:28 
-js_primitives.dart:28 When the exception was thrown, this was the stack:
-js_primitives.dart:28 dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/errors.dart 274:3  throw_
-js_primitives.dart:28 dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/errors.dart 44:3   assertFailed
-js_primitives.dart:28 package:flutter/src/material/app.dart 314:53                                 router
-js_primitives.dart:28 package:qyflutter/common/app/main_common.dart 286:24                         build
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5833:27                           build
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5723:15                           performRebuild
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5884:11                           performRebuild
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5435:7                            rebuild
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5705:5                            [_firstBuild]
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5875:11                           [_firstBuild]
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 5699:5                            mount
-js_primitives.dart:28 ...     Normal element mounting (13 frames)
-js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
-js_primitives.dart:28 ...     Normal element mounting (7 frames)
-js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
-js_primitives.dart:28 ...     Normal element mounting (7 frames)
-js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
-js_primitives.dart:28 ...     Normal element mounting (7 frames)
-js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
-js_primitives.dart:28 ...     Normal element mounting (7 frames)
-js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
-js_primitives.dart:28 ...     Normal element mounting (7 frames)
-js_primitives.dart:28 package:provider/src/inherited_provider.dart 424:11                          mount
-js_primitives.dart:28 ...     Normal element mounting (7 frames)
-js_primitives.dart:28 package:nested/nested.dart 222:11                                            mount
-js_primitives.dart:28 ...     Normal element mounting (7 frames)
-js_primitives.dart:28 package:nested/nested.dart 187:11                                            mount
-js_primitives.dart:28 ...     Normal element mounting (7 frames)
-js_primitives.dart:28 package:nested/nested.dart 222:11                                            mount
-js_primitives.dart:28 ...     Normal element mounting (63 frames)
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 4548:15                           inflateWidget
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 4004:18                           updateChild
-js_primitives.dart:28 package:flutter/src/widgets/view.dart 481:16                                 [_updateChild]
-js_primitives.dart:28 package:flutter/src/widgets/view.dart 504:5                                  mount
-js_primitives.dart:28 ...     Normal element mounting (15 frames)
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 4548:15                           inflateWidget
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 4004:18                           updateChild
-js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1716:16                             [_rebuild]
-js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1685:5                              mount
-js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1638:16                             <fn>
-js_primitives.dart:28 package:flutter/src/widgets/framework.dart 3046:11                           buildScope
-js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1637:12                             attach
-js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1376:26                             attachToBuildOwner
-js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1361:5                              attachRootWidget
-js_primitives.dart:28 package:flutter/src/widgets/binding.dart 1347:7                              <fn>
-js_primitives.dart:28 dart-sdk/lib/_internal/js_dev_runtime/private/isolate_helper.dart 47:11      internalCallback
-js_primitives.dart:28 
-js_primitives.dart:28 ════════════════════════════════════════════════════════════════════════════════════════════════════
-js_primitives.dart:28 Another exception was thrown: Assertion failed: file:///D:/.dev_win10/flutter/packages/flutter/lib/src/material/app.dart:314:15
+Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
+lib/apps/app_achat/features_app_achat/chat_details/views/chat_details_screen.dart:17:8: Error: Error when reading 'lib/common/widgets/network_connection_dialog.dart': The system cannot find the file specified.
+
+import 'package:qyflutter/common/widgets/network_connection_dialog.dart';
+       ^
+lib/apps/app_achat/features_app_achat/chat_home/controllers/chat_controller_app_achat.dart:19:8: Error: Error when reading 'lib/common/widgets/network_connection_dialog.dart': The system cannot find the file specified.
+
+import 'package:qyflutter/common/widgets/network_connection_dialog.dart';
+       ^
+lib/apps/app_example/config_app_example/storage_app_example.dart:13:8: Error: Error when reading 'lib/common/storage/app_storage_base.dart': The system cannot find the file specified.
+
+import 'package:qyflutter/common/storage/app_storage_base.dart';
+       ^
+lib/apps/app_example/config_app_example/storage_app_example.dart:18:33: Error: Type 'AppStorageBase' not found.
+class StorageAppExample extends AppStorageBase {
+                                ^^^^^^^^^^^^^^
+lib/apps/app_achat/features_app_achat/chat_details/views/chat_details_screen.dart:55:9: Error: The getter 'NetworkConnectionDialog' isn't defined for the type '_ChatDetailsScreenState'.
+ - '_ChatDetailsScreenState' is from 'package:qyflutter/apps/app_achat/features_app_achat/chat_details/views/chat_details_screen.dart' ('lib/apps/app_achat/features_app_achat/chat_details/views/chat_details_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'NetworkConnectionDialog'.
+        NetworkConnectionDialog.show(context);
+        ^^^^^^^^^^^^^^^^^^^^^^^
+lib/apps/app_achat/features_app_achat/chat_home/controllers/chat_controller_app_achat.dart:190:5: Error: The getter 'NetworkConnectionDialog' isn't defined for the type 'ChatHomeController'.
+ - 'ChatHomeController' is from 'package:qyflutter/apps/app_achat/features_app_achat/chat_home/controllers/chat_controller_app_achat.dart' ('lib/apps/app_achat/features_app_achat/chat_home/controllers/chat_controller_app_achat.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'NetworkConnectionDialog'.
+    NetworkConnectionDialog.show(context);
+    ^^^^^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/features_app_example/splash/views/splash_screen.dart:50:19: Error: The method 'isFirstLaunch' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'isFirstLaunch'.
+    if (!_storage.isFirstLaunch() && mounted) {
+                  ^^^^^^^^^^^^^
+lib/apps/app_example/features_app_example/splash/views/splash_screen.dart:120:32: Error: The method 'setNotFirstLaunch' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setNotFirstLaunch'.
+                      _storage.setNotFirstLaunch();
+                               ^^^^^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:54:29: Error: The method 'getBookmarks' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getBookmarks'.
+    final bookmarks = await getBookmarks();
+                            ^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:60:30: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    final categories = await getApp<List<dynamic>>(keyFavoriteCategories);
+                             ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:66:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<List<String>>(keyFavoriteCategories, categories);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:71:28: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    final settings = await getApp<Map<String, dynamic>>(keyNotificationSettings);
+                           ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:82:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<Map<String, bool>>(keyNotificationSettings, settings);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:87:27: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    final history = await getApp<List<dynamic>>(keySearchHistory);
+                          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:108:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<List<String>>(keySearchHistory, history);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:113:11: Error: The method 'removeApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'removeApp'.
+    await removeApp(keySearchHistory);
+          ^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:118:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    return await getApp<Map<String, dynamic>>(keyUserProgress) ?? {
+                 ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:130:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<Map<String, dynamic>>(keyUserProgress, currentProgress);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:135:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    return await getApp<Map<String, dynamic>>(keyAppSettings) ?? {
+                 ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:148:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<Map<String, dynamic>>(keyAppSettings, currentSettings);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:154:5: Error: The method 'setCache' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setCache'.
+    setCache('user_preferences', preferences, expiry: const Duration(hours: 1));
+    ^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:159:12: Error: The method 'getCache' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getCache'.
+    return getCache<Map<String, dynamic>>('user_preferences');
+           ^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:164:5: Error: The method 'setCache' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setCache'.
+    setCache('recent_bookmarks', bookmarks, expiry: const Duration(minutes: 30));
+    ^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:169:23: Error: The method 'getCache' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getCache'.
+    final bookmarks = getCache<List<dynamic>>('recent_bookmarks');
+                      ^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:177:17: Error: Superclass has no method named 'initAppStorage'.
+    await super.initAppStorage();
+                ^^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:183:31: Error: The method 'getUserPreferences' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getUserPreferences'.
+    final preferences = await getUserPreferences();
+                              ^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:188:29: Error: The method 'getBookmarks' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getBookmarks'.
+    final bookmarks = await getBookmarks();
+                            ^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:197:33: Error: The method 'getUserPreferences' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getUserPreferences'.
+      'user_preferences': await getUserPreferences(),
+                                ^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:198:33: Error: The method 'getBookmarks' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getBookmarks'.
+      'bookmarks_count': (await getBookmarks()).length,
+                                ^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:199:39: Error: The method 'getReadingHistory' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getReadingHistory'.
+      'reading_history_count': (await getReadingHistory()).length,
+                                      ^^^^^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:205:26: Error: The method 'isFirstLaunch' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'isFirstLaunch'.
+      'is_first_launch': isFirstLaunch(),
+                         ^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:206:27: Error: The method 'isAuthenticated' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'isAuthenticated'.
+      'is_authenticated': isAuthenticated(),
+                          ^^^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:207:17: Error: The method 'getLocale' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getLocale'.
+      'locale': getLocale(),
+                ^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:208:21: Error: The method 'getThemeMode' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getThemeMode'.
+      'theme_mode': getThemeMode(),
+                    ^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:214:11: Error: The method 'clearAppStorage' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'clearAppStorage'.
+    await clearAppStorage();
+          ^^^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:215:11: Error: The method 'clearUserStorage' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'clearUserStorage'.
+    await clearUserStorage();
+          ^^^^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:216:5: Error: The method 'clearAppCache' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'clearAppCache'.
+    clearAppCache();
+    ^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:220:11: Error: The method 'clearAuth' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'clearAuth'.
+    await clearAuth();
+          ^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:229:21: Error: The method 'exportAppData' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'exportAppData'.
+      'data': await exportAppData(),
+                    ^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:238:15: Error: The method 'importAppData' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'importAppData'.
+        await importAppData(data);
+              ^^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:239:15: Error: The method 'refreshCache' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'refreshCache'.
+        await refreshCache();
+              ^^^^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:251:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<bool>('word_${word}_known', isKnown);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:256:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    return await getApp<bool>('word_${word}_known');
+                 ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:261:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<List<Map<String, dynamic>>>(keyWordList, words);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:266:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    return await getApp<List<Map<String, dynamic>>>(keyWordList) ?? [];
+                 ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:271:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<Map<String, dynamic>>(keyLearningStats, stats);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:276:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    return await getApp<Map<String, dynamic>>(keyLearningStats) ??
+                 ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:289:28: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    final sessions = await getApp<List<Map<String, dynamic>>>(keyStudySessions) ?? [];
+                           ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:297:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<List<Map<String, dynamic>>>(keyStudySessions, sessions);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:302:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
+    return await getApp<List<Map<String, dynamic>>>(keyStudySessions) ?? [];
+                 ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:344:15: Error: The method 'removeApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'removeApp'.
+        await removeApp('word_${word}_known');
+              ^^^^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:359:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+    await setApp<List<Map<String, dynamic>>>(keyStudySessions, []);
+          ^^^^^^
+lib/apps/app_example/config_app_example/storage_app_example.dart:413:15: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
+        await setApp<List<Map<String, dynamic>>>(keyStudySessions,
+              ^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:57:35: Error: The method 'isDarkMode' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'isDarkMode'.
+  bool get isDarkMode => _storage.isDarkMode();
+                                  ^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:62:14: Error: The method 'toggleDarkMode' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'toggleDarkMode'.
+    _storage.toggleDarkMode();
+             ^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:74:37: Error: The method 'getLocale' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getLocale'.
+    final storedLanguage = _storage.getLocale();
+                                    ^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:102:21: Error: The method 'getFontFamily' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getFontFamily'.
+    return _storage.getFontFamily() ?? _localization.fontFamily ?? 'SFProText';
+                    ^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:107:21: Error: The method 'getLocale' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getLocale'.
+    return _storage.getLocale() ?? _localization.currentLocale?.languageCode ?? 'zh';
+                    ^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:112:14: Error: The method 'setLocale' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setLocale'.
+    _storage.setLocale(languageCode);
+             ^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:121:21: Error: The method 'getFontSize' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getFontSize'.
+    return _storage.getFontSize() ?? 16.0;
+                    ^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:126:14: Error: The method 'setFontSize' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setFontSize'.
+    _storage.setFontSize(size);
+             ^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:132:21: Error: The method 'isNotificationsEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'isNotificationsEnabled'.
+    return _storage.isNotificationsEnabled();
+                    ^^^^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:137:14: Error: The method 'setNotificationsEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setNotificationsEnabled'.
+    _storage.setNotificationsEnabled(enabled);
+             ^^^^^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:143:21: Error: The method 'isSoundEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'isSoundEnabled'.
+    return _storage.isSoundEnabled();
+                    ^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:148:14: Error: The method 'setSoundEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setSoundEnabled'.
+    _storage.setSoundEnabled(enabled);
+             ^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:154:21: Error: The method 'isVibrationEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'isVibrationEnabled'.
+    return _storage.isVibrationEnabled();
+                    ^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:159:14: Error: The method 'setVibrationEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setVibrationEnabled'.
+    _storage.setVibrationEnabled(enabled);
+             ^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:165:21: Error: The method 'isAnimationsEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'isAnimationsEnabled'.
+    return _storage.isAnimationsEnabled();
+                    ^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:170:14: Error: The method 'setAnimationsEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setAnimationsEnabled'.
+    _storage.setAnimationsEnabled(enabled);
+             ^^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:176:21: Error: The method 'isAutoSyncEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'isAutoSyncEnabled'.
+    return _storage.isAutoSyncEnabled();
+                    ^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:181:14: Error: The method 'setAutoSyncEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setAutoSyncEnabled'.
+    _storage.setAutoSyncEnabled(enabled);
+             ^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:202:14: Error: The method 'setDarkMode' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setDarkMode'.
+    _storage.setDarkMode(false);
+             ^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:203:14: Error: The method 'setLocale' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setLocale'.
+    _storage.setLocale('en');
+             ^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:204:14: Error: The method 'setFontFamily' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setFontFamily'.
+    _storage.setFontFamily('SFProText');
+             ^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:205:14: Error: The method 'setFontSize' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setFontSize'.
+    _storage.setFontSize(16.0);
+             ^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:206:14: Error: The method 'setNotificationsEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setNotificationsEnabled'.
+    _storage.setNotificationsEnabled(true);
+             ^^^^^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:207:14: Error: The method 'setSoundEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setSoundEnabled'.
+    _storage.setSoundEnabled(true);
+             ^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:208:14: Error: The method 'setVibrationEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setVibrationEnabled'.
+    _storage.setVibrationEnabled(true);
+             ^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:209:14: Error: The method 'setAnimationsEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setAnimationsEnabled'.
+    _storage.setAnimationsEnabled(true);
+             ^^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:210:14: Error: The method 'setAutoSyncEnabled' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setAutoSyncEnabled'.
+    _storage.setAutoSyncEnabled(true);
+             ^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/auth_controller_app_example.dart:212:20: Error: The method 'clearAuth' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'clearAuth'.
+    await _storage.clearAuth();
+                   ^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:73:39: Error: The method 'getUserData' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getUserData'.
+      final userData = await _storage.getUserData();
+                                      ^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:124:24: Error: The method 'setUserData' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setUserData'.
+        await _storage.setUserData(_user!.toJson());
+                       ^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:175:22: Error: The method 'setUserData' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setUserData'.
+      await _storage.setUserData(_user!.toJson());
+                     ^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:189:27: Error: The method 'getUserPreferences' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getUserPreferences'.
+    return await _storage.getUserPreferences();
+                          ^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:194:20: Error: The method 'setUserPreferences' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'setUserPreferences'.
+    await _storage.setUserPreferences(preferences);
+                   ^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:200:27: Error: The method 'getBookmarks' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getBookmarks'.
+    return await _storage.getBookmarks();
+                          ^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:205:20: Error: The method 'addBookmark' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'addBookmark'.
+    await _storage.addBookmark(bookmark);
+                   ^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:211:20: Error: The method 'removeBookmark' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'removeBookmark'.
+    await _storage.removeBookmark(bookmark);
+                   ^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:217:27: Error: The method 'getReadingHistory' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'getReadingHistory'.
+    return await _storage.getReadingHistory();
+                          ^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:222:20: Error: The method 'addToReadingHistory' isn't defined for the type 'StorageAppExample'.
+e.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'addToReadingHistory'.
+    await _storage.addToReadingHistory(item);
+                   ^^^^^^^^^^^^^^^^^^^
+lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:228:20: Error: The method 'clearReadingHistory' isn't defined for the type 'StorageAppExample'.
+ - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'clearReadingHistory'.
+    await _storage.clearReadingHistory();
+                   ^^^^^^^^^^^^^^^^^^^
+Target kernel_snapshot_program failed: Exception
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileFlutterBuildRelease'.
+> Process 'command 'D:\.dev_win10\flutter\bin\flutter.bat'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 5m 2s
+Running Gradle task 'assembleRelease'...                          302.9s
+Gradle task assembleRelease failed with exit code 1
+[BUILD] Command failed with exit code: 1

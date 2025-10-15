@@ -1,4 +1,4 @@
-#ifndef MODERNMAINWINDOW_H
+﻿#ifndef MODERNMAINWINDOW_H
 #define MODERNMAINWINDOW_H
 
 #include <QMainWindow>
@@ -7,23 +7,28 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QMenuBar>
-#include <QToolBar>
 #include <QStatusBar>
+#include <QToolBar>
+#include <QAction>
+#include <QActionGroup>
+#include <QMenu>
 #include <QLabel>
 #include <QProgressBar>
-#include <QProperty>
 #include <QTimer>
-#include "moderndevicegroupmanager.h"
-#include "moderngridlayoutmanager.h"
-#include "moderndevicetreewidget.h"
-#include "../QtScrcpyCore/include/QtScrcpyCore.h"
+#include <QSystemTrayIcon>
+#include <QApplication>
+#include <QMessageBox>
+#include <QSettings>
+#include <QCloseEvent>
+#include <QShowEvent>
+#include <QHideEvent>
+#include <QResizeEvent>
+#include <QMoveEvent>
 
-/**
- * @brief Modern main window for QtScrcpy
- * 
- * Integrates all modern UI components with a clean, responsive layout
- * Based on Qt6.9's modern features and best practices
- */
+#include "moderndevicetreewidget.h"
+#include "modernrightpanel.h"
+#include "moderndevicegroupmanager.h"
+
 class ModernMainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -32,164 +37,120 @@ public:
     explicit ModernMainWindow(QWidget *parent = nullptr);
     ~ModernMainWindow();
 
-    // Using Qt6.9's QProperty system
-    Q_PROPERTY(bool isGroupMode READ isGroupMode WRITE setGroupMode NOTIFY groupModeChanged)
-    Q_PROPERTY(int connectedDeviceCount READ connectedDeviceCount NOTIFY connectedDeviceCountChanged)
-    Q_PROPERTY(int totalDeviceCount READ totalDeviceCount NOTIFY totalDeviceCountChanged)
-    Q_PROPERTY(QString currentGroupName READ currentGroupName NOTIFY currentGroupNameChanged)
-
-    // Main functionality
-    bool isGroupMode() const { return m_isGroupMode; }
-    void setGroupMode(bool enabled);
-    int connectedDeviceCount() const;
-    int totalDeviceCount() const;
-    QString currentGroupName() const { return m_currentGroupName; }
-
-    // Device management
-    void addDevice(const QString &serial, const QString &name, const QString &groupName = "Unassigned Devices");
-    void removeDevice(const QString &serial);
-    void updateDeviceStatus(const QString &serial, DeviceStatus status);
-    void refreshDevices();
-
-    // UI management
-    void setSplitterSizes(const QList<int> &sizes);
-    void setTreeWidgetWidth(int width);
-    void setGridLayoutColumns(int columns);
-    void setAutoAdjustColumns(bool enabled);
-
 protected:
-    // Override close event
     void closeEvent(QCloseEvent *event) override;
-    
-    // Override resize event
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
-    
-    // Override key press event
-    void keyPressEvent(QKeyEvent *event) override;
-
-signals:
-    void groupModeChanged();
-    void connectedDeviceCountChanged();
-    void totalDeviceCountChanged();
-    void currentGroupNameChanged();
-    
-    // Device signals
-    void deviceConnected(const QString &serial);
-    void deviceDisconnected(const QString &serial);
-    void deviceSelected(const QString &serial);
-    void deviceDoubleClicked(const QString &serial);
-    
-    // Group signals
-    void groupSelected(const QString &groupName);
-    void groupModeToggled(bool enabled);
+    void moveEvent(QMoveEvent *event) override;
 
 private slots:
-    // Menu actions
+    // 菜单和工具栏动作
     void onNewGroup();
     void onDeleteGroup();
-    void onRenameGroup();
-    void onRefreshDevices();
-    void onSelectAllDevices();
-    void onDeselectAllDevices();
-    void onToggleGroupMode();
-    void onShowSettings();
-    void onShowAbout();
+    void onGroupSettings();
+    void onDeviceSettings();
+    void onGlobalSettings();
+    void onAbout();
+    void onExit();
+    void onMinimizeToTray();
+    void onShowWindow();
+    void onQuitApplication();
 
-    // Real device management (from qsc::IDeviceManage)
-    void onRealDeviceConnected(bool success, const QString& serial, const QString& deviceName, const QSize& size);
-    void onRealDeviceDisconnected(QString serial);
-    
-    // Device group manager slots
+    // 设备树信号处理
+    void onDeviceSelectionChanged(const QStringList &serials);
+    void onGroupSelectionChanged(const QString &groupName);
+    void onDeviceDoubleClicked(const QString &serial);
+    void onGroupDoubleClicked(const QString &groupName);
+
+    // 右侧面板信号处理
+    void onDeviceOperationRequested(const QString &operation, const QStringList &serials);
+    void onGroupOperationRequested(const QString &operation, const QString &groupName);
+    void onGlobalOperationRequested(const QString &operation);
+    void onSettingsChanged(const QString &key, const QVariant &value);
+
+    // 设备管理器信号处理
+    void onDeviceStatusChanged(const QString &serial, DeviceStatus status);
+    void onDeviceNameChanged(const QString &serial, const QString &name);
     void onDeviceGroupAdded(const QString &groupName);
     void onDeviceGroupRemoved(const QString &groupName);
-    void onDeviceAdded(const QString &serial, const QString &groupName);
-    void onDeviceRemoved(const QString &serial);
-    void onDeviceStatusChanged(const QString &serial, DeviceStatus status);
-    void onDeviceSelectionChanged(const QString &serial, bool selected);
-    
-    // Tree widget slots
-    void onGroupSelected(const QString &groupName);
-    void onDeviceSelected(const QString &serial);
-    void onDeviceDoubleClicked(const QString &serial);
-    void onDeviceRightClicked(const QString &serial, const QPoint &globalPos);
-    
-    // Grid layout slots
-    void onDeviceClicked(const QString &serial);
-    void onDeviceDoubleClickedGrid(const QString &serial);
-    void onDeviceRightClickedGrid(const QString &serial, const QPoint &globalPos);
-    
-    // Status updates
+
+    // 状态更新
     void updateStatusBar();
     void updateWindowTitle();
 
+    // 系统托盘
+    void onTrayIconActivated(QSystemTrayIcon::ActivationReason reason);
+
 private:
     void setupUI();
-    void setupMenuBar();
-    void setupToolBar();
-    void setupStatusBar();
+    void createMenuBar();
+    void createToolBar();
+    void createStatusBar();
+    void createSystemTray();
     void setupConnections();
-    void setupShortcuts();
-    
-    // UI creation helpers
-    QWidget* createCentralWidget();
-    QWidget* createLeftPanel();
-    QWidget* createRightPanel();
-    QWidget* createGridContainer();
-    
-    // Device management helpers
-    void updateDeviceGrid();
-    void updateDeviceTree();
-    void syncDeviceSelection();
-    void applyGroupFilter();
-    
-    // UI state management
-    void saveWindowState();
-    void restoreWindowState();
-    void updateMenuStates();
-    void updateToolBarStates();
-    
-    // Data members
-    ModernDeviceGroupManager *m_deviceGroupManager;
-    ModernGridLayoutManager *m_gridLayoutManager;
-    ModernDeviceTreeWidget *m_deviceTreeWidget;
-    
-    // UI components
+    void loadSettings();
+    void saveSettings();
+    void applyModernStyle();
+
+    // UI组件
+    QWidget *m_centralWidget;
     QSplitter *m_mainSplitter;
-    QWidget *m_leftPanel;
-    QWidget *m_rightPanel;
-    QWidget *m_gridContainer;
+    QHBoxLayout *m_centralLayout;
     
-    // Menu and toolbar
+    // 核心组件
+    ModernDeviceTreeWidget *m_deviceTreeWidget;
+    ModernRightPanel *m_rightPanel;
+    ModernDeviceGroupManager *m_deviceGroupManager;
+
+    // 菜单和工具栏
     QMenuBar *m_menuBar;
     QToolBar *m_toolBar;
     QStatusBar *m_statusBar;
     
-    // Menu actions
+    // 菜单
+    QMenu *m_fileMenu;
+    QMenu *m_editMenu;
+    QMenu *m_viewMenu;
+    QMenu *m_toolsMenu;
+    QMenu *m_helpMenu;
+    QMenu *m_trayMenu;
+
+    // 动作
     QAction *m_newGroupAction;
     QAction *m_deleteGroupAction;
-    QAction *m_renameGroupAction;
-    QAction *m_refreshDevicesAction;
-    QAction *m_selectAllAction;
-    QAction *m_deselectAllAction;
-    QAction *m_toggleGroupModeAction;
-    QAction *m_showSettingsAction;
-    QAction *m_showAboutAction;
-    
-    // Status bar widgets
+    QAction *m_groupSettingsAction;
+    QAction *m_deviceSettingsAction;
+    QAction *m_globalSettingsAction;
+    QAction *m_aboutAction;
+    QAction *m_exitAction;
+    QAction *m_minimizeToTrayAction;
+    QAction *m_showWindowAction;
+    QAction *m_quitApplicationAction;
+
+    // 状态栏组件
     QLabel *m_statusLabel;
     QLabel *m_deviceCountLabel;
     QLabel *m_connectionStatusLabel;
-    QProgressBar *m_connectionProgressBar;
-    
-    // State
-    bool m_isGroupMode = false;
-    QString m_currentGroupName;
+    QProgressBar *m_operationProgressBar;
+
+    // 系统托盘
+    QSystemTrayIcon *m_trayIcon;
+
+    // 设置
+    QSettings *m_settings;
+
+    // 状态
+    bool m_minimizeToTray;
+    bool m_startMinimized;
+    bool m_showNotifications;
+    bool m_autoConnect;
+    int m_connectionTimeout;
+    int m_quality;
+    QString m_resolution;
+
+    // 定时器
     QTimer *m_statusUpdateTimer;
-    
-    // Constants
-    static const int STATUS_UPDATE_INTERVAL_MS = 1000;
-    static const int DEFAULT_TREE_WIDTH = 250;
-    static const int DEFAULT_GRID_COLUMNS = 4;
 };
 
 #endif // MODERNMAINWINDOW_H
