@@ -398,17 +398,32 @@ class RosbotExtensionPanel:
     def _start_rosbot(self):
         """Start ROSBOT"""
         if not self.rosbot_running:
-            # Update UI state immediately to provide feedback
-            self.rosbot_running = True
-            self._update_control_button()
-            
-            # Enable ROSBOT task thread
-            set_task_status('rosbot_task', TaskStatus.ENABLED)
-            
-            # Start ROSBOT operations in task thread
-            rosbot_processor.start_rosbot_task()
-            
-            ColorPrint.green("[ROSBOT] Started monitoring")
+            try:
+                # Step 1: Update UI state immediately to provide feedback
+                messagebox.showinfo("Debug", "Step 1: Updating UI state")
+                self.rosbot_running = True
+                self._update_control_button()
+                messagebox.showinfo("Debug", "Step 1: UI state updated successfully")
+                
+                # Step 2: Enable ROSBOT task thread
+                messagebox.showinfo("Debug", "Step 2: Setting task status to ENABLED")
+                set_task_status('rosbot_task', TaskStatus.ENABLED)
+                messagebox.showinfo("Debug", "Step 2: Task status set successfully")
+                
+                # Step 3: Start ROSBOT operations in task thread
+                messagebox.showinfo("Debug", "Step 3: Starting ROSBOT task")
+                rosbot_processor.start_rosbot_task()
+                messagebox.showinfo("Debug", "Step 3: ROSBOT task started successfully")
+                
+                # Step 4: Final confirmation
+                messagebox.showinfo("Debug", "Step 4: ROSBOT startup completed")
+                ColorPrint.green("[ROSBOT] Started monitoring")
+                
+            except Exception as e:
+                messagebox.showerror("Debug Error", f"Error in _start_rosbot: {e}")
+                # Revert UI state on error
+                self.rosbot_running = False
+                self._update_control_button()
 
     def _stop_rosbot(self):
         """Stop ROSBOT"""
@@ -427,16 +442,24 @@ class RosbotExtensionPanel:
 
     def _update_control_button(self):
         """Update control button appearance based on ROSBOT status"""
-        if self.rosbot_running:
-            self.control_btn.config(
-                text=i18n_manager.get_ui_text("rosbot.stop_rosbot"),
-                bg=UnifiedStyles.COLORS['btn_danger']
-            )
-        else:
-            self.control_btn.config(
-                text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
-                bg=UnifiedStyles.COLORS['btn_success']
-            )
+        try:
+            messagebox.showinfo("Debug", f"Updating control button, rosbot_running: {self.rosbot_running}")
+            
+            if self.rosbot_running:
+                self.control_btn.config(
+                    text=i18n_manager.get_ui_text("rosbot.stop_rosbot"),
+                    bg=UnifiedStyles.COLORS['btn_danger']
+                )
+                messagebox.showinfo("Debug", "Button updated to STOP (red)")
+            else:
+                self.control_btn.config(
+                    text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
+                    bg=UnifiedStyles.COLORS['btn_success']
+                )
+                messagebox.showinfo("Debug", "Button updated to START (green)")
+                
+        except Exception as e:
+            messagebox.showerror("Debug Error", f"Error in _update_control_button: {e}")
 
     def _on_game_state_changed(self, state):
         """Handle game state changes (called from background thread)"""

@@ -29,11 +29,26 @@ class GameState:
     
     def set_rosbot_status(self, running: bool):
         """Set ROSBOT running status"""
-        with self._lock:
-            if self.rosbot_running != running:
-                self.rosbot_running = running
-                ColorPrint.blue(f"[GameState] ROSBOT status: {'Running' if running else 'Stopped'}")
-                self._notify_callbacks()
+        try:
+            from tkinter import messagebox
+            messagebox.showinfo("Debug", f"GameState.set_rosbot_status({running}) called")
+            
+            with self._lock:
+                messagebox.showinfo("Debug", "GameState lock acquired")
+                
+                if self.rosbot_running != running:
+                    self.rosbot_running = running
+                    ColorPrint.blue(f"[GameState] ROSBOT status: {'Running' if running else 'Stopped'}")
+                    messagebox.showinfo("Debug", "GameState status updated, calling _notify_callbacks")
+                    self._notify_callbacks()
+                    messagebox.showinfo("Debug", "GameState _notify_callbacks completed")
+                else:
+                    messagebox.showinfo("Debug", "GameState status unchanged, skipping notification")
+                    
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Debug Error", f"Error in GameState.set_rosbot_status: {e}")
+            ColorPrint.red(f"[GameState] Error setting ROSBOT status: {e}")
     
     def set_d3_status(self, running: bool):
         """Set Diablo III running status"""
@@ -77,19 +92,41 @@ class GameState:
     
     def _notify_callbacks(self):
         """Notify all registered callbacks"""
-        # Get callbacks and state outside of lock to avoid deadlock
-        callbacks = []
-        state = None
-        with self._lock:
-            callbacks = self._callbacks.copy()
-            state = self.get_state()
-        
-        # Call callbacks outside of lock
-        for callback in callbacks:
-            try:
-                callback(state)
-            except Exception as e:
-                ColorPrint.red(f"[GameState] Callback error: {e}")
+        try:
+            from tkinter import messagebox
+            messagebox.showinfo("Debug", "GameState._notify_callbacks() called")
+            
+            # Get callbacks and state outside of lock to avoid deadlock
+            callbacks = []
+            state = None
+            with self._lock:
+                messagebox.showinfo("Debug", "GameState._notify_callbacks lock acquired")
+                callbacks = self._callbacks.copy()
+                # Get state directly without calling get_state() to avoid nested lock
+                state = {
+                    'rosbot_running': self.rosbot_running,
+                    'd3_running': self.d3_running,
+                    'map_type': self.map_type,
+                    'game_stage': self.game_stage
+                }
+                messagebox.showinfo("Debug", f"GameState._notify_callbacks got {len(callbacks)} callbacks")
+            
+            # Call callbacks outside of lock
+            for i, callback in enumerate(callbacks):
+                try:
+                    messagebox.showinfo("Debug", f"GameState._notify_callbacks calling callback {i+1}/{len(callbacks)}: {callback.__name__}")
+                    callback(state)
+                    messagebox.showinfo("Debug", f"GameState._notify_callbacks callback {i+1} completed")
+                except Exception as e:
+                    messagebox.showerror("Debug Error", f"GameState._notify_callbacks callback {i+1} error: {e}")
+                    ColorPrint.red(f"[GameState] Callback error: {e}")
+                    
+            messagebox.showinfo("Debug", "GameState._notify_callbacks completed")
+            
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Debug Error", f"Error in GameState._notify_callbacks: {e}")
+            ColorPrint.red(f"[GameState] Error in _notify_callbacks: {e}")
 
 
 # Global instance
