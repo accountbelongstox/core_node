@@ -43,8 +43,13 @@ KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO = 0.20  # 20% from right edge (adjustable)
 # ============================================================================
 # STANDARD RESOLUTION - Reference resolution for template matching
 # ============================================================================
+# D3 Standard Resolution
 STANDARD_RESOLUTION_WIDTH = 1826
 STANDARD_RESOLUTION_HEIGHT = 1301
+
+# D4 Standard Resolution
+D4_STANDARD_RESOLUTION_WIDTH = 1763
+D4_STANDARD_RESOLUTION_HEIGHT = 1126
 
 # ============================================================================
 # GLOBAL RESOLUTION SCALE - Moved to d3utils.share.game_interface_data
@@ -497,7 +502,37 @@ DIABLO_III_WINDOW_TITLES = [
     "暗黑破坏神III (64位)",          # CN 64-bit
     "暗黑破壞神III (32位)",          # TW 32-bit
     "暗黑破壞神III (64位)",           # TW 64-bit22
-    "III" 
+    "III"
+]
+
+# Diablo IV window title constants
+DIABLO_IV_WINDOW_TITLES = [
+    "暗黑破坏神IV",                   # CN
+    "暗黑破壞神IV",                   # TW
+    "《暗黑破坏神 IV》",              # CN with book title marks
+    "《暗黑破壞神 IV》",              # TW with book title marks
+    "《暗黑破坏神IV》",               # CN with book title marks (no space)
+    "《暗黑破壞神IV》",               # TW with book title marks (no space)
+    "Diablo IV - Blizzard Entertainment",  # EN with company
+    "暗黑破坏神IV - 暴雪娱乐",         # CN with company
+    "暗黑破壞神IV - 暴雪娛樂",         # TW with company
+    "《暗黑破坏神 IV》- 暴雪娱乐",     # CN with book title marks and company
+    "《暗黑破壞神 IV》- 暴雪娛樂",     # TW with book title marks and company
+    "Diablo IV (32-bit)",           # EN 32-bit
+    "Diablo IV (64-bit)",           # EN 64-bit
+    "暗黑破坏神IV (32位)",           # CN 32-bit
+    "暗黑破坏神IV (64位)",           # CN 64-bit
+    "暗黑破壞神IV (32位)",           # TW 32-bit
+    "暗黑破壞神IV (64位)",            # TW 64-bit
+    "《暗黑破坏神 IV》(32位)",        # CN with book title marks 32-bit
+    "《暗黑破坏神 IV》(64位)",        # CN with book title marks 64-bit
+    "《暗黑破壞神 IV》(32位)",        # TW with book title marks 32-bit
+    "《暗黑破壞神 IV》(64位)",        # TW with book title marks 64-bit
+    "IV》",                          # Short form
+    "暗黑破坏神4",                    # CN alternative
+    "暗黑破壞神4",                    # TW alternative
+    "《暗黑破坏神 IV》",               # CN alternative with book title marks
+    "《暗黑破壞神 IV》"                # TW alternative with book title marks
 ]
 
 # Battle.net server region constants

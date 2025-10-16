@@ -18,8 +18,8 @@ project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, project_root)
 
 from providor.common_imports import ColorPrint
-from d3utils.share import get_game_interface_data
-from d3utils.share.game_interface_data import (
+from share import get_game_interface_data
+from share.game_interface_data import (
     get_scaled_kanai_put_material_button,
     get_scaled_kanai_right_panel_toggle,
     get_scaled_conversion_button,

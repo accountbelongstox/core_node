@@ -25,6 +25,7 @@ from .panels.main_functions_panel import MainFunctionsPanel
 from .panels.auxiliary_functions_panel import AuxiliaryFunctionsPanel
 from .panels.log_panel import LogPanel
 from .panels.rosbot_extension_panel import RosbotExtensionPanel
+from .panels.d4_panel import D4Panel
 
 # Import theme
 from .theme import UITheme
@@ -57,8 +58,8 @@ class Diablo3MacroUI:
 
         # Set window title
         self.root.title(i18n_manager.get_ui_text("main_window.title"))
-        self.root.geometry("540x550")
-        self.root.minsize(420, 400)
+        self.root.geometry("670x550")
+        self.root.minsize(670, 400)
         self.root.resizable(True, True)
         self.root.configure(bg=UITheme.get_color('bg_dark'))
 
@@ -240,7 +241,6 @@ class Diablo3MacroUI:
         self.system_tray = SystemTray(self)
 
         self.system_tray.set_show_callback(self._tray_show_window)
-        self.system_tray.set_hide_callback(self._tray_hide_window)
         self.system_tray.set_exit_callback(self._tray_exit_application)
 
         if self.system_tray.start():
@@ -260,17 +260,7 @@ class Diablo3MacroUI:
         self.root.lift()
         self.root.focus_force()
         ColorPrint.blue("[UI] Window shown from tray")
-    
-    def _tray_hide_window(self):
-        """Hide window to tray"""
-        self.root.after(0, self._do_hide_window)
-        ColorPrint.blue("[UI] Window hide requested from tray")
-    
-    def _do_hide_window(self):
-        """Actually hide window"""
-        self.root.withdraw()
-        ColorPrint.blue("[UI] Window hidden to tray")
-    
+
     def _tray_exit_application(self):
         """Exit application from tray - send shutdown request to main thread"""
         ColorPrint.blue("[UI] Exit requested from tray - sending shutdown request")
@@ -297,6 +287,7 @@ class Diablo3MacroUI:
         self._create_table1_tab()  # Main functions
         self._create_table2_tab()  # Auxiliary functions
         self._create_rosbot_tab()  # ROSBOT extension
+        self._create_d4_tab()  # D4 functions
         self._create_table3_tab()  # Test and logs
         
         # Bind tab change event
@@ -487,14 +478,33 @@ class Diablo3MacroUI:
         )
         # Force apply style to this tab
         self._apply_tab_style(tab_id)
-        
+
         # Create ROSBOT extension panel
         self.rosbot_extension_panel = RosbotExtensionPanel(self.rosbot_frame)
-        
+
         # Set callbacks
         if hasattr(self.rosbot_extension_panel, 'set_config_change_callback'):
             self.rosbot_extension_panel.set_config_change_callback(self._on_config_change)
-    
+
+    def _create_d4_tab(self):
+        """Create D4 Functions tab"""
+        self.d4_frame = ttk.Frame(self.main_notebook)
+        # Set theme background color for the frame
+        self.d4_frame.configure(style='Dark.TFrame')
+        tab_id = self.main_notebook.add(
+            self.d4_frame,
+            text=i18n_manager.get_ui_text("tabs.d4_functions")
+        )
+        # Force apply style to this tab
+        self._apply_tab_style(tab_id)
+
+        # Create D4 panel
+        self.d4_panel = D4Panel(self.d4_frame)
+
+        # Set callbacks
+        if hasattr(self.d4_panel, 'set_config_change_callback'):
+            self.d4_panel.set_config_change_callback(self._on_config_change)
+
     def _create_table3_tab(self):
         """Create TABLE3 - Test and logs tab"""
         self.table3_frame = ttk.Frame(self.main_notebook)
@@ -540,6 +550,7 @@ class Diablo3MacroUI:
         self._create_table1_tab()
         self._create_table2_tab()
         self._create_rosbot_tab()
+        self._create_d4_tab()
         self._create_table3_tab()
 
         if not hasattr(self, 'macro_controls') or not self.macro_controls:
@@ -562,6 +573,7 @@ class Diablo3MacroUI:
         self._create_table1_tab()
         self._create_table2_tab()
         self._create_rosbot_tab()
+        self._create_d4_tab()
         self._create_table3_tab()
 
         if not hasattr(self, 'macro_controls') or not self.macro_controls:

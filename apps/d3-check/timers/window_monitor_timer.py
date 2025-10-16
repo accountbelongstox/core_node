@@ -20,7 +20,7 @@ sys.path.insert(0, ncore_path)
 
 from providor.common_imports import ColorPrint
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
-from d3utils.share.game_interface_data import get_game_interface_data
+from share.game_interface_data import get_game_interface_data
 from pyutils.common.window_finder import WindowFinder
 
 # Global window monitor state

@@ -12,14 +12,19 @@ d3-check/
 │   │   └── d3_ui_training.yaml
 │   ├── __init__.py
 │   ├── grid_config.py
+│   ├── training_config.json
 │   └── unified_config.py
 ├── controller/
 │   ├── ctl_func/
 │   │   ├── __init__.py
 │   │   ├── blacksmith_handler.py
 │   │   └── kanai_cube_handler.py
+│   ├── training/
+│   │   ├── __init__.py
+│   │   └── simple_training_controller.py
 │   ├── d3_macro_controller.py
 │   ├── d3_macro_controller_optimized.py
+│   ├── d4_controller.py
 │   ├── game_assistant_controller.py
 │   ├── game_interface_controller.py
 │   └── pathfinding_controller.py
@@ -37,9 +42,7 @@ d3-check/
 │   │   ├── __init__.py
 │   │   ├── hotkey_registry.py
 │   │   └── image_annotator_helper.py
-│   ├── share/
-│   │   ├── __init__.py
-│   │   └── game_interface_data.py
+│   ├── d3utils_tree.md
 │   ├── game_state.py
 │   ├── game_window_detector.py
 │   ├── global_hotkey_manager.py
@@ -47,11 +50,24 @@ d3-check/
 │   ├── interface_manager.py
 │   ├── log_analyzer.py
 │   ├── log_monitor.py
+│   ├── rosbot_task_processor.py
 │   ├── scaled_template_matcher.py
 │   ├── screenshot_provider.py
 │   ├── shutdown_manager.py
 │   ├── state_aware_click_handler.py
-│   └── system_initializer.py
+│   ├── system_initializer.py
+│   └── task_thread_manager.py
+├── d4_modules/
+│   ├── README.md
+│   ├── model_registry.json
+│   ├── progress_bar_detector.json
+│   └── progress_bar_detector.pt
+├── d4_modules_detection/
+├── d4utils/
+│   ├── __init__.py
+│   ├── d4_state.py
+│   ├── red_portal_detector.py
+│   └── test_red_portal.py
 ├── images/
 │   ├── bag_border.png
 │   ├── bag_buttom.png
@@ -90,6 +106,8 @@ d3-check/
 │   │   ├── i18n_base.json
 │   │   ├── i18n_common_en.json
 │   │   ├── i18n_common_zh.json
+│   │   ├── i18n_d4_panel_en.json
+│   │   ├── i18n_d4_panel_zh.json
 │   │   ├── i18n_errors_en.json
 │   │   ├── i18n_errors_zh.json
 │   │   ├── i18n_log_panel_en.json
@@ -104,10 +122,33 @@ d3-check/
 │   ├── _obsolete_window_mapping_provider.py
 │   ├── common_imports.py
 │   ├── i18n_config.json
+│   ├── i18n_config.json.backup
 │   ├── providor_index.py
 │   └── template_config.json
+├── pycore/
+│   └── pyutils/
 ├── scripts/
-│   └── _obsolete_multi_scale_image_matcher.py
+│   ├── output/
+│   │   ├── 微信截图_20251016030310_bars_detected.png
+│   │   └── 微信截图_20251016030310_bars_mask.png
+│   ├── README_color_detector.md
+│   ├── _obsolete_multi_scale_image_matcher.py
+│   ├── color_region_detector.py
+│   ├── d3planner_tooltip_test.py
+│   ├── prepare_detection_training.py
+│   ├── prepare_progressbar_training.py
+│   ├── progress_bar_detector.py
+│   ├── progress_bar_detector_v2.py
+│   ├── reorganize_training_data.py
+│   ├── show_color_palette.py
+│   ├── test_color_detector.py
+│   └── test_image.png
+├── share/
+│   ├── __init__.py
+│   ├── d3_interface_data.py.bak
+│   ├── d4_interface_data.py.bak
+│   ├── game_interface_common.py.bak
+│   └── game_interface_data.py
 ├── state/
 │   ├── _obsolete_comprehensive_state_manager.py
 │   └── _obsolete_game_state_manager.py
@@ -127,6 +168,7 @@ d3-check/
 │   │   └── title_bar.py
 │   ├── panels/
 │   │   ├── auxiliary_functions_panel.py
+│   │   ├── d4_panel.py
 │   │   ├── log_panel.py
 │   │   ├── main_functions_panel.py
 │   │   └── rosbot_extension_panel.py
@@ -177,9 +219,27 @@ d3-check/
 │   ├── _obsolete_window_activator.py
 │   ├── _obsolete_window_analyzer.py
 │   └── _obsolete_window_ops.py
+├── BarDetectionScript.md
+├── DUAL_NAMESPACE_GUIDE.md
+├── IMAGE_ENHANCEMENT_GUIDE.md
+├── PROGRESSBAR_TRAINING_README.md
+├── QUICK_START_TRAINING.md
+├── README_QUICK_START.md
+├── README_TRAINING.md
+├── TRAINING_GUIDE.md
+├── TRAINING_SUMMARY.md
+├── TRAINING_SYSTEM_GUIDE.md
+├── TRAINING_SYSTEM_SUMMARY.md
+├── WORKFLOW_SUMMARY.md
 ├── d3-check_tree.md
 ├── main.py
-└── train.py
+├── train.py
+├── train_all.py
+├── train_detection.py
+├── validate_detection.py
+├── validate_models.py
+├── yolov8n-cls.pt
+└── yolov8n.pt
 ```
 
 ---

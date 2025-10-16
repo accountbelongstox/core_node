@@ -1,0 +1,21 @@
+{
+  "ui": {
+    "d4_panel": {
+      "title": "D4 Functions",
+      "sub_tabs": {
+        "exp_farming": "EXP Farming"
+      },
+      "exp_farming": {
+        "title": "EXP Farming",
+        "start_button": "Start EXP Farming",
+        "stop_button": "Stop EXP Farming",
+        "log_title": "EXP Farming Log",
+        "status": {
+          "running": "Running",
+          "stopped": "Stopped",
+          "ready": "Ready"
+        }
+      }
+    }
+  }
+}

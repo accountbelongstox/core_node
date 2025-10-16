@@ -13,6 +13,9 @@ from d3utils.log_monitor import set_log_file, set_rosbot_running
 from d3utils.game_state import get_game_state
 from d3utils.task_thread_manager import TaskStatus
 
+# DEBUG 开关：设置为 False 关闭所有 debug 弹窗
+DEBUG_MESSAGEBOX = False
+
 
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations"""
@@ -36,30 +39,27 @@ class RosbotTaskProcessor:
     def start_rosbot(self):
         """Start ROSBOT monitoring"""
         try:
-            from tkinter import messagebox
-            messagebox.showinfo("Debug", "RosbotTaskProcessor.start_rosbot() called")
-            
+            ColorPrint.debug_messagebox("DEBUG #12", "[RosbotTaskProcessor] Enter start_rosbot", DEBUG_MESSAGEBOX)
+
             if not self.initialized:
-                messagebox.showinfo("Debug", "Initializing ROSBOT processor")
+                ColorPrint.debug_messagebox("DEBUG #13", "[RosbotTaskProcessor] Need initialization", DEBUG_MESSAGEBOX)
                 self.initialize()
-                messagebox.showinfo("Debug", "ROSBOT processor initialized")
-            
+                ColorPrint.debug_messagebox("DEBUG #14", "[RosbotTaskProcessor] Initialization completed", DEBUG_MESSAGEBOX)
+
             # Enable full-speed monitoring
-            messagebox.showinfo("Debug", "Setting ROSBOT running to True")
+            ColorPrint.debug_messagebox("DEBUG #15", "[RosbotTaskProcessor] Preparing to call set_rosbot_running(True)", DEBUG_MESSAGEBOX)
             set_rosbot_running(True)
-            messagebox.showinfo("Debug", "ROSBOT running set to True")
-            
+            ColorPrint.debug_messagebox("DEBUG #16", "[RosbotTaskProcessor] set_rosbot_running returned", DEBUG_MESSAGEBOX)
+
             # Update game state
-            messagebox.showinfo("Debug", "Updating game state")
+            ColorPrint.debug_messagebox("DEBUG #17", "[RosbotTaskProcessor] Preparing to update game_state", DEBUG_MESSAGEBOX)
             self.game_state.set_rosbot_status(True)
-            messagebox.showinfo("Debug", "Game state updated")
-            
+            ColorPrint.debug_messagebox("DEBUG #18", "[RosbotTaskProcessor] game_state.set_rosbot_status returned", DEBUG_MESSAGEBOX)
+
             ColorPrint.green("[RosbotTaskProcessor] ROSBOT monitoring started")
-            messagebox.showinfo("Debug", "ROSBOT monitoring started successfully")
-            
+
         except Exception as e:
-            from tkinter import messagebox
-            messagebox.showerror("Debug Error", f"Error in RosbotTaskProcessor.start_rosbot(): {e}")
+            ColorPrint.debug_messagebox("ERROR", f"[RosbotTaskProcessor] Exception: {e}", DEBUG_MESSAGEBOX, "error")
             ColorPrint.red(f"[RosbotTaskProcessor] Error starting ROSBOT: {e}")
             # Update game state to reflect error
             self.game_state.set_rosbot_status(False)
@@ -101,18 +101,17 @@ def get_rosbot_processor() -> RosbotTaskProcessor:
 def start_rosbot_task():
     """Start ROSBOT task"""
     try:
-        from tkinter import messagebox
-        messagebox.showinfo("Debug", "Starting ROSBOT task processor")
-        
+        ColorPrint.debug_messagebox("DEBUG #9", "[start_rosbot_task] Enter function", DEBUG_MESSAGEBOX)
+
         processor = get_rosbot_processor()
-        messagebox.showinfo("Debug", "Got ROSBOT processor instance")
-        
+        ColorPrint.debug_messagebox("DEBUG #10", "[start_rosbot_task] Got processor instance successfully", DEBUG_MESSAGEBOX)
+
         processor.start_rosbot()
-        messagebox.showinfo("Debug", "ROSBOT processor start_rosbot() completed")
-        
+        ColorPrint.debug_messagebox("DEBUG #11", "[start_rosbot_task] processor.start_rosbot() returned", DEBUG_MESSAGEBOX)
+
     except Exception as e:
-        from tkinter import messagebox
-        messagebox.showerror("Debug Error", f"Error in start_rosbot_task: {e}")
+        ColorPrint.debug_messagebox("ERROR", f"[start_rosbot_task] Exception: {e}", DEBUG_MESSAGEBOX, "error")
+        ColorPrint.red(f"[start_rosbot_task] Error: {e}")
 
 
 def stop_rosbot_task():

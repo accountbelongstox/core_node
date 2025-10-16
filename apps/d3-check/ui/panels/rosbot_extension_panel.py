@@ -6,7 +6,7 @@ Contains ROSBOT configuration and management features with unified styling
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog
 import sys
 import os
 
@@ -28,6 +28,9 @@ from ui.utils.config_binding import ConfigBinding
 from d3utils.game_state import get_game_state, register_state_callback
 from d3utils.task_thread_manager import get_task_manager, set_task_status, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
+
+# DEBUG 开关：设置为 False 关闭所有 debug 弹窗
+DEBUG_MESSAGEBOX = False
 
 
 class RosbotExtensionPanel:
@@ -400,27 +403,30 @@ class RosbotExtensionPanel:
         if not self.rosbot_running:
             try:
                 # Step 1: Update UI state immediately to provide feedback
-                messagebox.showinfo("Debug", "Step 1: Updating UI state")
+                ColorPrint.debug_messagebox("DEBUG #1", "[RosbotPanel] Step 1: Start updating UI state", DEBUG_MESSAGEBOX)
                 self.rosbot_running = True
+                ColorPrint.debug_messagebox("DEBUG #2", "[RosbotPanel] Step 1: rosbot_running set to True", DEBUG_MESSAGEBOX)
+
                 self._update_control_button()
-                messagebox.showinfo("Debug", "Step 1: UI state updated successfully")
-                
+                ColorPrint.debug_messagebox("DEBUG #3", "[RosbotPanel] Step 1: _update_control_button completed", DEBUG_MESSAGEBOX)
+
                 # Step 2: Enable ROSBOT task thread
-                messagebox.showinfo("Debug", "Step 2: Setting task status to ENABLED")
+                ColorPrint.debug_messagebox("DEBUG #4", "[RosbotPanel] Step 2: Preparing to set task status", DEBUG_MESSAGEBOX)
                 set_task_status('rosbot_task', TaskStatus.ENABLED)
-                messagebox.showinfo("Debug", "Step 2: Task status set successfully")
-                
+                ColorPrint.debug_messagebox("DEBUG #5", "[RosbotPanel] Step 2: set_task_status completed", DEBUG_MESSAGEBOX)
+
                 # Step 3: Start ROSBOT operations in task thread
-                messagebox.showinfo("Debug", "Step 3: Starting ROSBOT task")
+                ColorPrint.debug_messagebox("DEBUG #6", "[RosbotPanel] Step 3: Preparing to start ROSBOT task", DEBUG_MESSAGEBOX)
                 rosbot_processor.start_rosbot_task()
-                messagebox.showinfo("Debug", "Step 3: ROSBOT task started successfully")
-                
+                ColorPrint.debug_messagebox("DEBUG #7", "[RosbotPanel] Step 3: start_rosbot_task returned", DEBUG_MESSAGEBOX)
+
                 # Step 4: Final confirmation
-                messagebox.showinfo("Debug", "Step 4: ROSBOT startup completed")
+                ColorPrint.debug_messagebox("DEBUG #8", "[RosbotPanel] Step 4: All steps completed", DEBUG_MESSAGEBOX)
                 ColorPrint.green("[ROSBOT] Started monitoring")
-                
+
             except Exception as e:
-                messagebox.showerror("Debug Error", f"Error in _start_rosbot: {e}")
+                ColorPrint.debug_messagebox("ERROR", f"[RosbotPanel] Exception: {e}", DEBUG_MESSAGEBOX, "error")
+                ColorPrint.red(f"[RosbotPanel] Error in _start_rosbot: {e}")
                 # Revert UI state on error
                 self.rosbot_running = False
                 self._update_control_button()
@@ -443,52 +449,65 @@ class RosbotExtensionPanel:
     def _update_control_button(self):
         """Update control button appearance based on ROSBOT status"""
         try:
-            messagebox.showinfo("Debug", f"Updating control button, rosbot_running: {self.rosbot_running}")
-            
+            ColorPrint.debug(f"[RosbotPanel] Updating control button, rosbot_running: {self.rosbot_running}")
+
             if self.rosbot_running:
                 self.control_btn.config(
                     text=i18n_manager.get_ui_text("rosbot.stop_rosbot"),
                     bg=UnifiedStyles.COLORS['btn_danger']
                 )
-                messagebox.showinfo("Debug", "Button updated to STOP (red)")
+                ColorPrint.debug("[RosbotPanel] Button updated to STOP (red)")
             else:
                 self.control_btn.config(
                     text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
                     bg=UnifiedStyles.COLORS['btn_success']
                 )
-                messagebox.showinfo("Debug", "Button updated to START (green)")
-                
+                ColorPrint.debug("[RosbotPanel] Button updated to START (green)")
+
         except Exception as e:
-            messagebox.showerror("Debug Error", f"Error in _update_control_button: {e}")
+            ColorPrint.red(f"[RosbotPanel] Error in _update_control_button: {e}")
 
     def _on_game_state_changed(self, state):
         """Handle game state changes (called from background thread)"""
+        ColorPrint.debug_messagebox("DEBUG #30", f"[RosbotPanel] Enter _on_game_state_changed, state={state}", DEBUG_MESSAGEBOX)
         # Schedule UI update on main thread to avoid tkinter thread safety issues
+        ColorPrint.debug_messagebox("DEBUG #31", "[RosbotPanel] Preparing to call container.after", DEBUG_MESSAGEBOX)
         self.container.after(0, lambda: self._update_ui_from_state(state))
-    
+        ColorPrint.debug_messagebox("DEBUG #32", "[RosbotPanel] container.after returned", DEBUG_MESSAGEBOX)
+
     def _update_ui_from_state(self, state):
         """Update UI elements from game state (called on main thread)"""
+        ColorPrint.debug_messagebox("DEBUG #33", f"[RosbotPanel] Enter _update_ui_from_state, state={state}", DEBUG_MESSAGEBOX)
+
         # Check if UI elements exist before updating
         if not hasattr(self, 'ros_status_var') or not hasattr(self, 'd3_status_var'):
+            ColorPrint.debug_messagebox("DEBUG #34-SKIP", "[RosbotPanel] UI not fully initialized, skipping", DEBUG_MESSAGEBOX)
             return  # UI not fully initialized yet
-        
+
+        ColorPrint.debug_messagebox("DEBUG #34", "[RosbotPanel] Start updating UI elements", DEBUG_MESSAGEBOX)
+
         # Update ROS status
         ros_text = i18n_manager.get_ui_text("rosbot.running" if state['rosbot_running'] else "rosbot.not_running")
         self.ros_status_var.set(ros_text)
         self.ros_status_label.config(fg=UnifiedStyles.COLORS['success' if state['rosbot_running'] else 'error'])
-        
+        ColorPrint.debug_messagebox("DEBUG #35", "[RosbotPanel] ROS status updated", DEBUG_MESSAGEBOX)
+
         # Update D3 status
         d3_text = i18n_manager.get_ui_text("rosbot.running" if state['d3_running'] else "rosbot.not_running")
         self.d3_status_var.set(d3_text)
         self.d3_status_label.config(fg=UnifiedStyles.COLORS['success' if state['d3_running'] else 'error'])
-        
+        ColorPrint.debug_messagebox("DEBUG #36", "[RosbotPanel] D3 status updated", DEBUG_MESSAGEBOX)
+
         # Update map status
         map_key = f"rosbot.map_{state['map_type']}"
         map_text = i18n_manager.get_ui_text(map_key)
         self.map_status_var.set(map_text)
-        
+        ColorPrint.debug_messagebox("DEBUG #37", "[RosbotPanel] Map status updated", DEBUG_MESSAGEBOX)
+
         # Update stage status
         stage_key = f"rosbot.stage_{state['game_stage']}"
         stage_text = i18n_manager.get_ui_text(stage_key)
         self.stage_var.set(stage_text)
+        ColorPrint.debug_messagebox("DEBUG #38", "[RosbotPanel] Stage status updated", DEBUG_MESSAGEBOX)
+        ColorPrint.debug_messagebox("DEBUG #39", "[RosbotPanel] _update_ui_from_state completed", DEBUG_MESSAGEBOX)
 

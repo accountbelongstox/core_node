@@ -1,0 +1,496 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Model Validation Script
+Validates trained models by detecting objects in a large image
+and annotating the results
+"""
+
+import os
+import sys
+import json
+import cv2
+import numpy as np
+from pathlib import Path
+from typing import List, Dict, Any, Tuple, Optional
+import argparse
+
+# Add project paths
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+from providor.common_imports import ColorPrint
+
+
+class ModelValidator:
+    """
+    Validates trained models by detecting objects in images
+    """
+
+    def __init__(self, models_dir: Optional[Path] = None):
+        """
+        Initialize model validator
+
+        Args:
+            models_dir: Directory containing trained models (defaults to d4_modules)
+        """
+        self.project_root = Path(current_dir)
+        self.models_dir = models_dir or (self.project_root / "d4_modules")
+        self.registry = None
+        self.models = {}
+
+        # Output directory
+        self.output_dir = Path(os.path.expanduser("~")) / ".core_node" / "pytools" / "tmp" / "model_validation"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        ColorPrint.blue(f"\n{'='*80}")
+        ColorPrint.blue("🔍 Model Validator")
+        ColorPrint.blue(f"{'='*80}")
+        ColorPrint.green(f"Models directory: {self.models_dir}")
+        ColorPrint.green(f"Output directory: {self.output_dir}")
+
+    def load_registry(self) -> bool:
+        """
+        Load model registry
+
+        Returns:
+            True if successful
+        """
+        registry_file = self.models_dir / "model_registry.json"
+
+        if not registry_file.exists():
+            ColorPrint.red(f"\n❌ Model registry not found!")
+            ColorPrint.red(f"   Expected location: {registry_file}")
+            ColorPrint.yellow("\n   Please train models first:")
+            ColorPrint.yellow("   1. Prepare training data:")
+            ColorPrint.yellow("      python scripts/prepare_progressbar_training.py --image <image> --coords <coords> --output .cache/training_data/source/<category>")
+            ColorPrint.yellow("   2. Run training:")
+            ColorPrint.yellow("      python train.py")
+            ColorPrint.yellow("\n   Or check if d4_modules directory exists and contains models.")
+            return False
+
+        try:
+            with open(registry_file, 'r', encoding='utf-8') as f:
+                self.registry = json.load(f)
+
+            ColorPrint.green(f"\n✓ Loaded model registry")
+            ColorPrint.green(f"   Version: {self.registry.get('registry_version', 'unknown')}")
+            ColorPrint.green(f"   Models: {len(self.registry.get('models', []))}")
+
+            return True
+
+        except Exception as e:
+            ColorPrint.red(f"\n❌ Failed to load registry: {e}")
+            return False
+
+    def load_models(self) -> bool:
+        """
+        Load all models from registry
+
+        Returns:
+            True if successful
+        """
+        if not self.registry:
+            ColorPrint.red("\n❌ No registry loaded")
+            return False
+
+        ColorPrint.blue(f"\n{'='*80}")
+        ColorPrint.blue("📦 Loading Models")
+        ColorPrint.blue(f"{'='*80}")
+
+        try:
+            from ultralytics import YOLO
+
+            for model_info in self.registry['models']:
+                model_name = model_info['model_name']
+                model_file = self.models_dir / model_info['model_file']
+
+                if not model_file.exists():
+                    ColorPrint.yellow(f"\n⚠️  Model not found: {model_file}")
+                    continue
+
+                # Load model
+                model = YOLO(str(model_file))
+
+                self.models[model_name] = {
+                    'model': model,
+                    'info': model_info
+                }
+
+                ColorPrint.green(f"\n✓ Loaded: {model_name}")
+                ColorPrint.green(f"   Category: {model_info['category']}")
+                ColorPrint.green(f"   Image size: {model_info['img_size']['width']}x{model_info['img_size']['height']}")
+
+            ColorPrint.green(f"\n✅ Loaded {len(self.models)} model(s)")
+            return len(self.models) > 0
+
+        except ImportError:
+            ColorPrint.red("\n❌ Ultralytics not installed")
+            ColorPrint.yellow("   Install with: pip install ultralytics")
+            return False
+        except Exception as e:
+            ColorPrint.red(f"\n❌ Failed to load models: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def detect_objects(
+        self,
+        image_path: Path,
+        stride: Optional[int] = None,
+        confidence_threshold: float = 0.5
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Detect objects in image using all loaded models
+
+        Args:
+            image_path: Path to input image
+            stride: Sliding window stride (defaults to half of window size)
+            confidence_threshold: Confidence threshold for detections
+
+        Returns:
+            Dictionary mapping model names to detection results
+        """
+        ColorPrint.blue(f"\n{'='*80}")
+        ColorPrint.blue("🔍 Detecting Objects")
+        ColorPrint.blue(f"{'='*80}")
+        ColorPrint.green(f"Image: {image_path.name}")
+
+        # Load image
+        image = cv2.imread(str(image_path))
+        if image is None:
+            ColorPrint.red(f"\n❌ Failed to load image: {image_path}")
+            return {}
+
+        img_h, img_w = image.shape[:2]
+        ColorPrint.green(f"Image size: {img_w}x{img_h}")
+
+        all_detections = {}
+
+        # Process each model
+        for model_name, model_data in self.models.items():
+            model = model_data['model']
+            info = model_data['info']
+
+            window_w = info['img_size']['width']
+            window_h = info['img_size']['height']
+
+            # Default stride is half of window size
+            if stride is None:
+                stride_x = window_w // 2
+                stride_y = window_h // 2
+            else:
+                stride_x = stride_y = stride
+
+            ColorPrint.blue(f"\n🔍 Processing: {model_name}")
+            ColorPrint.green(f"   Window size: {window_w}x{window_h}")
+            ColorPrint.green(f"   Stride: {stride_x}x{stride_y}")
+
+            detections = []
+
+            # Sliding window detection
+            total_windows = 0
+            positive_windows = 0
+
+            for y in range(0, img_h - window_h + 1, stride_y):
+                for x in range(0, img_w - window_w + 1, stride_x):
+                    # Extract window
+                    window = image[y:y+window_h, x:x+window_w]
+
+                    # Predict
+                    results = model(window, verbose=False)
+
+                    total_windows += 1
+
+                    # Check if detection is positive
+                    for result in results:
+                        # For classification models
+                        if hasattr(result, 'probs'):
+                            # Get prediction
+                            probs = result.probs
+                            class_id = int(probs.top1)
+                            confidence = float(probs.top1conf)
+
+                            # Check if "yes" class (class_id = 1)
+                            if class_id == 1 and confidence >= confidence_threshold:
+                                positive_windows += 1
+                                detections.append({
+                                    'bbox': {
+                                        'x': x,
+                                        'y': y,
+                                        'w': window_w,
+                                        'h': window_h
+                                    },
+                                    'confidence': confidence,
+                                    'class': 'yes'
+                                })
+
+            ColorPrint.green(f"   Total windows: {total_windows}")
+            ColorPrint.green(f"   Positive detections: {positive_windows}")
+
+            all_detections[model_name] = detections
+
+        return all_detections
+
+    def draw_detections(
+        self,
+        image_path: Path,
+        detections: Dict[str, List[Dict[str, Any]]],
+        output_filename: Optional[str] = None
+    ) -> Path:
+        """
+        Draw detection results on image
+
+        Args:
+            image_path: Path to input image
+            detections: Detection results from detect_objects()
+            output_filename: Output filename (auto-generated if None)
+
+        Returns:
+            Path to output image
+        """
+        ColorPrint.blue(f"\n{'='*80}")
+        ColorPrint.blue("🎨 Drawing Detections")
+        ColorPrint.blue(f"{'='*80}")
+
+        # Load image
+        image = cv2.imread(str(image_path))
+        if image is None:
+            ColorPrint.red(f"\n❌ Failed to load image: {image_path}")
+            return None
+
+        # Color palette for different models
+        colors = [
+            (255, 0, 0),      # Red
+            (0, 255, 0),      # Green
+            (0, 0, 255),      # Blue
+            (255, 255, 0),    # Cyan
+            (255, 0, 255),    # Magenta
+            (0, 255, 255),    # Yellow
+            (128, 0, 128),    # Purple
+            (255, 165, 0),    # Orange
+        ]
+
+        # Draw detections for each model
+        color_idx = 0
+        for model_name, model_detections in detections.items():
+            color = colors[color_idx % len(colors)]
+            color_idx += 1
+
+            ColorPrint.green(f"\n📍 Drawing {len(model_detections)} detections for {model_name}")
+
+            for detection in model_detections:
+                bbox = detection['bbox']
+                confidence = detection['confidence']
+
+                x, y, w, h = bbox['x'], bbox['y'], bbox['w'], bbox['h']
+
+                # Draw rectangle
+                cv2.rectangle(image, (x, y), (x+w, y+h), color, 2)
+
+                # Draw label
+                label = f"{model_name.split('_')[0]}: {confidence:.2f}"
+                label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+
+                # Background for text
+                cv2.rectangle(
+                    image,
+                    (x, y - label_size[1] - 5),
+                    (x + label_size[0], y),
+                    color,
+                    -1
+                )
+
+                # Text
+                cv2.putText(
+                    image,
+                    label,
+                    (x, y - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (255, 255, 255),
+                    1
+                )
+
+        # Create legend
+        legend_y = 30
+        for model_name in detections.keys():
+            color = colors[(list(detections.keys()).index(model_name)) % len(colors)]
+            count = len(detections[model_name])
+
+            legend_text = f"{model_name}: {count} detections"
+
+            cv2.rectangle(image, (10, legend_y - 20), (30, legend_y), color, -1)
+            cv2.putText(
+                image,
+                legend_text,
+                (35, legend_y - 5),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                2
+            )
+            cv2.putText(
+                image,
+                legend_text,
+                (35, legend_y - 5),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                color,
+                1
+            )
+            legend_y += 30
+
+        # Save output
+        if output_filename is None:
+            timestamp = Path(image_path).stem
+            output_filename = f"validation_{timestamp}.png"
+
+        output_path = self.output_dir / output_filename
+        cv2.imwrite(str(output_path), image)
+
+        ColorPrint.green(f"\n✅ Saved annotated image:")
+        ColorPrint.green(f"   {output_path}")
+
+        return output_path
+
+    def validate(
+        self,
+        image_path: str,
+        stride: Optional[int] = None,
+        confidence_threshold: float = 0.5,
+        output_filename: Optional[str] = None
+    ) -> bool:
+        """
+        Run complete validation workflow
+
+        Args:
+            image_path: Path to input image
+            stride: Sliding window stride
+            confidence_threshold: Confidence threshold for detections
+            output_filename: Output filename
+
+        Returns:
+            True if successful
+        """
+        image_path = Path(image_path)
+
+        if not image_path.exists():
+            ColorPrint.red(f"\n❌ Image not found: {image_path}")
+            return False
+
+        # Load registry
+        if not self.load_registry():
+            return False
+
+        # Load models
+        if not self.load_models():
+            return False
+
+        # Detect objects
+        detections = self.detect_objects(
+            image_path,
+            stride=stride,
+            confidence_threshold=confidence_threshold
+        )
+
+        if not detections:
+            ColorPrint.yellow("\n⚠️  No detections found")
+            return False
+
+        # Draw results
+        output_path = self.draw_detections(
+            image_path,
+            detections,
+            output_filename=output_filename
+        )
+
+        # Print summary
+        ColorPrint.blue(f"\n{'='*80}")
+        ColorPrint.blue("📊 Validation Summary")
+        ColorPrint.blue(f"{'='*80}")
+
+        total_detections = sum(len(dets) for dets in detections.values())
+        ColorPrint.green(f"\n✅ Total detections: {total_detections}")
+
+        for model_name, model_detections in detections.items():
+            ColorPrint.green(f"   {model_name}: {len(model_detections)}")
+
+        ColorPrint.green(f"\n📁 Output saved to:")
+        ColorPrint.green(f"   {output_path}")
+
+        return True
+
+
+def main():
+    """Main entry point"""
+    parser = argparse.ArgumentParser(
+        description="Validate trained models on images",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Validate on a screenshot
+  python validate_models.py --image screenshot.png
+
+  # Adjust detection parameters
+  python validate_models.py --image screenshot.png --stride 32 --confidence 0.7
+
+  # Specify output filename
+  python validate_models.py --image screenshot.png --output result.png
+        """
+    )
+
+    parser.add_argument(
+        "--image",
+        type=str,
+        required=True,
+        help="Path to input image"
+    )
+
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        help="Sliding window stride (default: half of window size)"
+    )
+
+    parser.add_argument(
+        "--confidence",
+        type=float,
+        default=0.5,
+        help="Confidence threshold for detections (default: 0.5)"
+    )
+
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output filename (auto-generated if not specified)"
+    )
+
+    parser.add_argument(
+        "--models-dir",
+        type=str,
+        default=None,
+        help="Directory containing trained models (default: d4_modules)"
+    )
+
+    args = parser.parse_args()
+
+    # Create validator
+    models_dir = Path(args.models_dir) if args.models_dir else None
+    validator = ModelValidator(models_dir=models_dir)
+
+    # Run validation
+    success = validator.validate(
+        image_path=args.image,
+        stride=args.stride,
+        confidence_threshold=args.confidence,
+        output_filename=args.output
+    )
+
+    return 0 if success else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

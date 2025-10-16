@@ -21,7 +21,7 @@ sys.path.insert(0, project_root)
 from providor.common_imports import ColorPrint, ImageAnnotator
 from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
-from d3utils.share import get_game_interface_data, UIRegion
+from share import get_game_interface_data, UIRegion
 from providor.providor_index import (
     STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT
 )

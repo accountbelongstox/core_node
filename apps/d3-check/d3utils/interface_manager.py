@@ -12,7 +12,7 @@ from typing import Optional, Tuple, Dict
 
 # Import from common_imports (unified public library imports)
 from providor.common_imports import ColorPrint
-from d3utils.share import get_game_interface_data, BagCoordinates, UIRegion
+from share import get_game_interface_data, BagCoordinates, UIRegion
 # Import both UI region collectors
 from d3utils.collectors import UIRegionCollectorOptimized, UIRegionCollectorAnchor, BagInfoCollector
 
@@ -330,7 +330,7 @@ class D3InterfaceManager:
         # Other info - Button coordinates now use fixed coordinate system
         # Note: Button coordinates are calculated via get_scaled_*() methods, not stored in shared_data
         if shared_data.interface_type == "kanai_cube":
-            from d3utils.share.game_interface_data import get_scaled_conversion_button, get_scaled_kanai_put_material_button
+            from share.game_interface_data import get_scaled_conversion_button, get_scaled_kanai_put_material_button
             ColorPrint.green(f"\nConversion Button (coordinate system): {get_scaled_conversion_button()}")
             ColorPrint.green(f"Put Material Button (coordinate system): {get_scaled_kanai_put_material_button()}")
 

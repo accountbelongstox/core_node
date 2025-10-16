@@ -244,7 +244,9 @@ def _timer_loop():
         try:
             current_time = time.time()
 
-            # Check all tasks
+            # Collect tasks to execute OUTSIDE the lock
+            tasks_to_execute = []
+
             with _lock:
                 for task in _tasks.values():
                     if not task.enabled:
@@ -253,8 +255,11 @@ def _timer_loop():
                     # Check if it's time to execute
                     if current_time - task.last_run >= task.interval:
                         task.last_run = current_time
-                        # Execute in current thread (don't spawn new threads)
-                        _execute_task(task)
+                        tasks_to_execute.append(task)
+
+            # Execute tasks OUTSIDE the lock to prevent deadlock
+            for task in tasks_to_execute:
+                _execute_task(task)
 
             # Sleep for 100ms to reduce CPU usage
             time.sleep(0.1)

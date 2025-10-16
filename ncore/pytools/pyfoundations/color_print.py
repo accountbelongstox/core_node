@@ -135,6 +135,31 @@ class ColorPrint:
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
 
     @staticmethod
+    def debug_messagebox(title: str, message: str, enabled: bool = True, msg_type: str = "info"):
+        """
+        Show debug messagebox if enabled, otherwise just log to console
+
+        Args:
+            title: Messagebox title (e.g., "DEBUG #1")
+            message: Message content
+            enabled: Whether to show messagebox (controlled by DEBUG_MESSAGEBOX flag)
+            msg_type: Message type - "info" or "error"
+        """
+        if enabled:
+            try:
+                from tkinter import messagebox
+                if msg_type == "error":
+                    messagebox.showerror(title, message)
+                else:
+                    messagebox.showinfo(title, message)
+            except Exception as e:
+                # If tkinter is not available, just log to console
+                ColorPrint.debug(f"[{title}] {message} (MessageBox Error: {e})")
+        else:
+            # Just log to console when disabled
+            ColorPrint.debug(f"[{title}] {message}")
+
+    @staticmethod
     def print_separator(char='-', length=None):
         """Print a separator line"""
         if length is None:

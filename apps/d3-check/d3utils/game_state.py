@@ -11,6 +11,9 @@ import threading
 from typing import Dict, Any, Callable, List
 from providor.common_imports import ColorPrint
 
+# DEBUG 开关：设置为 False 关闭所有 debug 弹窗
+DEBUG_MESSAGEBOX = False
+
 
 class GameState:
     """Global game state manager"""
@@ -30,49 +33,65 @@ class GameState:
     def set_rosbot_status(self, running: bool):
         """Set ROSBOT running status"""
         try:
-            from tkinter import messagebox
-            messagebox.showinfo("Debug", f"GameState.set_rosbot_status({running}) called")
-            
+            ColorPrint.debug_messagebox("DEBUG #19", f"[GameState] Enter set_rosbot_status({running})", DEBUG_MESSAGEBOX)
+
+            should_notify = False
             with self._lock:
-                messagebox.showinfo("Debug", "GameState lock acquired")
-                
+                ColorPrint.debug_messagebox("DEBUG #20", "[GameState] Lock acquired successfully", DEBUG_MESSAGEBOX)
+
                 if self.rosbot_running != running:
+                    ColorPrint.debug_messagebox("DEBUG #21", f"[GameState] Status changed from {self.rosbot_running} to {running}", DEBUG_MESSAGEBOX)
                     self.rosbot_running = running
+                    should_notify = True
                     ColorPrint.blue(f"[GameState] ROSBOT status: {'Running' if running else 'Stopped'}")
-                    messagebox.showinfo("Debug", "GameState status updated, calling _notify_callbacks")
-                    self._notify_callbacks()
-                    messagebox.showinfo("Debug", "GameState _notify_callbacks completed")
                 else:
-                    messagebox.showinfo("Debug", "GameState status unchanged, skipping notification")
-                    
+                    ColorPrint.debug_messagebox("DEBUG #21-SKIP", "[GameState] Status unchanged, skipping notification", DEBUG_MESSAGEBOX)
+
+            # Call _notify_callbacks outside lock to avoid deadlock
+            if should_notify:
+                ColorPrint.debug_messagebox("DEBUG #22", "[GameState] Preparing to call _notify_callbacks (outside lock)", DEBUG_MESSAGEBOX)
+                self._notify_callbacks()
+                ColorPrint.debug_messagebox("DEBUG #23", "[GameState] _notify_callbacks returned", DEBUG_MESSAGEBOX)
+
         except Exception as e:
-            from tkinter import messagebox
-            messagebox.showerror("Debug Error", f"Error in GameState.set_rosbot_status: {e}")
+            ColorPrint.debug_messagebox("ERROR", f"[GameState] Exception: {e}", DEBUG_MESSAGEBOX, "error")
             ColorPrint.red(f"[GameState] Error setting ROSBOT status: {e}")
     
     def set_d3_status(self, running: bool):
         """Set Diablo III running status"""
+        should_notify = False
         with self._lock:
             if self.d3_running != running:
                 self.d3_running = running
+                should_notify = True
                 ColorPrint.blue(f"[GameState] D3 status: {'Running' if running else 'Stopped'}")
-                self._notify_callbacks()
+
+        if should_notify:
+            self._notify_callbacks()
     
     def set_map_type(self, map_type: str):
         """Set current map type"""
+        should_notify = False
         with self._lock:
             if self.map_type != map_type:
                 self.map_type = map_type
+                should_notify = True
                 ColorPrint.blue(f"[GameState] Map type: {map_type}")
-                self._notify_callbacks()
+
+        if should_notify:
+            self._notify_callbacks()
     
     def set_game_stage(self, stage: str):
         """Set current game stage"""
+        should_notify = False
         with self._lock:
             if self.game_stage != stage:
                 self.game_stage = stage
+                should_notify = True
                 ColorPrint.blue(f"[GameState] Game stage: {stage}")
-                self._notify_callbacks()
+
+        if should_notify:
+            self._notify_callbacks()
     
     def get_state(self) -> Dict[str, Any]:
         """Get current state snapshot"""
@@ -93,14 +112,13 @@ class GameState:
     def _notify_callbacks(self):
         """Notify all registered callbacks"""
         try:
-            from tkinter import messagebox
-            messagebox.showinfo("Debug", "GameState._notify_callbacks() called")
-            
+            ColorPrint.debug_messagebox("DEBUG #24", "[GameState] Enter _notify_callbacks", DEBUG_MESSAGEBOX)
+
             # Get callbacks and state outside of lock to avoid deadlock
             callbacks = []
             state = None
             with self._lock:
-                messagebox.showinfo("Debug", "GameState._notify_callbacks lock acquired")
+                ColorPrint.debug_messagebox("DEBUG #25", "[GameState] _notify_callbacks acquired lock", DEBUG_MESSAGEBOX)
                 callbacks = self._callbacks.copy()
                 # Get state directly without calling get_state() to avoid nested lock
                 state = {
@@ -109,23 +127,22 @@ class GameState:
                     'map_type': self.map_type,
                     'game_stage': self.game_stage
                 }
-                messagebox.showinfo("Debug", f"GameState._notify_callbacks got {len(callbacks)} callbacks")
-            
+                ColorPrint.debug_messagebox("DEBUG #26", f"[GameState] Found {len(callbacks)} callback(s)", DEBUG_MESSAGEBOX)
+
             # Call callbacks outside of lock
             for i, callback in enumerate(callbacks):
                 try:
-                    messagebox.showinfo("Debug", f"GameState._notify_callbacks calling callback {i+1}/{len(callbacks)}: {callback.__name__}")
+                    ColorPrint.debug_messagebox("DEBUG #27", f"[GameState] Preparing to call callback {i+1}/{len(callbacks)}: {callback.__name__}", DEBUG_MESSAGEBOX)
                     callback(state)
-                    messagebox.showinfo("Debug", f"GameState._notify_callbacks callback {i+1} completed")
+                    ColorPrint.debug_messagebox("DEBUG #28", f"[GameState] Callback {i+1} completed", DEBUG_MESSAGEBOX)
                 except Exception as e:
-                    messagebox.showerror("Debug Error", f"GameState._notify_callbacks callback {i+1} error: {e}")
-                    ColorPrint.red(f"[GameState] Callback error: {e}")
-                    
-            messagebox.showinfo("Debug", "GameState._notify_callbacks completed")
-            
+                    ColorPrint.debug_messagebox("ERROR", f"[GameState] Callback {i+1} exception: {e}", DEBUG_MESSAGEBOX, "error")
+                    ColorPrint.red(f"[GameState] Callback {i+1} error: {e}")
+
+            ColorPrint.debug_messagebox("DEBUG #29", "[GameState] _notify_callbacks completed", DEBUG_MESSAGEBOX)
+
         except Exception as e:
-            from tkinter import messagebox
-            messagebox.showerror("Debug Error", f"Error in GameState._notify_callbacks: {e}")
+            ColorPrint.debug_messagebox("ERROR", f"[GameState] _notify_callbacks exception: {e}", DEBUG_MESSAGEBOX, "error")
             ColorPrint.red(f"[GameState] Error in _notify_callbacks: {e}")
 
 

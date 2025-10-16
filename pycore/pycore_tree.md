@@ -18,6 +18,12 @@ pycore/
 │   ├── examples/
 │   │   ├── dataset_generator_example.py
 │   │   └── ocr_example.py
+│   ├── ultralytics/
+│   │   ├── __init__.py
+│   │   ├── classification_trainer.py
+│   │   ├── dataset_generator_yolo.py
+│   │   ├── detection_trainer.py
+│   │   └── ultralytics_trainer.py
 │   ├── app_launcher.py
 │   ├── click_handler.py
 │   ├── dataset_generator.py
@@ -25,6 +31,7 @@ pycore/
 │   ├── image_annotator.py
 │   ├── image_comparator.py
 │   ├── image_crop.py
+│   ├── image_enhancer.py
 │   ├── image_matcher.py
 │   ├── integrated_window_analyzer.py
 │   ├── ocr_cnocr_engine.py
@@ -33,13 +40,18 @@ pycore/
 │   ├── process_manager.py
 │   ├── tray_clicker.py
 │   ├── ui_analyzer.py
-│   ├── ultralytics_trainer.py
 │   ├── window_activator.py
 │   ├── window_analyzer.py
 │   ├── window_ops.py
 │   └── window_screenshot.py
+├── scripts/
+│   ├── async_scheduler.py
+│   ├── function_mapping.md
+│   ├── migration_complete.md
+│   └── migration_summary.md
 ├── __init__.py
-└── __main__.py
+├── __main__.py
+└── pycore_tree.md
 ```
 
 ---

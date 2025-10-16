@@ -34,7 +34,7 @@ from d3utils.game_window_detector import GameWindowDetector
 project_root_for_import = os.path.dirname(current_dir)
 sys.path.insert(0, project_root_for_import)
 from providor.providor_index import TMP_DIR, TEMPLATE_DIR
-from d3utils.share import get_game_interface_data, update_global_scale
+from share import get_game_interface_data, update_global_scale
 DEBUG = False
 
 class ScreenshotData:
@@ -156,7 +156,7 @@ class ScreenshotProvider:
 
     def __init__(self):
         """Initialize screenshot provider"""
-        self.screenshot_manager = WindowScreenshot(match_mode="in")
+        self.screenshot_manager = WindowScreenshot(match_mode="ends")
         self.window_detector = GameWindowDetector()
 
         # Current screenshot data (shared across application)

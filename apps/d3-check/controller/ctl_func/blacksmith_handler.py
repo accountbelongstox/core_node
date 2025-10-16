@@ -19,7 +19,7 @@ sys.path.insert(0, project_root)
 
 from providor.common_imports import ColorPrint
 from d3utils.scaled_template_matcher import get_scaled_template_matcher
-from d3utils.share import get_game_interface_data
+from share import get_game_interface_data
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
 from providor.providor_index import TMP_DIR, SCALED_TEMPLATES_CACHE_DIR
 
@@ -174,7 +174,7 @@ class BlacksmithHandler:
             ColorPrint.blue(f"[BlacksmithHandler] Using scaled coordinates for window size: {actual_width}x{actual_height}")
 
             # Import coordinate calculation function
-            from d3utils.share.game_interface_data import get_scaled_blacksmith_salvage_button
+            from share.game_interface_data import get_scaled_blacksmith_salvage_button
 
             # Get scaled coordinate for salvage button
             button_x, button_y = get_scaled_blacksmith_salvage_button()
