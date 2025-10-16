@@ -20,6 +20,7 @@ sys.path.insert(0, project_root)
 
 from providor.common_imports import ColorPrint, ImageAnnotator
 from datetime import datetime
+from PIL import Image
 
 # Import TMP_DIR from providor_index (unified source)
 project_root_for_import = os.path.dirname(os.path.dirname(current_dir))
@@ -41,12 +42,37 @@ ANNOTATION_COLORS = {
     "white": (255, 255, 255),
     "gray": (128, 128, 128),
     "dark_gray": (80, 80, 80),
+    # Extended colors for more elements
+    "spring_green": (0, 255, 127),
+    "sky_blue": (235, 206, 135),
+    "violet": (211, 0, 148),
+    "gold": (0, 215, 255),
+    "coral": (80, 127, 255),
+    "turquoise": (208, 224, 64),
+    "salmon": (114, 128, 250),
+    "khaki": (140, 230, 240),
+    "lavender": (250, 230, 230),
+    "mint": (170, 255, 195),
+    "peach": (180, 229, 255),
+    "aqua": (212, 255, 127),
+    "rose": (143, 143, 255),
+    "navy": (128, 0, 0),
+    "olive": (0, 128, 128),
+    "teal": (128, 128, 0),
+    "maroon": (0, 0, 128),
+    "indigo": (130, 0, 75),
+    "crimson": (60, 20, 220),
+    "forest_green": (34, 139, 34),
 }
 
-# Predefined color sequence for auto-assignment
+# Predefined color sequence for auto-assignment (expanded for more elements)
 COLOR_SEQUENCE = [
     "magenta", "yellow", "cyan", "orange", "purple",
-    "lime", "pink", "green", "blue", "red"
+    "lime", "pink", "green", "blue", "red",
+    "spring_green", "sky_blue", "violet", "gold", "coral",
+    "turquoise", "salmon", "khaki", "mint", "peach",
+    "aqua", "rose", "navy", "olive", "teal",
+    "maroon", "indigo", "crimson", "forest_green", "lavender"
 ]
 
 def get_annotation_color(color_name: str, default: Tuple[int, int, int] = (0, 255, 0)) -> Tuple[int, int, int]:
@@ -120,6 +146,31 @@ def create_annotator(image_source) -> ImageAnnotator:
             return annotator
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error creating annotator: {e}")
+        raise
+
+def get_image_pil(annotator: ImageAnnotator) -> Image.Image:
+    """
+    Get annotated image as PIL Image
+
+    Converts ImageAnnotator's BGR numpy array to PIL Image in RGB format
+
+    Args:
+        annotator: ImageAnnotator instance
+
+    Returns:
+        PIL Image in RGB format
+    """
+    try:
+        # Get numpy array in BGR format from annotator
+        bgr = annotator.get_image()
+
+        # Convert BGR to RGB (OpenCV uses BGR, PIL uses RGB)
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+        # Convert to PIL Image
+        return Image.fromarray(rgb)
+    except Exception as e:
+        ColorPrint.red(f"[ImageAnnotatorHelper] Error converting to PIL Image: {e}")
         raise
 
 def draw_info_texts(

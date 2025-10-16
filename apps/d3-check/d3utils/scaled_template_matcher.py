@@ -50,7 +50,7 @@ from providor.providor_index import (
     get_template_match_method,
     get_adjusted_threshold
 )
-from d3utils.share import get_global_scale
+from share import get_global_scale
 
 class ScaledTemplateMatcher:
     """

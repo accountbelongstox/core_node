@@ -22,7 +22,13 @@ project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, project_root)
 
 # Import standard resolution constants
-from providor.providor_index import STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT, get_template_path
+from providor.providor_index import (
+    STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_HEIGHT,
+    D4_STANDARD_RESOLUTION_WIDTH,
+    D4_STANDARD_RESOLUTION_HEIGHT,
+    get_template_path
+)
 from providor.common_imports import ColorPrint
 
 # Global scale variables (moved from providor_index.py to avoid circular imports)
@@ -63,6 +69,111 @@ class StandardCoordinates:
 
 # Global standard coordinates instance
 STANDARD_COORDS = StandardCoordinates()
+
+
+# ============================================================================
+# D4 Standard Resolution Coordinate Mapping
+# ============================================================================
+
+@dataclass
+class D4StandardCoordinates:
+    """
+    D4 standard coordinates for UI elements at base resolution (1763x1126)
+
+    All coordinates are relative to game window top-left corner.
+    When actual window size differs, coordinates are scaled proportionally.
+    """
+
+    # Team management
+    edit_team_button: Tuple[int, int] = (950, 265)
+    confirm_edit_team: Tuple[int, int] = (730, 950)
+    idle_team_min_tier: Tuple[int, int] = (410, 550)
+    idle_team_max_tier: Tuple[int, int] = (805, 550)
+    idle_activity_selection: Tuple[int, int] = (375, 456)
+    add_idle_team: Tuple[int, int] = (368, 118)
+
+    # Bag region
+    bag_top_left: Tuple[int, int] = (1093, 760)
+    bag_bottom_right: Tuple[int, int] = (1708, 1106)
+
+    # Blacksmith menu area
+    blacksmith_menu_start: Tuple[int, int] = (392, 172)
+    blacksmith_menu_end: Tuple[int, int] = (682, 212)
+
+    # Currency recognition region (Whispering Obols)
+    whisper_obols_region_start: Tuple[int, int] = (1291, 1025)
+    whisper_obols_region_end: Tuple[int, int] = (1353, 1048)
+
+    # Equipment recognition regions
+    equipment_left_region_start: Tuple[int, int] = (1294, 108)
+    equipment_left_region_end: Tuple[int, int] = (1368, 701)
+    equipment_right_region_start: Tuple[int, int] = (1660, 206)
+    equipment_right_region_end: Tuple[int, int] = (1724, 701)
+
+    # Blacksmith function recognition region
+    blacksmith_function_region_start: Tuple[int, int] = (198, 467)
+    blacksmith_function_region_end: Tuple[int, int] = (536, 776)
+
+    # Experience bar region
+    exp_bar_region_start: Tuple[int, int] = (733, 993)
+    exp_bar_region_end: Tuple[int, int] = (1041, 996)
+
+    # Health orb point
+    health_orb_point: Tuple[int, int] = (531, 1030)
+
+    # Minimap region
+    minimap_region_start: Tuple[int, int] = (1439, 78)
+    minimap_region_end: Tuple[int, int] = (1731, 290)
+
+    # Map name region
+    map_name_region_start: Tuple[int, int] = (1440, 40)
+    map_name_region_end: Tuple[int, int] = (1602, 68)
+
+    # Quest text region
+    quest_text_region_start: Tuple[int, int] = (1439, 315)
+    quest_text_region_end: Tuple[int, int] = (1720, 1006)
+
+    # Team member count region
+    team_count_region_start: Tuple[int, int] = (32, 139)
+    team_count_region_end: Tuple[int, int] = (193, 584)
+
+    # Team health bar relative positions
+    team_health_bar_start_offset: int = 114  # Relative start X offset
+    team_health_bar_end_offset: int = 178   # Relative end X offset
+
+    # Team voting region
+    team_vote_region_start: Tuple[int, int] = (127, 119)
+    team_vote_region_end: Tuple[int, int] = (523, 327)
+    team_vote_confirm_point: Tuple[int, int] = (225, 418)  # Accept team vote button (corrected)
+
+    # Team menu relative dimensions
+    team_menu_relative_height: int = 230  # Relative height offset for team menu
+    mouse_hover_display_height_offset_1: int = 104  # Mouse hover display height offset 1
+    mouse_hover_display_width_offset_1: int = 133   # Mouse hover display width offset 1
+
+    # Game start button
+    start_game_button: Tuple[int, int] = (1505, 972)
+
+    # Team right-click menu offsets (relative to team member position)
+    team_right_menu_left_offset: int = 324   # Left offset from team member
+    team_right_menu_right_offset: int = 633  # Right offset from team member
+    team_right_menu_down_offset: int = 760   # Down offset from team member
+
+    # Dungeon progress bar (horizontal line)
+    dungeon_progress_start: Tuple[int, int] = (1460, 362)  # Progress bar start point
+    dungeon_progress_end: Tuple[int, int] = (1700, 362)    # Progress bar end point
+
+    # Red portal detection region (based on color_region_detector.py scan boundaries)
+    red_portal_scan_left_margin: int = 150    # Skip left edge 150px
+    red_portal_scan_right_margin: int = 328   # Skip right edge 328px
+    red_portal_scan_bottom_margin: int = 200  # Skip bottom edge 200px
+    red_portal_max_width: int = 310           # Maximum portal width
+    red_portal_max_height: int = 600          # Maximum portal height
+    red_portal_min_area: int = 10             # Minimum matched pixels to consider as portal
+
+
+# Global D4 standard coordinates instance
+D4_STANDARD_COORDS = D4StandardCoordinates()
 
 
 def calculate_scaled_coordinate(
@@ -229,6 +340,440 @@ def get_scaled_reforge_region() -> Tuple[Tuple[int, int], Tuple[int, int]]:
     return calculate_scaled_region(
         STANDARD_COORDS.reforge_region_start,
         STANDARD_COORDS.reforge_region_end
+    )
+
+
+# ============================================================================
+# D4 Coordinate Scaling Helper Functions
+# ============================================================================
+
+def calculate_d4_scaled_coordinate(
+    standard_coord: Tuple[int, int],
+    game_window_size: Tuple[int, int],
+    is_windowed: bool,
+    window_height_threshold: int = 31
+) -> Tuple[int, int]:
+    """
+    Calculate scaled D4 coordinate based on actual game window size
+
+    Args:
+        standard_coord: Standard coordinate (x, y) at D4 base resolution (1763x1126)
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode, False for fullscreen
+        window_height_threshold: Height threshold for windowed mode detection (default: 31)
+
+    Returns:
+        Scaled coordinate (x, y) for actual window size
+    """
+    actual_width, actual_height = game_window_size
+
+    if is_windowed:
+        # Windowed mode: use actual dimensions (with title bar)
+        effective_actual_width = actual_width
+        effective_actual_height = actual_height
+        effective_standard_width = D4_STANDARD_RESOLUTION_WIDTH
+        effective_standard_height = D4_STANDARD_RESOLUTION_HEIGHT
+    else:
+        # Fullscreen mode: add threshold to both dimensions (no title bar)
+        effective_actual_width = actual_width + window_height_threshold
+        effective_actual_height = actual_height + window_height_threshold
+        effective_standard_width = D4_STANDARD_RESOLUTION_WIDTH + window_height_threshold
+        effective_standard_height = D4_STANDARD_RESOLUTION_HEIGHT + window_height_threshold
+
+    std_x, std_y = standard_coord
+
+    # Calculate scale factors
+    scale_x = effective_actual_width / effective_standard_width
+    scale_y = effective_actual_height / effective_standard_height
+
+    # Apply scaling
+    scaled_x = int(std_x * scale_x)
+    scaled_y = int(std_y * scale_y)
+
+    return (scaled_x, scaled_y)
+
+
+def calculate_d4_scaled_region(
+    standard_start: Tuple[int, int],
+    standard_end: Tuple[int, int],
+    game_window_size: Tuple[int, int],
+    is_windowed: bool,
+    window_height_threshold: int = 31
+) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Calculate scaled D4 region based on actual game window size
+
+    Args:
+        standard_start: Standard region start coordinate (x, y)
+        standard_end: Standard region end coordinate (x, y)
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode, False for fullscreen
+        window_height_threshold: Height threshold for windowed mode detection (default: 31)
+
+    Returns:
+        Tuple of (scaled_start, scaled_end) coordinates
+    """
+    scaled_start = calculate_d4_scaled_coordinate(
+        standard_start,
+        game_window_size,
+        is_windowed,
+        window_height_threshold
+    )
+    scaled_end = calculate_d4_scaled_coordinate(
+        standard_end,
+        game_window_size,
+        is_windowed,
+        window_height_threshold
+    )
+
+    return (scaled_start, scaled_end)
+
+
+def get_d4_scaled_edit_team_button(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
+    """
+    Get scaled D4 edit team button coordinate
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Scaled coordinate (x, y) relative to game window
+    """
+    return calculate_d4_scaled_coordinate(
+        D4_STANDARD_COORDS.edit_team_button,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_confirm_edit_team(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
+    """
+    Get scaled D4 confirm edit team button coordinate
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Scaled coordinate (x, y) relative to game window
+    """
+    return calculate_d4_scaled_coordinate(
+        D4_STANDARD_COORDS.confirm_edit_team,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_idle_team_tiers(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 idle team tier coordinates (min and max)
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (min_tier_coord, max_tier_coord)
+    """
+    min_tier = calculate_d4_scaled_coordinate(
+        D4_STANDARD_COORDS.idle_team_min_tier,
+        game_window_size,
+        is_windowed
+    )
+    max_tier = calculate_d4_scaled_coordinate(
+        D4_STANDARD_COORDS.idle_team_max_tier,
+        game_window_size,
+        is_windowed
+    )
+    return (min_tier, max_tier)
+
+
+def get_d4_scaled_idle_activity_selection(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
+    """
+    Get scaled D4 idle activity selection coordinate
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Scaled coordinate (x, y) relative to game window
+    """
+    return calculate_d4_scaled_coordinate(
+        D4_STANDARD_COORDS.idle_activity_selection,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_add_idle_team(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
+    """
+    Get scaled D4 add idle team button coordinate
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Scaled coordinate (x, y) relative to game window
+    """
+    return calculate_d4_scaled_coordinate(
+        D4_STANDARD_COORDS.add_idle_team,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_bag_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 bag region coordinates
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (top_left, bottom_right) coordinates relative to game window
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.bag_top_left,
+        D4_STANDARD_COORDS.bag_bottom_right,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_blacksmith_menu_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 blacksmith menu region coordinates
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (start_coord, end_coord) for blacksmith menu region
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.blacksmith_menu_start,
+        D4_STANDARD_COORDS.blacksmith_menu_end,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_whisper_obols_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 whispering obols currency region coordinates
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (start_coord, end_coord) for whisper obols region
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.whisper_obols_region_start,
+        D4_STANDARD_COORDS.whisper_obols_region_end,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_equipment_regions(game_window_size: Tuple[int, int], is_windowed: bool) -> Dict[str, Tuple[Tuple[int, int], Tuple[int, int]]]:
+    """
+    Get scaled D4 equipment recognition regions (left and right)
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Dictionary with 'left' and 'right' equipment regions
+    """
+    left_region = calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.equipment_left_region_start,
+        D4_STANDARD_COORDS.equipment_left_region_end,
+        game_window_size,
+        is_windowed
+    )
+    right_region = calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.equipment_right_region_start,
+        D4_STANDARD_COORDS.equipment_right_region_end,
+        game_window_size,
+        is_windowed
+    )
+    return {"left": left_region, "right": right_region}
+
+
+def get_d4_scaled_blacksmith_function_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 blacksmith function recognition region
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (start_coord, end_coord) for blacksmith function region
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.blacksmith_function_region_start,
+        D4_STANDARD_COORDS.blacksmith_function_region_end,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_exp_bar_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 experience bar region
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (start_coord, end_coord) for exp bar region
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.exp_bar_region_start,
+        D4_STANDARD_COORDS.exp_bar_region_end,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_health_orb_point(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
+    """
+    Get scaled D4 health orb recognition point
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Scaled coordinate (x, y) for health orb point
+    """
+    return calculate_d4_scaled_coordinate(
+        D4_STANDARD_COORDS.health_orb_point,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_minimap_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 minimap region
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (start_coord, end_coord) for minimap region
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.minimap_region_start,
+        D4_STANDARD_COORDS.minimap_region_end,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_map_name_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 map name region
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (start_coord, end_coord) for map name region
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.map_name_region_start,
+        D4_STANDARD_COORDS.map_name_region_end,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_quest_text_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 quest text region
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (start_coord, end_coord) for quest text region
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.quest_text_region_start,
+        D4_STANDARD_COORDS.quest_text_region_end,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_team_count_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 team member count region
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (start_coord, end_coord) for team count region
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.team_count_region_start,
+        D4_STANDARD_COORDS.team_count_region_end,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_team_vote_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    """
+    Get scaled D4 team voting region
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Tuple of (start_coord, end_coord) for team vote region
+    """
+    return calculate_d4_scaled_region(
+        D4_STANDARD_COORDS.team_vote_region_start,
+        D4_STANDARD_COORDS.team_vote_region_end,
+        game_window_size,
+        is_windowed
+    )
+
+
+def get_d4_scaled_team_vote_confirm_point(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
+    """
+    Get scaled D4 team vote confirm button point
+
+    Args:
+        game_window_size: Actual game window size (width, height)
+        is_windowed: True if running in windowed mode
+
+    Returns:
+        Scaled coordinate (x, y) for team vote confirm point
+    """
+    return calculate_d4_scaled_coordinate(
+        D4_STANDARD_COORDS.team_vote_confirm_point,
+        game_window_size,
+        is_windowed
     )
 
 
@@ -416,12 +961,105 @@ class D3InterfaceData:
         width_diff = fullscreen_width - window_width
         height_diff = fullscreen_height - window_height
         
-        return (width_diff >= self.WINDOW_HEIGHT_THRESHOLD and 
+        return (width_diff >= self.WINDOW_HEIGHT_THRESHOLD and
                 height_diff >= self.WINDOW_HEIGHT_THRESHOLD)
 
 
-# Global shared instance
+# ============================================================================
+# D4 Interface Data (Independent Shared Data Class)
+# ============================================================================
+
+@dataclass
+class D4InterfaceData:
+    """
+    D4 game interface shared data (Independent)
+
+    Simplified data structure focused on D4's specific needs.
+    Uses D4-specific coordinate system and resolution (1763x1126).
+    """
+
+    # Window height constant for windowed mode detection
+    WINDOW_HEIGHT_THRESHOLD = 31
+
+    # Recognition metadata
+    timestamp: Optional[str] = None
+    error: Optional[str] = None
+
+    # Screenshot data (IN MEMORY)
+    fullscreen_image: Optional[Image.Image] = None  # Fullscreen or game window image
+    game_window_image: Optional[Image.Image] = None  # Game window image (for detection)
+    window_offset: Tuple[int, int] = (0, 0)  # Game window offset from fullscreen
+    fullscreen_size: Tuple[int, int] = (0, 0)  # Fullscreen size (width, height)
+    game_window_size: Tuple[int, int] = (0, 0)  # Game window size (width, height)
+
+    # Screenshot history - File path list (only saved in DEBUG mode)
+    screenshot_history: List[str] = field(default_factory=list)
+
+    # Annotated screenshots for coordinate visualization
+    last_annotated_screenshot_path: Optional[str] = None
+
+    def clear(self):
+        """Clear all data"""
+        self.timestamp = None
+        self.error = None
+        # Clear screenshot data
+        self.fullscreen_image = None
+        self.game_window_image = None
+        self.window_offset = (0, 0)
+        self.fullscreen_size = (0, 0)
+        self.game_window_size = (0, 0)
+        self.screenshot_history.clear()
+        self.last_annotated_screenshot_path = None
+
+    def add_screenshot_history(self, path: str, max_history: int = 10):
+        """Add screenshot path to history"""
+        self.screenshot_history.append(path)
+        # Keep only max_history records
+        if len(self.screenshot_history) > max_history:
+            self.screenshot_history = self.screenshot_history[-max_history:]
+
+    def is_windowed_mode(self) -> bool:
+        """
+        Check if the game is running in windowed mode
+
+        Returns True if both game_window_size dimensions are smaller than
+        the corresponding fullscreen_size dimensions by at least WINDOW_HEIGHT_THRESHOLD pixels
+
+        Returns:
+            bool: True if running in windowed mode, False otherwise
+        """
+        if not self.game_window_size or not self.fullscreen_size:
+            return False
+
+        window_width, window_height = self.game_window_size
+        fullscreen_width, fullscreen_height = self.fullscreen_size
+
+        # Check if both dimensions are smaller by at least the threshold
+        width_diff = fullscreen_width - window_width
+        height_diff = fullscreen_height - window_height
+
+        return (width_diff >= self.WINDOW_HEIGHT_THRESHOLD and
+                height_diff >= self.WINDOW_HEIGHT_THRESHOLD)
+
+    def get_summary(self) -> Dict:
+        """Get summary of current data"""
+        summary = {
+            "timestamp": self.timestamp,
+            "error": self.error,
+            "has_fullscreen_image": self.fullscreen_image is not None,
+            "has_game_window_image": self.game_window_image is not None,
+            "game_window_size": self.game_window_size,
+            "fullscreen_size": self.fullscreen_size,
+            "is_windowed": self.is_windowed_mode(),
+            "screenshot_history_count": len(self.screenshot_history),
+            "last_annotated_screenshot": self.last_annotated_screenshot_path
+        }
+        return summary
+
+
+# Global shared instances
 _game_interface_data = None
+_d4_interface_data = None
 
 # Color sets cache (initialized once per color type)
 _color_cache: Dict[str, Set[Tuple[int, int, int]]] = {}
@@ -733,4 +1371,27 @@ def clear_game_interface_data():
     global _game_interface_data
     if _game_interface_data is not None:
         _game_interface_data.clear()
+
+
+def get_d4_interface_data() -> D4InterfaceData:
+    """
+    Get global D4 interface data instance (singleton)
+
+    Returns:
+        Global D4InterfaceData instance
+    """
+    global _d4_interface_data
+
+    if _d4_interface_data is None:
+        _d4_interface_data = D4InterfaceData()
+        ColorPrint.green("[Global] D4 interface data initialized")
+
+    return _d4_interface_data
+
+
+def clear_d4_interface_data():
+    """Clear D4 global shared data"""
+    global _d4_interface_data
+    if _d4_interface_data is not None:
+        _d4_interface_data.clear()
 

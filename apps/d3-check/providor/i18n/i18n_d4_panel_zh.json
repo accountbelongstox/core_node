@@ -1,0 +1,21 @@
+{
+  "ui": {
+    "d4_panel": {
+      "title": "D4功能",
+      "sub_tabs": {
+        "exp_farming": "挂经验"
+      },
+      "exp_farming": {
+        "title": "挂经验",
+        "start_button": "启动挂经验",
+        "stop_button": "停止挂经验",
+        "log_title": "挂经验日志",
+        "status": {
+          "running": "运行中",
+          "stopped": "已停止",
+          "ready": "就绪"
+        }
+      }
+    }
+  }
+}

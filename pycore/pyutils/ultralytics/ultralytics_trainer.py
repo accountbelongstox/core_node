@@ -7,11 +7,95 @@ Provides a unified interface for training YOLO models with Ultralytics
 
 import os
 import sys
+import glob
 from pathlib import Path
 from typing import Optional, Dict, List, Union, Any, Callable
 from dataclasses import dataclass, field
 import yaml
 import json
+
+
+def process_source_images(source_dir: Path, source_image_config) -> List[Path]:
+    """
+    Process source_image from metadata (shared utility for all trainers):
+
+    Directory structure:
+        source/
+        ├── training_projects/
+        │   └── project_name/
+        │       ├── source/          # Project source images here
+        │       └── metadata.json
+        └── public/                  # Shared background images
+
+    Processing logic:
+    1. Convert string to array if needed
+    2. Look for images in project_name/source/ subdirectory
+    3. Auto-scan and add ../public/*.png if public directory exists
+    4. Expand glob patterns
+    5. Warn (don't error) if individual files don't exist
+
+    Args:
+        source_dir: Project directory (e.g., source/training_projects/rift_progress_bar)
+        source_image_config: source_image value from metadata.json (string or list)
+
+    Returns:
+        List of valid source image paths
+    """
+    # Convert string to array
+    if isinstance(source_image_config, str):
+        source_image_config = [source_image_config]
+    elif not isinstance(source_image_config, list):
+        source_image_config = [source_image_config]
+
+    # Base directory for project source images: project_dir/source/
+    project_source_dir = source_dir / 'source'
+
+    # Auto-add public directory images if it exists (at ../../public)
+    public_dir = source_dir.parent.parent / 'public'
+    if public_dir.exists() and public_dir.is_dir():
+        print(f"Found public directory, auto-adding background images: {public_dir.resolve()}")
+        source_image_config.append('../../public/*.png')
+
+    # Expand globs and validate files
+    source_images = []
+    for pattern in source_image_config:
+        # Handle glob patterns
+        if '*' in str(pattern) or '?' in str(pattern):
+            # Resolve pattern relative to source_dir
+            pattern_path = source_dir / pattern
+            matched_files = glob.glob(str(pattern_path))
+            if not matched_files:
+                print(f"WARNING: No files matched pattern: {pattern}")
+                continue
+            for matched_file in matched_files:
+                file_path = Path(matched_file)
+                if file_path.exists():
+                    source_images.append(file_path)
+                else:
+                    print(f"WARNING: File not found: {file_path}")
+        else:
+            # Direct file path - look in source/ subdirectory first
+            file_path = project_source_dir / pattern
+            if file_path.exists():
+                source_images.append(file_path)
+            else:
+                # Fallback: try relative to source_dir root
+                file_path_fallback = source_dir / pattern
+                if file_path_fallback.exists():
+                    source_images.append(file_path_fallback)
+                else:
+                    print(f"WARNING: Source image not found: {pattern}")
+                    print(f"         Checked: {project_source_dir / pattern}")
+                    print(f"         Checked: {source_dir / pattern}")
+
+    if not source_images:
+        raise FileNotFoundError(f"No valid source images found in metadata")
+
+    print(f"Loaded {len(source_images)} source image(s)")
+    for img in source_images:
+        print(f"  - {img.name}")
+
+    return source_images
 
 try:
     from ultralytics import YOLO

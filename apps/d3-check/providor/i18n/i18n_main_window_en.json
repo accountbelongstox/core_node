@@ -17,7 +17,8 @@
       "main_functions": "Main Functions",
       "auxiliary_functions": "Auxiliary Functions",
       "log": "Log",
-      "rosbot_extension": "Rosbot Extension"
+      "rosbot_extension": "Rosbot Extension",
+      "d4_functions": "D4 Functions"
     },
     "macro_controls": {
       "start_macro": "Start Macro",
@@ -67,6 +68,10 @@
       "potion_interval": "Potion Interval",
       "status_config_loaded": "Configuration Loaded",
       "space_key": "Space"
+    },
+    "system_tray": {
+      "show_software": "Show Software",
+      "exit": "Exit"
     }
   }
 }

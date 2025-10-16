@@ -140,9 +140,20 @@ class SystemInitializer:
                 callback=log_monitor_module.check_logs,
                 enabled=True  # Always enabled, controlled by interceptor
             )
-            
+
             # Set default interceptor (10-second throttling when ROSBOT not running)
             timer_manager.set_task_interceptor('log_monitor', log_monitor_module.get_default_interceptor())
+
+            # Register D4 controller with timer manager (static global, always enabled with interceptor)
+            from controller.d4_controller import get_d4_controller
+            d4_controller = get_d4_controller()
+            timer_manager.register_task(
+                name='d4_controller',
+                interval=3.0,  # Every 3 seconds
+                callback=d4_controller.process,
+                enabled=True  # Always enabled, controlled by state interceptor
+            )
+            ColorPrint.green("[INIT] D4 controller registered to timer (3s interval)")
 
             # Start timer manager (static global)
             timer_manager.start()
