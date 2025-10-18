@@ -14,8 +14,40 @@
           "running": "运行中",
           "stopped": "已停止",
           "ready": "就绪"
+        },
+        "game_status": {
+          "title": "游戏状态",
+          "current_map": "当前地图",
+          "game_state": "游戏状态",
+          "team_count": "队友数量",
+          "dungeon_progress": "秘境进度",
+          "d4_running_status": "D4运行状态",
+          "screen_coordinates": "屏幕坐标",
+          "screen_size": "屏幕尺寸",
+          "reserved": "预留值",
+          "unknown": "未知",
+          "detecting": "检测中",
+          "not_detected": "未检测到",
+          "running": "运行中",
+          "stopped": "已停止",
+          "windowed": "窗口模式",
+          "fullscreen": "全屏模式"
         }
       }
     }
+  },
+  "team_health": {
+    "local_map": "本地图",
+    "non_local_map": "非本地图",
+    "same_map": "同地图",
+    "different_map": "不同地图",
+    "group1": "组一",
+    "group2": "组二",
+    "member": "队员",
+    "members": "队员",
+    "total": "总计",
+    "detection_summary": "检测摘要",
+    "hp_offset": "HP偏移",
+    "screen_position": "屏幕位置"
   }
 }

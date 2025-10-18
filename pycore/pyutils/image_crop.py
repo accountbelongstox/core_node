@@ -72,33 +72,84 @@ class ImageCrop:
 
     @staticmethod
     def crop_region(
-        image: np.ndarray,
+        image: Union[np.ndarray, PILImage.Image, str, Path],
         top_left: Tuple[int, int],
-        bottom_right: Tuple[int, int]
-    ) -> np.ndarray:
+        bottom_right: Tuple[int, int],
+        output_format: str = "same"
+    ) -> Union[np.ndarray, PILImage.Image]:
         """
         Crop rectangular region from image
 
         Args:
-            image: Source image (BGR format)
+            image: Source image (BGR format numpy array, PIL Image, or file path)
             top_left: Top-left corner (x, y)
             bottom_right: Bottom-right corner (x, y)
+            output_format: Output format ("same", "numpy", "pil")
 
         Returns:
-            Cropped image region
+            Cropped image region in specified format
         """
+        # Handle different input types
+        if isinstance(image, (str, Path)):
+            # Load from file path
+            pil_image = ImageCrop._load_pil_image(image)
+        elif isinstance(image, np.ndarray):
+            # Convert numpy array to PIL
+            if len(image.shape) == 3 and image.shape[2] == 3:
+                # BGR to RGB
+                image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                pil_image = PILImage.fromarray(image_rgb)
+            else:
+                pil_image = PILImage.fromarray(image)
+        elif isinstance(image, PILImage.Image):
+            pil_image = image
+        else:
+            raise ValueError(f"Unsupported image type: {type(image)}")
+
         x1, y1 = top_left
         x2, y2 = bottom_right
 
         # Ensure coordinates are within image bounds
-        height, width = image.shape[:2]
+        width, height = pil_image.size
         x1 = max(0, min(x1, width))
         x2 = max(0, min(x2, width))
         y1 = max(0, min(y1, height))
         y2 = max(0, min(y2, height))
 
-        # Crop using numpy slicing (y first, then x)
-        return image[y1:y2, x1:x2]
+        # Crop using PIL
+        cropped_pil = pil_image.crop((x1, y1, x2, y2))
+
+        # Return in requested format
+        if output_format == "numpy" or (output_format == "same" and isinstance(image, np.ndarray)):
+            # Convert back to numpy array (BGR format)
+            cropped_array = np.array(cropped_pil)
+            if len(cropped_array.shape) == 3 and cropped_array.shape[2] == 3:
+                return cv2.cvtColor(cropped_array, cv2.COLOR_RGB2BGR)
+            else:
+                return cropped_array
+        else:
+            # Return PIL Image
+            return cropped_pil
+
+    @staticmethod
+    def _load_pil_image(image_path: Union[str, Path]) -> PILImage.Image:
+        """
+        Load image from file path using PIL (handles Chinese characters)
+
+        Args:
+            image_path: Path to image file
+
+        Returns:
+            PIL Image object
+        """
+        image_path = str(image_path)
+        try:
+            pil_image = PILImage.open(image_path)
+            if pil_image.mode != 'RGB':
+                pil_image = pil_image.convert('RGB')
+            return pil_image
+        except Exception as e:
+            raise ValueError(f"Failed to load image: {image_path}. Error: {e}")
 
     @staticmethod
     def crop_around_center(

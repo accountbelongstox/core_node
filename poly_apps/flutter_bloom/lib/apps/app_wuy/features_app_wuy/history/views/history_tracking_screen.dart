@@ -46,37 +46,49 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
     _loadHistoryRecords();
   }
 
-  void _loadHistoryRecords() {
-    // Mock data based on the screenshot
-    _historyRecords = [
+  void _loadHistoryRecords() async {
+    // Try to load from data manager first
+    final dataManager = WuyDataManager.instance;
+
+    // TODO: Implement real history records loading from data manager
+    // The data manager should provide a method like:
+    // final records = await dataManager.getHistoryRecords();
+    // For now, use mock data with localization keys
+    setState(() {
+      _historyRecords = _generateMockHistoryRecords();
+    });
+  }
+
+  List<HistoryRecord> _generateMockHistoryRecords() {
+    return [
       HistoryRecord(
         date: '2025-10-20',
         time: '20:00',
-        description: LocalizationKeysAppWuy.wuyHistoryLoginAccount.tr(context),
+        descriptionKey: LocalizationKeysAppWuy.wuyHistoryLoginAccount,
         type: HistoryType.login,
       ),
       HistoryRecord(
         date: '2025-10-20',
         time: '20:00',
-        description: LocalizationKeysAppWuy.wuyHistoryLoginSuccess.tr(context),
+        descriptionKey: LocalizationKeysAppWuy.wuyHistoryLoginSuccess,
         type: HistoryType.success,
       ),
       HistoryRecord(
         date: '2025-10-20',
         time: '19:30',
-        description: LocalizationKeysAppWuy.wuyHistoryViewFriends.tr(context),
+        descriptionKey: LocalizationKeysAppWuy.wuyHistoryViewFriends,
         type: HistoryType.action,
       ),
       HistoryRecord(
         date: '2025-10-20',
         time: '19:15',
-        description: LocalizationKeysAppWuy.wuyHistorySendMessage.tr(context),
+        descriptionKey: LocalizationKeysAppWuy.wuyHistorySendMessage,
         type: HistoryType.message,
       ),
       HistoryRecord(
         date: '2025-10-20',
         time: '18:45',
-        description: LocalizationKeysAppWuy.wuyHistoryUpdateProfile.tr(context),
+        descriptionKey: LocalizationKeysAppWuy.wuyHistoryUpdateProfile,
         type: HistoryType.update,
       ),
     ];
@@ -88,13 +100,13 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'History Tracking',
+          LocalizationKeysAppWuy.wuyHistoryTitle.tr(context),
           style: ThemeTextStyles.displayMedium,
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
           onPressed: () => context.go(WuyAppRouter.routeHome),
         ),
       ),
@@ -118,8 +130,8 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.green.shade400,
-            Colors.green.shade600,
+            ThemeColors.green40,
+            ThemeColors.green60,
           ],
         ),
       ),
@@ -133,25 +145,25 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
               children: [
                 CircleAvatar(
                   radius: 40,
-                  backgroundColor: Colors.white.withOpacity(0.2),
+                  backgroundColor: ThemeColors.white.withOpacity(0.2),
                   child: Icon(
                     Icons.person,
                     size: 40,
-                    color: Colors.white,
+                    color: ThemeColors.white,
                   ),
                 ),
                 SizedBox(height: ThemeDimensions.spacingMedium),
                 Text(
                   WuyDataManager.instance.currentUser?.displayName ?? 'User',
                   style: ThemeTextStyles.title2.copyWith(
-                    color: Colors.white,
+                    color: ThemeColors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  'Activity History',
+                  LocalizationKeysAppWuy.wuyHistoryActivity.tr(context),
                   style: ThemeTextStyles.bodyLarge.copyWith(
-                    color: Colors.white.withOpacity(0.9),
+                    color: ThemeColors.white.withOpacity(0.9),
                   ),
                 ),
               ],
@@ -164,7 +176,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
 
   Widget _buildHistoryList() {
     return Container(
-      color: Colors.lightBlue.shade50,
+      color: ThemeColors.blue05,
       padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
       child: ListView.builder(
         itemCount: _historyRecords.length,
@@ -181,11 +193,11 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
       margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
       padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ThemeColors.white,
         borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: ThemeColors.black.withOpacity(0.1),
             blurRadius: 5,
             offset: Offset(0, 2),
           ),
@@ -208,7 +220,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
                 ),
                 SizedBox(height: ThemeDimensions.spacingSmall),
                 Text(
-                  record.description,
+                  record.descriptionKey.tr(context),
                   style: ThemeTextStyles.bodyMedium,
                 ),
               ],
@@ -226,23 +238,23 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
     switch (type) {
       case HistoryType.login:
         iconData = Icons.login;
-        iconColor = Colors.blue;
+        iconColor = ThemeColors.blue60;
         break;
       case HistoryType.success:
         iconData = Icons.check_circle;
-        iconColor = Colors.green;
+        iconColor = ThemeColors.green60;
         break;
       case HistoryType.action:
         iconData = Icons.touch_app;
-        iconColor = Colors.orange;
+        iconColor = ThemeColors.orange60;
         break;
       case HistoryType.message:
         iconData = Icons.message;
-        iconColor = Colors.purple;
+        iconColor = ThemeColors.purple60;
         break;
       case HistoryType.update:
         iconData = Icons.edit;
-        iconColor = Colors.teal;
+        iconColor = ThemeColors.teal60;
         break;
     }
 
@@ -265,13 +277,13 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
 class HistoryRecord {
   final String date;
   final String time;
-  final String description;
+  final String descriptionKey;
   final HistoryType type;
 
   HistoryRecord({
     required this.date,
     required this.time,
-    required this.description,
+    required this.descriptionKey,
     required this.type,
   });
 }

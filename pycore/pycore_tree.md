@@ -38,6 +38,7 @@ pycore/
 │   ├── paddle_ocr.py
 │   ├── png_matcher.py
 │   ├── process_manager.py
+│   ├── pyutils_tree.md
 │   ├── tray_clicker.py
 │   ├── ui_analyzer.py
 │   ├── window_activator.py
@@ -49,6 +50,7 @@ pycore/
 │   ├── function_mapping.md
 │   ├── migration_complete.md
 │   └── migration_summary.md
+├── PYCORE_CONSISTENCY_REPORT.md
 ├── __init__.py
 ├── __main__.py
 └── pycore_tree.md

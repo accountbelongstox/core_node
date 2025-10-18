@@ -20,6 +20,7 @@ import 'package:qyflutter/common/widgets/floating_avatar_header.dart';
 import 'package:qyflutter/common/widgets/info_row_widget.dart';
 import 'package:qyflutter/common/assets/common_assets_images.dart';
 import '../../../widgets_app_wuy/wuy_bottom_navigation.dart';
+import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
@@ -237,41 +238,23 @@ class WuyProfileScreen extends StatelessWidget {
   Widget _buildProfileActions(BuildContext context) {
     return Column(
       children: [
-        ElevatedButton(
+        WuyGradientButton(
+          text: LocalizationKeysAppWuy.wuyProfileEditProfile.tr(context),
           onPressed: () {
             // Edit profile action
           },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: ThemeColors.primary,
-            minimumSize: Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-            ),
-          ),
-          child: Text(
-            LocalizationKeysAppWuy.wuyProfileEditProfile.tr(context),
-            style: ThemeTextStyles.buttonLarge,
-          ),
+          height: 50,
         ),
         SizedBox(height: ThemeDimensions.spacingMedium),
-        OutlinedButton(
+        WuyGradientButton(
+          text: LocalizationKeysAppWuy.wuyProfileLogout.tr(context),
           onPressed: () {
             AuthGuard.onLogout(context);
           },
-          style: OutlinedButton.styleFrom(
-            minimumSize: Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-            ),
-          ),
-          child: Text(
-            LocalizationKeysAppWuy.wuyProfileLogout.tr(context),
-            style: ThemeTextStyles.buttonLarge.copyWith(
-              color: ThemeColors.error,
-            ),
-          ),
+          height: 50,
+          backgroundColor: Colors.white,
+          textColor: ThemeColors.error,
+          gradientColors: null,
         ),
       ],
     );
