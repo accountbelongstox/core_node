@@ -19,6 +19,8 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
+import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 
 /// Register Screen for Wuy App
 /// 
@@ -125,21 +127,12 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
   }
 
   Widget _buildPhoneField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _phoneController,
       keyboardType: TextInputType.phone,
-      decoration: InputDecoration(
-        labelText: LocalizationKeysAppWuy.wuyAuthPhone.tr(context),
-        hintText: LocalizationKeysAppWuy.wuyRegisterEnterPhone.tr(context),
-        prefixIcon: Icon(Icons.phone, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+      labelText: LocalizationKeysAppWuy.wuyAuthPhone.tr(context),
+      hintText: LocalizationKeysAppWuy.wuyRegisterEnterPhone.tr(context),
+      prefixIcon: Icons.phone,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Please enter your phone number';
@@ -156,21 +149,12 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
     return Row(
       children: [
         Expanded(
-          child: TextFormField(
+          child: WuyModernInputField(
             controller: _verificationCodeController,
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'Verification Code',
-              hintText: LocalizationKeysAppWuy.wuyRegisterEnterVerificationCode.tr(context),
-              prefixIcon: Icon(Icons.security, color: ThemeColors.primary),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-                borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-              ),
-            ),
+            labelText: 'Verification Code',
+            hintText: LocalizationKeysAppWuy.wuyRegisterEnterVerificationCode.tr(context),
+            prefixIcon: Icons.security,
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return 'Please enter verification code';
@@ -185,18 +169,11 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
         SizedBox(width: ThemeDimensions.spacingMedium),
         SizedBox(
           width: 120,
-          child: ElevatedButton(
+          child: WuyGradientButton(
+            text: _countdown > 0 ? '${_countdown}s' : 'Send Code',
             onPressed: _countdown > 0 ? null : _sendVerificationCode,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ThemeColors.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-              ),
-            ),
-            child: Text(
-              _countdown > 0 ? '${_countdown}s' : 'Send Code',
-              style: ThemeTextStyles.buttonMedium,
-            ),
+            height: 56,
+            enabled: _countdown == 0,
           ),
         ),
       ],
@@ -204,31 +181,22 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
   }
 
   Widget _buildPasswordField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      decoration: InputDecoration(
-        labelText: 'Password',
-        hintText: 'Enter your password',
-        prefixIcon: Icon(Icons.lock, color: ThemeColors.primary),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscurePassword ? Icons.visibility : Icons.visibility_off,
-            color: ThemeColors.textSecondary,
-          ),
-          onPressed: () {
-            setState(() {
-              _obscurePassword = !_obscurePassword;
-            });
-          },
+      labelText: 'Password',
+      hintText: 'Enter your password',
+      prefixIcon: Icons.lock,
+      suffixIcon: IconButton(
+        icon: Icon(
+          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+          color: ThemeColors.textSecondary,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
+        onPressed: () {
+          setState(() {
+            _obscurePassword = !_obscurePassword;
+          });
+        },
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -243,31 +211,22 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
   }
 
   Widget _buildConfirmPasswordField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _confirmPasswordController,
       obscureText: _obscureConfirmPassword,
-      decoration: InputDecoration(
-        labelText: 'Confirm Password',
-        hintText: 'Confirm your password',
-        prefixIcon: Icon(Icons.lock_outline, color: ThemeColors.primary),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
-            color: ThemeColors.textSecondary,
-          ),
-          onPressed: () {
-            setState(() {
-              _obscureConfirmPassword = !_obscureConfirmPassword;
-            });
-          },
+      labelText: 'Confirm Password',
+      hintText: 'Confirm your password',
+      prefixIcon: Icons.lock_outline,
+      suffixIcon: IconButton(
+        icon: Icon(
+          _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+          color: ThemeColors.textSecondary,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
+        onPressed: () {
+          setState(() {
+            _obscureConfirmPassword = !_obscureConfirmPassword;
+          });
+        },
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -282,23 +241,11 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
   }
 
   Widget _buildRegisterButton() {
-    return ElevatedButton(
-      onPressed: _isLoading ? null : _handleRegister,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: ThemeColors.primary,
-        minimumSize: Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-      ),
-      child: _isLoading
-          ? CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
-            )
-          : Text(
-              'Register',
-              style: ThemeTextStyles.buttonLarge,
-            ),
+    return WuyGradientButton(
+      text: 'Register',
+      onPressed: _handleRegister,
+      isLoading: _isLoading,
+      height: 50,
     );
   }
 

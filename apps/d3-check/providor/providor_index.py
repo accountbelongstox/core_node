@@ -788,3 +788,28 @@ PLAY_BUTTON_AUTOMATION_IDS = [
     "launch-game-btn",
     "game-launch-btn"
 ]
+
+# ============================================================================
+# D4 TEMPLATE CONFIGURATIONS - D4-specific template paths and thresholds
+# ============================================================================
+D4_TEMPLATE_CONFIGS = {
+    # D4 Small map templates
+    "d4_small_map": {
+        "path": os.path.join(TEMPLATE_DIR, "d4", "small_map.jpg"),
+        "threshold": 0.6,  # Lower threshold for small map detection
+        "category": "d4_map",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "D4 small map template - detects if player is in town (city) vs dungeon"
+    },
+    
+    # Add more D4-specific templates here as needed
+    # "d4_other_template": {
+    #     "path": os.path.join(TEMPLATE_DIR, "d4", "other_template.png"),
+    #     "threshold": 0.8,
+    #     "category": "d4_ui",
+    #     "use_alpha": False,
+    #     "match_method": "SIFT",
+    #     "note": "D4 other template description"
+    # },
+}

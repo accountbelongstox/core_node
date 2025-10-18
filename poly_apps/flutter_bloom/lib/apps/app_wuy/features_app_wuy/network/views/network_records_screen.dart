@@ -15,7 +15,9 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../services_app_wuy/wuy_data_manager.dart';
 
 /// Network Records Screen for Wuy App
@@ -43,41 +45,51 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
     _loadNetworkRecords();
   }
 
-  void _loadNetworkRecords() {
-    // Mock data based on the screenshot
-    _networkRecords = [
+  void _loadNetworkRecords() async {
+    // Try to load from data manager first
+    final dataManager = WuyDataManager.instance;
+
+    // TODO: Implement real network records loading from data manager
+    // For now, use mock data with localized strings
+    setState(() {
+      _networkRecords = _generateMockNetworkRecords();
+    });
+  }
+
+  List<NetworkRecord> _generateMockNetworkRecords() {
+    return [
       NetworkRecord(
         date: '2025-10-21',
         time: '20:00',
-        description: '登录到小飞侠的账户',
+        descriptionKey: LocalizationKeysAppWuy.wuyNetworkLoginAccount,
         type: NetworkType.login,
         status: NetworkStatus.success,
       ),
       NetworkRecord(
         date: '2025-10-21',
         time: '20:00',
-        description: '登录成功',
+        descriptionKey: LocalizationKeysAppWuy.wuyNetworkLoginSuccess,
         type: NetworkType.success,
         status: NetworkStatus.success,
       ),
       NetworkRecord(
         date: '2025-10-21',
         time: '19:45',
-        description: '连接WiFi网络',
+        descriptionKey: LocalizationKeysAppWuy.wuyNetworkConnectWifi,
         type: NetworkType.wifi,
         status: NetworkStatus.success,
       ),
       NetworkRecord(
         date: '2025-10-21',
         time: '19:30',
-        description: '移动网络连接',
+        descriptionKey: LocalizationKeysAppWuy.wuyNetworkMobileConnection,
         type: NetworkType.mobile,
         status: NetworkStatus.success,
       ),
       NetworkRecord(
         date: '2025-10-21',
         time: '19:15',
-        description: '网络请求超时',
+        descriptionKey: LocalizationKeysAppWuy.wuyNetworkRequestTimeout,
         type: NetworkType.error,
         status: NetworkStatus.error,
       ),
@@ -90,13 +102,13 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'Network Records',
+          LocalizationKeysAppWuy.wuyNetworkTitle.tr(context),
           style: ThemeTextStyles.displayMedium,
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
           onPressed: () => context.go(WuyAppRouter.routeHome),
         ),
       ),
@@ -120,8 +132,8 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.orange.shade400,
-            Colors.red.shade400,
+            ThemeColors.orange40,
+            ThemeColors.red40,
           ],
         ),
       ),
@@ -135,25 +147,25 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
               children: [
                 CircleAvatar(
                   radius: 40,
-                  backgroundColor: Colors.white.withOpacity(0.2),
+                  backgroundColor: ThemeColors.white.withOpacity(0.2),
                   child: Icon(
                     Icons.network_check,
                     size: 40,
-                    color: Colors.white,
+                    color: ThemeColors.white,
                   ),
                 ),
                 SizedBox(height: ThemeDimensions.spacingMedium),
                 Text(
                   WuyDataManager.instance.currentUser?.displayName ?? 'User',
                   style: ThemeTextStyles.title2.copyWith(
-                    color: Colors.white,
+                    color: ThemeColors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  'Network Activity',
+                  LocalizationKeysAppWuy.wuyNetworkActivity.tr(context),
                   style: ThemeTextStyles.bodyLarge.copyWith(
-                    color: Colors.white.withOpacity(0.9),
+                    color: ThemeColors.white.withOpacity(0.9),
                   ),
                 ),
               ],
@@ -166,7 +178,7 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
 
   Widget _buildNetworkRecordsList() {
     return Container(
-      color: Colors.lightGreen.shade50,
+      color: ThemeColors.green05,
       padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
       child: ListView.builder(
         itemCount: _networkRecords.length,
@@ -183,11 +195,11 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
       margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
       padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ThemeColors.white,
         borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: ThemeColors.black.withOpacity(0.1),
             blurRadius: 5,
             offset: Offset(0, 2),
           ),
@@ -210,7 +222,7 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
                 ),
                 SizedBox(height: ThemeDimensions.spacingSmall),
                 Text(
-                  record.description,
+                  record.descriptionKey.tr(context),
                   style: ThemeTextStyles.bodyMedium,
                 ),
                 SizedBox(height: ThemeDimensions.spacingSmall),
@@ -230,23 +242,23 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
     switch (type) {
       case NetworkType.login:
         iconData = Icons.login;
-        iconColor = Colors.blue;
+        iconColor = ThemeColors.blue60;
         break;
       case NetworkType.success:
         iconData = Icons.check_circle;
-        iconColor = Colors.green;
+        iconColor = ThemeColors.green60;
         break;
       case NetworkType.wifi:
         iconData = Icons.wifi;
-        iconColor = Colors.orange;
+        iconColor = ThemeColors.orange60;
         break;
       case NetworkType.mobile:
         iconData = Icons.signal_cellular_alt;
-        iconColor = Colors.purple;
+        iconColor = ThemeColors.purple60;
         break;
       case NetworkType.error:
         iconData = Icons.error;
-        iconColor = Colors.red;
+        iconColor = ThemeColors.red60;
         break;
     }
 
@@ -267,20 +279,20 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
 
   Widget _buildStatusIndicator(NetworkStatus status) {
     Color statusColor;
-    String statusText;
+    String statusTextKey;
 
     switch (status) {
       case NetworkStatus.success:
-        statusColor = Colors.green;
-        statusText = 'Success';
+        statusColor = ThemeColors.green60;
+        statusTextKey = LocalizationKeysAppWuy.wuyNetworkSuccess;
         break;
       case NetworkStatus.error:
-        statusColor = Colors.red;
-        statusText = 'Error';
+        statusColor = ThemeColors.red60;
+        statusTextKey = LocalizationKeysAppWuy.wuyNetworkError;
         break;
       case NetworkStatus.pending:
-        statusColor = Colors.orange;
-        statusText = 'Pending';
+        statusColor = ThemeColors.orange60;
+        statusTextKey = LocalizationKeysAppWuy.wuyNetworkPending;
         break;
     }
 
@@ -294,7 +306,7 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        statusText,
+        statusTextKey.tr(context),
         style: ThemeTextStyles.bodySmall.copyWith(
           color: statusColor,
           fontWeight: FontWeight.w500,
@@ -307,14 +319,14 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
 class NetworkRecord {
   final String date;
   final String time;
-  final String description;
+  final String descriptionKey;
   final NetworkType type;
   final NetworkStatus status;
 
   NetworkRecord({
     required this.date,
     required this.time,
-    required this.description,
+    required this.descriptionKey,
     required this.type,
     required this.status,
   });

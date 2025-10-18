@@ -17,13 +17,14 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../widgets_app_wuy/wuy_bottom_navigation.dart';
+import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
-// WuyDataCenter functionality merged into WuyUnifiedService
 import '../../../providers_app_wuy/wu_user_provider.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
 import '../../../widgets_app_wuy/wuy_common_background.dart';
+import '../../../services_app_wuy/wuy_data_manager.dart';
 
 /// Friends List Screen for Wuy App
 /// 
@@ -44,6 +45,7 @@ class WuyFriendsListScreen extends StatefulWidget {
 
 class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
   final TextEditingController _searchController = TextEditingController();
+  List<FriendModelAppWuy> _allFriends = [];
   List<FriendModelAppWuy> _filteredFriends = [];
   bool _isLoading = true;
 
@@ -64,20 +66,40 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
       _isLoading = true;
     });
 
-    // Data center functionality merged into unified service
-    // For now, use empty friends list
-    _filteredFriends = [];
+    try {
+      final dataManager = WuyDataManager.instance;
+      final friends = await dataManager.getFriends();
 
-    setState(() {
-      _isLoading = false;
-    });
+      if (mounted) {
+        setState(() {
+          _allFriends = friends;
+          _filteredFriends = friends;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading friends: $e');
+      if (mounted) {
+        setState(() {
+          _allFriends = [];
+          _filteredFriends = [];
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _filterFriends(String query) {
     setState(() {
-      // Data center functionality merged into unified service
-      // For now, use empty friends list
-      _filteredFriends = [];
+      if (query.isEmpty) {
+        _filteredFriends = _allFriends;
+      } else {
+        _filteredFriends = _allFriends.where((friend) {
+          return friend.displayName.toLowerCase().contains(query.toLowerCase()) ||
+                 (friend.username?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
+                 (friend.phoneNumber?.contains(query) ?? false);
+        }).toList();
+      }
     });
   }
 
@@ -143,28 +165,11 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
   Widget _buildSearchBar() {
     return Container(
       padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
-      child: TextField(
+      child: WuyModernInputField(
         controller: _searchController,
         onChanged: _filterFriends,
-        decoration: InputDecoration(
-          hintText: LocalizationKeysAppWuy.wuyFriendsSearch.tr(context),
-          prefixIcon: Icon(
-            Icons.search,
-            color: WuyAppThemeConfig.wuyTextSecondary,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-            borderSide: BorderSide(color: WuyAppThemeConfig.wuyTextSecondary),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-            borderSide: BorderSide(color: WuyAppThemeConfig.wuyPrimaryColor, width: 2),
-          ),
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: WuyAppThemeConfig.wuyDefaultPadding,
-            vertical: WuyAppThemeConfig.wuySmallPadding,
-          ),
-        ),
+        hintText: LocalizationKeysAppWuy.wuyFriendsSearch.tr(context),
+        prefixIcon: Icons.search,
       ),
     );
   }

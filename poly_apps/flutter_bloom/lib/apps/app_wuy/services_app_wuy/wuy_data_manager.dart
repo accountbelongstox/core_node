@@ -12,6 +12,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/common/storage/unified_storage.dart';
 import '../config_app_wuy/app_config_app_wuy.dart';
 import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
@@ -159,8 +160,25 @@ class WuyDataManager {
     }
 
     try {
+      final storage = await UnifiedStorage.get('friends_list');
+      if (storage != null && storage is List) {
+        _friendsList = storage
+            .map((json) => FriendModelAppWuy.fromJson(json as Map<String, dynamic>))
+            .toList();
+        debugPrint(
+            'WuyDataManager: Loaded ${_friendsList!.length} friends from local storage');
+      }
+    } catch (e) {
+      debugPrint('WuyDataManager: Load from storage error - $e');
+    }
+
+    try {
       if (AppConfigAppWuy.enableMockApi) {
-        _friendsList = WuyFakeDataGenerator.generateFakeFriends();
+        final fakeFriends = WuyFakeDataGenerator.generateFakeFriends();
+        if (_friendsList == null || _friendsList!.isEmpty) {
+          _friendsList = fakeFriends;
+        }
+        await UnifiedStorage.set('friends_list', _friendsList!.map((f) => f.toJson()).toList());
         debugPrint(
             'WuyDataManager: Loaded ${_friendsList!.length} friends from fake data');
         return _friendsList!;
@@ -168,6 +186,7 @@ class WuyDataManager {
         final response = await _unifiedService.getFriends();
         if (response.isSuccess && response.data != null) {
           _friendsList = response.data!;
+          await UnifiedStorage.set('friends_list', _friendsList!.map((f) => f.toJson()).toList());
           debugPrint(
               'WuyDataManager: Loaded ${_friendsList!.length} friends from API');
           return _friendsList!;
@@ -175,10 +194,16 @@ class WuyDataManager {
       }
     } catch (e) {
       debugPrint('WuyDataManager: Get friends error - $e');
+      if (_friendsList != null && _friendsList!.isNotEmpty) {
+        debugPrint('WuyDataManager: Using cached friends list (${_friendsList!.length} friends)');
+        return _friendsList!;
+      }
     }
 
-    // Fallback to fake data
-    _friendsList = WuyFakeDataGenerator.generateFakeFriends();
+    if (_friendsList == null || _friendsList!.isEmpty) {
+      _friendsList = WuyFakeDataGenerator.generateFakeFriends();
+      await UnifiedStorage.set('friends_list', _friendsList!.map((f) => f.toJson()).toList());
+    }
     return _friendsList!;
   }
 
@@ -323,6 +348,7 @@ class WuyDataManager {
     _friendsList = null;
     _chatMessages = null;
     _currentLocation = null;
+    UnifiedStorage.remove('friends_list');
     debugPrint('WuyDataManager: User data cleared');
   }
 
