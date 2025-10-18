@@ -22,6 +22,7 @@ if str(core_node_dir) not in sys.path:
 
 from pycore.pyutils.ultralytics.classification_trainer import ClassificationTrainer
 from pycore.pyutils.ultralytics.detection_trainer import DetectionTrainer
+from pycore.pyutils.ultralytics.unified_trainer import UnifiedClassificationTrainer, UnifiedDetectionTrainer
 
 
 class D3CheckTrainingController:
@@ -37,7 +38,7 @@ class D3CheckTrainingController:
     def __init__(self):
         """Initialize controller"""
         self.d3_check_dir = d3_check_dir
-        self.source_base_dir = self.d3_check_dir / ".cache" / "training_data" / "source" / "training_projects"
+        self.source_base_dir = self.d3_check_dir / ".cache" / "training_data" / "1_sources" / "projects"
 
     def train_classification(self, project_name: str, **kwargs):
         """
@@ -141,6 +142,86 @@ class D3CheckTrainingController:
                 projects.append(item.name)
 
         return projects
+
+    def train_unified_classification(self, **kwargs):
+        """
+        Train ONE unified classification model with ALL projects
+
+        Returns:
+            Training results
+        """
+        projects = self.list_projects()
+        if not projects:
+            print("ERROR: No projects found")
+            return None
+
+        source_dirs = [str(self.source_base_dir / p) for p in projects]
+
+        print(f"=" * 80)
+        print(f"Training Unified Classification Model")
+        print(f"Projects: {', '.join(projects)}")
+        print(f"=" * 80)
+
+        try:
+            # Create unified trainer
+            trainer = UnifiedClassificationTrainer(
+                source_dirs=source_dirs,
+                project_name="unified_model"
+            )
+
+            # Prepare data
+            trainer.prepare_data()
+
+            # Train
+            results = trainer.train(**kwargs)
+
+            return results
+
+        except Exception as e:
+            print(f"\033[91mERROR: Unified training failed: {e}\033[0m")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def train_unified_detection(self, **kwargs):
+        """
+        Train ONE unified detection model with ALL projects as different classes
+
+        Returns:
+            Training results
+        """
+        projects = self.list_projects()
+        if not projects:
+            print("ERROR: No projects found")
+            return None
+
+        source_dirs = [str(self.source_base_dir / p) for p in projects]
+
+        print(f"=" * 80)
+        print(f"Training Unified Detection Model")
+        print(f"Projects: {', '.join(projects)}")
+        print(f"=" * 80)
+
+        try:
+            # Create unified trainer
+            trainer = UnifiedDetectionTrainer(
+                source_dirs=source_dirs,
+                project_name="unified_model"
+            )
+
+            # Prepare data
+            trainer.prepare_data()
+
+            # Train
+            results = trainer.train(**kwargs)
+
+            return results
+
+        except Exception as e:
+            print(f"\033[91mERROR: Unified training failed: {e}\033[0m")
+            import traceback
+            traceback.print_exc()
+            return None
 
 
 # Quick functions

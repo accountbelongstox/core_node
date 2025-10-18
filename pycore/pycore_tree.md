@@ -19,11 +19,16 @@ pycore/
 │   │   ├── dataset_generator_example.py
 │   │   └── ocr_example.py
 │   ├── ultralytics/
+│   │   ├── GPU_SUPPORT_README.md
 │   │   ├── __init__.py
 │   │   ├── classification_trainer.py
 │   │   ├── dataset_generator_yolo.py
 │   │   ├── detection_trainer.py
-│   │   └── ultralytics_trainer.py
+│   │   ├── device_manager.py
+│   │   ├── gpu_image_processor.py
+│   │   ├── test_gpu_system.py
+│   │   ├── ultralytics_trainer.py
+│   │   └── unified_trainer.py
 │   ├── app_launcher.py
 │   ├── click_handler.py
 │   ├── dataset_generator.py
@@ -38,6 +43,7 @@ pycore/
 │   ├── paddle_ocr.py
 │   ├── png_matcher.py
 │   ├── process_manager.py
+│   ├── pyutils_tree.md
 │   ├── tray_clicker.py
 │   ├── ui_analyzer.py
 │   ├── window_activator.py
@@ -49,6 +55,7 @@ pycore/
 │   ├── function_mapping.md
 │   ├── migration_complete.md
 │   └── migration_summary.md
+├── PYCORE_CONSISTENCY_REPORT.md
 ├── __init__.py
 ├── __main__.py
 └── pycore_tree.md

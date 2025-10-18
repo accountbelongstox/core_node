@@ -128,6 +128,12 @@ d3-check/
 ├── pycore/
 │   └── pyutils/
 ├── scripts/
+│   ├── legacy/
+│   │   ├── README.md
+│   │   ├── train_detection.py
+│   │   ├── train_old.py
+│   │   ├── validate_detection.py
+│   │   └── validate_models.py
 │   ├── output/
 │   │   ├── 微信截图_20251016030310_bars_detected.png
 │   │   └── 微信截图_20251016030310_bars_mask.png
@@ -220,24 +226,18 @@ d3-check/
 │   ├── _obsolete_window_analyzer.py
 │   └── _obsolete_window_ops.py
 ├── BarDetectionScript.md
-├── DUAL_NAMESPACE_GUIDE.md
-├── IMAGE_ENHANCEMENT_GUIDE.md
-├── PROGRESSBAR_TRAINING_README.md
-├── QUICK_START_TRAINING.md
 ├── README_QUICK_START.md
-├── README_TRAINING.md
 ├── TRAINING_GUIDE.md
-├── TRAINING_SUMMARY.md
-├── TRAINING_SYSTEM_GUIDE.md
-├── TRAINING_SYSTEM_SUMMARY.md
+├── UPDATE.md
 ├── WORKFLOW_SUMMARY.md
 ├── d3-check_tree.md
 ├── main.py
+├── migrate_structure.py
+├── task.txt
+├── test_image_enhancement.py
 ├── train.py
-├── train_all.py
-├── train_detection.py
-├── validate_detection.py
-├── validate_models.py
+├── tranlog.txt
+├── validate.py
 ├── yolov8n-cls.pt
 └── yolov8n.pt
 ```

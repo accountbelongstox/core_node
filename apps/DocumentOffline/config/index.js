@@ -22,22 +22,50 @@ const defaultConfig = {
     timeout: 30000,
     maxRetries: 3,
     maxRedirects: 5,
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    delay: 1000
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    delay: 1000,
+    retryDelay: 2000,
+    retryBackoffMultiplier: 2,
+    downloadResources: true
   },
   parser: {
-    ignoredExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.ico', '.css', '.js', '.pdf', '.zip', '.rar', '.exe', '.mp3', '.mp4', '.avi', '.mov'],
-    maxLinksPerPage: 100
+    ignoredExtensions: ['.exe', '.dmg', '.pkg', '.deb', '.rpm'],
+    maxLinksPerPage: 1000,
+    extractResources: true,
+    resourceTypes: {
+      css: true,
+      js: true,
+      images: true,
+      fonts: true,
+      media: false
+    }
   },
   file: {
     cacheDir: 'cache',
-    maxFileSize: 10 * 1024 * 1024, // 10MB
+    maxFileSize: 50 * 1024 * 1024,
     encoding: 'utf8'
   },
   limits: {
     maxDepth: 3,
-    maxPages: 1000,
-    maxConcurrent: 5
+    maxPages: 10000,
+    maxConcurrent: 5,
+    maxQueueSize: 50000
+  },
+  filters: {
+    excludePatterns: [
+      '/admin/',
+      '/login',
+      '/logout',
+      '/api/',
+      '/oauth/',
+      '/auth/'
+    ],
+    includePatterns: []
+  },
+  statistics: {
+    enabled: true,
+    showProgress: true,
+    logInterval: 5000
   }
 };
 

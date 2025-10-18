@@ -15,50 +15,79 @@ import yaml
 import json
 
 
-def process_source_images(source_dir: Path, source_image_config) -> List[Path]:
+def process_image_config(source_dir: Path, image_config, config_name: str = "images", subdirectory: Optional[str] = None) -> List[Path]:
     """
-    Process source_image from metadata (shared utility for all trainers):
+    Process image configuration from metadata (shared utility for all trainers):
+
+    Supports:
+    - source_image: Large images / background images (for coordinate mode or detection)
+    - patch_images: Small target images (for direct patch mode)
 
     Directory structure:
         source/
         ├── training_projects/
         │   └── project_name/
-        │       ├── source/          # Project source images here
+        │       ├── image1.png           # Images directly in project directory
+        │       ├── image2.png
+        │       ├── source_image/        # Auto-scanned for source_image config
+        │       │   └── large.png
+        │       ├── patch_images/        # Auto-scanned for patch_images config
+        │       │   └── target.png
         │       └── metadata.json
-        └── public/                  # Shared background images
+        └── public/                      # Shared background images
 
     Processing logic:
     1. Convert string to array if needed
-    2. Look for images in project_name/source/ subdirectory
-    3. Auto-scan and add ../public/*.png if public directory exists
-    4. Expand glob patterns
-    5. Warn (don't error) if individual files don't exist
+    2. Look for images in project_name/ directory
+    3. Auto-scan subdirectory (e.g., ./source_image/*.png or ./patch_images/*.png)
+    4. Auto-add ../../public/*.png if public directory exists
+    5. Expand glob patterns
+    6. Deduplicate paths
+    7. Warn (don't error) if individual files don't exist
 
     Args:
         source_dir: Project directory (e.g., source/training_projects/rift_progress_bar)
-        source_image_config: source_image value from metadata.json (string or list)
+        image_config: Image configuration value from metadata.json (string or list)
+        config_name: Configuration name for logging (default: "images")
+        subdirectory: Optional subdirectory name to auto-scan (e.g., "source_image", "patch_images")
 
     Returns:
-        List of valid source image paths
+        List of valid image paths (deduplicated)
     """
     # Convert string to array
-    if isinstance(source_image_config, str):
-        source_image_config = [source_image_config]
-    elif not isinstance(source_image_config, list):
-        source_image_config = [source_image_config]
+    if isinstance(image_config, str):
+        image_config = [image_config]
+    elif not isinstance(image_config, list):
+        image_config = [image_config]
 
-    # Base directory for project source images: project_dir/source/
-    project_source_dir = source_dir / 'source'
+    # Store original config for better warning messages
+    original_config = image_config.copy()
+
+    # Auto-scan subdirectory if specified and exists
+    if subdirectory:
+        subdir_path = source_dir / subdirectory
+        if subdir_path.exists() and subdir_path.is_dir():
+            print(f"Found {subdirectory}/ subdirectory, auto-adding images: {subdir_path.resolve()}")
+            image_config.append(f'./{subdirectory}/*.png')
+            image_config.append(f'./{subdirectory}/*.jpg')
+            image_config.append(f'./{subdirectory}/*.jpeg')
 
     # Auto-add public directory images if it exists (at ../../public)
     public_dir = source_dir.parent.parent / 'public'
     if public_dir.exists() and public_dir.is_dir():
         print(f"Found public directory, auto-adding background images: {public_dir.resolve()}")
-        source_image_config.append('../../public/*.png')
+        image_config.append('../../public/*.png')
 
     # Expand globs and validate files
-    source_images = []
-    for pattern in source_image_config:
+    images = []
+    seen_paths = set()  # For deduplication
+    files_not_found = []  # Track files that weren't found directly
+
+    for pattern in image_config:
+        # Skip empty patterns
+        if not pattern:
+            continue
+
         # Handle glob patterns
         if '*' in str(pattern) or '?' in str(pattern):
             # Resolve pattern relative to source_dir
@@ -68,34 +97,45 @@ def process_source_images(source_dir: Path, source_image_config) -> List[Path]:
                 print(f"WARNING: No files matched pattern: {pattern}")
                 continue
             for matched_file in matched_files:
-                file_path = Path(matched_file)
-                if file_path.exists():
-                    source_images.append(file_path)
-                else:
-                    print(f"WARNING: File not found: {file_path}")
+                file_path = Path(matched_file).resolve()  # Resolve to absolute for dedup
+                if file_path.exists() and file_path not in seen_paths:
+                    images.append(file_path)
+                    seen_paths.add(file_path)
         else:
-            # Direct file path - look in source/ subdirectory first
-            file_path = project_source_dir / pattern
-            if file_path.exists():
-                source_images.append(file_path)
+            # Direct file path - look in project directory directly
+            file_path = (source_dir / pattern).resolve()
+            if file_path.exists() and file_path not in seen_paths:
+                images.append(file_path)
+                seen_paths.add(file_path)
             else:
-                # Fallback: try relative to source_dir root
-                file_path_fallback = source_dir / pattern
-                if file_path_fallback.exists():
-                    source_images.append(file_path_fallback)
-                else:
-                    print(f"WARNING: Source image not found: {pattern}")
-                    print(f"         Checked: {project_source_dir / pattern}")
-                    print(f"         Checked: {source_dir / pattern}")
+                # Only track if this was from original config (not auto-added patterns)
+                if pattern in original_config and file_path not in seen_paths:
+                    files_not_found.append((pattern, file_path))
 
-    if not source_images:
-        raise FileNotFoundError(f"No valid source images found in metadata")
+    # Only show warnings for files that were explicitly specified but truly not found
+    # (i.e., not found even after auto-scanning subdirectories)
+    if files_not_found:
+        for pattern, file_path in files_not_found:
+            # Check if file exists in subdirectory (via auto-scan)
+            file_found_in_subdir = False
+            if subdirectory:
+                subdir_file = source_dir / subdirectory / pattern
+                if subdir_file.resolve() in seen_paths:
+                    file_found_in_subdir = True
 
-    print(f"Loaded {len(source_images)} source image(s)")
-    for img in source_images:
+            # Only warn if file was not found anywhere
+            if not file_found_in_subdir:
+                print(f"WARNING: Image not found: {pattern}")
+                print(f"         Checked: {file_path}")
+
+    if not images:
+        raise FileNotFoundError(f"No valid {config_name} found in metadata")
+
+    print(f"Loaded {len(images)} {config_name} (deduplicated)")
+    for img in images:
         print(f"  - {img.name}")
 
-    return source_images
+    return images
 
 try:
     from ultralytics import YOLO
