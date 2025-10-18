@@ -908,6 +908,60 @@ function Generate-GlobalCommand {
     
     # Create batch script content
     $psEnvVarsString = $psEnvVars -join "; "
+
+    # Check if this is a Claude command and add upgrade prompt + MCP sync
+    $upgradeSection = ""
+    if ($script:CurrentPsCommand -eq "claude") {
+        $upgradeSection = @"
+
+REM Prompt for upgrade and sync MCP configuration
+echo.
+echo ============================================================
+echo Claude Code - Pre-Launch Tasks
+echo ============================================================
+echo.
+echo Available tasks:
+echo   [1] Upgrade Claude Code to latest version (runs in separate window)
+echo   [2] Sync MCP server configurations (runs now)
+echo.
+
+REM Ask user if they want to upgrade
+set /p UPGRADE_CHOICE="Do you want to upgrade Claude Code? (y/N): "
+if /i "%UPGRADE_CHOICE%"=="y" (
+    echo.
+    echo [INFO] Launching upgrade in separate window...
+    start "Claude Code Upgrade" "D:\programing\core_node\scripts\pytools\claude_tools\upgrade_claude_code.bat"
+    echo [SUCCESS] Upgrade window opened
+) else (
+    echo [INFO] Skipping upgrade
+)
+
+echo.
+echo ============================================================
+echo Syncing MCP Server Configurations...
+echo ============================================================
+echo.
+
+REM Run MCP sync in main thread with unbuffered output for real-time display
+python -u "D:\programing\core_node\scripts\pytools\claude_tools\sync_mcp_servers.py"
+
+set MCP_EXIT_CODE=%ERRORLEVEL%
+
+if %MCP_EXIT_CODE% EQU 0 (
+    echo [SUCCESS] MCP configuration sync completed
+) else (
+    echo [WARNING] MCP sync exited with code: %MCP_EXIT_CODE%
+)
+
+echo.
+echo ============================================================
+echo Press Enter to start Claude Code...
+echo ============================================================
+set /p CONTINUE="Press Enter to continue..."
+
+"@
+    }
+
     $script:CurrentBatchContent = @"
 @echo off
 REM $($script:CurrentConfig.Title) Global File #$script:CurrentFileNumber
@@ -915,7 +969,7 @@ REM Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 
 REM Set environment variables
 $($envCommands -join "`n")
-
+$upgradeSection
 REM Execute PowerShell command with environment variables
 echo Executing: $script:CurrentPsCommand
 echo.

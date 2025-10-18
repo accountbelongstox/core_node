@@ -55,6 +55,17 @@ export default defineNuxtConfig({
     css: ['~/assets/css/app.css'],
     modules: ['@pinia/nuxt', '@nuxtjs/i18n'],
 
+    alias: {
+        '@/apps': './apps',
+        '@/common': './common',
+        '@/app_main': './apps/app_main',
+        '@/app_codemart': './apps/app_codemart',
+        '@/app_admin': './apps/app_admin',
+        '@/app_example': './apps/app_example',
+        '@/app_dev': './apps/app_dev',
+        '@/app_dashboard': './apps/app_dashboard',
+    },
+
     i18n: {
         defaultLocale: 'en',
         locales: [
