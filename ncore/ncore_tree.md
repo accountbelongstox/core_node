@@ -167,6 +167,261 @@ ncore/
 │   │   │   └── index.js
 │   │   └── gconfig.js
 │   └── index.js
+├── mcp_server/
+│   ├── codebase-scanner/
+│   │   └── main.py
+│   ├── document_parser/
+│   │   ├── cnocr_engine.py
+│   │   ├── image_processor.py
+│   │   ├── main.py
+│   │   ├── ocr_config.py
+│   │   ├── ocr_engines.py
+│   │   ├── ocr_queue_system.py
+│   │   ├── optimization_summary.txt
+│   │   ├── paddle_ocr_engine.py
+│   │   └── pdf_processor.py
+│   ├── mcp-alchemy/
+│   │   ├── data/
+│   │   ├── mcp_alchemy/
+│   │   │   ├── __init__.py
+│   │   │   └── server.py
+│   │   ├── tmp_sessions/
+│   │   │   ├── vscode_00732031/
+│   │   │   ├── vscode_2089f079/
+│   │   │   ├── vscode_20a461df/
+│   │   │   ├── vscode_36ff7487/
+│   │   │   ├── vscode_422fb150/
+│   │   │   ├── vscode_4623b968/
+│   │   │   ├── vscode_4ba8c9b4/
+│   │   │   ├── vscode_626b8137/
+│   │   │   ├── vscode_6737d159/
+│   │   │   ├── vscode_6bf43308/
+│   │   │   ├── vscode_6efd4db0/
+│   │   │   ├── vscode_7d40b5bf/
+│   │   │   ├── vscode_85e9dd6e/
+│   │   │   ├── vscode_966485bc/
+│   │   │   ├── vscode_99192e89/
+│   │   │   ├── vscode_ccf88277/
+│   │   │   ├── vscode_cd3105be/
+│   │   │   ├── vscode_d24f6bd4/
+│   │   │   ├── vscode_db90727d/
+│   │   │   ├── vscode_e2254c6c/
+│   │   │   ├── vscode_e47914c8/
+│   │   │   ├── vscode_ed92e6a3/
+│   │   │   ├── vscode_f0f0bb85/
+│   │   │   └── active_sessions.json
+│   │   ├── .gitignore
+│   │   ├── LICENSE
+│   │   ├── Makefile
+│   │   ├── README.md
+│   │   ├── config.json
+│   │   ├── main.py
+│   │   ├── pyproject.toml
+│   │   └── requirements.txt
+│   ├── placeholder_image_generator/
+│   │   ├── main.py
+│   │   └── test_client.py
+│   └── wait_please/
+│       ├── icons/
+│       │   ├── icon-128.png
+│       │   ├── icon-256.png
+│       │   ├── icon-32.png
+│       │   ├── icon-512.png
+│       │   ├── icon.icns
+│       │   ├── icon.ico
+│       │   └── icon.png
+│       ├── screenshots/
+│       │   ├── popup.png
+│       │   └── settings.png
+│       ├── scripts/
+│       │   └── dev.ps1
+│       ├── src/
+│       │   ├── frontend/
+│       │   │   ├── assets/
+│       │   │   │   └── styles/
+│       │   │   │       └── style.css
+│       │   │   ├── components/
+│       │   │   │   ├── common/
+│       │   │   │   │   ├── FeatureCard.vue
+│       │   │   │   │   ├── ProjectInfoCard.vue
+│       │   │   │   │   ├── SkeletonLoader.vue
+│       │   │   │   │   ├── ThemeIcon.vue
+│       │   │   │   │   └── UpdateModal.vue
+│       │   │   │   ├── layout/
+│       │   │   │   │   ├── LayoutWrapper.vue
+│       │   │   │   │   └── MainLayout.vue
+│       │   │   │   ├── popup/
+│       │   │   │   │   ├── McpPopup.vue
+│       │   │   │   │   ├── PopupActions.vue
+│       │   │   │   │   ├── PopupContent.vue
+│       │   │   │   │   ├── PopupHeader.vue
+│       │   │   │   │   ├── PopupInput.vue
+│       │   │   │   │   └── index.ts
+│       │   │   │   ├── settings/
+│       │   │   │   │   ├── AudioSettings.vue
+│       │   │   │   │   ├── CustomPromptSettings.vue
+│       │   │   │   │   ├── FontSettings.vue
+│       │   │   │   │   ├── ReplySettings.vue
+│       │   │   │   │   ├── ShortcutSettings.vue
+│       │   │   │   │   ├── TelegramSettings.vue
+│       │   │   │   │   ├── ThemeSettings.vue
+│       │   │   │   │   ├── VersionChecker.vue
+│       │   │   │   │   └── WindowSettings.vue
+│       │   │   │   ├── tabs/
+│       │   │   │   │   ├── IntroTab.vue
+│       │   │   │   │   ├── McpToolsTab.vue
+│       │   │   │   │   ├── PromptsTab.vue
+│       │   │   │   │   └── SettingsTab.vue
+│       │   │   │   └── AppContent.vue
+│       │   │   ├── composables/
+│       │   │   │   ├── useAppInitialization.ts
+│       │   │   │   ├── useAppManager.ts
+│       │   │   │   ├── useAudioManager.ts
+│       │   │   │   ├── useEventHandlers.ts
+│       │   │   │   ├── useExitWarning.ts
+│       │   │   │   ├── useFontManager.ts
+│       │   │   │   ├── useKeyboard.ts
+│       │   │   │   ├── useMcpHandler.ts
+│       │   │   │   ├── useMcpTools.ts
+│       │   │   │   ├── useSettings.ts
+│       │   │   │   ├── useShortcuts.ts
+│       │   │   │   ├── useTheme.ts
+│       │   │   │   └── useVersionCheck.ts
+│       │   │   ├── constants/
+│       │   │   │   ├── prompts.ts
+│       │   │   │   ├── telegram.ts
+│       │   │   │   └── ui.ts
+│       │   │   ├── public/
+│       │   │   │   └── icons/
+│       │   │   │       └── icon-128.png
+│       │   │   ├── test/
+│       │   │   │   ├── components/
+│       │   │   │   │   ├── ComponentsTest.vue
+│       │   │   │   │   ├── MainLayoutTest.vue
+│       │   │   │   │   ├── McpPopupTest.vue
+│       │   │   │   │   └── ThemesTest.vue
+│       │   │   │   ├── README.md
+│       │   │   │   ├── TestApp.vue
+│       │   │   │   ├── index.html
+│       │   │   │   ├── main.ts
+│       │   │   │   └── vite.config.ts
+│       │   │   ├── theme/
+│       │   │   │   ├── colors.ts
+│       │   │   │   └── index.ts
+│       │   │   ├── types/
+│       │   │   │   ├── popup.d.ts
+│       │   │   │   └── tauri.d.ts
+│       │   │   ├── App.vue
+│       │   │   └── main.ts
+│       │   └── rust/
+│       │       ├── app/
+│       │       │   ├── builder.rs
+│       │       │   ├── cli.rs
+│       │       │   ├── commands.rs
+│       │       │   ├── mod.rs
+│       │       │   └── setup.rs
+│       │       ├── assets/
+│       │       │   └── resources/
+│       │       │       ├── 100w[100万].mp3
+│       │       │       ├── deng[噔].mp3
+│       │       │       ├── dengyixia[等一下].mp3
+│       │       │       ├── elegant[销魂].mp3
+│       │       │       ├── ganma[iKun].mp3
+│       │       │       ├── gaowan[睾丸了].mp3
+│       │       │       └── ji[鸡].mp3
+│       │       ├── bin/
+│       │       │   └── mcp_server.rs
+│       │       ├── config/
+│       │       │   ├── mod.rs
+│       │       │   ├── settings.rs
+│       │       │   └── storage.rs
+│       │       ├── constants/
+│       │       │   ├── app.rs
+│       │       │   ├── audio.rs
+│       │       │   ├── font.rs
+│       │       │   ├── mcp.rs
+│       │       │   ├── mod.rs
+│       │       │   ├── network.rs
+│       │       │   ├── telegram.rs
+│       │       │   ├── theme.rs
+│       │       │   ├── ui.rs
+│       │       │   ├── validation.rs
+│       │       │   └── window.rs
+│       │       ├── mcp/
+│       │       │   ├── handlers/
+│       │       │   │   ├── mod.rs
+│       │       │   │   ├── popup.rs
+│       │       │   │   └── response.rs
+│       │       │   ├── tools/
+│       │       │   │   ├── interaction/
+│       │       │   │   │   ├── mcp.rs
+│       │       │   │   │   └── mod.rs
+│       │       │   │   ├── memory/
+│       │       │   │   │   ├── manager.rs
+│       │       │   │   │   ├── mcp.rs
+│       │       │   │   │   ├── mod.rs
+│       │       │   │   │   └── types.rs
+│       │       │   │   └── mod.rs
+│       │       │   ├── utils/
+│       │       │   │   ├── common.rs
+│       │       │   │   ├── errors.rs
+│       │       │   │   └── mod.rs
+│       │       │   ├── commands.rs
+│       │       │   ├── mod.rs
+│       │       │   ├── server.rs
+│       │       │   └── types.rs
+│       │       ├── telegram/
+│       │       │   ├── commands.rs
+│       │       │   ├── core.rs
+│       │       │   ├── integration.rs
+│       │       │   ├── markdown.rs
+│       │       │   ├── mcp_handler.rs
+│       │       │   └── mod.rs
+│       │       ├── ui/
+│       │       │   ├── audio.rs
+│       │       │   ├── audio_assets.rs
+│       │       │   ├── commands.rs
+│       │       │   ├── exit.rs
+│       │       │   ├── exit_handler.rs
+│       │       │   ├── font_commands.rs
+│       │       │   ├── mod.rs
+│       │       │   ├── updater.rs
+│       │       │   ├── window.rs
+│       │       │   └── window_events.rs
+│       │       ├── utils/
+│       │       │   ├── logger.rs
+│       │       │   └── mod.rs
+│       │       ├── lib.rs
+│       │       └── main.rs
+│       ├── .gitignore
+│       ├── API_REFERENCE.md
+│       ├── COMPLETE_API_SPECIFICATION.md
+│       ├── Cargo.toml
+│       ├── DEPLOYMENT_GUIDE.md
+│       ├── DEVELOPMENT_GUIDE.md
+│       ├── FLUTTER_IMPLEMENTATION.md
+│       ├── IMPLEMENTATION_GUIDE.md
+│       ├── INSTALL.md
+│       ├── LARAVEL_IMPLEMENTATION.md
+│       ├── MONITORING_AND_HEALTH_CHECK.md
+│       ├── README.md
+│       ├── RUST_INTEGRATION.md
+│       ├── SYSTEM_SERVICES_CONFIG.md
+│       ├── VUE_FRONTEND_MIGRATION.md
+│       ├── build.rs
+│       ├── cliff.toml
+│       ├── dev.bat
+│       ├── eslint.config.mjs
+│       ├── index.html
+│       ├── install-universal.sh
+│       ├── install-windows.ps1
+│       ├── install.sh
+│       ├── package.json
+│       ├── pnpm-workspace.yaml
+│       ├── tauri.conf.json
+│       ├── uno.config.ts
+│       ├── version.json
+│       └── vite.config.js
 ├── pytools/
 │   ├── pyfoundations/
 │   │   ├── __init__.py
@@ -640,6 +895,14 @@ ncore/
 │   │   │   ├── video-file-operations.js
 │   │   │   └── videoCompressor.js
 │   │   └── index.js
+│   ├── web_offline/
+│   │   ├── css_processor.js
+│   │   ├── domain_context.js
+│   │   ├── file_mapper.js
+│   │   ├── index.js
+│   │   ├── resource_downloader.js
+│   │   ├── resource_extractor.js
+│   │   └── url_rewriter.js
 │   ├── win_tool/
 │   │   ├── base_utils/
 │   │   │   └── base.js
@@ -666,7 +929,8 @@ ncore/
 │   ├── softinstall.js
 │   ├── urltool.js
 │   └── watchf.js
-└── db.js
+├── db.js
+└── ncore_tree.md
 ```
 
 ---

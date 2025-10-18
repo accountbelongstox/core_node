@@ -172,40 +172,72 @@ class ClassificationDatasetGenerator(YOLODatasetGenerator):
 
     def __init__(
         self,
-        source_image_paths: List[Path],
-        coordinates: Optional[List[Dict]],
-        output_dir: Path,
+        background_image_paths: Optional[List[Path]] = None,
+        patch_image_paths: Optional[List[Path]] = None,
+        coordinates: Optional[List[Dict]] = None,
+        output_dir: Path = None,
         aug_config: Optional[Dict] = None,
-        enhancements: Optional[List[Dict]] = None
+        enhancements: Optional[List[Dict]] = None,
+        # Backwards compatibility
+        image_paths: Optional[List[Path]] = None
     ):
         """
         Initialize classification dataset generator
 
+        Supports three modes:
+        1. Coordinate mode: background_image_paths + coordinates
+        2. Direct patch mode: patch_image_paths (no coordinates)
+        3. Mixed mode: BOTH background_image_paths + coordinates AND patch_image_paths
+
         Args:
-            source_image_paths: List of paths to source images
-            coordinates: List of coordinate dicts or None/empty for direct patch mode
+            background_image_paths: Large background images for coordinate extraction
+            patch_image_paths: Small patch images to use directly
+            coordinates: List of coordinate dicts (for coordinate mode)
             output_dir: Output directory
             aug_config: Augmentation configuration
             enhancements: List of enhancement configs (for direct patch mode)
-                         Example: [{"type": "random_time", "position": "center", "font_size": 12}]
+            image_paths: DEPRECATED - for backwards compatibility only
         """
         super().__init__(output_dir)
-        # Support both single path and list of paths for backwards compatibility
-        if isinstance(source_image_paths, (str, Path)):
-            self.source_image_paths = [Path(source_image_paths)]
-        else:
-            self.source_image_paths = [Path(p) for p in source_image_paths]
+
+        # Backwards compatibility: if image_paths provided, auto-detect mode
+        if image_paths is not None:
+            self.image_paths = [Path(p) for p in (image_paths if isinstance(image_paths, list) else [image_paths])]
+            # Auto-detect: if coordinates exist, treat as background images, else as patches
+            if coordinates:
+                background_image_paths = self.image_paths
+                patch_image_paths = patch_image_paths or []
+            else:
+                background_image_paths = background_image_paths or []
+                patch_image_paths = self.image_paths
+
+        # Process background images
+        self.background_image_paths = []
+        if background_image_paths:
+            if isinstance(background_image_paths, (str, Path)):
+                self.background_image_paths = [Path(background_image_paths)]
+            else:
+                self.background_image_paths = [Path(p) for p in background_image_paths]
+
+        # Process patch images
+        self.patch_image_paths = []
+        if patch_image_paths:
+            if isinstance(patch_image_paths, (str, Path)):
+                self.patch_image_paths = [Path(patch_image_paths)]
+            else:
+                self.patch_image_paths = [Path(p) for p in patch_image_paths]
 
         self.coordinates = coordinates if coordinates else []
         self.aug_config = aug_config or {}
         self.enhancements = enhancements or []
 
-        # Determine mode
-        self.use_direct_patches = not self.coordinates
+        # Determine modes
+        self.has_coordinates = bool(self.coordinates and self.background_image_paths)
+        self.has_patches = bool(self.patch_image_paths)
 
-        self.source_images = []  # Will store loaded images
-        self.images_with_holes = []  # Background images with holes
-        self.direct_patches = []  # Direct patch images (for direct mode)
+        self.background_images = []  # Loaded large images
+        self.images_with_holes = []  # Background images with holes (for negative samples)
+        self.patch_images = []  # Loaded small target images
 
     def generate(
         self,
@@ -215,6 +247,8 @@ class ClassificationDatasetGenerator(YOLODatasetGenerator):
         """
         Generate classification dataset
 
+        Supports mixed mode: can generate from BOTH coordinates AND patch_images
+
         Args:
             augmentation_count: Number of augmented samples per region/patch
             negative_samples: Number of negative samples
@@ -222,35 +256,19 @@ class ClassificationDatasetGenerator(YOLODatasetGenerator):
         Returns:
             True if successful
         """
-        # Load all source images
-        print(f"Loading {len(self.source_image_paths)} source image(s)...")
-        print(f"Mode: {'Direct Patch' if self.use_direct_patches else 'Coordinate-based'}")
-
-        if self.use_direct_patches:
-            # Direct patch mode: load patches from source/ subdirectory
-            return self._generate_direct_patch_mode(augmentation_count, negative_samples)
+        # Determine mode
+        if self.has_coordinates and self.has_patches:
+            print(f"Mode: Mixed (coordinates + patch_images)")
+            print(f"  - Background images for coordinates: {len(self.background_image_paths)}")
+            print(f"  - Direct patch images: {len(self.patch_image_paths)}")
+        elif self.has_coordinates:
+            print(f"Mode: Coordinate-based")
+            print(f"  - Background images: {len(self.background_image_paths)}")
+        elif self.has_patches:
+            print(f"Mode: Direct Patch")
+            print(f"  - Patch images: {len(self.patch_image_paths)}")
         else:
-            # Coordinate mode: extract from large images
-            return self._generate_coordinate_mode(augmentation_count, negative_samples)
-
-    def _generate_coordinate_mode(
-        self,
-        augmentation_count: int,
-        negative_samples: int
-    ) -> bool:
-        """Generate dataset using coordinate-based extraction"""
-        # Load all source images
-        for img_path in self.source_image_paths:
-            img = cv2.imread(str(img_path))
-            if img is None:
-                print(f"WARNING: Failed to load image: {img_path}")
-                continue
-            self.source_images.append(img)
-            self.images_with_holes.append(img.copy())
-            print(f"  Loaded: {img_path.name} ({img.shape[1]}x{img.shape[0]})")
-
-        if not self.source_images:
-            print("ERROR: No valid source images loaded")
+            print("\033[91mERROR: No images to process\033[0m")
             return False
 
         # Create output directories
@@ -259,73 +277,31 @@ class ClassificationDatasetGenerator(YOLODatasetGenerator):
         yes_dir.mkdir(parents=True, exist_ok=True)
         no_dir.mkdir(parents=True, exist_ok=True)
 
-        # Generate positive samples
-        positive_count = self._generate_positive_samples(yes_dir, augmentation_count)
+        positive_count = 0
+
+        # Generate from coordinates if available
+        if self.has_coordinates:
+            print(f"Generating positive samples from coordinates...")
+            positive_count += self._generate_coordinate_mode_positive(yes_dir, augmentation_count)
+
+        # Generate from patch images if available
+        if self.has_patches:
+            print(f"Generating positive samples from patch images...")
+            positive_count += self._generate_direct_patch_mode_positive(yes_dir, augmentation_count)
+
+        # Load background images for negative sampling
+        self._load_background_images_for_negatives()
 
         # Generate negative samples
+        print(f"Generating negative samples...")
         negative_count = self._generate_negative_samples(no_dir, negative_samples)
 
         # Save metadata
         metadata = {
-            'mode': 'coordinate',
-            'source_images': [str(p) for p in self.source_image_paths],
+            'mode': 'mixed' if (self.has_coordinates and self.has_patches) else ('coordinate' if self.has_coordinates else 'direct_patch'),
+            'background_images': [str(p) for p in self.background_image_paths],
+            'patch_images': [str(p) for p in self.patch_image_paths],
             'coordinates': self.coordinates,
-            'positive_samples': positive_count,
-            'negative_samples': negative_count,
-            'augmentation_count': augmentation_count,
-            'augmentation_config': self.aug_config
-        }
-        self.save_metadata(metadata)
-
-        return True
-
-    def _generate_direct_patch_mode(
-        self,
-        augmentation_count: int,
-        negative_samples: int
-    ) -> bool:
-        """Generate dataset using direct patch images"""
-        # Find patch images in source/ subdirectory
-        patch_patterns = ["*.png", "*.jpg", "*.jpeg"]
-        for img_path in self.source_image_paths:
-            if img_path.is_dir():
-                # Scan directory for images
-                for pattern in patch_patterns:
-                    for patch_file in img_path.glob(pattern):
-                        patch = cv2.imread(str(patch_file))
-                        if patch is not None:
-                            self.direct_patches.append(patch)
-                            print(f"  Loaded patch: {patch_file.name} ({patch.shape[1]}x{patch.shape[0]})")
-            else:
-                # Single image file
-                patch = cv2.imread(str(img_path))
-                if patch is not None:
-                    self.direct_patches.append(patch)
-                    print(f"  Loaded patch: {img_path.name} ({patch.shape[1]}x{patch.shape[0]})")
-
-        if not self.direct_patches:
-            print("ERROR: No patch images found")
-            return False
-
-        # Create output directories
-        yes_dir = self.output_dir / "yes"
-        no_dir = self.output_dir / "no"
-        yes_dir.mkdir(parents=True, exist_ok=True)
-        no_dir.mkdir(parents=True, exist_ok=True)
-
-        # Generate positive samples with enhancements
-        positive_count = self._generate_positive_samples_direct(yes_dir, augmentation_count)
-
-        # For negative samples, we need background images (use public images)
-        # Load background images for negative sampling
-        self._load_background_images()
-        negative_count = self._generate_negative_samples(no_dir, negative_samples)
-
-        # Save metadata
-        metadata = {
-            'mode': 'direct_patch',
-            'source_images': [str(p) for p in self.source_image_paths],
-            'num_patches': len(self.direct_patches),
             'positive_samples': positive_count,
             'negative_samples': negative_count,
             'augmentation_count': augmentation_count,
@@ -334,13 +310,68 @@ class ClassificationDatasetGenerator(YOLODatasetGenerator):
         }
         self.save_metadata(metadata)
 
+        print(f"\nSUCCESS: Generated {positive_count} positive + {negative_count} negative samples")
         return True
 
-    def _load_background_images(self):
-        """Load background images from parent directories for negative samples"""
-        # Try to find public directory
-        for img_path in self.source_image_paths:
-            public_dir = img_path.parent.parent.parent / "public"
+    def _generate_coordinate_mode_positive(
+        self,
+        output_dir: Path,
+        augmentation_count: int
+    ) -> int:
+        """Generate positive samples using coordinate-based extraction"""
+        # Load all background images (large screenshots)
+        for img_path in self.background_image_paths:
+            img = cv2.imread(str(img_path))
+            if img is None:
+                print(f"WARNING: Failed to load image: {img_path}")
+                continue
+            self.background_images.append(img)
+            self.images_with_holes.append(img.copy())
+            print(f"  Loaded background: {img_path.name} ({img.shape[1]}x{img.shape[0]})")
+
+        if not self.background_images:
+            print("ERROR: No valid background images loaded")
+            return 0
+
+        # Generate positive samples
+        positive_count = self._generate_positive_samples(output_dir, augmentation_count)
+        return positive_count
+
+    def _generate_direct_patch_mode_positive(
+        self,
+        output_dir: Path,
+        augmentation_count: int
+    ) -> int:
+        """Generate positive samples using direct patch images"""
+        # Load patch images (small target images to recognize)
+        for img_path in self.patch_image_paths:
+            if img_path.is_file() and img_path.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+                patch = cv2.imread(str(img_path))
+                if patch is not None:
+                    self.patch_images.append(patch)
+                    print(f"  Loaded patch: {img_path.name} ({patch.shape[1]}x{patch.shape[0]})")
+                else:
+                    print(f"  WARNING: Failed to load {img_path.name}")
+
+        if not self.patch_images:
+            print("ERROR: No patch images found")
+            return 0
+
+        # Generate positive samples with enhancements
+        positive_count = self._generate_positive_samples_direct(output_dir, augmentation_count)
+        return positive_count
+
+    def _load_background_images_for_negatives(self):
+        """Load background images for negative sampling"""
+        # If we already have background images with holes from coordinate mode, use them
+        if self.images_with_holes:
+            print(f"Using existing background images with holes: {len(self.images_with_holes)}")
+            return
+
+        # Try to find public directory from any available image path
+        all_paths = list(self.background_image_paths) + list(self.patch_image_paths)
+        for img_path in all_paths:
+            public_dir = img_path.parent.parent / "public"
             if public_dir.exists():
                 print(f"Loading background images from: {public_dir}")
                 for bg_file in public_dir.glob("*.png"):
@@ -371,7 +402,7 @@ class ClassificationDatasetGenerator(YOLODatasetGenerator):
                         enhancer.add_enhancement(enhancement)
                 print(f"Configured {len(enhancer.enhancements)} enhancement(s)")
 
-        for patch_idx, patch in enumerate(self.direct_patches):
+        for patch_idx, patch in enumerate(self.patch_images):
             # Save original patch
             cv2.imwrite(str(output_dir / f"patch_{patch_idx}_original.png"), patch)
             positive_count += 1
@@ -416,15 +447,15 @@ class ClassificationDatasetGenerator(YOLODatasetGenerator):
         positive_count = 0
         scale_range = self.aug_config.get('scale_range', [0.3, 1.0])
 
-        # Use first image for positive samples
-        source_img = self.source_images[0]
+        # Use first background image for positive samples
+        background_img = self.background_images[0]
         img_with_holes = self.images_with_holes[0]
 
         for idx, coord in enumerate(self.coordinates):
             x1, y1, x2, y2 = coord['x1'], coord['y1'], coord['x2'], coord['y2']
 
             # Extract full region
-            full_region = source_img[y1:y2, x1:x2].copy()
+            full_region = background_img[y1:y2, x1:x2].copy()
             if full_region.size == 0:
                 continue
 
@@ -538,7 +569,7 @@ class DetectionDatasetGenerator(YOLODatasetGenerator):
 
     def __init__(
         self,
-        source_image_paths: List[Path],
+        background_image_paths: List[Path],
         coordinates: List[Dict],
         output_dir: Path,
         aug_config: Optional[Dict] = None
@@ -547,23 +578,23 @@ class DetectionDatasetGenerator(YOLODatasetGenerator):
         Initialize detection dataset generator
 
         Args:
-            source_image_paths: List of paths to source images (used as backgrounds)
-            coordinates: List of coordinate dictionaries
+            background_image_paths: List of paths to background images (large screenshots)
+            coordinates: List of coordinate dictionaries (patch locations on first image)
             output_dir: Output directory
             aug_config: Augmentation configuration
         """
         super().__init__(output_dir)
         # Support both single path and list of paths for backwards compatibility
-        if isinstance(source_image_paths, (str, Path)):
-            self.source_image_paths = [Path(source_image_paths)]
+        if isinstance(background_image_paths, (str, Path)):
+            self.background_image_paths = [Path(background_image_paths)]
         else:
-            self.source_image_paths = [Path(p) for p in source_image_paths]
+            self.background_image_paths = [Path(p) for p in background_image_paths]
 
         self.coordinates = coordinates
         self.aug_config = aug_config or {}
 
-        self.source_images = []  # Will store all loaded images
-        self.patches = []
+        self.background_images = []  # Will store all loaded background images
+        self.patches = []  # Extracted patches from first image
 
     def generate(self, num_images: int = 50) -> bool:
         """
@@ -575,18 +606,18 @@ class DetectionDatasetGenerator(YOLODatasetGenerator):
         Returns:
             True if successful
         """
-        # Load all source images
-        print(f"Loading {len(self.source_image_paths)} source image(s)...")
-        for img_path in self.source_image_paths:
+        # Load all background images
+        print(f"Loading {len(self.background_image_paths)} background image(s)...")
+        for img_path in self.background_image_paths:
             img = cv2.imread(str(img_path))
             if img is None:
                 print(f"WARNING: Failed to load image: {img_path}")
                 continue
-            self.source_images.append(img)
-            print(f"  Loaded: {img_path.name} ({img.shape[1]}x{img.shape[0]})")
+            self.background_images.append(img)
+            print(f"  Loaded background: {img_path.name} ({img.shape[1]}x{img.shape[0]})")
 
-        if not self.source_images:
-            print("ERROR: No valid source images loaded")
+        if not self.background_images:
+            print("ERROR: No valid background images loaded")
             return False
 
         # Extract patches from first image
@@ -604,7 +635,7 @@ class DetectionDatasetGenerator(YOLODatasetGenerator):
 
         # Save metadata
         metadata = {
-            'source_images': [str(p) for p in self.source_image_paths],
+            'background_images': [str(p) for p in self.background_image_paths],
             'num_training_images': num_images,
             'num_patches': len(self.patches),
             'augmentation_config': self.aug_config
@@ -617,11 +648,11 @@ class DetectionDatasetGenerator(YOLODatasetGenerator):
         return True
 
     def _extract_patches(self):
-        """Extract patches from first source image"""
-        source_img = self.source_images[0]
+        """Extract patches from first background image"""
+        background_img = self.background_images[0]
         for idx, coord in enumerate(self.coordinates):
             x1, y1, x2, y2 = coord['x1'], coord['y1'], coord['x2'], coord['y2']
-            patch = source_img[y1:y2, x1:x2].copy()
+            patch = background_img[y1:y2, x1:x2].copy()
 
             if patch.size == 0:
                 continue
@@ -684,10 +715,10 @@ class DetectionDatasetGenerator(YOLODatasetGenerator):
             f.write('\n'.join(annotations))
 
     def _create_background(self) -> np.ndarray:
-        """Create background with extracted regions blanked (randomly select from all sources)"""
-        # Randomly select one of the source images
-        source_img = self.source_images[np.random.randint(0, len(self.source_images))]
-        background = source_img.copy()
+        """Create background with extracted regions blanked (randomly select from all backgrounds)"""
+        # Randomly select one of the background images
+        background_img = self.background_images[np.random.randint(0, len(self.background_images))]
+        background = background_img.copy()
 
         # Blank out patch regions
         for coord in self.coordinates:
