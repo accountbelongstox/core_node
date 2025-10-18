@@ -12,8 +12,11 @@
 
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import mainSiteConfig from '@/configs/mainsite.config';
+import exampleConfig from '@/configs/example.config';
+import codemartConfig from '@/configs/codemart.config';
+import devConfig from '@/configs/dev.config';
 import adminSubsiteConfig from '@/configs/subsite-admin.config';
+import dashboardConfig from '@/configs/dashboard.config';
 
 // Route namespace configuration
 export interface RouteNamespaceConfig {
@@ -30,16 +33,38 @@ export interface RouteNamespaceConfig {
 
 // Namespace registry
 const namespaceRegistry: Record<string, RouteNamespaceConfig> = {
-  mainsite: {
-    namespace: 'mainsite',
+  example: {
+    namespace: 'example',
     prefix: '',
-    config: mainSiteConfig,
+    config: exampleConfig,
     pages: [
+      'index',
       'mainsite-dashboard',
-      'mainsite-profile',
-      'mainsite-settings'
+      'examples/datasource-demo'
     ],
-    theme: mainSiteConfig.theme
+    theme: exampleConfig.theme
+  },
+  codemart: {
+    namespace: 'codemart',
+    prefix: '/codemart',
+    config: codemartConfig,
+    pages: [
+      'codemart-dashboard',
+      'codemart-projects',
+      'codemart-marketplace'
+    ],
+    theme: codemartConfig.theme
+  },
+  dev: {
+    namespace: 'dev',
+    prefix: '/dev',
+    config: devConfig,
+    pages: [
+      'dev-dashboard',
+      'dev-code-editor',
+      'dev-tools'
+    ],
+    theme: devConfig.theme
   },
   admin: {
     namespace: 'admin',
@@ -52,6 +77,17 @@ const namespaceRegistry: Record<string, RouteNamespaceConfig> = {
       'logs-admin'
     ],
     theme: adminSubsiteConfig.theme
+  },
+  dashboard: {
+    namespace: 'dashboard',
+    prefix: '/dashboard',
+    config: dashboardConfig,
+    pages: [
+      'analytics',
+      'charts',
+      'reports'
+    ],
+    theme: dashboardConfig.theme
   }
 };
 
@@ -61,21 +97,20 @@ export const useRouteNamespace = () => {
   // Current namespace detection
   const currentNamespace = computed(() => {
     const path = route.path;
-    
-    // Check for admin routes
-    if (path.startsWith('/admin')) {
-      return 'admin';
-    }
-    
-    // Check for other subsites
-    for (const [namespace, config] of Object.entries(namespaceRegistry)) {
-      if (config.prefix && path.startsWith(config.prefix)) {
+
+    // Check all registered namespaces with prefixes (priority order)
+    const prefixedNamespaces = Object.entries(namespaceRegistry)
+      .filter(([_, config]) => config.prefix)
+      .sort((a, b) => b[1].prefix.length - a[1].prefix.length);
+
+    for (const [namespace, config] of prefixedNamespaces) {
+      if (path.startsWith(config.prefix)) {
         return namespace;
       }
     }
-    
-    // Default to mainsite
-    return 'mainsite';
+
+    // Default to example (root namespace)
+    return 'example';
   });
 
   // Current configuration
@@ -86,24 +121,41 @@ export const useRouteNamespace = () => {
   // Navigation items for current namespace
   const navigationItems = computed(() => {
     const namespace = currentNamespace.value;
-    
+
     switch (namespace) {
+      case 'example':
+        return [
+          { path: '/', label: 'Home' },
+          { path: '/mainsite-dashboard', label: 'Dashboard' },
+          { path: '/examples/datasource-demo', label: 'Data Source Demo' }
+        ];
+      case 'codemart':
+        return [
+          { path: '/codemart', label: 'Dashboard' },
+          { path: '/codemart/projects', label: 'Projects' },
+          { path: '/codemart/marketplace', label: 'Marketplace' }
+        ];
+      case 'dev':
+        return [
+          { path: '/dev', label: 'Dashboard' },
+          { path: '/dev/code-editor', label: 'Code Editor' },
+          { path: '/dev/tools', label: 'Tools' }
+        ];
       case 'admin':
         return [
           { path: '/admin', label: 'Dashboard' },
           { path: '/admin/users', label: 'Users' },
           { path: '/admin/datasources', label: 'Data Sources' },
-          { path: '/admin/settings', label: 'Settings' },
-          { path: '/admin/logs', label: 'Logs' }
+          { path: '/admin/settings', label: 'Settings' }
         ];
-      case 'mainsite':
-      default:
+      case 'dashboard':
         return [
-          { path: '/', label: 'Home' },
-          { path: '/mainsite-dashboard', label: 'Dashboard' },
-          { path: '/profile', label: 'Profile' },
-          { path: '/settings', label: 'Settings' }
+          { path: '/dashboard', label: 'Overview' },
+          { path: '/dashboard/analytics', label: 'Analytics' },
+          { path: '/dashboard/charts', label: 'Charts' }
         ];
+      default:
+        return [];
     }
   });
 
@@ -116,11 +168,11 @@ export const useRouteNamespace = () => {
   const getPageTitle = (title: string) => {
     const namespace = currentNamespace.value;
     const config = currentConfig.value;
-    
-    if (namespace === 'mainsite') {
+
+    if (namespace === 'example') {
       return title;
     }
-    
+
     return `${config.config.name} - ${title}`;
   };
 
@@ -128,12 +180,17 @@ export const useRouteNamespace = () => {
   const isNamespaceRoute = (namespace: string, path: string) => {
     const config = namespaceRegistry[namespace];
     if (!config) return false;
-    
+
     if (config.prefix) {
       return path.startsWith(config.prefix);
     }
-    
-    return namespace === 'mainsite' && !path.startsWith('/admin');
+
+    // Root namespace check (example)
+    const otherPrefixes = Object.values(namespaceRegistry)
+      .map(c => c.prefix)
+      .filter(p => p);
+
+    return namespace === 'example' && !otherPrefixes.some(prefix => path.startsWith(prefix));
   };
 
   // Get namespace from path
@@ -143,7 +200,7 @@ export const useRouteNamespace = () => {
         return namespace;
       }
     }
-    return 'mainsite';
+    return 'example';
   };
 
   // Register new namespace
@@ -161,6 +218,42 @@ export const useRouteNamespace = () => {
     return namespaceRegistry[namespace];
   };
 
+  // Validate namespace completeness
+  const validateNamespace = (namespace: string): { valid: boolean; missing: string[] } => {
+    const config = namespaceRegistry[namespace];
+    const missing: string[] = [];
+
+    if (!config) {
+      return { valid: false, missing: ['namespace not registered'] };
+    }
+
+    if (!config.namespace) missing.push('namespace');
+    if (!config.config) missing.push('config');
+    if (!config.pages || config.pages.length === 0) missing.push('pages');
+    if (!config.theme) missing.push('theme');
+
+    return {
+      valid: missing.length === 0,
+      missing
+    };
+  };
+
+  // Validate all namespaces
+  const validateAllNamespaces = (): Record<string, { valid: boolean; missing: string[] }> => {
+    const results: Record<string, { valid: boolean; missing: string[] }> = {};
+
+    for (const namespace of Object.keys(namespaceRegistry)) {
+      results[namespace] = validateNamespace(namespace);
+    }
+
+    return results;
+  };
+
+  // Check if namespace exists
+  const hasNamespace = (namespace: string): boolean => {
+    return namespace in namespaceRegistry;
+  };
+
   return {
     currentNamespace,
     currentConfig,
@@ -172,6 +265,9 @@ export const useRouteNamespace = () => {
     registerNamespace,
     getAllNamespaces,
     getNamespaceConfig,
+    validateNamespace,
+    validateAllNamespaces,
+    hasNamespace,
     namespaceRegistry
   };
 };
