@@ -21,7 +21,8 @@
     "#@downloader": "./ncore/foundation/common/downloader.js",
     "#@link": "./ncore/foundation/common/link.js",
     "#@winpath": "./ncore/utils/win_tool/libs/winpath.js",
-    "#@inspect": "./ncore/foundation/utilities/inspect.js"
+    "#@inspect": "./ncore/foundation/utilities/inspect.js",
+    "#@web_offline": "./ncore/utils/web_offline/index.js"
   },
   "private": true,
   "description": "ncore is a collection of core modules for Electron application development. This module set provides foundational infrastructure and common functionalities, including plugin management, logging, and core feature extensions. By using ncore, developers can efficiently build and manage complex Electron applications, enhancing maintainability and scalability throughout the development process.",

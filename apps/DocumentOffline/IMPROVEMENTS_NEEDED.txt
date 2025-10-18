@@ -1,0 +1,382 @@
+===========================================
+DocumentOffline 项目改进清单
+===========================================
+
+## 已完成的修复 ✅
+
+1. ✅ 修复导入路径错误
+   - 移除了不存在的 httptool 导入
+   - 验证了所有 ncore 模块路径正确
+
+2. ✅ 修复URL规范化
+   - 保留trailing slash (/docs/ vs /docs)
+   - 查询参数排序 (?a=1&b=2 === ?b=2&a=1)
+   - 防止重复下载同一资源
+
+3. ✅ 添加Content-Type检测
+   - 区分文本文件(HTML/CSS/JS)和二进制文件(图片/PDF)
+   - PageFetcher 返回 {content, contentType, isText, isBinary}
+
+4. ✅ 查询参数哈希化
+   - 使用MD5哈希而非直接拼接
+   - /api/data?id=123 → data_a1b2c3d4.html
+
+5. ✅ 二进制文件支持
+   - CrawlController 正确保存二进制文件
+   - 只对文本内容解析链接
+
+6. ✅ 移除冗余代码
+   - 删除 download_manager.js (重复控制器)
+   - 删除 controller/main.js (未使用)
+
+7. ✅ 添加onHeaders回调
+   - downloader.js 支持 onHeaders(headers)
+   - 允许在下载时检测Content-Type
+
+8. ✅ 改进配置文件
+   - 添加更多配置选项
+   - 支持资源类型配置
+   - 添加过滤器配置
+
+## 仍需改进的功能 ⏳
+
+### 1. 速率限制 (Rate Limiting)
+**当前问题：**
+- 无请求间隔控制，快速连续请求会被服务器封禁
+
+**改进方案：**
+```javascript
+// 在 CrawlController.processQueue() 中添加：
+const delay = this.config.download.delay;
+if (delay > 0) {
+  await new Promise(resolve => setTimeout(resolve, delay));
+}
+```
+
+**实现位置：** `controller/crawl_controller.js:141` (processQueue循环末尾)
+
+
+### 2. 重试逻辑 (Retry with Exponential Backoff)
+**当前问题：**
+- 下载失败直接跳过，不重试
+- 临时网络问题导致大量资源丢失
+
+**改进方案：**
+```javascript
+async downloadWithRetry(url, maxRetries = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await this.fetcher.fetch(url);
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxRetries) {
+        const delay = this.config.download.retryDelay * Math.pow(2, attempt - 1);
+        logger.warn(`Retry ${attempt}/${maxRetries} for ${url} after ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+```
+
+**实现位置：** `controller/crawl_controller.js` (新增方法，processQueue中调用)
+
+
+### 3. 资源提取 (Resource Extraction from HTML)
+**当前问题：**
+- 只下载HTML链接，CSS/JS/图片/字体等资源被忽略
+- 下载的HTML页面无法正常显示
+
+**改进方案：**
+```javascript
+// 在 HtmlParse 或新建 ResourceExtractor 类
+extractResources(html, baseUrl) {
+  const resources = [];
+  const $ = cheerio.load(html);
+
+  // CSS files
+  $('link[rel="stylesheet"]').each((_, el) => {
+    const href = $(el).attr('href');
+    if (href) resources.push({ url: href, type: 'css' });
+  });
+
+  // JavaScript files
+  $('script[src]').each((_, el) => {
+    const src = $(el).attr('src');
+    if (src) resources.push({ url: src, type: 'js' });
+  });
+
+  // Images
+  $('img[src], source[srcset]').each((_, el) => {
+    const src = $(el).attr('src') || $(el).attr('srcset');
+    if (src) resources.push({ url: src, type: 'image' });
+  });
+
+  // Fonts (in CSS @font-face)
+  // Videos/Audio
+  $('video source, audio source').each((_, el) => {
+    const src = $(el).attr('src');
+    if (src) resources.push({ url: src, type: 'media' });
+  });
+
+  return resources;
+}
+```
+
+**实现位置：** `services/html_parse.js` 或新建 `services/resource_extractor.js`
+
+
+### 4. URL过滤 (URL Filtering)
+**当前问题：**
+- 无排除模式，下载管理后台/API等不需要的内容
+- 浪费带宽和存储空间
+
+**改进方案：**
+```javascript
+// 在 DomainContext.isAllowedUrl()
+isAllowedUrl(url) {
+  const urlStr = url.toString();
+
+  // Check exclude patterns
+  for (const pattern of this.excludePatterns) {
+    if (pattern.test(urlStr)) {
+      return false;
+    }
+  }
+
+  // Check include patterns (if any)
+  if (this.includePatterns.length > 0) {
+    let matched = false;
+    for (const pattern of this.includePatterns) {
+      if (pattern.test(urlStr)) {
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) return false;
+  }
+
+  return true;
+}
+```
+
+**实现位置：** `libs/domain_context.js` (在 resolveHref 中调用)
+
+
+### 5. 进度统计 (Statistics Tracking)
+**当前问题：**
+- 只有简单日志，无法了解整体进度
+- 不知道还需要多久完成
+
+**改进方案：**
+```javascript
+class Statistics {
+  constructor() {
+    this.startTime = Date.now();
+    this.totalQueued = 0;
+    this.totalProcessed = 0;
+    this.totalFailed = 0;
+    this.totalBytes = 0;
+    this.byType = {
+      html: 0, css: 0, js: 0, images: 0, other: 0
+    };
+  }
+
+  record(url, success, bytes, contentType) {
+    if (success) {
+      this.totalProcessed++;
+      this.totalBytes += bytes;
+      this.recordByType(contentType);
+    } else {
+      this.totalFailed++;
+    }
+  }
+
+  getProgress() {
+    const elapsed = Date.now() - this.startTime;
+    const rate = this.totalProcessed / (elapsed / 1000);
+    return {
+      processed: this.totalProcessed,
+      failed: this.totalFailed,
+      pending: this.totalQueued - this.totalProcessed - this.totalFailed,
+      rate: rate.toFixed(2) + ' pages/sec',
+      totalMB: (this.totalBytes / 1024 / 1024).toFixed(2),
+      elapsed: (elapsed / 1000).toFixed(0) + 's'
+    };
+  }
+}
+```
+
+**实现位置：** 新建 `libs/statistics.js`
+
+
+### 6. 并发下载 (Concurrent Downloads)
+**当前问题：**
+- 串行下载，速度很慢
+- 1000个页面可能需要几小时
+
+**改进方案：**
+```javascript
+async processQueueConcurrent() {
+  const concurrency = this.config.limits.maxConcurrent || 5;
+  const workers = [];
+
+  for (let i = 0; i < concurrency; i++) {
+    workers.push(this.worker(i));
+  }
+
+  await Promise.all(workers);
+}
+
+async worker(id) {
+  while (this.queue.hasPending()) {
+    const item = this.queue.dequeue();
+    if (!item) break;
+
+    await this.processItem(item);
+
+    // Rate limiting
+    if (this.config.download.delay > 0) {
+      await new Promise(r => setTimeout(r, this.config.download.delay));
+    }
+  }
+}
+```
+
+**实现位置：** `controller/crawl_controller.js` (替换当前的 processQueue)
+
+
+### 7. 断点续传 (Resume Support)
+**当前问题：**
+- 中断后需要完全重新开始
+- Ctrl+C 会丢失所有进度
+
+**改进方案：**
+```javascript
+// 定期保存进度
+async saveProgress() {
+  const state = {
+    processed: Array.from(this.queue.processed),
+    pending: this.queue.pending,
+    statistics: this.statistics.getProgress()
+  };
+  await fs.promises.writeFile(
+    'progress.json',
+    JSON.stringify(state, null, 2)
+  );
+}
+
+// 加载进度
+async loadProgress() {
+  try {
+    const data = await fs.promises.readFile('progress.json', 'utf8');
+    const state = JSON.parse(data);
+    this.queue.processed = new Set(state.processed);
+    this.queue.pending = state.pending;
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+```
+
+**实现位置：** `controller/crawl_controller.js`
+
+
+### 8. URL重写 (URL Rewriting for Offline Access)
+**当前问题：**
+- 下载的HTML中的链接仍指向在线URL
+- 离线访问时资源加载失败
+
+**改进方案：**
+```javascript
+rewriteHtmlUrls(html, baseUrl, domainContext) {
+  const $ = cheerio.load(html);
+
+  // Rewrite <a href>
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href');
+    const rewritten = this.rewriteUrl(href, baseUrl, domainContext);
+    $(el).attr('href', rewritten);
+  });
+
+  // Rewrite <link href>
+  $('link[href]').each((_, el) => {
+    const href = $(el).attr('href');
+    const rewritten = this.rewriteUrl(href, baseUrl, domainContext);
+    $(el).attr('href', rewritten);
+  });
+
+  // Rewrite <script src>, <img src>, etc.
+  // ...
+
+  return $.html();
+}
+```
+
+**实现位置：** 新建 `services/url_rewriter.js`
+
+
+## 优先级排序
+
+### P0 - 关键功能 (必须实现)
+1. 资源提取 (Resource Extraction) - 否则下载的页面无法显示
+2. 并发下载 (Concurrent Downloads) - 否则速度太慢不可用
+3. URL过滤 (URL Filtering) - 防止下载无用内容
+
+### P1 - 重要功能 (强烈建议)
+4. 重试逻辑 (Retry Logic) - 提高成功率
+5. 进度统计 (Statistics) - 用户体验
+6. 速率限制 (Rate Limiting) - 防止被封禁
+
+### P2 - 可选功能 (锦上添花)
+7. 断点续传 (Resume Support) - 方便长时间下载
+8. URL重写 (URL Rewriting) - 完美离线访问
+
+
+## 实现建议
+
+建议按以下顺序实现：
+
+**第一阶段（核心功能）：**
+1. 资源提取 - 1-2小时
+2. 并发下载 - 1小时
+3. URL过滤 - 30分钟
+
+**第二阶段（稳定性）：**
+4. 重试逻辑 - 30分钟
+5. 速率限制 - 15分钟
+
+**第三阶段（用户体验）：**
+6. 进度统计 - 1小时
+7. URL重写 - 2小时
+8. 断点续传 - 1小时
+
+**总计：约8-9小时完整实现**
+
+
+## 测试建议
+
+测试网站：
+1. 小型文档站：https://example.com/docs (测试基本功能)
+2. 中型博客：某个技术博客 (测试资源提取)
+3. 大型文档：Vue.js/React文档 (测试并发和性能)
+
+测试命令：
+```bash
+node main.js app=DocumentOffline https://example.com/docs 2
+```
+
+预期结果：
+- 正确下载所有HTML页面
+- 下载所有CSS/JS/图片资源
+- 文件结构与网站一致
+- 离线可正常浏览
+- 速度：100+ pages/min (并发5)
+
+
+===========================================
+总结：已完成基础修复，仍需8项重要改进才能达到生产级别
+===========================================

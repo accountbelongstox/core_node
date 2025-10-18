@@ -19,11 +19,16 @@ pycore/
 │   │   ├── dataset_generator_example.py
 │   │   └── ocr_example.py
 │   ├── ultralytics/
+│   │   ├── GPU_SUPPORT_README.md
 │   │   ├── __init__.py
 │   │   ├── classification_trainer.py
 │   │   ├── dataset_generator_yolo.py
 │   │   ├── detection_trainer.py
-│   │   └── ultralytics_trainer.py
+│   │   ├── device_manager.py
+│   │   ├── gpu_image_processor.py
+│   │   ├── test_gpu_system.py
+│   │   ├── ultralytics_trainer.py
+│   │   └── unified_trainer.py
 │   ├── app_launcher.py
 │   ├── click_handler.py
 │   ├── dataset_generator.py

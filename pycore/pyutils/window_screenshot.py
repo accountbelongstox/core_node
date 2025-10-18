@@ -17,7 +17,7 @@ pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
 
 # Check and install dependencies before importing third-party packages
-from pytools import check_and_install_dependencies
+from pycore import check_and_install_dependencies
 check_and_install_dependencies()
 
 import win32gui

@@ -40,6 +40,7 @@ class PageFetcher {
     const tempFile = path.join(hostDir, relativePath);
     this.ensureDirectory(path.dirname(tempFile));
 
+    let contentType = null;
     const downloadedPath = await downloader.HTTPDownload(url, tempFile, {
       onProgress: (received, total) => {
         if (total && !Number.isNaN(total) && total > 0) {
@@ -48,6 +49,9 @@ class PageFetcher {
         } else {
           logger.refresh(`Progress: ${received} bytes downloaded`);
         }
+      },
+      onHeaders: (headers) => {
+        contentType = headers['content-type'] || null;
       }
     });
 
@@ -55,9 +59,30 @@ class PageFetcher {
       throw new Error('Download failed');
     }
 
-    const content = await freader.readText(downloadedPath);
+    const isTextContent = this.isTextContentType(contentType);
+    const content = isTextContent ? await freader.readText(downloadedPath) : await fs.promises.readFile(downloadedPath);
 
-    return content;
+    return {
+      content,
+      contentType,
+      isText: isTextContent,
+      isBinary: !isTextContent
+    };
+  }
+
+  isTextContentType(contentType) {
+    if (!contentType) {
+      return true;
+    }
+    const textTypes = [
+      'text/',
+      'application/json',
+      'application/javascript',
+      'application/xml',
+      'application/xhtml+xml',
+      'application/x-javascript'
+    ];
+    return textTypes.some(type => contentType.toLowerCase().includes(type));
   }
 
   async safeUnlink(filePath) {

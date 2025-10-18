@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from .dataset_generator_yolo import DetectionDatasetGenerator
-from .ultralytics_trainer import process_source_images
+from .ultralytics_trainer import process_image_config
 
 try:
     from ultralytics import YOLO
@@ -71,38 +71,27 @@ class DetectionTrainer:
         with open(self.metadata_file, 'r', encoding='utf-8') as f:
             self.source_metadata = json.load(f)
 
-        # Process source_image: auto-expand to array and add public/* if exists
-        self.source_images = self._process_source_images()
-
         # Coordinates
         self.coordinates = self.source_metadata.get('coordinates', [])
 
-        # Validate: must have either coordinates or source images
-        if not self.coordinates and not self.source_images:
-            # Check if there are patch images in source/ subdirectory
-            source_imgs_dir = self.source_dir / 'source'
-            has_patches = False
-            if source_imgs_dir.exists():
-                has_patches = any(source_imgs_dir.glob('*.png')) or \
-                             any(source_imgs_dir.glob('*.jpg')) or \
-                             any(source_imgs_dir.glob('*.jpeg'))
+        # Detection always needs background_images + coordinates
+        if not self.coordinates:
+            raise ValueError(
+                f"\033[91mERROR: Project '{self.project_name}' must have coordinates for detection training\n"
+                f"  Detection mode requires both background_images and coordinates (patch locations)\033[0m"
+            )
 
-            if not has_patches:
-                raise ValueError(
-                    f"\033[91mERROR: Project '{self.project_name}' must have either:\n"
-                    f"  1. Non-empty 'coordinates' in metadata.json, OR\n"
-                    f"  2. Patch images in source/ subdirectory\n"
-                    f"  Current state: coordinates={len(self.coordinates)}, "
-                    f"source_images={len(self.source_images)}, "
-                    f"patches_in_source/={has_patches}\033[0m"
-                )
+        background_image_config = self.source_metadata.get('background_images', [])
+        if not background_image_config:
+            raise ValueError(
+                f"\033[91mERROR: Project '{self.project_name}' must specify background_images for detection training\n"
+                f"  Detection mode requires background_images (large background images)\033[0m"
+            )
 
+        self.background_images = process_image_config(
+            self.source_dir, background_image_config, "background images", subdirectory="background_images"
+        )
         self.model = None
-
-    def _process_source_images(self) -> List[Path]:
-        """Use shared utility to process source images"""
-        source_image_config = self.source_metadata.get('source_image', [])
-        return process_source_images(self.source_dir, source_image_config)
 
     def prepare_data(
         self,
@@ -173,7 +162,7 @@ class DetectionTrainer:
 
         # Generate dataset
         generator = DetectionDatasetGenerator(
-            source_image_paths=self.source_images,
+            background_image_paths=self.background_images,
             coordinates=self.coordinates,
             output_dir=self.processed_dir,
             aug_config=aug_config
