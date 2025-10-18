@@ -18,9 +18,9 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 /// Dashboard Screen for Wuy App
-/// 
+///
 /// This screen displays dashboard with overview and statistics.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -68,38 +68,42 @@ class WuyDashboardScreen extends StatelessWidget {
   }
 
   Widget _buildWelcomeCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-      ),
-      child: Container(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          gradient: LinearGradient(
-            colors: [ThemeColors.primary, ThemeColors.primaryDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+    return Builder(
+      builder: (context) => Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              LocalizationKeysAppWuy.wuyDashboardWelcome.tr(context),
-              style: ThemeTextStyles.displayMedium.copyWith(
-                color: ThemeColors.white,
-              ),
+        child: Container(
+          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          decoration: BoxDecoration(
+            borderRadius:
+                BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+            gradient: LinearGradient(
+              colors: [ThemeColors.primary, ThemeColors.primaryDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            SizedBox(height: ThemeDimensions.spacingSmall),
-            Text(
-              LocalizationKeysAppWuy.wuyDashboardOverviewText.tr(context),
-              style: ThemeTextStyles.bodyLarge.copyWith(
-                color: ThemeColors.white.withOpacity(0.9),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                LocalizationKeysAppWuy.wuyDashboardWelcome.tr(context),
+                style: ThemeTextStyles.displayMedium.copyWith(
+                  color: ThemeColors.white,
+                ),
               ),
-            ),
-          ],
+              SizedBox(height: ThemeDimensions.spacingSmall),
+              Text(
+                LocalizationKeysAppWuy.wuyDashboardOverviewText.tr(context),
+                style: ThemeTextStyles.bodyLarge.copyWith(
+                  color: ThemeColors.white.withOpacity(0.9),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -189,11 +193,40 @@ class WuyDashboardScreen extends StatelessWidget {
 
   Widget _buildActivityList(BuildContext context) {
     final activities = [
-      {'title': LocalizationKeysAppWuy.wuyDashboardNewUserRegistered.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardMinutesAgo.tr(context).replaceAll('{count}', '2'), 'icon': Icons.person_add},
-      {'title': LocalizationKeysAppWuy.wuyDashboardSystemUpdateCompleted.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardHourAgo.tr(context), 'icon': Icons.system_update},
-      {'title': LocalizationKeysAppWuy.wuyDashboardNewMessageReceived.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardHoursAgo.tr(context).replaceAll('{count}', '3'), 'icon': Icons.mail},
-      {'title': LocalizationKeysAppWuy.wuyDashboardTaskCompleted.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardHoursAgo.tr(context).replaceAll('{count}', '5'), 'icon': Icons.check_circle},
-      {'title': LocalizationKeysAppWuy.wuyDashboardReportGenerated.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardDayAgo.tr(context), 'icon': Icons.analytics},
+      {
+        'title':
+            LocalizationKeysAppWuy.wuyDashboardNewUserRegistered.tr(context),
+        'time': LocalizationKeysAppWuy.wuyDashboardMinutesAgo
+            .tr(context)
+            .replaceAll('{count}', '2'),
+        'icon': Icons.person_add
+      },
+      {
+        'title': LocalizationKeysAppWuy.wuyDashboardSystemUpdateCompleted
+            .tr(context),
+        'time': LocalizationKeysAppWuy.wuyDashboardHourAgo.tr(context),
+        'icon': Icons.system_update
+      },
+      {
+        'title':
+            LocalizationKeysAppWuy.wuyDashboardNewMessageReceived.tr(context),
+        'time': LocalizationKeysAppWuy.wuyDashboardHoursAgo
+            .tr(context)
+            .replaceAll('{count}', '3'),
+        'icon': Icons.mail
+      },
+      {
+        'title': LocalizationKeysAppWuy.wuyDashboardTaskCompleted.tr(context),
+        'time': LocalizationKeysAppWuy.wuyDashboardHoursAgo
+            .tr(context)
+            .replaceAll('{count}', '5'),
+        'icon': Icons.check_circle
+      },
+      {
+        'title': LocalizationKeysAppWuy.wuyDashboardReportGenerated.tr(context),
+        'time': LocalizationKeysAppWuy.wuyDashboardDayAgo.tr(context),
+        'icon': Icons.analytics
+      },
     ];
 
     return Card(

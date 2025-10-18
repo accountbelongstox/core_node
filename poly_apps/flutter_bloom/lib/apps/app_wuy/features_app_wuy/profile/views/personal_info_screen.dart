@@ -20,7 +20,7 @@ import 'package:qyflutter/common/widgets/floating_avatar_header.dart';
 import 'package:qyflutter/common/assets/common_assets_images.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
-import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 
 /// Personal Info Screen for Wuy App
 ///
@@ -59,7 +59,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
   void _initializeFormData() {
     // Initialize form data from data manager
-    final dataManager = WuyDataManager.instance;
+    final dataManager = WuyUnifiedService();
     final user = dataManager.currentUser;
 
     _nicknameController.text = user?.displayName ?? user?.name ?? '';
@@ -86,7 +86,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dataManager = WuyDataManager.instance;
+    final dataManager = WuyUnifiedService();
     final user = dataManager.currentUser;
 
     return Scaffold(

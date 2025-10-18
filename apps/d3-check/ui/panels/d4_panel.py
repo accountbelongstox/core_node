@@ -175,7 +175,8 @@ class D4Panel:
         main_frame.grid_columnconfigure(0, weight=1)
         main_frame.grid_rowconfigure(0, weight=0)  # Control buttons
         main_frame.grid_rowconfigure(1, weight=0)  # Game status area
-        main_frame.grid_rowconfigure(2, weight=1)  # Log area
+        main_frame.grid_rowconfigure(2, weight=0)  # Debug button area (NEW)
+        main_frame.grid_rowconfigure(3, weight=1)  # Log area
 
         # Control buttons frame
         control_frame = tk.Frame(main_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
@@ -198,11 +199,14 @@ class D4Panel:
         # Game status frame
         self._create_game_status_area(main_frame)
 
+        # Debug button area (NEW)
+        self._create_debug_button_area(main_frame)
+
         # Log display frame
         log_frame = ttk.LabelFrame(main_frame,
                                   text=i18n_manager.get_ui_text("d4_panel.exp_farming.log_title"),
                                   style='TLabelframe')
-        log_frame.grid(row=2, column=0, sticky="nsew",
+        log_frame.grid(row=3, column=0, sticky="nsew",
                       padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['sm'])
         log_frame.grid_columnconfigure(0, weight=1)
@@ -575,3 +579,62 @@ class D4Panel:
         
         # Return original value for other cases
         return value
+
+    def _create_debug_button_area(self, parent):
+        """
+        Create debug button area below game status area
+
+        Args:
+            parent: Parent widget
+        """
+        # Debug button frame
+        debug_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
+        debug_frame.grid(row=2, column=0, sticky="ew",
+                        padx=UnifiedStyles.SPACING['sm'],
+                        pady=UnifiedStyles.SPACING['xs'])
+        debug_frame.grid_columnconfigure(0, weight=1)
+
+        # Debug button
+        self.debug_btn = tk.Button(debug_frame,
+                                   text="Debug Images",
+                                   bg=UnifiedStyles.COLORS['btn_primary'],
+                                   fg=UnifiedStyles.COLORS['text_primary'],
+                                   font=UnifiedStyles.FONTS['button'],
+                                   command=self._toggle_debug_window,
+                                   relief=tk.FLAT,
+                                   padx=UnifiedStyles.SPACING['md'],
+                                   pady=UnifiedStyles.SPACING['xs'])
+        self.debug_btn.grid(row=0, column=0, sticky="ew",
+                           padx=UnifiedStyles.SPACING['xs'],
+                           pady=UnifiedStyles.SPACING['xs'])
+
+    def _toggle_debug_window(self):
+        """Toggle debug window visibility"""
+        try:
+            from share.game_interface_data import get_d4_interface_data
+            from ui.components.debug_window import get_debug_window
+
+            d4_data = get_d4_interface_data()
+
+            if not d4_data.debug_window_open:
+                # Open debug window
+                debug_window = get_debug_window(self.parent)
+                if debug_window:
+                    d4_data.debug_window_open = True
+                    self.debug_btn.config(bg=UnifiedStyles.COLORS['accent'])
+                    ColorPrint.green("[D4Panel] Debug window opened")
+                    
+                    # Debug window will be automatically updated by the timer system
+                    ColorPrint.blue("[D4Panel] Debug window will be updated automatically by timer")
+            else:
+                # Close debug window
+                from ui.components.debug_window import close_debug_window
+                close_debug_window()
+                d4_data.debug_window_open = False
+                self.debug_btn.config(bg=UnifiedStyles.COLORS['btn_primary'])
+                ColorPrint.yellow("[D4Panel] Debug window closed")
+
+        except Exception as e:
+            ColorPrint.red(f"[D4Panel] Error toggling debug window: {e}")
+            import traceback
+            traceback.print_exc()

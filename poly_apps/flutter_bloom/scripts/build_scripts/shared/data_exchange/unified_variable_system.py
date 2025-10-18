@@ -171,6 +171,7 @@ class UnifiedVariableSystem:
         # Script path keys for compilation
         self.KEY_COMMAND = "KEY_COMMAND"
         self.KEY_SCRIPT_PATH = "KEY_SCRIPT_PATH"  # Already defined above, but kept for clarity
+        self.KEY_DEBUG_SCRIPT_PATH = "KEY_DEBUG_SCRIPT_PATH"
         self.KEY_CLEAN_SCRIPT_PATH = "KEY_CLEAN_SCRIPT_PATH"
         self.KEY_BUILD_COMMAND = "KEY_BUILD_COMMAND"
         self.KEY_BUILD_SCRIPT_PATH = "KEY_BUILD_SCRIPT_PATH"

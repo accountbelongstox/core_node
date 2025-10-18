@@ -31,7 +31,7 @@ class WuUserProvider extends EnhancedUserProvider {
     if (isAuthenticated) {
       return;
     }
-    
+
     // Create a fake user for testing using independent fake data generator
     final fakeUser = WuyFakeDataGenerator.generateTestUser();
     setAppUser(profile: fakeUser);
@@ -60,36 +60,37 @@ class WuUserProvider extends EnhancedUserProvider {
     if (metadata != null) {
       setAuthMetadata(metadata);
     }
-    
-    // Use auth state manager for consistent state management
-    WuyAuthStateManager.instance.setAuthenticatedUser(profile);
+
+    // Note: Auth state manager will be updated separately to avoid circular dependency
   }
 
   /// Sync with auth state manager (called from external services)
   void syncWithAuthStateManager() {
     final authStateManager = WuyAuthStateManager.instance;
-    if (authStateManager.isAuthenticated && authStateManager.currentUser != null) {
+    if (authStateManager.isAuthenticated &&
+        authStateManager.currentUser != null) {
       setUser(authStateManager.currentUser!);
-      debugPrint('WuUserProvider: Synced with auth state manager - user: ${authStateManager.currentUser!.displayName}');
+      debugPrint(
+          'WuUserProvider: Synced with auth state manager - user: ${authStateManager.currentUser!.displayName}');
     } else if (!authStateManager.isAuthenticated) {
       clearUser();
-      debugPrint('WuUserProvider: Synced with auth state manager - cleared user');
+      debugPrint(
+          'WuUserProvider: Synced with auth state manager - cleared user');
     }
   }
-  
 
   void upsertPreference(String key, dynamic value) {
     final UserModelAppWuy? currentUser = appProfile;
     if (currentUser == null) {
       return;
     }
-    final Map<String, dynamic> preferences = Map<String, dynamic>.from(currentUser.preferences);
+    final Map<String, dynamic> preferences =
+        Map<String, dynamic>.from(currentUser.preferences);
     preferences[key] = value;
-    final UserModelAppWuy updated = currentUser.copyWith(preferences: preferences);
+    final UserModelAppWuy updated =
+        currentUser.copyWith(preferences: preferences);
     setUser(updated);
-    
-    // Use auth state manager for consistent state management
-    WuyAuthStateManager.instance.setAuthenticatedUser(updated);
-  }
 
+    // Note: Auth state manager will be updated separately to avoid circular dependency
+  }
 }

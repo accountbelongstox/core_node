@@ -73,19 +73,20 @@ class SmallMapDetector:
             Dictionary with detection results
         """
         try:
-            # Check if we have screenshot data
-            if not self.d4_data.game_window_image:
+            # Get screenshot data from shared memory
+            screenshot_data = self.d4_data.screenshot_data
+            if not screenshot_data or not screenshot_data.game_window_image:
                 ColorPrint.yellow("[SmallMapDetector] No screenshot data available")
                 return self._create_detection_result(False, "No screenshot data")
-            
+
             # Get minimap region coordinates
             minimap_start = D4_STANDARD_COORDS.minimap_region_start
             minimap_end = D4_STANDARD_COORDS.minimap_region_end
-            
+
             # Calculate scaled coordinates
-            game_window_size = self.d4_data.game_window_size
+            game_window_size = screenshot_data.game_window_size
             is_windowed = self.d4_data.is_windowed_mode()
-            
+
             scaled_start = calculate_unified_scaled_coordinate(
                 minimap_start,
                 game_window_size,
@@ -98,10 +99,10 @@ class SmallMapDetector:
                 (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
                 is_windowed
             )
-            
-            # Extract minimap region from screenshot
+
+            # Extract minimap region from screenshot_data
             minimap_region = self._extract_minimap_region(
-                self.d4_data.game_window_image,
+                screenshot_data.game_window_image,
                 scaled_start,
                 scaled_end
             )

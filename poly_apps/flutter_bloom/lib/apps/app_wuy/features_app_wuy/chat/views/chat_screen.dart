@@ -18,7 +18,7 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/chat_message_model_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
-import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 
 /// Chat Screen for Wuy App
 ///
@@ -64,12 +64,13 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
 
   void _loadMessages() async {
     try {
-      final dataManager = WuyDataManager.instance;
-      final messages = await dataManager.getChatMessages(widget.friendId);
+      final dataManager = WuyUnifiedService();
+      final response =
+          await dataManager.getChatHistory(friendId: widget.friendId);
 
       if (mounted) {
         setState(() {
-          _messages.addAll(messages);
+          _messages.addAll(response.data ?? []);
         });
       }
     } catch (e) {
@@ -136,7 +137,8 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
         foregroundColor: ThemeColors.white,
         title: Text(
           widget.friendName ?? 'Chat',
-          style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(color: ThemeColors.white),
+          style: WuyAppThemeConfig.wuyAppBarTitle
+              .copyWith(color: ThemeColors.white),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
@@ -235,7 +237,9 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
                   Text(
                     message.content,
                     style: TextStyle(
-                      color: isFromCurrentUser ? ThemeColors.white : ThemeColors.black87,
+                      color: isFromCurrentUser
+                          ? ThemeColors.white
+                          : ThemeColors.black87,
                       fontSize: 16,
                     ),
                   ),

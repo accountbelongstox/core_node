@@ -14,11 +14,8 @@ from typing import Dict, List, Callable, Optional, Set
 from dataclasses import dataclass
 from enum import Enum
 
-# Add ncore path for pytools
-ncore_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ncore")
-sys.path.insert(0, ncore_path)
-
-from pytools.pyfoundations.color_print import ColorPrint
+# Import ColorPrint from pycore (same package)
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 def _auto_install_dependencies():

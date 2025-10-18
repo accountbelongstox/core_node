@@ -21,7 +21,7 @@ import '../../../widgets_app_wuy/wuy_common_logo.dart';
 import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
 import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
-import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 
 /// Login Screen for Wuy App
 ///
@@ -219,7 +219,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
 
       try {
         // Use data manager for login to ensure data consistency
-        final dataManager = WuyDataManager.instance;
+        final dataManager = WuyUnifiedService();
 
         // For email login, we'll use the email as phone for mock data generation
         final email = _emailController.text.trim();

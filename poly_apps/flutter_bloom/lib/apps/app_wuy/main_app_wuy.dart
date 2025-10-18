@@ -21,7 +21,7 @@ import 'localization_app_wuy/zh_app_wuy.dart';
 import 'utils_app_wuy/app_info_app_wuy.dart';
 import 'providers_app_wuy/app_prefs_app_wuy.dart';
 import 'providers_app_wuy/wu_user_provider.dart';
-import 'services_app_wuy/wuy_data_manager.dart';
+import 'services_app_wuy/wuy_unified_service.dart';
 import 'services_app_wuy/wuy_auth_state_manager.dart';
 import 'models_app_wuy/user_model_app_wuy.dart';
 
@@ -44,6 +44,9 @@ class WuyApp extends StatelessWidget {
 /// This entry point can be used to launch only the Wuy app
 /// with specific configurations and customizations
 Future<void> main() async {
+  // Initialize Flutter binding first
+  WidgetsFlutterBinding.ensureInitialized();
+
   // Initialize Wuy app-specific configurations
   WuyAppInfo.initializeApp();
 
@@ -55,30 +58,13 @@ Future<void> main() async {
   final WuUserProvider userProvider = WuUserProvider();
 
   // Initialize unified data manager
-  final WuyDataManager dataManager = WuyDataManager.instance;
+  final WuyUnifiedService dataManager = WuyUnifiedService();
 
   // Initialize auth state manager BEFORE runCommonApp
   final WuyAuthStateManager authStateManager = WuyAuthStateManager.instance;
   await authStateManager.initialize();
 
-  // For testing: Create a test user if no user is authenticated
-  if (!authStateManager.isAuthenticated) {
-    debugPrint(
-        'No authenticated user found, creating test user for development');
-    // Create a test user for development
-    final testUser = UserModelAppWuy(
-      id: 1,
-      name: 'Test User',
-      username: 'test_user_001',
-      email: 'test@example.com',
-      phoneNumber: '+1234567890',
-      isActive: true,
-      isVerified: true,
-      preferences: {},
-    );
-    await authStateManager.setAuthenticatedUser(testUser);
-    debugPrint('Test user created and authenticated');
-  }
+  // Note: Test user creation moved to after runCommonApp to ensure UnifiedStorage is initialized
 
   await runCommonApp(
     appName: AppConfigAppWuy.appName,
@@ -103,5 +89,25 @@ Future<void> main() async {
   );
 
   // Initialize data manager after runCommonApp has initialized UnifiedStorage
-  await dataManager.initialize(userProvider: userProvider);
+  await dataManager.initialize();
+  dataManager.initializeWithUserProvider(userProvider: userProvider);
+
+  // For testing: Create a test user if no user is authenticated (after UnifiedStorage is initialized)
+  if (!authStateManager.isAuthenticated) {
+    debugPrint(
+        'No authenticated user found, creating test user for development');
+    // Create a test user for development
+    final testUser = UserModelAppWuy(
+      id: 1,
+      name: 'Test User',
+      username: 'test_user_001',
+      email: 'test@example.com',
+      phoneNumber: '+1234567890',
+      isActive: true,
+      isVerified: true,
+      preferences: {},
+    );
+    await authStateManager.setAuthenticatedUser(testUser);
+    debugPrint('Test user created and authenticated');
+  }
 }

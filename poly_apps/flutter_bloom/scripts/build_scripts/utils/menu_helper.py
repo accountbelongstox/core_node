@@ -144,6 +144,9 @@ class MenuHelper:
     def show_directory_menu(self, directories: List[Path], app_name: str, cache_key: str = None) -> Optional[Dict]:
         """Show interactive menu for directory selection with extended options"""
         # Always show menu, even if no directories exist (user can create new)
+        
+        # Memory array to track directories marked for deletion
+        delete_memory = []
 
         # Prepare menu items
         menu_items = []
@@ -242,6 +245,8 @@ class MenuHelper:
             if selected_item['type'] == 'existing':
                 actions = ['continue', 'delete', 'open']
                 current_index = actions.index(selected_item['action'])
+                old_action = selected_item['action']
+                
                 # Right arrow moves forward, left arrow moves backward
                 if hasattr(toggle_directory_action, '_direction'):
                     if toggle_directory_action._direction == 'right':
@@ -249,6 +254,17 @@ class MenuHelper:
                     else:  # left
                         new_index = (current_index - 1) % len(actions)
                     selected_item['action'] = actions[new_index]
+                    
+                    # Manage delete memory array
+                    dir_path = selected_item['value']
+                    if old_action == 'delete' and selected_item['action'] != 'delete':
+                        # Remove from delete memory when changed away from delete
+                        if dir_path in delete_memory:
+                            delete_memory.remove(dir_path)
+                    elif old_action != 'delete' and selected_item['action'] == 'delete':
+                        # Add to delete memory when changed to delete
+                        if dir_path not in delete_memory:
+                            delete_memory.append(dir_path)
             return 'continue'
 
         def handle_directory_action(items: List[Dict], selected_index: int) -> str:
@@ -263,23 +279,34 @@ class MenuHelper:
                 return 'return'
 
             elif action == 'delete':
-                if self.confirm_deletion(selected_item['value'].name):
-                    print(f"[MENU-ACTION] Attempting to delete {selected_item['value'].name}...")
-                    try:
-                        success = commander.remove_directory(selected_item['value'], force=True)
-                        if success:
-                            print(f"[DELETE-SUCCESS] Directory deleted: {selected_item['value'].name}")
-                            print("[DELETE-INFO] Returning to directory selection menu...")
-                            # Give user a moment to see the success message
-                            time.sleep(1)
-                            handle_directory_action._result = {'action': 'refresh', 'directory': None}
-                            return 'return'
-                        else:
-                            print(f"[DELETE-ERROR] Failed to delete directory: {selected_item['value'].name}")
-                            input("[DELETE-ERROR] Press Enter to continue...")
-                    except Exception as e:
-                        print(f"[DELETE-ERROR] Exception while deleting: {e}")
-                        input("[DELETE-ERROR] Press Enter to continue...")
+                # Use delete_memory for batch deletion
+                if self.confirm_batch_deletion(delete_memory):
+                    print(f"[MENU-ACTION] Attempting to delete {len(delete_memory)} directories...")
+                    success_count = 0
+                    failed_dirs = []
+                    
+                    for dir_path in delete_memory:
+                        try:
+                            success = commander.remove_directory(dir_path, force=True)
+                            if success:
+                                print(f"[DELETE-SUCCESS] Directory deleted: {dir_path.name}")
+                                success_count += 1
+                            else:
+                                print(f"[DELETE-ERROR] Failed to delete directory: {dir_path.name}")
+                                failed_dirs.append(dir_path.name)
+                        except Exception as e:
+                            print(f"[DELETE-ERROR] Exception while deleting {dir_path.name}: {e}")
+                            failed_dirs.append(dir_path.name)
+                    
+                    print(f"[DELETE-SUMMARY] Successfully deleted {success_count} directories")
+                    if failed_dirs:
+                        print(f"[DELETE-SUMMARY] Failed to delete: {', '.join(failed_dirs)}")
+                    
+                    print("[DELETE-INFO] Returning to directory selection menu...")
+                    # Give user a moment to see the summary
+                    time.sleep(2)
+                    handle_directory_action._result = {'action': 'refresh', 'directory': None}
+                    return 'return'
 
             elif action == 'open':
                 print(f"[MENU-ACTION] Opening directory: {selected_item['value'].name}")
@@ -322,11 +349,18 @@ class MenuHelper:
                 action_text = item['action'].title()
                 return f"{item['value'].name} [{action_text}]"
 
+        def get_dynamic_legend():
+            delete_count = len(delete_memory)
+            base_legend = "Legend: [*] = Build Success, [+] = Compiled, [ ] = Not Compiled\nOptions: Continue = Use directory, Delete = Remove directory, Open Dir = Open in file manager"
+            if delete_count > 0:
+                return f"{base_legend}\n\n🗑️  {delete_count} directory(ies) marked for deletion"
+            return base_legend
+
         config = {
             'title': f"Select Build Directory for {app_name}",
             'items': menu_items,
             'instructions': "Use UP/DOWN arrows to navigate, LEFT/RIGHT to toggle options, ENTER to select, ESC to create new",
-            'legend': "Legend: [*] = Build Success, [+] = Compiled, [ ] = Not Compiled\nOptions: Continue = Use directory, Delete = Remove directory, Open Dir = Open in file manager",
+            'legend': get_dynamic_legend(),
             'item_formatter': format_directory_item,
             'detail_formatter': format_directory_details,
             'selection_formatter': format_selection_info,
@@ -351,6 +385,52 @@ class MenuHelper:
 
         return result
 
+    def confirm_batch_deletion(self, delete_memory: List[Path]) -> bool:
+        """Show confirmation dialog for batch directory deletion"""
+        if not delete_memory:
+            return False
+            
+        options = [
+            {'display': 'Yes - Delete all marked directories', 'value': True},
+            {'display': 'No - Keep all directories', 'value': False}
+        ]
+
+        self.selected_index = 0  # Default to "Yes" (Delete)
+
+        while True:
+            self.clear_screen()
+
+            print("=" * 80)
+            print("CONFIRM BATCH DIRECTORY DELETION")
+            print("=" * 80)
+            print()
+            print("The following directories will be deleted:")
+            for i, dir_path in enumerate(delete_memory, 1):
+                print(f"  {i}. {dir_path.name}")
+            print()
+            print("WARNING: This action cannot be undone!")
+            print()
+            print("Use UP/DOWN arrows to navigate, ENTER to confirm, ESC to cancel")
+            print()
+
+            # Display options
+            for i, option in enumerate(options):
+                if i == self.selected_index:
+                    print(f">>> [SELECTED] {option['display']}")
+                else:
+                    print(f"    [OPTION] {option['display']}")
+
+            # Handle key input
+            key = self.get_key()
+            if key == 'up':
+                self.selected_index = (self.selected_index - 1) % len(options)
+            elif key == 'down':
+                self.selected_index = (self.selected_index + 1) % len(options)
+            elif key == 'enter':
+                return options[self.selected_index]['value']
+            elif key == 'esc':
+                return False
+
     def confirm_deletion(self, dir_name: str) -> bool:
         """Show confirmation dialog for directory deletion"""
         options = [
@@ -358,7 +438,7 @@ class MenuHelper:
             {'display': 'No - Keep the directory', 'value': False}
         ]
 
-        self.selected_index = 1  # Default to "No" (Keep) for safety
+        self.selected_index = 0  # Default to "Yes" (Delete)
 
         while True:
             self.clear_screen()
@@ -554,7 +634,11 @@ class MenuHelper:
             # Display legend
             if 'legend' in config:
                 print()
-                print(config['legend'])
+                legend = config['legend']
+                # Support dynamic legend (function callable)
+                if callable(legend):
+                    legend = legend()
+                print(legend)
 
             # Display current selection info
             if self.selected_index < len(items):
