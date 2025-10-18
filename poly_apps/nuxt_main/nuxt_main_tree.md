@@ -27,7 +27,12 @@ nuxt_main/
 │       ├── tailwind.css
 │       ├── tippy.css
 │       └── wizard.css
+├── codemart_doc/
+│   ├── codemart.md
+│   └── index.md
 ├── components/
+│   ├── codemart/
+│   │   └── CodemartSidebar.vue
 │   ├── layout/
 │   │   ├── Footer.vue
 │   │   ├── Header.vue
@@ -36,6 +41,10 @@ nuxt_main/
 │   │   ├── QuillEditor.vue
 │   │   └── highlight.vue
 │   ├── shared/
+│   │   ├── dashboard/
+│   │   │   ├── ProgressChart.vue
+│   │   │   ├── StatCard.vue
+│   │   │   └── WelcomeCard.vue
 │   │   ├── layout/
 │   │   │   └── MainHeader.vue
 │   │   └── ui/
@@ -45,6 +54,7 @@ nuxt_main/
 │   └── ThemeCustomizer.vue
 ├── composables/
 │   ├── codePreview.ts
+│   ├── useAppTheme.ts
 │   ├── useAuth.ts
 │   ├── useCharts.ts
 │   ├── useDashboard.ts
@@ -55,17 +65,20 @@ nuxt_main/
 │   ├── useTables.ts
 │   └── useVueQuery.ts
 ├── configs/
+│   ├── codemart-menu.ts
 │   ├── codemart.config.ts
+│   ├── dashboard.config.ts
 │   ├── dev.config.ts
 │   ├── example.config.ts
 │   ├── mainsite.config.ts
 │   └── subsite-admin.config.ts
-├── development-guides/
-│   ├── NUXT_POLYAPP_GUIDE.md
-│   └── NUXT_POLYAPP_GUIDE_THIS_FILE_NO_AI_EDIT.md
+├── constants/
+│   ├── apps/
+│   │   ├── admin-constants.ts
+│   │   └── codemart-constants.ts
+│   └── base-constants.ts
 ├── docs/
-│   ├── DATASOURCE_ARCHITECTURE.md
-│   └── task_system_flowchart.md
+│   └── DATASOURCE_ARCHITECTURE.md
 ├── i18n/
 │   └── locales/
 │       ├── da.json
@@ -85,6 +98,7 @@ nuxt_main/
 │       └── zh.json
 ├── layouts/
 │   ├── auth-layout.vue
+│   ├── codemart-layout.vue
 │   └── default.vue
 ├── middleware/
 │   └── app-entry.global.ts
@@ -216,6 +230,7 @@ nuxt_main/
 │   ├── datasource.client.ts
 │   ├── maska.ts
 │   ├── perfect-scrollbar.ts
+│   ├── theme.client.ts
 │   ├── tippy.ts
 │   ├── vue-easymde.ts
 │   ├── vue3-apexcharts.ts
@@ -568,12 +583,18 @@ nuxt_main/
 │   ├── favicon.png
 │   └── vite.svg
 ├── scripts/
+│   ├── functions/
+│   │   ├── ErrorHandler.ps1
+│   │   ├── InteractiveMenu.ps1
+│   │   ├── MenuConfig.ps1
+│   │   ├── MenuState.ps1
+│   │   └── Prerequisites.ps1
+│   ├── architecture_restructure.py
 │   ├── node-upgrade-manager.ps1
 │   ├── node-upgrade-manager.sh
+│   ├── restructure_for_multi_app.py
 │   ├── start.ps1
-│   ├── start.sh
-│   ├── switch-app-entry.js
-│   └── switch-node.sh
+│   └── switch-app-entry.js
 ├── services/
 │   ├── api/
 │   │   ├── admin/
@@ -582,6 +603,8 @@ nuxt_main/
 │   │   │   └── admin-datasource-api.ts
 │   │   ├── codemart/
 │   │   │   └── codemart-projects-api.ts
+│   │   ├── dashboard/
+│   │   │   └── dashboard-analytics-api.ts
 │   │   ├── dev/
 │   │   │   ├── dev-devops-api.ts
 │   │   │   ├── dev-devops-integration-api.ts
@@ -604,26 +627,42 @@ nuxt_main/
 │   └── datasource/
 │       └── manager.ts
 ├── stores/
+│   ├── apps/
+│   │   ├── admin-store.ts
+│   │   └── codemart-store.ts
+│   ├── base/
+│   │   └── base-store.ts
 │   ├── app-datasource.ts
 │   ├── datasource.ts
 │   └── index.ts
+├── theme/
+│   ├── apps/
+│   │   ├── admin-theme.ts
+│   │   ├── codemart-theme.ts
+│   │   ├── dashboard-theme.ts
+│   │   ├── dev-theme.ts
+│   │   └── example-theme.ts
+│   └── base-theme.config.ts
 ├── types/
 │   ├── api.ts
 │   ├── datasource.ts
 │   └── devops.ts
 ├── utils/
-│   └── apiHelpers.ts
+│   ├── apiHelpers.ts
+│   └── namespace-registry.ts
 ├── .gitignore
 ├── README.md
 ├── app-entry.ts
 ├── app-setting.ts
 ├── env.example
 ├── nuxt.config.ts
+├── nuxt_main_tree.md
 ├── package.json
 ├── startByDev.sh
 ├── startByServer.ps1
 ├── startByServer.sh
 ├── startByWinDev.ps1
+├── task.txt
 ├── theme.config.ts
 ├── tsconfig.bak.json
 └── tsconfig.json
