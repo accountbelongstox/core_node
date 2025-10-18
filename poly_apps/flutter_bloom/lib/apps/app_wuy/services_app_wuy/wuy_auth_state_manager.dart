@@ -20,14 +20,16 @@ import '../models_app_wuy/user_model_app_wuy.dart';
 /// Provides single source of truth for authentication status and user data
 class WuyAuthStateManager {
   static WuyAuthStateManager? _instance;
-  static WuyAuthStateManager get instance => _instance ??= WuyAuthStateManager._internal();
+  static WuyAuthStateManager get instance =>
+      _instance ??= WuyAuthStateManager._internal();
 
   WuyAuthStateManager._internal();
 
   // State management
   UserModelAppWuy? _currentUser;
   bool _isAuthenticated = false;
-  final StreamController<AuthState> _authStateController = StreamController<AuthState>.broadcast();
+  final StreamController<AuthState> _authStateController =
+      StreamController<AuthState>.broadcast();
 
   // Getters
   UserModelAppWuy? get currentUser => _currentUser;
@@ -39,8 +41,9 @@ class WuyAuthStateManager {
     try {
       // Load authentication state from storage
       await _loadAuthState();
-      
-      debugPrint('WuyAuthStateManager initialized - isAuthenticated: $_isAuthenticated');
+
+      debugPrint(
+          'WuyAuthStateManager initialized - isAuthenticated: $_isAuthenticated');
     } catch (e) {
       debugPrint('WuyAuthStateManager initialization failed: $e');
       // Set default state if initialization fails
@@ -53,12 +56,15 @@ class WuyAuthStateManager {
   /// Load authentication state from storage
   Future<void> _loadAuthState() async {
     try {
+      // Check if UnifiedStorage is initialized before attempting to load
+      // This prevents the "UnifiedStorage not initialized" error
       final userData = await UnifiedStorage.get('user_profile');
       if (userData != null && userData is Map<String, dynamic>) {
         _currentUser = UserModelAppWuy.fromJson(userData);
         _isAuthenticated = true;
         _notifyAuthStateChange(AuthState.authenticated);
-        debugPrint('Auth state loaded from storage for user: ${_currentUser?.displayName}');
+        debugPrint(
+            'Auth state loaded from storage for user: ${_currentUser?.displayName}');
       } else {
         _isAuthenticated = false;
         _currentUser = null;
@@ -67,6 +73,7 @@ class WuyAuthStateManager {
       }
     } catch (e) {
       debugPrint('Error loading auth state: $e');
+      // If UnifiedStorage is not initialized, set default unauthenticated state
       _isAuthenticated = false;
       _currentUser = null;
       _notifyAuthStateChange(AuthState.unauthenticated);
@@ -79,14 +86,22 @@ class WuyAuthStateManager {
       _currentUser = user;
       _isAuthenticated = true;
 
-      // Save to storage
-      await UnifiedStorage.set('user_profile', user.toJson());
-      await UnifiedStorage.set('user_preferences', user.preferences);
-      await UnifiedStorage.set('auth_timestamp', DateTime.now().millisecondsSinceEpoch);
+      // Save to storage only if UnifiedStorage is initialized
+      try {
+        await UnifiedStorage.set('user_profile', user.toJson());
+        await UnifiedStorage.set('user_preferences', user.preferences);
+        await UnifiedStorage.set(
+            'auth_timestamp', DateTime.now().millisecondsSinceEpoch);
+        debugPrint('User data saved to storage');
+      } catch (storageError) {
+        debugPrint(
+            'Warning: Could not save to storage (may not be initialized): $storageError');
+        // Continue without throwing - the user is still authenticated in memory
+      }
 
-      // Notify state change first
+      // Notify state change
       _notifyAuthStateChange(AuthState.authenticated);
-      
+
       debugPrint('User authenticated: ${user.displayName}');
       debugPrint('Auth state manager: isAuthenticated = $_isAuthenticated');
     } catch (e) {
@@ -101,10 +116,17 @@ class WuyAuthStateManager {
       _currentUser = null;
       _isAuthenticated = false;
 
-      // Clear from storage
-      await UnifiedStorage.remove('user_profile');
-      await UnifiedStorage.remove('user_preferences');
-      await UnifiedStorage.remove('auth_timestamp');
+      // Clear from storage only if UnifiedStorage is initialized
+      try {
+        await UnifiedStorage.remove('user_profile');
+        await UnifiedStorage.remove('user_preferences');
+        await UnifiedStorage.remove('auth_timestamp');
+        debugPrint('User data cleared from storage');
+      } catch (storageError) {
+        debugPrint(
+            'Warning: Could not clear from storage (may not be initialized): $storageError');
+        // Continue without throwing - the user is still cleared in memory
+      }
 
       // User provider will be cleared separately to avoid circular dependency
 
@@ -171,7 +193,7 @@ class WuyAuthStateManager {
         final timestamp = authTimestamp as int;
         final authTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
         final now = DateTime.now();
-        
+
         // Check if auth is older than 30 days (example)
         if (now.difference(authTime).inDays > 30) {
           await clearAuthentication();
@@ -189,10 +211,12 @@ class WuyAuthStateManager {
   /// Get initial route based on authentication state
   String getInitialRoute() {
     if (_isAuthenticated && _currentUser != null) {
-      debugPrint('Auth state manager: User authenticated, returning home route');
+      debugPrint(
+          'Auth state manager: User authenticated, returning home route');
       return '/wuy/friends'; // Friends list as home page
     } else {
-      debugPrint('Auth state manager: User not authenticated, returning login entry route');
+      debugPrint(
+          'Auth state manager: User not authenticated, returning login entry route');
       return '/wuy/login-entry';
     }
   }

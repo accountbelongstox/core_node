@@ -623,13 +623,14 @@ class D4ScaledTemplateMatcher:
             Extracted region as numpy array or None if failed
         """
         try:
-            # Get full game window image
-            if not self.d4_data.game_window_image:
-                ColorPrint.yellow("[D4ScaledMatcher] No game window image available")
+            # Get screenshot data from shared memory
+            screenshot_data = self.d4_data.screenshot_data
+            if not screenshot_data or not screenshot_data.game_window_image:
+                ColorPrint.yellow("[D4ScaledMatcher] No screenshot data available")
                 return None
-            
-            game_window_image = self.d4_data.game_window_image
-            game_window_size = self.d4_data.game_window_size
+
+            game_window_image = screenshot_data.game_window_image
+            game_window_size = screenshot_data.game_window_size
             is_windowed = self.d4_data.is_windowed_mode()
             
             # Map region names to D4StandardCoordinates

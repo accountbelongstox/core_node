@@ -1128,6 +1128,9 @@ class D4InterfaceData:
     last_screenshot_path: Optional[str] = None
     last_screenshot_time: float = 0.0
 
+    # Debug window state
+    debug_window_open: bool = False  # Whether debug window is currently open
+
     def clear(self):
         """Clear all data"""
         self.timestamp = None
@@ -1179,6 +1182,8 @@ class D4InterfaceData:
         # Clear screenshot state
         self.last_screenshot_path = None
         self.last_screenshot_time = 0.0
+        # Clear debug state
+        self.debug_window_open = False
 
     def add_screenshot_history(self, path: str, max_history: int = 10):
         """Add screenshot path to history"""

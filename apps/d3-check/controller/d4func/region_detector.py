@@ -62,12 +62,10 @@ class RegionDetector:
 
             # Get screenshot_data from shared memory
             screenshot_data = self.d4_data.screenshot_data
+            ColorPrint.blue(f"[RegionDetector] Screenshot data from shared memory: {screenshot_data is not None}")
             if screenshot_data is None:
                 ColorPrint.yellow("[RegionDetector] No screenshot data in shared memory")
                 return False
-
-            # Extract team count and team vote region images from shared data
-            self._extract_team_regions(screenshot_data)
 
             # Detect team health bars
             self._detect_team_health(screenshot_data)
@@ -83,6 +81,12 @@ class RegionDetector:
                 screenshot_data.game_window_image  # Pass screenshot for annotation
             )
 
+            # Extract ALL regions to detected_regions (executed AFTER region detection)
+            # This replaces separate team_regions and debug_regions extraction
+            ColorPrint.blue("[RegionDetector] About to extract all regions to share...")
+            self._extract_all_regions_to_share(screenshot_data)
+            ColorPrint.blue("[RegionDetector] Finished extracting all regions to share")
+
             if detection_success:
                 ColorPrint.green("[RegionDetector] Region detection successful")
             else:
@@ -96,10 +100,17 @@ class RegionDetector:
             traceback.print_exc()
             return False
 
-    def _extract_team_regions(self, screenshot_data):
-        """Extract team count and team vote region images and save them"""
+    def _extract_all_regions_to_share(self, screenshot_data):
+        """
+        Extract all regions defined in image_annotator and store in detected_regions
+
+        This extracts ALL regions from image_annotator.regions_to_draw once per tick,
+        storing the cropped images in detected_regions for sharing across the application.
+        """
         try:
-            ColorPrint.blue("[RegionDetector] Extracting team regions...")
+            ColorPrint.blue("[RegionDetector] Extracting all regions to share...")
+            ColorPrint.blue(f"[RegionDetector] Screenshot data type: {type(screenshot_data)}")
+            ColorPrint.blue(f"[RegionDetector] Game window image: {screenshot_data.game_window_image is not None}")
 
             if not screenshot_data.game_window_image:
                 ColorPrint.yellow("[RegionDetector] No game window image available")
@@ -109,65 +120,69 @@ class RegionDetector:
             game_window_size = screenshot_data.game_window_size
             is_windowed = self.d4_data.is_windowed_mode()
 
-            # Calculate scaled coordinates for team count region
-            team_count_start = calculate_unified_scaled_coordinate(
-                D4_STANDARD_COORDS.team_count_region_start, 
-                game_window_size, 
-                (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), 
-                is_windowed
-            )
-            team_count_end = calculate_unified_scaled_coordinate(
-                D4_STANDARD_COORDS.team_count_region_end, 
-                game_window_size, 
-                (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), 
-                is_windowed
-            )
+            # Initialize detected_regions if not exists
+            if self.d4_data.detected_regions is None:
+                self.d4_data.detected_regions = {}
 
-            # Calculate scaled coordinates for team vote region
-            team_vote_start = calculate_unified_scaled_coordinate(
-                D4_STANDARD_COORDS.team_vote_region_start, 
-                game_window_size, 
-                (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), 
-                is_windowed
-            )
-            team_vote_end = calculate_unified_scaled_coordinate(
-                D4_STANDARD_COORDS.team_vote_region_end, 
-                game_window_size, 
-                (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), 
-                is_windowed
-            )
+            # Add 'region_images' key to store all cropped region images
+            if 'region_images' not in self.d4_data.detected_regions:
+                self.d4_data.detected_regions['region_images'] = {}
 
-            # Extract team count region using ImageCrop library
-            team_count_crop = ImageCrop.crop_region(
-                game_window_image,
-                team_count_start,
-                team_count_end,
-                output_format="pil"
-            )
+            # Define all regions to extract (from image_annotator.py)
+            regions_to_extract = [
+                ("Bag", D4_STANDARD_COORDS.bag_top_left, D4_STANDARD_COORDS.bag_bottom_right),
+                ("Blacksmith Menu", D4_STANDARD_COORDS.blacksmith_menu_start, D4_STANDARD_COORDS.blacksmith_menu_end),
+                ("Whisper Obols", D4_STANDARD_COORDS.whisper_obols_region_start, D4_STANDARD_COORDS.whisper_obols_region_end),
+                ("Equipment Left", D4_STANDARD_COORDS.equipment_left_region_start, D4_STANDARD_COORDS.equipment_left_region_end),
+                ("Equipment Right", D4_STANDARD_COORDS.equipment_right_region_start, D4_STANDARD_COORDS.equipment_right_region_end),
+                ("Blacksmith Function", D4_STANDARD_COORDS.blacksmith_function_region_start, D4_STANDARD_COORDS.blacksmith_function_region_end),
+                ("EXP Bar", D4_STANDARD_COORDS.exp_bar_region_start, D4_STANDARD_COORDS.exp_bar_region_end),
+                ("Minimap", D4_STANDARD_COORDS.minimap_region_start, D4_STANDARD_COORDS.minimap_region_end),
+                ("Map Name", D4_STANDARD_COORDS.map_name_region_start, D4_STANDARD_COORDS.map_name_region_end),
+                ("Quest Text", D4_STANDARD_COORDS.quest_text_region_start, D4_STANDARD_COORDS.quest_text_region_end),
+                ("Team Count", D4_STANDARD_COORDS.team_count_region_start, D4_STANDARD_COORDS.team_count_region_end),
+                ("Team Vote", D4_STANDARD_COORDS.team_vote_region_start, D4_STANDARD_COORDS.team_vote_region_end),
+            ]
 
-            # Extract team vote region using ImageCrop library
-            team_vote_crop = ImageCrop.crop_region(
-                game_window_image,
-                team_vote_start,
-                team_vote_end,
-                output_format="pil"
-            )
+            # Extract each region
+            for label, start_coord, end_coord in regions_to_extract:
+                try:
+                    # Calculate scaled coordinates
+                    scaled_start = calculate_unified_scaled_coordinate(
+                        start_coord,
+                        game_window_size,
+                        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+                        is_windowed
+                    )
+                    scaled_end = calculate_unified_scaled_coordinate(
+                        end_coord,
+                        game_window_size,
+                        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+                        is_windowed
+                    )
 
-            # Save cropped images to annotated directory
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-            
-            team_count_path = D4_ANNOTATED_DIR / f"team_count_{timestamp}.png"
-            team_vote_path = D4_ANNOTATED_DIR / f"team_vote_{timestamp}.png"
-            
-            team_count_crop.save(team_count_path)
-            team_vote_crop.save(team_vote_path)
-            
-            ColorPrint.green(f"[RegionDetector] Team regions extracted and saved:")
-            ColorPrint.green(f"  Team Count: {team_count_path}")
-            ColorPrint.green(f"  Team Vote: {team_vote_path}")
+                    # Extract region using ImageCrop
+                    region_crop = ImageCrop.crop_region(
+                        game_window_image,
+                        scaled_start,
+                        scaled_end,
+                        output_format="pil"
+                    )
+
+                    # Store in detected_regions['region_images']
+                    self.d4_data.detected_regions['region_images'][label] = region_crop.copy()
+                    ColorPrint.green(f"[RegionDetector] ✓ Extracted '{label}' - Size: {region_crop.size}")
+
+                except Exception as e:
+                    ColorPrint.red(f"[RegionDetector] Error extracting {label}: {e}")
+                    continue
+
+            region_count = len(self.d4_data.detected_regions.get('region_images', {}))
+            ColorPrint.green(f"[RegionDetector] Extracted {region_count}/{len(regions_to_extract)} regions to detected_regions")
+            ColorPrint.green(f"[RegionDetector] Region keys: {list(self.d4_data.detected_regions.get('region_images', {}).keys())}")
 
         except Exception as e:
-            ColorPrint.red(f"[RegionDetector] Error extracting team regions: {e}")
+            ColorPrint.red(f"[RegionDetector] Error in _extract_all_regions_to_share: {e}")
             import traceback
             traceback.print_exc()
 
