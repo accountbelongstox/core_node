@@ -12,6 +12,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -39,7 +40,7 @@ class WuyLoginEntryScreen extends StatelessWidget {
     return Container(
       decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: ThemeColors.transparent,
         body: SafeArea(
           child: Stack(
             children: [
@@ -131,7 +132,7 @@ class WuyLoginEntryScreen extends StatelessWidget {
         height: 50,
         borderRadius: 25.0, // 50% of height (50/2 = 25)
         gradientColors: WuyAppThemeConfig.wuyLoginButtonGradient.colors,
-        textColor: Colors.white,
+        textColor: ThemeColors.white,
         fontSize: 16,
         fontWeight: FontWeight.w700,
       ),
@@ -240,7 +241,7 @@ class WuyLoginEntryScreen extends StatelessWidget {
           '${LocalizationKeysAppWuy.wuyMessageWeChatApiConnecting.tr(context)}\n${LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin.tr(context)}',
         ),
         duration: const Duration(seconds: 3),
-        backgroundColor: Colors.orange,
+        backgroundColor: ThemeColors.orange60,
       ),
     );
   }
@@ -252,7 +253,7 @@ class WuyLoginEntryScreen extends StatelessWidget {
           '${LocalizationKeysAppWuy.wuyMessageQQApiConnecting.tr(context)}\n${LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin.tr(context)}',
         ),
         duration: const Duration(seconds: 3),
-        backgroundColor: Colors.blue,
+        backgroundColor: ThemeColors.blue60,
       ),
     );
   }
@@ -264,7 +265,7 @@ class WuyLoginEntryScreen extends StatelessWidget {
           '${LocalizationKeysAppWuy.wuyMessageDingTalkApiConnecting.tr(context)}\n${LocalizationKeysAppWuy.wuyMessageRecommendPhoneLogin.tr(context)}',
         ),
         duration: const Duration(seconds: 3),
-        backgroundColor: Colors.green,
+        backgroundColor: ThemeColors.green60,
       ),
     );
   }

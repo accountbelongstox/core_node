@@ -372,15 +372,15 @@ class AutomaticTrainingSystem:
                     json.dump(metadata, f, indent=2, ensure_ascii=False)
 
                 ColorPrint.green(f"\n{'='*80}")
-                ColorPrint.green(f"✅ Training completed: {project['name']}")
+                ColorPrint.green(f"[SUCCESS] Training completed: {project['name']}")
                 ColorPrint.green(f"{'='*80}")
-                ColorPrint.green(f"📦 Model saved: {best_model_dst.relative_to(self.controller.project_root)}")
-                ColorPrint.green(f"📄 Metadata saved: {metadata_file.relative_to(self.controller.project_root)}")
+                ColorPrint.green(f"[MODEL] Model saved: {best_model_dst.relative_to(self.controller.project_root)}")
+                ColorPrint.green(f"[METADATA] Metadata saved: {metadata_file.relative_to(self.controller.project_root)}")
 
                 return True
 
         except Exception as e:
-            ColorPrint.red(f"\n❌ Training failed: {e}")
+            ColorPrint.red(f"\n[ERROR] Training failed: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -390,32 +390,32 @@ class AutomaticTrainingSystem:
     def run(self):
         """Run complete automatic training workflow"""
         ColorPrint.blue("\n" + "=" * 80)
-        ColorPrint.blue("🎯 Automatic Training System")
+        ColorPrint.blue("[TRAINING] Automatic Training System")
         ColorPrint.blue("=" * 80)
         ColorPrint.green(f"Training data location: {self.controller.training_data_dir}")
 
         # 1. Check environment
         if not self.check_environment():
-            ColorPrint.red("\n❌ Environment check failed!")
+            ColorPrint.red("\n[ERROR] Environment check failed!")
             return 1
 
         # 2. Scan for projects
         self.projects = self.scan_projects()
 
         if not self.projects:
-            ColorPrint.red("\n❌ No training projects found!")
+            ColorPrint.red("\n[ERROR] No training projects found!")
             return 1
 
         # 3. Print summary
         ColorPrint.blue("\n" + "=" * 80)
-        ColorPrint.blue("📊 Training Summary")
+        ColorPrint.blue("[SUMMARY] Training Summary")
         ColorPrint.blue("=" * 80)
-        ColorPrint.green(f"\n🎮 Device: {self.device.upper()}")
+        ColorPrint.green(f"\n[DEVICE] Device: {self.device.upper()}")
         if self.device == "cuda" and self.gpu_info.get('gpu_names'):
             for i, name in enumerate(self.gpu_info['gpu_names']):
                 ColorPrint.green(f"   GPU {i}: {name}")
 
-        ColorPrint.green(f"\n📦 Projects to train: {len(self.projects)}")
+        ColorPrint.green(f"\n[PROJECTS] Projects to train: {len(self.projects)}")
         for i, proj in enumerate(self.projects, 1):
             ColorPrint.green(f"\n   {i}. {proj['name']}")
             ColorPrint.green(f"      Samples: {proj['yes_count']} yes, {proj['no_count']} no")

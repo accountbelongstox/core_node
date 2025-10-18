@@ -132,11 +132,11 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
     return Container(
       padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ThemeColors.white,
         borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: ThemeColors.black.withOpacity(0.1),
             blurRadius: 10,
             offset: Offset(0, 2),
           ),
@@ -198,7 +198,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
             borderSide: BorderSide(color: ThemeColors.primary, width: 2),
           ),
           filled: !_isEditing,
-          fillColor: _isEditing ? null : Colors.grey.shade100,
+          fillColor: _isEditing ? null : ThemeColors.grey100,
         ),
         validator: (value) {
           if (value == null || value.isEmpty) {

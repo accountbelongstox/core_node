@@ -443,6 +443,48 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyMessageSendCodeFailed: '发送验证码失败',
     LocalizationKeysAppWuy.wuyMessageSendCodeError: '发送验证码出错',
     LocalizationKeysAppWuy.wuyMessageOperationFailed: '操作失败',
+
+    // Network records screen specific
+    LocalizationKeysAppWuy.wuyNetworkLoginAccount: '登录到账户',
+    LocalizationKeysAppWuy.wuyNetworkLoginSuccess: '登录成功',
+    LocalizationKeysAppWuy.wuyNetworkConnectWifi: '连接WiFi网络',
+    LocalizationKeysAppWuy.wuyNetworkMobileConnection: '移动网络连接',
+    LocalizationKeysAppWuy.wuyNetworkRequestTimeout: '网络请求超时',
+
+    // Dashboard screen specific
+    LocalizationKeysAppWuy.wuyDashboardWelcome: '欢迎回来！',
+    LocalizationKeysAppWuy.wuyDashboardOverviewText: '这是您的仪表板概览',
+    LocalizationKeysAppWuy.wuyDashboardQuickStats: '快速统计',
+    LocalizationKeysAppWuy.wuyDashboardTotalUsers: '总用户数',
+    LocalizationKeysAppWuy.wuyDashboardActiveSessions: '活跃会话',
+    LocalizationKeysAppWuy.wuyDashboardMessages: '消息',
+    LocalizationKeysAppWuy.wuyDashboardTasks: '任务',
+    LocalizationKeysAppWuy.wuyDashboardNewUserRegistered: '新用户注册',
+    LocalizationKeysAppWuy.wuyDashboardSystemUpdateCompleted: '系统更新完成',
+    LocalizationKeysAppWuy.wuyDashboardNewMessageReceived: '收到新消息',
+    LocalizationKeysAppWuy.wuyDashboardTaskCompleted: '任务完成',
+    LocalizationKeysAppWuy.wuyDashboardReportGenerated: '报告已生成',
+    LocalizationKeysAppWuy.wuyDashboardMinutesAgo: '{count}分钟前',
+    LocalizationKeysAppWuy.wuyDashboardHourAgo: '1小时前',
+    LocalizationKeysAppWuy.wuyDashboardHoursAgo: '{count}小时前',
+    LocalizationKeysAppWuy.wuyDashboardDayAgo: '1天前',
+
+    // Settings screen extended
+    LocalizationKeysAppWuy.wuySettingsAppearance: '外观',
+    LocalizationKeysAppWuy.wuySettingsLanguageSection: '语言',
+    LocalizationKeysAppWuy.wuySettingsSocial: '社交',
+    LocalizationKeysAppWuy.wuySettingsMessaging: '消息',
+    LocalizationKeysAppWuy.wuySettingsPerformance: '性能',
+    LocalizationKeysAppWuy.wuySettingsResetTitle: '重置设置',
+    LocalizationKeysAppWuy.wuySettingsResetConfirm: '确定要将所有设置重置为默认值吗？',
+    LocalizationKeysAppWuy.wuySettingsResetSuccess: '设置已重置为默认值',
+    LocalizationKeysAppWuy.wuySettingsResetToDefaults: '恢复默认设置',
+
+    // Common buttons
+    LocalizationKeysAppWuy.wuyButtonCancel: '取消',
+    LocalizationKeysAppWuy.wuyButtonReset: '重置',
+    LocalizationKeysAppWuy.wuyButtonSave: '保存',
+    LocalizationKeysAppWuy.wuyButtonConfirm: '确认',
   };
 }
 

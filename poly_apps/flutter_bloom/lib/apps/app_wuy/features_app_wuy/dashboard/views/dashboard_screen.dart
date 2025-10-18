@@ -14,6 +14,8 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 
 /// Dashboard Screen for Wuy App
 /// 
@@ -33,7 +35,7 @@ class WuyDashboardScreen extends StatelessWidget {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'Dashboard',
+          LocalizationKeysAppWuy.wuyDashboardTitle.tr(context),
           style: ThemeTextStyles.displayMedium,
         ),
         backgroundColor: ThemeColors.primary,
@@ -47,18 +49,18 @@ class WuyDashboardScreen extends StatelessWidget {
             _buildWelcomeCard(),
             SizedBox(height: ThemeDimensions.spacingLarge),
             Text(
-              'Quick Stats',
+              LocalizationKeysAppWuy.wuyDashboardQuickStats.tr(context),
               style: ThemeTextStyles.titleLarge,
             ),
             SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildStatsGrid(),
+            _buildStatsGrid(context),
             SizedBox(height: ThemeDimensions.spacingLarge),
             Text(
-              'Recent Activity',
+              LocalizationKeysAppWuy.wuyDashboardRecentActivity.tr(context),
               style: ThemeTextStyles.titleLarge,
             ),
             SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildActivityList(),
+            _buildActivityList(context),
           ],
         ),
       ),
@@ -85,14 +87,14 @@ class WuyDashboardScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Welcome back!',
+              LocalizationKeysAppWuy.wuyDashboardWelcome.tr(context),
               style: ThemeTextStyles.displayMedium.copyWith(
                 color: ThemeColors.white,
               ),
             ),
             SizedBox(height: ThemeDimensions.spacingSmall),
             Text(
-              'Here\'s your dashboard overview',
+              LocalizationKeysAppWuy.wuyDashboardOverviewText.tr(context),
               style: ThemeTextStyles.bodyLarge.copyWith(
                 color: ThemeColors.white.withOpacity(0.9),
               ),
@@ -103,7 +105,7 @@ class WuyDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsGrid() {
+  Widget _buildStatsGrid(BuildContext context) {
     return GridView.count(
       shrinkWrap: true,
       physics: NeverScrollableScrollPhysics(),
@@ -113,25 +115,25 @@ class WuyDashboardScreen extends StatelessWidget {
       childAspectRatio: 1.5,
       children: [
         _buildStatCard(
-          'Total Users',
+          LocalizationKeysAppWuy.wuyDashboardTotalUsers.tr(context),
           '1,234',
           Icons.people,
           ThemeColors.success,
         ),
         _buildStatCard(
-          'Active Sessions',
+          LocalizationKeysAppWuy.wuyDashboardActiveSessions.tr(context),
           '89',
           Icons.online_prediction,
           ThemeColors.info,
         ),
         _buildStatCard(
-          'Messages',
+          LocalizationKeysAppWuy.wuyDashboardMessages.tr(context),
           '456',
           Icons.message,
           ThemeColors.warning,
         ),
         _buildStatCard(
-          'Tasks',
+          LocalizationKeysAppWuy.wuyDashboardTasks.tr(context),
           '12',
           Icons.task_alt,
           ThemeColors.error,
@@ -185,13 +187,13 @@ class WuyDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityList() {
+  Widget _buildActivityList(BuildContext context) {
     final activities = [
-      {'title': 'New user registered', 'time': '2 minutes ago', 'icon': Icons.person_add},
-      {'title': 'System update completed', 'time': '1 hour ago', 'icon': Icons.system_update},
-      {'title': 'New message received', 'time': '3 hours ago', 'icon': Icons.mail},
-      {'title': 'Task completed', 'time': '5 hours ago', 'icon': Icons.check_circle},
-      {'title': 'Report generated', 'time': '1 day ago', 'icon': Icons.analytics},
+      {'title': LocalizationKeysAppWuy.wuyDashboardNewUserRegistered.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardMinutesAgo.tr(context).replaceAll('{count}', '2'), 'icon': Icons.person_add},
+      {'title': LocalizationKeysAppWuy.wuyDashboardSystemUpdateCompleted.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardHourAgo.tr(context), 'icon': Icons.system_update},
+      {'title': LocalizationKeysAppWuy.wuyDashboardNewMessageReceived.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardHoursAgo.tr(context).replaceAll('{count}', '3'), 'icon': Icons.mail},
+      {'title': LocalizationKeysAppWuy.wuyDashboardTaskCompleted.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardHoursAgo.tr(context).replaceAll('{count}', '5'), 'icon': Icons.check_circle},
+      {'title': LocalizationKeysAppWuy.wuyDashboardReportGenerated.tr(context), 'time': LocalizationKeysAppWuy.wuyDashboardDayAgo.tr(context), 'icon': Icons.analytics},
     ];
 
     return Card(

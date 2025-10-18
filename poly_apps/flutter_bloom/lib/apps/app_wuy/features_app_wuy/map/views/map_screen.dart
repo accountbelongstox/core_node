@@ -51,7 +51,7 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.my_location, color: Colors.white),
+            icon: const Icon(Icons.my_location, color: ThemeColors.white),
             onPressed: () {
               // Handle location center
             },
@@ -77,9 +77,9 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.green.shade200,
-            Colors.blue.shade200,
-            Colors.green.shade300,
+            ThemeColors.green20,
+            ThemeColors.blue20,
+            ThemeColors.green30,
           ],
         ),
       ),
@@ -90,20 +90,20 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
             Icon(
               Icons.map,
               size: 100,
-              color: Colors.white.withOpacity(0.8),
+              color: ThemeColors.white.withOpacity(0.8),
             ),
             SizedBox(height: ThemeDimensions.spacingMedium),
             Text(
               'Map View',
               style: ThemeTextStyles.displayMedium.copyWith(
-                color: Colors.white,
+                color: ThemeColors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               'Interactive map with friend locations',
               style: ThemeTextStyles.bodyLarge.copyWith(
-                color: Colors.white.withOpacity(0.9),
+                color: ThemeColors.white.withOpacity(0.9),
               ),
             ),
           ],
@@ -139,7 +139,7 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
                         child: Icon(
                           Icons.person,
                           size: 30,
-                          color: Colors.white,
+                          color: ThemeColors.white,
                         ),
                       ),
                       SizedBox(width: ThemeDimensions.spacingMedium),
@@ -173,7 +173,7 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
                   Container(
                     padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: ThemeColors.blue05,
                       borderRadius: BorderRadius.circular(
                           ThemeDimensions.borderRadiusMedium),
                     ),
@@ -226,10 +226,10 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
       right: 0,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ThemeColors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: ThemeColors.black.withOpacity(0.1),
               blurRadius: 10,
               offset: Offset(0, -2),
             ),

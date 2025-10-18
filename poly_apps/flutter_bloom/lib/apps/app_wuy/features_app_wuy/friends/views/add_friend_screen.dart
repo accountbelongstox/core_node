@@ -19,11 +19,13 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
+import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 
 /// Add Friend Screen for Wuy App
-/// 
+///
 /// This screen provides functionality to search and add new friends.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -102,8 +104,8 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.orange.shade400,
-              Colors.red.shade400,
+              ThemeColors.orange40,
+              ThemeColors.red40,
             ],
           ),
           borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
@@ -172,20 +174,11 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   }
 
   Widget _buildNicknameField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _nicknameController,
-      decoration: InputDecoration(
-        labelText: 'Nickname',
-        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterNickname.tr(context),
-        prefixIcon: Icon(Icons.person_outline, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+      labelText: 'Nickname',
+      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterNickname.tr(context),
+      prefixIcon: Icons.person_outline,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Please enter a nickname';
@@ -196,20 +189,11 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   }
 
   Widget _buildGenderField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _genderController,
-      decoration: InputDecoration(
-        labelText: 'Gender',
-        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterGender.tr(context),
-        prefixIcon: Icon(Icons.wc, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+      labelText: 'Gender',
+      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterGender.tr(context),
+      prefixIcon: Icons.wc,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Please enter gender';
@@ -220,21 +204,12 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   }
 
   Widget _buildAgeField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _ageController,
       keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: 'Age',
-        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterAge.tr(context),
-        prefixIcon: Icon(Icons.cake, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+      labelText: 'Age',
+      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterAge.tr(context),
+      prefixIcon: Icons.cake,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Please enter age';
@@ -249,21 +224,12 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   }
 
   Widget _buildHeightField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _heightController,
       keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: 'Height (cm)',
-        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterHeight.tr(context),
-        prefixIcon: Icon(Icons.height, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+      labelText: 'Height (cm)',
+      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterHeight.tr(context),
+      prefixIcon: Icons.height,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Please enter height';
@@ -278,21 +244,12 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   }
 
   Widget _buildWeightField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _weightController,
       keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: 'Weight (kg)',
-        hintText: LocalizationKeysAppWuy.wuyAddFriendEnterWeight.tr(context),
-        prefixIcon: Icon(Icons.monitor_weight, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+      labelText: 'Weight (kg)',
+      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterWeight.tr(context),
+      prefixIcon: Icons.monitor_weight,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Please enter weight';
@@ -307,23 +264,12 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   }
 
   Widget _buildAddButton() {
-    return ElevatedButton(
-      onPressed: _isLoading ? null : _handleAddFriend,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.green,
-        minimumSize: Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-      ),
-      child: _isLoading
-          ? CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            )
-          : Text(
-              'Add Friend',
-              style: ThemeTextStyles.buttonLarge,
-            ),
+    return WuyGradientButton(
+      text: 'Add Friend',
+      onPressed: _handleAddFriend,
+      isLoading: _isLoading,
+      height: 50,
+      gradientColors: [ThemeColors.green40, ThemeColors.green60],
     );
   }
 

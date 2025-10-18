@@ -164,14 +164,11 @@ class WuyAppRouter {
           ),
         ),
 
-        // Settings route
+        // Settings route (available without login)
         GoRoute(
           path: routeSettings,
           name: 'wuy_settings',
-          builder: (context, state) => AuthGuard.requireAuth(
-            context,
-            const WuySettingsScreen(),
-          ),
+          builder: (context, state) => const WuySettingsScreen(),
         ),
 
         // Friend info route

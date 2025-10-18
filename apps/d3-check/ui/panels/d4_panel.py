@@ -25,7 +25,7 @@ from d3utils.i18n_manager import i18n_manager
 
 # Import D4 controller and state
 from controller.d4_controller import get_d4_controller
-from d4utils.d4_state import get_d4_state
+# D4State functionality now integrated into D4InterfaceData
 
 
 class D4Panel:
@@ -43,12 +43,12 @@ class D4Panel:
         # Configure TTK styles
         self.style = UnifiedStyles.configure_ttk_styles()
 
-        # Get D4 controller and state
+        # Get D4 controller and data
         self.d4_controller = get_d4_controller()
-        self.d4_state = get_d4_state()
+        # D4State functionality now integrated into D4InterfaceData
 
-        # Register state change callback
-        self.d4_state.add_callback(self._on_state_changed)
+        # Register UI status update callback
+        self._register_ui_status_callback()
 
         # Create main container with 2-column grid layout
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
@@ -174,7 +174,8 @@ class D4Panel:
         # Configure grid
         main_frame.grid_columnconfigure(0, weight=1)
         main_frame.grid_rowconfigure(0, weight=0)  # Control buttons
-        main_frame.grid_rowconfigure(1, weight=1)  # Log area
+        main_frame.grid_rowconfigure(1, weight=0)  # Game status area
+        main_frame.grid_rowconfigure(2, weight=1)  # Log area
 
         # Control buttons frame
         control_frame = tk.Frame(main_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
@@ -194,11 +195,14 @@ class D4Panel:
                                  padx=UnifiedStyles.SPACING['xs'],
                                  pady=UnifiedStyles.SPACING['xs'])
 
+        # Game status frame
+        self._create_game_status_area(main_frame)
+
         # Log display frame
         log_frame = ttk.LabelFrame(main_frame,
                                   text=i18n_manager.get_ui_text("d4_panel.exp_farming.log_title"),
                                   style='TLabelframe')
-        log_frame.grid(row=1, column=0, sticky="nsew",
+        log_frame.grid(row=2, column=0, sticky="nsew",
                       padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['sm'])
         log_frame.grid_columnconfigure(0, weight=1)
@@ -239,23 +243,10 @@ class D4Panel:
 
     def _on_state_changed(self):
         """
-        Handle D4 state changes
-
-        Called by D4State when state changes (e.g., new screenshot saved)
-        Must schedule UI updates on main thread to avoid threading issues
+        Handle D4 state changes (legacy method - now handled by UIStatusUpdater)
         """
-        try:
-            # Get latest state
-            state_dict = self.d4_state.get_state_dict()
-
-            # Check if new screenshot was saved
-            screenshot_path = state_dict.get("last_screenshot_path")
-            if screenshot_path:
-                # Schedule UI update on main thread
-                self.container.after(0, lambda: self._add_exp_farming_log(f"Screenshot: {screenshot_path}"))
-
-        except Exception as e:
-            ColorPrint.red(f"[D4Panel] Error handling state change: {e}")
+        # State changes are now handled by UIStatusUpdater
+        pass
 
     def _start_exp_farming(self):
         """Start EXP farming"""
@@ -282,6 +273,9 @@ class D4Panel:
         """Stop EXP farming"""
         # Use controller to stop (which updates state)
         self.d4_controller.stop_exp_farming()
+
+        # Reset game status data
+        self._reset_game_status_data()
 
         # Update button
         self.exp_farming_btn.config(
@@ -324,3 +318,260 @@ class D4Panel:
         # Filter D4-related messages to this panel's log
         if "[D4]" in message or "D4" in message:
             self._add_exp_farming_log(message)
+
+    def _on_log_message(self, message: str, level: str = "INFO"):
+        """
+        Handle log messages (legacy method - now handled by UIStatusUpdater)
+        """
+        # Log messages are now handled by UIStatusUpdater
+        pass
+
+    def _create_game_status_area(self, parent):
+        """
+        Create game status display area
+        
+        Args:
+            parent: Parent widget
+        """
+        # Game status frame
+        status_frame = ttk.LabelFrame(parent,
+                                     text=i18n_manager.get_ui_text("d4_panel.exp_farming.game_status.title"),
+                                     style='TLabelframe')
+        status_frame.grid(row=1, column=0, sticky="ew",
+                         padx=UnifiedStyles.SPACING['sm'],
+                         pady=UnifiedStyles.SPACING['sm'])
+        status_frame.grid_columnconfigure(0, weight=1)
+        status_frame.grid_columnconfigure(1, weight=1)
+        status_frame.grid_columnconfigure(2, weight=1)
+        status_frame.grid_columnconfigure(3, weight=1)
+        status_frame.grid_columnconfigure(4, weight=1)
+
+        # Status labels - Row 1
+        self._create_status_label(status_frame, 0, 0, "d4_panel.exp_farming.game_status.current_map", "current_map")
+        self._create_status_label(status_frame, 0, 1, "d4_panel.exp_farming.game_status.game_state", "game_state")
+        self._create_status_label(status_frame, 0, 2, "d4_panel.exp_farming.game_status.team_count", "team_count")
+        self._create_status_label(status_frame, 0, 3, "d4_panel.exp_farming.game_status.dungeon_progress", "dungeon_progress")
+        self._create_status_label(status_frame, 0, 4, "d4_panel.exp_farming.game_status.d4_running_status", "d4_running_status")
+
+        # Status labels - Row 2 (Screen info and reserved values)
+        self._create_status_label(status_frame, 1, 0, "d4_panel.exp_farming.game_status.screen_coordinates", "screen_coordinates")
+        self._create_status_label(status_frame, 1, 1, "d4_panel.exp_farming.game_status.screen_size", "screen_size")
+        self._create_status_label(status_frame, 1, 2, "d4_panel.exp_farming.game_status.reserved", "reserved_2")
+        self._create_status_label(status_frame, 1, 3, "d4_panel.exp_farming.game_status.reserved", "reserved_3")
+        self._create_status_label(status_frame, 1, 4, "d4_panel.exp_farming.game_status.reserved", "reserved_4")
+
+        # Status labels - Row 3 (Reserved values 5-10)
+        self._create_status_label(status_frame, 2, 0, "d4_panel.exp_farming.game_status.reserved", "reserved_5")
+        self._create_status_label(status_frame, 2, 1, "d4_panel.exp_farming.game_status.reserved", "reserved_6")
+        self._create_status_label(status_frame, 2, 2, "d4_panel.exp_farming.game_status.reserved", "reserved_7")
+        self._create_status_label(status_frame, 2, 3, "d4_panel.exp_farming.game_status.reserved", "reserved_8")
+        self._create_status_label(status_frame, 2, 4, "d4_panel.exp_farming.game_status.reserved", "reserved_9")
+
+        # Initialize status values
+        self._update_game_status()
+
+    def _create_status_label(self, parent, row, column, label_key, value_key):
+        """
+        Create a status label with title and value
+        
+        Args:
+            parent: Parent widget
+            row: Grid row
+            column: Grid column
+            label_key: i18n key for label text
+            value_key: Key for storing value reference
+        """
+        # Label frame for this status item
+        item_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
+        item_frame.grid(row=row, column=column, sticky="ew", padx=2, pady=2)
+        item_frame.grid_columnconfigure(0, weight=1)
+
+        # Title label
+        title_label = tk.Label(item_frame,
+                              text=i18n_manager.get_ui_text(label_key),
+                              bg=UnifiedStyles.COLORS['bg_secondary'],
+                              fg=UnifiedStyles.COLORS['text_secondary'],
+                              font=UnifiedStyles.FONTS['small'])
+        title_label.grid(row=0, column=0, sticky="ew", padx=4, pady=(2, 0))
+
+        # Value label
+        value_label = tk.Label(item_frame,
+                              text=i18n_manager.get_ui_text("d4_panel.exp_farming.game_status.unknown"),
+                              bg=UnifiedStyles.COLORS['bg_secondary'],
+                              fg=UnifiedStyles.COLORS['text_primary'],
+                              font=UnifiedStyles.FONTS['button'])
+        value_label.grid(row=1, column=0, sticky="ew", padx=4, pady=(0, 2))
+
+        # Store reference for dynamic updates
+        if not hasattr(self, 'status_labels'):
+            self.status_labels = {}
+        self.status_labels[value_key] = value_label
+
+    def _update_game_status(self):
+        """
+        Update game status display with current data
+        """
+        if not hasattr(self, 'status_labels'):
+            return
+
+        # Get D4 interface data
+        from share.game_interface_data import get_d4_interface_data
+        d4_data = get_d4_interface_data()
+
+        # Update current map
+        current_map = "Unknown"
+        if d4_data.detected_regions and 'map_name' in d4_data.detected_regions:
+            current_map = d4_data.detected_regions['map_name']
+        self._update_status_value("current_map", current_map)
+
+        # Update game state
+        game_state = "Unknown"
+        if self.d4_controller.is_exp_farming_running():
+            game_state = i18n_manager.get_ui_text("d4_panel.exp_farming.status.running")
+        else:
+            game_state = i18n_manager.get_ui_text("d4_panel.exp_farming.status.stopped")
+        self._update_status_value("game_state", game_state)
+
+        # Update team count
+        team_count = "0"
+        local_count = "0"
+        non_local_count = "0"
+        if d4_data.team_health_info:
+            total_members = d4_data.team_health_info.get('total_members', 0)
+            local_map_count = d4_data.team_health_info.get('local_map_members', 0)
+            non_local_map_count = d4_data.team_health_info.get('non_local_map_members', 0)
+            team_count = str(total_members)
+            local_count = str(local_map_count)
+            non_local_count = str(non_local_map_count)
+        
+        team_display = f"{team_count} ({local_count}/{non_local_count})"
+        self._update_status_value("team_count", team_display)
+
+        # Update dungeon progress
+        dungeon_progress = "Unknown"
+        if d4_data.detected_regions and 'dungeon_progress' in d4_data.detected_regions:
+            dungeon_progress = d4_data.detected_regions['dungeon_progress']
+        self._update_status_value("dungeon_progress", dungeon_progress)
+
+        # Update D4 running status
+        d4_running_status = "Unknown"
+        if self.d4_controller.is_exp_farming_running():
+            d4_running_status = i18n_manager.get_ui_text("d4_panel.exp_farming.game_status.running")
+        else:
+            d4_running_status = i18n_manager.get_ui_text("d4_panel.exp_farming.game_status.stopped")
+        self._update_status_value("d4_running_status", d4_running_status)
+
+        # Update screen coordinates
+        screen_coordinates = "Unknown"
+        if d4_data.window_offset and d4_data.window_offset != (0, 0):
+            x, y = d4_data.window_offset
+            screen_coordinates = f"({x}, {y})"
+        self._update_status_value("screen_coordinates", screen_coordinates)
+
+        # Update screen size
+        screen_size = "Unknown"
+        if d4_data.game_window_size and d4_data.game_window_size != (0, 0):
+            width, height = d4_data.game_window_size
+            mode = "Windowed" if d4_data.is_windowed_mode() else "Fullscreen"
+            screen_size = f"{width}x{height} ({mode})"
+        self._update_status_value("screen_size", screen_size)
+
+        # Initialize reserved values
+        for i in range(2, 10):  # reserved_2 to reserved_9
+            self._update_status_value(f"reserved_{i}", "-")
+
+    def _update_status_value(self, key, value):
+        """
+        Update a status value display
+        
+        Args:
+            key: Status key
+            value: New value
+        """
+        if hasattr(self, 'status_labels') and key in self.status_labels:
+            self.status_labels[key].config(text=str(value))
+
+    def _reset_game_status_data(self):
+        """
+        Reset game status data when stopping EXP farming
+        """
+        # Clear D4 interface data
+        from share.game_interface_data import get_d4_interface_data
+        d4_data = get_d4_interface_data()
+        d4_data.clear()
+
+        # Update status display to show reset values
+        self._update_game_status()
+
+    def _register_ui_status_callback(self):
+        """
+        Register UI status update callback with UI status updater
+        """
+        try:
+            from controller.d4func import get_ui_status_updater
+            ui_status_updater = get_ui_status_updater()
+            ui_status_updater.set_ui_update_callback(self._on_ui_status_update)
+            ColorPrint.blue("[D4Panel] UI status update callback registered")
+        except Exception as e:
+            ColorPrint.red(f"[D4Panel] Error registering UI status callback: {e}")
+
+    def _on_ui_status_update(self, status_data: dict):
+        """
+        Handle UI status update from UI status updater
+        
+        Args:
+            status_data: Dictionary with status information
+        """
+        try:
+            # Schedule UI update on main thread
+            self.parent.after(0, lambda: self._update_status_from_data(status_data))
+        except Exception as e:
+            ColorPrint.red(f"[D4Panel] Error handling UI status update: {e}")
+
+    def _update_status_from_data(self, status_data: dict):
+        """
+        Update status display from status data
+        
+        Args:
+            status_data: Dictionary with status information
+        """
+        if not hasattr(self, 'status_labels'):
+            return
+        
+        # Update each status value with proper i18n translation
+        for key, value in status_data.items():
+            translated_value = self._translate_status_value(key, value)
+            self._update_status_value(key, translated_value)
+    
+    def _translate_status_value(self, key: str, value: str) -> str:
+        """
+        Translate status value based on key
+        
+        Args:
+            key: Status key
+            value: Raw value
+            
+        Returns:
+            Translated value
+        """
+        # Handle special cases that need i18n translation
+        if key in ['d4_running_status', 'game_state']:
+            if value == "Running":
+                return i18n_manager.get_ui_text("d4_panel.exp_farming.game_status.running")
+            elif value == "Stopped":
+                return i18n_manager.get_ui_text("d4_panel.exp_farming.game_status.stopped")
+        
+        elif key == 'screen_size' and value != "Unknown":
+            # Extract mode from screen size string like "1920x1080 (Windowed)"
+            if "(Windowed)" in value:
+                mode = i18n_manager.get_ui_text("d4_panel.exp_farming.game_status.windowed")
+                return value.replace("(Windowed)", f"({mode})")
+            elif "(Fullscreen)" in value:
+                mode = i18n_manager.get_ui_text("d4_panel.exp_farming.game_status.fullscreen")
+                return value.replace("(Fullscreen)", f"({mode})")
+        
+        elif value == "Unknown":
+            return i18n_manager.get_ui_text("d4_panel.exp_farming.game_status.unknown")
+        
+        # Return original value for other cases
+        return value

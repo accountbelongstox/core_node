@@ -12,11 +12,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/chat_message_model_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
+import '../../../services_app_wuy/wuy_data_manager.dart';
 
 /// Chat Screen for Wuy App
 ///
@@ -60,28 +62,24 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
     super.dispose();
   }
 
-  void _loadMessages() {
-    // Mock data for demonstration
-    setState(() {
-      _messages.addAll([
-        ChatMessageModelAppWuy(
-          id: '1',
-          chatId: widget.friendId,
-          senderId: widget.friendId,
-          content: '你好，请问有什么可以帮助你的吗？',
-          createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
-          isRead: true,
-        ),
-        ChatMessageModelAppWuy(
-          id: '2',
-          chatId: widget.friendId,
-          senderId: _currentUserId,
-          content: '我想找一个可以聊天的人',
-          createdAt: DateTime.now().subtract(const Duration(minutes: 2)),
-          isRead: true,
-        ),
-      ]);
-    });
+  void _loadMessages() async {
+    try {
+      final dataManager = WuyDataManager.instance;
+      final messages = await dataManager.getChatMessages(widget.friendId);
+
+      if (mounted) {
+        setState(() {
+          _messages.addAll(messages);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading messages: $e');
+      if (mounted) {
+        setState(() {
+          _messages.clear();
+        });
+      }
+    }
   }
 
   void _sendMessage() {
@@ -135,18 +133,18 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
       backgroundColor: WuyAppThemeConfig.wuyBackgroundColor,
       appBar: AppBar(
         backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
-        foregroundColor: Colors.white,
+        foregroundColor: ThemeColors.white,
         title: Text(
           widget.friendName ?? 'Chat',
-          style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(color: Colors.white),
+          style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(color: ThemeColors.white),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
           onPressed: () => context.pop(),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
+            icon: const Icon(Icons.more_vert, color: ThemeColors.white),
             onPressed: () {
               // Show chat options
             },
@@ -214,7 +212,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
               backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
               child: Text(
                 (widget.friendName ?? 'F')[0].toUpperCase(),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                style: const TextStyle(color: ThemeColors.white, fontSize: 12),
               ),
             ),
             const SizedBox(width: 8),
@@ -228,7 +226,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
               decoration: BoxDecoration(
                 color: isFromCurrentUser
                     ? WuyAppThemeConfig.wuyPrimaryColor
-                    : Colors.grey[200],
+                    : ThemeColors.grey200,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
@@ -237,7 +235,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
                   Text(
                     message.content,
                     style: TextStyle(
-                      color: isFromCurrentUser ? Colors.white : Colors.black87,
+                      color: isFromCurrentUser ? ThemeColors.white : ThemeColors.black87,
                       fontSize: 16,
                     ),
                   ),
@@ -249,8 +247,8 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
                         message.timeText,
                         style: TextStyle(
                           color: isFromCurrentUser
-                              ? Colors.white70
-                              : Colors.grey[600],
+                              ? ThemeColors.white.withOpacity(0.7)
+                              : ThemeColors.grey600,
                           fontSize: 12,
                         ),
                       ),
@@ -259,7 +257,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
                         Icon(
                           _getStatusIcon(message.isRead),
                           size: 12,
-                          color: Colors.white70,
+                          color: ThemeColors.white.withOpacity(0.7),
                         ),
                       ],
                     ],
@@ -275,7 +273,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
               backgroundColor: WuyAppThemeConfig.wuySecondaryColor,
               child: const Text(
                 'M',
-                style: TextStyle(color: Colors.white, fontSize: 12),
+                style: TextStyle(color: ThemeColors.white, fontSize: 12),
               ),
             ),
           ],
@@ -296,10 +294,10 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
     return Container(
       padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ThemeColors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: ThemeColors.black.withOpacity(0.1),
             blurRadius: 4,
             offset: const Offset(0, -2),
           ),
@@ -311,7 +309,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
+                  color: ThemeColors.grey100,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: TextField(
@@ -339,7 +337,7 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.white),
+                icon: const Icon(Icons.send, color: ThemeColors.white),
                 onPressed: _sendMessage,
               ),
             ),

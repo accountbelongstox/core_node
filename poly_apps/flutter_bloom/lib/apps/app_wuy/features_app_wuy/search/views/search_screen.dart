@@ -15,11 +15,14 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../widgets_app_wuy/wuy_bottom_navigation.dart';
+import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
+import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/search_filter_model_app_wuy.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
+import '../../../services_app_wuy/wuy_data_manager.dart';
 
 /// Search Screen for Wuy App
 ///
@@ -56,7 +59,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
     super.dispose();
   }
 
-  void _performSearch() {
+  void _performSearch() async {
     setState(() {
       _isSearching = true;
     });
@@ -75,45 +78,65 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       gender: _selectedGender,
     );
 
-    // Simulate search delay
-    Future.delayed(const Duration(seconds: 1), () {
+    try {
+      // Load all friends from data manager
+      final dataManager = WuyDataManager.instance;
+      final allFriends = await dataManager.getFriends();
+
+      // Filter friends based on search criteria
+      final filteredResults = allFriends.where((friend) {
+        // Filter by name
+        if (_searchFilter.name != null &&
+            _searchFilter.name!.isNotEmpty &&
+            !friend.displayName
+                .toLowerCase()
+                .contains(_searchFilter.name!.toLowerCase())) {
+          return false;
+        }
+
+        // Filter by signature/bio
+        if (_searchFilter.signature != null &&
+            _searchFilter.signature!.isNotEmpty &&
+            (friend.bio == null ||
+                !friend.bio!
+                    .toLowerCase()
+                    .contains(_searchFilter.signature!.toLowerCase()))) {
+          return false;
+        }
+
+        // Filter by phone
+        if (_searchFilter.phone != null &&
+            _searchFilter.phone!.isNotEmpty &&
+            (friend.phoneNumber == null ||
+                !friend.phoneNumber!.contains(_searchFilter.phone!))) {
+          return false;
+        }
+
+        // Filter by gender
+        if (_searchFilter.gender != null &&
+            _searchFilter.gender!.isNotEmpty &&
+            friend.gender != _searchFilter.gender) {
+          return false;
+        }
+
+        return true;
+      }).toList();
+
       if (mounted) {
         setState(() {
           _isSearching = false;
-          _searchResults = _generateMockResults();
+          _searchResults = filteredResults;
         });
       }
-    });
-  }
-
-  List<FriendModelAppWuy> _generateMockResults() {
-    // Mock search results based on the screenshot
-    return [
-      FriendModelAppWuy(
-        id: '1',
-        username: 'xiaofeixia',
-        displayName: LocalizationKeysAppWuy.wuySearchSampleUser1.tr(context),
-        avatarUrl: null,
-        phoneNumber: '138****8888',
-        bio: LocalizationKeysAppWuy.wuySearchSampleUser1Bio.tr(context),
-        isOnline: true,
-        lastSeen: DateTime.now(),
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        updatedAt: DateTime.now(),
-      ),
-      FriendModelAppWuy(
-        id: '2',
-        username: 'sunny_day',
-        displayName: LocalizationKeysAppWuy.wuySearchSampleUser2.tr(context),
-        avatarUrl: null,
-        phoneNumber: '139****9999',
-        bio: LocalizationKeysAppWuy.wuySearchSampleUser2Bio.tr(context),
-        isOnline: false,
-        lastSeen: DateTime.now().subtract(const Duration(hours: 2)),
-        createdAt: DateTime.now().subtract(const Duration(days: 15)),
-        updatedAt: DateTime.now(),
-      ),
-    ];
+    } catch (e) {
+      debugPrint('Search error: $e');
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+          _searchResults = [];
+        });
+      }
+    }
   }
 
   @override
@@ -200,43 +223,31 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius:
-                BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-            border: Border.all(
-                color: WuyAppThemeConfig.wuyTextSecondary.withOpacity(0.3)),
-          ),
-          child: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: hintText,
-              hintStyle: TextStyle(color: WuyAppThemeConfig.wuyTextHint),
-              border: InputBorder.none,
-              contentPadding:
-                  EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
-            ),
-          ),
+        WuyModernInputField(
+          controller: controller,
+          hintText: hintText,
         ),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _buildActionButton(
+              child: WuyGradientButton(
                 text: LocalizationKeysAppWuy.wuySearchReset.tr(context),
                 onPressed: () {
                   controller.clear();
                 },
-                isPrimary: false,
+                backgroundColor: Colors.grey[200],
+                textColor: WuyAppThemeConfig.wuyTextSecondary,
+                gradientColors: null,
+                height: 44,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildActionButton(
+              child: WuyGradientButton(
                 text: LocalizationKeysAppWuy.wuySearchTitle.tr(context),
                 onPressed: _performSearch,
-                isPrimary: true,
+                height: 44,
               ),
             ),
           ],
@@ -285,22 +296,25 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildActionButton(
+              child: WuyGradientButton(
                 text: LocalizationKeysAppWuy.wuySearchReset.tr(context),
                 onPressed: () {
                   setState(() {
                     _selectedGender = null;
                   });
                 },
-                isPrimary: false,
+                backgroundColor: Colors.grey[200],
+                textColor: WuyAppThemeConfig.wuyTextSecondary,
+                gradientColors: null,
+                height: 44,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildActionButton(
+              child: WuyGradientButton(
                 text: LocalizationKeysAppWuy.wuySearchTitle.tr(context),
                 onPressed: _performSearch,
-                isPrimary: true,
+                height: 44,
               ),
             ),
           ],
@@ -359,33 +373,6 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
     );
   }
 
-  Widget _buildActionButton({
-    required String text,
-    required VoidCallback onPressed,
-    required bool isPrimary,
-  }) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor:
-            isPrimary ? WuyAppThemeConfig.wuyPrimaryColor : Colors.grey[200],
-        foregroundColor:
-            isPrimary ? Colors.white : WuyAppThemeConfig.wuyTextSecondary,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(WuyAppThemeConfig.wuyBorderRadius),
-        ),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-        ),
-      ),
-    );
-  }
 
   Widget _buildSearchResults() {
     if (_isSearching) {
