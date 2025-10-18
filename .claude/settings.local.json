@@ -47,11 +47,7 @@
       "Bash(Get-ChildItem \"D:\\programing\\core_node\\poly_apps\\QtScrcpy\\output\\x64\\RelWithDebInfo\\QtScrcpy.exe\")",
       "Bash(Select-Object Name,LastWriteTime,Length)",
       "Bash(Select-String -Pattern \"(error|Build succeeded|Building)\")",
-<<<<<<< HEAD
       "Bash(python -m py_compile:*)",
-      "Bash(python:*)"
-=======
-      "Bash(tasklist)",
       "Bash(python:*)",
       "Bash(Select-Object -Last 50)",
       "Bash(tee:*)",
@@ -68,7 +64,6 @@
       "Bash(do echo \"=== $file ===\")",
       "Bash(done)",
       "Bash(timeout 300 tail -f /d/programing/core_node/poly_apps/qtscrcpy_tc/build_log.txt)"
->>>>>>> effdfdf (2025-10-13 20:13:26)
     ],
     "deny": [],
     "ask": [],
