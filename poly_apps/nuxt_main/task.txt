@@ -1,0 +1,11 @@
+
+> D:\programing\core_node\poly_apps\nuxt_main\scripts\switch-app-entry.js 参考 完成
+D:\programing\core_node\poly_apps\nuxt_main\scripts\start.ps1  完成，1：启动是选择调试还是编译，参考  显示为
+appname1 [debug/build] 左右 剪toglle功能，上下箭头选择，之后根据对应的功能开启调试或编译。调试时要监听0.0.0.0端口
+，同时，每个app的端口不一样，这样可以同时启动多个调试，同时 C:\Users\MPC\.core_node\.nuxt_main
+中的癸目录作为菜单的缓存，开启菜单是会载入之前的index,如果存在，菜单将在显示前选中之前的项。注意上面的用户名是自动
+获取的。同时，增加前置函数，如果不存在node yarn都自动安装（node为提示安装），之后如果不存在node
+moduels自动调用yarn安装，整个脚本.start.ps1将作为一个入口点。其他
+功能成一个构架，创建功能文件夹，变量交换读取文件夹。 可以引用其中的功能功能
+D:\programing\core_node\scripts\shells\win\win_common\win_common_tree.md 注意相对路径的计算 。最后的脚本实现在
+D:\programing\core_node\poly_apps\nuxt_main\scripts

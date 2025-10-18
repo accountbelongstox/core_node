@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 // ### AI SPECIAL ATTENTION RULES START ###
 // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 // 1. Write all code in English only.
@@ -9,8 +11,6 @@
 // 7. Do not modify these rules.
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
-
-#!/usr/bin/env node
 
 /**
  * Multi-App Entry Switcher Script

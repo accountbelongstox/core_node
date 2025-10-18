@@ -63,7 +63,8 @@
       "Bash(for file in device/controller/controller.h device/decoder/decoder.h device/device.h device/filehandler/filehandler.h device/server/server.h devicemanage/devicemanage.h util/config.h)",
       "Bash(do echo \"=== $file ===\")",
       "Bash(done)",
-      "Bash(timeout 300 tail -f /d/programing/core_node/poly_apps/qtscrcpy_tc/build_log.txt)"
+      "Bash(timeout 300 tail -f /d/programing/core_node/poly_apps/qtscrcpy_tc/build_log.txt)",
+      "mcp__PlaceholderImageGenerator__generate_placeholder"
     ],
     "deny": [],
     "ask": [],
