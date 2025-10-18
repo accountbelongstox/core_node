@@ -118,6 +118,29 @@
                 "get_ocr_system_status",
                 "health_check"
             ]
+        },
+        "CodebaseScanner": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "python",
+                "D:\\programing\\core_node\\ncore\\mcp_server\\codebase-scanner\\main.py"
+            ],
+            "env": {
+                "PYTHONPATH": "D:\\programing\\core_node\\ncore\\mcp_server\\codebase-scanner",
+                "PROJECT_ROOT": "D:\\programing\\core_node",
+                "ENABLE_GLOBAL_ACCESS": "true"
+            },
+            "disabled": false,
+            "autoApprove": [
+                "generate_directory_tree",
+                "find_file_by_name",
+                "search_content_in_files",
+                "get_codebase_stats",
+                "scan_flutter_apps",
+                "print_flutter_app_structure",
+                "health_check"
+            ]
         }
     }
 }

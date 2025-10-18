@@ -13,6 +13,7 @@
 const HtmlParse = require('#@ncore/utils/htmltool/libs/htmlparse.js');
 const logger = require('#@logger');
 const global_dir = require('#@global_dir');
+const downloader = require('#@downloader');
 const path = require('path');
 const fs = require('fs');
 const readline = require('readline');
@@ -21,6 +22,13 @@ const DomainContext = require('../libs/domain_context.js');
 const FileMapper = require('../libs/file_mapper.js');
 const UrlQueue = require('../libs/url_queue.js');
 const PageFetcher = require('../services/page_fetcher.js');
+const UrlRewriter = require('../services/url_rewriter.js');
+const SitemapGenerator = require('../services/sitemap_generator.js');
+const BackupManager = require('../libs/backup_manager.js');
+
+const ResourceExtractor = require('#@ncore/utils/web_offline/resource_extractor.js');
+const ResourceDownloader = require('#@ncore/utils/web_offline/resource_downloader.js');
+const CssProcessor = require('#@ncore/utils/web_offline/css_processor.js');
 
 class CrawlController {
   constructor() {
@@ -31,14 +39,25 @@ class CrawlController {
     this.fileMapper = new FileMapper(new Set([
       '.html', '.htm', '.xhtml', '.xml', '.json', '.txt', '.csv',
       '.pdf', '.zip', '.gz', '.rar', '.7z', '.png', '.jpg', '.jpeg', '.gif',
-      '.svg', '.webp', '.css', '.js', '.mp3', '.mp4', '.avi', '.mov', '.m4v', '.webm'
+      '.svg', '.webp', '.css', '.js', '.mp3', '.mp4', '.avi', '.mov', '.m4v', '.webm',
+      '.woff', '.woff2', '.ttf', '.otf', '.eot'
     ]));
     this.fetcher = new PageFetcher(this.fileMapper);
+    this.urlRewriter = null;
+    this.cssProcessor = null;
+    this.resourceExtractor = null;
+    this.resourceDownloader = null;
+    this.sitemapGenerator = new SitemapGenerator();
+    this.backupManager = new BackupManager(5);
   }
 
   async start(argv = process.argv.slice(2)) {
     const { targetUrl, depth } = this.parseArguments(argv);
     this.domainContext = new DomainContext(targetUrl);
+    this.urlRewriter = new UrlRewriter(this.domainContext, this.fileMapper);
+    this.cssProcessor = new CssProcessor(this.domainContext, this.fileMapper);
+    this.resourceExtractor = new ResourceExtractor(this.domainContext);
+    this.resourceDownloader = new ResourceDownloader(downloader, this.fileMapper, logger);
     this.maxDepth = depth;
 
     logger.info(`Starting document offline analysis for: ${targetUrl}`);
@@ -49,17 +68,46 @@ class CrawlController {
       logger.info(`Scope root: ${this.domainContext.getScopeUrl()}`);
     }
 
+    const parsed = new URL(this.domainContext.getOrigin());
+    const hostDir = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', parsed.hostname);
+
+    if (this.backupManager.exists(hostDir)) {
+      const shouldContinue = await this.confirmOverwrite(hostDir);
+      if (!shouldContinue) {
+        logger.info('Download cancelled by user');
+        return;
+      }
+      await this.backupManager.createBackup(hostDir);
+    }
+
     const canonicalTarget = this.domainContext.getStartUrl();
     this.queue.enqueue(canonicalTarget, 0);
     this.urlPool.add(canonicalTarget);
 
     try {
       await this.processQueue();
+      await this.generateSitemap();
       await this.pauseForNextStep();
     } catch (error) {
       logger.error(`Processing failed: ${error.message}`);
       throw error;
     }
+  }
+
+  async confirmOverwrite(targetDir) {
+    return new Promise((resolve) => {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+      logger.warn(`\nExisting download found: ${targetDir}`);
+      logger.warn('Continuing will overwrite previous download.');
+      logger.warn('A backup will be created automatically (max 5 backups kept).\n');
+
+      rl.question('Do you want to continue? (yes/no): ', (answer) => {
+        rl.close();
+        const confirmed = answer.toLowerCase().trim() === 'yes' || answer.toLowerCase().trim() === 'y';
+        resolve(confirmed);
+      });
+    });
   }
 
   parseArguments(argv) {
@@ -121,31 +169,31 @@ class CrawlController {
       this.queue.markProcessed(url);
       logger.info(`Processing depth ${depth}: ${url}`);
 
-      let content;
+      let fetchResult;
       try {
-        content = await this.fetcher.fetch(url);
+        fetchResult = await this.fetcher.fetch(url);
       } catch (error) {
         logger.error(`Failed to download ${url}: ${error.message}`);
         continue;
       }
 
       try {
-        await this.savePage(url, content);
+        await this.savePage(url, fetchResult.content, fetchResult.isBinary);
       } catch (error) {
         logger.error(`Failed to save ${url}: ${error.message}`);
         this.queue.requeue(item);
         continue;
       }
 
-      if (depth < this.maxDepth) {
-        await this.analysePage(url, content, depth);
+      if (depth < this.maxDepth && fetchResult.isText) {
+        await this.analysePage(url, fetchResult.content, depth);
       }
     }
 
     logger.info('Queue completed.');
   }
 
-  async savePage(targetUrl, htmlContent) {
+  async savePage(targetUrl, content, isBinary = false) {
     const canonical = this.domainContext.canonicalize(targetUrl) || targetUrl;
     const parsed = new URL(canonical);
     const relativePath = this.fileMapper.mapPath(parsed);
@@ -155,8 +203,87 @@ class CrawlController {
     const directory = path.dirname(finalPath);
     this.ensureDirectory(directory);
 
-    await fs.promises.writeFile(finalPath, htmlContent, 'utf8');
-    logger.info(`Saved page: ${path.relative(hostDir, finalPath)}`);
+    let finalContent = content;
+    let resources = null;
+
+    if (!isBinary) {
+      if (this.isHtmlContent(relativePath)) {
+        resources = this.resourceExtractor.extractFromHtml(content, canonical);
+        finalContent = this.urlRewriter.rewriteHtml(content, canonical);
+      } else if (this.isCssContent(relativePath)) {
+        const cssUrls = this.cssProcessor.extractUrls(content, canonical);
+        resources = { css: cssUrls, js: [], images: [], fonts: [], media: [] };
+        finalContent = this.cssProcessor.rewriteCss(content, canonical);
+      }
+    }
+
+    if (isBinary) {
+      await fs.promises.writeFile(finalPath, finalContent);
+    } else {
+      await fs.promises.writeFile(finalPath, finalContent, 'utf8');
+    }
+
+    this.sitemapGenerator.addUrl(canonical);
+
+    logger.info(`Saved ${isBinary ? 'binary' : 'text'} file: ${path.relative(hostDir, finalPath)}`);
+
+    if (resources) {
+      await this.downloadResources(resources, hostDir);
+    }
+  }
+
+  isHtmlContent(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    return ['.html', '.htm', '.xhtml'].includes(ext);
+  }
+
+  isCssContent(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    return ext === '.css';
+  }
+
+  async downloadResources(resources, hostDir) {
+    const allUrls = [
+      ...resources.css,
+      ...resources.js,
+      ...resources.images,
+      ...resources.fonts,
+      ...resources.media
+    ];
+
+    if (allUrls.length === 0) {
+      return;
+    }
+
+    logger.info(`Found ${allUrls.length} resources to download (CSS: ${resources.css.length}, JS: ${resources.js.length}, Images: ${resources.images.length}, Fonts: ${resources.fonts.length}, Media: ${resources.media.length})`);
+
+    let downloaded = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const url of allUrls) {
+      const result = await this.resourceDownloader.downloadResource(url, hostDir);
+
+      if (result.success) {
+        downloaded++;
+        if (result.isText && this.isCssContent(result.path)) {
+          const rewrittenCss = this.cssProcessor.rewriteCss(result.content, url);
+          await fs.promises.writeFile(result.path, rewrittenCss, 'utf8');
+        }
+      } else if (result.skipped) {
+        skipped++;
+      } else {
+        failed++;
+      }
+
+      await this.delay(50);
+    }
+
+    logger.info(`Resources: downloaded=${downloaded}, skipped=${skipped}, failed=${failed}`);
+  }
+
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   ensureDirectory(directory) {
@@ -196,14 +323,38 @@ class CrawlController {
     }
 
     logger.info(`Links discovered: total=${uniqueAnchors.length}, internal=${internalCount}, external=${externalCount}`);
-    const sample = Array.from(this.urlPool).slice(0, 10);
-    if (sample.length > 0) {
-      logger.info('Sample internal URLs:');
-      sample.forEach((link, index) => {
-        logger.info(`  [${index + 1}] ${link}`);
+
+    const processedUrls = Array.from(this.queue.processed).slice(-10);
+    if (processedUrls.length > 0) {
+      logger.info(`Recently downloaded (last ${processedUrls.length}):`);
+      processedUrls.forEach((url, index) => {
+        logger.info(`  ✓ [${index + 1}] ${url}`);
       });
     }
-    logger.info(`Pending queue size: ${this.queue.size()}, processed: ${this.queue.processedCount()}`);
+
+    const pendingUrls = this.queue.pending.slice(0, 10);
+    if (pendingUrls.length > 0) {
+      logger.info(`Pending queue (next ${pendingUrls.length}):`);
+      pendingUrls.forEach((item, index) => {
+        logger.info(`  ⏳ [${index + 1}] depth=${item.depth} ${item.url}`);
+      });
+    }
+
+    logger.info(`Queue status: pending=${this.queue.size()}, processed=${this.queue.processedCount()}`);
+  }
+
+  async generateSitemap() {
+    const parsed = new URL(this.domainContext.getOrigin());
+    const hostDir = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', parsed.hostname);
+    const sitemapPath = path.join(hostDir, 'sitemap.xml');
+
+    try {
+      await this.sitemapGenerator.save(sitemapPath);
+      logger.success(`Sitemap generated: ${sitemapPath}`);
+      logger.info(`Total URLs in sitemap: ${this.sitemapGenerator.getUrlCount()}`);
+    } catch (error) {
+      logger.error(`Failed to generate sitemap: ${error.message}`);
+    }
   }
 
   async pauseForNextStep() {

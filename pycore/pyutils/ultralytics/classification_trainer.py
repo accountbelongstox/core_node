@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from .dataset_generator_yolo import ClassificationDatasetGenerator
-from .ultralytics_trainer import process_source_images
+from .ultralytics_trainer import process_image_config
 
 try:
     from ultralytics import YOLO
@@ -71,38 +71,44 @@ class ClassificationTrainer:
         with open(self.metadata_file, 'r', encoding='utf-8') as f:
             self.source_metadata = json.load(f)
 
-        # Process source_image: auto-expand to array and add public/* if exists
-        self.source_images = self._process_source_images()
-
         # Coordinates
         self.coordinates = self.source_metadata.get('coordinates', [])
 
-        # Validate: must have either coordinates or source images
-        if not self.coordinates and not self.source_images:
-            # Check if there are patch images in source/ subdirectory
-            source_imgs_dir = self.source_dir / 'source'
-            has_patches = False
-            if source_imgs_dir.exists():
-                has_patches = any(source_imgs_dir.glob('*.png')) or \
-                             any(source_imgs_dir.glob('*.jpg')) or \
-                             any(source_imgs_dir.glob('*.jpeg'))
+        # Get configurations
+        background_image_config = self.source_metadata.get('background_images', [])
+        patch_image_config = self.source_metadata.get('patch_images', [])
 
-            if not has_patches:
-                raise ValueError(
-                    f"\033[91mERROR: Project '{self.project_name}' must have either:\n"
-                    f"  1. Non-empty 'coordinates' in metadata.json, OR\n"
-                    f"  2. Patch images in source/ subdirectory\n"
-                    f"  Current state: coordinates={len(self.coordinates)}, "
-                    f"source_images={len(self.source_images)}, "
-                    f"patches_in_source/={has_patches}\033[0m"
+        # Validate: must have at least one of coordinates or patch_images
+        if not self.coordinates and not patch_image_config:
+            print(f"\033[91mERROR: Project '{self.project_name}' must have at least one of:\033[0m")
+            print(f"\033[91m  1. Non-empty 'coordinates' in metadata.json, OR\033[0m")
+            print(f"\033[91m  2. Non-empty 'patch_images' in metadata.json\033[0m")
+            print(f"\033[91m  Current: coordinates={len(self.coordinates)}, patch_images={bool(patch_image_config)}\033[0m")
+            print(f"\033[93mSKIPPING project '{self.project_name}'\033[0m")
+            raise ValueError(f"Project '{self.project_name}' has neither coordinates nor patch_images")
+
+        # Process background_images (large images) if coordinates exist
+        self.background_images = []
+        if self.coordinates:
+            if background_image_config:
+                try:
+                    self.background_images = process_image_config(
+                        self.source_dir, background_image_config, "background images", subdirectory="background_images"
+                    )
+                except FileNotFoundError:
+                    print(f"\033[93mWARNING: coordinates exist but no valid background_images found\033[0m")
+
+        # Process patch_images (target images)
+        self.patch_images = []
+        if patch_image_config:
+            try:
+                self.patch_images = process_image_config(
+                    self.source_dir, patch_image_config, "patch images", subdirectory="patch_images"
                 )
+            except FileNotFoundError:
+                print(f"\033[93mWARNING: patch_images config exists but no valid images found\033[0m")
 
         self.model = None
-
-    def _process_source_images(self) -> List[Path]:
-        """Use shared utility to process source images"""
-        source_image_config = self.source_metadata.get('source_image', [])
-        return process_source_images(self.source_dir, source_image_config)
 
     def prepare_data(
         self,
@@ -172,8 +178,10 @@ class ClassificationTrainer:
         enhancements = self.source_metadata.get('enhancements', [])
 
         # Generate dataset
+        # Support mixed mode: both coordinates (with background_images) AND patch_images
         generator = ClassificationDatasetGenerator(
-            source_image_paths=self.source_images,
+            background_image_paths=self.background_images if self.coordinates else [],
+            patch_image_paths=self.patch_images,
             coordinates=self.coordinates,
             output_dir=self.processed_dir,
             aug_config=aug_config,
