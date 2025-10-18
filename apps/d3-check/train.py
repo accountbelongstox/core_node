@@ -172,9 +172,131 @@ def interactive_mode():
                 ColorPrint.yellow("\nWARNING: Some models failed")
             input("\nPress Enter to continue...")
 
+<<<<<<< HEAD
+                ColorPrint.green(f"\n{'='*80}")
+                ColorPrint.green(f"[SUCCESS] Training completed: {project['name']}")
+                ColorPrint.green(f"{'='*80}")
+                ColorPrint.green(f"[MODEL] Model saved: {best_model_dst.relative_to(self.controller.project_root)}")
+                ColorPrint.green(f"[METADATA] Metadata saved: {metadata_file.relative_to(self.controller.project_root)}")
+
+                return True
+
+        except Exception as e:
+            ColorPrint.red(f"\n[ERROR] Training failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+        return False
+
+    def run(self):
+        """Run complete automatic training workflow"""
+        ColorPrint.blue("\n" + "=" * 80)
+        ColorPrint.blue("[TRAINING] Automatic Training System")
+        ColorPrint.blue("=" * 80)
+        ColorPrint.green(f"Training data location: {self.controller.training_data_dir}")
+
+        # 1. Check environment
+        if not self.check_environment():
+            ColorPrint.red("\n[ERROR] Environment check failed!")
+            return 1
+
+        # 2. Scan for projects
+        self.projects = self.scan_projects()
+
+        if not self.projects:
+            ColorPrint.red("\n[ERROR] No training projects found!")
+            return 1
+
+        # 3. Print summary
+        ColorPrint.blue("\n" + "=" * 80)
+        ColorPrint.blue("[SUMMARY] Training Summary")
+        ColorPrint.blue("=" * 80)
+        ColorPrint.green(f"\n[DEVICE] Device: {self.device.upper()}")
+        if self.device == "cuda" and self.gpu_info.get('gpu_names'):
+            for i, name in enumerate(self.gpu_info['gpu_names']):
+                ColorPrint.green(f"   GPU {i}: {name}")
+
+        ColorPrint.green(f"\n[PROJECTS] Projects to train: {len(self.projects)}")
+        for i, proj in enumerate(self.projects, 1):
+            ColorPrint.green(f"\n   {i}. {proj['name']}")
+            ColorPrint.green(f"      Samples: {proj['yes_count']} yes, {proj['no_count']} no")
+            ColorPrint.green(f"      Total: {proj['total_count']} samples")
+            ColorPrint.green(f"      Image size: {proj['img_size'][0]}x{proj['img_size'][1]}")
+
+        # Ask for confirmation
+        ColorPrint.blue(f"\n{'='*80}")
+        ColorPrint.yellow(f"⚡ Ready to start training {len(self.projects)} project(s)")
+        ColorPrint.yellow("   This may take a while depending on your hardware")
+        ColorPrint.blue(f"{'='*80}")
+
+        # Train each project
+        success_count = 0
+        for i, project in enumerate(self.projects, 1):
+            ColorPrint.blue(f"\n\n{'='*80}")
+            ColorPrint.blue(f"📦 Project {i}/{len(self.projects)}: {project['name']}")
+            ColorPrint.blue(f"{'='*80}")
+
+            # Prepare
+            if not self.prepare_project(project):
+                ColorPrint.red(f"❌ Failed to prepare project: {project['name']}")
+                continue
+
+            # Train
+            if self.train_project(project):
+                success_count += 1
+
+        # Final summary
+        ColorPrint.blue(f"\n\n{'='*80}")
+        ColorPrint.blue("🎉 Training Complete!")
+        ColorPrint.blue(f"{'='*80}")
+        ColorPrint.green(f"\n📊 Results:")
+        ColorPrint.green(f"   Total projects: {len(self.projects)}")
+        ColorPrint.green(f"   Successful: {success_count}")
+        ColorPrint.green(f"   Failed: {len(self.projects) - success_count}")
+
+        if success_count > 0:
+            ColorPrint.green(f"\n📦 Trained models saved to:")
+            d4_modules_dir = self.controller.project_root / "d4_modules"
+            ColorPrint.green(f"   {d4_modules_dir}")
+
+            # Create model registry
+            import json
+            import datetime
+            registry = {
+                "registry_version": "1.0",
+                "created_at": datetime.datetime.now().isoformat(),
+                "models": []
+            }
+
+            for project in self.projects:
+                model_file = d4_modules_dir / f"{project['name']}_detector.pt"
+                metadata_file = d4_modules_dir / f"{project['name']}_detector.json"
+
+                if model_file.exists():
+                    ColorPrint.green(f"   ✓ {model_file.name}")
+
+                    # Read individual metadata
+                    if metadata_file.exists():
+                        with open(metadata_file, 'r', encoding='utf-8') as f:
+                            model_metadata = json.load(f)
+                            registry["models"].append(model_metadata)
+
+            # Save model registry
+            registry_file = d4_modules_dir / "model_registry.json"
+            with open(registry_file, 'w', encoding='utf-8') as f:
+                json.dump(registry, f, indent=2, ensure_ascii=False)
+
+            ColorPrint.green(f"\n📋 Model registry created:")
+            ColorPrint.green(f"   {registry_file.relative_to(self.controller.project_root)}")
+            ColorPrint.green(f"   Total models: {len(registry['models'])}")
+
+        return 0 if success_count == len(self.projects) else 1
+=======
         else:
             ColorPrint.red(f"\nERROR: Invalid option: {choice}")
             input("\nPress Enter to continue...")
+>>>>>>> 8423b66bbf87643d214fd10370ef232664af4572
 
 
 def main():

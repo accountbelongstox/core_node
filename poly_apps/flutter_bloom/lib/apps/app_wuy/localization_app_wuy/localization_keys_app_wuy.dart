@@ -500,4 +500,46 @@ class LocalizationKeysAppWuy {
       "wuy.message.dingtalk_api_connecting";
   static const String wuyMessageRecommendPhoneLogin =
       "wuy.message.recommend_phone_login";
+
+  // Network records screen specific
+  static const String wuyNetworkLoginAccount = "wuy.network.login_account";
+  static const String wuyNetworkLoginSuccess = "wuy.network.login_success";
+  static const String wuyNetworkConnectWifi = "wuy.network.connect_wifi";
+  static const String wuyNetworkMobileConnection = "wuy.network.mobile_connection";
+  static const String wuyNetworkRequestTimeout = "wuy.network.request_timeout";
+
+  // Dashboard screen specific
+  static const String wuyDashboardWelcome = "wuy.dashboard.welcome";
+  static const String wuyDashboardOverviewText = "wuy.dashboard.overview_text";
+  static const String wuyDashboardQuickStats = "wuy.dashboard.quick_stats";
+  static const String wuyDashboardTotalUsers = "wuy.dashboard.total_users";
+  static const String wuyDashboardActiveSessions = "wuy.dashboard.active_sessions";
+  static const String wuyDashboardMessages = "wuy.dashboard.messages";
+  static const String wuyDashboardTasks = "wuy.dashboard.tasks";
+  static const String wuyDashboardNewUserRegistered = "wuy.dashboard.new_user_registered";
+  static const String wuyDashboardSystemUpdateCompleted = "wuy.dashboard.system_update_completed";
+  static const String wuyDashboardNewMessageReceived = "wuy.dashboard.new_message_received";
+  static const String wuyDashboardTaskCompleted = "wuy.dashboard.task_completed";
+  static const String wuyDashboardReportGenerated = "wuy.dashboard.report_generated";
+  static const String wuyDashboardMinutesAgo = "wuy.dashboard.minutes_ago";
+  static const String wuyDashboardHourAgo = "wuy.dashboard.hour_ago";
+  static const String wuyDashboardHoursAgo = "wuy.dashboard.hours_ago";
+  static const String wuyDashboardDayAgo = "wuy.dashboard.day_ago";
+
+  // Settings screen extended keys
+  static const String wuySettingsAppearance = "wuy.settings.appearance";
+  static const String wuySettingsLanguageSection = "wuy.settings.language_section";
+  static const String wuySettingsSocial = "wuy.settings.social";
+  static const String wuySettingsMessaging = "wuy.settings.messaging";
+  static const String wuySettingsPerformance = "wuy.settings.performance";
+  static const String wuySettingsResetTitle = "wuy.settings.reset_title";
+  static const String wuySettingsResetConfirm = "wuy.settings.reset_confirm";
+  static const String wuySettingsResetSuccess = "wuy.settings.reset_success";
+  static const String wuySettingsResetToDefaults = "wuy.settings.reset_to_defaults";
+
+  // Common buttons
+  static const String wuyButtonCancel = "wuy.button.cancel";
+  static const String wuyButtonReset = "wuy.button.reset";
+  static const String wuyButtonSave = "wuy.button.save";
+  static const String wuyButtonConfirm = "wuy.button.confirm";
 }

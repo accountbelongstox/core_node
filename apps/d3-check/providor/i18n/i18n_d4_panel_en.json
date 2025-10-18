@@ -14,8 +14,40 @@
           "running": "Running",
           "stopped": "Stopped",
           "ready": "Ready"
+        },
+        "game_status": {
+          "title": "Game Status",
+          "current_map": "Current Map",
+          "game_state": "Game State",
+          "team_count": "Team Count",
+          "dungeon_progress": "Dungeon Progress",
+          "d4_running_status": "D4 Running Status",
+          "screen_coordinates": "Screen Coordinates",
+          "screen_size": "Screen Size",
+          "reserved": "Reserved",
+          "unknown": "Unknown",
+          "detecting": "Detecting",
+          "not_detected": "Not Detected",
+          "running": "Running",
+          "stopped": "Stopped",
+          "windowed": "Windowed",
+          "fullscreen": "Fullscreen"
         }
       }
     }
+  },
+  "team_health": {
+    "local_map": "Local Map",
+    "non_local_map": "Non-Local Map",
+    "same_map": "Same Map",
+    "different_map": "Different Map",
+    "group1": "Group 1",
+    "group2": "Group 2",
+    "member": "Member",
+    "members": "Members",
+    "total": "Total",
+    "detection_summary": "Detection Summary",
+    "hp_offset": "HP Offset",
+    "screen_position": "Screen Position"
   }
 }

@@ -8,7 +8,7 @@ Shared across all controllers and UI components
 
 import os
 import sys
-from typing import Optional, Dict, Tuple, List, Any, Set
+from typing import Optional, Dict, Tuple, List, Any, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -27,13 +27,153 @@ from providor.providor_index import (
     STANDARD_RESOLUTION_HEIGHT,
     D4_STANDARD_RESOLUTION_WIDTH,
     D4_STANDARD_RESOLUTION_HEIGHT,
-    get_template_path
+    get_template_path,
+    TMP_DIR
 )
 from providor.common_imports import ColorPrint
 
 # Global scale variables (moved from providor_index.py to avoid circular imports)
 GLOBAL_SCALE_X = 1.0  # Horizontal scale factor
 GLOBAL_SCALE_Y = 1.0  # Vertical scale factor
+
+# Window mode constants for coordinate calculation
+TITLE_BAR_HEIGHT = 31  # Fixed title bar height in windowed mode
+WINDOW_BORDER_WIDTH = 8  # Fixed border width (left, right, bottom) in windowed mode
+
+# D4 Directory constants
+D4_SCREENSHOT_DIR = TMP_DIR / "d4_screenshots"
+D4_ANNOTATED_DIR = TMP_DIR / "d4_annotated"
+
+# Optimized image processing constants
+OPTIMIZED_IMAGE_WIDTH = 800   # Target width for optimized images
+OPTIMIZED_IMAGE_HEIGHT = 600  # Target height for optimized images
+
+# D4 Event State Keys
+# These keys are used to trigger events when states change
+# Shared between share data and events package
+D4_EVENT_KEYS = {
+    # EXP Farming Events
+    'EXP_FARMING_STARTED': 'exp_farming_started',
+    'EXP_FARMING_STOPPED': 'exp_farming_stopped', 
+    'EXP_FARMING_TICK_COMPLETED': 'exp_farming_tick_completed',
+    
+    # Team Health Events
+    'TEAM_HEALTH_DETECTED': 'team_health_detected',
+    'TEAM_MEMBER_JOINED': 'team_member_joined',
+    'TEAM_MEMBER_LEFT': 'team_member_left',
+    'TEAM_HEALTH_CHANGED': 'team_health_changed',
+    
+    # Screen Events
+    'SCREEN_SIZE_CHANGED': 'screen_size_changed',
+    'SCREEN_COORDINATES_CHANGED': 'screen_coordinates_changed',
+    'DISPLAY_MODE_CHANGED': 'display_mode_changed',
+    
+    # Game State Events
+    'GAME_STATE_CHANGED': 'game_state_changed',
+    'CURRENT_MAP_CHANGED': 'current_map_changed',
+    'DUNGEON_PROGRESS_CHANGED': 'dungeon_progress_changed',
+}
+
+
+# ============================================================================
+# Unified Coordinate Calculation Functions
+# ============================================================================
+
+def calculate_unified_scaled_coordinate(
+    standard_coord: Union[Tuple[int, int], Tuple[int, None], Tuple[None, int]],
+    game_window_size: Tuple[int, int],
+    standard_resolution: Tuple[int, int],
+    is_windowed: bool = True
+) -> Union[Tuple[int, int], Tuple[int, None], Tuple[None, int]]:
+    """
+    Unified coordinate calculation for both D3 and D4
+    
+    Algorithm Description:
+    1. Percentage calculation: 
+       - Window mode: subtract 31+8 from height, 8+8 from width, then calculate percentage
+       - All values use constants (TITLE_BAR_HEIGHT, WINDOW_BORDER_WIDTH)
+    
+    2. Offset calculation:
+       - For each coordinate[0]: subtract 8, calculate percentage, then add back 8
+       - For each coordinate[1]: subtract 31, calculate percentage, then add back 31
+       - Use (a,b) coordinate system when possible
+       - Single points use (x,Null) for horizontal or (Null,y) for vertical
+    
+    Args:
+        standard_coord: Standard coordinate (x, y) at base resolution
+        game_window_size: Actual game window size (width, height)
+        standard_resolution: Standard resolution (width, height)
+        is_windowed: True if running in windowed mode, False for fullscreen
+
+    Returns:
+        Scaled coordinate (x, y) for actual window size
+    """
+    actual_width, actual_height = game_window_size
+    standard_width, standard_height = standard_resolution
+    
+    # Handle different coordinate formats: (x, y), (x, None), (None, y)
+    return_vertical_only = False
+    return_horizontal_only = False
+    
+    if standard_coord[0] is None:
+        # (None, y) - vertical offset only
+        std_x, std_y = 0, standard_coord[1]
+        return_vertical_only = True
+    elif standard_coord[1] is None:
+        # (x, None) - horizontal offset only
+        std_x, std_y = standard_coord[0], 0
+        return_horizontal_only = True
+    else:
+        # (x, y) - full coordinate
+        std_x, std_y = standard_coord
+    
+    if is_windowed:
+        # Windowed mode: account for title bar and borders
+        # Standard coordinates include border offsets, so we need to handle them properly
+        
+        # Calculate effective dimensions (excluding fixed borders)
+        # Window mode percentage calculation: subtract 31+8 from height, 8+8 from width
+        # All values use constants: TITLE_BAR_HEIGHT=31, WINDOW_BORDER_WIDTH=8
+        effective_actual_width = actual_width - (WINDOW_BORDER_WIDTH + WINDOW_BORDER_WIDTH)  # 8+8
+        effective_standard_width = standard_width - (WINDOW_BORDER_WIDTH + WINDOW_BORDER_WIDTH)  # 8+8
+        effective_actual_height = actual_height - (TITLE_BAR_HEIGHT + WINDOW_BORDER_WIDTH)  # 31+8
+        effective_standard_height = standard_height - (TITLE_BAR_HEIGHT + WINDOW_BORDER_WIDTH)  # 31+8
+        
+        # Calculate scale factors for effective dimensions
+        scale_x = effective_actual_width / effective_standard_width
+        scale_y = effective_actual_height / effective_standard_height
+        
+        # Apply scaling: subtract fixed offsets, scale, then add back fixed offsets
+        # Offset calculation algorithm:
+        # - For each coordinate[0]: subtract 8, calculate percentage, then add back 8
+        # - For each coordinate[1]: subtract 31, calculate percentage, then add back 31
+        # - Use (a,b) coordinate system when possible
+        scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x + WINDOW_BORDER_WIDTH)  # [0] -8, 计算后 +8
+        scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y + TITLE_BAR_HEIGHT)  # [1] -31, 计算后 +31
+        
+    else:
+        # Fullscreen mode: no title bar or borders
+        # Standard coordinates were measured in windowed mode, so we need to subtract the fixed offsets
+        # before scaling, but don't add them back since fullscreen has no such offsets
+        
+        # Calculate scale factors for full dimensions
+        scale_x = actual_width / standard_width
+        scale_y = actual_height / standard_height
+        
+        # Apply scaling: subtract fixed offsets from standard coordinates before scaling
+        # Fullscreen mode: no title bar or borders, so don't add back fixed offsets
+        # - For coordinate[0]: subtract 8, calculate percentage, don't add back (no borders)
+        # - For coordinate[1]: subtract 31, calculate percentage, don't add back (no title bar)
+        scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x)  # [0] -8, 计算后不加回
+        scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y)  # [1] -31, 计算后不加回
+
+    # Return in the same format as input
+    if return_vertical_only:
+        return (None, scaled_y)
+    elif return_horizontal_only:
+        return (scaled_x, None)
+    else:
+        return (scaled_x, scaled_y)
 
 
 # ============================================================================
@@ -58,9 +198,9 @@ class StandardCoordinates:
     kanai_conversion_button: Tuple[int, int] = (290, 1005)
     kanai_next_page_button: Tuple[int, int] = (1005, 1015)
 
-    # Reforge region
-    reforge_region_start: Tuple[int, int] = (368, 470)
-    reforge_region_end: Tuple[int, int] = (368, 723)
+    # Reforge region (vertical line - same X coordinate)
+    reforge_region_start: Tuple[int, int] = (368, 470)  # (x, y) - vertical line start
+    reforge_region_end: Tuple[int, int] = (368, 723)    # (x, y) - vertical line end
 
     # Bag region
     bag_top_left: Tuple[int, int] = (1213, 686)
@@ -93,8 +233,8 @@ class D4StandardCoordinates:
     add_idle_team: Tuple[int, int] = (368, 118)
 
     # Bag region
-    bag_top_left: Tuple[int, int] = (1093, 760)
-    bag_bottom_right: Tuple[int, int] = (1708, 1106)
+    bag_top_left: Tuple[int, int] = (1093, 756)
+    bag_bottom_right: Tuple[int, int] = (1710, 1004)
 
     # Blacksmith menu area
     blacksmith_menu_start: Tuple[int, int] = (392, 172)
@@ -106,9 +246,9 @@ class D4StandardCoordinates:
 
     # Equipment recognition regions
     equipment_left_region_start: Tuple[int, int] = (1294, 108)
-    equipment_left_region_end: Tuple[int, int] = (1368, 701)
+    equipment_left_region_end: Tuple[int, int] = (1359, 695)
     equipment_right_region_start: Tuple[int, int] = (1660, 206)
-    equipment_right_region_end: Tuple[int, int] = (1724, 701)
+    equipment_right_region_end: Tuple[int, int] = (1724, 695)
 
     # Blacksmith function recognition region
     blacksmith_function_region_start: Tuple[int, int] = (198, 467)
@@ -134,12 +274,12 @@ class D4StandardCoordinates:
     quest_text_region_end: Tuple[int, int] = (1720, 1006)
 
     # Team member count region
-    team_count_region_start: Tuple[int, int] = (32, 139)
-    team_count_region_end: Tuple[int, int] = (193, 584)
+    team_count_region_start: Tuple[int, int] = (146, 310)
+    team_count_region_end: Tuple[int, int] = (228, 624)
 
-    # Team health bar relative positions
-    team_health_bar_start_offset: int = 114  # Relative start X offset
-    team_health_bar_end_offset: int = 178   # Relative end X offset
+    # Team health bar relative positions (horizontal offsets)
+    team_health_bar_start_offset: Tuple[int, None] = (114, None)  # (x, Null) - horizontal start offset
+    team_health_bar_end_offset: Tuple[int, None] = (178, None)   # (x, Null) - horizontal end offset
 
     # Team voting region
     team_vote_region_start: Tuple[int, int] = (127, 119)
@@ -147,29 +287,29 @@ class D4StandardCoordinates:
     team_vote_confirm_point: Tuple[int, int] = (225, 418)  # Accept team vote button (corrected)
 
     # Team menu relative dimensions
-    team_menu_relative_height: int = 230  # Relative height offset for team menu
-    mouse_hover_display_height_offset_1: int = 104  # Mouse hover display height offset 1
-    mouse_hover_display_width_offset_1: int = 133   # Mouse hover display width offset 1
+    team_menu_relative_height: Tuple[None, int] = (None, 230)  # (Null, y) - vertical height offset for team menu
+    mouse_hover_display_height_offset_1: Tuple[None, int] = (None, 104)  # (Null, y) - vertical height offset 1
+    mouse_hover_display_width_offset_1: Tuple[int, None] = (133, None)   # (x, Null) - horizontal width offset 1
 
     # Game start button
     start_game_button: Tuple[int, int] = (1505, 972)
 
     # Team right-click menu offsets (relative to team member position)
-    team_right_menu_left_offset: int = 324   # Left offset from team member
-    team_right_menu_right_offset: int = 633  # Right offset from team member
-    team_right_menu_down_offset: int = 760   # Down offset from team member
+    team_right_menu_left_offset: Tuple[int, None] = (324, None)   # (x, Null) - horizontal left offset from team member
+    team_right_menu_right_offset: Tuple[int, None] = (633, None)  # (x, Null) - horizontal right offset from team member
+    team_right_menu_down_offset: Tuple[None, int] = (None, 760)   # (Null, y) - vertical down offset from team member
 
     # Dungeon progress bar (horizontal line)
     dungeon_progress_start: Tuple[int, int] = (1460, 362)  # Progress bar start point
     dungeon_progress_end: Tuple[int, int] = (1700, 362)    # Progress bar end point
 
     # Red portal detection region (based on color_region_detector.py scan boundaries)
-    red_portal_scan_left_margin: int = 150    # Skip left edge 150px
-    red_portal_scan_right_margin: int = 328   # Skip right edge 328px
-    red_portal_scan_bottom_margin: int = 200  # Skip bottom edge 200px
-    red_portal_max_width: int = 310           # Maximum portal width
-    red_portal_max_height: int = 600          # Maximum portal height
-    red_portal_min_area: int = 10             # Minimum matched pixels to consider as portal
+    red_portal_scan_left_margin: Tuple[int, None] = (150, None)    # (x, Null) - horizontal left edge margin
+    red_portal_scan_right_margin: Tuple[int, None] = (328, None)   # (x, Null) - horizontal right edge margin
+    red_portal_scan_bottom_margin: Tuple[None, int] = (None, 200)  # (Null, y) - vertical bottom edge margin
+    red_portal_max_width: Tuple[int, None] = (310, None)           # (x, Null) - maximum portal width
+    red_portal_max_height: Tuple[None, int] = (None, 600)          # (Null, y) - maximum portal height
+    red_portal_min_area: int = 10             # (area) - minimum matched pixels to consider as portal
 
 
 # Global D4 standard coordinates instance
@@ -182,7 +322,7 @@ def calculate_scaled_coordinate(
     standard_height: int = STANDARD_RESOLUTION_HEIGHT
 ) -> Tuple[int, int]:
     """
-    Calculate scaled coordinate based on current game window size
+    Calculate scaled coordinate based on current game window size (D3)
 
     Args:
         standard_coord: Standard coordinate (x, y) at base resolution
@@ -194,35 +334,18 @@ def calculate_scaled_coordinate(
     """
     # Get actual window size from shared data
     shared_data = get_game_interface_data()
-    actual_width, actual_height = shared_data.game_window_size
+    game_window_size = shared_data.game_window_size
 
     # Check if running in windowed mode
     is_windowed = shared_data.is_windowed_mode()
     
-    if is_windowed:
-        # Windowed mode: use actual dimensions (with title bar)
-        effective_actual_width = actual_width
-        effective_actual_height = actual_height
-        effective_standard_width = standard_width
-        effective_standard_height = standard_height
-    else:
-        # Fullscreen mode: add threshold to both dimensions (no title bar)
-        effective_actual_width = actual_width + shared_data.WINDOW_HEIGHT_THRESHOLD
-        effective_actual_height = actual_height + shared_data.WINDOW_HEIGHT_THRESHOLD
-        effective_standard_width = standard_width + shared_data.WINDOW_HEIGHT_THRESHOLD
-        effective_standard_height = standard_height + shared_data.WINDOW_HEIGHT_THRESHOLD
-
-    std_x, std_y = standard_coord
-
-    # Calculate scale factors
-    scale_x = effective_actual_width / effective_standard_width
-    scale_y = effective_actual_height / effective_standard_height
-
-    # Apply scaling
-    scaled_x = int(std_x * scale_x)
-    scaled_y = int(std_y * scale_y)
-
-    return (scaled_x, scaled_y)
+    # Use unified calculation function
+    return calculate_unified_scaled_coordinate(
+        standard_coord=standard_coord,
+        game_window_size=game_window_size,
+        standard_resolution=(standard_width, standard_height),
+        is_windowed=is_windowed
+    )
 
 
 def calculate_scaled_region(
@@ -347,86 +470,6 @@ def get_scaled_reforge_region() -> Tuple[Tuple[int, int], Tuple[int, int]]:
 # D4 Coordinate Scaling Helper Functions
 # ============================================================================
 
-def calculate_d4_scaled_coordinate(
-    standard_coord: Tuple[int, int],
-    game_window_size: Tuple[int, int],
-    is_windowed: bool,
-    window_height_threshold: int = 31
-) -> Tuple[int, int]:
-    """
-    Calculate scaled D4 coordinate based on actual game window size
-
-    Args:
-        standard_coord: Standard coordinate (x, y) at D4 base resolution (1763x1126)
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode, False for fullscreen
-        window_height_threshold: Height threshold for windowed mode detection (default: 31)
-
-    Returns:
-        Scaled coordinate (x, y) for actual window size
-    """
-    actual_width, actual_height = game_window_size
-
-    if is_windowed:
-        # Windowed mode: use actual dimensions (with title bar)
-        effective_actual_width = actual_width
-        effective_actual_height = actual_height
-        effective_standard_width = D4_STANDARD_RESOLUTION_WIDTH
-        effective_standard_height = D4_STANDARD_RESOLUTION_HEIGHT
-    else:
-        # Fullscreen mode: add threshold to both dimensions (no title bar)
-        effective_actual_width = actual_width + window_height_threshold
-        effective_actual_height = actual_height + window_height_threshold
-        effective_standard_width = D4_STANDARD_RESOLUTION_WIDTH + window_height_threshold
-        effective_standard_height = D4_STANDARD_RESOLUTION_HEIGHT + window_height_threshold
-
-    std_x, std_y = standard_coord
-
-    # Calculate scale factors
-    scale_x = effective_actual_width / effective_standard_width
-    scale_y = effective_actual_height / effective_standard_height
-
-    # Apply scaling
-    scaled_x = int(std_x * scale_x)
-    scaled_y = int(std_y * scale_y)
-
-    return (scaled_x, scaled_y)
-
-
-def calculate_d4_scaled_region(
-    standard_start: Tuple[int, int],
-    standard_end: Tuple[int, int],
-    game_window_size: Tuple[int, int],
-    is_windowed: bool,
-    window_height_threshold: int = 31
-) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Calculate scaled D4 region based on actual game window size
-
-    Args:
-        standard_start: Standard region start coordinate (x, y)
-        standard_end: Standard region end coordinate (x, y)
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode, False for fullscreen
-        window_height_threshold: Height threshold for windowed mode detection (default: 31)
-
-    Returns:
-        Tuple of (scaled_start, scaled_end) coordinates
-    """
-    scaled_start = calculate_d4_scaled_coordinate(
-        standard_start,
-        game_window_size,
-        is_windowed,
-        window_height_threshold
-    )
-    scaled_end = calculate_d4_scaled_coordinate(
-        standard_end,
-        game_window_size,
-        is_windowed,
-        window_height_threshold
-    )
-
-    return (scaled_start, scaled_end)
 
 
 def get_d4_scaled_edit_team_button(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
@@ -440,9 +483,10 @@ def get_d4_scaled_edit_team_button(game_window_size: Tuple[int, int], is_windowe
     Returns:
         Scaled coordinate (x, y) relative to game window
     """
-    return calculate_d4_scaled_coordinate(
+    return calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.edit_team_button,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -458,9 +502,10 @@ def get_d4_scaled_confirm_edit_team(game_window_size: Tuple[int, int], is_window
     Returns:
         Scaled coordinate (x, y) relative to game window
     """
-    return calculate_d4_scaled_coordinate(
+    return calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.confirm_edit_team,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -476,14 +521,16 @@ def get_d4_scaled_idle_team_tiers(game_window_size: Tuple[int, int], is_windowed
     Returns:
         Tuple of (min_tier_coord, max_tier_coord)
     """
-    min_tier = calculate_d4_scaled_coordinate(
+    min_tier = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.idle_team_min_tier,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
-    max_tier = calculate_d4_scaled_coordinate(
+    max_tier = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.idle_team_max_tier,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
     return (min_tier, max_tier)
@@ -500,9 +547,10 @@ def get_d4_scaled_idle_activity_selection(game_window_size: Tuple[int, int], is_
     Returns:
         Scaled coordinate (x, y) relative to game window
     """
-    return calculate_d4_scaled_coordinate(
+    return calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.idle_activity_selection,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -518,9 +566,10 @@ def get_d4_scaled_add_idle_team(game_window_size: Tuple[int, int], is_windowed: 
     Returns:
         Scaled coordinate (x, y) relative to game window
     """
-    return calculate_d4_scaled_coordinate(
+    return calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.add_idle_team,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -536,12 +585,19 @@ def get_d4_scaled_bag_region(game_window_size: Tuple[int, int], is_windowed: boo
     Returns:
         Tuple of (top_left, bottom_right) coordinates relative to game window
     """
-    return calculate_d4_scaled_region(
+    top_left = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.bag_top_left,
-        D4_STANDARD_COORDS.bag_bottom_right,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
+    bottom_right = calculate_unified_scaled_coordinate(
+        D4_STANDARD_COORDS.bag_bottom_right,
+        game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+        is_windowed
+    )
+    return (top_left, bottom_right)
 
 
 def get_d4_scaled_blacksmith_menu_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
@@ -555,10 +611,11 @@ def get_d4_scaled_blacksmith_menu_region(game_window_size: Tuple[int, int], is_w
     Returns:
         Tuple of (start_coord, end_coord) for blacksmith menu region
     """
-    return calculate_d4_scaled_region(
+    start_coord = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.blacksmith_menu_start,
         D4_STANDARD_COORDS.blacksmith_menu_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -574,10 +631,11 @@ def get_d4_scaled_whisper_obols_region(game_window_size: Tuple[int, int], is_win
     Returns:
         Tuple of (start_coord, end_coord) for whisper obols region
     """
-    return calculate_d4_scaled_region(
+    start_coord = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.whisper_obols_region_start,
         D4_STANDARD_COORDS.whisper_obols_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -593,18 +651,32 @@ def get_d4_scaled_equipment_regions(game_window_size: Tuple[int, int], is_window
     Returns:
         Dictionary with 'left' and 'right' equipment regions
     """
-    left_region = calculate_d4_scaled_region(
+    left_start = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.equipment_left_region_start,
+        game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+        is_windowed
+    )
+    left_end = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.equipment_left_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
-    right_region = calculate_d4_scaled_region(
+    right_start = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.equipment_right_region_start,
+        game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+        is_windowed
+    )
+    right_end = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.equipment_right_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
+    left_region = (left_start, left_end)
+    right_region = (right_start, right_end)
     return {"left": left_region, "right": right_region}
 
 
@@ -619,10 +691,11 @@ def get_d4_scaled_blacksmith_function_region(game_window_size: Tuple[int, int], 
     Returns:
         Tuple of (start_coord, end_coord) for blacksmith function region
     """
-    return calculate_d4_scaled_region(
+    start_coord = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.blacksmith_function_region_start,
         D4_STANDARD_COORDS.blacksmith_function_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -638,10 +711,11 @@ def get_d4_scaled_exp_bar_region(game_window_size: Tuple[int, int], is_windowed:
     Returns:
         Tuple of (start_coord, end_coord) for exp bar region
     """
-    return calculate_d4_scaled_region(
+    start_coord = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.exp_bar_region_start,
         D4_STANDARD_COORDS.exp_bar_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -657,9 +731,10 @@ def get_d4_scaled_health_orb_point(game_window_size: Tuple[int, int], is_windowe
     Returns:
         Scaled coordinate (x, y) for health orb point
     """
-    return calculate_d4_scaled_coordinate(
+    return calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.health_orb_point,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -675,10 +750,11 @@ def get_d4_scaled_minimap_region(game_window_size: Tuple[int, int], is_windowed:
     Returns:
         Tuple of (start_coord, end_coord) for minimap region
     """
-    return calculate_d4_scaled_region(
+    start_coord = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.minimap_region_start,
         D4_STANDARD_COORDS.minimap_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -694,10 +770,11 @@ def get_d4_scaled_map_name_region(game_window_size: Tuple[int, int], is_windowed
     Returns:
         Tuple of (start_coord, end_coord) for map name region
     """
-    return calculate_d4_scaled_region(
+    start_coord = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.map_name_region_start,
         D4_STANDARD_COORDS.map_name_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -713,10 +790,11 @@ def get_d4_scaled_quest_text_region(game_window_size: Tuple[int, int], is_window
     Returns:
         Tuple of (start_coord, end_coord) for quest text region
     """
-    return calculate_d4_scaled_region(
+    start_coord = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.quest_text_region_start,
         D4_STANDARD_COORDS.quest_text_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -732,10 +810,11 @@ def get_d4_scaled_team_count_region(game_window_size: Tuple[int, int], is_window
     Returns:
         Tuple of (start_coord, end_coord) for team count region
     """
-    return calculate_d4_scaled_region(
+    start_coord = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.team_count_region_start,
         D4_STANDARD_COORDS.team_count_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -751,10 +830,11 @@ def get_d4_scaled_team_vote_region(game_window_size: Tuple[int, int], is_windowe
     Returns:
         Tuple of (start_coord, end_coord) for team vote region
     """
-    return calculate_d4_scaled_region(
+    start_coord = calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.team_vote_region_start,
         D4_STANDARD_COORDS.team_vote_region_end,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -770,9 +850,10 @@ def get_d4_scaled_team_vote_confirm_point(game_window_size: Tuple[int, int], is_
     Returns:
         Scaled coordinate (x, y) for team vote confirm point
     """
-    return calculate_d4_scaled_coordinate(
+    return calculate_unified_scaled_coordinate(
         D4_STANDARD_COORDS.team_vote_confirm_point,
         game_window_size,
+        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
         is_windowed
     )
 
@@ -998,6 +1079,55 @@ class D4InterfaceData:
     # Annotated screenshots for coordinate visualization
     last_annotated_screenshot_path: Optional[str] = None
 
+    # Region detection data
+    detected_regions: Optional[Dict[str, Any]] = None  # Detected regions information
+    detected_points: Optional[Dict[str, Any]] = None   # Detected points information
+    region_detection_timestamp: Optional[str] = None   # When regions were last detected
+
+    # Screenshot data from screenshot provider
+    screenshot_data: Optional[Any] = None  # Complete screenshot data from screenshot provider
+
+    # Team health information
+    team_health_info: Optional[Dict[str, Any]] = None  # Team member health information
+    team_health_detection_timestamp: Optional[str] = None  # When team health was last detected
+
+    # Small map detection information
+    small_map_detection: Optional[Dict[str, Any]] = None  # Small map detection results
+    small_map_detection_timestamp: Optional[str] = None  # When small map was last detected
+    last_small_map_debug_path: Optional[str] = None  # Path to last debug image
+
+    # Optimized image data
+    optimized_fullscreen_image: Optional['OptimizedImageData'] = None  # Optimized fullscreen image
+    optimized_game_window_image: Optional['OptimizedImageData'] = None  # Optimized game window image
+
+    # Game state management
+    game_running: bool = False
+    exp_farming_running: bool = False
+    
+    # Game window information
+    window_detected: bool = False
+    window_hwnd: Optional[int] = None
+    window_title: str = ""
+    window_position: Tuple[int, int] = (0, 0)  # (x, y)
+    
+    # Game progress
+    current_act: int = 0  # 0-5
+    current_chapter: int = 0
+    current_quest: str = ""
+    difficulty: str = ""  # Normal, Nightmare, Hell, Torment, etc.
+    world_tier: int = 0  # 1-4
+    
+    # Experience tracking
+    current_level: int = 0
+    current_exp: int = 0
+    exp_to_next_level: int = 0
+    exp_percent: float = 0.0
+    paragon_level: int = 0
+    
+    # Screenshot state
+    last_screenshot_path: Optional[str] = None
+    last_screenshot_time: float = 0.0
+
     def clear(self):
         """Clear all data"""
         self.timestamp = None
@@ -1010,6 +1140,45 @@ class D4InterfaceData:
         self.game_window_size = (0, 0)
         self.screenshot_history.clear()
         self.last_annotated_screenshot_path = None
+        # Clear region detection data
+        self.detected_regions = None
+        self.detected_points = None
+        self.region_detection_timestamp = None
+        # Clear screenshot data
+        self.screenshot_data = None
+        # Clear team health data
+        self.team_health_info = None
+        self.team_health_detection_timestamp = None
+        # Clear small map detection data
+        self.small_map_detection = None
+        self.small_map_detection_timestamp = None
+        self.last_small_map_debug_path = None
+        # Clear optimized image data
+        self.optimized_fullscreen_image = None
+        self.optimized_game_window_image = None
+        # Clear game state
+        self.game_running = False
+        self.exp_farming_running = False
+        # Clear window info
+        self.window_detected = False
+        self.window_hwnd = None
+        self.window_title = ""
+        self.window_position = (0, 0)
+        # Clear game progress
+        self.current_act = 0
+        self.current_chapter = 0
+        self.current_quest = ""
+        self.difficulty = ""
+        self.world_tier = 0
+        # Clear experience
+        self.current_level = 0
+        self.current_exp = 0
+        self.exp_to_next_level = 0
+        self.exp_percent = 0.0
+        self.paragon_level = 0
+        # Clear screenshot state
+        self.last_screenshot_path = None
+        self.last_screenshot_time = 0.0
 
     def add_screenshot_history(self, path: str, max_history: int = 10):
         """Add screenshot path to history"""
@@ -1052,9 +1221,57 @@ class D4InterfaceData:
             "fullscreen_size": self.fullscreen_size,
             "is_windowed": self.is_windowed_mode(),
             "screenshot_history_count": len(self.screenshot_history),
-            "last_annotated_screenshot": self.last_annotated_screenshot_path
+            "last_annotated_screenshot": self.last_annotated_screenshot_path,
+            "has_detected_regions": self.detected_regions is not None,
+            "has_detected_points": self.detected_points is not None,
+            "region_detection_timestamp": self.region_detection_timestamp
         }
         return summary
+
+    # ==================== Game State Methods ====================
+
+    def set_game_running(self, running: bool):
+        """Set game running state"""
+        self.game_running = running
+
+    def is_game_running(self) -> bool:
+        """Check if game is running"""
+        return self.game_running
+
+    def set_exp_farming_running(self, running: bool):
+        """Set EXP farming running state"""
+        self.exp_farming_running = running
+
+    def is_exp_farming_running(self) -> bool:
+        """Check if EXP farming is running"""
+        return self.exp_farming_running
+
+    def set_window_info(self, detected: bool, hwnd: Optional[int] = None,
+                       title: str = "", position: tuple = (0, 0)):
+        """Set window information"""
+        self.window_detected = detected
+        self.window_hwnd = hwnd
+        self.window_title = title
+        self.window_position = position
+
+    def get_window_info(self) -> Dict[str, Any]:
+        """Get window information as dictionary"""
+        return {
+            "detected": self.window_detected,
+            "hwnd": self.window_hwnd,
+            "title": self.window_title,
+            "size": self.game_window_size,
+            "position": self.window_position
+        }
+
+    def get_game_state(self) -> str:
+        """Get current game state as string"""
+        if self.exp_farming_running:
+            return "Running"
+        elif self.game_running:
+            return "Active"
+        else:
+            return "Stopped"
 
 
 # Global shared instances
@@ -1394,4 +1611,177 @@ def clear_d4_interface_data():
     global _d4_interface_data
     if _d4_interface_data is not None:
         _d4_interface_data.clear()
+
+
+# ============================================================================
+# Optimized Image Processing
+# ============================================================================
+
+@dataclass
+class OptimizedImageData:
+    """
+    Data structure for optimized image processing
+    
+    Contains both the original and optimized images with scaling information
+    """
+    # Original image data
+    original_image: Optional[Image.Image] = None
+    original_width: int = 0
+    original_height: int = 0
+    
+    # Optimized image data
+    optimized_image: Optional[Image.Image] = None
+    optimized_width: int = OPTIMIZED_IMAGE_WIDTH
+    optimized_height: int = OPTIMIZED_IMAGE_HEIGHT
+    
+    # Scaling information
+    scale_x: float = 1.0
+    scale_y: float = 1.0
+    
+    # Offset information (for coordinate conversion)
+    offset_x: float = 0.0
+    offset_y: float = 0.0
+    
+    # Metadata
+    timestamp: str = ""
+    is_optimized: bool = False
+
+
+def optimize_image_for_processing(image: Image.Image, target_width: int = OPTIMIZED_IMAGE_WIDTH, 
+                                 target_height: int = OPTIMIZED_IMAGE_HEIGHT) -> OptimizedImageData:
+    """
+    Optimize image for processing by scaling to target resolution
+    
+    Args:
+        image: Original PIL Image
+        target_width: Target width for optimization (default: 800)
+        target_height: Target height for optimization (default: 600)
+        
+    Returns:
+        OptimizedImageData with both original and optimized images
+    """
+    try:
+        # Get original dimensions
+        original_width, original_height = image.size
+        
+        # Create optimized image data structure
+        optimized_data = OptimizedImageData()
+        optimized_data.original_image = image.copy()
+        optimized_data.original_width = original_width
+        optimized_data.original_height = original_height
+        optimized_data.timestamp = datetime.now().isoformat()
+        
+        # Calculate scaling factors
+        scale_x = target_width / original_width
+        scale_y = target_height / original_height
+        
+        # Use uniform scaling to maintain aspect ratio
+        scale = min(scale_x, scale_y)
+        
+        # Calculate new dimensions
+        new_width = int(original_width * scale)
+        new_height = int(original_height * scale)
+        
+        # Calculate offsets for centering
+        offset_x = (target_width - new_width) / 2
+        offset_y = (target_height - new_height) / 2
+        
+        # Resize image
+        resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Create target canvas
+        optimized_image = Image.new('RGB', (target_width, target_height), (0, 0, 0))
+        
+        # Paste resized image onto canvas (centered)
+        optimized_image.paste(resized_image, (int(offset_x), int(offset_y)))
+        
+        # Update optimized data
+        optimized_data.optimized_image = optimized_image
+        optimized_data.optimized_width = target_width
+        optimized_data.optimized_height = target_height
+        optimized_data.scale_x = scale
+        optimized_data.scale_y = scale
+        optimized_data.offset_x = offset_x
+        optimized_data.offset_y = offset_y
+        optimized_data.is_optimized = True
+        
+        ColorPrint.blue(f"[OptimizedImage] Original: {original_width}x{original_height} -> Optimized: {target_width}x{target_height}")
+        ColorPrint.blue(f"[OptimizedImage] Scale: {scale:.4f}, Offset: ({offset_x:.1f}, {offset_y:.1f})")
+        
+        return optimized_data
+        
+    except Exception as e:
+        ColorPrint.red(f"[OptimizedImage] Error optimizing image: {e}")
+        # Return original image data if optimization fails
+        optimized_data = OptimizedImageData()
+        optimized_data.original_image = image.copy()
+        optimized_data.original_width, optimized_data.original_height = image.size
+        optimized_data.optimized_image = image.copy()
+        optimized_data.optimized_width, optimized_data.optimized_height = image.size
+        optimized_data.scale_x = 1.0
+        optimized_data.scale_y = 1.0
+        optimized_data.is_optimized = False
+        return optimized_data
+
+
+def convert_optimized_coordinate_to_original(coord: Tuple[int, int], optimized_data: OptimizedImageData) -> Tuple[int, int]:
+    """
+    Convert coordinate from optimized image space to original image space
+    
+    Args:
+        coord: Coordinate in optimized image space (x, y)
+        optimized_data: OptimizedImageData containing scaling information
+        
+    Returns:
+        Coordinate in original image space (x, y)
+    """
+    if not optimized_data.is_optimized:
+        return coord
+    
+    x, y = coord
+    
+    # Remove offset and apply inverse scaling
+    original_x = int((x - optimized_data.offset_x) / optimized_data.scale_x)
+    original_y = int((y - optimized_data.offset_y) / optimized_data.scale_y)
+    
+    return (original_x, original_y)
+
+
+def convert_original_coordinate_to_optimized(coord: Tuple[int, int], optimized_data: OptimizedImageData) -> Tuple[int, int]:
+    """
+    Convert coordinate from original image space to optimized image space
+    
+    Args:
+        coord: Coordinate in original image space (x, y)
+        optimized_data: OptimizedImageData containing scaling information
+        
+    Returns:
+        Coordinate in optimized image space (x, y)
+    """
+    if not optimized_data.is_optimized:
+        return coord
+    
+    x, y = coord
+    
+    # Apply scaling and add offset
+    optimized_x = int(x * optimized_data.scale_x + optimized_data.offset_x)
+    optimized_y = int(y * optimized_data.scale_y + optimized_data.offset_y)
+    
+    return (optimized_x, optimized_y)
+
+
+def get_optimized_image_for_processing(optimized_data: OptimizedImageData) -> Image.Image:
+    """
+    Get the optimized image for processing
+    
+    Args:
+        optimized_data: OptimizedImageData containing both images
+        
+    Returns:
+        Optimized PIL Image for processing
+    """
+    if optimized_data.is_optimized and optimized_data.optimized_image is not None:
+        return optimized_data.optimized_image
+    else:
+        return optimized_data.original_image
 

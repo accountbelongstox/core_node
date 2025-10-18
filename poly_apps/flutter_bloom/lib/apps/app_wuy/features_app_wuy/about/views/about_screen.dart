@@ -36,7 +36,7 @@ class WuyAboutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return WuyCommonBackground(
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: ThemeColors.transparent,
         appBar: AppBar(
           title: Text(
             LocalizationKeysAppWuy.wuyAboutTitle.tr(context),
@@ -45,7 +45,7 @@ class WuyAboutScreen extends StatelessWidget {
           backgroundColor: ThemeColors.primary,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
             onPressed: () => context.go(WuyAppRouter.routeProfile),
           ),
         ),
@@ -70,8 +70,8 @@ class WuyAboutScreen extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.blue.shade400,
-            Colors.blue.shade600,
+            ThemeColors.blue40,
+            ThemeColors.blue60,
           ],
         ),
       ),
@@ -83,11 +83,11 @@ class WuyAboutScreen extends StatelessWidget {
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: ThemeColors.white,
                 borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: ThemeColors.black.withOpacity(0.2),
                     blurRadius: 10,
                     offset: Offset(0, 5),
                   ),
@@ -96,21 +96,21 @@ class WuyAboutScreen extends StatelessWidget {
               child: Icon(
                 Icons.apps,
                 size: 60,
-                color: Colors.blue.shade600,
+                color: ThemeColors.blue60,
               ),
             ),
             SizedBox(height: ThemeDimensions.spacingLarge),
             Text(
               LocalizationKeysAppWuy.wuyAboutAppName.tr(context),
               style: ThemeTextStyles.largeTitle.copyWith(
-                color: Colors.white,
+                color: ThemeColors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               LocalizationKeysAppWuy.wuyAboutAppNameEn.tr(context),
               style: ThemeTextStyles.bodyLarge.copyWith(
-                color: Colors.white.withOpacity(0.9),
+                color: ThemeColors.white.withOpacity(0.9),
               ),
             ),
           ],

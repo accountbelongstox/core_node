@@ -18,6 +18,8 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../widgets_app_wuy/wuy_common_background.dart';
 import '../../../widgets_app_wuy/wuy_common_logo.dart';
+import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
+import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
 import '../../../services_app_wuy/wuy_data_manager.dart';
 
@@ -111,23 +113,12 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
   }
 
   Widget _buildEmailField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _emailController,
       keyboardType: TextInputType.emailAddress,
-      decoration: InputDecoration(
-        labelText: LocalizationKeysAppWuy.wuyLoginEmail.tr(context),
-        hintText: LocalizationKeysAppWuy.wuyLoginEnterEmail.tr(context),
-        prefixIcon: Icon(Icons.email, color: ThemeColors.primary),
-        border: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
-      ),
+      labelText: LocalizationKeysAppWuy.wuyLoginEmail.tr(context),
+      hintText: LocalizationKeysAppWuy.wuyLoginEnterEmail.tr(context),
+      prefixIcon: Icons.email,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Please enter your email';
@@ -141,33 +132,22 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
   }
 
   Widget _buildPasswordField() {
-    return TextFormField(
+    return WuyModernInputField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      decoration: InputDecoration(
-        labelText: LocalizationKeysAppWuy.wuyLoginPassword.tr(context),
-        hintText: LocalizationKeysAppWuy.wuyLoginEnterPassword.tr(context),
-        prefixIcon: Icon(Icons.lock, color: ThemeColors.primary),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscurePassword ? Icons.visibility : Icons.visibility_off,
-            color: ThemeColors.textSecondary,
-          ),
-          onPressed: () {
-            setState(() {
-              _obscurePassword = !_obscurePassword;
-            });
-          },
+      labelText: LocalizationKeysAppWuy.wuyLoginPassword.tr(context),
+      hintText: LocalizationKeysAppWuy.wuyLoginEnterPassword.tr(context),
+      prefixIcon: Icons.lock,
+      suffixIcon: IconButton(
+        icon: Icon(
+          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+          color: ThemeColors.textSecondary,
         ),
-        border: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-          borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-        ),
+        onPressed: () {
+          setState(() {
+            _obscurePassword = !_obscurePassword;
+          });
+        },
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -199,24 +179,11 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
   }
 
   Widget _buildSignInButton() {
-    return ElevatedButton(
-      onPressed: _isLoading ? null : _handleSignIn,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: ThemeColors.primary,
-        minimumSize: Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-      ),
-      child: _isLoading
-          ? CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
-            )
-          : Text(
-              LocalizationKeysAppWuy.wuyLoginSignIn.tr(context),
-              style: ThemeTextStyles.buttonLarge,
-            ),
+    return WuyGradientButton(
+      text: LocalizationKeysAppWuy.wuyLoginSignIn.tr(context),
+      onPressed: _handleSignIn,
+      isLoading: _isLoading,
+      height: 50,
     );
   }
 

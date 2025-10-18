@@ -35,7 +35,12 @@ from PIL import Image
 current_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(current_dir))
 
-from share.game_interface_data import D4StandardCoordinates, calculate_d4_scaled_coordinate
+from share.game_interface_data import (
+    D4StandardCoordinates, 
+    calculate_unified_scaled_coordinate,
+    D4_STANDARD_RESOLUTION_WIDTH,
+    D4_STANDARD_RESOLUTION_HEIGHT
+)
 
 # Target color group (BGR format) - Red/Orange portal colors
 TARGET_COLORS = [
@@ -165,11 +170,12 @@ def _find_portal_region(mask: np.ndarray, coords: D4StandardCoordinates, current
     game_window_size = (current_width, current_height)
     is_windowed = False  # Assume fullscreen for simplicity
 
-    left_margin = calculate_d4_scaled_coordinate((coords.red_portal_scan_left_margin, 0), game_window_size, is_windowed)[0]
-    right_margin = calculate_d4_scaled_coordinate((coords.red_portal_scan_right_margin, 0), game_window_size, is_windowed)[0]
-    bottom_margin = calculate_d4_scaled_coordinate((0, coords.red_portal_scan_bottom_margin), game_window_size, is_windowed)[1]
-    max_width = calculate_d4_scaled_coordinate((coords.red_portal_max_width, 0), game_window_size, is_windowed)[0]
-    max_height = calculate_d4_scaled_coordinate((0, coords.red_portal_max_height), game_window_size, is_windowed)[1]
+    # Extract values from (x, None) or (None, y) format
+    left_margin = calculate_unified_scaled_coordinate((coords.red_portal_scan_left_margin[0], 0), game_window_size, (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), is_windowed)[0]
+    right_margin = calculate_unified_scaled_coordinate((coords.red_portal_scan_right_margin[0], 0), game_window_size, (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), is_windowed)[0]
+    bottom_margin = calculate_unified_scaled_coordinate((0, coords.red_portal_scan_bottom_margin[1]), game_window_size, (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), is_windowed)[1]
+    max_width = calculate_unified_scaled_coordinate((coords.red_portal_max_width[0], 0), game_window_size, (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), is_windowed)[0]
+    max_height = calculate_unified_scaled_coordinate((0, coords.red_portal_max_height[1]), game_window_size, (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), is_windowed)[1]
     min_area = coords.red_portal_min_area
 
     # Calculate valid scan region

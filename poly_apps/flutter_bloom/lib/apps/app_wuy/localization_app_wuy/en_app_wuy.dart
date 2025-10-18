@@ -472,6 +472,55 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyMessageSendCodeError:
         'Error sending verification code',
     LocalizationKeysAppWuy.wuyMessageOperationFailed: 'Operation failed',
+
+    // Network records screen specific
+    LocalizationKeysAppWuy.wuyNetworkLoginAccount: 'Login to account',
+    LocalizationKeysAppWuy.wuyNetworkLoginSuccess: 'Login successful',
+    LocalizationKeysAppWuy.wuyNetworkConnectWifi: 'Connected to WiFi network',
+    LocalizationKeysAppWuy.wuyNetworkMobileConnection:
+        'Mobile network connection',
+    LocalizationKeysAppWuy.wuyNetworkRequestTimeout: 'Network request timeout',
+
+    // Dashboard screen specific
+    LocalizationKeysAppWuy.wuyDashboardWelcome: 'Welcome back!',
+    LocalizationKeysAppWuy.wuyDashboardOverviewText:
+        'Here\'s your dashboard overview',
+    LocalizationKeysAppWuy.wuyDashboardQuickStats: 'Quick Stats',
+    LocalizationKeysAppWuy.wuyDashboardTotalUsers: 'Total Users',
+    LocalizationKeysAppWuy.wuyDashboardActiveSessions: 'Active Sessions',
+    LocalizationKeysAppWuy.wuyDashboardMessages: 'Messages',
+    LocalizationKeysAppWuy.wuyDashboardTasks: 'Tasks',
+    LocalizationKeysAppWuy.wuyDashboardNewUserRegistered:
+        'New user registered',
+    LocalizationKeysAppWuy.wuyDashboardSystemUpdateCompleted:
+        'System update completed',
+    LocalizationKeysAppWuy.wuyDashboardNewMessageReceived:
+        'New message received',
+    LocalizationKeysAppWuy.wuyDashboardTaskCompleted: 'Task completed',
+    LocalizationKeysAppWuy.wuyDashboardReportGenerated: 'Report generated',
+    LocalizationKeysAppWuy.wuyDashboardMinutesAgo: '{count} minutes ago',
+    LocalizationKeysAppWuy.wuyDashboardHourAgo: '1 hour ago',
+    LocalizationKeysAppWuy.wuyDashboardHoursAgo: '{count} hours ago',
+    LocalizationKeysAppWuy.wuyDashboardDayAgo: '1 day ago',
+
+    // Settings screen extended
+    LocalizationKeysAppWuy.wuySettingsAppearance: 'Appearance',
+    LocalizationKeysAppWuy.wuySettingsLanguageSection: 'Language',
+    LocalizationKeysAppWuy.wuySettingsSocial: 'Social',
+    LocalizationKeysAppWuy.wuySettingsMessaging: 'Messaging',
+    LocalizationKeysAppWuy.wuySettingsPerformance: 'Performance',
+    LocalizationKeysAppWuy.wuySettingsResetTitle: 'Reset Settings',
+    LocalizationKeysAppWuy.wuySettingsResetConfirm:
+        'Are you sure you want to reset all settings to default values?',
+    LocalizationKeysAppWuy.wuySettingsResetSuccess:
+        'Settings have been reset to defaults',
+    LocalizationKeysAppWuy.wuySettingsResetToDefaults: 'Reset to Defaults',
+
+    // Common buttons
+    LocalizationKeysAppWuy.wuyButtonCancel: 'Cancel',
+    LocalizationKeysAppWuy.wuyButtonReset: 'Reset',
+    LocalizationKeysAppWuy.wuyButtonSave: 'Save',
+    LocalizationKeysAppWuy.wuyButtonConfirm: 'Confirm',
   };
 }
 

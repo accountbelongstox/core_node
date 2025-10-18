@@ -25,6 +25,7 @@ from d3utils.shutdown_manager import request_shutdown, is_shutdown_requested, re
 import d3utils.log_monitor as log_monitor_module
 from d3utils.task_thread_manager import get_task_manager, register_task, start_all_tasks, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
+from controller.d4_controller import get_d4_controller
 
 class SystemInitializer:
     """System-wide initialization manager"""
@@ -145,7 +146,6 @@ class SystemInitializer:
             timer_manager.set_task_interceptor('log_monitor', log_monitor_module.get_default_interceptor())
 
             # Register D4 controller with timer manager (static global, always enabled with interceptor)
-            from controller.d4_controller import get_d4_controller
             d4_controller = get_d4_controller()
             timer_manager.register_task(
                 name='d4_controller',
@@ -153,7 +153,10 @@ class SystemInitializer:
                 callback=d4_controller.process,
                 enabled=True  # Always enabled, controlled by state interceptor
             )
-            ColorPrint.green("[INIT] D4 controller registered to timer (3s interval)")
+            
+            # Set interceptor for D4 controller (checks EXP farming state)
+            timer_manager.set_task_interceptor('d4_controller', d4_controller.get_interceptor())
+            ColorPrint.green("[INIT] D4 controller registered to timer (3s interval) with interceptor")
 
             # Start timer manager (static global)
             timer_manager.start()
