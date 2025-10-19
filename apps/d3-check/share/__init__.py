@@ -18,6 +18,7 @@ from .game_interface_data import (
     get_scaled_reforge_region,
     update_global_scale,
     get_global_scale,
+    get_screen_resolution,
     GLOBAL_SCALE_X,
     GLOBAL_SCALE_Y
 )
@@ -35,6 +36,7 @@ __all__ = [
     'get_scaled_reforge_region',
     'update_global_scale',
     'get_global_scale',
+    'get_screen_resolution',
     'GLOBAL_SCALE_X',
     'GLOBAL_SCALE_Y'
 ]

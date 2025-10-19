@@ -24,6 +24,8 @@
           "d4_running_status": "D4运行状态",
           "screen_coordinates": "屏幕坐标",
           "screen_size": "屏幕尺寸",
+          "map_switch_count": "切换地图次数",
+          "map_switch_state": "地图切换状态",
           "reserved": "预留值",
           "unknown": "未知",
           "detecting": "检测中",

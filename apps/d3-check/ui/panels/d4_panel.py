@@ -357,11 +357,11 @@ class D4Panel:
         self._create_status_label(status_frame, 0, 3, "d4_panel.exp_farming.game_status.dungeon_progress", "dungeon_progress")
         self._create_status_label(status_frame, 0, 4, "d4_panel.exp_farming.game_status.d4_running_status", "d4_running_status")
 
-        # Status labels - Row 2 (Screen info and reserved values)
+        # Status labels - Row 2 (Screen info and map switching)
         self._create_status_label(status_frame, 1, 0, "d4_panel.exp_farming.game_status.screen_coordinates", "screen_coordinates")
         self._create_status_label(status_frame, 1, 1, "d4_panel.exp_farming.game_status.screen_size", "screen_size")
-        self._create_status_label(status_frame, 1, 2, "d4_panel.exp_farming.game_status.reserved", "reserved_2")
-        self._create_status_label(status_frame, 1, 3, "d4_panel.exp_farming.game_status.reserved", "reserved_3")
+        self._create_status_label(status_frame, 1, 2, "d4_panel.exp_farming.game_status.map_switch_count", "map_switch_count")
+        self._create_status_label(status_frame, 1, 3, "d4_panel.exp_farming.game_status.map_switch_state", "map_switch_state")
         self._create_status_label(status_frame, 1, 4, "d4_panel.exp_farming.game_status.reserved", "reserved_4")
 
         # Status labels - Row 3 (Reserved values 5-10)
@@ -480,8 +480,22 @@ class D4Panel:
             screen_size = f"{width}x{height} ({mode})"
         self._update_status_value("screen_size", screen_size)
 
-        # Initialize reserved values
-        for i in range(2, 10):  # reserved_2 to reserved_9
+        # Update map switch count
+        map_switch_count = d4_data.map_switch_count if hasattr(d4_data, 'map_switch_count') else 0
+        self._update_status_value("map_switch_count", str(map_switch_count))
+
+        # Update map switch state
+        map_switch_state = "-"
+        if hasattr(d4_data, 'is_switching_map') and d4_data.is_switching_map:
+            map_switch_state = "Switching"
+        elif hasattr(d4_data, 'is_post_switch_idle') and d4_data.is_post_switch_idle:
+            map_switch_state = "Post-Switch"
+        else:
+            map_switch_state = "Normal"
+        self._update_status_value("map_switch_state", map_switch_state)
+
+        # Initialize reserved values (4-9)
+        for i in range(4, 10):  # reserved_4 to reserved_9
             self._update_status_value(f"reserved_{i}", "-")
 
     def _update_status_value(self, key, value):

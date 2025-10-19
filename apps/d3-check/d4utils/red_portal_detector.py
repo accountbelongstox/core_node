@@ -36,10 +36,11 @@ current_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(current_dir))
 
 from share.game_interface_data import (
-    D4StandardCoordinates, 
+    D4StandardCoordinates,
     calculate_unified_scaled_coordinate,
     D4_STANDARD_RESOLUTION_WIDTH,
-    D4_STANDARD_RESOLUTION_HEIGHT
+    D4_STANDARD_RESOLUTION_HEIGHT,
+    get_d4_interface_data
 )
 
 # Target color group (BGR format) - Red/Orange portal colors
@@ -166,9 +167,10 @@ def _find_portal_region(mask: np.ndarray, coords: D4StandardCoordinates, current
     h, w = mask.shape
 
     # Calculate scaled parameters using scale calculator
-    # Note: calculate_d4_scaled_coordinate expects (coord_tuple, window_size_tuple, is_windowed)
+    # Get window mode from shared data instead of hardcoding
     game_window_size = (current_width, current_height)
-    is_windowed = False  # Assume fullscreen for simplicity
+    d4_data = get_d4_interface_data()
+    is_windowed = d4_data.is_windowed_mode()  # Use shared data instead of hardcoding
 
     # Extract values from (x, None) or (None, y) format
     left_margin = calculate_unified_scaled_coordinate((coords.red_portal_scan_left_margin[0], 0), game_window_size, (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT), is_windowed)[0]

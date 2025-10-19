@@ -106,8 +106,15 @@ class RegionDetector:
 
         This extracts ALL regions from image_annotator.regions_to_draw once per tick,
         storing the cropped images in detected_regions for sharing across the application.
+
+        Note: Respects debug_window_paused flag - if paused, skips extraction to freeze current view.
         """
         try:
+            # Check if debug window is paused
+            if self.d4_data.debug_window_paused:
+                ColorPrint.gray("[RegionDetector] Debug window paused - skipping region extraction")
+                return
+
             ColorPrint.blue("[RegionDetector] Extracting all regions to share...")
             ColorPrint.blue(f"[RegionDetector] Screenshot data type: {type(screenshot_data)}")
             ColorPrint.blue(f"[RegionDetector] Game window image: {screenshot_data.game_window_image is not None}")
@@ -119,6 +126,13 @@ class RegionDetector:
             game_window_image = screenshot_data.game_window_image
             game_window_size = screenshot_data.game_window_size
             is_windowed = self.d4_data.is_windowed_mode()
+
+            # DEBUG: Print critical values for offset troubleshooting
+            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - game_window_size: {game_window_size}")
+            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - fullscreen_size: {screenshot_data.fullscreen_size}")
+            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - is_windowed: {is_windowed}")
+            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - d4_data.fullscreen_size: {self.d4_data.fullscreen_size}")
+            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - d4_data.game_window_size: {self.d4_data.game_window_size}")
 
             # Initialize detected_regions if not exists
             if self.d4_data.detected_regions is None:
@@ -142,6 +156,7 @@ class RegionDetector:
                 ("Quest Text", D4_STANDARD_COORDS.quest_text_region_start, D4_STANDARD_COORDS.quest_text_region_end),
                 ("Team Count", D4_STANDARD_COORDS.team_count_region_start, D4_STANDARD_COORDS.team_count_region_end),
                 ("Team Vote", D4_STANDARD_COORDS.team_vote_region_start, D4_STANDARD_COORDS.team_vote_region_end),
+                ("Dungeon Progress", D4_STANDARD_COORDS.dungeon_progress_start, D4_STANDARD_COORDS.dungeon_progress_end),
             ]
 
             # Extract each region
@@ -160,6 +175,13 @@ class RegionDetector:
                         (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
                         is_windowed
                     )
+
+                    # DEBUG: Print first region's coordinate transformation
+                    if label == "Team Count":
+                        ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG '{label}':")
+                        ColorPrint.blue(f"  Standard: {start_coord} -> {end_coord}")
+                        ColorPrint.blue(f"  Scaled:   {scaled_start} -> {scaled_end}")
+                        ColorPrint.blue(f"  Image size: {game_window_image.size}")
 
                     # Extract region using ImageCrop
                     region_crop = ImageCrop.crop_region(

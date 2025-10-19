@@ -197,6 +197,15 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyMapViewDetails: '查看详情',
     LocalizationKeysAppWuy.wuyMapFriends: '好友',
     LocalizationKeysAppWuy.wuyMapMine: '我的',
+    LocalizationKeysAppWuy.wuyMapCenterLocation: '已定位到当前位置',
+    LocalizationKeysAppWuy.wuyMapStyleTitle: '地图样式',
+    LocalizationKeysAppWuy.wuyMapStyleNormal: '标准',
+    LocalizationKeysAppWuy.wuyMapStyleSatellite: '卫星',
+    LocalizationKeysAppWuy.wuyMapStyleDark: '深色',
+    LocalizationKeysAppWuy.wuyMapStyleLight: '浅色',
+    LocalizationKeysAppWuy.wuyMapStyleTraffic: '路况',
+    LocalizationKeysAppWuy.wuyMapZoomIn: '放大',
+    LocalizationKeysAppWuy.wuyMapZoomOut: '缩小',
 
     // Profile screen
     LocalizationKeysAppWuy.wuyProfileUsername: '用户名',
