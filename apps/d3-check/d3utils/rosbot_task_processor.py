@@ -10,7 +10,7 @@ import time
 from typing import Optional
 from providor.common_imports import ColorPrint
 from d3utils.log_monitor import set_log_file, set_rosbot_running
-from d3utils.game_state import get_game_state
+from share.game_interface_data import get_game_interface_data
 from d3utils.task_thread_manager import TaskStatus
 
 # DEBUG 开关：设置为 False 关闭所有 debug 弹窗
@@ -19,9 +19,9 @@ DEBUG_MESSAGEBOX = False
 
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations"""
-    
+
     def __init__(self):
-        self.game_state = get_game_state()
+        self.game_state = get_game_interface_data()
         self.log_file_path: Optional[str] = None
         self.initialized = False
         

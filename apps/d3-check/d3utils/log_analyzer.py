@@ -10,14 +10,14 @@ import time
 import re
 from typing import Dict, Any, Optional
 from providor.common_imports import ColorPrint
-from d3utils.game_state import get_game_state
+from share.game_interface_data import get_game_interface_data
 
 
 class LogAnalyzer:
     """Analyzes ROSBOT log lines for game state information"""
-    
+
     def __init__(self):
-        self.game_state = get_game_state()
+        self.game_state = get_game_interface_data()
         
         # Regex patterns for log analysis
         self.patterns = {

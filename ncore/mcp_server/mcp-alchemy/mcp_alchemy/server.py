@@ -1,8 +1,9 @@
-import os, json, hashlib, logging
+import os, json, hashlib, logging, uuid
 from datetime import datetime, date
 from pathlib import Path
 from urllib.parse import urlparse
 from contextlib import contextmanager
+from filelock import FileLock
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.utilities.logging import get_logger
@@ -17,11 +18,312 @@ from sqlalchemy.schema import CreateTable, DropTable, CreateIndex, DropIndex
 def tests_set_global(k, v):
     globals()[k] = v
 
-### Database ###
+### Service Infrastructure ###
 
 VERSION = "2.0.0"  # MCP Alchemy version
 
 logger = get_logger(__name__)
+
+# Service paths - automatically derived from file location
+SERVICE_ROOT = Path(__file__).parent.parent.resolve()  # Auto-derived, not from environment
+PROJECT_ROOT = SERVICE_ROOT.parent.parent.parent  # Derived, not from environment
+DATA_DIR = SERVICE_ROOT / 'data'
+LOG_DIR = SERVICE_ROOT / 'logs'
+SESSIONS_DIR = SERVICE_ROOT / 'tmp_sessions'
+LOCK_FILE = SERVICE_ROOT / 'tmp_.service.lock'
+
+# Ensure directories exist
+DATA_DIR.mkdir(exist_ok=True)
+LOG_DIR.mkdir(exist_ok=True)
+SESSIONS_DIR.mkdir(exist_ok=True)
+
+class SessionManager:
+    """Multi-AI session management with identity negotiation"""
+
+    KNOWN_AI_CLIENTS = {
+        'cursor': 'mcp-alchemy-codemaster - Advanced IDE Assistant',
+        'augment': 'mcp-alchemy-devexpert - Code Enhancement Specialist',
+        'claude': 'mcp-alchemy-assistant - General Purpose Helper',
+        'gemini': 'mcp-alchemy-codegenius - Smart Development Partner',
+        'vscode': 'mcp-alchemy-devhelper - Visual Studio Code Assistant',
+        'copilot': 'mcp-alchemy-copilot - GitHub Code Assistant',
+        'codeium': 'mcp-alchemy-codewizard - Intelligent Code Completion',
+        'tabnine': 'mcp-alchemy-tabmaster - Predictive Code Assistant',
+        'intellij': 'mcp-alchemy-intellibot - JetBrains IDE Helper',
+        'pycharm': 'mcp-alchemy-pymaster - Python Development Expert',
+        'webstorm': 'mcp-alchemy-webdev - JavaScript Development Assistant',
+        'programming_master': 'mcp-alchemy-programmingmaster - Expert Code Assistant & Project Maintainer',
+        'code_architect': 'mcp-alchemy-codearchitect - System Design & Architecture Expert',
+        'debug_specialist': 'mcp-alchemy-debugmaster - Error Detection & Resolution Expert',
+        'database_expert': 'AI DatabasePro - Data Management & Query Optimization Expert',
+        'api_designer': 'mcp-alchemy-apidesigner - RESTful Service & Integration Specialist',
+        'security_analyst': 'mcp-alchemy-secguard - Security Analysis & Vulnerability Assessment Expert',
+        'performance_optimizer': 'mcp-alchemy-speedboost - Performance Analysis & Optimization Expert',
+        'test_engineer': 'mcp-alchemy-testmaster - Quality Assurance & Testing Automation Expert',
+        'devops_specialist': 'mcp-alchemy-devopsguru - CI/CD & Infrastructure Management Expert',
+        'frontend_expert': 'mcp-alchemy-uiexpert - Frontend Development & User Experience Specialist'
+    }
+
+    def __init__(self):
+        self.sessions_file = SESSIONS_DIR / 'active_sessions.json'
+        self.sessions = self.load_sessions()
+
+    def load_sessions(self):
+        """Load active sessions from file"""
+        try:
+            if self.sessions_file.exists():
+                with open(self.sessions_file, 'r') as f:
+                    return json.load(f)
+            return {}
+        except Exception:
+            return {}
+
+    def save_sessions(self):
+        """Save active sessions to file"""
+        try:
+            with open(self.sessions_file, 'w') as f:
+                json.dump(self.sessions, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save sessions: {e}")
+
+    def negotiate_identity(self):
+        """Negotiate AI client identity"""
+        detected_client = None
+
+        # Check common environment variables
+        env_indicators = {
+            'CURSOR_SESSION': 'cursor',
+            'AUGMENT_SESSION': 'augment',
+            'CLAUDE_DESKTOP': 'claude',
+            'VSCODE_PID': 'vscode',
+            'JETBRAINS_IDE': 'intellij',
+            'AI_PROGRAMMING_MASTER': 'programming_master',
+            'AI_CODE_ARCHITECT': 'code_architect',
+            'AI_DEBUG_SPECIALIST': 'debug_specialist',
+            'AI_DATABASE_GURU': 'database_guru',
+            'AI_API_DESIGNER': 'api_designer',
+            'AI_SECURITY_ANALYST': 'security_analyst',
+            'AI_PERFORMANCE_OPTIMIZER': 'performance_optimizer',
+            'AI_TEST_ENGINEER': 'test_engineer',
+            'AI_DEVOPS_SPECIALIST': 'devops_specialist',
+            'AI_FRONTEND_EXPERT': 'frontend_expert'
+        }
+
+        for env_var, client_id in env_indicators.items():
+            if os.environ.get(env_var):
+                detected_client = client_id
+                break
+
+        # Check process name or command line
+        if not detected_client:
+            try:
+                import psutil
+                parent = psutil.Process().parent()
+                if parent:
+                    parent_name = parent.name().lower()
+                    for client_id in self.KNOWN_AI_CLIENTS:
+                        if client_id in parent_name:
+                            detected_client = client_id
+                            break
+            except:
+                pass
+
+        # Default to alchemy master if no specific client detected
+        if not detected_client:
+            detected_client = 'alchemy_master'
+
+        return detected_client
+
+    def create_session(self, client_id=None):
+        """Create a new session for an AI client with auto-generated namespace"""
+        if not client_id:
+            client_id = self.negotiate_identity()
+
+        session_id = str(uuid.uuid4())[:8]
+        session_key = f"{client_id}_{session_id}"
+        namespace = f"{client_id}_{session_id}"
+
+        return self._create_session_internal(session_key, client_id, namespace)
+
+    def create_custom_session(self, custom_namespace):
+        """Create a session with custom namespace"""
+        client_id = self.negotiate_identity()
+
+        # Check if custom namespace already exists
+        for existing_key, existing_info in self.sessions.items():
+            if existing_info.get('namespace') == custom_namespace:
+                raise ValueError(f"Namespace '{custom_namespace}' already exists in session {existing_key}")
+
+        session_key = f"{client_id}_{custom_namespace}"
+        return self._create_session_internal(session_key, client_id, custom_namespace)
+
+    def create_project_session(self, project_name):
+        """Create a session with project-based namespace"""
+        client_id = self.negotiate_identity()
+
+        # Sanitize project name
+        safe_project = project_name.replace(" ", "_").replace("-", "_").lower()
+        safe_project = ''.join(c for c in safe_project if c.isalnum() or c == '_')
+
+        # Create namespace with project prefix
+        namespace = f"project_{safe_project}_{client_id}"
+        session_key = f"{client_id}_{safe_project}_{str(uuid.uuid4())[:6]}"
+
+        return self._create_session_internal(session_key, client_id, namespace, project_name)
+
+    def _create_session_internal(self, session_key, client_id, namespace, project_name=None):
+        """Internal method to create session with specified parameters"""
+        # Create session workspace
+        session_workspace = SESSIONS_DIR / session_key
+        session_workspace.mkdir(exist_ok=True)
+
+        session_info = {
+            'session_id': session_key.split('_')[-1],
+            'session_key': session_key,
+            'client_id': client_id,
+            'namespace': namespace,
+            'client_name': self.KNOWN_AI_CLIENTS.get(client_id, f'Unknown Client ({client_id})'),
+            'workspace': str(session_workspace),
+            'created_at': datetime.now().isoformat(),
+            'last_active': datetime.now().isoformat(),
+            'databases': {},
+            'project_name': project_name
+        }
+
+        self.sessions[session_key] = session_info
+        self.save_sessions()
+
+        logger.info(f"[SESSION] Created session for {session_info['client_name'].split(' - ')[0]} ({client_id})")
+        logger.info(f"   Namespace: {namespace}")
+        logger.info(f"   Session Key: {session_key}")
+        if project_name:
+            logger.info(f"   Project: {project_name}")
+
+        return session_key, session_info
+
+    def get_session(self, session_key):
+        """Get session information"""
+        return self.sessions.get(session_key)
+
+    def update_session_activity(self, session_key):
+        """Update session last activity time"""
+        if session_key in self.sessions:
+            self.sessions[session_key]['last_active'] = datetime.now().isoformat()
+            self.save_sessions()
+
+    def cleanup_old_sessions(self, max_age_hours=24):
+        """Clean up old inactive sessions"""
+        current_time = datetime.now()
+        to_remove = []
+
+        for session_key, session_info in self.sessions.items():
+            try:
+                last_active = datetime.fromisoformat(session_info['last_active'])
+                age_hours = (current_time - last_active).total_seconds() / 3600
+
+                if age_hours > max_age_hours:
+                    to_remove.append(session_key)
+                    # Clean up session workspace
+                    workspace = Path(session_info['workspace'])
+                    if workspace.exists():
+                        import shutil
+                        shutil.rmtree(workspace, ignore_errors=True)
+            except:
+                to_remove.append(session_key)
+
+        for session_key in to_remove:
+            del self.sessions[session_key]
+            logger.info(f"[CLEANUP] Cleaned up old session: {session_key}")
+
+        if to_remove:
+            self.save_sessions()
+
+class SharedService:
+    """Shared service pattern for multi-AI access"""
+
+    def __init__(self):
+        self.lock_file = LOCK_FILE
+        self.status_file = SERVICE_ROOT / 'tmp_.service.status'
+        self.lock = None
+        self.is_primary = False
+        self.session_manager = SessionManager()
+        self.current_session = None
+
+    def check_or_start_service(self):
+        """Check if service is running, or mark this instance as primary"""
+        try:
+            # Try to acquire lock to become primary instance
+            self.lock = FileLock(str(self.lock_file))
+            self.lock.acquire(timeout=0.1)
+
+            # If we get here, we're the primary instance
+            self.is_primary = True
+
+            # Clean up old sessions
+            self.session_manager.cleanup_old_sessions()
+
+            # Create session for this AI client
+            session_key, session_info = self.session_manager.create_session()
+            self.current_session = session_key
+
+            # Write status information
+            status_info = {
+                'pid': os.getpid(),
+                'started_at': datetime.now().isoformat(),
+                'service_root': str(SERVICE_ROOT),
+                'status': 'running',
+                'primary_session': session_key,
+                'active_sessions': len(self.session_manager.sessions)
+            }
+
+            with open(self.status_file, 'w') as f:
+                json.dump(status_info, f, indent=2)
+
+            logger.info(f"[PRIMARY] Started as PRIMARY instance (PID: {os.getpid()})")
+            logger.info(f"   Session: {session_info['client_name']} ({session_key})")
+            return True
+
+        except Exception:
+            # Another instance is primary, we'll be a client
+            self.is_primary = False
+
+            # Create session for this AI client (shared mode)
+            session_key, session_info = self.session_manager.create_session()
+            self.current_session = session_key
+
+            # Check if primary is actually running
+            if self.status_file.exists():
+                try:
+                    with open(self.status_file, 'r') as f:
+                        status = json.load(f)
+                    logger.info(f"[SHARED] Connected to EXISTING service (Primary PID: {status.get('pid', 'unknown')})")
+                    logger.info(f"   Service started at: {status.get('started_at', 'unknown')}")
+                    logger.info(f"   My session: {session_info['client_name']} ({session_key})")
+                    return True
+                except Exception:
+                    pass
+
+            logger.info(f"[SHARED] Connected to SHARED service instance")
+            logger.info(f"   My session: {session_info['client_name']} ({session_key})")
+            return True
+
+    def release_lock(self):
+        """Release the lock if we're the primary instance"""
+        if self.is_primary and self.lock:
+            try:
+                self.lock.release()
+                if self.lock_file.exists():
+                    self.lock_file.unlink()
+                if self.status_file.exists():
+                    self.status_file.unlink()
+                logger.info("[CLEANUP] Primary instance released service lock")
+            except Exception:
+                pass
+
+# Global shared service instance - initialized at startup
+shared_service = None
+
+### Database ###
 
 class DatabaseManager:
     """Dynamic database manager supporting multiple databases with session isolation"""
@@ -134,11 +436,11 @@ class DatabaseManager:
         else:
             # Default to session-specific database
             if self.current_session:
-                session_dir = Path(os.environ.get('SERVICE_ROOT', '.')).resolve() / 'tmp_sessions' / self.current_session
+                session_dir = SERVICE_ROOT / 'tmp_sessions' / self.current_session
                 session_dir.mkdir(parents=True, exist_ok=True)
                 default_db = session_dir / 'default.db'
             else:
-                default_db = Path(os.environ.get('SERVICE_ROOT', '.')).resolve() / 'data' / 'default.db'
+                default_db = SERVICE_ROOT / 'data' / 'default.db'
                 default_db.parent.mkdir(parents=True, exist_ok=True)
 
             self.current_db_url = str(default_db)
@@ -185,11 +487,11 @@ def get_transaction_connection(db_identifier=None, session_key=None):
         else:
             # Use default database
             if db_manager.current_session:
-                session_dir = Path(os.environ.get('SERVICE_ROOT', '.')).resolve() / 'tmp_sessions' / db_manager.current_session
+                session_dir = SERVICE_ROOT / 'tmp_sessions' / db_manager.current_session
                 session_dir.mkdir(parents=True, exist_ok=True)
                 default_db = session_dir / 'default.db'
             else:
-                default_db = Path(os.environ.get('SERVICE_ROOT', '.')).resolve() / 'data' / 'default.db'
+                default_db = SERVICE_ROOT / 'data' / 'default.db'
                 default_db.parent.mkdir(parents=True, exist_ok=True)
             engine = db_manager.create_engine_for_path(str(default_db))
 
@@ -233,11 +535,11 @@ def get_safe_connection(db_identifier=None, session_key=None):
         else:
             # Use default database
             if db_manager.current_session:
-                session_dir = Path(os.environ.get('SERVICE_ROOT', '.')).resolve() / 'tmp_sessions' / db_manager.current_session
+                session_dir = SERVICE_ROOT / 'tmp_sessions' / db_manager.current_session
                 session_dir.mkdir(parents=True, exist_ok=True)
                 default_db = session_dir / 'default.db'
             else:
-                default_db = Path(os.environ.get('SERVICE_ROOT', '.')).resolve() / 'data' / 'default.db'
+                default_db = SERVICE_ROOT / 'data' / 'default.db'
                 default_db.parent.mkdir(parents=True, exist_ok=True)
             engine = db_manager.create_engine_for_path(str(default_db))
 
@@ -294,13 +596,14 @@ get_logger(__name__).info(f"Starting MCP Alchemy version {VERSION}")
 def start_namespace_negotiation() -> str:
     """Start the namespace negotiation process"""
     try:
-        # Import session manager from main module
-        import sys
-        main_module = sys.modules.get('__main__')
-        if hasattr(main_module, 'shared_service') and main_module.shared_service:
-            session_manager = main_module.shared_service.session_manager
-        else:
-            return "Error: Session manager not available"
+        # Access global shared_service instance
+        if not shared_service or not shared_service.session_manager:
+            return json.dumps({
+                "status": "error",
+                "message": "Error: Session manager not initialized. Service may not have started correctly."
+            }, indent=2)
+
+        session_manager = shared_service.session_manager
 
         # Detect client type
         detected_client = session_manager.negotiate_identity()
@@ -340,18 +643,24 @@ def start_namespace_negotiation() -> str:
         return json.dumps(response, indent=2)
 
     except Exception as e:
-        return f"Error starting negotiation: {str(e)}"
+        logger.exception("Error in start_namespace_negotiation")
+        return json.dumps({
+            "status": "error",
+            "message": f"Error starting negotiation: {str(e)}"
+        }, indent=2)
 
 @mcp.tool(description="Confirm namespace choice and create session. Options: 'auto', 'custom:your_id', 'project:project_name'")
 def confirm_namespace(choice: str, custom_id: str = None) -> str:
     """Confirm namespace choice and create the session"""
     try:
-        import sys
-        main_module = sys.modules.get('__main__')
-        if hasattr(main_module, 'shared_service') and main_module.shared_service:
-            session_manager = main_module.shared_service.session_manager
-        else:
-            return "Error: Session manager not available"
+        # Access global shared_service instance
+        if not shared_service or not shared_service.session_manager:
+            return json.dumps({
+                "status": "error",
+                "message": "Error: Session manager not initialized. Service may not have started correctly."
+            }, indent=2)
+
+        session_manager = shared_service.session_manager
 
         # Parse choice
         if choice == "auto":
@@ -392,7 +701,7 @@ def confirm_namespace(choice: str, custom_id: str = None) -> str:
             }, indent=2)
 
         # Set current session
-        main_module.shared_service.current_session = session_key
+        shared_service.current_session = session_key
         set_current_session(session_key)
 
         return json.dumps({
@@ -411,7 +720,11 @@ def confirm_namespace(choice: str, custom_id: str = None) -> str:
         }, indent=2)
 
     except Exception as e:
-        return f"Error confirming namespace: {str(e)}"
+        logger.exception("Error in confirm_namespace")
+        return json.dumps({
+            "status": "error",
+            "message": f"Error confirming namespace: {str(e)}"
+        }, indent=2)
 
 @mcp.tool(description="Get complete namespace negotiation guide and current status")
 def get_namespace_guide() -> str:
@@ -1473,19 +1786,33 @@ def backup_database(backup_path: str, database_path: str = None) -> str:
         return f"[ERROR] Error backing up database: {str(e)}"
 
 def main():
-    # Initialize session from main module if available
-    try:
-        import sys
-        main_module = sys.modules.get('__main__')
-        if hasattr(main_module, 'shared_service') and main_module.shared_service:
-            current_session = main_module.shared_service.current_session
-            if current_session:
-                set_current_session(current_session)
-                logger.info(f"Initialized with session: {current_session}")
-    except Exception as e:
-        logger.warning(f"Could not initialize session: {e}")
+    """Main entry point - initializes service and starts MCP server"""
+    global shared_service
 
-    mcp.run()
+    try:
+        # Initialize shared service
+        logger.info("Initializing MCP Alchemy service...")
+        shared_service = SharedService()
+        shared_service.check_or_start_service()
+
+        # Initialize database session if shared service has one
+        if shared_service.current_session:
+            set_current_session(shared_service.current_session)
+            logger.info(f"Initialized with session: {shared_service.current_session}")
+
+        # Start MCP server
+        logger.info("Starting FastMCP server...")
+        mcp.run()
+
+    except KeyboardInterrupt:
+        logger.info("Received shutdown signal")
+    except Exception as e:
+        logger.exception(f"Fatal error: {e}")
+    finally:
+        # Cleanup
+        if shared_service:
+            shared_service.release_lock()
+        logger.info("Service shutdown complete")
 
 if __name__ == "__main__":
     main()

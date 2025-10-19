@@ -137,8 +137,13 @@ class UIStatusUpdater:
         return get_current_map_name_from_shared_data()
     
     def _get_game_state(self) -> str:
-        """Get game state information"""
-        return self.d4_data.get_game_state()
+        """Get game state information (direct property access)"""
+        if self.d4_data.exp_farming_running:
+            return "Running"
+        elif self.d4_data.game_running:
+            return "Active"
+        else:
+            return "Stopped"
     
     def _get_team_count(self) -> str:
         """Get team count information"""

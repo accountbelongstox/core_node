@@ -23,7 +23,8 @@ from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_time
 from d3utils.screenshot_provider import get_screenshot_provider
 from share import get_game_interface_data, UIRegion
 from providor.providor_index import (
-    STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT
+    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT
 )
 import tempfile
 
@@ -192,7 +193,7 @@ class UIRegionCollectorUltralytics:
             # Log resolution info
             actual_width = screenshot_data.fullscreen_size[0]
             actual_height = screenshot_data.fullscreen_size[1]
-            ColorPrint.blue(f"[Resolution] Actual: {actual_width}x{actual_height}, Standard: {STANDARD_RESOLUTION_WIDTH}x{STANDARD_RESOLUTION_HEIGHT}")
+            ColorPrint.blue(f"[Resolution] Actual: {actual_width}x{actual_height}, Standard: {D3_STANDARD_RESOLUTION_WIDTH}x{D3_STANDARD_RESOLUTION_HEIGHT}")
 
             # Crop and save game_window_image to provider
             try:
