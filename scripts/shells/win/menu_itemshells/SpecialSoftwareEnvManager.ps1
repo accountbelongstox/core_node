@@ -277,6 +277,23 @@ function Get-SmartInputForVariable {
                 }
             }
             
+            # Ask for confirmation to continue with smart extraction
+            Write-ColorMessage -Message "" -Type "Info"
+            Write-ColorMessage -Message "Press Enter to continue with smart extraction, or any other key to return to manual input:" -Type "Info"
+            $confirmKey = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            
+            if ($confirmKey.Character -ne "`r" -and $confirmKey.Character -ne "`n") {
+                # User pressed a key other than Enter, return to manual input
+                Write-ColorMessage -Message "Returning to manual input..." -Type "Info"
+                return @{
+                    Value = $userInput
+                    ExtractedData = $null
+                    ShouldSkipNext = $false
+                }
+            }
+            
+            Write-ColorMessage -Message "Continuing with smart extraction..." -Type "Success"
+            
             # Determine the value for current variable based on InputType (with error handling)
             $currentInputType = ""
             try {
@@ -294,7 +311,7 @@ function Get-SmartInputForVariable {
                 Write-ColorMessage -Message "Using first API URL: $finalValue" -Type "Success"
             } elseif ($currentInputType -eq "Token" -and $extractedData.Tokens.Count -gt 0) {
                 $finalValue = $extractedData.Tokens[0]
-                Write-ColorMessage -Message "Using first Token: [HIDDEN]" -Type "Success"
+                Write-ColorMessage -Message "Using first Token: $finalValue" -Type "Success"
             } else {
                 # Fallback to original input
                 $finalValue = $userInput
@@ -614,7 +631,7 @@ function Generate-EnvironmentScript {
             $autoValue = Get-ValueForNextVariable -Variable $var -ExtractedData $extractedData
             if ($autoValue) {
                 $envCommands += "`$env:$($var.Name) = `"$autoValue`"  # Auto-filled"
-                Write-ColorMessage -Message "Auto-filled $($var.DisplayName): [HIDDEN]" -Type "Success"
+                Write-ColorMessage -Message "Auto-filled $($var.DisplayName): $autoValue" -Type "Success"
                 continue
             }
         }
@@ -1144,7 +1161,7 @@ function Generate-GlobalCommand {
                 $envCommands += "set $($var.Name)=$autoValue"
                 # Add to PowerShell environment variables
                 $psEnvVars += "`$env:$($var.Name)='$autoValue'"
-                Write-ColorMessage -Message "Auto-filled $($var.DisplayName): [HIDDEN]" -Type "Success"
+                Write-ColorMessage -Message "Auto-filled $($var.DisplayName): $autoValue" -Type "Success"
                 continue
             }
         }
@@ -1379,11 +1396,7 @@ function Set-EnvironmentVariables {
         $currentValues[$var.Name] = $currentValue
         
         if ($currentValue) {
-            if ($var.IsSecret) {
-                Write-ColorMessage -Message "$($var.Name) ($($var.DisplayName)): [HIDDEN - Already set]" -Type "Success"
-            } else {
-                Write-ColorMessage -Message "$($var.Name) ($($var.DisplayName)): $currentValue" -Type "Success"
-            }
+            Write-ColorMessage -Message "$($var.Name) ($($var.DisplayName)): $currentValue" -Type "Success"
         } else {
             Write-ColorMessage -Message "$($var.Name) ($($var.DisplayName)): [Not set - Will be configured]" -Type "Warning"
         }
@@ -1410,11 +1423,7 @@ function Set-EnvironmentVariables {
             $autoValue = Get-ValueForNextVariable -Variable $var -ExtractedData $extractedData
             if ($autoValue) {
                 $newValues[$var.Name] = $autoValue
-                if ($var.IsSecret) {
-                    Write-ColorMessage -Message "Auto-filled $($var.DisplayName): [HIDDEN]" -Type "Success"
-                } else {
-                    Write-ColorMessage -Message "Auto-filled $($var.DisplayName): $autoValue" -Type "Success"
-                }
+                Write-ColorMessage -Message "Auto-filled $($var.DisplayName): $autoValue" -Type "Success"
                 continue
             }
         }
@@ -1460,11 +1469,7 @@ function Set-EnvironmentVariables {
                     }
                     default {
                         $newValues[$var.Name] = $currentValues[$var.Name]
-                        if ($var.IsSecret) {
-                            Write-ColorMessage -Message "Keeping current value: [HIDDEN]" -Type "Info"
-                        } else {
-                            Write-ColorMessage -Message "Keeping current value: $($currentValues[$var.Name])" -Type "Info"
-                        }
+                        Write-ColorMessage -Message "Keeping current value: $($currentValues[$var.Name])" -Type "Info"
                     }
                 }
             } else {
@@ -1474,11 +1479,7 @@ function Set-EnvironmentVariables {
             }
         } else {
             $newValues[$var.Name] = $userInput
-            if ($var.IsSecret) {
-                Write-ColorMessage -Message "New value set: [HIDDEN]" -Type "Success"
-            } else {
-                Write-ColorMessage -Message "New value set: $userInput" -Type "Success"
-            }
+            Write-ColorMessage -Message "New value set: $userInput" -Type "Success"
         }
     }
     
@@ -1501,11 +1502,7 @@ function Set-EnvironmentVariables {
                 foreach ($var in $emptyVariables) {
                     if ($currentValues[$var.Name]) {
                         $newValues[$var.Name] = $currentValues[$var.Name]
-                        if ($var.IsSecret) {
-                            Write-ColorMessage -Message "Keeping $($var.DisplayName): [HIDDEN]" -Type "Info"
-                        } else {
-                            Write-ColorMessage -Message "Keeping $($var.DisplayName): $($currentValues[$var.Name])" -Type "Info"
-                        }
+                        Write-ColorMessage -Message "Keeping $($var.DisplayName): $($currentValues[$var.Name])" -Type "Info"
                     }
                 }
             }
@@ -1547,11 +1544,7 @@ function Set-EnvironmentVariables {
                     $success = Set-EnvironmentVariable -VariableName $var.Name -VariableValue $newValues[$var.Name]
                     if ($success) {
                         $successCount++
-                        if ($var.IsSecret) {
-                            Write-ColorMessage -Message "Set $($var.DisplayName): [HIDDEN]" -Type "Success"
-                        } else {
-                            Write-ColorMessage -Message "Set $($var.DisplayName): $($newValues[$var.Name])" -Type "Success"
-                        }
+                        Write-ColorMessage -Message "Set $($var.DisplayName): $($newValues[$var.Name])" -Type "Success"
                     }
                 }
             }
@@ -1569,11 +1562,7 @@ function Set-EnvironmentVariables {
                 if ($newValues[$var.Name] -eq "__DELETE__") {
                     Write-ColorMessage -Message "$($var.DisplayName): [DELETED]" -Type "Info"
                 } else {
-                    if ($var.IsSecret) {
-                        Write-ColorMessage -Message "$($var.DisplayName): [HIDDEN]" -Type "Info"
-                    } else {
-                        Write-ColorMessage -Message "$($var.DisplayName): $($newValues[$var.Name])" -Type "Info"
-                    }
+                    Write-ColorMessage -Message "$($var.DisplayName): $($newValues[$var.Name])" -Type "Info"
                 }
             } elseif ($temporarilyCleared -contains $var.Name) {
                 Write-ColorMessage -Message "$($var.DisplayName): [TEMPORARILY CLEARED]" -Type "Info"
@@ -1678,11 +1667,7 @@ function Show-EnvironmentVariables {
         
         Write-ColorMessage -Message "$($var.DisplayName): " -NoNewline -Type "Info"
         if ($value) {
-            if ($var.IsSecret) {
-                Write-ColorMessage -Message "[HIDDEN - Set]" -Type "Success"
-            } else {
-                Write-ColorMessage -Message $value -Type "Success"
-            }
+            Write-ColorMessage -Message $value -Type "Success"
         } else {
             Write-ColorMessage -Message "[Not set]" -Type "Warning"
         }
@@ -1707,11 +1692,7 @@ function Show-AllEnvironmentVariables {
             $value = Get-EnvironmentVariable -VariableName $var.Name
             
             if ($value) {
-                if ($var.IsSecret) {
-                    Write-ColorMessage -Message "$($var.DisplayName): [HIDDEN - Set]" -Type "Success"
-                } else {
-                    Write-ColorMessage -Message "$($var.DisplayName): $value" -Type "Success"
-                }
+                Write-ColorMessage -Message "$($var.DisplayName): $value" -Type "Success"
             } else {
                 Write-ColorMessage -Message "$($var.DisplayName): [Not set]" -Type "Warning"
             }
@@ -1752,11 +1733,7 @@ function Refresh-CurrentTerminalEnvironment {
                     foreach ($var in $config.Variables) {
                         $currentValue = Get-EnvironmentVariable -VariableName $var.Name
                         if ($currentValue) {
-                            if ($var.IsSecret) {
-                                Write-ColorMessage -Message "  $($var.DisplayName): [HIDDEN - Set]" -Type "Success"
-                            } else {
-                                Write-ColorMessage -Message "  $($var.DisplayName): $currentValue" -Type "Success"
-                            }
+                            Write-ColorMessage -Message "  $($var.DisplayName): $currentValue" -Type "Success"
                         } else {
                             Write-ColorMessage -Message "  $($var.DisplayName): [Not set]" -Type "Warning"
                         }
