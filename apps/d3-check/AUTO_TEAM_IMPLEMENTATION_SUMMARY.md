@@ -114,24 +114,21 @@ def execute(self) -> bool:
 
 ## 📊 区域坐标需求
 
-### 已提供的坐标
+### ✅ 所有坐标已从 D4StandardCoordinates 获取
 
-| 区域 | 坐标 (标准分辨率) | 来源 |
-|------|------------------|------|
-| Activity Selection Area | (315, 445, 640, 700) | 用户提供 ✅ |
+| 区域/点 | 坐标 (标准分辨率 1763x1126) | 来源 | 状态 |
+|---------|---------------------------|------|------|
+| Find Team | (155, 94, 275, 129) | D4StandardCoordinates.find_team_region | ✅ |
+| Form Team | (292, 73, 406, 126) | D4StandardCoordinates.form_team_region | ✅ |
+| Min Level Input | (410, 550) | D4StandardCoordinates.idle_team_min_tier | ✅ |
+| Max Level Input | (805, 550) | D4StandardCoordinates.idle_team_max_tier | ✅ |
+| Activity Dropdown | (375, 456) | D4StandardCoordinates.idle_activity_selection | ✅ |
+| Activity Selection Area | (315, 445, 640, 700) | 用户提供 | ✅ |
+| Confirm Team Button | (728, 861, 831, 879) | D4StandardCoordinates.confirm_team_button | ✅ |
+| Edit Team Button | (950, 265) | D4StandardCoordinates.edit_team_button | ✅ |
+| Confirm Edit Team | (730, 950) | D4StandardCoordinates.confirm_edit_team | ✅ |
 
-### 需要在 region_detector 中定义的区域
-
-| 区域ID | 区域名称 | 用途 | 状态 |
-|--------|---------|------|------|
-| `find_team` | Find Team | OCR识别 + 点击创建队伍 | ⚠️ 待定义 |
-| `min_level_input` | Min Level Input | 最低等级输入框 | ⚠️ 待定义 |
-| `max_level_input` | Max Level Input | 最高等级输入框 | ⚠️ 待定义 |
-| `party_activity_dropdown` | Party Activity Dropdown | 组队活动下拉框 | ⚠️ 待定义 |
-| `activity_selection_area` | Activity Selection Area | 活动选择下拉菜单 | ✅ 已提供 |
-| `activity_min_level_input` | Activity Min Level Input | 活动最低等级输入 | ⚠️ 待定义 |
-| `activity_max_level_input` | Activity Max Level Input | 活动最高等级输入 | ⚠️ 待定义 |
-| `submit_party_button` | Submit Party Button | 提交组队按钮 | ⚠️ 待定义 |
+**注意**: 活动最低/最高等级输入使用相同的 Min/Max Level Input 坐标（UI可能重用相同的输入框）
 
 ---
 
