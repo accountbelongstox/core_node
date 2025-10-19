@@ -256,7 +256,49 @@ class D4Panel:
         pass
 
     def _start_exp_farming(self):
-        """Start EXP farming"""
+        """Start EXP farming - checks team status first"""
+        # Add log
+        self._add_exp_farming_log("Checking team status...")
+        ColorPrint.blue("[D4] Checking team status before starting EXP farming")
+
+        # IMPORTANT: Capture screenshot first to update D4 data (window size, offset, etc.)
+        # This is needed for TeamFormationChecker to correctly detect windowed mode
+        from controller.d4func.screenshot_handler import ScreenshotHandler
+        from share.game_interface_data import get_d4_interface_data
+
+        screenshot_handler = ScreenshotHandler()
+        d4_data = get_d4_interface_data()
+
+        ColorPrint.blue("[D4] Capturing screenshot to initialize window data...")
+        if not screenshot_handler.capture_and_collect_info(d4_data):
+            ColorPrint.yellow("[D4] Failed to capture screenshot, window data may be incomplete")
+        else:
+            ColorPrint.green(f"[D4] Window data initialized: fullscreen={d4_data.fullscreen_size}, window={d4_data.game_window_size}, windowed={d4_data.is_windowed_mode()}")
+
+        # Check team formation status
+        from d4utils.team_formation_checker import get_team_formation_checker
+        team_checker = get_team_formation_checker()
+
+        # Run team check
+        if team_checker.run():
+            # Get result from shared data
+            from share.game_interface_data import get_d4_interface_data
+            d4_data = get_d4_interface_data()
+
+            if d4_data.has_team is None:
+                self._add_exp_farming_log("⚠️ Team status unknown, continuing anyway...")
+                ColorPrint.yellow("[D4] Team status unknown")
+            elif d4_data.has_team:
+                self._add_exp_farming_log("✓ Team detected, starting EXP farming...")
+                ColorPrint.green("[D4] Team detected")
+            else:
+                self._add_exp_farming_log("✗ No team detected, please form a team first")
+                ColorPrint.red("[D4] No team detected, aborting start")
+                return
+        else:
+            self._add_exp_farming_log("⚠️ Team check failed, continuing anyway...")
+            ColorPrint.yellow("[D4] Team check failed")
+
         # Use controller to start (which updates state)
         self.d4_controller.start_exp_farming()
 
