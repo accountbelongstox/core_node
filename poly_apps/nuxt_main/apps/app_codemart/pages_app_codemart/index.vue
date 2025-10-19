@@ -1,660 +1,297 @@
-<!-- ### AI SPECIAL ATTENTION RULES START ###
-When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-1. Write all code in English only
-2. Never execute, create, or modify test code
-3. Never create or update documentation (*.md)
-4. Never write summaries during development or thinking process
-5. Do not modify these rules
-VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-### AI SPECIAL ATTENTION RULES END ### -->
-
+<!--
+  【DEVELOPMENT STANDARDS】
+  - NO <style> tags allowed in this component
+  - All styles must reference theme variables via class names
+  - Theme file: common/styles/theme-base.css
+  - Extended theme: apps/app_codemart/styles_app_codemart/theme-codemart.css
+-->
 <template>
-  <div class="codemart-dashboard">
-    <div class="dashboard-grid">
-      <div class="left-column">
-        <WelcomeCard
-          :userName="userName"
-          :subtitle="`Welcome back! You have ${activeProjects} active projects`"
-          buttonText="View Analysis"
-          @viewAnalysis="handleViewAnalysis"
-        />
+  <div class="codemart-homepage">
+    <!-- Hero Section -->
+    <section class="codemart-hero">
+      <div class="container">
+        <div class="codemart-hero-content">
+          <h1 class="codemart-hero-title">{{ t('codemart.home.hero_title') }}</h1>
+          <p class="codemart-hero-subtitle">{{ t('codemart.home.hero_subtitle') }}</p>
 
-        <div class="categories-section">
-          <h3 class="section-title">Credit by Categories</h3>
-          <div class="category-list">
-            <div class="category-item">
-              <div class="category-icon purple">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                </svg>
-              </div>
-              <div class="category-info">
-                <h4>Installment</h4>
-                <p class="category-owner">Samantha William</p>
-              </div>
-              <div class="category-amount">$240</div>
-            </div>
-
-            <div class="category-item">
-              <div class="category-icon blue">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                </svg>
-              </div>
-              <div class="category-info">
-                <h4>Other loans</h4>
-                <p class="category-owner">Multiple</p>
-              </div>
-              <div class="category-amount">$20</div>
-            </div>
+          <div class="codemart-hero-actions">
+            <NuxtLink to="/projects/create" class="codemart-btn codemart-btn-primary codemart-btn-lg">
+              {{ t('codemart.home.publish_project') }}
+            </NuxtLink>
+            <NuxtLink to="/developers" class="codemart-btn codemart-btn-outline codemart-btn-lg">
+              {{ t('codemart.home.become_developer') }}
+            </NuxtLink>
           </div>
         </div>
       </div>
+    </section>
 
-      <div class="middle-column">
-        <ProgressChart
-          title="Dispute Progress"
-          :subtitle="`${disputeCount} disputes this month`"
-          :percentage="disputeProgress"
-          :generatedCount="200"
-          :removedCount="12"
-          @moreClick="handleMoreClick"
-        />
-
-        <div class="credit-reports-section">
-          <div class="section-header">
-            <h3 class="section-title">Credit Reports</h3>
+    <!-- Statistics Section -->
+    <section class="codemart-stats-section">
+      <div class="container">
+        <div class="codemart-stats-grid">
+          <div class="codemart-stat-item">
+            <div class="codemart-stat-value">{{ formatNumber(stats.totalProjects) }}</div>
+            <div class="codemart-stat-label">{{ t('codemart.home.total_projects') }}</div>
           </div>
-          <div class="credit-reports-content">
-            <div class="report-illustration">
-              <div class="wallet-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                </svg>
-              </div>
-            </div>
-            <div class="report-nav">
-              <button class="nav-btn prev">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                </svg>
-              </button>
-              <button class="nav-btn next">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-              </button>
-            </div>
+          <div class="codemart-stat-item">
+            <div class="codemart-stat-value">{{ formatNumber(stats.totalDevelopers) }}</div>
+            <div class="codemart-stat-label">{{ t('codemart.home.total_developers') }}</div>
+          </div>
+          <div class="codemart-stat-item">
+            <div class="codemart-stat-value">¥{{ formatNumber(stats.totalTransactions) }}</div>
+            <div class="codemart-stat-label">{{ t('codemart.home.total_transactions') }}</div>
           </div>
         </div>
       </div>
+    </section>
 
-      <div class="right-column">
-        <div class="balance-card">
-          <h3 class="balance-amount">${{ totalBalance }}</h3>
-          <p class="balance-label">{{ balanceDate }}</p>
-        </div>
+    <!-- How It Works Section -->
+    <section class="codemart-section">
+      <div class="container">
+        <h2 class="codemart-section-title text-center">{{ t('codemart.nav.how_it_works') }}</h2>
 
-        <div class="today-section">
-          <h3 class="section-title">Today</h3>
-          <div class="today-list">
-            <div class="today-item" v-for="item in todayItems" :key="item.id">
-              <div class="item-icon" :class="item.theme">
-                {{ item.icon }}
-              </div>
-              <div class="item-info">
-                <h4>{{ item.title }}</h4>
-                <p class="item-id">{{ item.identifier }}</p>
-              </div>
-              <span v-if="item.isNew" class="new-badge">New</span>
-              <button class="item-action">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          <button class="view-more-btn">View More</button>
-        </div>
-
-        <div class="calculator-section">
-          <div class="section-header">
-            <h3 class="section-title">Loan Calculator</h3>
-            <button class="more-btn">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+        <div class="codemart-workflow-grid">
+          <!-- Step 1 -->
+          <div class="codemart-workflow-step">
+            <div class="codemart-workflow-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path d="M9 12H15M12 9V15M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-            </button>
-          </div>
-          <p class="calculator-subtitle">Select the amount needed and the reimbursement period</p>
-
-          <div class="calculator-result">
-            <div class="result-amount">${{ loanAmount }}</div>
-            <p class="result-label">All loan amount</p>
-          </div>
-
-          <div class="people-avatars">
-            <div class="avatar-group">
-              <div class="avatar" v-for="i in 4" :key="i">
-                <img :src="`/assets/images/profile-${i}.jpeg`" alt="User">
-              </div>
-              <div class="avatar-count">
-                <span>18</span>
-              </div>
             </div>
-            <button class="view-people-btn">View More people</button>
+            <h3 class="codemart-workflow-title">{{ t('codemart.workflow.step1_title') }}</h3>
+            <p class="codemart-workflow-desc">{{ t('codemart.workflow.step1_desc') }}</p>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="codemart-workflow-step">
+            <div class="codemart-workflow-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path d="M17 20H22V18C22 16.3431 20.6569 15 19 15C18.0444 15 17.1931 15.4468 16.6438 16.1429M17 20H7M17 20V18C17 17.3438 16.8736 16.717 16.6438 16.1429M7 20H2V18C2 16.3431 3.34315 15 5 15C5.95561 15 6.80686 15.4468 7.35625 16.1429M7 20V18C7 17.3438 7.12642 16.717 7.35625 16.1429M7.35625 16.1429C8.0935 14.301 9.89482 13 12 13C14.1052 13 15.9065 14.301 16.6438 16.1429M15 7C15 8.65685 13.6569 10 12 10C10.3431 10 9 8.65685 9 7C9 5.34315 10.3431 4 12 4C13.6569 4 15 5.34315 15 7ZM21 10C21 11.1046 20.1046 12 19 12C17.8954 12 17 11.1046 17 10C17 8.89543 17.8954 8 19 8C20.1046 8 21 8.89543 21 10ZM7 10C7 11.1046 6.10457 12 5 12C3.89543 12 3 11.1046 3 10C3 8.89543 3.89543 8 5 8C6.10457 8 7 8.89543 7 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3 class="codemart-workflow-title">{{ t('codemart.workflow.step2_title') }}</h3>
+            <p class="codemart-workflow-desc">{{ t('codemart.workflow.step2_desc') }}</p>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="codemart-workflow-step">
+            <div class="codemart-workflow-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path d="M9 12L11 14L15 10M20.6179 5.98434C20.4132 5.99472 20.2072 5.99997 20 5.99997C16.9265 5.99997 14.123 4.84453 11.9999 2.94434C9.87691 4.84446 7.07339 5.99985 4 5.99985C3.79277 5.99985 3.58678 5.9946 3.38213 5.98422C3.1327 6.94783 3 7.95842 3 9.00001C3 14.5915 6.82432 19.2898 12 20.622C17.1757 19.2898 21 14.5915 21 9.00001C21 7.95847 20.8673 6.94791 20.6179 5.98434Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3 class="codemart-workflow-title">{{ t('codemart.workflow.step3_title') }}</h3>
+            <p class="codemart-workflow-desc">{{ t('codemart.workflow.step3_desc') }}</p>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="codemart-workflow-step">
+            <div class="codemart-workflow-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5M12 12H15M12 16H15M9 12H9.01M9 16H9.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3 class="codemart-workflow-title">{{ t('codemart.workflow.step4_title') }}</h3>
+            <p class="codemart-workflow-desc">{{ t('codemart.workflow.step4_desc') }}</p>
           </div>
         </div>
       </div>
-    </div>
+    </section>
+
+    <!-- Featured Projects Section -->
+    <section class="codemart-section codemart-featured-section">
+      <div class="container">
+        <div class="codemart-section-header">
+          <h2 class="codemart-section-title">{{ t('codemart.home.featured_projects') }}</h2>
+          <NuxtLink to="/projects" class="codemart-btn codemart-btn-outline">
+            {{ t('common.view_all') }}
+          </NuxtLink>
+        </div>
+
+        <div class="codemart-projects-grid">
+          <CodeMartProjectCard
+            v-for="project in featuredProjects"
+            :key="project.id"
+            :project="project"
+            @view="handleViewProject"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- Featured Developers Section -->
+    <section class="codemart-section">
+      <div class="container">
+        <div class="codemart-section-header">
+          <h2 class="codemart-section-title">{{ t('codemart.home.top_developers') }}</h2>
+          <NuxtLink to="/developers" class="codemart-btn codemart-btn-outline">
+            {{ t('common.view_all') }}
+          </NuxtLink>
+        </div>
+
+        <div class="codemart-developers-grid">
+          <CodeMartDeveloperCard
+            v-for="developer in topDevelopers"
+            :key="developer.id"
+            :developer="developer"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="codemart-cta-section">
+      <div class="container">
+        <div class="codemart-cta-content">
+          <h2 class="codemart-cta-title">{{ t('codemart.home.cta_title') }}</h2>
+          <p class="codemart-cta-desc">{{ t('codemart.home.cta_desc') }}</p>
+          <NuxtLink to="/register" class="codemart-btn codemart-btn-primary codemart-btn-lg">
+            {{ t('codemart.home.get_started') }}
+          </NuxtLink>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import WelcomeCard from '@/common/components/dashboard/WelcomeCard.vue';
-import ProgressChart from '@/common/components/dashboard/ProgressChart.vue';
-import { codemartTheme } from '@/app_codemart/theme_app_codemart/codemart-theme';
-import { useAppTheme } from '@/common/composables/useAppTheme';
-import { useCodemartStore } from '@/app_codemart/stores_app_codemart/codemart-store';
+import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
+import { CodeMartProjectCard, CodeMartDeveloperCard } from '../components_app_codemart';
+import type { Project, Developer } from '../types_app_codemart';
 
-definePageMeta({
-  title: 'CodeMart Dashboard',
-  layout: 'codemart-layout',
-  namespace: 'codemart'
+const { t } = useI18n();
+const router = useRouter();
+
+// Statistics
+const stats = ref({
+  totalProjects: 352380935,
+  totalDevelopers: 12601,
+  totalTransactions: 182086
 });
 
-const userName = ref('Jonathan W.');
-const activeProjects = ref(5);
-const disputeCount = ref(30);
-const disputeProgress = ref(20);
-const totalBalance = ref('1,280.50');
-const balanceDate = ref('Monday, 07 September 2020');
-const loanAmount = ref('450.50');
-
-const { colors, gradients } = useAppTheme(codemartTheme);
-const codemartStore = useCodemartStore();
-
-onMounted(() => {
-  codemartStore.initializeFromStorage();
-});
-
-const todayItems = ref([
+// Featured projects (mock data)
+const featuredProjects = ref<Project[]>([
   {
-    id: 1,
-    icon: 'H',
-    title: 'Hunter Macbook',
-    identifier: '0830733477659-7?8',
-    theme: 'purple',
-    isNew: true
+    id: '1',
+    title: 'E-commerce Platform Development',
+    description: 'Build a modern e-commerce platform with React and Node.js',
+    budgetMin: 50000,
+    budgetMax: 100000,
+    deadline: '2024-03-30',
+    status: 'active',
+    category: 'Web Development',
+    skills: ['React', 'Node.js', 'MongoDB', 'AWS'],
+    clientId: 'client-1',
+    clientName: 'Tech Startup Inc',
+    createdAt: '2024-01-15T10:00:00Z',
+    updatedAt: '2024-01-15T10:00:00Z'
   },
   {
-    id: 2,
-    icon: 'H',
-    title: 'Hexagon',
-    identifier: '9A4694A49958-860',
-    theme: 'blue',
-    isNew: false
+    id: '2',
+    title: 'Mobile App for Healthcare',
+    description: 'Develop a cross-platform mobile application for patient management',
+    budgetMin: 80000,
+    budgetMax: 150000,
+    deadline: '2024-04-15',
+    status: 'active',
+    category: 'Mobile Development',
+    skills: ['React Native', 'Firebase', 'Healthcare'],
+    clientId: 'client-2',
+    clientName: 'Health Corp',
+    createdAt: '2024-01-14T09:00:00Z',
+    updatedAt: '2024-01-14T09:00:00Z'
   },
   {
-    id: 3,
-    icon: 'M',
-    title: 'Marco Ruiz',
-    identifier: '0830733477659-645',
-    theme: 'purple',
-    isNew: false
+    id: '3',
+    title: 'AI-Powered Analytics Dashboard',
+    description: 'Create an intelligent analytics dashboard with machine learning capabilities',
+    budgetMin: 120000,
+    budgetMax: 200000,
+    deadline: '2024-05-01',
+    status: 'active',
+    category: 'AI/ML',
+    skills: ['Python', 'TensorFlow', 'Vue.js', 'FastAPI'],
+    clientId: 'client-3',
+    clientName: 'Data Analytics Ltd',
+    createdAt: '2024-01-13T14:00:00Z',
+    updatedAt: '2024-01-13T14:00:00Z'
   }
 ]);
 
-const handleViewAnalysis = () => {
-  console.log('View analysis clicked');
+// Top developers (mock data)
+const topDevelopers = ref<Developer[]>([
+  {
+    id: 'dev-1',
+    userId: 'user-1',
+    username: 'Zhang Wei',
+    email: 'zhangwei@example.com',
+    role: 'developer',
+    avatar: '/avatars/dev1.jpg',
+    title: 'Full Stack Developer',
+    bio: 'Experienced full-stack developer specializing in React and Node.js',
+    skills: ['React', 'Node.js', 'TypeScript', 'AWS', 'Docker'],
+    yearsOfExperience: 5,
+    hourlyRateMin: 200,
+    hourlyRateMax: 400,
+    rating: 4.9,
+    completedProjects: 48,
+    verified: true,
+    createdAt: '2023-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z'
+  },
+  {
+    id: 'dev-2',
+    userId: 'user-2',
+    username: 'Li Ming',
+    email: 'liming@example.com',
+    role: 'developer',
+    title: 'Mobile Developer',
+    bio: 'Expert in cross-platform mobile development',
+    skills: ['React Native', 'Flutter', 'iOS', 'Android'],
+    yearsOfExperience: 6,
+    hourlyRateMin: 250,
+    hourlyRateMax: 450,
+    rating: 4.8,
+    completedProjects: 35,
+    verified: true,
+    createdAt: '2023-02-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z'
+  },
+  {
+    id: 'dev-3',
+    userId: 'user-3',
+    username: 'Wang Fang',
+    email: 'wangfang@example.com',
+    role: 'developer',
+    title: 'AI/ML Engineer',
+    bio: 'Specialized in machine learning and data science',
+    skills: ['Python', 'TensorFlow', 'PyTorch', 'Data Science'],
+    yearsOfExperience: 7,
+    hourlyRateMin: 300,
+    hourlyRateMax: 500,
+    rating: 5.0,
+    completedProjects: 28,
+    verified: true,
+    createdAt: '2023-03-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z'
+  }
+]);
+
+const formatNumber = (num: number): string => {
+  return num.toLocaleString('zh-CN');
 };
 
-const handleMoreClick = () => {
-  console.log('More options clicked');
+const handleViewProject = (project: Project) => {
+  router.push(`/projects/${project.id}`);
 };
+
+onMounted(() => {
+  // Load data from API in production
+  console.log('Homepage mounted');
+});
 </script>
 
-<style scoped>
-.codemart-dashboard {
-  min-height: 100vh;
-  background: #faf9fb;
-}
-
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr 1fr;
-  gap: 1.5rem;
-  max-width: 1600px;
-  margin: 0 auto;
-}
-
-.left-column,
-.middle-column,
-.right-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.section-title {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0;
-}
-
-.categories-section {
-  background: white;
-  border-radius: 1.5rem;
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.categories-section .section-title {
-  margin-bottom: 1.5rem;
-}
-
-.category-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.category-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: #faf9fb;
-  border-radius: 1rem;
-}
-
-.category-icon {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.category-icon svg {
-  width: 1.5rem;
-  height: 1.5rem;
-  color: white;
-}
-
-.category-icon.purple {
-  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
-}
-
-.category-icon.blue {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-}
-
-.category-info {
-  flex: 1;
-}
-
-.category-info h4 {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 0.25rem 0;
-}
-
-.category-owner {
-  font-size: 0.8125rem;
-  color: #64748b;
-  margin: 0;
-}
-
-.category-amount {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.credit-reports-section {
-  background: white;
-  border-radius: 1.5rem;
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.more-btn {
-  width: 2rem;
-  height: 2rem;
-  background: transparent;
-  border: none;
-  color: #64748b;
-  cursor: pointer;
-  border-radius: 0.5rem;
-  transition: background 0.2s;
-}
-
-.more-btn:hover {
-  background: #f1f5f9;
-}
-
-.more-btn svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.credit-reports-content {
-  position: relative;
-}
-
-.report-illustration {
-  display: flex;
-  justify-content: center;
-  padding: 3rem 0;
-}
-
-.wallet-icon {
-  width: 8rem;
-  height: 8rem;
-  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.wallet-icon svg {
-  width: 4rem;
-  height: 4rem;
-  color: #7f1d1d;
-}
-
-.report-nav {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  margin-top: 1.5rem;
-}
-
-.nav-btn {
-  width: 2.5rem;
-  height: 2.5rem;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.nav-btn:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.nav-btn svg {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: #64748b;
-}
-
-.balance-card {
-  background: linear-gradient(135deg, #e0f2fe 0%, #bfdbfe 100%);
-  border-radius: 1.5rem;
-  padding: 2rem;
-  text-align: center;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-}
-
-.balance-amount {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 0.5rem 0;
-}
-
-.balance-label {
-  font-size: 0.875rem;
-  color: #64748b;
-  margin: 0;
-}
-
-.today-section {
-  background: white;
-  border-radius: 1.5rem;
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.today-section .section-title {
-  margin-bottom: 1.5rem;
-}
-
-.today-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.today-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: #faf9fb;
-  border-radius: 1rem;
-}
-
-.item-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.item-icon.purple {
-  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
-}
-
-.item-icon.blue {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-}
-
-.item-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.item-info h4 {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0 0 0.125rem 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.item-id {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.new-badge {
-  background: #6366f1;
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
-  flex-shrink: 0;
-}
-
-.item-action {
-  width: 1.5rem;
-  height: 1.5rem;
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.item-action svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.view-more-btn {
-  width: 100%;
-  padding: 0.75rem;
-  background: transparent;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  color: #6366f1;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.view-more-btn:hover {
-  background: #f8fafc;
-  border-color: #6366f1;
-}
-
-.calculator-section {
-  background: linear-gradient(135deg, #e0f2fe 0%, #ddd6fe 100%);
-  border-radius: 1.5rem;
-  padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-}
-
-.calculator-subtitle {
-  font-size: 0.875rem;
-  color: #64748b;
-  margin: 0.5rem 0 1.5rem 0;
-}
-
-.calculator-result {
-  background: white;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  text-align: center;
-  margin-bottom: 1.5rem;
-}
-
-.result-amount {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 0.5rem;
-}
-
-.result-label {
-  font-size: 0.875rem;
-  color: #64748b;
-  margin: 0;
-}
-
-.people-avatars {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.avatar-group {
-  display: flex;
-  align-items: center;
-}
-
-.avatar {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  border: 2px solid white;
-  overflow: hidden;
-  margin-left: -0.5rem;
-}
-
-.avatar:first-child {
-  margin-left: 0;
-}
-
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-count {
-  width: 2rem;
-  height: 2rem;
-  background: #6366f1;
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-  border: 2px solid white;
-  margin-left: -0.5rem;
-}
-
-.view-people-btn {
-  background: transparent;
-  border: none;
-  color: #6366f1;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-}
-
-.view-people-btn:hover {
-  text-decoration: underline;
-}
-
-@media (max-width: 1280px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .right-column {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (max-width: 768px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .left-column,
-  .middle-column,
-  .right-column {
-    grid-column: 1;
-  }
-}
-</style>
+<!-- NO <style> tag - All styles defined in theme files -->
