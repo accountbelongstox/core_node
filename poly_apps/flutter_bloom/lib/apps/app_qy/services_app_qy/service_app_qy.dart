@@ -16,10 +16,10 @@ import '../config_app_qy/constants_app_qy.dart';
 
 /// QY App Service Layer
 /// Handles business logic and API communication for the QY app
-class ExampleService {
-  static final ExampleService _instance = ExampleService._internal();
-  factory ExampleService() => _instance;
-  ExampleService._internal();
+class QyService {
+  static final QyService _instance = QyService._internal();
+  factory QyService() => _instance;
+  QyService._internal();
 
   // Service state
   bool _isInitialized = false;
@@ -34,7 +34,7 @@ class ExampleService {
       await _initializeComponents();
       _isInitialized = true;
     } catch (e) {
-      throw Exception('Failed to initialize ExampleService: $e');
+      throw Exception('Failed to initialize QyService: $e');
     }
   }
 

@@ -32,8 +32,8 @@ class RouterAppQy {
   }
   
   /// Check if a route belongs to the QY app
-  static bool isExampleRoute(String path) {
-    return QyAppRoutesProvider.isExampleRoute(path);
+  static bool isQyRoute(String path) {
+    return QyAppRoutesProvider.isQyRoute(path);
   }
   
   /// Get route information for debugging

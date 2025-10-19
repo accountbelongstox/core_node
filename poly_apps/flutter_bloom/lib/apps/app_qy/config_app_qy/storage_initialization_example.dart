@@ -211,7 +211,7 @@ class StorageInitializationQY {
 class QyAppStorageUsage {
   
   /// QY of how to use QY app storage in a page
-  static void basicUsageExample() async {
+  static void basicUsageQy() async {
     final storage = StorageAppQy.instance;
     
     // Synchronous access to common settings
@@ -250,7 +250,7 @@ class QyAppStorageUsage {
   }
   
   /// QY of cache usage
-  static void cacheUsageExample() {
+  static void cacheUsageQy() {
     final storage = StorageAppQy.instance;
     
     // Cache temporary data
@@ -271,7 +271,7 @@ class QyAppStorageUsage {
   }
   
   /// QY of data management
-  static void dataManagementExample() async {
+  static void dataManagementQy() async {
     final storage = StorageAppQy.instance;
     
     // Get app data summary

@@ -25,8 +25,8 @@ import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart'
 /// Route Navigation Example
 /// Demonstrates how route keys are defined directly in route providers
 /// No need to maintain separate constant files
-class RouteNavigationQY extends StatelessWidget {
-  const RouteNavigationExample({super.key});
+class RouteNavigationQy extends StatelessWidget {
+  const RouteNavigationQy({super.key});
 
   @override
   Widget build(BuildContext context) {

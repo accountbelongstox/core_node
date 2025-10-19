@@ -92,18 +92,18 @@ class SplashControllerAppQy extends ChangeNotifier {
       await _storage.initAppStorage();
 
       // Update app launch count
-      final currentCount = _storage.getLaunchCount();
-      _storage.setLaunchCount(currentCount + 1);
+      final currentCount = await _storage.getLaunchCount();
+      await _storage.setLaunchCount(currentCount + 1);
 
       // Update last open time
-      _storage.setLastOpenTime(DateTime.now());
+      await _storage.setLastOpenTime(DateTime.now());
 
       // Check if this is first launch
       if (_storage.isFirstLaunch()) {
         // Set install time if not set
-        final installTime = await _storage.getCommon<String>('install_time');
+        final installTime = await _storage.getApp<String>('install_time');
         if (installTime == null || installTime.isEmpty) {
-          await _storage.setCommon<String>('install_time', DateTime.now().toIso8601String());
+          await _storage.setApp<String>('install_time', DateTime.now().toIso8601String());
         }
       }
 
@@ -140,13 +140,14 @@ class SplashControllerAppQy extends ChangeNotifier {
   }
 
   /// Get user authentication status
-  Map<String, dynamic> getAuthStatus() {
+  Future<Map<String, dynamic>> getAuthStatus() async {
+    final lastLoginTime = await _storage.getLastLoginTime();
     return {
       'isAuthenticated': _storage.isAuthenticated(),
-      'userId': _storage.getUserId(),
-      'userEmail': _storage.getUserEmail(),
-      'username': _storage.getUsername(),
-      'lastLoginTime': _storage.getLastLoginTime()?.toIso8601String(),
+      'userId': await _storage.getUserId(),
+      'userEmail': await _storage.getUserEmail(),
+      'username': await _storage.getUsername(),
+      'lastLoginTime': lastLoginTime?.toIso8601String(),
     };
   }
 
@@ -162,18 +163,19 @@ class SplashControllerAppQy extends ChangeNotifier {
   }
 
   /// Get app launch statistics
-  Map<String, dynamic> getLaunchStats() {
+  Future<Map<String, dynamic>> getLaunchStats() async {
+    final lastOpenTime = await _storage.getLastOpenTime();
     return {
       'isFirstLaunch': _storage.isFirstLaunch(),
-      'launchCount': _storage.getLaunchCount(),
-      'lastOpenTime': _storage.getLastOpenTime()?.toIso8601String(),
-      'appVersion': _storage.getAppVersion(),
+      'launchCount': await _storage.getLaunchCount(),
+      'lastOpenTime': lastOpenTime?.toIso8601String(),
+      'appVersion': await _storage.getAppVersion(),
     };
   }
 
   /// Update app version
-  void updateAppVersion(String version) {
-    _storage.setAppVersion(version);
+  Future<void> updateAppVersion(String version) async {
+    await _storage.setAppVersion(version);
     notifyListeners();
   }
 

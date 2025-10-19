@@ -240,7 +240,7 @@ class _AppQyUsageWidgetState extends State<AppQyUsageWidget> {
 }
 
 /// Usage examples for different scenarios
-class AppQyUsageExamples {
+class AppQyUsageQy {
   
   /// QY 1: Basic usage with service manager
   static void basicUsage(BuildContext context) async {
@@ -294,7 +294,7 @@ class AppQyUsageExamples {
   }
   
   /// QY 3: Error handling
-  static void errorHandlingExample(BuildContext context) async {
+  static void errorHandlingQy(BuildContext context) async {
     final serviceManager = AppQyServiceManager(context: context);
     
     try {
