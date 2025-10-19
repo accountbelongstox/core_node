@@ -47,6 +47,28 @@ $script:CurrentPsCommand = $null            # Current PowerShell command to exec
 
 #region Helper Functions
 
+function Write-ColorMessage {
+    param(
+        [Parameter(Mandatory=$true)] [string]$Message,
+        [Parameter(Mandatory=$false)] [string]$Type = "Info",
+        [Parameter(Mandatory=$false)] [switch]$NoNewline
+    )
+    
+    $color = switch ($Type) {
+        "Error" { "Red" }
+        "Warning" { "Yellow" }
+        "Success" { "Green" }
+        "Info" { "Cyan" }
+        default { "White" }
+    }
+    
+    if ($NoNewline) {
+        Write-Host $Message -ForegroundColor $color -NoNewline
+    } else {
+        Write-Host $Message -ForegroundColor $color
+    }
+}
+
 function Test-AdminPrivileges {
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     return $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -160,8 +182,7 @@ function Get-SmartInputForVariable {
     param(
         [Parameter(Mandatory=$true)] [hashtable]$Variable,
         [Parameter(Mandatory=$true)] [hashtable]$Config,
-        [Parameter(Mandatory=$true)] [bool]$HasCurrentValue,
-        [Parameter(Mandatory=$true)] [string]$CurrentValue
+        [Parameter(Mandatory=$true)] [bool]$HasCurrentValue
     )
     
     # Check if smart recognition is enabled for this config (with error handling)
@@ -184,15 +205,24 @@ function Get-SmartInputForVariable {
     
     if ($Variable.Description) {
         $prompt += "`nDescription: $($Variable.Description)"
-        
-        # Add smart recognition hint if enabled and this is the first variable
-        try {
-            if ($smartRecognitionEnabled -and $Config -and $Config.ContainsKey("Variables") -and $Config.Variables -and $Config.Variables.IndexOf($Variable) -eq 0) {
-                $prompt += "`nNote: Multi-line input is supported and will be intelligently parsed."
+    }
+    
+    # Add smart recognition hint if enabled
+    try {
+        if ($smartRecognitionEnabled) {
+            $isFirstVariable = $false
+            if ($Config -and $Config.ContainsKey("Variables") -and $Config.Variables) {
+                $isFirstVariable = ($Config.Variables.IndexOf($Variable) -eq 0)
             }
-        } catch {
-            # Skip hint if any error occurs
+            
+            if ($isFirstVariable) {
+                $prompt += "`nNote: Multi-line input is supported and will be intelligently parsed."
+                $prompt += "`nIf input contains spaces or line breaks, smart extraction will be applied."
+                $prompt += "`nSubsequent variables may be auto-filled if both URL and Token are detected."
+            }
         }
+    } catch {
+        # Skip hint if any error occurs
     }
     
     Write-ColorMessage -Message $prompt -Type "Info"
@@ -571,14 +601,29 @@ function Generate-EnvironmentScript {
     $envCommands += "# Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
     $envCommands += ""
     
-    foreach ($var in $config.Variables) {
-        $prompt = "Please enter $($var.DisplayName):"
-        if ($var.Description) {
-            $prompt += "`nDescription: $($var.Description)"
+    # Use smart input processing for variables
+    $extractedData = $null     # Store extracted data for auto-filling next variables
+    $skipNext = $false         # Flag to skip next variable input
+    
+    for ($i = 0; $i -lt $config.Variables.Count; $i++) {
+        $var = $config.Variables[$i]
+        
+        # Check if we should skip this variable (auto-filled from previous extraction)
+        if ($skipNext) {
+            $skipNext = $false
+            $autoValue = Get-ValueForNextVariable -Variable $var -ExtractedData $extractedData
+            if ($autoValue) {
+                $envCommands += "`$env:$($var.Name) = `"$autoValue`"  # Auto-filled"
+                Write-ColorMessage -Message "Auto-filled $($var.DisplayName): [HIDDEN]" -Type "Success"
+                continue
+            }
         }
         
-        Write-ColorMessage -Message $prompt -Type "Info"
-        $userInput = Read-Host $var.DisplayName
+        # Use smart input processing
+        $inputResult = Get-SmartInputForVariable -Variable $var -Config $config -HasCurrentValue $false
+        $userInput = $inputResult.Value
+        $extractedData = $inputResult.ExtractedData
+        $skipNext = $inputResult.ShouldSkipNext
         
         if (-not [string]::IsNullOrWhiteSpace($userInput)) {
             $envCommands += "`$env:$($var.Name) = `"$userInput`""
@@ -1082,14 +1127,33 @@ function Generate-GlobalCommand {
     $envCommands += "REM Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
     $envCommands += ""
     
-    foreach ($var in $script:CurrentConfig.Variables) {
-        $prompt = "Please enter $($var.DisplayName):"
-        if ($var.Description) {
-            $prompt += "`nDescription: $($var.Description)"
+    # Use smart input processing for variables
+    $extractedData = $null     # Store extracted data for auto-filling next variables
+    $skipNext = $false         # Flag to skip next variable input
+    
+    for ($i = 0; $i -lt $script:CurrentConfig.Variables.Count; $i++) {
+        $var = $script:CurrentConfig.Variables[$i]
+        
+        # Check if we should skip this variable (auto-filled from previous extraction)
+        if ($skipNext) {
+            $skipNext = $false
+            $autoValue = Get-ValueForNextVariable -Variable $var -ExtractedData $extractedData
+            if ($autoValue) {
+                # Add to batch file for display
+                $envCommands += "echo Setting $($var.Name)=[AUTO-FILLED]"
+                $envCommands += "set $($var.Name)=$autoValue"
+                # Add to PowerShell environment variables
+                $psEnvVars += "`$env:$($var.Name)='$autoValue'"
+                Write-ColorMessage -Message "Auto-filled $($var.DisplayName): [HIDDEN]" -Type "Success"
+                continue
+            }
         }
         
-        Write-ColorMessage -Message $prompt -Type "Info"
-        $userInput = Read-Host $var.DisplayName
+        # Use smart input processing
+        $inputResult = Get-SmartInputForVariable -Variable $var -Config $script:CurrentConfig -HasCurrentValue $false
+        $userInput = $inputResult.Value
+        $extractedData = $inputResult.ExtractedData
+        $skipNext = $inputResult.ShouldSkipNext
         
         if (-not [string]::IsNullOrWhiteSpace($userInput)) {
             # Add to batch file for display
@@ -1338,7 +1402,7 @@ function Set-EnvironmentVariables {
     
     for ($i = 0; $i -lt $config.Variables.Count; $i++) {
         $var = $config.Variables[$i]
-        $hasCurrentValue = $currentValues[$var.Name]
+        $hasCurrentValue = [bool]$currentValues[$var.Name]
         
         # Check if we should skip this variable (auto-filled from previous extraction)
         if ($skipNext) {
@@ -1356,7 +1420,7 @@ function Set-EnvironmentVariables {
         }
         
         # Use smart input processing
-        $inputResult = Get-SmartInputForVariable -Variable $var -Config $config -HasCurrentValue $hasCurrentValue -CurrentValue $currentValues[$var.Name]
+        $inputResult = Get-SmartInputForVariable -Variable $var -Config $config -HasCurrentValue $hasCurrentValue
         $userInput = $inputResult.Value
         $extractedData = $inputResult.ExtractedData
         $skipNext = $inputResult.ShouldSkipNext
