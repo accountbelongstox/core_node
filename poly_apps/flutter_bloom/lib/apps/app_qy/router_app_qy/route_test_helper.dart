@@ -61,8 +61,8 @@ class QyAppRouteTestHelper {
       
       // Test utility methods
       results['utilityMethods'] = {
-        'isExampleRoute_valid': QyAppRoutesProvider.isExampleRoute('/qy/home'),
-        'isExampleRoute_invalid': QyAppRoutesProvider.isExampleRoute('/other/home'),
+        'isQyRoute_valid': QyAppRoutesProvider.isQyRoute('/qy/home'),
+        'isQyRoute_invalid': QyAppRoutesProvider.isQyRoute('/other/home'),
         'getAllRoutePaths': QyAppRoutesProvider.getAllRoutePaths(),
         'getAllRouteNames': QyAppRoutesProvider.getAllRouteNames(),
       };

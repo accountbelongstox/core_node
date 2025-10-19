@@ -237,8 +237,8 @@ class QyAppRoutesProvider {
   static Map<String, dynamic> getRouteInfo() {
     final routes = getQyAppRoutes();
     return {
-      'appId': 'example',
-      'routePrefix': '/example',
+      'appId': 'qy',
+      'routePrefix': '/qy',
       'totalRoutes': routes.length,
       'defaultRoute': getDefaultRoute(),
       'availableRoutes': routes.map((route) {
@@ -254,7 +254,7 @@ class QyAppRoutesProvider {
   }
 
   /// Check if a route path belongs to QY app
-  static bool isExampleRoute(String path) {
+  static bool isQyRoute(String path) {
     return path.startsWith('/qy/');
   }
 

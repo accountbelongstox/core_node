@@ -27,7 +27,7 @@ class StorageAppQy extends AppStorageBaseImpl {
   String get appBox => 'app_qy_storage';
 
   @override
-  String get cacheNamespace => 'example';
+  String get cacheNamespace => 'qy';
 
   /// QY app specific storage keys
   static const String keyUserPreferences = 'user_preferences';
@@ -222,7 +222,7 @@ class StorageAppQy extends AppStorageBaseImpl {
   /// Backup app data
   Future<Map<String, dynamic>> backupAppData() async {
     return {
-      'app_name': 'example',
+      'app_name': 'qy',
       'backup_version': '1.0',
       'backup_time': DateTime.now().toIso8601String(),
       'data': await exportAppData(),
@@ -418,5 +418,72 @@ class StorageAppQy extends AppStorageBaseImpl {
     } catch (e) {
       return false;
     }
+  }
+
+  /// Get launch count
+  Future<int> getLaunchCount() async {
+    return await getApp<int>('launch_count') ?? 0;
+  }
+
+  /// Set launch count
+  Future<void> setLaunchCount(int count) async {
+    await setApp<int>('launch_count', count);
+  }
+
+  /// Get last open time
+  Future<DateTime?> getLastOpenTime() async {
+    final timestamp = await getApp<int>('last_open_time');
+    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+  }
+
+  /// Set last open time
+  Future<void> setLastOpenTime(DateTime time) async {
+    await setApp<int>('last_open_time', time.millisecondsSinceEpoch);
+  }
+
+  /// Get user ID
+  Future<String?> getUserId() async {
+    return await getApp<String>('user_id');
+  }
+
+  /// Get user email
+  Future<String?> getUserEmail() async {
+    return await getApp<String>('user_email');
+  }
+
+  /// Get username
+  Future<String?> getUsername() async {
+    return await getApp<String>('username');
+  }
+
+  /// Get last login time
+  Future<DateTime?> getLastLoginTime() async {
+    final timestamp = await getApp<int>('last_login_time');
+    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+  }
+
+  /// Get app version
+  Future<String?> getAppVersion() async {
+    return await getApp<String>('app_version');
+  }
+
+  /// Get app stats
+  Future<Map<String, dynamic>> getAppStats() async {
+    return {
+      'launch_count': await getLaunchCount(),
+      'last_open_time': await getLastOpenTime(),
+      'app_version': await getAppVersion(),
+    };
+  }
+
+  /// Set app version
+  Future<void> setAppVersion(String version) async {
+    await setApp<String>('app_version', version);
+  }
+
+  /// Check if offline mode is enabled
+  Future<bool> isOfflineModeEnabled() async {
+    final settings = await getAppSettings();
+    return settings['offline_mode'] as bool? ?? false;
   }
 }

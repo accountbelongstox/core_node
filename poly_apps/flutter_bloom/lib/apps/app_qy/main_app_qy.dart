@@ -42,7 +42,7 @@ class QyApp extends StatelessWidget {
 /// This entry point can be used to launch only the QY app
 /// with specific configurations and customizations
 Future<void> main() async {
-  // Create Example-specific user provider instance
+  // Create QY-specific user provider instance
   final qyUserProvider = QyUserProvider();
 
   await runCommonApp(
@@ -54,7 +54,7 @@ Future<void> main() async {
     initialRoute: QyAppRoutesProvider.routeHome,
     homeRoute: QyAppRoutesProvider.routeHome,
     appPrefs: prefsAppQy, // Pass QY specific SharedPreferences instance
-    customUserProvider: qyUserProvider, // Pass Example-specific user provider
+    customUserProvider: qyUserProvider, // Pass QY-specific user provider
     customApp: const QyApp(),
     initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + Hive)
   );

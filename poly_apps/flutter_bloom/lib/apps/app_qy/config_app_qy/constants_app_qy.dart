@@ -148,7 +148,7 @@ enum QyUserRole {
   admin,
 }
 
-enum ExampleContentType {
+enum QyContentType {
   text,
   image,
   video,
@@ -156,25 +156,25 @@ enum ExampleContentType {
   document,
 }
 
-enum ExampleNotificationType {
+enum QyNotificationType {
   info,
   warning,
   error,
   success,
 }
 
-enum ExampleSortOrder {
+enum QySortOrder {
   ascending,
   descending,
 }
 
-enum ExampleViewMode {
+enum QyViewMode {
   list,
   grid,
   card,
 }
 
-enum ExampleSyncStatus {
+enum QySyncStatus {
   pending,
   syncing,
   synced,

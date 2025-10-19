@@ -14,11 +14,11 @@ import '../../../common/settings/models/setting_item.dart';
 
 /// QY App specific settings configuration
 class QyAppSettings {
-  static const String appId = 'example';
-  static const String categoryExampleGeneral = 'qy_general';
-  static const String categoryExampleDisplay = 'qy_display';
-  static const String categoryExampleNotifications = 'qy_notifications';
-  static const String categoryExamplePrivacy = 'qy_privacy';
+  static const String appId = 'qy';
+  static const String categoryQyGeneral = 'qy_general';
+  static const String categoryQyDisplay = 'qy_display';
+  static const String categoryQyNotifications = 'qy_notifications';
+  static const String categoryQyPrivacy = 'qy_privacy';
 
   /// Get QY app specific settings
   static List<SettingItem> getQyAppSettings() {
@@ -29,7 +29,7 @@ class QyAppSettings {
         name: 'Auto Sync',
         description: 'Automatically sync data in background',
         defaultValue: true,
-        category: categoryExampleGeneral,
+        category: categoryQyGeneral,
         appId: appId,
       ),
 
@@ -38,7 +38,7 @@ class QyAppSettings {
         name: 'Offline Mode',
         description: 'Enable offline functionality',
         defaultValue: false,
-        category: categoryExampleGeneral,
+        category: categoryQyGeneral,
         appId: appId,
       ),
 
@@ -55,7 +55,7 @@ class QyAppSettings {
           '1hour': 'Every hour',
           '6hours': 'Every 6 hours',
         },
-        category: categoryExampleGeneral,
+        category: categoryQyGeneral,
         appId: appId,
       ),
 
@@ -71,7 +71,7 @@ class QyAppSettings {
           'grid': 'Grid View',
           'card': 'Card View',
         },
-        category: categoryExampleDisplay,
+        category: categoryQyDisplay,
         appId: appId,
       ),
 
@@ -82,7 +82,7 @@ class QyAppSettings {
         defaultValue: 20.0,
         minValue: 10.0,
         maxValue: 100.0,
-        category: categoryExampleDisplay,
+        category: categoryQyDisplay,
         appId: appId,
       ),
 
@@ -91,7 +91,7 @@ class QyAppSettings {
         name: 'Show Thumbnails',
         description: 'Display thumbnails in list view',
         defaultValue: true,
-        category: categoryExampleDisplay,
+        category: categoryQyDisplay,
         appId: appId,
       ),
 
@@ -107,7 +107,7 @@ class QyAppSettings {
           'high': 'High',
           'original': 'Original (Best Quality)',
         },
-        category: categoryExampleDisplay,
+        category: categoryQyDisplay,
         appId: appId,
       ),
 
@@ -117,7 +117,7 @@ class QyAppSettings {
         name: 'Push Notifications',
         description: 'Receive push notifications',
         defaultValue: true,
-        category: categoryExampleNotifications,
+        category: categoryQyNotifications,
         appId: appId,
       ),
 
@@ -134,7 +134,7 @@ class QyAppSettings {
           'alerts': 'Important Alerts',
           'promotions': 'Promotions',
         },
-        category: categoryExampleNotifications,
+        category: categoryQyNotifications,
         appId: appId,
       ),
 
@@ -150,7 +150,7 @@ class QyAppSettings {
           'bell': 'Bell',
           'none': 'Silent',
         },
-        category: categoryExampleNotifications,
+        category: categoryQyNotifications,
         appId: appId,
       ),
 
@@ -166,7 +166,7 @@ class QyAppSettings {
           'friends': 'Friends Only',
           'private': 'Private',
         },
-        category: categoryExamplePrivacy,
+        category: categoryQyPrivacy,
         appId: appId,
       ),
 
@@ -175,7 +175,7 @@ class QyAppSettings {
         name: 'Analytics',
         description: 'Allow anonymous usage analytics',
         defaultValue: true,
-        category: categoryExamplePrivacy,
+        category: categoryQyPrivacy,
         appId: appId,
       ),
 
@@ -184,7 +184,7 @@ class QyAppSettings {
         name: 'Crash Reporting',
         description: 'Send crash reports to help improve the app',
         defaultValue: true,
-        category: categoryExamplePrivacy,
+        category: categoryQyPrivacy,
         appId: appId,
       ),
 
@@ -201,7 +201,7 @@ class QyAppSettings {
           '1year': '1 Year',
           'forever': 'Forever',
         },
-        category: categoryExamplePrivacy,
+        category: categoryQyPrivacy,
         appId: appId,
       ),
 
@@ -211,7 +211,7 @@ class QyAppSettings {
         name: 'Custom API Endpoint',
         description: 'Custom API endpoint (advanced users only)',
         defaultValue: '',
-        category: categoryExampleGeneral,
+        category: categoryQyGeneral,
         appId: appId,
       ),
 
@@ -220,14 +220,14 @@ class QyAppSettings {
         name: 'Debug Mode',
         description: 'Enable debug information (for developers)',
         defaultValue: false,
-        category: categoryExampleGeneral,
+        category: categoryQyGeneral,
         appId: appId,
       ),
     ];
   }
 
   /// Get QY settings grouped by category
-  static Map<String, List<SettingItem>> getExampleSettingsByCategory() {
+  static Map<String, List<SettingItem>> getQySettingsByCategory() {
     final settings = getQyAppSettings();
     final Map<String, List<SettingItem>> grouped = {};
 

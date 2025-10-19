@@ -96,17 +96,17 @@ class WordCardStyleTestScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
 
-                      // QY Title Style
+                      // Example Title Style
                       Text(
                         '例句:',
-                        style: ThemeTextStyles.qyTitle,
+                        style: ThemeTextStyles.titleMedium,
                       ),
                       const SizedBox(height: 8),
 
-                      // QY Text Style
+                      // Example Text Style
                       Text(
                         'An apple a day keeps the doctor away.',
-                        style: ThemeTextStyles.qyText,
+                        style: ThemeTextStyles.bodyMedium,
                       ),
                     ],
                   ),
