@@ -5,17 +5,18 @@
 // 3. Never create or update documentation (*.md).
 // 4. Never write summaries during development or thinking process.
 // 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
 // 7. Do not modify these rules.
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-// Fix: Use providers_app_bank/bank_user_provider.dart (returns BankUserModel?)
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../providers_app_bank/bank_user_provider.dart';
-import 'package:qyflutter/apps/app_bank/features_app_bank/debug/views/exclusive_customer_screen.dart';
-import 'package:qyflutter/apps/app_bank/features_app_bank/debug/views/developer_feedback_screen.dart';
+import '../../../localization_app_bank/localization_keys_app_bank.dart';
+import '../../../config_app_bank/constants.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -25,9 +26,9 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          '设置',
-          style: TextStyle(
+        title: Text(
+          BankLocalizationKeys.bankSettings.tr(context),
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
             color: Colors.white,
@@ -37,7 +38,7 @@ class SettingsScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
         ),
       ),
       body: SingleChildScrollView(
@@ -93,7 +94,7 @@ class SettingsScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      user?.maskedName ?? '未知用户',
+                      user?.maskedName ?? BankLocalizationKeys.bankUnknownUser.tr(context),
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -102,7 +103,7 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      user?.location ?? '未知地点',
+                      user?.location ?? BankLocalizationKeys.bankUnknownLocation.tr(context),
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.white.withOpacity(0.8),
@@ -110,7 +111,7 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '最后登录: ${provider.formattedLastLoginTime}',
+                      '${BankLocalizationKeys.bankLastLogin.tr(context)}: ${provider.formattedLastLoginTime}',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.white.withOpacity(0.7),
@@ -145,8 +146,8 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsItem(
             context,
             icon: Icons.account_circle_outlined,
-            title: '账户管理',
-            subtitle: '修改个人信息',
+            title: BankLocalizationKeys.bankAccountManagement.tr(context),
+            subtitle: BankLocalizationKeys.bankAccountManagementDesc.tr(context),
             onTap: () {
               // TODO: Navigate to account management
             },
@@ -155,8 +156,8 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsItem(
             context,
             icon: Icons.security_outlined,
-            title: '安全设置',
-            subtitle: '密码、指纹、面容识别',
+            title: BankLocalizationKeys.bankSecuritySettings.tr(context),
+            subtitle: BankLocalizationKeys.bankSecuritySettingsDesc.tr(context),
             onTap: () {
               // TODO: Navigate to security settings
             },
@@ -165,8 +166,8 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsItem(
             context,
             icon: Icons.notifications_outlined,
-            title: '消息通知',
-            subtitle: '推送、短信、邮件通知',
+            title: BankLocalizationKeys.bankNotificationSettings.tr(context),
+            subtitle: BankLocalizationKeys.bankNotificationSettingsDesc.tr(context),
             onTap: () {
               // TODO: Navigate to notification settings
             },
@@ -175,8 +176,8 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsItem(
             context,
             icon: Icons.language_outlined,
-            title: '语言设置',
-            subtitle: '简体中文',
+            title: BankLocalizationKeys.bankLanguage.tr(context),
+            subtitle: BankLocalizationKeys.bankLanguageSettings.tr(context),
             onTap: () {
               // TODO: Navigate to language settings
             },
@@ -185,15 +186,10 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsItem(
             context,
             icon: Icons.star_outline,
-            title: '我的专属客户',
-            subtitle: '专属服务与特权',
+            title: BankLocalizationKeys.bankDebugMyExclusiveCustomer.tr(context),
+            subtitle: BankLocalizationKeys.bankDebugExclusiveServiceDesc.tr(context),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ExclusiveCustomerScreen(),
-                ),
-              );
+              context.push(BankConstants.routeExclusiveCustomer);
             },
             showArrow: true,
             isSpecial: true,
@@ -222,8 +218,8 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsItem(
             context,
             icon: Icons.help_outline,
-            title: '帮助中心',
-            subtitle: '常见问题与客服',
+            title: BankLocalizationKeys.bankHelpCenter.tr(context),
+            subtitle: BankLocalizationKeys.bankHelpCenterDesc.tr(context),
             onTap: () {
               // TODO: Navigate to help center
             },
@@ -232,8 +228,8 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsItem(
             context,
             icon: Icons.info_outline,
-            title: '关于银行应用',
-            subtitle: '版本 1.0.0 · 开发者测试',
+            title: BankLocalizationKeys.bankAboutApp.tr(context),
+            subtitle: BankLocalizationKeys.bankAboutAppDesc.tr(context),
             onTap: () {
               _showAboutDialog(context);
             },
@@ -242,8 +238,8 @@ class SettingsScreen extends StatelessWidget {
           _buildSettingsItem(
             context,
             icon: Icons.privacy_tip_outlined,
-            title: '隐私政策',
-            subtitle: '用户协议与隐私条款',
+            title: BankLocalizationKeys.bankPrivacyPolicy.tr(context),
+            subtitle: BankLocalizationKeys.bankPrivacyPolicyDesc.tr(context),
             onTap: () {
               // TODO: Navigate to privacy policy
             },
@@ -273,7 +269,7 @@ class SettingsScreen extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isSpecial 
+                color: isSpecial
                     ? const Color(0xFFFFD700).withOpacity(0.2)
                     : const Color(0xFF74B9FF).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -282,7 +278,7 @@ class SettingsScreen extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: 20,
-                  color: isSpecial 
+                  color: isSpecial
                       ? const Color(0xFFFF8C00)
                       : const Color(0xFF74B9FF),
                 ),
@@ -300,7 +296,7 @@ class SettingsScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: isSpecial 
+                          color: isSpecial
                               ? const Color(0xFFFF8C00)
                               : Colors.black87,
                         ),
@@ -360,29 +356,24 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('关于银行应用'),
+        title: Text(BankLocalizationKeys.bankAboutApp.tr(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('版本: 1.0.0'),
+            Text('${BankLocalizationKeys.bankDebugAppVersion.tr(context)}: ${BankConstants.appVersion}'),
             const SizedBox(height: 8),
-            const Text('开发者: Flutter Team'),
+            const Text('Developer: Flutter Team'),
             const SizedBox(height: 8),
             const Text('© 2024 Bank App. All rights reserved.'),
             const SizedBox(height: 16),
             GestureDetector(
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const DeveloperFeedbackScreen(),
-                  ),
-                );
+                context.push(BankConstants.routeDeveloperFeedback);
               },
               child: Text(
-                '开发者测试',
+                BankLocalizationKeys.bankAboutAppDesc.tr(context),
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[500],
@@ -395,7 +386,7 @@ class SettingsScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('确定'),
+            child: Text(BankLocalizationKeys.bankConfirm.tr(context)),
           ),
         ],
       ),
