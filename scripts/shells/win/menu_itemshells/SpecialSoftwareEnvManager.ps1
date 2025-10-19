@@ -90,6 +90,252 @@ function Get-EnvironmentVariable {
 
 #endregion
 
+#region Smart Recognition Helper Functions
+
+function Test-StringHasWhitespaceInMiddle {
+    param(
+        [Parameter(Mandatory=$true)] [string]$InputString
+    )
+    
+    # Check if string contains whitespace, newlines, or carriage returns in the middle
+    # (not at the beginning or end)
+    $trimmed = $InputString.Trim()
+    if ($trimmed.Length -ne $InputString.Length) {
+        return $true  # Has leading/trailing whitespace
+    }
+    
+    # Check for whitespace characters in the middle
+    if ($InputString -match '\s') {
+        return $true
+    }
+    
+    # Check for newlines or carriage returns
+    if ($InputString -match '[\r\n]') {
+        return $true
+    }
+    
+    return $false
+}
+
+function Extract-ApiUrlAndToken {
+    param(
+        [Parameter(Mandatory=$true)] [string]$InputText
+    )
+    
+    # Clean up the text: remove extra whitespace and normalize line breaks
+    $cleanedText = $InputText -replace '\r\n|\r|\n', ' '  # Replace all line breaks with spaces
+    $cleanedText = $cleanedText -replace '\s+', ' '       # Replace multiple spaces with single space
+    $cleanedText = $cleanedText.Trim()                    # Remove leading/trailing whitespace
+    
+    # Split using whitespace pattern
+    $tokens = $cleanedText -split '[\s\n\r]+' |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -ne '' }
+    
+    # Extract API URLs and Tokens
+    $apiUrls = @()
+    $foundTokens = @()
+    
+    foreach ($token in $tokens) {
+        if ($token -match '^https?://') {
+            $apiUrls += $token
+        } elseif ($token.Length -gt 37) {
+            $foundTokens += $token
+        }
+    }
+    
+    return @{
+        ApiUrls = $apiUrls
+        Tokens = $foundTokens
+        CleanedText = $cleanedText
+        TotalSegments = $tokens.Count
+    }
+}
+
+#endregion
+
+#region Smart Input Processing Functions
+
+function Get-SmartInputForVariable {
+    param(
+        [Parameter(Mandatory=$true)] [hashtable]$Variable,
+        [Parameter(Mandatory=$true)] [hashtable]$Config,
+        [Parameter(Mandatory=$true)] [bool]$HasCurrentValue,
+        [Parameter(Mandatory=$true)] [string]$CurrentValue
+    )
+    
+    # Check if smart recognition is enabled for this config (with error handling)
+    $smartRecognitionEnabled = $false
+    try {
+        if ($Config -and $Config.ContainsKey("SmartRecognition") -and $Config.SmartRecognition -and $Config.SmartRecognition.ContainsKey("Enabled") -and $Config.SmartRecognition.Enabled) {
+            $smartRecognitionEnabled = $true
+        }
+    } catch {
+        # Default to disabled if any error occurs
+        $smartRecognitionEnabled = $false
+    }
+    
+    # Build prompt
+    if ($HasCurrentValue) {
+        $prompt = "Please enter $($Variable.DisplayName) (or press Enter to keep current value):"
+    } else {
+        $prompt = "Please enter $($Variable.DisplayName) (or press Enter to skip):"
+    }
+    
+    if ($Variable.Description) {
+        $prompt += "`nDescription: $($Variable.Description)"
+        
+        # Add smart recognition hint if enabled and this is the first variable
+        try {
+            if ($smartRecognitionEnabled -and $Config -and $Config.ContainsKey("Variables") -and $Config.Variables -and $Config.Variables.IndexOf($Variable) -eq 0) {
+                $prompt += "`nNote: Multi-line input is supported and will be intelligently parsed."
+            }
+        } catch {
+            # Skip hint if any error occurs
+        }
+    }
+    
+    Write-ColorMessage -Message $prompt -Type "Info"
+    
+    # Get user input
+    $userInput = Read-Host $Variable.DisplayName
+    
+    # Check if input is empty
+    if ([string]::IsNullOrWhiteSpace($userInput)) {
+        return @{
+            Value = $null
+            ExtractedData = $null
+            ShouldSkipNext = $false
+        }
+    }
+    
+    # Check if smart recognition should be applied
+    $extractedData = $null
+    $shouldSkipNext = $false
+    
+    try {
+        $isFirstVariable = $false
+        if ($Config -and $Config.ContainsKey("Variables") -and $Config.Variables) {
+            $isFirstVariable = ($Config.Variables.IndexOf($Variable) -eq 0)
+        }
+    } catch {
+        $isFirstVariable = $false
+    }
+    
+    if ($smartRecognitionEnabled -and $isFirstVariable) {
+        # Check if input has whitespace/newlines in the middle
+        if (Test-StringHasWhitespaceInMiddle -InputString $userInput) {
+            Write-ColorMessage -Message "Multi-line input detected. Applying smart recognition..." -Type "Info"
+            
+            # Extract API URLs and tokens
+            $extractedData = Extract-ApiUrlAndToken -InputText $userInput
+            
+            Write-ColorMessage -Message "Extraction Results:" -Type "Info"
+            Write-ColorMessage -Message "Total segments: $($extractedData.TotalSegments)" -Type "Info"
+            
+            if ($extractedData.ApiUrls.Count -gt 0) {
+                Write-ColorMessage -Message "Found API URLs:" -Type "Info"
+                foreach ($url in $extractedData.ApiUrls) {
+                    Write-ColorMessage -Message "  - $url" -Type "Info"
+                }
+            }
+            
+            if ($extractedData.Tokens.Count -gt 0) {
+                Write-ColorMessage -Message "Found Tokens (length > 37):" -Type "Info"
+                foreach ($token in $extractedData.Tokens) {
+                    Write-ColorMessage -Message "  - $token" -Type "Info"
+                }
+            }
+            
+            # Determine the value for current variable based on InputType (with error handling)
+            $currentInputType = ""
+            try {
+                if ($Variable -and $Variable.ContainsKey("InputType") -and $Variable.InputType) {
+                    $currentInputType = $Variable.InputType
+                }
+            } catch {
+                $currentInputType = ""
+            }
+            
+            $finalValue = $null
+            
+            if ($currentInputType -eq "Url" -and $extractedData.ApiUrls.Count -gt 0) {
+                $finalValue = $extractedData.ApiUrls[0]
+                Write-ColorMessage -Message "Using first API URL: $finalValue" -Type "Success"
+            } elseif ($currentInputType -eq "Token" -and $extractedData.Tokens.Count -gt 0) {
+                $finalValue = $extractedData.Tokens[0]
+                Write-ColorMessage -Message "Using first Token: [HIDDEN]" -Type "Success"
+            } else {
+                # Fallback to original input
+                $finalValue = $userInput
+                Write-ColorMessage -Message "Using original input (no matching type found)" -Type "Warning"
+            }
+            
+            # Check if we should skip the next variable (with error handling)
+            try {
+                if ($Config -and $Config.ContainsKey("Variables") -and $Config.Variables -and $Config.Variables.Count -gt 1) {
+                    $nextVariable = $Config.Variables[1]
+                    $nextInputType = ""
+                    if ($nextVariable -and $nextVariable.ContainsKey("InputType") -and $nextVariable.InputType) {
+                        $nextInputType = $nextVariable.InputType
+                    }
+                    
+                    # If we found both URL and token, and next variable is the other type, skip it
+                    if ($extractedData.ApiUrls.Count -gt 0 -and $extractedData.Tokens.Count -gt 0) {
+                        if (($currentInputType -eq "Url" -and $nextInputType -eq "Token") -or 
+                            ($currentInputType -eq "Token" -and $nextInputType -eq "Url")) {
+                            $shouldSkipNext = $true
+                            Write-ColorMessage -Message "Both URL and Token found. Next variable will be auto-filled." -Type "Info"
+                        }
+                    }
+                }
+            } catch {
+                # Skip auto-fill if any error occurs
+                $shouldSkipNext = $false
+            }
+            
+            return @{
+                Value = $finalValue
+                ExtractedData = $extractedData
+                ShouldSkipNext = $shouldSkipNext
+            }
+        }
+    }
+    
+    # Return normal input
+    return @{
+        Value = $userInput
+        ExtractedData = $null
+        ShouldSkipNext = $false
+    }
+}
+
+function Get-ValueForNextVariable {
+    param(
+        [Parameter(Mandatory=$true)] [hashtable]$Variable,
+        [Parameter(Mandatory=$true)] [hashtable]$ExtractedData
+    )
+    
+    try {
+        $inputType = ""
+        if ($Variable -and $Variable.ContainsKey("InputType") -and $Variable.InputType) {
+            $inputType = $Variable.InputType
+        }
+        
+        if ($inputType -eq "Url" -and $ExtractedData -and $ExtractedData.ContainsKey("ApiUrls") -and $ExtractedData.ApiUrls -and $ExtractedData.ApiUrls.Count -gt 0) {
+            return $ExtractedData.ApiUrls[0]
+        } elseif ($inputType -eq "Token" -and $ExtractedData -and $ExtractedData.ContainsKey("Tokens") -and $ExtractedData.Tokens -and $ExtractedData.Tokens.Count -gt 0) {
+            return $ExtractedData.Tokens[0]
+        }
+    } catch {
+        # Return null if any error occurs
+    }
+    
+    return $null
+}
+
+#endregion
+
 #region Configuration Mapping
 $script:ActionToConfigMapping = @{
     'claude' = 'Claude AI'
@@ -116,18 +362,24 @@ $script:EnvironmentConfigs = @{
         Common = "claude"
         CommandPrefix = "claude"
         DisplayName = "Claude AI"
+        SmartRecognition = @{
+            Enabled = $true
+            AllowedTypes = @("token", "url")
+        }
         Variables = @(
             @{
                 Name = "ANTHROPIC_BASE_URL"
                 DisplayName = "ANTHROPIC_BASE_URL"
                 Description = "Claude AI API base URL"
                 IsSecret = $false
+                InputType = "Url"
             },
             @{
                 Name = "ANTHROPIC_AUTH_TOKEN"
                 DisplayName = "ANTHROPIC_AUTH_TOKEN"
                 Description = "Claude AI authentication token"
                 IsSecret = $true
+                InputType = "Token"
             }
         )
     }
@@ -143,12 +395,14 @@ $script:EnvironmentConfigs = @{
                 DisplayName = "ALIBABA_CLOUD_ACCESS_KEY_ID"
                 Description = "Alibaba Cloud access key ID"
                 IsSecret = $false
+                InputType = "AccessKeyId"
             },
             @{
                 Name = "ALIBABA_CLOUD_ACCESS_KEY_SECRET"
                 DisplayName = "ALIBABA_CLOUD_ACCESS_KEY_SECRET"
                 Description = "Alibaba Cloud access key secret"
                 IsSecret = $true
+                InputType = "Token"
             }
         )
     }
@@ -1079,22 +1333,33 @@ function Set-EnvironmentVariables {
     $newValues = @{}
     $emptyVariables = @()
     $temporarilyCleared = @()  # Track variables that were temporarily cleared
+    $extractedData = $null     # Store extracted data for auto-filling next variables
+    $skipNext = $false         # Flag to skip next variable input
     
-    foreach ($var in $config.Variables) {
+    for ($i = 0; $i -lt $config.Variables.Count; $i++) {
+        $var = $config.Variables[$i]
         $hasCurrentValue = $currentValues[$var.Name]
         
-        if ($hasCurrentValue) {
-            $prompt = "Please enter $($var.DisplayName) (or press Enter to keep current value):"
-        } else {
-            $prompt = "Please enter $($var.DisplayName) (or press Enter to skip):"
+        # Check if we should skip this variable (auto-filled from previous extraction)
+        if ($skipNext) {
+            $skipNext = $false
+            $autoValue = Get-ValueForNextVariable -Variable $var -ExtractedData $extractedData
+            if ($autoValue) {
+                $newValues[$var.Name] = $autoValue
+                if ($var.IsSecret) {
+                    Write-ColorMessage -Message "Auto-filled $($var.DisplayName): [HIDDEN]" -Type "Success"
+                } else {
+                    Write-ColorMessage -Message "Auto-filled $($var.DisplayName): $autoValue" -Type "Success"
+                }
+                continue
+            }
         }
         
-        if ($var.Description) {
-            $prompt += "`nDescription: $($var.Description)"
-        }
-        
-        Write-ColorMessage -Message $prompt -Type "Info"
-        $userInput = Read-Host $var.DisplayName
+        # Use smart input processing
+        $inputResult = Get-SmartInputForVariable -Variable $var -Config $config -HasCurrentValue $hasCurrentValue -CurrentValue $currentValues[$var.Name]
+        $userInput = $inputResult.Value
+        $extractedData = $inputResult.ExtractedData
+        $skipNext = $inputResult.ShouldSkipNext
         
         if ([string]::IsNullOrWhiteSpace($userInput)) {
             if ($hasCurrentValue) {
