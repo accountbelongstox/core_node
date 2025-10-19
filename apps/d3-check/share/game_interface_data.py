@@ -9,7 +9,8 @@ Shared across all controllers and UI components
 import os
 import sys
 import tkinter as tk
-from typing import Optional, Dict, Tuple, List, Any, Set, Union, TYPE_CHECKING
+import threading
+from typing import Optional, Dict, Tuple, List, Any, Set, Union, TYPE_CHECKING, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -22,11 +23,11 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, project_root)
 
-# Import standard resolution constants
+# Import D3/D4 specific resolution constants
 from providor.providor_index import (
-    STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT,
-    D4_STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,    # D3: 1826x1301
+    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
+    D4_STANDARD_RESOLUTION_WIDTH,                                  # D4: 1763x1126
     D4_STANDARD_RESOLUTION_HEIGHT,
     get_template_path,
     TMP_DIR
@@ -350,546 +351,101 @@ class D4StandardCoordinates:
 D4_STANDARD_COORDS = D4StandardCoordinates()
 
 
-def calculate_scaled_coordinate(
-    standard_coord: Tuple[int, int],
-    standard_width: int = STANDARD_RESOLUTION_WIDTH,
-    standard_height: int = STANDARD_RESOLUTION_HEIGHT
-) -> Tuple[int, int]:
-    """
-    Calculate scaled coordinate based on current game window size (D3)
+# ============================================================================
+# D3 Coordinate Scaling - Unified helper functions
+# ============================================================================
 
-    Args:
-        standard_coord: Standard coordinate (x, y) at base resolution
-        standard_width: Standard resolution width (default: 1826)
-        standard_height: Standard resolution height (default: 1301)
-
-    Returns:
-        Scaled coordinate (x, y) for actual window size
+def d3_scale_single_coord(coord: Tuple[int, int]) -> Tuple[int, int]:
     """
-    # Get actual window size from shared data
+    Scale D3 single coordinate using shared D3InterfaceData.
+    Direct property access to shared_data fields.
+    Uses D3-specific standard resolution (1826x1301).
+    """
     shared_data = get_game_interface_data()
-    game_window_size = shared_data.game_window_size
-
-    # Check if running in windowed mode
-    is_windowed = shared_data.is_windowed_mode()
-    
-    # Use unified calculation function
     return calculate_unified_scaled_coordinate(
-        standard_coord=standard_coord,
-        game_window_size=game_window_size,
-        standard_resolution=(standard_width, standard_height),
-        is_windowed=is_windowed
+        coord,
+        shared_data.game_window_size,  # Direct property access
+        (D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT),  # D3: 1826x1301
+        shared_data.is_windowed_mode()  # Direct method (has logic)
     )
 
 
-def calculate_scaled_region(
-    standard_start: Tuple[int, int],
-    standard_end: Tuple[int, int],
-    standard_width: int = STANDARD_RESOLUTION_WIDTH,
-    standard_height: int = STANDARD_RESOLUTION_HEIGHT
-) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+def d3_scale_region(start_coord: Tuple[int, int], end_coord: Tuple[int, int]) -> Tuple[Tuple[int, int], Tuple[int, int]]:
     """
-    Calculate scaled region based on current game window size
-
-    Args:
-        standard_start: Standard region start coordinate (x, y)
-        standard_end: Standard region end coordinate (x, y)
-        standard_width: Standard resolution width (default: 1826)
-        standard_height: Standard resolution height (default: 1301)
-
-    Returns:
-        Tuple of (scaled_start, scaled_end) coordinates
+    Scale D3 region (start, end) using shared D3InterfaceData.
+    Reuses d3_scale_single_coord to avoid duplication.
     """
-    scaled_start = calculate_scaled_coordinate(
-        standard_start,
-        standard_width,
-        standard_height
-    )
-    scaled_end = calculate_scaled_coordinate(
-        standard_end,
-        standard_width,
-        standard_height
-    )
+    return (d3_scale_single_coord(start_coord), d3_scale_single_coord(end_coord))
 
-    return (scaled_start, scaled_end)
 
+# Backward compatibility wrappers (minimal - all use d3_scale_* helpers)
+def get_scaled_bag_region() -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    return d3_scale_region(STANDARD_COORDS.bag_top_left, STANDARD_COORDS.bag_bottom_right)
 
 def get_scaled_blacksmith_salvage_button() -> Tuple[int, int]:
-    """
-    Get scaled blacksmith salvage button coordinate based on current game window size
-
-    Returns:
-        Scaled coordinate (x, y) relative to game window
-    """
-    return calculate_scaled_coordinate(
-        STANDARD_COORDS.blacksmith_salvage_button
-    )
-
-
-def get_scaled_kanai_put_material_button() -> Tuple[int, int]:
-    """
-    Get scaled Kanai's Cube put material button coordinate based on current game window size
-
-    Returns:
-        Scaled coordinate (x, y) relative to game window
-    """
-    return calculate_scaled_coordinate(
-        STANDARD_COORDS.kanai_put_material_button
-    )
-
-
-def get_scaled_kanai_right_panel_toggle() -> Tuple[int, int]:
-    """
-    Get scaled Kanai's Cube right panel toggle button coordinate based on current game window size
-
-    Returns:
-        Scaled coordinate (x, y) relative to game window
-    """
-    return calculate_scaled_coordinate(
-        STANDARD_COORDS.kanai_right_panel_toggle
-    )
-
-
-def get_scaled_conversion_button() -> Tuple[int, int]:
-    """
-    Get scaled Kanai's Cube conversion button coordinate based on current game window size
-
-    Returns:
-        Scaled coordinate (x, y) relative to game window
-    """
-    return calculate_scaled_coordinate(
-        STANDARD_COORDS.kanai_conversion_button
-    )
-
-
-def get_scaled_kanai_next_page_button() -> Tuple[int, int]:
-    """
-    Get scaled Kanai's Cube next page button coordinate based on current game window size
-
-    Returns:
-        Scaled coordinate (x, y) relative to game window
-    """
-    return calculate_scaled_coordinate(
-        STANDARD_COORDS.kanai_next_page_button
-    )
-
-
-def get_scaled_bag_region() -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled bag region coordinates based on current game window size
-
-    Returns:
-        Tuple of (top_left, bottom_right) coordinates relative to game window
-    """
-    return calculate_scaled_region(
-        STANDARD_COORDS.bag_top_left,
-        STANDARD_COORDS.bag_bottom_right
-    )
-
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_button)
 
 def get_scaled_reforge_region() -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled reforge region coordinates based on current game window size
+    return d3_scale_region(STANDARD_COORDS.reforge_region_start, STANDARD_COORDS.reforge_region_end)
 
-    Returns:
-        Tuple of (start_coord, end_coord) for reforge region
-    """
-    return calculate_scaled_region(
-        STANDARD_COORDS.reforge_region_start,
-        STANDARD_COORDS.reforge_region_end
-    )
+def get_scaled_kanai_put_material_button() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.kanai_put_material_button)
+
+def get_scaled_conversion_button() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.kanai_conversion_button)
+
+def get_scaled_kanai_right_panel_toggle() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.kanai_right_panel_toggle)
+
+def get_scaled_kanai_next_page_button() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.kanai_next_page_button)
 
 
 # ============================================================================
-# D4 Coordinate Scaling Helper Functions
+# D4 Coordinate Scaling - Use calculate_unified_scaled_coordinate directly
+# Removed unnecessary wrapper functions to reduce code length
 # ============================================================================
 
 
-
-def get_d4_scaled_edit_team_button(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
-    """
-    Get scaled D4 edit team button coordinate
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Scaled coordinate (x, y) relative to game window
-    """
-    return calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.edit_team_button,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_confirm_edit_team(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
-    """
-    Get scaled D4 confirm edit team button coordinate
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Scaled coordinate (x, y) relative to game window
-    """
-    return calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.confirm_edit_team,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_idle_team_tiers(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 idle team tier coordinates (min and max)
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (min_tier_coord, max_tier_coord)
-    """
-    min_tier = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.idle_team_min_tier,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-    max_tier = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.idle_team_max_tier,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-    return (min_tier, max_tier)
-
-
-def get_d4_scaled_idle_activity_selection(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
-    """
-    Get scaled D4 idle activity selection coordinate
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Scaled coordinate (x, y) relative to game window
-    """
-    return calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.idle_activity_selection,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_add_idle_team(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
-    """
-    Get scaled D4 add idle team button coordinate
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Scaled coordinate (x, y) relative to game window
-    """
-    return calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.add_idle_team,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_bag_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 bag region coordinates
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (top_left, bottom_right) coordinates relative to game window
-    """
-    top_left = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.bag_top_left,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-    bottom_right = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.bag_bottom_right,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-    return (top_left, bottom_right)
-
-
-def get_d4_scaled_blacksmith_menu_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 blacksmith menu region coordinates
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (start_coord, end_coord) for blacksmith menu region
-    """
-    start_coord = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.blacksmith_menu_start,
-        D4_STANDARD_COORDS.blacksmith_menu_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_whisper_obols_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 whispering obols currency region coordinates
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (start_coord, end_coord) for whisper obols region
-    """
-    start_coord = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.whisper_obols_region_start,
-        D4_STANDARD_COORDS.whisper_obols_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_equipment_regions(game_window_size: Tuple[int, int], is_windowed: bool) -> Dict[str, Tuple[Tuple[int, int], Tuple[int, int]]]:
-    """
-    Get scaled D4 equipment recognition regions (left and right)
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Dictionary with 'left' and 'right' equipment regions
-    """
-    left_start = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.equipment_left_region_start,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-    left_end = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.equipment_left_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-    right_start = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.equipment_right_region_start,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-    right_end = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.equipment_right_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-    left_region = (left_start, left_end)
-    right_region = (right_start, right_end)
-    return {"left": left_region, "right": right_region}
-
-
-def get_d4_scaled_blacksmith_function_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 blacksmith function recognition region
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (start_coord, end_coord) for blacksmith function region
-    """
-    start_coord = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.blacksmith_function_region_start,
-        D4_STANDARD_COORDS.blacksmith_function_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_exp_bar_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 experience bar region
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (start_coord, end_coord) for exp bar region
-    """
-    start_coord = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.exp_bar_region_start,
-        D4_STANDARD_COORDS.exp_bar_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_health_orb_point(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
-    """
-    Get scaled D4 health orb recognition point
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Scaled coordinate (x, y) for health orb point
-    """
-    return calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.health_orb_point,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_minimap_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 minimap region
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (start_coord, end_coord) for minimap region
-    """
-    start_coord = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.minimap_region_start,
-        D4_STANDARD_COORDS.minimap_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_map_name_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 map name region
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (start_coord, end_coord) for map name region
-    """
-    start_coord = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.map_name_region_start,
-        D4_STANDARD_COORDS.map_name_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_quest_text_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 quest text region
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (start_coord, end_coord) for quest text region
-    """
-    start_coord = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.quest_text_region_start,
-        D4_STANDARD_COORDS.quest_text_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_team_count_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 team member count region
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (start_coord, end_coord) for team count region
-    """
-    start_coord = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.team_count_region_start,
-        D4_STANDARD_COORDS.team_count_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_team_vote_region(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """
-    Get scaled D4 team voting region
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Tuple of (start_coord, end_coord) for team vote region
-    """
-    start_coord = calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.team_vote_region_start,
-        D4_STANDARD_COORDS.team_vote_region_end,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
-
-
-def get_d4_scaled_team_vote_confirm_point(game_window_size: Tuple[int, int], is_windowed: bool) -> Tuple[int, int]:
-    """
-    Get scaled D4 team vote confirm button point
-
-    Args:
-        game_window_size: Actual game window size (width, height)
-        is_windowed: True if running in windowed mode
-
-    Returns:
-        Scaled coordinate (x, y) for team vote confirm point
-    """
-    return calculate_unified_scaled_coordinate(
-        D4_STANDARD_COORDS.team_vote_confirm_point,
-        game_window_size,
-        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-        is_windowed
-    )
+# ============================================================================
+# Base Interface Data Class (Common functionality)
+# ============================================================================
+
+@dataclass
+class InterfaceDataBase:
+    """Base class for interface data with common functionality"""
+
+    # Window height constant for windowed mode detection
+    WINDOW_HEIGHT_THRESHOLD = 31
+
+    # Recognition metadata
+    timestamp: Optional[str] = None
+    error: Optional[str] = None
+
+    # Screenshot data (IN MEMORY)
+    fullscreen_image: Optional[Image.Image] = None
+    game_window_image: Optional[Image.Image] = None
+    window_offset: Tuple[int, int] = (0, 0)
+    fullscreen_size: Tuple[int, int] = (0, 0)
+    game_window_size: Tuple[int, int] = (0, 0)
+    screenshot_history: List[str] = field(default_factory=list)
+
+    def add_screenshot_history(self, path: str, max_history: int = 10):
+        """Add screenshot path to history"""
+        self.screenshot_history.append(path)
+        if len(self.screenshot_history) > max_history:
+            self.screenshot_history = self.screenshot_history[-max_history:]
+
+    def is_windowed_mode(self) -> bool:
+        """Check if the game is running in windowed mode"""
+        if not self.game_window_size or not self.fullscreen_size:
+            return False
+        window_width, window_height = self.game_window_size
+        fullscreen_width, fullscreen_height = self.fullscreen_size
+        width_diff = fullscreen_width - window_width
+        height_diff = fullscreen_height - window_height
+        return (width_diff >= self.WINDOW_HEIGHT_THRESHOLD and
+                height_diff >= self.WINDOW_HEIGHT_THRESHOLD)
 
 
 # ============================================================================
@@ -945,36 +501,19 @@ class DetectionResult:
 
 
 @dataclass
-class D3InterfaceData:
+class D3InterfaceData(InterfaceDataBase):
     """
-    D3 game interface shared data
+    D3 game interface shared data + GameState (ROSBOT/D3 game state)
 
-    This is the SINGLE SOURCE OF TRUTH for interface data.
+    This is the SINGLE SOURCE OF TRUTH for D3 interface and game state data.
+    Merged GameState functionality for ROSBOT and D3 game management.
 
     Data flow:
     1. screenshot_provider fills: fullscreen_image, game_window_image, window_offset, screenshot_history
     2. ui_region_collector fills: ui_region, timestamp
     3. bag_info_collector fills: bag_coordinates, bag_layout
-
-    Note: Resolution scaling is now handled internally by image matchers
+    4. ROSBOT/controllers fill: rosbot_running, d3_running, map_type, game_stage
     """
-
-    # Window height constant for windowed mode detection
-    WINDOW_HEIGHT_THRESHOLD = 31
-
-    # Recognition metadata
-    timestamp: Optional[str] = None
-    error: Optional[str] = None
-
-    # Screenshot data (filled by screenshot_provider) - IN MEMORY
-    fullscreen_image: Optional[Image.Image] = None  # Fullscreen or game window image (depends on capture mode)
-    game_window_image: Optional[Image.Image] = None  # UI region image (for detection)
-    window_offset: Tuple[int, int] = (0, 0)  # Game window offset from fullscreen (offset_x, offset_y)
-    fullscreen_size: Tuple[int, int] = (0, 0)  # Fullscreen or game window size (width, height)
-    game_window_size: Tuple[int, int] = (0, 0)  # Game window or UI region size (width, height)
-
-    # Screenshot history - File path list (only saved in DEBUG mode)
-    screenshot_history: List[str] = field(default_factory=list)  # Recent screenshot file paths
 
     # UI region (filled by ui_region_collector)
     ui_region: Optional[UIRegion] = None
@@ -983,54 +522,49 @@ class D3InterfaceData:
     bag_coordinates: Optional[BagCoordinates] = None
     bag_layout: Optional[BagLayout] = None
 
-    # DEPRECATED: Button coordinates - Now using coordinate system in StandardCoordinates
-    # Use get_scaled_kanai_put_material_button() and get_scaled_conversion_button() instead
-    put_material_button: Optional[Tuple[int, int]] = None  # DEPRECATED
-    conversion_button: Optional[Tuple[int, int]] = None  # DEPRECATED
-
     # Interface states (filled by bag_info_collector)
-    conversion_clickable: Optional[bool] = None  # DEPRECATED - No longer used (only one indicator for kanai_cube)
     interface_type: Optional[str] = None  # "blacksmith", "kanai_cube"
-    functional_interface: Optional[str] = None  # "reforge" or "upgrade" (for compatibility)
-    kanai_right_page_opened: Optional[bool] = None  # True if Kanai Cube right page is opened, False if closed
+    functional_interface: Optional[str] = None  # "reforge" or "upgrade"
+    kanai_right_page_opened: Optional[bool] = None
 
     # Detection match results (filled by bag_info_collector, for visualization)
     bag_buttom_match: Optional[Dict] = None
     bag_left_match: Optional[Dict] = None
-    button_detections: Optional[Dict[str, DetectionResult]] = None  # Template name -> DetectionResult
-    # Example: {'conversion_button': DetectionResult(match={...}, reliable=True, state='enabled')}
+    button_detections: Optional[Dict[str, DetectionResult]] = None
+
+    # Game state management (merged from GameState for D3/ROSBOT)
+    rosbot_running: bool = False
+    d3_running: bool = False
+    map_type: str = "unknown"  # town, greater_rift, rift, unknown
+    game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
+
+    # State change callbacks (merged from GameState)
+    _callbacks: List[Callable] = field(default_factory=list)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def clear(self):
         """Clear all data"""
         self.timestamp = None
         self.error = None
-        # Clear screenshot data
         self.fullscreen_image = None
         self.game_window_image = None
         self.window_offset = (0, 0)
         self.fullscreen_size = (0, 0)
         self.game_window_size = (0, 0)
         self.screenshot_history.clear()
-        # Clear detection results
         self.ui_region = None
         self.bag_coordinates = None
         self.bag_layout = None
-        self.put_material_button = None
-        self.conversion_button = None
-        self.conversion_clickable = None
         self.interface_type = None
         self.functional_interface = None
         self.kanai_right_page_opened = None
         self.bag_buttom_match = None
         self.bag_left_match = None
         self.button_detections = None
-
-    def add_screenshot_history(self, path: str, max_history: int = 10):
-        """Add screenshot path to history"""
-        self.screenshot_history.append(path)
-        # Keep only max_history records
-        if len(self.screenshot_history) > max_history:
-            self.screenshot_history = self.screenshot_history[-max_history:]
+        self.rosbot_running = False
+        self.d3_running = False
+        self.map_type = "unknown"
+        self.game_stage = "unknown"
 
     def has_ui_region(self) -> bool:
         """Check if UI region is available"""
@@ -1042,42 +576,91 @@ class D3InterfaceData:
 
     def get_summary(self) -> Dict:
         """Get summary of current data"""
-        summary = {
+        return {
             "timestamp": self.timestamp,
             "error": self.error,
-            "has_ui_region": self.has_ui_region(),
+            "has_ui_region": self.ui_region is not None,
             "has_bag_coordinates": self.bag_coordinates is not None,
             "has_bag_layout": self.bag_layout is not None,
-            "has_put_material_button": self.put_material_button is not None,
-            "has_conversion_button": self.conversion_button is not None,
-            "conversion_clickable": self.conversion_clickable,
-            "functional_interface": self.functional_interface
+            "functional_interface": self.functional_interface,
+            "rosbot_running": self.rosbot_running,
+            "d3_running": self.d3_running,
+            "map_type": self.map_type,
+            "game_stage": self.game_stage
         }
 
-        return summary
+    # ==================== Game State Methods (with callback notification) ====================
+    # These methods are kept because they trigger callbacks
 
-    def is_windowed_mode(self) -> bool:
-        """
-        Check if the game is running in windowed mode
-        
-        Returns True if both game_window_size dimensions are smaller than 
-        the corresponding fullscreen_size dimensions by at least WINDOW_HEIGHT_THRESHOLD pixels
-        
-        Returns:
-            bool: True if running in windowed mode, False otherwise
-        """
-        if not self.game_window_size or not self.fullscreen_size:
-            return False
-            
-        window_width, window_height = self.game_window_size
-        fullscreen_width, fullscreen_height = self.fullscreen_size
-        
-        # Check if both dimensions are smaller by at least the threshold
-        width_diff = fullscreen_width - window_width
-        height_diff = fullscreen_height - window_height
-        
-        return (width_diff >= self.WINDOW_HEIGHT_THRESHOLD and
-                height_diff >= self.WINDOW_HEIGHT_THRESHOLD)
+    def set_rosbot_status(self, running: bool):
+        """Set ROSBOT running status and notify callbacks"""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_running != running:
+                self.rosbot_running = running
+                should_notify = True
+                ColorPrint.blue(f"[D3State] ROSBOT: {'Running' if running else 'Stopped'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_d3_status(self, running: bool):
+        """Set D3 running status and notify callbacks"""
+        should_notify = False
+        with self._lock:
+            if self.d3_running != running:
+                self.d3_running = running
+                should_notify = True
+                ColorPrint.blue(f"[D3State] D3: {'Running' if running else 'Stopped'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_map_type(self, map_type: str):
+        """Set map type and notify callbacks"""
+        should_notify = False
+        with self._lock:
+            if self.map_type != map_type:
+                self.map_type = map_type
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Map: {map_type}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_game_stage(self, stage: str):
+        """Set game stage and notify callbacks"""
+        should_notify = False
+        with self._lock:
+            if self.game_stage != stage:
+                self.game_stage = stage
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Stage: {stage}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def register_callback(self, callback: Callable):
+        """Register state change callback"""
+        with self._lock:
+            self._callbacks.append(callback)
+            ColorPrint.debug(f"[D3State] Callback registered: {callback.__name__}")
+
+    def _notify_callbacks(self):
+        """Notify all registered callbacks"""
+        try:
+            callbacks = []
+            with self._lock:
+                callbacks = self._callbacks.copy()
+                state = {
+                    'rosbot_running': self.rosbot_running,
+                    'd3_running': self.d3_running,
+                    'map_type': self.map_type,
+                    'game_stage': self.game_stage
+                }
+            for callback in callbacks:
+                try:
+                    callback(state)
+                except Exception as e:
+                    ColorPrint.red(f"[D3State] Callback error: {e}")
+        except Exception as e:
+            ColorPrint.red(f"[D3State] Notify error: {e}")
 
 
 # ============================================================================
@@ -1085,97 +668,80 @@ class D3InterfaceData:
 # ============================================================================
 
 @dataclass
-class D4InterfaceData:
+class D4InterfaceData(InterfaceDataBase):
     """
     D4 game interface shared data (Independent)
 
     Simplified data structure focused on D4's specific needs.
     Uses D4-specific coordinate system and resolution (1763x1126).
+    Does NOT include GameState - that belongs to D3InterfaceData.
     """
 
-    # Window height constant for windowed mode detection
-    WINDOW_HEIGHT_THRESHOLD = 31
-
-    # Recognition metadata
-    timestamp: Optional[str] = None
-    error: Optional[str] = None
-
-    # Screenshot data (IN MEMORY)
-    fullscreen_image: Optional[Image.Image] = None  # Fullscreen or game window image
-    game_window_image: Optional[Image.Image] = None  # Game window image (for detection)
-    window_offset: Tuple[int, int] = (0, 0)  # Game window offset from fullscreen
-    fullscreen_size: Tuple[int, int] = (0, 0)  # Fullscreen size (width, height)
-    game_window_size: Tuple[int, int] = (0, 0)  # Game window size (width, height)
-
     # Screenshot history - File path list (only saved in DEBUG mode)
-    screenshot_history: List[str] = field(default_factory=list)
-
-    # Annotated screenshots for coordinate visualization
     last_annotated_screenshot_path: Optional[str] = None
 
     # Region detection data
-    detected_regions: Optional[Dict[str, Any]] = None  # Detected regions information
-    detected_points: Optional[Dict[str, Any]] = None   # Detected points information
-    region_detection_timestamp: Optional[str] = None   # When regions were last detected
+    detected_regions: Optional[Dict[str, Any]] = None
+    detected_points: Optional[Dict[str, Any]] = None
+    region_detection_timestamp: Optional[str] = None
 
     # Screenshot data from screenshot provider
-    screenshot_data: Optional[Any] = None  # Complete screenshot data from screenshot provider
+    screenshot_data: Optional[Any] = None
 
     # Team health information
-    team_health_info: Optional[Dict[str, Any]] = None  # Team member health information
-    team_health_detection_timestamp: Optional[str] = None  # When team health was last detected
+    team_health_info: Optional[Dict[str, Any]] = None
+    team_health_detection_timestamp: Optional[str] = None
 
     # Small map detection information
-    small_map_detection: Optional[Dict[str, Any]] = None  # Small map detection results
-    small_map_detection_timestamp: Optional[str] = None  # When small map was last detected
-    last_small_map_debug_path: Optional[str] = None  # Path to last debug image
+    small_map_detection: Optional[Dict[str, Any]] = None
+    small_map_detection_timestamp: Optional[str] = None
+    last_small_map_debug_path: Optional[str] = None
 
     # Optimized image data
-    optimized_fullscreen_image: Optional['OptimizedImageData'] = None  # Optimized fullscreen image
-    optimized_game_window_image: Optional['OptimizedImageData'] = None  # Optimized game window image
+    optimized_fullscreen_image: Optional['OptimizedImageData'] = None
+    optimized_game_window_image: Optional['OptimizedImageData'] = None
 
-    # Game state management
+    # D4 Game state management (D4-specific, not ROSBOT)
     game_running: bool = False
     exp_farming_running: bool = False
-    
+
     # Game window information
     window_detected: bool = False
     window_hwnd: Optional[int] = None
     window_title: str = ""
-    window_position: Tuple[int, int] = (0, 0)  # (x, y)
-    
+    window_position: Tuple[int, int] = (0, 0)
+
     # Game progress
-    current_act: int = 0  # 0-5
+    current_act: int = 0
     current_chapter: int = 0
     current_quest: str = ""
-    difficulty: str = ""  # Normal, Nightmare, Hell, Torment, etc.
-    world_tier: int = 0  # 1-4
-    
+    difficulty: str = ""
+    world_tier: int = 0
+
     # Experience tracking
     current_level: int = 0
     current_exp: int = 0
     exp_to_next_level: int = 0
     exp_percent: float = 0.0
     paragon_level: int = 0
-    
+
     # Screenshot state
     last_screenshot_path: Optional[str] = None
     last_screenshot_time: float = 0.0
 
     # Debug window state
-    debug_window_open: bool = False  # Whether debug window is currently open
-    debug_window_paused: bool = False  # Whether debug window image updates are paused
+    debug_window_open: bool = False
+    debug_window_paused: bool = False
 
     # Map switching state
-    is_switching_map: bool = False  # Whether currently switching maps (black screen detected)
-    map_switch_count: int = 0  # Total number of map switches detected
-    is_post_switch_idle: bool = False  # After map switch, before any operation
+    is_switching_map: bool = False
+    map_switch_count: int = 0
+    is_post_switch_idle: bool = False
 
     def clear(self):
         """Clear all data"""
         self.timestamp = None
         self.error = None
-        # Clear screenshot data
         self.fullscreen_image = None
         self.game_window_image = None
         self.window_offset = (0, 0)
@@ -1183,146 +749,45 @@ class D4InterfaceData:
         self.game_window_size = (0, 0)
         self.screenshot_history.clear()
         self.last_annotated_screenshot_path = None
-        # Clear region detection data
         self.detected_regions = None
         self.detected_points = None
         self.region_detection_timestamp = None
-        # Clear screenshot data
         self.screenshot_data = None
-        # Clear team health data
         self.team_health_info = None
         self.team_health_detection_timestamp = None
-        # Clear small map detection data
         self.small_map_detection = None
         self.small_map_detection_timestamp = None
         self.last_small_map_debug_path = None
-        # Clear optimized image data
         self.optimized_fullscreen_image = None
         self.optimized_game_window_image = None
-        # Clear game state
         self.game_running = False
         self.exp_farming_running = False
-        # Clear window info
         self.window_detected = False
         self.window_hwnd = None
         self.window_title = ""
         self.window_position = (0, 0)
-        # Clear game progress
         self.current_act = 0
         self.current_chapter = 0
         self.current_quest = ""
         self.difficulty = ""
         self.world_tier = 0
-        # Clear experience
         self.current_level = 0
         self.current_exp = 0
         self.exp_to_next_level = 0
         self.exp_percent = 0.0
         self.paragon_level = 0
-        # Clear screenshot state
         self.last_screenshot_path = None
         self.last_screenshot_time = 0.0
-        # Clear debug state
         self.debug_window_open = False
         self.debug_window_paused = False
-
-        # Clear map switching state
         self.is_switching_map = False
         self.map_switch_count = 0
         self.is_post_switch_idle = False
 
-    def add_screenshot_history(self, path: str, max_history: int = 10):
-        """Add screenshot path to history"""
-        self.screenshot_history.append(path)
-        # Keep only max_history records
-        if len(self.screenshot_history) > max_history:
-            self.screenshot_history = self.screenshot_history[-max_history:]
-
-    def is_windowed_mode(self) -> bool:
-        """
-        Check if the game is running in windowed mode
-
-        Returns True if both game_window_size dimensions are smaller than
-        the corresponding fullscreen_size dimensions by at least WINDOW_HEIGHT_THRESHOLD pixels
-
-        Returns:
-            bool: True if running in windowed mode, False otherwise
-        """
-        if not self.game_window_size or not self.fullscreen_size:
-            return False
-
-        window_width, window_height = self.game_window_size
-        fullscreen_width, fullscreen_height = self.fullscreen_size
-
-        # Check if both dimensions are smaller by at least the threshold
-        width_diff = fullscreen_width - window_width
-        height_diff = fullscreen_height - window_height
-
-        return (width_diff >= self.WINDOW_HEIGHT_THRESHOLD and
-                height_diff >= self.WINDOW_HEIGHT_THRESHOLD)
-
-    def get_summary(self) -> Dict:
-        """Get summary of current data"""
-        summary = {
-            "timestamp": self.timestamp,
-            "error": self.error,
-            "has_fullscreen_image": self.fullscreen_image is not None,
-            "has_game_window_image": self.game_window_image is not None,
-            "game_window_size": self.game_window_size,
-            "fullscreen_size": self.fullscreen_size,
-            "is_windowed": self.is_windowed_mode(),
-            "screenshot_history_count": len(self.screenshot_history),
-            "last_annotated_screenshot": self.last_annotated_screenshot_path,
-            "has_detected_regions": self.detected_regions is not None,
-            "has_detected_points": self.detected_points is not None,
-            "region_detection_timestamp": self.region_detection_timestamp
-        }
-        return summary
-
-    # ==================== Game State Methods ====================
-
-    def set_game_running(self, running: bool):
-        """Set game running state"""
-        self.game_running = running
-
-    def is_game_running(self) -> bool:
-        """Check if game is running"""
-        return self.game_running
-
-    def set_exp_farming_running(self, running: bool):
-        """Set EXP farming running state"""
-        self.exp_farming_running = running
-
+    # Only keep widely-used convenience methods
     def is_exp_farming_running(self) -> bool:
-        """Check if EXP farming is running"""
+        """Check if D4 EXP farming is running (widely used, kept for compatibility)"""
         return self.exp_farming_running
-
-    def set_window_info(self, detected: bool, hwnd: Optional[int] = None,
-                       title: str = "", position: tuple = (0, 0)):
-        """Set window information"""
-        self.window_detected = detected
-        self.window_hwnd = hwnd
-        self.window_title = title
-        self.window_position = position
-
-    def get_window_info(self) -> Dict[str, Any]:
-        """Get window information as dictionary"""
-        return {
-            "detected": self.window_detected,
-            "hwnd": self.window_hwnd,
-            "title": self.window_title,
-            "size": self.game_window_size,
-            "position": self.window_position
-        }
-
-    def get_game_state(self) -> str:
-        """Get current game state as string"""
-        if self.exp_farming_running:
-            return "Running"
-        elif self.game_running:
-            return "Active"
-        else:
-            return "Stopped"
 
 
 # Global shared instances
@@ -1589,21 +1054,21 @@ def update_global_scale(actual_width: int, actual_height: int):
         # Windowed mode: use actual dimensions (with title bar)
         effective_actual_width = actual_width
         effective_actual_height = actual_height
-        effective_standard_width = STANDARD_RESOLUTION_WIDTH
-        effective_standard_height = STANDARD_RESOLUTION_HEIGHT
+        effective_standard_width = D3_STANDARD_RESOLUTION_WIDTH   # D3: 1826
+        effective_standard_height = D3_STANDARD_RESOLUTION_HEIGHT # D3: 1301
     else:
         # Fullscreen mode: add threshold to both dimensions (no title bar)
         effective_actual_width = actual_width + shared_data.WINDOW_HEIGHT_THRESHOLD
         effective_actual_height = actual_height + shared_data.WINDOW_HEIGHT_THRESHOLD
-        effective_standard_width = STANDARD_RESOLUTION_WIDTH + shared_data.WINDOW_HEIGHT_THRESHOLD
-        effective_standard_height = STANDARD_RESOLUTION_HEIGHT + shared_data.WINDOW_HEIGHT_THRESHOLD
+        effective_standard_width = D3_STANDARD_RESOLUTION_WIDTH + shared_data.WINDOW_HEIGHT_THRESHOLD
+        effective_standard_height = D3_STANDARD_RESOLUTION_HEIGHT + shared_data.WINDOW_HEIGHT_THRESHOLD
 
     # Update global scale variables
     global GLOBAL_SCALE_X, GLOBAL_SCALE_Y
     GLOBAL_SCALE_X = effective_actual_width / effective_standard_width
     GLOBAL_SCALE_Y = effective_actual_height / effective_standard_height
 
-    ColorPrint.blue(f"[GlobalScale] Updated: {actual_width}x{actual_height} / {STANDARD_RESOLUTION_WIDTH}x{STANDARD_RESOLUTION_HEIGHT}")
+    ColorPrint.blue(f"[GlobalScale] D3 Resolution: {actual_width}x{actual_height} / {D3_STANDARD_RESOLUTION_WIDTH}x{D3_STANDARD_RESOLUTION_HEIGHT}")
     ColorPrint.blue(f"[GlobalScale] Window mode: {'Windowed' if is_windowed else 'Fullscreen'}")
     ColorPrint.blue(f"[GlobalScale] Effective: {effective_actual_width}x{effective_actual_height} / {effective_standard_width}x{effective_standard_height}")
     ColorPrint.blue(f"[GlobalScale] Scale factors: X={GLOBAL_SCALE_X:.4f}, Y={GLOBAL_SCALE_Y:.4f}")

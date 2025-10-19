@@ -215,7 +215,7 @@ class D4Controller:
         """
         # Reset tick counter when starting
         self.tick_counter = 0
-        self.d4_data.set_exp_farming_running(True)
+        self.d4_data.exp_farming_running = True  # Direct property access
 
         print("\n" + "="*80)
         ColorPrint.green("[D4 EXP Farming] Started")
@@ -227,7 +227,7 @@ class D4Controller:
 
         Sets state to skip screenshot capture in timer callback
         """
-        self.d4_data.set_exp_farming_running(False)
+        self.d4_data.exp_farming_running = False  # Direct property access
 
         print("\n" + "="*80)
         ColorPrint.green(f"[D4 EXP Farming] Stopped (Total ticks: {self.tick_counter})")

@@ -1,19 +1,8 @@
 {
     "mcpServers": {
-        "promptx": {
-            "command": "cmd",
-            "args": [
-                "/c",
-                "npx",
-                "-y",
-                "@promptx/mcp-server"
-            ]
-        },
         "github.com/upstash/context7-mcp": {
-            "command": "cmd",
+            "command": "npx",
             "args": [
-                "/c",
-                "npx",
                 "-y",
                 "@upstash/context7-mcp"
             ],
@@ -22,11 +11,9 @@
             "timeout": 60000
         },
         "McpAlchemy": {
-            "command": "cmd",
+            "command": "python3",
             "args": [
-                "/c",
-                "python",
-                "D:/programing/core_node/ncore/mcp_server/mcp-alchemy/main.py"
+                "/mnt/d/programing/core_node/ncore/mcp_server/mcp-alchemy/main.py"
             ],
             "env": {
                 "EXECUTE_QUERY_MAX_CHARS": "4000"
@@ -52,11 +39,24 @@
                 "get_database_stats"
             ]
         },
-        "FeedbackEnhanced": {
-            "command": "cmd",
+        "AlibabaDataworks": {
+            "command": "node",
             "args": [
-                "/c",
-                "uvx",
+                "alibabacloud-dataworks-mcp-server"
+            ],
+            "env": {
+                "REGION": "your_dataworks_open_api_region_id_here",
+                "ALIBABA_CLOUD_ACCESS_KEY_ID": "your_alibaba_cloud_access_key_id",
+                "ALIBABA_CLOUD_ACCESS_KEY_SECRET": "your_alibaba_cloud_access_key_secret",
+                "TOOL_CATEGORIES": "optional_your_tool_categories_here_ex_UTILS",
+                "TOOL_NAMES": "optional_your_tool_names_here_ex_ListProjects"
+            },
+            "disabled": true,
+            "autoApprove": []
+        },
+        "FeedbackEnhanced": {
+            "command": "uvx",
+            "args": [
                 "mcp-feedback-enhanced@latest"
             ],
             "env": {
@@ -69,11 +69,9 @@
             "autoApprove": []
         },
         "PlaceholderImageGenerator": {
-            "command": "cmd",
+            "command": "python3",
             "args": [
-                "/c",
-                "python",
-                "D:/programing/core_node/ncore/mcp_server/placeholder_image_generator/main.py"
+                "/mnt/d/programing/core_node/ncore/mcp_server/placeholder_image_generator/main.py"
             ],
             "env": {
                 "MCP_ALLOW_ALL_PATHS": "true"
@@ -87,11 +85,9 @@
             ]
         },
         "FileProcessor": {
-            "command": "cmd",
+            "command": "python3",
             "args": [
-                "/c",
-                "python",
-                "D:/programing/core_node/ncore/mcp_server/file_processor/main.py"
+                "/mnt/d/programing/core_node/ncore/mcp_server/file_processor/main.py"
             ],
             "env": {
                 "MCP_ALLOW_ALL_PATHS": "true"
@@ -117,11 +113,9 @@
             ]
         },
         "CodebaseScanner": {
-            "command": "cmd",
+            "command": "python3",
             "args": [
-                "/c",
-                "python",
-                "D:/programing/core_node/ncore/mcp_server/codebase-scanner/main.py"
+                "/mnt/d/programing/core_node/ncore/mcp_server/codebase-scanner/main.py"
             ],
             "env": {
                 "ENABLE_GLOBAL_ACCESS": "true"

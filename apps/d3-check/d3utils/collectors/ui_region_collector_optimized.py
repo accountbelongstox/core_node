@@ -29,8 +29,8 @@ from d3utils.screenshot_provider import get_screenshot_provider
 from share import get_game_interface_data, UIRegion
 from providor.providor_index import (
     DIABLO_III_WINDOW_TITLES,
-    STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT,
+    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
     DEBUG,
     TMP_DIR
 )
@@ -157,10 +157,10 @@ class UIRegionCollectorOptimized:
         # Log resolution info
         actual_width = screenshot_data.fullscreen_size[0]
         actual_height = screenshot_data.fullscreen_size[1]
-        ColorPrint.blue(f"[Resolution] Actual: {actual_width}x{actual_height}, Standard: {STANDARD_RESOLUTION_WIDTH}x{STANDARD_RESOLUTION_HEIGHT}")
-        if actual_width != STANDARD_RESOLUTION_WIDTH or actual_height != STANDARD_RESOLUTION_HEIGHT:
-            scale_x = actual_width / STANDARD_RESOLUTION_WIDTH
-            scale_y = actual_height / STANDARD_RESOLUTION_HEIGHT
+        ColorPrint.blue(f"[Resolution] Actual: {actual_width}x{actual_height}, Standard: {D3_STANDARD_RESOLUTION_WIDTH}x{D3_STANDARD_RESOLUTION_HEIGHT}")
+        if actual_width != D3_STANDARD_RESOLUTION_WIDTH or actual_height != D3_STANDARD_RESOLUTION_HEIGHT:
+            scale_x = actual_width / D3_STANDARD_RESOLUTION_WIDTH
+            scale_y = actual_height / D3_STANDARD_RESOLUTION_HEIGHT
             ColorPrint.blue(f"[Resolution] Auto-scaling enabled: {scale_x:.4f}x, {scale_y:.4f}y")
 
         # In optimized mode, fullscreen_image IS the game window (already captured)
