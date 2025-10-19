@@ -81,6 +81,13 @@ class ScreenshotHandler:
                 self.d4_data.window_offset = screenshot_data.window_offset
                 self.d4_data.timestamp = datetime.now().isoformat()
 
+                # DEBUG: Log the updated data
+                ColorPrint.blue(f"[ScreenshotHandler] 📸 Updated D4 data:")
+                ColorPrint.blue(f"  fullscreen_size: {self.d4_data.fullscreen_size}")
+                ColorPrint.blue(f"  game_window_size: {self.d4_data.game_window_size}")
+                ColorPrint.blue(f"  window_offset: {self.d4_data.window_offset}")
+                ColorPrint.blue(f"  is_windowed: {self.d4_data.is_windowed_mode()}")
+
                 ColorPrint.green("[ScreenshotHandler] Screenshot captured and info collected")
                 return True
             else:
