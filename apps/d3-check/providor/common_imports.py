@@ -26,25 +26,25 @@ if core_node_dir not in sys.path:
 if ncore_path not in sys.path:
     sys.path.insert(0, ncore_path)
 
-# pytools foundations
-from pytools.pyfoundations.color_print import ColorPrint  # noqa: E402
-from pytools.pyfoundations.encyclopedia import ENCYCLOPEDIA  # noqa: E402
+# pytools foundations (from pycore)
+from pycore.pyfoundations.color_print import ColorPrint  # noqa: E402
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA  # noqa: E402
 
-# pytools utils - Core utilities
-from pytools.pyutils.click_handler import ClickHandler  # noqa: E402
-from pytools.pyutils.window_screenshot import WindowScreenshot  # noqa: E402
+# pytools utils - Core utilities (from pycore)
+from pycore.pyutils.click_handler import ClickHandler  # noqa: E402
+from pycore.pyutils.window_screenshot import WindowScreenshot  # noqa: E402
 
-# pytools utils - Image processing
-from pytools.pyutils.image_annotator import ImageAnnotator  # noqa: E402
-from pytools.pyutils.image_comparator import ImageComparator  # noqa: E402
-from pytools.pyutils.image_crop import ImageCrop  # noqa: E402
-from pytools.pyutils.image_matcher import ImageMatcher  # noqa: E402
+# pytools utils - Image processing (from pycore)
+from pycore.pyutils.image_annotator import ImageAnnotator  # noqa: E402
+from pycore.pyutils.image_comparator import ImageComparator  # noqa: E402
+from pycore.pyutils.image_crop import ImageCrop  # noqa: E402
+from pycore.pyutils.image_matcher import ImageMatcher  # noqa: E402
 
-# pytools utils - OCR
-from pytools.pyutils.ocr_cnocr_engine import CnOCREngine  # noqa: E402
+# pytools utils - OCR (from pycore)
+from pycore.pyutils.ocr_cnocr_engine import CnOCREngine  # noqa: E402
 
-# pytools utils - Hotkey listener (explicit imports instead of *)
-from pytools.pyutils.hotkey_listener import (  # noqa: E402
+# pytools utils - Hotkey listener (explicit imports instead of *) (from pycore)
+from pycore.pyutils.hotkey_listener import (  # noqa: E402
     HotkeyListener,
     HotkeyType,
     HotkeyInfo,
@@ -60,8 +60,8 @@ from pycore.pyutils.ultralytics.ultralytics_trainer import UltralyticsTrainer, T
 from pycore.pyutils.ultralytics.classification_trainer import (  # noqa: E402
     ClassificationTrainer as UltralyticsClassificationTrainer,
 )
-from pytools.pyutils.window_activator import WindowActivator  # noqa: E402
-from pytools.pyutils.dataset_generator import DatasetGenerator  # noqa: E402
+from pycore.pyutils.window_activator import WindowActivator  # noqa: E402
+from pycore.pyutils.dataset_generator import DatasetGenerator  # noqa: E402
 # Note: PNGMatcher has been replaced by ImageMatcher, no need to import separately
 
 __all__ = [

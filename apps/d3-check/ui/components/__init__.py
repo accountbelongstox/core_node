@@ -11,5 +11,7 @@ from .bottom_bar import BottomBar
 from .macro_controls import MacroControls
 from .system_tray import SystemTray
 from .status_bar import StatusBar
+from .debug_window import DebugWindow, get_debug_window, close_debug_window
 
-__all__ = ['TitleBar', 'MenuBar', 'BottomBar', 'MacroControls', 'SystemTray', 'StatusBar']
+__all__ = ['TitleBar', 'MenuBar', 'BottomBar', 'MacroControls', 'SystemTray', 'StatusBar',
+           'DebugWindow', 'get_debug_window', 'close_debug_window']

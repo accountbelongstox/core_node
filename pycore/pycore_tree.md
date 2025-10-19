@@ -17,18 +17,23 @@ pycore/
 │   │   └── window_finder.py
 │   ├── examples/
 │   │   ├── dataset_generator_example.py
-│   │   └── ocr_example.py
+│   │   ├── ocr_example.py
+│   │   └── unified_detector_example.py
 │   ├── ultralytics/
+│   │   ├── GPU_DETECTION_SUMMARY.md
 │   │   ├── GPU_SUPPORT_README.md
+│   │   ├── UNIFIED_GPU_SYSTEM_README.md
 │   │   ├── __init__.py
 │   │   ├── classification_trainer.py
 │   │   ├── dataset_generator_yolo.py
 │   │   ├── detection_trainer.py
 │   │   ├── device_manager.py
 │   │   ├── gpu_image_processor.py
-│   │   ├── test_gpu_system.py
 │   │   ├── ultralytics_trainer.py
+│   │   ├── unified_gpu_manager.py
 │   │   └── unified_trainer.py
+│   ├── UNIFIED_DETECTOR_QUICKSTART.md
+│   ├── UNIFIED_DETECTOR_README.md
 │   ├── app_launcher.py
 │   ├── click_handler.py
 │   ├── dataset_generator.py
@@ -46,6 +51,7 @@ pycore/
 │   ├── pyutils_tree.md
 │   ├── tray_clicker.py
 │   ├── ui_analyzer.py
+│   ├── unified_detector.py
 │   ├── window_activator.py
 │   ├── window_analyzer.py
 │   ├── window_ops.py
@@ -55,6 +61,7 @@ pycore/
 │   ├── function_mapping.md
 │   ├── migration_complete.md
 │   └── migration_summary.md
+├── GPU_INTEGRATION_GUIDE.md
 ├── PYCORE_CONSISTENCY_REPORT.md
 ├── __init__.py
 ├── __main__.py

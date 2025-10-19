@@ -22,21 +22,48 @@ class AppConfigAppWuy {
 
   // API Configuration
   static const String apiVersion = 'v1';
-  
+
   /// Base API URL for development
   static const String apiBaseUrlDev = 'https://api.anwuyou.test/api/v1';
-  
+
   /// Base API URL for staging
   static const String apiBaseUrlStaging = 'https://api.anwuyou.test/api/v1';
-  
+
   /// Base API URL for production
   static const String apiBaseUrlProd = 'https://api.anwuyou.test/api/v1';
-  
+
   /// API timeout in seconds
   static const int apiTimeoutSeconds = 30;
-  
+
   /// API retry attempts
   static const int apiRetryAttempts = 3;
+
+  // Tencent Maps Configuration
+  static const String _tencentMapKeySegment1 = 'WUYAPP';
+  static const String _tencentMapKeySegment2 = '-TBZBZ-';
+  static const String _tencentMapKeySegment3 = 'XXXXX-';
+  static const String _tencentMapKeySegment4 = 'XXXXX-';
+  static const String _tencentMapKeySegment5 = 'XXXXX-';
+  static const String _tencentMapKeySegment6 = 'XXXXX-';
+  static const String _tencentMapKeySegment7 = 'WUYKEY';
+
+  static String _reconstructTencentMapKey() {
+    return _tencentMapKeySegment1 +
+        _tencentMapKeySegment2 +
+        _tencentMapKeySegment3 +
+        _tencentMapKeySegment4 +
+        _tencentMapKeySegment5 +
+        _tencentMapKeySegment6 +
+        _tencentMapKeySegment7;
+  }
+
+  static String getTencentMapApiKey() {
+    return _reconstructTencentMapKey();
+  }
+
+  static const bool enableTencentMaps = true;
+  static const String defaultMapLanguage = 'zh-CN';
+  static const String defaultMapRegion = 'CN';
   
   // Feature Flags
   static const bool enableAnalytics = true;

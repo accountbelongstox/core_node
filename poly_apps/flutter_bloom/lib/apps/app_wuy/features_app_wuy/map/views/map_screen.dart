@@ -17,9 +17,12 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/common/sdk/tencent_maps/tencent_maps_sdk.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../providers_app_wuy/wu_user_provider.dart';
+import '../../../config_app_wuy/app_config_app_wuy.dart';
+import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 
 /// Map Screen for Wuy App
 ///
@@ -38,6 +41,56 @@ class WuyMapScreen extends StatefulWidget {
 }
 
 class _WuyMapScreenState extends State<WuyMapScreen> {
+  late TencentMapController _mapController;
+  late TencentMapsService _mapService;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapService = TencentMapsService(
+      apiKey: AppConfigAppWuy.getTencentMapApiKey(),
+      language: AppConfigAppWuy.defaultMapLanguage,
+      region: AppConfigAppWuy.defaultMapRegion,
+    );
+
+    _mapController = TencentMapController(
+      service: _mapService,
+      initialZoom: 15.0,
+      initialStyle: TencentMapStyle.normal,
+      initialLatitude: 39.908823,
+      initialLongitude: 116.397470,
+    );
+
+    _addSampleMarkers();
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  void _addSampleMarkers() {
+    _mapController.addMarker(
+      TencentMapMarker(
+        id: 'marker_1',
+        latitude: 39.908823,
+        longitude: 116.397470,
+        title: LocalizationKeysAppWuy.wuyMapBeijing.tr(context),
+        snippet: LocalizationKeysAppWuy.wuyMapCapitalOfChina.tr(context),
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '${LocalizationKeysAppWuy.wuyMapBeijing.tr(context)} ${LocalizationKeysAppWuy.wuyMapMarkerTapped.tr(context)}',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -52,9 +105,11 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.my_location, color: ThemeColors.white),
-            onPressed: () {
-              // Handle location center
-            },
+            onPressed: _centerOnCurrentLocation,
+          ),
+          IconButton(
+            icon: const Icon(Icons.layers, color: ThemeColors.white),
+            onPressed: _showMapStyleDialog,
           ),
         ],
       ),
@@ -68,47 +123,63 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
     );
   }
 
+  void _centerOnCurrentLocation() {
+    _mapController.animateCamera(
+      latitude: 39.908823,
+      longitude: 116.397470,
+      zoom: 15.0,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(LocalizationKeysAppWuy.wuyMapCenterLocation.tr(context)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showMapStyleDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(LocalizationKeysAppWuy.wuyMapStyleTitle.tr(context)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildMapStyleOption(TencentMapStyle.normal, LocalizationKeysAppWuy.wuyMapStyleNormal.tr(context)),
+              _buildMapStyleOption(TencentMapStyle.satellite, LocalizationKeysAppWuy.wuyMapStyleSatellite.tr(context)),
+              _buildMapStyleOption(TencentMapStyle.dark, LocalizationKeysAppWuy.wuyMapStyleDark.tr(context)),
+              _buildMapStyleOption(TencentMapStyle.light, LocalizationKeysAppWuy.wuyMapStyleLight.tr(context)),
+              _buildMapStyleOption(TencentMapStyle.traffic, LocalizationKeysAppWuy.wuyMapStyleTraffic.tr(context)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMapStyleOption(TencentMapStyle style, String label) {
+    return ListTile(
+      title: Text(label),
+      onTap: () {
+        _mapController.setMapStyle(style);
+        Navigator.pop(context);
+      },
+    );
+  }
+
   Widget _buildMapView() {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            ThemeColors.green20,
-            ThemeColors.blue20,
-            ThemeColors.green30,
-          ],
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.map,
-              size: 100,
-              color: ThemeColors.white.withOpacity(0.8),
-            ),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            Text(
-              'Map View',
-              style: ThemeTextStyles.displayMedium.copyWith(
-                color: ThemeColors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              'Interactive map with friend locations',
-              style: ThemeTextStyles.bodyLarge.copyWith(
-                color: ThemeColors.white.withOpacity(0.9),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return TencentMapWidget(
+      controller: _mapController,
+      showMyLocation: true,
+      showCompass: true,
+      showScale: true,
+      enableZoomControls: true,
+      enableRotation: true,
+      enableScrolling: true,
+      onTap: (latitude, longitude) {
+        debugPrint('Map tapped: $latitude, $longitude');
+      },
     );
   }
 
@@ -180,12 +251,26 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildInfoItem(Icons.directions_walk, 'Steps', '8,432'),
-                        _buildInfoItem(Icons.favorite, 'Heart Rate', '72'),
                         _buildInfoItem(
-                            Icons.thermostat, 'Temperature', '36.5°C'),
+                          Icons.directions_walk,
+                          LocalizationKeysAppWuy.wuyMapSteps.tr(context),
+                          '8,432',
+                        ),
                         _buildInfoItem(
-                            Icons.local_fire_department, 'Calories', '245'),
+                          Icons.favorite,
+                          LocalizationKeysAppWuy.wuyMapHeartRate.tr(context),
+                          '72',
+                        ),
+                        _buildInfoItem(
+                          Icons.thermostat,
+                          LocalizationKeysAppWuy.wuyMapTemperature.tr(context),
+                          '36.5°C',
+                        ),
+                        _buildInfoItem(
+                          Icons.local_fire_department,
+                          LocalizationKeysAppWuy.wuyMapCalories.tr(context),
+                          '245',
+                        ),
                       ],
                     ),
                   ),
@@ -243,17 +328,24 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(Icons.map, 'Map', true, null),
                 _buildNavItem(
-                    Icons.people,
-                    LocalizationKeysAppWuy.wuyMapFriends.tr(context),
-                    false,
-                    () => context.go(WuyAppRouter.getFriendsRoute())),
+                  Icons.map,
+                  LocalizationKeysAppWuy.wuyMapTitle.tr(context),
+                  true,
+                  null,
+                ),
                 _buildNavItem(
-                    Icons.person,
-                    LocalizationKeysAppWuy.wuyMapMine.tr(context),
-                    false,
-                    () => context.go(WuyAppRouter.getProfileRoute())),
+                  Icons.people,
+                  LocalizationKeysAppWuy.wuyMapFriends.tr(context),
+                  false,
+                  () => context.go(WuyAppRouter.getFriendsRoute()),
+                ),
+                _buildNavItem(
+                  Icons.person,
+                  LocalizationKeysAppWuy.wuyMapMine.tr(context),
+                  false,
+                  () => context.go(WuyAppRouter.getProfileRoute()),
+                ),
               ],
             ),
           ),

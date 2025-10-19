@@ -22,7 +22,7 @@ import '../../../models_app_wuy/search_filter_model_app_wuy.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
-import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 
 /// Search Screen for Wuy App
 ///
@@ -80,8 +80,9 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
 
     try {
       // Load all friends from data manager
-      final dataManager = WuyDataManager.instance;
-      final allFriends = await dataManager.getFriends();
+      final dataManager = WuyUnifiedService();
+      final response = await dataManager.getFriends();
+      final allFriends = response.data ?? [];
 
       // Filter friends based on search criteria
       final filteredResults = allFriends.where((friend) {
@@ -372,7 +373,6 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       ),
     );
   }
-
 
   Widget _buildSearchResults() {
     if (_isSearching) {

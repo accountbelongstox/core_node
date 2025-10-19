@@ -24,13 +24,13 @@ import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../providers_app_wuy/wu_user_provider.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
 import '../../../widgets_app_wuy/wuy_common_background.dart';
-import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 
 /// Friends List Screen for Wuy App
-/// 
+///
 /// This screen displays a list of friends and provides search functionality.
 /// Users can view friend information and add new friends.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -67,13 +67,13 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
     });
 
     try {
-      final dataManager = WuyDataManager.instance;
-      final friends = await dataManager.getFriends();
+      final dataManager = WuyUnifiedService();
+      final response = await dataManager.getFriends();
 
       if (mounted) {
         setState(() {
-          _allFriends = friends;
-          _filteredFriends = friends;
+          _allFriends = response.data ?? [];
+          _filteredFriends = response.data ?? [];
           _isLoading = false;
         });
       }
@@ -95,9 +95,12 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
         _filteredFriends = _allFriends;
       } else {
         _filteredFriends = _allFriends.where((friend) {
-          return friend.displayName.toLowerCase().contains(query.toLowerCase()) ||
-                 (friend.username?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
-                 (friend.phoneNumber?.contains(query) ?? false);
+          return friend.displayName
+                  .toLowerCase()
+                  .contains(query.toLowerCase()) ||
+              (friend.username?.toLowerCase().contains(query.toLowerCase()) ??
+                  false) ||
+              (friend.phoneNumber?.contains(query) ?? false);
         }).toList();
       }
     });
@@ -201,7 +204,8 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
                   context.go(WuyAppRouter.routeFindFriends);
                 },
                 style: WuyAppThemeConfig.wuyPrimaryButton,
-                child: Text(LocalizationKeysAppWuy.wuyFriendsAddFriend.tr(context)),
+                child: Text(
+                    LocalizationKeysAppWuy.wuyFriendsAddFriend.tr(context)),
               ),
             ],
           ],
@@ -232,8 +236,8 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
         ),
         leading: CircleAvatar(
           radius: WuyAppThemeConfig.wuyAvatarRadius,
-          backgroundColor: friend.isOnline 
-              ? WuyAppThemeConfig.wuyOnlineColor 
+          backgroundColor: friend.isOnline
+              ? WuyAppThemeConfig.wuyOnlineColor
               : WuyAppThemeConfig.wuyOfflineColor,
           child: Icon(
             Icons.person,
@@ -251,14 +255,16 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
             IconButton(
               icon: const Icon(Icons.chat, size: 20),
               onPressed: () {
-                context.go('${WuyAppRouter.routeChat.replaceAll(':id', friend.id)}?name=${Uri.encodeComponent(friend.displayName)}');
+                context.go(
+                    '${WuyAppRouter.routeChat.replaceAll(':id', friend.id)}?name=${Uri.encodeComponent(friend.displayName)}');
               },
               tooltip: 'Chat',
             ),
             IconButton(
               icon: const Icon(Icons.info_outline, size: 20),
               onPressed: () {
-                context.go(WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
+                context.go(
+                    WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
               },
               tooltip: 'Info',
             ),
@@ -276,6 +282,4 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
       ),
     );
   }
-
 }
-

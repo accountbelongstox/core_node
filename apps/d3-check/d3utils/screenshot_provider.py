@@ -14,6 +14,7 @@ Features:
 
 import os
 import sys
+import tkinter as tk
 from typing import Optional, Tuple, Dict
 from pathlib import Path
 from datetime import datetime
@@ -34,8 +35,9 @@ from d3utils.game_window_detector import GameWindowDetector
 project_root_for_import = os.path.dirname(current_dir)
 sys.path.insert(0, project_root_for_import)
 from providor.providor_index import TMP_DIR, TEMPLATE_DIR
-from share import get_game_interface_data, update_global_scale
+from share import get_game_interface_data, update_global_scale, get_screen_resolution
 DEBUG = False
+
 
 class ScreenshotData:
     """
@@ -229,9 +231,14 @@ class ScreenshotProvider:
                 return None
 
             fullscreen_path = result["screenshot_path"]
-            fullscreen_size = result["window_size"]
+            captured_size = result["window_size"]  # This is the captured window size
 
-            ColorPrint.green(f"[Provider] Screenshot captured: {fullscreen_size[0]}x{fullscreen_size[1]}")
+            # Get actual screen resolution
+            screen_width, screen_height = get_screen_resolution()
+            screen_resolution = (screen_width, screen_height)
+
+            ColorPrint.green(f"[Provider] Screenshot captured: {captured_size[0]}x{captured_size[1]}")
+            ColorPrint.green(f"[Provider] Screen resolution: {screen_resolution[0]}x{screen_resolution[1]}")
 
             # Load image to memory
             fullscreen_image = Image.open(str(fullscreen_path))
@@ -251,8 +258,9 @@ class ScreenshotProvider:
                 ColorPrint.green(f"[Provider] Optimized mode: using captured game window directly")
 
                 game_window_image = fullscreen_image  # The captured image is game window
-                game_window_size = fullscreen_size
-                game_window_rect = (0, 0, fullscreen_size[0], fullscreen_size[1])
+                game_window_size = captured_size  # Use actual captured window size, not screen resolution
+                game_window_rect = (0, 0, captured_size[0], captured_size[1])
+                fullscreen_size = screen_resolution  # Use screen resolution for fullscreen_size
 
                 # Get window offset from cache
                 from pyfoundations.encyclopedia import ENCYCLOPEDIA
@@ -282,14 +290,15 @@ class ScreenshotProvider:
                     game_window_image=game_window_image,  # The actual captured game window
                     game_window_rect=game_window_rect,
                     window_offset=window_offset,
-                    fullscreen_size=fullscreen_size,  # Game window size (no true fullscreen)
-                    game_window_size=game_window_size,
+                    fullscreen_size=fullscreen_size,  # Screen resolution
+                    game_window_size=game_window_size,  # Actual captured window size
                     timestamp=timestamp
                 )
 
             else:
                 # Normal mode: fullscreen_image is actual fullscreen, need to detect and crop game window
                 ColorPrint.blue("[Provider] Normal mode: detecting game window from fullscreen...")
+                fullscreen_size = screen_resolution  # Use screen resolution for fullscreen_size
                 detection_result = self.window_detector.detect_game_window(str(fullscreen_path))
 
                 # Clean up temporary full screen file

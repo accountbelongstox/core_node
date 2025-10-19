@@ -23,6 +23,9 @@ from providor.providor_index import CONFIG, save_config
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
 
+# Import map name utilities
+from controller.d4func.map_name_utils import get_current_map_name_from_shared_data
+
 # Import D4 controller and state
 from controller.d4_controller import get_d4_controller
 # D4State functionality now integrated into D4InterfaceData
@@ -175,7 +178,8 @@ class D4Panel:
         main_frame.grid_columnconfigure(0, weight=1)
         main_frame.grid_rowconfigure(0, weight=0)  # Control buttons
         main_frame.grid_rowconfigure(1, weight=0)  # Game status area
-        main_frame.grid_rowconfigure(2, weight=1)  # Log area
+        main_frame.grid_rowconfigure(2, weight=0)  # Debug button area (NEW)
+        main_frame.grid_rowconfigure(3, weight=1)  # Log area
 
         # Control buttons frame
         control_frame = tk.Frame(main_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
@@ -198,11 +202,14 @@ class D4Panel:
         # Game status frame
         self._create_game_status_area(main_frame)
 
+        # Debug button area (NEW)
+        self._create_debug_button_area(main_frame)
+
         # Log display frame
         log_frame = ttk.LabelFrame(main_frame,
                                   text=i18n_manager.get_ui_text("d4_panel.exp_farming.log_title"),
                                   style='TLabelframe')
-        log_frame.grid(row=2, column=0, sticky="nsew",
+        log_frame.grid(row=3, column=0, sticky="nsew",
                       padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['sm'])
         log_frame.grid_columnconfigure(0, weight=1)
@@ -353,11 +360,11 @@ class D4Panel:
         self._create_status_label(status_frame, 0, 3, "d4_panel.exp_farming.game_status.dungeon_progress", "dungeon_progress")
         self._create_status_label(status_frame, 0, 4, "d4_panel.exp_farming.game_status.d4_running_status", "d4_running_status")
 
-        # Status labels - Row 2 (Screen info and reserved values)
+        # Status labels - Row 2 (Screen info and map switching)
         self._create_status_label(status_frame, 1, 0, "d4_panel.exp_farming.game_status.screen_coordinates", "screen_coordinates")
         self._create_status_label(status_frame, 1, 1, "d4_panel.exp_farming.game_status.screen_size", "screen_size")
-        self._create_status_label(status_frame, 1, 2, "d4_panel.exp_farming.game_status.reserved", "reserved_2")
-        self._create_status_label(status_frame, 1, 3, "d4_panel.exp_farming.game_status.reserved", "reserved_3")
+        self._create_status_label(status_frame, 1, 2, "d4_panel.exp_farming.game_status.map_switch_count", "map_switch_count")
+        self._create_status_label(status_frame, 1, 3, "d4_panel.exp_farming.game_status.map_switch_state", "map_switch_state")
         self._create_status_label(status_frame, 1, 4, "d4_panel.exp_farming.game_status.reserved", "reserved_4")
 
         # Status labels - Row 3 (Reserved values 5-10)
@@ -418,10 +425,8 @@ class D4Panel:
         from share.game_interface_data import get_d4_interface_data
         d4_data = get_d4_interface_data()
 
-        # Update current map
-        current_map = "Unknown"
-        if d4_data.detected_regions and 'map_name' in d4_data.detected_regions:
-            current_map = d4_data.detected_regions['map_name']
+        # Update current map using unified method
+        current_map = get_current_map_name_from_shared_data()
         self._update_status_value("current_map", current_map)
 
         # Update game state
@@ -476,8 +481,22 @@ class D4Panel:
             screen_size = f"{width}x{height} ({mode})"
         self._update_status_value("screen_size", screen_size)
 
-        # Initialize reserved values
-        for i in range(2, 10):  # reserved_2 to reserved_9
+        # Update map switch count
+        map_switch_count = d4_data.map_switch_count if hasattr(d4_data, 'map_switch_count') else 0
+        self._update_status_value("map_switch_count", str(map_switch_count))
+
+        # Update map switch state
+        map_switch_state = "-"
+        if hasattr(d4_data, 'is_switching_map') and d4_data.is_switching_map:
+            map_switch_state = "Switching"
+        elif hasattr(d4_data, 'is_post_switch_idle') and d4_data.is_post_switch_idle:
+            map_switch_state = "Post-Switch"
+        else:
+            map_switch_state = "Normal"
+        self._update_status_value("map_switch_state", map_switch_state)
+
+        # Initialize reserved values (4-9)
+        for i in range(4, 10):  # reserved_4 to reserved_9
             self._update_status_value(f"reserved_{i}", "-")
 
     def _update_status_value(self, key, value):
@@ -575,3 +594,62 @@ class D4Panel:
         
         # Return original value for other cases
         return value
+
+    def _create_debug_button_area(self, parent):
+        """
+        Create debug button area below game status area
+
+        Args:
+            parent: Parent widget
+        """
+        # Debug button frame
+        debug_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
+        debug_frame.grid(row=2, column=0, sticky="ew",
+                        padx=UnifiedStyles.SPACING['sm'],
+                        pady=UnifiedStyles.SPACING['xs'])
+        debug_frame.grid_columnconfigure(0, weight=1)
+
+        # Debug button
+        self.debug_btn = tk.Button(debug_frame,
+                                   text="Debug Images",
+                                   bg=UnifiedStyles.COLORS['btn_primary'],
+                                   fg=UnifiedStyles.COLORS['text_primary'],
+                                   font=UnifiedStyles.FONTS['button'],
+                                   command=self._toggle_debug_window,
+                                   relief=tk.FLAT,
+                                   padx=UnifiedStyles.SPACING['md'],
+                                   pady=UnifiedStyles.SPACING['xs'])
+        self.debug_btn.grid(row=0, column=0, sticky="ew",
+                           padx=UnifiedStyles.SPACING['xs'],
+                           pady=UnifiedStyles.SPACING['xs'])
+
+    def _toggle_debug_window(self):
+        """Toggle debug window visibility"""
+        try:
+            from share.game_interface_data import get_d4_interface_data
+            from ui.components.debug_window import get_debug_window
+
+            d4_data = get_d4_interface_data()
+
+            if not d4_data.debug_window_open:
+                # Open debug window
+                debug_window = get_debug_window(self.parent)
+                if debug_window:
+                    d4_data.debug_window_open = True
+                    self.debug_btn.config(bg=UnifiedStyles.COLORS['accent'])
+                    ColorPrint.green("[D4Panel] Debug window opened")
+                    
+                    # Debug window will be automatically updated by the timer system
+                    ColorPrint.blue("[D4Panel] Debug window will be updated automatically by timer")
+            else:
+                # Close debug window
+                from ui.components.debug_window import close_debug_window
+                close_debug_window()
+                d4_data.debug_window_open = False
+                self.debug_btn.config(bg=UnifiedStyles.COLORS['btn_primary'])
+                ColorPrint.yellow("[D4Panel] Debug window closed")
+
+        except Exception as e:
+            ColorPrint.red(f"[D4Panel] Error toggling debug window: {e}")
+            import traceback
+            traceback.print_exc()

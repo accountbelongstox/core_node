@@ -648,10 +648,36 @@ function Invoke-BuildMode {
             return $false
         }
 
-        # Display build configuration
-        Write-Host "[INFO] $selectedApp [$selectedAction/$compilationPlatform] - Build Mode" -ForegroundColor Cyan
+        # Get entry file and build script path
+        $entryFile = Get-FileVariable -Name $Global:KEY_SELECTED_ENTRY_FILE -DefaultValue ""
+        $buildScriptPath = Get-FileVariable -Name $Global:KEY_BUILD_SCRIPT_PATH -DefaultValue ""
+
+        # Display build configuration summary
+        Write-Host ""
+        Write-Host "================================================================" -ForegroundColor Cyan
+        Write-Host "  BUILD CONFIGURATION SUMMARY" -ForegroundColor Yellow
+        Write-Host "================================================================" -ForegroundColor Cyan
+        Write-Host "[INFO] App: $selectedApp" -ForegroundColor White
+        Write-Host "[INFO] Mode: $selectedAction / $compilationPlatform" -ForegroundColor White
+        Write-Host "[INFO] Entry File: $entryFile" -ForegroundColor Green
         Write-Host "[INFO] Build Root: $buildRoot" -ForegroundColor Gray
         Write-Host "[INFO] Expected Output: $apkFileName" -ForegroundColor Gray
+
+        # Extract and display Flutter command from build script
+        if ($buildScriptPath -and (Test-Path $buildScriptPath)) {
+            try {
+                $flutterCommandLine = Select-String -Path $buildScriptPath -Pattern "Invoke-Expression " | Select-Object -First 1
+                if ($flutterCommandLine) {
+                    # Extract the flutter command from Invoke-Expression line
+                    $commandText = $flutterCommandLine.Line -replace '.*Invoke-Expression\s+"([^"]+)".*', '$1'
+                    Write-Host "[INFO] Flutter Command: $commandText" -ForegroundColor Cyan
+                }
+            } catch {
+                Write-Host "[INFO] Could not extract Flutter command from script" -ForegroundColor Yellow
+            }
+        }
+        Write-Host "================================================================" -ForegroundColor Cyan
+        Write-Host ""
 
         # Change to build root directory
         Write-Host "[BUILD] Switching to build root: '$buildRoot'" -ForegroundColor Yellow
@@ -701,7 +727,8 @@ function Invoke-BuildMode {
             if ($buildScriptPath -and (Test-Path $buildScriptPath)) {
                 Write-Host "[BUILD] Build Script: $buildScriptPath" -ForegroundColor Gray
                 Write-Host "[BUILD] Log File: $logFile" -ForegroundColor Gray
-                & powershell -File $buildScriptPath
+                # Execute script in current process for real-time output (not & powershell -File)
+                & $buildScriptPath
             } elseif ($buildCommand -and $buildCommand.Trim() -ne "") {
                 Write-Host "[BUILD] Build Command: $buildCommand" -ForegroundColor Gray
                 Write-Host "[BUILD] Log File: $logFile" -ForegroundColor Gray

@@ -4,6 +4,10 @@
 
 ```
 d3-check/
+├── apps/
+│   └── d3-check/
+│       └── controller/
+│           └── d4func/
 ├── config/
 │   ├── datasets/
 │   │   └── d3_ui/
@@ -19,6 +23,23 @@ d3-check/
 │   │   ├── __init__.py
 │   │   ├── blacksmith_handler.py
 │   │   └── kanai_cube_handler.py
+│   ├── d4func/
+│   │   ├── events/
+│   │   │   ├── __init__.py
+│   │   │   ├── event_manager.py
+│   │   │   ├── exp_farming_events.py
+│   │   │   ├── game_state_events.py
+│   │   │   ├── screen_events.py
+│   │   │   └── team_health_events.py
+│   │   ├── __init__.py
+│   │   ├── exp_farming.py
+│   │   ├── image_annotator.py
+│   │   ├── map_name_recognizer.py
+│   │   ├── map_name_utils.py
+│   │   ├── map_switch_detector.py
+│   │   ├── region_detector.py
+│   │   ├── screenshot_handler.py
+│   │   └── ui_status_updater.py
 │   ├── training/
 │   │   ├── __init__.py
 │   │   └── simple_training_controller.py
@@ -42,6 +63,7 @@ d3-check/
 │   │   ├── __init__.py
 │   │   ├── hotkey_registry.py
 │   │   └── image_annotator_helper.py
+│   ├── share/
 │   ├── d3utils_tree.md
 │   ├── game_state.py
 │   ├── game_window_detector.py
@@ -62,13 +84,17 @@ d3-check/
 │   ├── model_registry.json
 │   ├── progress_bar_detector.json
 │   └── progress_bar_detector.pt
-├── d4_modules_detection/
 ├── d4utils/
 │   ├── __init__.py
-│   ├── d4_state.py
+│   ├── black_screen_detector.py
+│   ├── d4_scaled_template_matcher.py
 │   ├── red_portal_detector.py
-│   └── test_red_portal.py
+│   ├── small_map_detector.py
+│   ├── team_health_detector.py
+│   └── window_region_detector.py
 ├── images/
+│   ├── d4/
+│   │   └── small_map.jpg
 │   ├── bag_border.png
 │   ├── bag_buttom.png
 │   ├── bag_left.png
@@ -122,38 +148,22 @@ d3-check/
 │   ├── _obsolete_window_mapping_provider.py
 │   ├── common_imports.py
 │   ├── i18n_config.json
-│   ├── i18n_config.json.backup
 │   ├── providor_index.py
 │   └── template_config.json
-├── pycore/
-│   └── pyutils/
 ├── scripts/
-│   ├── legacy/
-│   │   ├── README.md
-│   │   ├── train_detection.py
-│   │   ├── train_old.py
-│   │   ├── validate_detection.py
-│   │   └── validate_models.py
-│   ├── output/
-│   │   ├── 微信截图_20251016030310_bars_detected.png
-│   │   └── 微信截图_20251016030310_bars_mask.png
-│   ├── README_color_detector.md
 │   ├── _obsolete_multi_scale_image_matcher.py
 │   ├── color_region_detector.py
-│   ├── d3planner_tooltip_test.py
+│   ├── interactive_menu.py
 │   ├── prepare_detection_training.py
 │   ├── prepare_progressbar_training.py
 │   ├── progress_bar_detector.py
 │   ├── progress_bar_detector_v2.py
 │   ├── reorganize_training_data.py
 │   ├── show_color_palette.py
-│   ├── test_color_detector.py
-│   └── test_image.png
+│   ├── template_matchertest.py
+│   └── testmenu.py
 ├── share/
 │   ├── __init__.py
-│   ├── d3_interface_data.py.bak
-│   ├── d4_interface_data.py.bak
-│   ├── game_interface_common.py.bak
 │   └── game_interface_data.py
 ├── state/
 │   ├── _obsolete_comprehensive_state_manager.py
@@ -167,6 +177,7 @@ d3-check/
 │   ├── components/
 │   │   ├── __init__.py
 │   │   ├── bottom_bar.py
+│   │   ├── debug_window.py
 │   │   ├── macro_controls.py
 │   │   ├── menu_bar.py
 │   │   ├── status_bar.py
@@ -225,18 +236,27 @@ d3-check/
 │   ├── _obsolete_window_activator.py
 │   ├── _obsolete_window_analyzer.py
 │   └── _obsolete_window_ops.py
-├── BarDetectionScript.md
-├── README_QUICK_START.md
-├── TRAINING_GUIDE.md
-├── UPDATE.md
-├── WORKFLOW_SUMMARY.md
+├── COORDINATE_VERIFICATION.md
+├── DATA_CONSISTENCY_FIX_REPORT.md
+├── DATA_FLOW_VERIFICATION_REPORT.md
+├── DEBUG_TROUBLESHOOTING.md
+├── DEBUG_WINDOW_FEATURE.md
+├── DEBUG_WINDOW_FEATURE_FINAL.md
+├── DEBUG_WINDOW_PAUSE_FEATURE.md
+├── DUNGEON_PROGRESS_FIX.md
+├── FIXES_SUMMARY.md
+├── IMPORT_ERROR_FIX_SUMMARY.md
+├── MAP_SWITCH_DETECTOR_FEATURE.md
+├── OCR_MAP_RECOGNITION_IMPLEMENTATION_SUMMARY.md
+├── OFFSET_DEBUGGING_REPORT.md
+├── REGION_CONSISTENCY_CHECK.md
+├── TRAINING_TIMESTAMP_GUIDE.md
 ├── d3-check_tree.md
+├── debug_window_offset.py
 ├── main.py
 ├── migrate_structure.py
 ├── task.txt
-├── test_image_enhancement.py
 ├── train.py
-├── tranlog.txt
 ├── validate.py
 ├── yolov8n-cls.pt
 └── yolov8n.pt
