@@ -1,0 +1,58 @@
+{
+  "success": true,
+  "file_path": "D:\\programing\\core_node\\apps\\d3-check\\.test\\skip.png",
+  "image_info": {
+    "original_size": null,
+    "processed_size": {
+      "width": 119,
+      "height": 73
+    },
+    "channels": 3,
+    "format": null,
+    "mode": "RGB"
+  },
+  "regions": {
+    "region": "full",
+    "region_info": {
+      "coordinates": {
+        "x1": 0,
+        "y1": 0,
+        "x2": 119,
+        "y2": 73
+      },
+      "width": 119,
+      "height": 73,
+      "total_pixels": 8687
+    },
+    "processing_info": {
+      "deduplicated": true,
+      "unique_colors": 1,
+      "color_tolerance": 0,
+      "sampling_strategy": "uniform",
+      "requested_sample_size": 500,
+      "actual_sample_size": 1
+    },
+    "hex_pixels": [
+      {
+        "color": "#000000",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "color_frequency": {
+      "unique_colors": 1,
+      "most_frequent": [
+        {
+          "rgb": [
+            0,
+            0,
+            0
+          ],
+          "hex": "#000000",
+          "count": 8687,
+          "percentage": 100.0
+        }
+      ]
+    }
+  }
+}
