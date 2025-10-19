@@ -90,14 +90,14 @@ class DebugWindow:
         button_frame = tk.Frame(scrollable_frame, bg=UnifiedStyles.COLORS['bg_primary'])
         button_frame.pack(pady=5)
 
-        # Refresh button
-        refresh_btn = tk.Button(button_frame,
-                               text="Refresh Images",
-                               bg=UnifiedStyles.COLORS['btn_primary'],
-                               fg=UnifiedStyles.COLORS['text_primary'],
-                               font=UnifiedStyles.FONTS['button'],
-                               command=self._refresh_images)
-        refresh_btn.pack(side=tk.LEFT, padx=5)
+        # Pause/Continue button (initially shows "Pause Updates")
+        self.pause_btn = tk.Button(button_frame,
+                                   text="Pause Updates",
+                                   bg=UnifiedStyles.COLORS['btn_warning'],
+                                   fg=UnifiedStyles.COLORS['text_primary'],
+                                   font=UnifiedStyles.FONTS['button'],
+                                   command=self._toggle_pause)
+        self.pause_btn.pack(side=tk.LEFT, padx=5)
 
         # Close button
         close_btn = tk.Button(button_frame,
@@ -125,6 +125,7 @@ class DebugWindow:
             ('Equipment Right', 'Equipment Right'),
             ('Blacksmith Function', 'Blacksmith Function'),
             ('Map Name', 'Map Name'),
+            ('Dungeon Progress', 'Dungeon Progress Bar'),
         ]
 
         # Create a container for two-column layout
@@ -204,13 +205,23 @@ class DebugWindow:
                 if region_key in region_images and region_images[region_key] is not None:
                     # Get image from detected_regions
                     pil_image = region_images[region_key]
+                    
+                    # Safety check: ensure image is valid
+                    if pil_image is None or pil_image.width <= 0 or pil_image.height <= 0:
+                        ColorPrint.yellow(f"[DebugWindow] Invalid image for '{region_key}': {pil_image.width if pil_image else 'None'}x{pil_image.height if pil_image else 'None'}")
+                        img_label.configure(image="", text="Invalid Image")
+                        continue
 
                     # Resize image to fit two-column layout (max 300px per column)
                     max_width = 300
                     if pil_image.width > max_width:
                         ratio = max_width / pil_image.width
                         new_height = int(pil_image.height * ratio)
-                        pil_image = pil_image.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                        # Safety check: ensure dimensions are valid
+                        if new_height > 0 and max_width > 0:
+                            pil_image = pil_image.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                        else:
+                            ColorPrint.yellow(f"[DebugWindow] Invalid dimensions for '{region_key}': {max_width}x{new_height}, skipping resize")
 
                     # Convert to PhotoImage
                     photo_image = ImageTk.PhotoImage(pil_image)
@@ -234,18 +245,30 @@ class DebugWindow:
             import traceback
             traceback.print_exc()
 
-    def _refresh_images(self):
-        """Refresh debug images manually"""
+    def _toggle_pause(self):
+        """Toggle pause/continue state for image updates"""
         try:
-            ColorPrint.blue("[DebugWindow] Manual refresh requested...")
-            
-            # Trigger a manual update by calling the existing update method
-            # The D4 controller will handle the screenshot and region detection automatically
-            self.update_images()
-            ColorPrint.green("[DebugWindow] Manual refresh completed")
-                
+            # Toggle pause state in shared data
+            self.d4_data.debug_window_paused = not self.d4_data.debug_window_paused
+
+            # Update button appearance based on state
+            if self.d4_data.debug_window_paused:
+                # Currently paused - button shows "Continue Updates"
+                self.pause_btn.config(
+                    text="Continue Updates",
+                    bg=UnifiedStyles.COLORS['btn_success']
+                )
+                ColorPrint.yellow("[DebugWindow] Image updates PAUSED - viewing frozen snapshot")
+            else:
+                # Currently running - button shows "Pause Updates"
+                self.pause_btn.config(
+                    text="Pause Updates",
+                    bg=UnifiedStyles.COLORS['btn_warning']
+                )
+                ColorPrint.green("[DebugWindow] Image updates RESUMED")
+
         except Exception as e:
-            ColorPrint.red(f"[DebugWindow] Error in manual refresh: {e}")
+            ColorPrint.red(f"[DebugWindow] Error toggling pause: {e}")
             import traceback
             traceback.print_exc()
 

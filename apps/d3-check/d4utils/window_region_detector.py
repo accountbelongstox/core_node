@@ -117,6 +117,9 @@ class D4WindowRegionDetector:
 
                 # Team vote region
                 ("Team Vote", D4_STANDARD_COORDS.team_vote_region_start, D4_STANDARD_COORDS.team_vote_region_end),
+
+                # Dungeon progress bar
+                ("Dungeon Progress", D4_STANDARD_COORDS.dungeon_progress_start, D4_STANDARD_COORDS.dungeon_progress_end),
             ]
 
             # Define points to detect

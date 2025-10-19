@@ -194,6 +194,15 @@ class LocalizationKeysAppWuy {
   static const String wuyMapViewDetails = "wuy.map.view_details";
   static const String wuyMapFriends = "wuy.map.friends";
   static const String wuyMapMine = "wuy.map.mine";
+  static const String wuyMapCenterLocation = "wuy.map.center_location";
+  static const String wuyMapStyleTitle = "wuy.map.style_title";
+  static const String wuyMapStyleNormal = "wuy.map.style_normal";
+  static const String wuyMapStyleSatellite = "wuy.map.style_satellite";
+  static const String wuyMapStyleDark = "wuy.map.style_dark";
+  static const String wuyMapStyleLight = "wuy.map.style_light";
+  static const String wuyMapStyleTraffic = "wuy.map.style_traffic";
+  static const String wuyMapZoomIn = "wuy.map.zoom_in";
+  static const String wuyMapZoomOut = "wuy.map.zoom_out";
 
   // Profile screen
   static const String wuyProfileUsername = "wuy.profile.username";

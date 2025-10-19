@@ -154,6 +154,9 @@ class ImageAnnotator:
 
                 # Team vote region
                 ("Team Vote", D4_STANDARD_COORDS.team_vote_region_start, D4_STANDARD_COORDS.team_vote_region_end, ANNOTATION_COLORS["coral"]),
+
+                # Dungeon progress bar
+                ("Dungeon Progress", D4_STANDARD_COORDS.dungeon_progress_start, D4_STANDARD_COORDS.dungeon_progress_end, ANNOTATION_COLORS["cyan"]),
             ]
 
             # Define points to visualize

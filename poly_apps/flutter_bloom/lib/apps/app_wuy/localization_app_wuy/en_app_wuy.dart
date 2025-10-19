@@ -178,6 +178,15 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyMapViewDetails: 'View Details',
     LocalizationKeysAppWuy.wuyMapFriends: 'Friends',
     LocalizationKeysAppWuy.wuyMapMine: 'Mine',
+    LocalizationKeysAppWuy.wuyMapCenterLocation: 'Centered on current location',
+    LocalizationKeysAppWuy.wuyMapStyleTitle: 'Map Style',
+    LocalizationKeysAppWuy.wuyMapStyleNormal: 'Normal',
+    LocalizationKeysAppWuy.wuyMapStyleSatellite: 'Satellite',
+    LocalizationKeysAppWuy.wuyMapStyleDark: 'Dark',
+    LocalizationKeysAppWuy.wuyMapStyleLight: 'Light',
+    LocalizationKeysAppWuy.wuyMapStyleTraffic: 'Traffic',
+    LocalizationKeysAppWuy.wuyMapZoomIn: 'Zoom In',
+    LocalizationKeysAppWuy.wuyMapZoomOut: 'Zoom Out',
 
     // Profile screen
     LocalizationKeysAppWuy.wuyProfileUsername: 'Username',

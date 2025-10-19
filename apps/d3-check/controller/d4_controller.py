@@ -120,8 +120,13 @@ class D4Controller:
                     ColorPrint.blue("[D4Controller] About to call detect_regions_from_shared_data...")
                     detection_success = region_detector.detect_regions_from_shared_data()
                     ColorPrint.blue(f"[D4Controller] Region detection result: {detection_success}")
-                    
+
                     if detection_success:
+                        # Step 3: Detect map switching (monitors Map Name region for black screen)
+                        from .d4func.map_switch_detector import get_map_switch_detector
+                        map_switch_detector = get_map_switch_detector()
+                        map_switch_detector.detect_map_switch()
+
                         # Update debug window with new data
                         self._update_debug_window_if_open()
                     else:
