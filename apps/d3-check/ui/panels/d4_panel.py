@@ -23,6 +23,9 @@ from providor.providor_index import CONFIG, save_config
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
 
+# Import map name utilities
+from controller.d4func.map_name_utils import get_current_map_name_from_shared_data
+
 # Import D4 controller and state
 from controller.d4_controller import get_d4_controller
 # D4State functionality now integrated into D4InterfaceData
@@ -422,10 +425,8 @@ class D4Panel:
         from share.game_interface_data import get_d4_interface_data
         d4_data = get_d4_interface_data()
 
-        # Update current map
-        current_map = "Unknown"
-        if d4_data.detected_regions and 'map_name' in d4_data.detected_regions:
-            current_map = d4_data.detected_regions['map_name']
+        # Update current map using unified method
+        current_map = get_current_map_name_from_shared_data()
         self._update_status_value("current_map", current_map)
 
         # Update game state

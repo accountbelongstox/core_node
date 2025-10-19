@@ -76,11 +76,15 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
         id: 'marker_1',
         latitude: 39.908823,
         longitude: 116.397470,
-        title: 'Beijing',
-        snippet: 'Capital of China',
+        title: LocalizationKeysAppWuy.wuyMapBeijing.tr(context),
+        snippet: LocalizationKeysAppWuy.wuyMapCapitalOfChina.tr(context),
         onTap: () {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Beijing marker tapped')),
+            SnackBar(
+              content: Text(
+                '${LocalizationKeysAppWuy.wuyMapBeijing.tr(context)} ${LocalizationKeysAppWuy.wuyMapMarkerTapped.tr(context)}',
+              ),
+            ),
           );
         },
       ),
@@ -247,12 +251,26 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildInfoItem(Icons.directions_walk, 'Steps', '8,432'),
-                        _buildInfoItem(Icons.favorite, 'Heart Rate', '72'),
                         _buildInfoItem(
-                            Icons.thermostat, 'Temperature', '36.5°C'),
+                          Icons.directions_walk,
+                          LocalizationKeysAppWuy.wuyMapSteps.tr(context),
+                          '8,432',
+                        ),
                         _buildInfoItem(
-                            Icons.local_fire_department, 'Calories', '245'),
+                          Icons.favorite,
+                          LocalizationKeysAppWuy.wuyMapHeartRate.tr(context),
+                          '72',
+                        ),
+                        _buildInfoItem(
+                          Icons.thermostat,
+                          LocalizationKeysAppWuy.wuyMapTemperature.tr(context),
+                          '36.5°C',
+                        ),
+                        _buildInfoItem(
+                          Icons.local_fire_department,
+                          LocalizationKeysAppWuy.wuyMapCalories.tr(context),
+                          '245',
+                        ),
                       ],
                     ),
                   ),
@@ -310,17 +328,24 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(Icons.map, 'Map', true, null),
                 _buildNavItem(
-                    Icons.people,
-                    LocalizationKeysAppWuy.wuyMapFriends.tr(context),
-                    false,
-                    () => context.go(WuyAppRouter.getFriendsRoute())),
+                  Icons.map,
+                  LocalizationKeysAppWuy.wuyMapTitle.tr(context),
+                  true,
+                  null,
+                ),
                 _buildNavItem(
-                    Icons.person,
-                    LocalizationKeysAppWuy.wuyMapMine.tr(context),
-                    false,
-                    () => context.go(WuyAppRouter.getProfileRoute())),
+                  Icons.people,
+                  LocalizationKeysAppWuy.wuyMapFriends.tr(context),
+                  false,
+                  () => context.go(WuyAppRouter.getFriendsRoute()),
+                ),
+                _buildNavItem(
+                  Icons.person,
+                  LocalizationKeysAppWuy.wuyMapMine.tr(context),
+                  false,
+                  () => context.go(WuyAppRouter.getProfileRoute()),
+                ),
               ],
             ),
           ),

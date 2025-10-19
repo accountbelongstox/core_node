@@ -84,6 +84,9 @@ class MapSwitchDetector:
                 self.d4_data.is_post_switch_idle = True
                 self.d4_data.map_switch_count += 1
                 ColorPrint.green(f"[MapSwitchDetector] ✅ Map switch completed (count: {self.d4_data.map_switch_count})")
+                
+                # Trigger map name recognition when switching to post-switch idle
+                self._trigger_map_name_recognition()
 
             elif is_currently_black:
                 # Still switching (black screen persists)
@@ -105,6 +108,25 @@ class MapSwitchDetector:
             import traceback
             traceback.print_exc()
             return False
+
+    def _trigger_map_name_recognition(self):
+        """
+        Trigger map name recognition when switching to post-switch idle state
+        """
+        try:
+            from .map_name_recognizer import get_map_name_recognizer
+            
+            # Get map name recognizer and attempt recognition
+            map_recognizer = get_map_name_recognizer()
+            recognition_success = map_recognizer.recognize_map_name()
+            
+            if recognition_success:
+                ColorPrint.blue("[MapSwitchDetector] Map name recognition triggered successfully")
+            else:
+                ColorPrint.yellow("[MapSwitchDetector] Map name recognition not triggered or failed")
+                
+        except Exception as e:
+            ColorPrint.red(f"[MapSwitchDetector] Error triggering map name recognition: {e}")
 
     def reset_post_switch_idle(self):
         """

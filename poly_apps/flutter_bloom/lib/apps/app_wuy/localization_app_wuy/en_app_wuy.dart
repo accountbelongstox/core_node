@@ -187,6 +187,13 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyMapStyleTraffic: 'Traffic',
     LocalizationKeysAppWuy.wuyMapZoomIn: 'Zoom In',
     LocalizationKeysAppWuy.wuyMapZoomOut: 'Zoom Out',
+    LocalizationKeysAppWuy.wuyMapMarkerTapped: 'marker tapped',
+    LocalizationKeysAppWuy.wuyMapBeijing: 'Beijing',
+    LocalizationKeysAppWuy.wuyMapCapitalOfChina: 'Capital of China',
+    LocalizationKeysAppWuy.wuyMapSteps: 'Steps',
+    LocalizationKeysAppWuy.wuyMapHeartRate: 'Heart Rate',
+    LocalizationKeysAppWuy.wuyMapTemperature: 'Temperature',
+    LocalizationKeysAppWuy.wuyMapCalories: 'Calories',
 
     // Profile screen
     LocalizationKeysAppWuy.wuyProfileUsername: 'Username',
