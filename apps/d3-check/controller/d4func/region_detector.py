@@ -157,6 +157,18 @@ class RegionDetector:
                 ("Team Count", D4_STANDARD_COORDS.team_count_region_start, D4_STANDARD_COORDS.team_count_region_end),
                 ("Team Vote", D4_STANDARD_COORDS.team_vote_region_start, D4_STANDARD_COORDS.team_vote_region_end),
                 ("Dungeon Progress", D4_STANDARD_COORDS.dungeon_progress_start, D4_STANDARD_COORDS.dungeon_progress_end),
+                ("Find Team", D4_STANDARD_COORDS.find_team_region_start, D4_STANDARD_COORDS.find_team_region_end),
+                ("Form Team", D4_STANDARD_COORDS.form_team_region_start, D4_STANDARD_COORDS.form_team_region_end),
+                ("Activity Selection", D4_STANDARD_COORDS.activity_selection_region_start, D4_STANDARD_COORDS.activity_selection_region_end),
+                ("Min Tier Input", D4_STANDARD_COORDS.min_tier_input_region_start, D4_STANDARD_COORDS.min_tier_input_region_end),
+                ("Max Tier Input", D4_STANDARD_COORDS.max_tier_input_region_start, D4_STANDARD_COORDS.max_tier_input_region_end),
+                ("Confirm Team", D4_STANDARD_COORDS.confirm_team_button_start, D4_STANDARD_COORDS.confirm_team_button_end),
+                ("Panel Close", D4_STANDARD_COORDS.panel_close_button_start, D4_STANDARD_COORDS.panel_close_button_end),
+            ]
+
+            # Define single-point regions (displayed as small squares)
+            point_regions_to_extract = [
+                ("Min Tier Click", D4_STANDARD_COORDS.min_tier_input_point),
             ]
 
             # Extract each region
@@ -199,8 +211,47 @@ class RegionDetector:
                     ColorPrint.red(f"[RegionDetector] Error extracting {label}: {e}")
                     continue
 
+            # Extract point regions (create small 10x10 squares around points)
+            for label, point_coord in point_regions_to_extract:
+                try:
+                    # Calculate scaled coordinate for the point
+                    scaled_point = calculate_unified_scaled_coordinate(
+                        point_coord,
+                        game_window_size,
+                        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+                        is_windowed
+                    )
+
+                    # Create a small 10x10 region around the point
+                    square_size = 10
+                    half_size = square_size // 2
+                    region_start = (scaled_point[0] - half_size, scaled_point[1] - half_size)
+                    region_end = (scaled_point[0] + half_size, scaled_point[1] + half_size)
+
+                    # Ensure coordinates are within image bounds
+                    img_width, img_height = game_window_image.size
+                    region_start = (max(0, region_start[0]), max(0, region_start[1]))
+                    region_end = (min(img_width, region_end[0]), min(img_height, region_end[1]))
+
+                    # Extract region using ImageCrop
+                    region_crop = ImageCrop.crop_region(
+                        game_window_image,
+                        region_start,
+                        region_end,
+                        output_format="pil"
+                    )
+
+                    # Store in detected_regions['region_images']
+                    self.d4_data.detected_regions['region_images'][label] = region_crop.copy()
+                    ColorPrint.green(f"[RegionDetector] ✓ Extracted point '{label}' - Size: {region_crop.size}")
+
+                except Exception as e:
+                    ColorPrint.red(f"[RegionDetector] Error extracting point {label}: {e}")
+                    continue
+
+            total_regions = len(regions_to_extract) + len(point_regions_to_extract)
             region_count = len(self.d4_data.detected_regions.get('region_images', {}))
-            ColorPrint.green(f"[RegionDetector] Extracted {region_count}/{len(regions_to_extract)} regions to detected_regions")
+            ColorPrint.green(f"[RegionDetector] Extracted {region_count}/{total_regions} regions to detected_regions")
             ColorPrint.green(f"[RegionDetector] Region keys: {list(self.d4_data.detected_regions.get('region_images', {}).keys())}")
 
         except Exception as e:

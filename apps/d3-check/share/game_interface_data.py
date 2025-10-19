@@ -53,9 +53,40 @@ def get_screen_resolution() -> tuple[int, int]:
         print(f"[GameInterfaceData] Screen resolution cached: {screen_width}x{screen_height}")
     return _screen_resolution
 
-# Window mode constants for coordinate calculation
-TITLE_BAR_HEIGHT = 31  # Fixed title bar height in windowed mode
-WINDOW_BORDER_WIDTH = 8  # Fixed border width (left, right, bottom) in windowed mode
+# ============================================================================
+# Window Border and Title Bar Constants
+# ============================================================================
+# These constants define the window frame dimensions for coordinate calculations
+# All coordinate conversion functions MUST use these constants
+#
+# Measured from actual D4 window:
+# - Window reported by GetWindowRect: offset (731, 17), size 1826x1031
+# - Actual title bar clickable range: (740, 16) to (2550, 47)
+#
+# Calculated values:
+# - LEFT_BORDER: 740 - 731 = 9px
+# - RIGHT_BORDER: 731 + 1826 - 2550 = 7px
+# - TOP_OFFSET: 16 - 17 = -1px (title bar starts 1px above window rect)
+# - TITLE_BAR_HEIGHT: 47 - 16 = 31px
+# - BOTTOM_BORDER: Same as standard Windows window (8px)
+#
+# ============================================================================
+
+# Title bar dimensions
+TITLE_BAR_HEIGHT = 31  # Title bar height in pixels (measured)
+TITLE_BAR_TOP_OFFSET = -1  # Title bar starts 1px above window rect top
+
+# Window border widths
+WINDOW_BORDER_LEFT = 9  # Left border width in pixels
+WINDOW_BORDER_RIGHT = 7  # Right border width in pixels
+WINDOW_BORDER_BOTTOM = 8  # Bottom border width in pixels
+
+# Legacy constant for backward compatibility (uses left border as standard)
+WINDOW_BORDER_WIDTH = 8  # DEPRECATED: Use specific border constants instead
+
+# Click safety margins
+CLICK_MARGIN_DEFAULT = 10  # Default safety margin for click operations (pixels)
+CLICK_MARGIN_REGION = 5  # Margin for region-based clicks (pixels)
 
 # D4 Directory constants
 D4_SCREENSHOT_DIR = TMP_DIR / "d4_screenshots"
@@ -346,6 +377,32 @@ class D4StandardCoordinates:
     red_portal_max_height: Tuple[None, int] = (None, 600)          # (Null, y) - maximum portal height
     red_portal_min_area: int = 10             # (area) - minimum matched pixels to consider as portal
 
+    # Team search and formation interface regions
+    find_team_region_start: Tuple[int, int] = (155, 94)    # Find team button region top-left
+    find_team_region_end: Tuple[int, int] = (275, 129)     # Find team button region bottom-right
+
+    form_team_region_start: Tuple[int, int] = (292, 73)    # Form team button region top-left
+    form_team_region_end: Tuple[int, int] = (406, 126)     # Form team button region bottom-right
+
+    activity_selection_region_start: Tuple[int, int] = (360, 414)  # Activity selection region top-left
+    activity_selection_region_end: Tuple[int, int] = (591, 426)    # Activity selection region bottom-right
+
+    # Great Rift tier input regions
+    min_tier_input_point: Tuple[int, int] = (568, 525)     # Minimum tier input click point
+    min_tier_input_region_start: Tuple[int, int] = (375, 494)      # Minimum tier input region top-left
+    min_tier_input_region_end: Tuple[int, int] = (757, 503)        # Minimum tier input region bottom-right
+
+    max_tier_input_region_start: Tuple[int, int] = (757, 503)      # Maximum tier input region top-left (shares boundary with min)
+    max_tier_input_region_end: Tuple[int, int] = (942, 525)        # Maximum tier input region bottom-right
+
+    # Panel close button region (changed from single point to region for better visibility)
+    panel_close_button_start: Tuple[int, int] = (1387, 50)  # Panel close button region top-left
+    panel_close_button_end: Tuple[int, int] = (1806, 76)    # Panel close button region bottom-right
+
+    # Team submission buttons
+    confirm_team_button_start: Tuple[int, int] = (728, 861)  # Confirm submit team button region top-left
+    confirm_team_button_end: Tuple[int, int] = (831, 879)    # Confirm submit team button region bottom-right
+
 
 # Global D4 standard coordinates instance
 D4_STANDARD_COORDS = D4StandardCoordinates()
@@ -416,7 +473,8 @@ class InterfaceDataBase:
     """Base class for interface data with common functionality"""
 
     # Window height constant for windowed mode detection
-    WINDOW_HEIGHT_THRESHOLD = 31
+    # NOTE: Use module-level TITLE_BAR_HEIGHT constant (defined at line 76)
+    WINDOW_HEIGHT_THRESHOLD = TITLE_BAR_HEIGHT  # Reference to module constant, not redefinition
 
     # Recognition metadata
     timestamp: Optional[str] = None
@@ -738,6 +796,11 @@ class D4InterfaceData(InterfaceDataBase):
     map_switch_count: int = 0
     is_post_switch_idle: bool = False
 
+    # Team formation state
+    has_team: Optional[bool] = None  # None=unknown, True=has team, False=no team
+    team_check_timestamp: Optional[float] = None
+    tick_interval: float = 0.1  # Controller tick interval in seconds
+
     def clear(self):
         """Clear all data"""
         self.timestamp = None
@@ -783,6 +846,8 @@ class D4InterfaceData(InterfaceDataBase):
         self.is_switching_map = False
         self.map_switch_count = 0
         self.is_post_switch_idle = False
+        self.has_team = None
+        self.team_check_timestamp = None
 
     # Only keep widely-used convenience methods
     def is_exp_farming_running(self) -> bool:

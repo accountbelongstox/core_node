@@ -4,10 +4,20 @@
 
 ```
 d3-check/
-├── apps/
-│   └── d3-check/
-│       └── controller/
-│           └── d4func/
+├── athtest/
+│   ├── button.png
+│   ├── button_detector.py
+│   ├── button_pixels_sample.json
+│   ├── left_pixels_sample.json
+│   ├── pixels_20251020_010215.json
+│   ├── progress_analysis.png
+│   ├── progress_analyzer.py
+│   ├── result.png
+│   ├── skip.png
+│   ├── skip_pixels_sample.json
+│   ├── square_sampler.py
+│   ├── square_sampling_result.png
+│   └── test.png
 ├── config/
 │   ├── datasets/
 │   │   └── d3_ui/
@@ -37,6 +47,7 @@ d3-check/
 │   │   ├── map_name_recognizer.py
 │   │   ├── map_name_utils.py
 │   │   ├── map_switch_detector.py
+│   │   ├── ocr_config.py
 │   │   ├── region_detector.py
 │   │   ├── screenshot_handler.py
 │   │   └── ui_status_updater.py
@@ -63,9 +74,7 @@ d3-check/
 │   │   ├── __init__.py
 │   │   ├── hotkey_registry.py
 │   │   └── image_annotator_helper.py
-│   ├── share/
 │   ├── d3utils_tree.md
-│   ├── game_state.py
 │   ├── game_window_detector.py
 │   ├── global_hotkey_manager.py
 │   ├── i18n_manager.py
@@ -84,13 +93,17 @@ d3-check/
 │   ├── model_registry.json
 │   ├── progress_bar_detector.json
 │   └── progress_bar_detector.pt
+├── d4_modules_detection/
 ├── d4utils/
 │   ├── __init__.py
 │   ├── black_screen_detector.py
+│   ├── d4_operation_base.py
 │   ├── d4_scaled_template_matcher.py
 │   ├── red_portal_detector.py
 │   ├── small_map_detector.py
+│   ├── team_formation_checker.py
 │   ├── team_health_detector.py
+│   ├── test_red_portal.py
 │   └── window_region_detector.py
 ├── images/
 │   ├── d4/
@@ -148,11 +161,18 @@ d3-check/
 │   ├── _obsolete_window_mapping_provider.py
 │   ├── common_imports.py
 │   ├── i18n_config.json
+│   ├── i18n_config.json.backup
 │   ├── providor_index.py
 │   └── template_config.json
+├── pycore/
+│   └── pyutils/
 ├── scripts/
+│   ├── output/
+│   │   ├── 微信截图_20251016030310_bars_detected.png
+│   │   └── 微信截图_20251016030310_bars_mask.png
 │   ├── _obsolete_multi_scale_image_matcher.py
 │   ├── color_region_detector.py
+│   ├── d3planner_tooltip_test.py
 │   ├── interactive_menu.py
 │   ├── prepare_detection_training.py
 │   ├── prepare_progressbar_training.py
@@ -161,9 +181,12 @@ d3-check/
 │   ├── reorganize_training_data.py
 │   ├── show_color_palette.py
 │   ├── template_matchertest.py
+│   ├── test_color_detector.py
+│   ├── test_image.png
 │   └── testmenu.py
 ├── share/
 │   ├── __init__.py
+│   ├── coordinate_helper.py
 │   └── game_interface_data.py
 ├── state/
 │   ├── _obsolete_comprehensive_state_manager.py
@@ -236,11 +259,20 @@ d3-check/
 │   ├── _obsolete_window_activator.py
 │   ├── _obsolete_window_analyzer.py
 │   └── _obsolete_window_ops.py
+├── CONSTANTS_UNIFICATION_COMPLETE.md
+├── README_MOUSE_COORDINATE_TOOL.md
+├── REFACTORING_FINAL_REPORT.md
+├── REFACTORING_RESOLUTION_CONSTANTS.md
+├── REFACTORING_SUMMARY.md
+├── WINDOW_CONSTANTS_ANALYSIS.md
 ├── d3-check_tree.md
+├── debug_mouse.bat
+├── debug_mouse_coordinate.py
 ├── debug_window_offset.py
 ├── main.py
 ├── migrate_structure.py
 ├── task.txt
+├── test_image_enhancement.py
 ├── train.py
 ├── validate.py
 ├── yolov8n-cls.pt
