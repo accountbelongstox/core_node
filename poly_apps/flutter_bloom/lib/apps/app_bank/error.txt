@@ -1,0 +1,430 @@
+er assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
+Launching lib/apps/app_bank/main_app_bank.dart on Web Server in debug mode...
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:30:48: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+          BankLocalizationKeys.bankSettings.tr('Settings'),
+                                               ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:97:83: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+                      user?.maskedName ?? BankLocalizationKeys.bankUnknownUser.tr('Unknown User'),
+                                                                                  ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:106:85: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+                      user?.location ?? BankLocalizationKeys.bankUnknownLocation.tr('Unknown Location'),
+                                                                                    ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:114:64: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+                      '${BankLocalizationKeys.bankLastLogin.tr('Last Login')}: ${provider.formattedLastLoginTime}',
+                                                               ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:149:66: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            title: BankLocalizationKeys.bankAccountManagement.tr('Account Management'),
+                                                                 ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:150:73: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            subtitle: BankLocalizationKeys.bankAccountManagementDesc.tr('Modify personal information'),
+                                                                        ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:159:65: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            title: BankLocalizationKeys.bankSecuritySettings.tr('Security Settings'),
+                                                                ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:160:72: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            subtitle: BankLocalizationKeys.bankSecuritySettingsDesc.tr('Password, fingerprint, face recognition'),
+                                                                       ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:169:69: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            title: BankLocalizationKeys.bankNotificationSettings.tr('Message Notifications'),
+                                                                    ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:170:76: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            subtitle: BankLocalizationKeys.bankNotificationSettingsDesc.tr('Push, SMS, email notifications'),
+                                                                           ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:179:57: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            title: BankLocalizationKeys.bankLanguage.tr('Language'),
+                                                        ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:180:68: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            subtitle: BankLocalizationKeys.bankLanguageSettings.tr('Simplified Chinese'),
+                                                                   ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:189:73: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+ - 'BuildContext' is from 'package:flutter/src/widgets/framework.dart'
+ ('/D:/.dev_win10/flutter/packages/flutter/lib/src/widgets/framework.dart').
+            title: BankLocalizationKeys.bankDebugMyExclusiveCustomer.tr('My Exclusive Customer'),
+                                                                        ^
+lib/apps/app_bank/features_app_bank/settings/views/settings_screen.dart:190:77: Error: The argument type 'String' can't
+be assigned to the parameter type 'BuildContext?'.
+Waiting for connection from debug service on Web Server...             /
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,871 @@
+================================================================================
+Flutter App Directory Tree
+================================================================================
+Generated: 2025-10-20 04:25:24
+App: app_example
+Mode: code_assets
+Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
+Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
+================================================================================
+
+app_example [code_assets]
+├── lib/apps/app_example/
+│   ├── app_example_tree.md
+│   ├── build_config.ini
+│   ├── config_app_example
+│   │   ├── api_config_app_example.dart
+│   │   ├── api_data_models_app_example.dart
+│   │   ├── api_endpoints_app_example.dart
+│   │   ├── app_config_app_example.dart
+│   │   ├── constants_app_example.dart
+│   │   ├── prefs_app_example.dart
+│   │   ├── provider_app_example.dart
+│   │   ├── storage_app_example.dart
+│   │   └── storage_initialization_example.dart
+│   ├── controller_app_example
+│   │   ├── auth_controller_app_example.dart
+│   │   ├── profile_controller_app_example.dart
+│   │   ├── settings_controller_app_example.dart
+│   │   └── splash_controller_app_example.dart
+│   ├── features_app_example
+│   │   ├── about
+│   │   │   ├── about_screen.dart
+│   │   │   └── actions
+│   │   │       └── .gitkeep
+│   │   ├── authentication
+│   │   │   ├── actions
+│   │   │   │   ├── .gitkeep
+│   │   │   │   └── auth_actions.dart
+│   │   │   └── views
+│   │   │       ├── congratulation_screen.dart
+│   │   │       ├── create_pin_screen.dart
+│   │   │       ├── forgot_screen.dart
+│   │   │       ├── resetpassword_screen.dart
+│   │   │       ├── select_country.dart
+│   │   │       ├── signin_up_screen.dart
+│   │   │       ├── verify_screen.dart
+│   │   │       └── welcom_screen.dart
+│   │   ├── bookmark
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── bookmark_screen.dart
+│   │   ├── comming
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── coming_screen.dart
+│   │   ├── common_widgets
+│   │   │   ├── bar_menu
+│   │   │   │   └── home_bar.dart
+│   │   │   ├── home_widget
+│   │   │   │   ├── tab_widget.dart
+│   │   │   │   └── top_section.dart
+│   │   │   ├── route_navigation_example.dart
+│   │   │   └── settings_item
+│   │   │       ├── settings_arrow_item.dart
+│   │   │       ├── settings_badge_item.dart
+│   │   │       ├── settings_dropdown_item.dart
+│   │   │       ├── settings_group.dart
+│   │   │       └── settings_switch_item.dart
+│   │   ├── dashboard
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── models
+│   │   │   │   └── navigation_model.dart
+│   │   │   ├── views
+│   │   │   │   ├── dashboard_screen.dart
+│   │   │   │   └── inbox_screen.dart
+│   │   │   └── widgets
+│   │   │       └── appbar.dart
+│   │   ├── donation
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── domain
+│   │   │   │   └── model
+│   │   │   │       └── doantion_model.dart
+│   │   │   └── views
+│   │   │       ├── donation_all_screen.dart
+│   │   │       └── donation_screen.dart
+│   │   ├── fundraising
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── domain
+│   │   │   │   └── model
+│   │   │   │       ├── activity_model.dart
+│   │   │   │       ├── fundraising_model.dart
+│   │   │   │       └── my_fundraising_model.dart
+│   │   │   ├── views
+│   │   │   │   ├── activity_screen.dart
+│   │   │   │   ├── create_new_fundraising.dart
+│   │   │   │   ├── edit_fundaising.dart
+│   │   │   │   ├── fundraising_ditails.dart
+│   │   │   │   ├── fundrasing.dart
+│   │   │   │   ├── fundrasing_screen.dart
+│   │   │   │   └── my_fudrasing_screen.dart
+│   │   │   └── widget
+│   │   │       ├── card_widget.dart
+│   │   │       └── create_fundraisig_image_widget.dart
+│   │   ├── help
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── model
+│   │   │   │   └── help_data_model.dart
+│   │   │   ├── views
+│   │   │   │   ├── about_us_screen.dart
+│   │   │   │   ├── contact_screen.dart
+│   │   │   │   ├── fqa_screen.dart
+│   │   │   │   ├── privacy_policy.dart
+│   │   │   │   └── themes_conditions.dart
+│   │   │   └── widgets
+│   │   │       └── fqa_widet.dart
+│   │   ├── home
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── domain
+│   │   │   │   ├── model
+│   │   │   │   │   ├── all_screen_model.dart
+│   │   │   │   │   ├── banner_model.dart
+│   │   │   │   │   ├── comingto_model.dart
+│   │   │   │   │   ├── fund_rising_model.dart
+│   │   │   │   │   ├── medical_model.dart
+│   │   │   │   │   ├── notification_model.dart
+│   │   │   │   │   ├── prayer_model.dart
+│   │   │   │   │   ├── urgetnt_fundrasing_model.dart
+│   │   │   │   │   └── wacth_impact_model.dart
+│   │   │   │   └── service
+│   │   │   │       ├── banner_service.dart
+│   │   │   │       ├── home_service_interface.dart
+│   │   │   │       └── product_service.dart
+│   │   │   ├── views
+│   │   │   │   ├── home_screen.dart
+│   │   │   │   ├── play_video_screen.dart
+│   │   │   │   ├── prayer_screen.dart
+│   │   │   │   ├── urgent_fundraising.dart
+│   │   │   │   └── watch_impact.dart
+│   │   │   └── widget
+│   │   │       ├── actions_widget.dart
+│   │   │       ├── all_screen.dart
+│   │   │       ├── banner_widget.dart
+│   │   │       ├── coming_list.dart
+│   │   │       ├── coming_widget.dart
+│   │   │       ├── disaster_screen.dart
+│   │   │       ├── education_screen.dart
+│   │   │       ├── fund_rising_listview.dart
+│   │   │       ├── fund_rising_widget.dart
+│   │   │       ├── health_screen.dart
+│   │   │       ├── home_title.dart
+│   │   │       ├── logined_func_widget.dart
+│   │   │       ├── logined_wordgroup_widget.dart
+│   │   │       ├── medical_screen.dart
+│   │   │       ├── prayer_listview.dart
+│   │   │       ├── prayer_widget.dart
+│   │   │       ├── prayerfrom_pepole.dart
+│   │   │       ├── urgent_fund_rising_widget.dart
+│   │   │       ├── urgentfunding_widget.dart
+│   │   │       ├── watch_impact_list.dart
+│   │   │       └── watch_impact_widget.dart
+│   │   ├── home_login
+│   │   │   ├── views
+│   │   │   │   └── home_login_view.dart
+│   │   │   └── widget
+│   │   │       └── home_login_widget.dart
+│   │   ├── inbox
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── domain
+│   │   │   │   └── model
+│   │   │   │       └── inbox_model.dart
+│   │   │   └── views
+│   │   │       └── chat_screen.dart
+│   │   ├── interest
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── select_interest.dart
+│   │   ├── invite_friend
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── invite_friend_screen.dart
+│   │   ├── language
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── language_selector.dart
+│   │   ├── notification
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── notificaiton_screen.dart
+│   │   ├── onbording
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── controller
+│   │   │   │   └── home_controller.dart
+│   │   │   ├── model
+│   │   │   │   └── on_boarding_model.dart
+│   │   │   └── views
+│   │   │       └── onbording_screen.dart
+│   │   ├── prayer
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── prayer_screen.dart
+│   │   ├── profile
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── controllers
+│   │   │   │   └── profile_controller_app_example.dart
+│   │   │   ├── domain
+│   │   │   │   └── model
+│   │   │   │       ├── about_model.dart
+│   │   │   │       └── select_insterest_model.dart
+│   │   │   ├── models
+│   │   │   │   └── profile_model_app_example.dart
+│   │   │   └── views
+│   │   │       ├── edit_profile.dart
+│   │   │       ├── profile_screen.dart
+│   │   │       └── profile_view_screen.dart
+│   │   ├── profile_two
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── views
+│   │   │   │   ├── add_card_screen.dart
+│   │   │   │   ├── profile_two_screen.dart
+│   │   │   │   ├── set_withdraw_mail_screen.dart
+│   │   │   │   ├── top_up_screen.dart
+│   │   │   │   ├── topup_method_screen.dart
+│   │   │   │   ├── wallet_center_screen.dart
+│   │   │   │   └── withdraw_screen.dart
+│   │   │   └── widget
+│   │   │       ├── interest_widget.dart
+│   │   │       ├── setting_widget.dart
+│   │   │       └── top_card_widget.dart
+│   │   ├── search
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── search_screen.dart
+│   │   ├── setting
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── domain
+│   │   │   │   └── model
+│   │   │   │       └── invite_friend_model.dart
+│   │   │   ├── views
+│   │   │   │   ├── help_screen.dart
+│   │   │   │   ├── notification_setting.dart
+│   │   │   │   ├── security_screen.dart
+│   │   │   │   └── setting_screen_view.dart
+│   │   │   └── widgets
+│   │   │       ├── card_widget.dart
+│   │   │       └── notification_setting_widget.dart
+│   │   ├── social_feed
+│   │   │   ├── model
+│   │   │   │   └── post_model.dart
+│   │   │   ├── views
+│   │   │   │   └── social_feed_screen.dart
+│   │   │   └── widget
+│   │   │       ├── feed_header.dart
+│   │   │       └── post_card.dart
+│   │   ├── splash
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── views
+│   │   │   │   └── splash_screen.dart
+│   │   │   └── widgets
+│   │   │       └── slide_to_start_button.dart
+│   │   ├── tab
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── views
+│   │   │       ├── all_screen.dart
+│   │   │       └── medical_screen.dart
+│   │   ├── top_menu
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── top_menu.dart
+│   │   │   └── widgets
+│   │   │       ├── custom_icon_label.dart
+│   │   │       └── custom_icon_label_group.dart
+│   │   ├── word_card
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── controller
+│   │   │   │   └── word_card_controller.dart
+│   │   │   ├── models
+│   │   │   │   ├── word_card_model.dart
+│   │   │   │   └── word_model.dart
+│   │   │   └── views
+│   │   │       ├── word_card_screen.dart
+│   │   │       └── word_card_style_test.dart
+│   │   └── word_cards
+│   │       ├── actions
+│   │       │   └── .gitkeep
+│   │       ├── types
+│   │       │   └── words_types.dart
+│   │       └── views
+│   │           └── word_cards_screen.dart
+│   ├── localization_app_example
+│   │   ├── en_app_example.dart
+│   │   ├── localization_keys_app_example.dart
+│   │   └── zh_app_example.dart
+│   ├── main_app_example.dart
+│   ├── model_app_example
+│   │   └── user_model.dart
+│   ├── providers_app_example
+│   │   └── example_user_provider.dart
+│   ├── resources_app_example
+│   │   ├── assets_icons_app_example.dart
+│   │   ├── assets_images_app_example.dart
+│   │   ├── assets_launch_app_example.dart
+│   │   ├── text_styles_app_example.dart
+│   │   └── theme_extensions_app_example.dart
+│   ├── router_app_example
+│   │   ├── route_test_helper.dart
+│   │   ├── router_app_example.dart
+│   │   ├── router_legacy_qy.dart
+│   │   └── routes_provider_app_example.dart
+│   ├── services_app_example
+│   │   ├── app_example_service_manager.dart
+│   │   ├── auth_api_app_example_service.dart
+│   │   ├── product_api_app_example_service.dart
+│   │   ├── service_app_example.dart
+│   │   ├── services_app_example.dart
+│   │   └── user_api_app_example_service.dart
+│   ├── settings_app_example
+│   │   └── settings_app_example.dart
+│   └── utils_app_example
+│       └── utils_app_example.dart
+├── lib/common/
+│   ├── app
+│   │   └── main_common.dart
+│   ├── assets
+│   │   ├── common_assets_icons.dart
+│   │   ├── common_assets_images.dart
+│   │   └── common_assets_launch.dart
+│   ├── cache_manager
+│   │   └── cache_manager.dart
+│   ├── common_tree.md
+│   ├── constants
+│   │   └── app_constants.dart
+│   ├── controller
+│   │   └── settings_controller.dart
+│   ├── database
+│   │   ├── database_manager.dart
+│   │   ├── idb
+│   │   │   └── idb_service.dart
+│   │   ├── interfaces
+│   │   │   └── database_interface.dart
+│   │   ├── models
+│   │   │   └── base_model.dart
+│   │   └── sqlite
+│   │       └── sqlite_service.dart
+│   ├── iframe
+│   │   └── iframe_listner.dart
+│   ├── localization
+│   │   ├── common_en.dart
+│   │   ├── common_zh.dart
+│   │   ├── localization_keys.dart
+│   │   ├── localization_manager.dart
+│   │   └── map_locales.dart
+│   ├── map
+│   │   ├── location_service.dart
+│   │   ├── map_service.dart
+│   │   └── map_utils.dart
+│   ├── media
+│   │   ├── audio
+│   │   │   ├── audio_player.dart
+│   │   │   └── audio_recorder.dart
+│   │   ├── media_utils.dart
+│   │   └── video
+│   │       ├── video_player.dart
+│   │       └── video_recorder.dart
+│   ├── model
+│   │   ├── bank_user_model.dart
+│   │   ├── messages.dart
+│   │   └── word_list_types.dart
+│   ├── network
+│   │   ├── NETWORKREADME.md
+│   │   ├── auth
+│   │   │   └── unified_auth_manager.dart
+│   │   ├── controller
+│   │   │   └── auth_controller.dart
+│   │   ├── core
+│   │   │   ├── endpoint_network_models.dart
+│   │   │   ├── network_config.dart
+│   │   │   ├── network_queue_and_offline.dart
+│   │   │   ├── network_retry_manager.dart
+│   │   │   ├── network_service_locator.dart
+│   │   │   ├── network_types.dart
+│   │   │   └── unified_network_client.dart
+│   │   ├── doc
+│   │   │   ├── ARCHITECTURE_ANALYSIS.md
+│   │   │   ├── AUTH_INTERCEPTOR_INTEGRATION.md
+│   │   │   ├── FINAL_STATUS_REPORT.md
+│   │   │   ├── INDEX.md
+│   │   │   ├── PHASE2_REFACTORING.md
+│   │   │   ├── PHASE3_AGGRESSIVE_CLEANUP.md
+│   │   │   ├── PHASE3_COMPLETION.md
+│   │   │   ├── PHASE4_AUTH_AND_FINAL_CLEANUP.md
+│   │   │   ├── REFACTORING_LOG.md
+│   │   │   └── REFACTORING_SUMMARY.md
+│   │   ├── endpoints
+│   │   │   ├── endpoint_config.dart
+│   │   │   └── laravel_endpoints.dart
+│   │   ├── integration
+│   │   │   └── network_user_integration.dart
+│   │   ├── interceptors
+│   │   │   ├── auth_interceptor.dart
+│   │   │   ├── error_interceptor.dart
+│   │   │   ├── logging_interceptor.dart
+│   │   │   └── network_interceptors.dart
+│   │   ├── models
+│   │   │   ├── api_config.dart
+│   │   │   └── api_response.dart
+│   │   ├── network_framework.dart
+│   │   ├── parsers
+│   │   │   └── adaptive_data_parser.dart
+│   │   ├── security
+│   │   │   └── device_security_manager.dart
+│   │   ├── services
+│   │   │   └── advanced_network_service.dart
+│   │   ├── storage
+│   │   │   └── secure_storage.dart
+│   │   ├── ui
+│   │   │   └── global_loading_system.dart
+│   │   ├── utils
+│   │   │   └── network_utils.dart
+│   │   ├── websocket
+│   │   │   ├── WEBSOCKET_USAGE.dart
+│   │   │   ├── websocket_client.dart
+│   │   │   ├── websocket_config.dart
+│   │   │   ├── websocket_interceptor.dart
+│   │   │   └── websocket_types.dart
+│   │   └── widgets
+│   │       └── adaptive_loading_widgets.dart
+│   ├── network_v2
+│   │   ├── README.md
+│   │   ├── auth
+│   │   │   ├── auth_coordinator.dart
+│   │   │   ├── auth_registry.dart
+│   │   │   ├── auth_strategy.dart
+│   │   │   ├── composite_auth_strategy.dart
+│   │   │   ├── header_key_auth_strategy.dart
+│   │   │   ├── jwt_auth_strategy.dart
+│   │   │   ├── login_manager.dart
+│   │   │   ├── session_auth_strategy.dart
+│   │   │   └── user_provider_auth_coordinator.dart
+│   │   ├── core
+│   │   │   ├── http_client.dart
+│   │   │   └── network_manager.dart
+│   │   ├── endpoints
+│   │   │   ├── endpoint_catalog.dart
+│   │   │   └── endpoint_presets.dart
+│   │   ├── example_usage.dart
+│   │   ├── loading
+│   │   │   ├── loading_controller.dart
+│   │   │   └── loading_state.dart
+│   │   ├── models
+│   │   │   ├── auth_context.dart
+│   │   │   ├── auth_payload.dart
+│   │   │   ├── auth_requirement.dart
+│   │   │   ├── cache_policy.dart
+│   │   │   ├── endpoint_descriptor.dart
+│   │   │   ├── endpoint_group.dart
+│   │   │   ├── http_method.dart
+│   │   │   ├── network_environment.dart
+│   │   │   ├── network_error.dart
+│   │   │   ├── network_request.dart
+│   │   │   ├── network_response.dart
+│   │   │   ├── network_session_state.dart
+│   │   │   ├── request_options.dart
+│   │   │   └── retry_policy.dart
+│   │   ├── network_v2.dart
+│   │   ├── parsing
+│   │   │   ├── response_parser.dart
+│   │   │   └── schema_registry.dart
+│   │   ├── queue
+│   │   │   ├── queued_request.dart
+│   │   │   └── request_queue.dart
+│   │   └── utils
+│   │       └── id_generator.dart
+│   ├── provider_status
+│   │   ├── base_provider.dart
+│   │   ├── screen_size_provider.dart
+│   │   └── user_provider.dart
+│   ├── repo
+│   │   └── splash_repo.dart
+│   ├── sdk
+│   │   ├── azure_maps
+│   │   │   ├── azure_maps_config.dart
+│   │   │   ├── azure_maps_flutter_integration.dart
+│   │   │   ├── azure_maps_sdk.dart
+│   │   │   └── azure_maps_service.dart
+│   │   └── tencent_maps
+│   │       ├── tencent_maps_config.dart
+│   │       ├── tencent_maps_flutter_integration.dart
+│   │       ├── tencent_maps_sdk.dart
+│   │       └── tencent_maps_service.dart
+│   ├── settings
+│   │   ├── configs
+│   │   │   └── base_settings.dart
+│   │   ├── models
+│   │   │   └── setting_item.dart
+│   │   └── storage
+│   │       └── settings_storage_manager.dart
+│   ├── storage
+│   │   ├── adapters
+│   │   │   ├── storage_adapter_factory.dart
+│   │   │   ├── storage_adapter_unified.dart
+│   │   │   └── web_storage_adapter.dart
+│   │   ├── app_prefs_base.dart
+│   │   ├── app_storage_base.dart
+│   │   ├── cleanup
+│   │   │   └── storage_cleanup_tool.dart
+│   │   ├── implementations
+│   │   │   ├── hive_storage.dart
+│   │   │   └── sqlite_storage_v1.dart
+│   │   ├── interfaces
+│   │   │   └── storage_interface.dart
+│   │   ├── migration
+│   │   │   └── hive_to_sqlite_migration.dart
+│   │   ├── models
+│   │   │   └── storage_models.dart
+│   │   ├── storage_manager.dart
+│   │   ├── storage_migration_tool.dart
+│   │   ├── storage_provider.dart
+│   │   └── unified_storage.dart
+│   ├── storagev2
+│   │   ├── README.md
+│   │   ├── application
+│   │   │   └── storage_application_service.dart
+│   │   ├── business
+│   │   │   ├── config_service.dart
+│   │   │   ├── security_service.dart
+│   │   │   ├── storage_service.dart
+│   │   │   ├── sync_service.dart
+│   │   │   └── user_service.dart
+│   │   ├── config
+│   │   │   └── storage_config.dart
+│   │   ├── data_access
+│   │   │   ├── cache_adapter.dart
+│   │   │   ├── encryption_adapter.dart
+│   │   │   ├── storage_adapter.dart
+│   │   │   └── storage_data_access.dart
+│   │   ├── di
+│   │   │   └── storage_container.dart
+│   │   ├── exceptions
+│   │   │   └── storage_exceptions.dart
+│   │   ├── flutter_storage.dart
+│   │   ├── infrastructure
+│   │   │   ├── hive_storage.dart
+│   │   │   ├── memory_cache.dart
+│   │   │   └── sqlite_storage.dart
+│   │   ├── interfaces
+│   │   │   ├── cache_service_interface.dart
+│   │   │   ├── encryption_service_interface.dart
+│   │   │   ├── storage_adapter_interface.dart
+│   │   │   └── storage_repository_interface.dart
+│   │   ├── migration
+│   │   │   └── storage_migration.dart
+│   │   ├── models
+│   │   │   ├── config_entity.dart
+│   │   │   ├── storage_entity.dart
+│   │   │   ├── storage_result.dart
+│   │   │   └── user_entity.dart
+│   │   ├── repository
+│   │   │   └── storage_repository_impl.dart
+│   │   └── utils
+│   │       └── storage_utils.dart
+│   ├── theme
+│   │   ├── base
+│   │   │   ├── theme_colors.dart
+│   │   │   ├── theme_constants.dart
+│   │   │   ├── theme_dimensions.dart
+│   │   │   ├── theme_shadow.dart
+│   │   │   └── theme_text_styles.dart
+│   │   ├── compatibility
+│   │   │   ├── gradient_compatibility.dart
+│   │   │   └── theme_compatibility.dart
+│   │   ├── extensions
+│   │   │   └── gradient_extensions.dart
+│   │   ├── platforms
+│   │   │   ├── desktop
+│   │   │   │   ├── desktop_dark_theme.dart
+│   │   │   │   └── desktop_light_theme.dart
+│   │   │   ├── mobile
+│   │   │   │   ├── mobile_dark_theme.dart
+│   │   │   │   └── mobile_light_theme.dart
+│   │   │   └── web
+│   │   │       ├── web_dark_theme.dart
+│   │   │       └── web_light_theme.dart
+│   │   └── theme_manager.dart
+│   ├── utils
+│   │   ├── common
+│   │   │   ├── price_converter.dart
+│   │   │   └── toaster_helper.dart
+│   │   ├── compatibility
+│   │   │   └── legacy_imports.dart
+│   │   ├── database
+│   │   │   └── cache_operations.dart
+│   │   ├── date
+│   │   │   └── date_converter.dart
+│   │   ├── device_utils.dart
+│   │   ├── display
+│   │   │   ├── display_helper.dart
+│   │   │   └── responsive_helper.dart
+│   │   ├── image
+│   │   │   ├── image_loader.dart
+│   │   │   └── image_size_checker.dart
+│   │   ├── mobile
+│   │   │   ├── native_splash.dart
+│   │   │   └── notification_helper.dart
+│   │   ├── platform
+│   │   │   └── get_platform.dart
+│   │   ├── text
+│   │   │   └── text_utils.dart
+│   │   ├── utils.dart
+│   │   ├── validation
+│   │   │   ├── email_checker.dart
+│   │   │   └── phone_checker.dart
+│   │   └── web
+│   │       ├── web_tools.dart
+│   │       ├── web_tools_non_web.dart
+│   │       ├── web_tools_web.dart
+│   │       └── webabs.dart
+│   └── widgets
+│       ├── action_bar.dart
+│       ├── animated_custom_dialog.dart
+│       ├── back_app_bar.dart
+│       ├── bank_bottom_navigation.dart
+│       ├── bank_scaffold.dart
+│       ├── config.dart
+│       ├── confirmation_dialog.dart
+│       ├── country_picker.dart
+│       ├── custom_app_bar.dart
+│       ├── custom_bottom_navigation.dart
+│       ├── custom_button.dart
+│       ├── custom_calender.dart
+│       ├── custom_card.dart
+│       ├── custom_date_picker.dart
+│       ├── custom_delegate.dart
+│       ├── custom_divider.dart
+│       ├── custom_drawer.dart
+│       ├── custom_drop_down_item.dart
+│       ├── custom_gradient_text.dart
+│       ├── custom_icon_label.dart
+│       ├── custom_icon_label_group.dart
+│       ├── custom_image.dart
+│       ├── custom_image_icon_label.dart
+│       ├── custom_image_icon_label_group.dart
+│       ├── custom_loader.dart
+│       ├── custom_search_input.dart
+│       ├── custom_slider_button.dart
+│       ├── custom_snackbar.dart
+│       ├── custom_swipable_button
+│       │   ├── swipeable_button_view.dart
+│       │   └── swipeable_widget.dart
+│       ├── custom_text_field.dart
+│       ├── custom_title.dart
+│       ├── digital_payment_dialog.dart
+│       ├── enhanced_bottom_navigation.dart
+│       ├── enhanced_top_menu.dart
+│       ├── floating_avatar_header.dart
+│       ├── image_dialog.dart
+│       ├── info_row_widget.dart
+│       ├── navigation_widgets.dart
+│       ├── network_connection_dialog.dart
+│       ├── no_data_screen.dart
+│       ├── open_map.dart
+│       ├── outelineborder.dart
+│       ├── paginated_list_view.dart
+│       ├── payment_item_info.dart
+│       ├── responsive_layout.dart
+│       ├── segmented_button.dart
+│       ├── settings_page_example.dart
+│       └── type_button_widget.dart
+├── assets/apps/app_example/
+│   ├── fonts
+│   │   └── .gitkeep
+│   ├── icons
+│   │   ├── .gitkeep
+│   │   ├── ic_launcher.backup.backup.png
+│   │   ├── ic_launcher.backup.png
+│   │   ├── ic_launcher.png
+│   │   ├── logo.backup.backup.png
+│   │   ├── logo.backup.png
+│   │   ├── logo.png
+│   │   ├── notification_icon.png
+│   │   ├── raw-logo.backup.backup.png
+│   │   ├── raw-logo.backup.png
+│   │   ├── raw-logo.png
+│   │   ├── splash_logo.backup.backup.png
+│   │   ├── splash_logo.backup.png
+│   │   └── splash_logo.png
+│   ├── images
+│   │   ├── .gitkeep
+│   │   ├── Feed.backup.backup.jpg
+│   │   ├── Feed.backup.jpg
+│   │   ├── Feed.jpg
+│   │   ├── Flood.backup.backup.png
+│   │   ├── Flood.backup.png
+│   │   ├── Flood.png
+│   │   ├── baby.backup.backup.jpg
+│   │   ├── baby.backup.jpg
+│   │   ├── baby.jpg
+│   │   ├── bannerchild.jpg
+│   │   ├── child1.jpeg
+│   │   ├── child2.jpg
+│   │   ├── child3.jpg
+│   │   ├── child5.backup.backup.jpg
+│   │   ├── child5.backup.jpg
+│   │   ├── child5.jpg
+│   │   ├── child6.jpg
+│   │   ├── education.backup.backup.jpg
+│   │   ├── education.backup.jpg
+│   │   ├── education.jpg
+│   │   ├── fire.backup.backup.jpg
+│   │   ├── fire.backup.jpg
+│   │   ├── fire.jpg
+│   │   ├── food.backup.backup.jpg
+│   │   ├── food.backup.jpg
+│   │   ├── food.jpg
+│   │   ├── funrasing1.backup.backup.jpeg
+│   │   ├── funrasing1.backup.jpeg
+│   │   ├── funrasing1.jpeg
+│   │   ├── gorom1.backup.backup.jpg
+│   │   ├── gorom1.backup.jpg
+│   │   ├── gorom1.jpg
+│   │   ├── health.jpg
+│   │   ├── help1.backup.backup.jpg
+│   │   ├── help1.backup.jpg
+│   │   ├── help1.jpg
+│   │   ├── helpchild.jpg
+│   │   ├── hospital.jpg
+│   │   ├── one.jpg
+│   │   ├── poor1.backup.backup.jpg
+│   │   ├── poor1.backup.jpg
+│   │   ├── poor1.jpg
+│   │   ├── poor3.backup.backup.jpg
+│   │   ├── poor3.backup.jpg
+│   │   ├── poor3.jpg
+│   │   ├── poor4.backup.backup.png
+│   │   ├── poor4.backup.png
+│   │   ├── poor4.png
+│   │   ├── poor5.backup.jpg
+│   │   ├── poor5.jpg
+│   │   ├── poor6.backup.jpg
+│   │   ├── poor6.jpg
+│   │   ├── running.backup.jpg
+│   │   ├── running.jpg
+│   │   ├── student.backup.jpg
+│   │   ├── student.jpg
+│   │   ├── student2.jpeg
+│   │   ├── urgen4.jpg
+│   │   ├── urgent1.backup.jpg
+│   │   ├── urgent1.jpg
+│   │   ├── urgent2.backup.jpg
+│   │   ├── urgent2.jpg
+│   │   ├── urgent5.backup.jpg
+│   │   ├── urgent5.jpg
+│   │   ├── urgent6.backup.jpg
+│   │   ├── urgent6.jpg
+│   │   ├── user.png
+│   │   ├── user1.jpg
+│   │   ├── user2.jpg
+│   │   └── user3.jpg
+│   └── launch
+│       ├── .gitkeep
+│       ├── background.backup.jpg
+│       ├── background.jpg
+│       ├── dark_launch.backup.png
+│       ├── dark_launch.png
+│       ├── light_launch.backup.png
+│       ├── light_launch.png
+│       ├── light_launch_1.backup.jpg
+│       └── light_launch_1.jpg
+└── assets/common/
+    ├── fonts
+    │   ├── .gitkeep
+    │   ├── Roboto-Black.ttf
+    │   ├── Roboto-Bold.ttf
+    │   ├── Roboto-Medium.ttf
+    │   ├── Roboto-Regular.ttf
+    │   └── SourceHanSansCNLight.otf
+    ├── icons
+    │   ├── .gitkeep
+    │   ├── apple.png
+    │   ├── art.png
+    │   ├── baby.png
+    │   ├── back.png
+    │   ├── calender.png
+    │   ├── camera_placeholder.png
+    │   ├── chinese.png
+    │   ├── city.png
+    │   ├── education.png
+    │   ├── empty_box.png
+    │   ├── empty_cart.png
+    │   ├── facebook.png
+    │   ├── filter_vertical.png
+    │   ├── forgotpassword.png
+    │   ├── forgotpw.jpg
+    │   ├── gender.png
+    │   ├── github.png
+    │   ├── gmail.png
+    │   ├── google.png
+    │   ├── guest.png
+    │   ├── health.png
+    │   ├── ic_launcher.backup.png
+    │   ├── ic_launcher.png
+    │   ├── ic_username.png
+    │   ├── init_trip.png
+    │   ├── inventor.png
+    │   ├── logo.backup.png
+    │   ├── logo.png
+    │   ├── maintenance.backup.png
+    │   ├── maintenance.png
+    │   ├── menu.png
+    │   ├── name.png
+    │   ├── no_data.png
+    │   ├── no_internet.png
+    │   ├── notification_icon.png
+    │   ├── onbording.jpg
+    │   ├── onbording1.jpg
+    │   ├── onbording1.png
+    │   ├── onbording2.png
+    │   ├── onbording3.png
+    │   ├── one_bg.backup.jpg
+    │   ├── one_bg.jpg
+    │   ├── password.png
+    │   ├── people.png
+    │   ├── people_logo.png
+    │   ├── phone.png
+    │   ├── placeholder.jpg
+    │   ├── placeholder.png
+    │   ├── profile_icon.png
+    │   ├── raw-logo.backup.png
+    │   ├── raw-logo.png
+    │   ├── registry_logo_1.backup.png
+    │   ├── registry_logo_1.png
+    │   ├── registry_logo_2.backup.png
+    │   ├── registry_logo_2.png
+    │   ├── social.png
+    │   ├── splash.png
+    │   ├── splash_logo.backup.png
+    │   ├── splash_logo.png
+    │   ├── twitter.png
+    │   ├── united_kingdom.png
+    │   ├── website.png
+    │   ├── wechat.png
+    │   ├── weclom.png
+    │   ├── weibo-circle-fill.png
+    │   ├── welcm.png
+    │   ├── welcom.backup.png
+    │   ├── welcom.png
+    │   ├── welcome.jpg
+    │   └── youtube.png
+    ├── images
+    │   └── .gitkeep
+    └── launch
+        ├── .gitkeep
+        ├── dark_launch.backup.jpg
+        ├── dark_launch.jpg
+        ├── light_launch.backup.jpg
+        ├── light_launch.jpg
+        ├── splash_bg.png
+        ├── splash_logo.png
+        └── splash_logo_dark.png
