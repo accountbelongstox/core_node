@@ -206,6 +206,13 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyMapStyleTraffic: '路况',
     LocalizationKeysAppWuy.wuyMapZoomIn: '放大',
     LocalizationKeysAppWuy.wuyMapZoomOut: '缩小',
+    LocalizationKeysAppWuy.wuyMapMarkerTapped: '标记已点击',
+    LocalizationKeysAppWuy.wuyMapBeijing: '北京',
+    LocalizationKeysAppWuy.wuyMapCapitalOfChina: '中国首都',
+    LocalizationKeysAppWuy.wuyMapSteps: '步数',
+    LocalizationKeysAppWuy.wuyMapHeartRate: '心率',
+    LocalizationKeysAppWuy.wuyMapTemperature: '温度',
+    LocalizationKeysAppWuy.wuyMapCalories: '卡路里',
 
     // Profile screen
     LocalizationKeysAppWuy.wuyProfileUsername: '用户名',

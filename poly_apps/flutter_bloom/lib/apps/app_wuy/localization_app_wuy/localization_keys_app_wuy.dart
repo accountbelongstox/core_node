@@ -203,6 +203,13 @@ class LocalizationKeysAppWuy {
   static const String wuyMapStyleTraffic = "wuy.map.style_traffic";
   static const String wuyMapZoomIn = "wuy.map.zoom_in";
   static const String wuyMapZoomOut = "wuy.map.zoom_out";
+  static const String wuyMapMarkerTapped = "wuy.map.marker_tapped";
+  static const String wuyMapBeijing = "wuy.map.beijing";
+  static const String wuyMapCapitalOfChina = "wuy.map.capital_of_china";
+  static const String wuyMapSteps = "wuy.map.steps";
+  static const String wuyMapHeartRate = "wuy.map.heart_rate";
+  static const String wuyMapTemperature = "wuy.map.temperature";
+  static const String wuyMapCalories = "wuy.map.calories";
 
   // Profile screen
   static const String wuyProfileUsername = "wuy.profile.username";

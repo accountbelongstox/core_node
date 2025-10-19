@@ -17,6 +17,7 @@ from providor.common_imports import ColorPrint
 from providor.providor_index import DEBUG
 from d3utils.i18n_manager import I18nManager
 from share.game_interface_data import get_d4_interface_data
+from .map_name_utils import get_current_map_name_from_shared_data
 # D4State functionality now integrated into D4InterfaceData
 
 
@@ -132,11 +133,8 @@ class UIStatusUpdater:
             return "Fullscreen"
     
     def _get_current_map(self) -> str:
-        """Get current map information"""
-        if self.d4_data.detected_regions and 'map_name' in self.d4_data.detected_regions:
-            return self.d4_data.detected_regions['map_name']
-        else:
-            return "Unknown"
+        """Get current map information using unified method"""
+        return get_current_map_name_from_shared_data()
     
     def _get_game_state(self) -> str:
         """Get game state information"""

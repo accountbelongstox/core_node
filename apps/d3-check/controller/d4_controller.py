@@ -126,6 +126,11 @@ class D4Controller:
                         from .d4func.map_switch_detector import get_map_switch_detector
                         map_switch_detector = get_map_switch_detector()
                         map_switch_detector.detect_map_switch()
+                        
+                        # Step 4: Attempt map name recognition if in post-switch idle state
+                        from .d4func.map_name_recognizer import get_map_name_recognizer
+                        map_recognizer = get_map_name_recognizer()
+                        map_recognizer.recognize_map_name()
 
                         # Update debug window with new data
                         self._update_debug_window_if_open()

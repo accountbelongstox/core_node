@@ -182,6 +182,11 @@ class DebugWindow:
     def update_images(self):
         """Update all debug images from detected_regions"""
         try:
+            # Check if window still exists
+            if not hasattr(self, 'window') or not self.window.winfo_exists():
+                ColorPrint.yellow("[DebugWindow] Window no longer exists, skipping update")
+                return
+
             ColorPrint.blue("[DebugWindow] Starting update_images...")
 
             # Get region_images from detected_regions
@@ -202,6 +207,11 @@ class DebugWindow:
 
             updated_count = 0
             for region_key, img_label in self.image_labels.items():
+                # Check if label still exists
+                if not hasattr(img_label, 'winfo_exists') or not img_label.winfo_exists():
+                    ColorPrint.yellow(f"[DebugWindow] Label for '{region_key}' no longer exists, skipping")
+                    continue
+
                 if region_key in region_images and region_images[region_key] is not None:
                     # Get image from detected_regions
                     pil_image = region_images[region_key]
@@ -209,7 +219,8 @@ class DebugWindow:
                     # Safety check: ensure image is valid
                     if pil_image is None or pil_image.width <= 0 or pil_image.height <= 0:
                         ColorPrint.yellow(f"[DebugWindow] Invalid image for '{region_key}': {pil_image.width if pil_image else 'None'}x{pil_image.height if pil_image else 'None'}")
-                        img_label.configure(image="", text="Invalid Image")
+                        if hasattr(img_label, 'winfo_exists') and img_label.winfo_exists():
+                            img_label.configure(image="", text="Invalid Image")
                         continue
 
                     # Resize image to fit two-column layout (max 300px per column)
@@ -230,12 +241,16 @@ class DebugWindow:
                     self.photo_images[region_key] = photo_image
 
                     # Update label
-                    img_label.configure(image=photo_image, text="")
-                    updated_count += 1
-                    ColorPrint.green(f"[DebugWindow] ✓ Updated '{region_key}'")
+                    if hasattr(img_label, 'winfo_exists') and img_label.winfo_exists():
+                        img_label.configure(image=photo_image, text="")
+                        updated_count += 1
+                        ColorPrint.green(f"[DebugWindow] ✓ Updated '{region_key}'")
+                    else:
+                        ColorPrint.yellow(f"[DebugWindow] Label for '{region_key}' no longer exists, skipping update")
                 else:
                     # No image available
-                    img_label.configure(image="", text="No Image Available")
+                    if hasattr(img_label, 'winfo_exists') and img_label.winfo_exists():
+                        img_label.configure(image="", text="No Image Available")
                     ColorPrint.yellow(f"[DebugWindow] ✗ No image for '{region_key}'")
 
             ColorPrint.green(f"[DebugWindow] Updated {updated_count}/{len(self.image_labels)} images")

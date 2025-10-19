@@ -64,6 +64,9 @@ class ExpFarmingManager:
             if not step2_success:
                 return False
 
+            # Step 3: Detect map switching and recognize map name
+            self._step3_map_switching_and_recognition()
+
             # Save screenshot and generate annotated image
             self._save_screenshot_and_annotate()
 
@@ -111,6 +114,26 @@ class ExpFarmingManager:
             import traceback
             traceback.print_exc()
             return False
+
+    def _step3_map_switching_and_recognition(self):
+        """
+        Step 3: Detect map switching and recognize map name
+        """
+        try:
+            # Detect map switching (monitors Map Name region for black screen)
+            from .map_switch_detector import get_map_switch_detector
+            map_switch_detector = get_map_switch_detector()
+            map_switch_detector.detect_map_switch()
+            
+            # Attempt map name recognition if in post-switch idle state
+            from .map_name_recognizer import get_map_name_recognizer
+            map_recognizer = get_map_name_recognizer()
+            map_recognizer.recognize_map_name()
+
+        except Exception as e:
+            ColorPrint.red(f"[ExpFarmingManager] Error in Step 3: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _save_screenshot_and_annotate(self):
         """Save screenshot and generate annotated image for debugging"""

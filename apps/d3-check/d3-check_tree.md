@@ -34,6 +34,9 @@ d3-check/
 │   │   ├── __init__.py
 │   │   ├── exp_farming.py
 │   │   ├── image_annotator.py
+│   │   ├── map_name_recognizer.py
+│   │   ├── map_name_utils.py
+│   │   ├── map_switch_detector.py
 │   │   ├── region_detector.py
 │   │   ├── screenshot_handler.py
 │   │   └── ui_status_updater.py
@@ -83,6 +86,7 @@ d3-check/
 │   └── progress_bar_detector.pt
 ├── d4utils/
 │   ├── __init__.py
+│   ├── black_screen_detector.py
 │   ├── d4_scaled_template_matcher.py
 │   ├── red_portal_detector.py
 │   ├── small_map_detector.py
@@ -238,8 +242,17 @@ d3-check/
 ├── DEBUG_TROUBLESHOOTING.md
 ├── DEBUG_WINDOW_FEATURE.md
 ├── DEBUG_WINDOW_FEATURE_FINAL.md
+├── DEBUG_WINDOW_PAUSE_FEATURE.md
+├── DUNGEON_PROGRESS_FIX.md
+├── FIXES_SUMMARY.md
+├── IMPORT_ERROR_FIX_SUMMARY.md
+├── MAP_SWITCH_DETECTOR_FEATURE.md
+├── OCR_MAP_RECOGNITION_IMPLEMENTATION_SUMMARY.md
+├── OFFSET_DEBUGGING_REPORT.md
+├── REGION_CONSISTENCY_CHECK.md
 ├── TRAINING_TIMESTAMP_GUIDE.md
 ├── d3-check_tree.md
+├── debug_window_offset.py
 ├── main.py
 ├── migrate_structure.py
 ├── task.txt

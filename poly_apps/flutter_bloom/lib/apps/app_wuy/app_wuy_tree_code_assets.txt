@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-18 12:12:39
+Generated: 2025-10-19 11:17:27
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -363,11 +363,16 @@ app_wuy [code_assets]
 │   ├── repo
 │   │   └── splash_repo.dart
 │   ├── sdk
-│   │   └── azure_maps
-│   │       ├── azure_maps_config.dart
-│   │       ├── azure_maps_flutter_integration.dart
-│   │       ├── azure_maps_sdk.dart
-│   │       └── azure_maps_service.dart
+│   │   ├── azure_maps
+│   │   │   ├── azure_maps_config.dart
+│   │   │   ├── azure_maps_flutter_integration.dart
+│   │   │   ├── azure_maps_sdk.dart
+│   │   │   └── azure_maps_service.dart
+│   │   └── tencent_maps
+│   │       ├── tencent_maps_config.dart
+│   │       ├── tencent_maps_flutter_integration.dart
+│   │       ├── tencent_maps_sdk.dart
+│   │       └── tencent_maps_service.dart
 │   ├── settings
 │   │   ├── configs
 │   │   │   └── base_settings.dart
