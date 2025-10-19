@@ -4,6 +4,184 @@
 
 ```
 nuxt_main/
+├── apps/
+│   ├── app_admin/
+│   │   ├── components_app_admin/
+│   │   ├── composables_app_admin/
+│   │   ├── config_app_admin/
+│   │   │   └── app-config.ts
+│   │   ├── constants_app_admin/
+│   │   │   └── admin-constants.ts
+│   │   ├── layouts_app_admin/
+│   │   ├── locales_app_admin/
+│   │   ├── pages_app_admin/
+│   │   │   └── datasources.vue
+│   │   ├── router_app_admin/
+│   │   │   └── routes.ts
+│   │   ├── services_app_admin/
+│   │   ├── stores_app_admin/
+│   │   │   └── admin-store.ts
+│   │   ├── styles_app_admin/
+│   │   └── theme_app_admin/
+│   │       └── admin-theme.ts
+│   ├── app_codemart/
+│   │   ├── components_app_codemart/
+│   │   │   └── CodemartSidebar.vue
+│   │   ├── composables_app_codemart/
+│   │   ├── config_app_codemart/
+│   │   │   └── app-config.ts
+│   │   ├── constants_app_codemart/
+│   │   │   └── codemart-constants.ts
+│   │   ├── layouts_app_codemart/
+│   │   │   └── default.vue
+│   │   ├── locales_app_codemart/
+│   │   ├── pages_app_codemart/
+│   │   │   ├── apps/
+│   │   │   │   ├── invoice/
+│   │   │   │   │   ├── add.vue
+│   │   │   │   │   ├── edit.vue
+│   │   │   │   │   ├── list.vue
+│   │   │   │   │   └── preview.vue
+│   │   │   │   ├── calendar.vue
+│   │   │   │   ├── chat.vue
+│   │   │   │   ├── contacts.vue
+│   │   │   │   ├── mailbox.vue
+│   │   │   │   ├── notes.vue
+│   │   │   │   ├── scrumboard.vue
+│   │   │   │   └── todolist.vue
+│   │   │   └── index.vue
+│   │   ├── router_app_codemart/
+│   │   │   └── routes.ts
+│   │   ├── services_app_codemart/
+│   │   ├── stores_app_codemart/
+│   │   │   └── codemart-store.ts
+│   │   ├── styles_app_codemart/
+│   │   └── theme_app_codemart/
+│   │       └── codemart-theme.ts
+│   ├── app_dashboard/
+│   │   ├── components_app_dashboard/
+│   │   ├── composables_app_dashboard/
+│   │   ├── config_app_dashboard/
+│   │   ├── constants_app_dashboard/
+│   │   ├── layouts_app_dashboard/
+│   │   ├── locales_app_dashboard/
+│   │   ├── pages_app_dashboard/
+│   │   ├── router_app_dashboard/
+│   │   ├── services_app_dashboard/
+│   │   ├── stores_app_dashboard/
+│   │   ├── styles_app_dashboard/
+│   │   └── theme_app_dashboard/
+│   │       └── dashboard-theme.ts
+│   ├── app_dev/
+│   │   ├── components_app_dev/
+│   │   ├── composables_app_dev/
+│   │   ├── config_app_dev/
+│   │   ├── constants_app_dev/
+│   │   ├── layouts_app_dev/
+│   │   ├── locales_app_dev/
+│   │   ├── pages_app_dev/
+│   │   ├── router_app_dev/
+│   │   ├── services_app_dev/
+│   │   ├── stores_app_dev/
+│   │   ├── styles_app_dev/
+│   │   └── theme_app_dev/
+│   │       └── dev-theme.ts
+│   ├── app_example/
+│   │   ├── components_app_example/
+│   │   ├── composables_app_example/
+│   │   ├── config_app_example/
+│   │   ├── constants_app_example/
+│   │   ├── layouts_app_example/
+│   │   ├── locales_app_example/
+│   │   ├── pages_app_example/
+│   │   │   ├── components/
+│   │   │   │   ├── accordions.vue
+│   │   │   │   ├── cards.vue
+│   │   │   │   ├── carousel.vue
+│   │   │   │   ├── countdown.vue
+│   │   │   │   ├── counter.vue
+│   │   │   │   ├── lightbox.vue
+│   │   │   │   ├── list-group.vue
+│   │   │   │   ├── media-object.vue
+│   │   │   │   ├── modals.vue
+│   │   │   │   ├── notifications.vue
+│   │   │   │   ├── pricing-table.vue
+│   │   │   │   ├── sweetalert.vue
+│   │   │   │   ├── tabs.vue
+│   │   │   │   └── timeline.vue
+│   │   │   ├── datatables/
+│   │   │   │   ├── advanced.vue
+│   │   │   │   ├── alt-pagination.vue
+│   │   │   │   ├── basic.vue
+│   │   │   │   ├── checkbox.vue
+│   │   │   │   ├── clone-header.vue
+│   │   │   │   ├── column-chooser.vue
+│   │   │   │   ├── columns-filter.vue
+│   │   │   │   ├── export.vue
+│   │   │   │   ├── multi-column.vue
+│   │   │   │   ├── multiple-tables.vue
+│   │   │   │   ├── order-sorting.vue
+│   │   │   │   ├── range-search.vue
+│   │   │   │   ├── skin.vue
+│   │   │   │   └── sticky-header.vue
+│   │   │   ├── elements/
+│   │   │   │   ├── alerts.vue
+│   │   │   │   ├── avatar.vue
+│   │   │   │   ├── badges.vue
+│   │   │   │   ├── breadcrumbs.vue
+│   │   │   │   ├── buttons-group.vue
+│   │   │   │   ├── buttons.vue
+│   │   │   │   ├── color-library.vue
+│   │   │   │   ├── dropdown.vue
+│   │   │   │   ├── infobox.vue
+│   │   │   │   ├── jumbotron.vue
+│   │   │   │   ├── loader.vue
+│   │   │   │   ├── pagination.vue
+│   │   │   │   ├── popovers.vue
+│   │   │   │   ├── progress-bar.vue
+│   │   │   │   ├── search.vue
+│   │   │   │   ├── tooltips.vue
+│   │   │   │   ├── treeview.vue
+│   │   │   │   └── typography.vue
+│   │   │   └── forms/
+│   │   │       ├── basic.vue
+│   │   │       ├── checkbox-radio.vue
+│   │   │       ├── clipboard.vue
+│   │   │       ├── date-picker.vue
+│   │   │       ├── file-upload.vue
+│   │   │       ├── input-group.vue
+│   │   │       ├── input-mask.vue
+│   │   │       ├── layouts.vue
+│   │   │       ├── markdown-editor.vue
+│   │   │       ├── quill-editor.vue
+│   │   │       ├── select2.vue
+│   │   │       ├── switches.vue
+│   │   │       ├── touchspin.vue
+│   │   │       ├── validation.vue
+│   │   │       └── wizards.vue
+│   │   ├── router_app_example/
+│   │   │   └── routes.ts
+│   │   ├── services_app_example/
+│   │   ├── stores_app_example/
+│   │   ├── styles_app_example/
+│   │   └── theme_app_example/
+│   │       └── example-theme.ts
+│   └── app_main/
+│       ├── components_app_main/
+│       ├── composables_app_main/
+│       ├── config_app_main/
+│       │   └── app-config.ts
+│       ├── constants_app_main/
+│       ├── layouts_app_main/
+│       ├── locales_app_main/
+│       ├── pages_app_main/
+│       │   └── index.vue
+│       ├── router_app_main/
+│       │   └── index.ts
+│       ├── services_app_main/
+│       ├── stores_app_main/
+│       ├── styles_app_main/
+│       └── theme_app_main/
 ├── assets/
 │   └── css/
 │       ├── animate.css
@@ -29,9 +207,60 @@ nuxt_main/
 │       └── wizard.css
 ├── codemart_doc/
 │   ├── codemart.md
-│   └── index.md
+│   ├── developers.jpeg
+│   ├── help.codemart.comhckbcategory.jpeg
+│   ├── index.jpeg
+│   ├── index.md
+│   └── prompts.txt
+├── common/
+│   ├── components/
+│   │   ├── dashboard/
+│   │   │   ├── ProgressChart.vue
+│   │   │   ├── StatCard.vue
+│   │   │   └── WelcomeCard.vue
+│   │   ├── layout/
+│   │   │   └── MainHeader.vue
+│   │   └── ui/
+│   │       └── DataTable.vue
+│   ├── composables/
+│   │   └── useAppTheme.ts
+│   ├── constants/
+│   │   └── base-constants.ts
+│   ├── layouts/
+│   │   ├── auth.vue
+│   │   └── default.vue
+│   ├── middleware/
+│   ├── pages/
+│   │   ├── users/
+│   │   │   ├── profile.vue
+│   │   │   └── user-account-settings.vue
+│   │   ├── boxed-lockscreen.vue
+│   │   ├── boxed-password-reset.vue
+│   │   ├── boxed-signin.vue
+│   │   ├── boxed-signup.vue
+│   │   ├── cover-lockscreen.vue
+│   │   ├── cover-login.vue
+│   │   ├── cover-password-reset.vue
+│   │   └── cover-register.vue
+│   ├── plugins/
+│   │   └── theme.client.ts
+│   ├── services/
+│   ├── stores/
+│   │   └── base-store.ts
+│   ├── theme/
+│   │   └── base-theme.config.ts
+│   ├── types/
+│   └── utils/
 ├── components/
 │   ├── codemart/
+│   │   ├── home/
+│   │   │   ├── CodemartFooter.vue
+│   │   │   ├── CodemartHeader.vue
+│   │   │   ├── CustomerServiceButton.vue
+│   │   │   ├── HeroCarousel.vue
+│   │   │   ├── ServiceFlowSection.vue
+│   │   │   ├── StatisticsSection.vue
+│   │   │   └── TestimonialsCarousel.vue
 │   │   └── CodemartSidebar.vue
 │   ├── layout/
 │   │   ├── Footer.vue
@@ -585,14 +814,14 @@ nuxt_main/
 ├── scripts/
 │   ├── functions/
 │   │   ├── ErrorHandler.ps1
+│   │   ├── GvarExchange.ps1
 │   │   ├── InteractiveMenu.ps1
 │   │   ├── MenuConfig.ps1
 │   │   ├── MenuState.ps1
 │   │   └── Prerequisites.ps1
-│   ├── architecture_restructure.py
 │   ├── node-upgrade-manager.ps1
 │   ├── node-upgrade-manager.sh
-│   ├── restructure_for_multi_app.py
+│   ├── scripts_tree.md
 │   ├── start.ps1
 │   └── switch-app-entry.js
 ├── services/
@@ -651,6 +880,9 @@ nuxt_main/
 │   ├── apiHelpers.ts
 │   └── namespace-registry.ts
 ├── .gitignore
+├── ARCHITECTURE_COMPLETE.txt
+├── IMPLEMENTATION_PHASES.txt
+├── MIGRATION_FINAL_REPORT.txt
 ├── README.md
 ├── app-entry.ts
 ├── app-setting.ts

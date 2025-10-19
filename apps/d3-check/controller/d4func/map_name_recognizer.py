@@ -20,15 +20,15 @@ from providor.common_imports import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 from d3utils.i18n_manager import I18nManager
 from .map_name_utils import set_current_map_name
+from .ocr_config import get_ocr_config_for_task
 
-# Import OCR engines from pycore
+# Import OCR engine from pycore (only CnOCR, no PaddleOCR)
 sys.path.insert(0, str(Path(current_dir).parent / "pycore"))
 try:
     from pyutils.ocr_cnocr_engine import CnOCREngine
-    from pyutils.paddle_ocr import PaddleOCREngine
     OCR_AVAILABLE = True
 except ImportError as e:
-    ColorPrint.yellow(f"[MapNameRecognizer] OCR engines not available: {e}")
+    ColorPrint.yellow(f"[MapNameRecognizer] CnOCR engine not available: {e}")
     OCR_AVAILABLE = False
 
 
@@ -48,10 +48,9 @@ class MapNameRecognizer:
         """Initialize map name recognizer"""
         self.d4_data = get_d4_interface_data()
         self.i18n = I18nManager()
-        
-        # Initialize OCR engines
+
+        # Initialize OCR engine (CnOCR only, no PaddleOCR)
         self.cnocr_engine = None
-        self.paddle_ocr_engine = None
         self._init_ocr_engines()
         
         # Recognition state
@@ -62,44 +61,40 @@ class MapNameRecognizer:
         ColorPrint.green("[MapNameRecognizer] Initialized")
 
     def _init_ocr_engines(self):
-        """Initialize OCR engines"""
+        """Initialize OCR engine (CnOCR only, no PaddleOCR)"""
         if not OCR_AVAILABLE:
-            ColorPrint.yellow("[MapNameRecognizer] OCR engines not available, map recognition disabled")
+            ColorPrint.yellow("[MapNameRecognizer] CnOCR engine not available, map recognition disabled")
             return
-            
+
         try:
-            # Initialize CnOCR engine (faster, good for Chinese text)
+            # Get OCR configuration for map name recognition task
+            ocr_config = get_ocr_config_for_task('map_name')
+
+            if ocr_config is None:
+                ColorPrint.yellow("[MapNameRecognizer] No OCR config found for map_name task, using default")
+                from .ocr_config import OCRConfig
+                ocr_config = OCRConfig.get_default_config()
+
             ColorPrint.blue("[MapNameRecognizer] Initializing CnOCR engine...")
+            ColorPrint.blue(f"[MapNameRecognizer] Using model: {ocr_config.rec_model_name}")
+            ColorPrint.blue(f"[MapNameRecognizer] Description: {ocr_config.description}")
+
             self.cnocr_engine = CnOCREngine(
-                det_model_name='naive_det',
-                rec_model_name='densenet_lite_136-gru'  # Supports Chinese, English, numbers
+                det_model_name=ocr_config.det_model_name,
+                rec_model_name=ocr_config.rec_model_name
             )
+
             if self.cnocr_engine.init():
                 ColorPrint.green("[MapNameRecognizer] CnOCR engine initialized successfully")
+                ColorPrint.green(f"[MapNameRecognizer] Model: {ocr_config.rec_model_name}")
+                ColorPrint.green(f"[MapNameRecognizer] Use case: {ocr_config.use_case}")
             else:
                 ColorPrint.yellow("[MapNameRecognizer] CnOCR engine initialization failed")
                 self.cnocr_engine = None
-                
+
         except Exception as e:
             ColorPrint.red(f"[MapNameRecognizer] Error initializing CnOCR: {e}")
             self.cnocr_engine = None
-
-        try:
-            # Initialize PaddleOCR engine (more accurate, supports more languages)
-            ColorPrint.blue("[MapNameRecognizer] Initializing PaddleOCR engine...")
-            self.paddle_ocr_engine = PaddleOCREngine(
-                lang="chinese_cht",  # Chinese Traditional (default for D4)
-                auto_init=True
-            )
-            if self.paddle_ocr_engine.is_ready():
-                ColorPrint.green("[MapNameRecognizer] PaddleOCR engine initialized successfully")
-            else:
-                ColorPrint.yellow("[MapNameRecognizer] PaddleOCR engine initialization failed")
-                self.paddle_ocr_engine = None
-                
-        except Exception as e:
-            ColorPrint.red(f"[MapNameRecognizer] Error initializing PaddleOCR: {e}")
-            self.paddle_ocr_engine = None
 
     def recognize_map_name(self) -> bool:
         """
@@ -180,16 +175,16 @@ class MapNameRecognizer:
             return False
 
     def _has_ocr_engine(self) -> bool:
-        """Check if any OCR engine is available"""
-        return self.cnocr_engine is not None or self.paddle_ocr_engine is not None
+        """Check if CnOCR engine is available"""
+        return self.cnocr_engine is not None
 
     def _perform_ocr_recognition(self, image: Image.Image) -> Optional[str]:
         """
-        Perform OCR recognition on the image
-        
+        Perform OCR recognition on the image using CnOCR
+
         Args:
             image: PIL Image of the Map Name region
-            
+
         Returns:
             Recognized text or None if failed
         """
@@ -197,28 +192,17 @@ class MapNameRecognizer:
             # Convert PIL Image to bytes for OCR processing
             # This avoids file I/O and keeps everything in memory
             img_bytes = self._pil_to_bytes(image)
-            
-            # Try CnOCR first (faster)
+
+            # Use CnOCR for recognition
             if self.cnocr_engine is not None:
                 try:
-                    ColorPrint.blue("[MapNameRecognizer] Trying CnOCR recognition...")
+                    ColorPrint.blue("[MapNameRecognizer] Performing CnOCR recognition...")
                     result = self._recognize_with_cnocr(img_bytes)
                     if result and result.strip():
                         ColorPrint.green(f"[MapNameRecognizer] CnOCR result: '{result}'")
                         return result
                 except Exception as e:
                     ColorPrint.yellow(f"[MapNameRecognizer] CnOCR recognition failed: {e}")
-
-            # Try PaddleOCR as fallback (more accurate)
-            if self.paddle_ocr_engine is not None:
-                try:
-                    ColorPrint.blue("[MapNameRecognizer] Trying PaddleOCR recognition...")
-                    result = self._recognize_with_paddle_ocr(img_bytes)
-                    if result and result.strip():
-                        ColorPrint.green(f"[MapNameRecognizer] PaddleOCR result: '{result}'")
-                        return result
-                except Exception as e:
-                    ColorPrint.yellow(f"[MapNameRecognizer] PaddleOCR recognition failed: {e}")
 
             return None
 
@@ -291,45 +275,6 @@ class MapNameRecognizer:
             ColorPrint.red(f"[MapNameRecognizer] CnOCR recognition error: {e}")
             return None
 
-    def _recognize_with_paddle_ocr(self, img_bytes: bytes) -> Optional[str]:
-        """
-        Recognize text using PaddleOCR engine
-        
-        Args:
-            img_bytes: Image bytes
-            
-        Returns:
-            Recognized text or None
-        """
-        try:
-            # Create temporary file path for PaddleOCR
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
-                temp_file.write(img_bytes)
-                temp_path = temp_file.name
-            
-            try:
-                # Perform OCR recognition
-                results = self.paddle_ocr_engine.recognize_text(temp_path)
-                
-                if results and len(results) > 0:
-                    # Combine all recognized text
-                    texts = [item['text'] for item in results if item.get('text')]
-                    if texts:
-                        return ' '.join(texts)
-                
-                return None
-                
-            finally:
-                # Clean up temporary file
-                try:
-                    os.unlink(temp_path)
-                except:
-                    pass
-                    
-        except Exception as e:
-            ColorPrint.red(f"[MapNameRecognizer] PaddleOCR recognition error: {e}")
-            return None
 
     def _update_shared_data_with_map_name(self, map_name: str):
         """
@@ -358,7 +303,6 @@ class MapNameRecognizer:
             'recognition_attempts': self.recognition_attempts,
             'max_recognition_attempts': self.max_recognition_attempts,
             'cnocr_available': self.cnocr_engine is not None,
-            'paddle_ocr_available': self.paddle_ocr_engine is not None,
             'is_post_switch_idle': self.d4_data.is_post_switch_idle
         }
 

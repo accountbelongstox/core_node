@@ -1,0 +1,187 @@
+{
+  "codemart": {
+    "platform_name": "CodeMart",
+    "platform_slogan": "Internet Software Outsourcing Service Platform",
+
+    "home": {
+      "hero_title": "Internet Software Outsourcing Service Platform",
+      "hero_subtitle": "Professional platform connecting global developers and clients",
+      "publish_project": "Publish Project",
+      "become_developer": "Become Developer",
+      "view_projects": "View Projects",
+      "total_projects": "Total Projects",
+      "total_developers": "Registered Developers",
+      "total_transactions": "Total Transactions"
+    },
+
+    "roles": {
+      "client": "Client",
+      "developer": "Developer",
+      "architect": "Architect",
+      "reviewer": "Reviewer",
+      "admin": "Admin"
+    },
+
+    "registration": {
+      "developer_register": "Developer Registration",
+      "client_register": "Client Registration",
+      "basic_info": "Basic Information",
+      "email_verification": "Email Verification",
+      "phone_verification": "Phone Verification",
+      "kyc_verification": "KYC Verification",
+      "deposit_payment": "Deposit Payment",
+      "upload_id_card": "Upload ID Card",
+      "id_front": "ID Front",
+      "id_back": "ID Back",
+      "payment_method": "Payment Method",
+      "alipay": "Alipay",
+      "wechat": "WeChat Pay",
+      "bank_card": "Bank Card"
+    },
+
+    "project": {
+      "create_project": "Create Project",
+      "my_projects": "My Projects",
+      "project_title": "Project Title",
+      "short_description": "Short Description",
+      "detailed_description": "Detailed Requirements",
+      "upload_attachments": "Upload Attachments",
+      "reference_examples": "Reference Examples",
+      "reference_url": "Reference Website",
+      "reference_code": "Reference Code",
+      "budget_range": "Budget Range",
+      "expected_deadline": "Expected Deadline",
+      "tech_stack": "Tech Stack",
+      "languages": "Languages",
+      "frameworks": "Frameworks",
+      "databases": "Databases",
+      "tools": "Tools",
+      "ai_analysis": "AI Analysis",
+      "ai_recommendations": "AI Recommendations",
+      "accept_proposal": "Accept Proposal",
+      "modify_requirements": "Modify Requirements"
+    },
+
+    "project_status": {
+      "draft": "Draft",
+      "pending": "Pending Analysis",
+      "analyzing": "AI Analyzing",
+      "awaiting_payment": "Awaiting Payment",
+      "awaiting_architect": "Awaiting Architect",
+      "in_progress": "In Progress",
+      "in_review": "Under Review",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+
+    "task": {
+      "task_hall": "Task Hall",
+      "my_tasks": "My Tasks",
+      "browse_tasks": "Browse Tasks",
+      "accept_task": "Accept Task",
+      "task_details": "Task Details",
+      "estimated_hours": "Estimated Hours",
+      "skill_tags": "Skill Tags",
+      "development_env": "Development Environment",
+      "online_ide": "Online IDE",
+      "local_development": "Local Development",
+      "submit_code": "Submit Code",
+      "create_merge_request": "Create Merge Request"
+    },
+
+    "development": {
+      "code_repository": "Code Repository",
+      "technical_docs": "Technical Documentation",
+      "task_breakdown": "Task Breakdown",
+      "progress_monitor": "Progress Monitoring",
+      "code_review": "Code Review",
+      "quality_score": "Quality Score",
+      "readability": "Readability",
+      "efficiency": "Efficiency",
+      "standards": "Standards",
+      "overall_score": "Overall Score"
+    },
+
+    "payment": {
+      "deposit": "Deposit",
+      "milestone": "Milestone Payment",
+      "bonus": "Bonus",
+      "final_payment": "Final Payment",
+      "refund": "Refund",
+      "payment_amount": "Payment Amount",
+      "payment_history": "Payment History",
+      "pending": "Pending",
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "refunded": "Refunded"
+    },
+
+    "help": {
+      "help_center": "Help Center",
+      "search_help": "Search Help",
+      "faq": "FAQ",
+      "for_clients": "I am a Client",
+      "publish_project": "Publish Project",
+      "recruit_developers": "Recruit Developers",
+      "payment_methods": "Payment Methods",
+      "open_project": "Open Project",
+      "receive_project": "Receive Project",
+      "for_developers": "I am a Developer",
+      "register": "Register & Certification",
+      "browse_projects": "Browse Projects",
+      "receive_tasks": "Receive Tasks"
+    },
+
+    "statistics": {
+      "total_projects": "Total Projects",
+      "active_projects": "Active",
+      "completed_projects": "Completed",
+      "total_developers": "Total Developers",
+      "total_clients": "Total Clients",
+      "total_revenue": "Total Revenue",
+      "average_project_value": "Avg Project Value",
+      "success_rate": "Success Rate"
+    },
+
+    "categories": {
+      "web_development": "Web Development",
+      "mobile_apps": "Mobile Apps",
+      "desktop_apps": "Desktop Apps",
+      "apis": "APIs",
+      "libraries": "Libraries",
+      "frameworks": "Frameworks",
+      "tools": "Tools",
+      "templates": "Templates",
+      "plugins": "Plugins",
+      "games": "Games",
+      "ai_ml": "AI/ML",
+      "blockchain": "Blockchain",
+      "iot": "IoT",
+      "devops": "DevOps"
+    },
+
+    "notifications": {
+      "project_created": "Project Created",
+      "task_assigned": "Task Assigned",
+      "code_reviewed": "Code Reviewed",
+      "payment_received": "Payment Received",
+      "milestone_completed": "Milestone Completed",
+      "project_completed": "Project Completed"
+    },
+
+    "actions": {
+      "publish": "Publish",
+      "submit": "Submit",
+      "accept": "Accept",
+      "reject": "Reject",
+      "approve": "Approve",
+      "review": "Review",
+      "pay": "Pay",
+      "cancel": "Cancel",
+      "modify": "Modify",
+      "delete": "Delete",
+      "view_details": "View Details"
+    }
+  }
+}
