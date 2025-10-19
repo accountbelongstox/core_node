@@ -178,8 +178,8 @@ class D4Controller:
             is_windowed = self.d4_data.is_windowed_mode()
 
             # Get region/point counts
-            region_count = len(self.d4_data.detected_regions) if hasattr(self.d4_data, 'detected_regions') else 0
-            point_count = len(self.d4_data.detected_points) if hasattr(self.d4_data, 'detected_points') else 0
+            region_count = len(self.d4_data.detected_regions) if hasattr(self.d4_data, 'detected_regions') and self.d4_data.detected_regions else 0
+            point_count = len(self.d4_data.detected_points) if hasattr(self.d4_data, 'detected_points') and self.d4_data.detected_points else 0
 
             # Get screenshot path
             screenshot_path = self.d4_data.last_screenshot_path if hasattr(self.d4_data, 'last_screenshot_path') and self.d4_data.last_screenshot_path else "N/A"
