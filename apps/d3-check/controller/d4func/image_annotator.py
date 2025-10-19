@@ -157,6 +157,15 @@ class ImageAnnotator:
 
                 # Dungeon progress bar
                 ("Dungeon Progress", D4_STANDARD_COORDS.dungeon_progress_start, D4_STANDARD_COORDS.dungeon_progress_end, ANNOTATION_COLORS["cyan"]),
+
+                # Team search and formation interface
+                ("Find Team", D4_STANDARD_COORDS.find_team_region_start, D4_STANDARD_COORDS.find_team_region_end, ANNOTATION_COLORS["lime"]),
+                ("Form Team", D4_STANDARD_COORDS.form_team_region_start, D4_STANDARD_COORDS.form_team_region_end, ANNOTATION_COLORS["pink"]),
+                ("Activity Selection", D4_STANDARD_COORDS.activity_selection_region_start, D4_STANDARD_COORDS.activity_selection_region_end, ANNOTATION_COLORS["teal"]),
+                ("Min Tier Input", D4_STANDARD_COORDS.min_tier_input_region_start, D4_STANDARD_COORDS.min_tier_input_region_end, ANNOTATION_COLORS["indigo"]),
+                ("Max Tier Input", D4_STANDARD_COORDS.max_tier_input_region_start, D4_STANDARD_COORDS.max_tier_input_region_end, ANNOTATION_COLORS["maroon"]),
+                ("Confirm Team", D4_STANDARD_COORDS.confirm_team_button_start, D4_STANDARD_COORDS.confirm_team_button_end, ANNOTATION_COLORS["brown"]),
+                ("Panel Close", D4_STANDARD_COORDS.panel_close_button_start, D4_STANDARD_COORDS.panel_close_button_end, ANNOTATION_COLORS["crimson"]),
             ]
 
             # Define points to visualize
@@ -177,6 +186,9 @@ class ImageAnnotator:
 
                 # Game start button
                 ("Start Game", D4_STANDARD_COORDS.start_game_button, ANNOTATION_COLORS["navy"]),
+
+                # Team formation interface points
+                ("Min Tier Click", D4_STANDARD_COORDS.min_tier_input_point, ANNOTATION_COLORS["orange"]),
             ]
 
             # Define lines to visualize (start, end, label, color)

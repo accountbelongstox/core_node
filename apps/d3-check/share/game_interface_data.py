@@ -346,6 +346,32 @@ class D4StandardCoordinates:
     red_portal_max_height: Tuple[None, int] = (None, 600)          # (Null, y) - maximum portal height
     red_portal_min_area: int = 10             # (area) - minimum matched pixels to consider as portal
 
+    # Team search and formation interface regions
+    find_team_region_start: Tuple[int, int] = (155, 94)    # Find team button region top-left
+    find_team_region_end: Tuple[int, int] = (275, 129)     # Find team button region bottom-right
+
+    form_team_region_start: Tuple[int, int] = (292, 73)    # Form team button region top-left
+    form_team_region_end: Tuple[int, int] = (406, 126)     # Form team button region bottom-right
+
+    activity_selection_region_start: Tuple[int, int] = (360, 414)  # Activity selection region top-left
+    activity_selection_region_end: Tuple[int, int] = (591, 426)    # Activity selection region bottom-right
+
+    # Great Rift tier input regions
+    min_tier_input_point: Tuple[int, int] = (568, 525)     # Minimum tier input click point
+    min_tier_input_region_start: Tuple[int, int] = (375, 494)      # Minimum tier input region top-left
+    min_tier_input_region_end: Tuple[int, int] = (757, 503)        # Minimum tier input region bottom-right
+
+    max_tier_input_region_start: Tuple[int, int] = (757, 503)      # Maximum tier input region top-left (shares boundary with min)
+    max_tier_input_region_end: Tuple[int, int] = (942, 525)        # Maximum tier input region bottom-right
+
+    # Panel close button region (changed from single point to region for better visibility)
+    panel_close_button_start: Tuple[int, int] = (1387, 50)  # Panel close button region top-left
+    panel_close_button_end: Tuple[int, int] = (1806, 76)    # Panel close button region bottom-right
+
+    # Team submission buttons
+    confirm_team_button_start: Tuple[int, int] = (728, 861)  # Confirm submit team button region top-left
+    confirm_team_button_end: Tuple[int, int] = (831, 879)    # Confirm submit team button region bottom-right
+
 
 # Global D4 standard coordinates instance
 D4_STANDARD_COORDS = D4StandardCoordinates()

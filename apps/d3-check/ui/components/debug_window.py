@@ -126,6 +126,14 @@ class DebugWindow:
             ('Blacksmith Function', 'Blacksmith Function'),
             ('Map Name', 'Map Name'),
             ('Dungeon Progress', 'Dungeon Progress Bar'),
+            ('Find Team', 'Find Team Button'),
+            ('Form Team', 'Form Team Button'),
+            ('Activity Selection', 'Activity Selection'),
+            ('Min Tier Input', 'Min Tier Input'),
+            ('Max Tier Input', 'Max Tier Input'),
+            ('Confirm Team', 'Confirm Team Button'),
+            ('Panel Close', 'Panel Close Button'),
+            ('Min Tier Click', 'Min Tier Click Point'),
         ]
 
         # Create a container for two-column layout
