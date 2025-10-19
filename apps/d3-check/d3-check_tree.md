@@ -236,21 +236,6 @@ d3-check/
 │   ├── _obsolete_window_activator.py
 │   ├── _obsolete_window_analyzer.py
 │   └── _obsolete_window_ops.py
-├── COORDINATE_VERIFICATION.md
-├── DATA_CONSISTENCY_FIX_REPORT.md
-├── DATA_FLOW_VERIFICATION_REPORT.md
-├── DEBUG_TROUBLESHOOTING.md
-├── DEBUG_WINDOW_FEATURE.md
-├── DEBUG_WINDOW_FEATURE_FINAL.md
-├── DEBUG_WINDOW_PAUSE_FEATURE.md
-├── DUNGEON_PROGRESS_FIX.md
-├── FIXES_SUMMARY.md
-├── IMPORT_ERROR_FIX_SUMMARY.md
-├── MAP_SWITCH_DETECTOR_FEATURE.md
-├── OCR_MAP_RECOGNITION_IMPLEMENTATION_SUMMARY.md
-├── OFFSET_DEBUGGING_REPORT.md
-├── REGION_CONSISTENCY_CHECK.md
-├── TRAINING_TIMESTAMP_GUIDE.md
 ├── d3-check_tree.md
 ├── debug_window_offset.py
 ├── main.py

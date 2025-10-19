@@ -56,17 +56,20 @@ class ScreenshotHandler:
 
             if screenshot_data is None:
                 ColorPrint.yellow("[ScreenshotHandler] Failed to capture screenshot")
-                d4_data.set_window_info(False, None, "", (0, 0))
+                # Direct property access
+                d4_data.window_detected = False
+                d4_data.window_hwnd = None
+                d4_data.window_title = ""
+                d4_data.window_position = (0, 0)
                 return False
 
             # Update window state
             if screenshot_data.game_window_size:
-                d4_data.set_window_info(
-                    detected=True,
-                    hwnd=None,  # hwnd not available from screenshot_data
-                    title="",   # title not available from screenshot_data
-                    position=screenshot_data.window_offset
-                )
+                # Direct property access
+                d4_data.window_detected = True
+                d4_data.window_hwnd = None  # hwnd not available from screenshot_data
+                d4_data.window_title = ""   # title not available from screenshot_data
+                d4_data.window_position = screenshot_data.window_offset
 
                 # Save screenshot_data to shared memory (ONLY source of truth)
                 # All image data should be accessed through screenshot_data
@@ -77,11 +80,15 @@ class ScreenshotHandler:
                 self.d4_data.fullscreen_size = screenshot_data.fullscreen_size
                 self.d4_data.window_offset = screenshot_data.window_offset
                 self.d4_data.timestamp = datetime.now().isoformat()
-                
+
                 ColorPrint.green("[ScreenshotHandler] Screenshot captured and info collected")
                 return True
             else:
-                d4_data.set_window_info(False, None, "", (0, 0))
+                # Direct property access
+                d4_data.window_detected = False
+                d4_data.window_hwnd = None
+                d4_data.window_title = ""
+                d4_data.window_position = (0, 0)
                 return False
 
         except Exception as e:

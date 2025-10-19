@@ -25,7 +25,7 @@ from d3utils.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
 
 # Import game state and task thread manager
-from d3utils.game_state import get_game_state, register_state_callback
+from share.game_interface_data import get_game_interface_data
 from d3utils.task_thread_manager import get_task_manager, set_task_status, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
 
@@ -35,7 +35,7 @@ DEBUG_MESSAGEBOX = False
 
 class RosbotExtensionPanel:
     """ROSBOT Extension panel with unified styling"""
-    
+
     def __init__(self, parent):
         """Initialize ROSBOT extension panel"""
         self.parent = parent
@@ -47,7 +47,10 @@ class RosbotExtensionPanel:
         self.rosbot_running = False
 
         # Get game state instance
-        self.game_state = get_game_state()
+        self.game_state = get_game_interface_data()
+
+        # Register state callback
+        self.game_state.register_callback(self._on_game_state_changed)
 
         # Create main container
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
@@ -67,8 +70,7 @@ class RosbotExtensionPanel:
         # Register as ColorPrint callback for rosbot-specific logs
         ColorPrint.register_callback(self.add_log_message)
 
-        # Register game state callback for UI updates (after UI is fully created)
-        register_state_callback(self._on_game_state_changed)
+        # Note: State callback already registered in __init__
 
         # Note: Language change is handled by main UI, not individual panels
 
@@ -470,10 +472,24 @@ class RosbotExtensionPanel:
     def _on_game_state_changed(self, state):
         """Handle game state changes (called from background thread)"""
         ColorPrint.debug_messagebox("DEBUG #30", f"[RosbotPanel] Enter _on_game_state_changed, state={state}", DEBUG_MESSAGEBOX)
+
+        # Check if container still exists (not destroyed during shutdown)
+        try:
+            if not self.container.winfo_exists():
+                ColorPrint.debug_messagebox("DEBUG #31-SKIP", "[RosbotPanel] Container destroyed, skipping", DEBUG_MESSAGEBOX)
+                return
+        except:
+            # Container is destroyed or not accessible
+            return
+
         # Schedule UI update on main thread to avoid tkinter thread safety issues
         ColorPrint.debug_messagebox("DEBUG #31", "[RosbotPanel] Preparing to call container.after", DEBUG_MESSAGEBOX)
-        self.container.after(0, lambda: self._update_ui_from_state(state))
-        ColorPrint.debug_messagebox("DEBUG #32", "[RosbotPanel] container.after returned", DEBUG_MESSAGEBOX)
+        try:
+            self.container.after(0, lambda: self._update_ui_from_state(state))
+            ColorPrint.debug_messagebox("DEBUG #32", "[RosbotPanel] container.after returned", DEBUG_MESSAGEBOX)
+        except:
+            # Main loop may have stopped
+            ColorPrint.debug_messagebox("DEBUG #32-ERROR", "[RosbotPanel] container.after failed (main loop stopped)", DEBUG_MESSAGEBOX)
 
     def _update_ui_from_state(self, state):
         """Update UI elements from game state (called on main thread)"""

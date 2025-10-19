@@ -42,8 +42,8 @@ from providor.common_imports import ColorPrint, ImageMatcher
 from providor.providor_index import (
     TEMPLATE_CONFIGS,
     D4_TEMPLATE_CONFIGS,
-    STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT,
+    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
     SCALED_TEMPLATES_CACHE_DIR,
     get_template_path,
     get_template_threshold,
@@ -135,8 +135,8 @@ class ScaledTemplateMatcher:
                     ratio_thresh=0.80,
                     min_inliers=4,
                     nfeatures=10000,
-                    standard_width=STANDARD_RESOLUTION_WIDTH,
-                    standard_height=STANDARD_RESOLUTION_HEIGHT
+                    standard_width=D3_STANDARD_RESOLUTION_WIDTH,
+                    standard_height=D3_STANDARD_RESOLUTION_HEIGHT
                 )
         else:
             # Template matching - use ORB as feature detector, but with custom template method
@@ -149,8 +149,8 @@ class ScaledTemplateMatcher:
                     ratio_thresh=0.80,
                     min_inliers=4,
                     nfeatures=10000,
-                    standard_width=STANDARD_RESOLUTION_WIDTH,
-                    standard_height=STANDARD_RESOLUTION_HEIGHT
+                    standard_width=D3_STANDARD_RESOLUTION_WIDTH,
+                    standard_height=D3_STANDARD_RESOLUTION_HEIGHT
                 )
 
         return self._matchers[cache_key]
