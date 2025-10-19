@@ -30,6 +30,8 @@ class SettingsControllerAppAchat extends ChangeNotifier {
   // Internal state for cached values
   bool _notificationEnabled = true;
   bool _notificationSoundEnabled = true;
+  bool _analyticsEnabled = true;
+  bool _crashReportingEnabled = true;
   bool _isInitialized = false;
 
   // Always true for LTR languages in this app
@@ -54,6 +56,8 @@ class SettingsControllerAppAchat extends ChangeNotifier {
   Future<void> _loadCachedValues() async {
     _notificationEnabled = await _storage.isNotificationEnabled();
     _notificationSoundEnabled = await _storage.isNotificationSoundEnabled();
+    _analyticsEnabled = await _storage.isAnalyticsEnabled();
+    _crashReportingEnabled = await _storage.isCrashReportingEnabled();
   }
 
 
@@ -179,20 +183,22 @@ class SettingsControllerAppAchat extends ChangeNotifier {
 
 
   /// Get analytics enabled status (sync access)
-  bool get isAnalyticsEnabled => _storage.isAnalyticsEnabled();
+  bool get isAnalyticsEnabled => _analyticsEnabled;
 
   /// Toggle analytics
   Future<void> toggleAnalytics() async {
     await _storage.toggleAnalytics();
+    _analyticsEnabled = await _storage.isAnalyticsEnabled();
     notifyListeners();
   }
 
   /// Get crash reporting enabled status (sync access)
-  bool get isCrashReportingEnabled => _storage.isCrashReportingEnabled();
+  bool get isCrashReportingEnabled => _crashReportingEnabled;
 
   /// Toggle crash reporting
   Future<void> toggleCrashReporting() async {
     await _storage.toggleCrashReporting();
+    _crashReportingEnabled = await _storage.isCrashReportingEnabled();
     notifyListeners();
   }
 
