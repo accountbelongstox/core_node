@@ -381,18 +381,32 @@ class AutoTeamFormation(D4OperationBase):
         """
         Submit party formation
 
+        Uses Confirm Team Button region: (728, 861, 831, 879)
+
         Returns:
             bool: True if successful
         """
         try:
             ColorPrint.blue("[AutoTeamFormation] Step 7: Submitting party...")
 
+            # Get Confirm Team Button region
+            x1, y1, x2, y2 = self.REGION_COORDS['Confirm Team Button']
+
+            # Calculate center point
+            center_x = (x1 + x2) // 2
+            center_y = (y1 + y2) // 2
+
+            # Add small random offset
+            import random
+            offset_x = random.randint(-3, 3)
+            offset_y = random.randint(-3, 3)
+
+            click_point = (center_x + offset_x, center_y + offset_y)
+
+            ColorPrint.blue(f"[AutoTeamFormation] Clicking submit button at {click_point}...")
+
             # Click submit button
-            if not self.click_region_center_random(
-                "Submit Party Button",
-                margin=5,
-                delay_ms=(200, 300)
-            ):
+            if not self._click_point(click_point, use_standard_resolution=True, duration=0.2):
                 return False
 
             # Wait for submission to complete
