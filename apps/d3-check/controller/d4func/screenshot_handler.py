@@ -68,16 +68,15 @@ class ScreenshotHandler:
                     position=screenshot_data.window_offset
                 )
 
-                # Update D4 interface data
+                # Save screenshot_data to shared memory (ONLY source of truth)
+                # All image data should be accessed through screenshot_data
+                self.d4_data.screenshot_data = screenshot_data
+
+                # Update metadata fields for convenience (no image data)
                 self.d4_data.game_window_size = screenshot_data.game_window_size
                 self.d4_data.fullscreen_size = screenshot_data.fullscreen_size
                 self.d4_data.window_offset = screenshot_data.window_offset
-                self.d4_data.game_window_image = screenshot_data.game_window_image
-                self.d4_data.fullscreen_image = screenshot_data.fullscreen_image
                 self.d4_data.timestamp = datetime.now().isoformat()
-                
-                # Save screenshot_data to shared memory
-                self.d4_data.screenshot_data = screenshot_data
                 
                 ColorPrint.green("[ScreenshotHandler] Screenshot captured and info collected")
                 return True

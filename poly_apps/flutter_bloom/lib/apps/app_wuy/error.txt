@@ -1,473 +1,637 @@
+
+[INFO] Starting Flutter for Android debugging...
+[INFO] No physical device detected, checking for emulator...
+[MODE] Running in Debug mode
+[DEBUG] Hot reload: press 'r'
+[DEBUG] Hot restart: press 'R'
+[DEBUG] Quit: press 'q'
+[INFO] Entry file: lib/apps/app_wuy/main_app_wuy.dart
 Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
-lib/apps/app_achat/features_app_achat/chat_details/views/chat_details_screen.dart:17:8: Error: Error when reading 'lib/common/widgets/network_connection_dialog.dart': The system cannot find the file specified.
+Launching lib/apps/app_wuy/main_app_wuy.dart on PKR110 in debug mode...
+Flutter assets will be downloaded from https://storage.googleapis.com. Make sure you trust this source!
+Running Gradle task 'assembleDebug'...                             11.3s
+✓ Built build\app\outputs\flutter-apk\app-debug.apk
+Installing build\app\outputs\flutter-apk\app-debug.apk...           6.5s
+D/FlutterJNI(32370): Beginning load of flutter...
+D/FlutterJNI(32370): flutter (null) was loaded normally!
+I/flutter (32370): [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+I/flutter (32370): Initializing Wuy App...
+I/flutter (32370): App Name: Wuy App
+I/flutter (32370): App Version: 1.0.0
+I/flutter (32370): Package Name: com.example.wuy
+I/flutter (32370): Debug Mode: true
+I/flutter (32370): Error loading auth state: Bad state: UnifiedStorage not initialized. Call UnifiedStorage.init() first.
+I/flutter (32370): WuyAuthStateManager initialized - isAuthenticated: false
+I/flutter (32370): UnifiedSQLiteStorageAdapter initialized successfully: /data/user/0/com.ddsj.qyapp/app_flutter/storage_unified/Wuy App_unified.db
+I/flutter (32370): Starting Hive to SQLite migration...
+I/flutter (32370): Starting storage system cleanup...
+I/flutter (32370): Cleaned up 0 expired entries
+I/flutter (32370): Database optimization completed. Stats: {total_entries: 0, box_stats: {}, database_size: 45056}
+I/flutter (32370): Cleaned up 0 expired entries
+I/flutter (32370): Storage cleanup completed: Cleanup completed: Optimized current database
+I/flutter (32370): Total cleaned items: 0
+I/flutter (32370): SharedPreferences initialized successfully and ready for use
+I/flutter (32370): ✅ wuy initialized
+I/flutter (32370): WuyUnifiedService initialized (storage handled by runCommonApp)
+I/flutter (32370): No authenticated user found, creating test user for development
+I/flutter (32370): User data saved to storage
+I/flutter (32370): User authenticated: Test User
+I/flutter (32370): Auth state manager: isAuthenticated = true
+I/flutter (32370): Test user created and authenticated
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+D/ViewRootImplExtImpl(32370): wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=361, residentWS=false, scenario=0, bounds=Rect(0, 0 - 1264, 2780), relayoutAsync=false, flags=0, newFlags=1457532192, title=com.ddsj.qyapp/com.ddsj.qyapp.MainActivity
+D/VRI[MainActivity](32370): relayoutWindow result, sizeChanged:false, surfaceControlChanged:false, transformHintChanged:false, mSurfaceSize:Point(1264, 2780), mLastSurfaceSize:Point(1264, 2780), mWidth:1264, mHeight:2780, requestedWidth:1264, requestedHeight:2780, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1264,2780] display=[0,0][1264,2780] parentFrame=[0,0][0,0]}, relayoutAsync:false, mSyncSeqId:0
+W/VRI[MainActivity](32370): updateBlastSurfaceIfNeeded, surfaceSize:Point(1264, 2780), lastSurfaceSize:Point(1264, 2780), format:-3, blastBufferQueue:android.graphics.BLASTBufferQueue@b6f6c8b
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/BLASTBufferQueue(32370): [SurfaceView[com.ddsj.qyapp/com.ddsj.qyapp.MainActivity]#1](f:0,a:1) acquireNextBufferLocked size=1264x2780 mFrameNumber=1 applyTransaction=true mTimestamp=48470524241196(auto) mPendingTransactions.size=0 graphicBufferId=139028091371530 transform=0
+W/VRI[MainActivity](32370): performTraversals: cancelAndRedraw, mLastPerformTraversalsSkipDrawReasonpredraw_io.flutter.embedding.android.FlutterActivityAndFragmentDelegate$2
+D/SurfaceView(32370): 243141013 finishedDrawing
+D/SurfaceView(32370): 243141013 performDrawFinished mAttachedToWindow true
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+I/SurfaceControl(32370):  setExtendedRangeBrightness sc=Surface(name=com.ddsj.qyapp/com.ddsj.qyapp.MainActivity)/@0x1d13981,currentBufferRatio=1.0,desiredRatio=1.0
+D/SurfaceView(32370): 243141013 dispatchDraw mDrawFinished true isAboveParent false (mPrivateFlags & PFLAG_SKIP_DRAW) 128
+D/SurfaceView(32370): 243141013 clearSurfaceViewPort mCornerRadius 0.0
+D/BLASTBufferQueue(32370): [VRI[MainActivity]#0](f:0,a:1) acquireNextBufferLocked size=1264x2780 mFrameNumber=1 applyTransaction=true mTimestamp=48470556982289(auto) mPendingTransactions.size=0 graphicBufferId=139028091371535 transform=0
+D/VRI[MainActivity](32370): Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true syncBuffer=false
+D/ExtensionsLoader(32370): createInstance(64bit) : createExtendedFactory
+D/ExtensionsLoader(32370): Opened libSchedAssistExtImpl.so
+D/VRI[MainActivity](32370): draw finished. seqId=0
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/VRI[MainActivity](32370): onFocusEvent true
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+Syncing files to device PKR110...                                  134ms
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
 
-import 'package:qyflutter/common/widgets/network_connection_dialog.dart';
-       ^
-lib/apps/app_achat/features_app_achat/chat_home/controllers/chat_controller_app_achat.dart:19:8: Error: Error when reading 'lib/common/widgets/network_connection_dialog.dart': The system cannot find the file specified.
+Flutter run key commands.
+r Hot reload. 🔥🔥🔥
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
 
-import 'package:qyflutter/common/widgets/network_connection_dialog.dart';
-       ^
-lib/apps/app_example/config_app_example/storage_app_example.dart:13:8: Error: Error when reading 'lib/common/storage/app_storage_base.dart': The system cannot find the file specified.
+A Dart VM Service on PKR110 is available at: http://127.0.0.1:52139/k637E9lDsko=/
+The Flutter DevTools debugger and profiler on PKR110 is available at:
+http://127.0.0.1:9101?uri=http://127.0.0.1:52139/k637E9lDsko=/
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/OplusScrollToTopManager(32370): com.ddsj.qyapp/com.ddsj.qyapp.MainActivity,This com.android.internal.policy.DecorView{5c80cb5 V.E...... R....... 0,0-1264,2780 aid=0 alpha=1.0 viewInfo = }[MainActivity] change focus to true
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+I/flutter (32370): Auth state manager: User authenticated, returning home route
+I/flutter (32370): Splash: Navigating to initial route: /wuy/friends
+I/flutter (32370): AuthGuard: Checking authentication state...
+I/flutter (32370): AuthGuard: isAuthenticated = true
+I/flutter (32370): AuthGuard: currentUser = Test User
+I/flutter (32370): WuUserProvider: Synced with auth state manager - user: Test User
+I/flutter (32370): AuthGuard: Final authentication check result = true
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+I/flutter (32370): WuyUnifiedService: wuy.debug.using_fake_data for Get friends list
 
-import 'package:qyflutter/common/storage/app_storage_base.dart';
-       ^
-lib/apps/app_example/config_app_example/storage_app_example.dart:18:33: Error: Type 'AppStorageBase' not found.
-class StorageAppExample extends AppStorageBase {
-                                ^^^^^^^^^^^^^^
-lib/apps/app_achat/features_app_achat/chat_details/views/chat_details_screen.dart:55:9: Error: The getter 'NetworkConnectionDialog' isn't defined for the type '_ChatDetailsScreenState'.
- - '_ChatDetailsScreenState' is from 'package:qyflutter/apps/app_achat/features_app_achat/chat_details/views/chat_details_screen.dart' ('lib/apps/app_achat/features_app_achat/chat_details/views/chat_details_screen.dart').
-Try correcting the name to the name of an existing getter, or defining a getter or field named 'NetworkConnectionDialog'.
-        NetworkConnectionDialog.show(context);
-        ^^^^^^^^^^^^^^^^^^^^^^^
-lib/apps/app_achat/features_app_achat/chat_home/controllers/chat_controller_app_achat.dart:190:5: Error: The getter 'NetworkConnectionDialog' isn't defined for the type 'ChatHomeController'.
- - 'ChatHomeController' is from 'package:qyflutter/apps/app_achat/features_app_achat/chat_home/controllers/chat_controller_app_achat.dart' ('lib/apps/app_achat/features_app_achat/chat_home/controllers/chat_controller_app_achat.dart').
-Try correcting the name to the name of an existing getter, or defining a getter or field named 'NetworkConnectionDialog'.
-    NetworkConnectionDialog.show(context);
-    ^^^^^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/features_app_example/splash/views/splash_screen.dart:50:19: Error: The method 'isFirstLaunch' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'isFirstLaunch'.
-    if (!_storage.isFirstLaunch() && mounted) {
-                  ^^^^^^^^^^^^^
-lib/apps/app_example/features_app_example/splash/views/splash_screen.dart:120:32: Error: The method 'setNotFirstLaunch' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setNotFirstLaunch'.
-                      _storage.setNotFirstLaunch();
-                               ^^^^^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:54:29: Error: The method 'getBookmarks' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getBookmarks'.
-    final bookmarks = await getBookmarks();
-                            ^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:60:30: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    final categories = await getApp<List<dynamic>>(keyFavoriteCategories);
-                             ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:66:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<List<String>>(keyFavoriteCategories, categories);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:71:28: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    final settings = await getApp<Map<String, dynamic>>(keyNotificationSettings);
-                           ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:82:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<Map<String, bool>>(keyNotificationSettings, settings);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:87:27: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    final history = await getApp<List<dynamic>>(keySearchHistory);
-                          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:108:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<List<String>>(keySearchHistory, history);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:113:11: Error: The method 'removeApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'removeApp'.
-    await removeApp(keySearchHistory);
-          ^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:118:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    return await getApp<Map<String, dynamic>>(keyUserProgress) ?? {
-                 ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:130:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<Map<String, dynamic>>(keyUserProgress, currentProgress);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:135:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    return await getApp<Map<String, dynamic>>(keyAppSettings) ?? {
-                 ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:148:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<Map<String, dynamic>>(keyAppSettings, currentSettings);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:154:5: Error: The method 'setCache' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setCache'.
-    setCache('user_preferences', preferences, expiry: const Duration(hours: 1));
-    ^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:159:12: Error: The method 'getCache' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getCache'.
-    return getCache<Map<String, dynamic>>('user_preferences');
-           ^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:164:5: Error: The method 'setCache' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setCache'.
-    setCache('recent_bookmarks', bookmarks, expiry: const Duration(minutes: 30));
-    ^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:169:23: Error: The method 'getCache' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getCache'.
-    final bookmarks = getCache<List<dynamic>>('recent_bookmarks');
-                      ^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:177:17: Error: Superclass has no method named 'initAppStorage'.
-    await super.initAppStorage();
-                ^^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:183:31: Error: The method 'getUserPreferences' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getUserPreferences'.
-    final preferences = await getUserPreferences();
-                              ^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:188:29: Error: The method 'getBookmarks' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getBookmarks'.
-    final bookmarks = await getBookmarks();
-                            ^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:197:33: Error: The method 'getUserPreferences' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getUserPreferences'.
-      'user_preferences': await getUserPreferences(),
-                                ^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:198:33: Error: The method 'getBookmarks' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getBookmarks'.
-      'bookmarks_count': (await getBookmarks()).length,
-                                ^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:199:39: Error: The method 'getReadingHistory' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getReadingHistory'.
-      'reading_history_count': (await getReadingHistory()).length,
-                                      ^^^^^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:205:26: Error: The method 'isFirstLaunch' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'isFirstLaunch'.
-      'is_first_launch': isFirstLaunch(),
-                         ^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:206:27: Error: The method 'isAuthenticated' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'isAuthenticated'.
-      'is_authenticated': isAuthenticated(),
-                          ^^^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:207:17: Error: The method 'getLocale' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getLocale'.
-      'locale': getLocale(),
-                ^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:208:21: Error: The method 'getThemeMode' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getThemeMode'.
-      'theme_mode': getThemeMode(),
-                    ^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:214:11: Error: The method 'clearAppStorage' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'clearAppStorage'.
-    await clearAppStorage();
-          ^^^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:215:11: Error: The method 'clearUserStorage' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'clearUserStorage'.
-    await clearUserStorage();
-          ^^^^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:216:5: Error: The method 'clearAppCache' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'clearAppCache'.
-    clearAppCache();
-    ^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:220:11: Error: The method 'clearAuth' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'clearAuth'.
-    await clearAuth();
-          ^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:229:21: Error: The method 'exportAppData' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'exportAppData'.
-      'data': await exportAppData(),
-                    ^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:238:15: Error: The method 'importAppData' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'importAppData'.
-        await importAppData(data);
-              ^^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:239:15: Error: The method 'refreshCache' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'refreshCache'.
-        await refreshCache();
-              ^^^^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:251:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<bool>('word_${word}_known', isKnown);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:256:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    return await getApp<bool>('word_${word}_known');
-                 ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:261:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<List<Map<String, dynamic>>>(keyWordList, words);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:266:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    return await getApp<List<Map<String, dynamic>>>(keyWordList) ?? [];
-                 ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:271:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<Map<String, dynamic>>(keyLearningStats, stats);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:276:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    return await getApp<Map<String, dynamic>>(keyLearningStats) ??
-                 ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:289:28: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    final sessions = await getApp<List<Map<String, dynamic>>>(keyStudySessions) ?? [];
-                           ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:297:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<List<Map<String, dynamic>>>(keyStudySessions, sessions);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:302:18: Error: The method 'getApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getApp'.
-    return await getApp<List<Map<String, dynamic>>>(keyStudySessions) ?? [];
-                 ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:344:15: Error: The method 'removeApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'removeApp'.
-        await removeApp('word_${word}_known');
-              ^^^^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:359:11: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-    await setApp<List<Map<String, dynamic>>>(keyStudySessions, []);
-          ^^^^^^
-lib/apps/app_example/config_app_example/storage_app_example.dart:413:15: Error: The method 'setApp' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setApp'.
-        await setApp<List<Map<String, dynamic>>>(keyStudySessions,
-              ^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:57:35: Error: The method 'isDarkMode' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'isDarkMode'.
-  bool get isDarkMode => _storage.isDarkMode();
-                                  ^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:62:14: Error: The method 'toggleDarkMode' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'toggleDarkMode'.
-    _storage.toggleDarkMode();
-             ^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:74:37: Error: The method 'getLocale' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getLocale'.
-    final storedLanguage = _storage.getLocale();
-                                    ^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:102:21: Error: The method 'getFontFamily' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getFontFamily'.
-    return _storage.getFontFamily() ?? _localization.fontFamily ?? 'SFProText';
-                    ^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:107:21: Error: The method 'getLocale' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getLocale'.
-    return _storage.getLocale() ?? _localization.currentLocale?.languageCode ?? 'zh';
-                    ^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:112:14: Error: The method 'setLocale' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setLocale'.
-    _storage.setLocale(languageCode);
-             ^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:121:21: Error: The method 'getFontSize' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getFontSize'.
-    return _storage.getFontSize() ?? 16.0;
-                    ^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:126:14: Error: The method 'setFontSize' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setFontSize'.
-    _storage.setFontSize(size);
-             ^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:132:21: Error: The method 'isNotificationsEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'isNotificationsEnabled'.
-    return _storage.isNotificationsEnabled();
-                    ^^^^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:137:14: Error: The method 'setNotificationsEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setNotificationsEnabled'.
-    _storage.setNotificationsEnabled(enabled);
-             ^^^^^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:143:21: Error: The method 'isSoundEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'isSoundEnabled'.
-    return _storage.isSoundEnabled();
-                    ^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:148:14: Error: The method 'setSoundEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setSoundEnabled'.
-    _storage.setSoundEnabled(enabled);
-             ^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:154:21: Error: The method 'isVibrationEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'isVibrationEnabled'.
-    return _storage.isVibrationEnabled();
-                    ^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:159:14: Error: The method 'setVibrationEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setVibrationEnabled'.
-    _storage.setVibrationEnabled(enabled);
-             ^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:165:21: Error: The method 'isAnimationsEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'isAnimationsEnabled'.
-    return _storage.isAnimationsEnabled();
-                    ^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:170:14: Error: The method 'setAnimationsEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setAnimationsEnabled'.
-    _storage.setAnimationsEnabled(enabled);
-             ^^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:176:21: Error: The method 'isAutoSyncEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'isAutoSyncEnabled'.
-    return _storage.isAutoSyncEnabled();
-                    ^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:181:14: Error: The method 'setAutoSyncEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setAutoSyncEnabled'.
-    _storage.setAutoSyncEnabled(enabled);
-             ^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:202:14: Error: The method 'setDarkMode' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setDarkMode'.
-    _storage.setDarkMode(false);
-             ^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:203:14: Error: The method 'setLocale' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setLocale'.
-    _storage.setLocale('en');
-             ^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:204:14: Error: The method 'setFontFamily' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setFontFamily'.
-    _storage.setFontFamily('SFProText');
-             ^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:205:14: Error: The method 'setFontSize' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setFontSize'.
-    _storage.setFontSize(16.0);
-             ^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:206:14: Error: The method 'setNotificationsEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setNotificationsEnabled'.
-    _storage.setNotificationsEnabled(true);
-             ^^^^^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:207:14: Error: The method 'setSoundEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setSoundEnabled'.
-    _storage.setSoundEnabled(true);
-             ^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:208:14: Error: The method 'setVibrationEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setVibrationEnabled'.
-    _storage.setVibrationEnabled(true);
-             ^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:209:14: Error: The method 'setAnimationsEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setAnimationsEnabled'.
-    _storage.setAnimationsEnabled(true);
-             ^^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/settings_controller_app_example.dart:210:14: Error: The method 'setAutoSyncEnabled' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setAutoSyncEnabled'.
-    _storage.setAutoSyncEnabled(true);
-             ^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/auth_controller_app_example.dart:212:20: Error: The method 'clearAuth' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'clearAuth'.
-    await _storage.clearAuth();
-                   ^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:73:39: Error: The method 'getUserData' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getUserData'.
-      final userData = await _storage.getUserData();
-                                      ^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:124:24: Error: The method 'setUserData' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setUserData'.
-        await _storage.setUserData(_user!.toJson());
-                       ^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:175:22: Error: The method 'setUserData' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setUserData'.
-      await _storage.setUserData(_user!.toJson());
-                     ^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:189:27: Error: The method 'getUserPreferences' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getUserPreferences'.
-    return await _storage.getUserPreferences();
-                          ^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:194:20: Error: The method 'setUserPreferences' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'setUserPreferences'.
-    await _storage.setUserPreferences(preferences);
-                   ^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:200:27: Error: The method 'getBookmarks' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getBookmarks'.
-    return await _storage.getBookmarks();
-                          ^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:205:20: Error: The method 'addBookmark' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'addBookmark'.
-    await _storage.addBookmark(bookmark);
-                   ^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:211:20: Error: The method 'removeBookmark' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'removeBookmark'.
-    await _storage.removeBookmark(bookmark);
-                   ^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:217:27: Error: The method 'getReadingHistory' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'getReadingHistory'.
-    return await _storage.getReadingHistory();
-                          ^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:222:20: Error: The method 'addToReadingHistory' isn't defined for the type 'StorageAppExample'.
-e.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'addToReadingHistory'.
-    await _storage.addToReadingHistory(item);
-                   ^^^^^^^^^^^^^^^^^^^
-lib/apps/app_example/controller_app_example/profile_controller_app_example.dart:228:20: Error: The method 'clearReadingHistory' isn't defined for the type 'StorageAppExample'.
- - 'StorageAppExample' is from 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart' ('lib/apps/app_example/config_app_example/storage_app_example.dart').
-Try correcting the name to the name of an existing method, or defining a method named 'clearReadingHistory'.
-    await _storage.clearReadingHistory();
-                   ^^^^^^^^^^^^^^^^^^^
-Target kernel_snapshot_program failed: Exception
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 4.0 pixels on the bottom.
 
+The relevant error-causing widget was:
+  Column
+  Column:file:///D:/programing/core_node/poly_apps/flutter_bloom/lib/apps/app_wuy/widgets_app_wuy/wuy_bottom_navigation.d
+  art:128:20
 
-FAILURE: Build failed with an exception.
+To inspect this widget in Flutter DevTools, visit:
+http://127.0.0.1:9101/#/inspector?uri=http%3A%2F%2F127.0.0.1%3A52139%2Fk637E9lDsko%3D%2F&inspectorRef=inspector-0
 
-* What went wrong:
-Execution failed for task ':app:compileFlutterBuildRelease'.
-> Process 'command 'D:\.dev_win10\flutter\bin\flutter.bat'' finished with non-zero exit value 1
+The overflowing RenderFlex has an orientation of Axis.vertical.
+The edge of the RenderFlex that is overflowing has been marked in the rendering with a yellow and
+black striped pattern. This is usually caused by the contents being too big for the RenderFlex.
+Consider applying a flex factor (e.g. using an Expanded widget) to force the children of the
+RenderFlex to fit within the available space instead of being sized to their natural size.
+This is considered an error condition because it indicates that there is content that cannot be
+seen. If the content is legitimately bigger than the available space, consider clipping it with a
+ClipRect widget before putting it in the flex, or using a scrollable container rather than a Flex,
+like a ListView.
+The specific RenderFlex in question is: RenderFlex#07e98 relayoutBoundary=up8 OVERFLOWING:
+  creator: Column ← Padding ← Listener ← RawGestureDetector ← GestureDetector ← Semantics ←
+    DefaultSelectionStyle ← Builder ← MouseRegion ← Semantics ← _FocusInheritedScope ← Focus ← ⋯
+  parentData: offset=Offset(0.0, 8.0) (can use size)
+  constraints: BoxConstraints(w=82.3, 0.0<=h<=38.0)
+  size: Size(82.3, 38.0)
+  direction: vertical
+  mainAxisAlignment: start
+  mainAxisSize: min
+  crossAxisAlignment: center
+  verticalDirection: down
+  spacing: 0.0
+◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤
+════════════════════════════════════════════════════════════════════════════════════════════════════
 
-* Try:
-> Run with --stacktrace option to get the stack trace.
-> Run with --info or --debug option to get more log output.
-> Run with --scan to get full insights.
-> Get more help at https://help.gradle.org.
-
-BUILD FAILED in 5m 2s
-Running Gradle task 'assembleRelease'...                          302.9s
-Gradle task assembleRelease failed with exit code 1
-[BUILD] Command failed with exit code: 1
+Another exception was thrown: A RenderFlex overflowed by 4.0 pixels on the bottom.
+Another exception was thrown: A RenderFlex overflowed by 4.0 pixels on the bottom.
+Another exception was thrown: A RenderFlex overflowed by 4.0 pixels on the bottom.
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+W/WindowOnBackDispatcher(32370): OnBackInvokedCallback is not enabled for the application.
+W/WindowOnBackDispatcher(32370): Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+I/flutter (32370): Cache PUT: user_provider_enhanced:user_profile (TTL: 43200s)
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/ViewRootImplExtImpl(32370): wrapConfigInfoIntoFlags rotation=0, smallestScreenWidthDp=361, residentWS=false, scenario=0, bounds=Rect(0, 0 - 1264, 2780), relayoutAsync=true, flags=0, newFlags=1457532192, title=com.ddsj.qyapp/com.ddsj.qyapp.MainActivity
+D/VRI[MainActivity](32370): relayoutWindow result, sizeChanged:false, surfaceControlChanged:false, transformHintChanged:false, mSurfaceSize:Point(1264, 2780), mLastSurfaceSize:Point(1264, 2780), mWidth:1264, mHeight:2780, requestedWidth:1264, requestedHeight:2780, transformHint:0, installOrientation:0, displayRotation:0, isSurfaceValid:true, attr.flag:-2122252032, tmpFrames:ClientWindowFrames{frame=[0,0][1264,2780] display=[0,0][1264,2780] parentFrame=[0,0][1264,2780]}, relayoutAsync:true, mSyncSeqId:0
+W/VRI[MainActivity](32370): updateBlastSurfaceIfNeeded, surfaceSize:Point(1264, 2780), lastSurfaceSize:Point(1264, 2780), format:-3, blastBufferQueue:android.graphics.BLASTBufferQueue@b6f6c8b
+I/SurfaceControl(32370):  setExtendedRangeBrightness sc=Surface(name=com.ddsj.qyapp/com.ddsj.qyapp.MainActivity)/@0x1d13981,currentBufferRatio=1.0,desiredRatio=1.0
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+E/Adreno-UNKNOWN(32370): <AttachmentInPersistentGmem:1784>: NOt NULL
+D/ProfileInstaller(32370): Installing profile for com.ddsj.qyapp

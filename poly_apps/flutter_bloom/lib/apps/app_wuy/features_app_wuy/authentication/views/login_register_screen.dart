@@ -17,7 +17,7 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
-import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 import '../../../services_app_wuy/wuy_auth_state_manager.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
 import '../../../../../common/utils/validation/phone_checker.dart';
@@ -50,7 +50,7 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
   bool _isRegisterMode = false; // Default to login mode
   bool _canSendCode = false;
   int _countdown = 0;
-  final WuyDataManager _dataManager = WuyDataManager.instance;
+  final WuyUnifiedService _dataManager = WuyUnifiedService();
 
   @override
   void dispose() {

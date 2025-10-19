@@ -24,6 +24,8 @@
           "d4_running_status": "D4 Running Status",
           "screen_coordinates": "Screen Coordinates",
           "screen_size": "Screen Size",
+          "map_switch_count": "Map Switches",
+          "map_switch_state": "Map State",
           "reserved": "Reserved",
           "unknown": "Unknown",
           "detecting": "Detecting",

@@ -29,12 +29,18 @@ def main():
         sys.exit(exit_code)
 
     # If mode is build, execute build system
+    # Build system will prepare everything and generate PowerShell scripts
+    # PowerShell will execute the actual Flutter compilation commands
     if mode == "build":
         try:
             print("\n[BUILD] Starting Flutter Bloom Build System...")
             print("=" * 50)
 
             # Run build system from new architecture
+            # This will:
+            # 1. Copy project to temp directory
+            # 2. Process assets and configurations
+            # 3. Generate compilation scripts for PowerShell to execute
             build_system = ModernFlutterBuildSystem()
             build_result = build_system.run()
 
@@ -42,7 +48,8 @@ def main():
                 print(f"[BUILD-ERROR] Build system failed: {build_result.get('error', 'Unknown error')}")
                 sys.exit(1)
 
-            print("[BUILD-SUCCESS] Build system completed successfully")
+            print("[BUILD-SUCCESS] Build system preparation completed")
+            print("[BUILD-SUCCESS] PowerShell will now execute the compilation scripts")
             sys.exit(0)
 
         except Exception as e:

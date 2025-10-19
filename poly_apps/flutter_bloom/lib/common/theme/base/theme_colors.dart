@@ -48,6 +48,7 @@ class ThemeColors {
   static const Color blue60 = Color(0xFF4DA2FF); // Light blue
   static const Color blue50 = Color(0xFF66B6FF); // Very light blue
   static const Color blue40 = Color(0xFF80CAFF); // Ultra light blue
+  static const Color blue05 = Color(0xFFE6F3FF); // Very light blue
   static const Color blue30 = Color(0xFF99DEFF); // Pale blue
   static const Color blue20 = Color(0xFFB3F2FF); // Very pale blue
   static const Color blue10 = Color(0xFFCCF6FF); // Almost white blue
@@ -61,6 +62,7 @@ class ThemeColors {
   static const Color green60 = Color(0xFF48DE65); // Light green
   static const Color green50 = Color(0xFF51F36F); // Very light green
   static const Color green40 = Color(0xFF5AFF79); // Ultra light green
+  static const Color green05 = Color(0xFFE6F7E6); // Very light green
   static const Color green30 = Color(0xFF63FF83); // Pale green
   static const Color green20 = Color(0xFF6CFF8D); // Very pale green
   static const Color green10 = Color(0xFF75FF97); // Almost white green
@@ -264,7 +266,7 @@ class ThemeColors {
   static const Color borderColor = grey300;
   static const Color shadowColor = Color(0x1A000000);
   static const Color overlayColor = Color(0x80000000);
-  
+
   // Common aliases used in app_wuy and other apps
   static const Color primary = blue;
   static const Color primaryColor = blue;
@@ -313,7 +315,6 @@ class ThemeColors {
   /// Primary brand color - commonly used green
   static const Color primaryBrand = Color(0xFF0B9722);
 
-  
   /// Generates a consistent color based on a string input
   /// The same string will always generate the same color
   static Color getStringColor(String input, {bool isDark = false}) {

@@ -117,6 +117,9 @@ class D4WindowRegionDetector:
 
                 # Team vote region
                 ("Team Vote", D4_STANDARD_COORDS.team_vote_region_start, D4_STANDARD_COORDS.team_vote_region_end),
+
+                # Dungeon progress bar
+                ("Dungeon Progress", D4_STANDARD_COORDS.dungeon_progress_start, D4_STANDARD_COORDS.dungeon_progress_end),
             ]
 
             # Define points to detect
@@ -258,7 +261,17 @@ class D4WindowRegionDetector:
             if not hasattr(d4_data, 'detected_points'):
                 d4_data.detected_points = {}
 
+            # Preserve existing region_images data when updating detected_regions
+            existing_region_images = d4_data.detected_regions.get('region_images', {})
+            
+            # Update detected_regions with new detection results
             d4_data.detected_regions = detection_result.get("regions", {})
+            
+            # Restore region_images data if it existed
+            if existing_region_images:
+                d4_data.detected_regions['region_images'] = existing_region_images
+                ColorPrint.blue(f"[D4WindowRegionDetector] Preserved {len(existing_region_images)} region images")
+            
             d4_data.detected_points = detection_result.get("points", {})
 
             return True

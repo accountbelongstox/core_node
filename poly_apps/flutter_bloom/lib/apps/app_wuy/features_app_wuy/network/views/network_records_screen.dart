@@ -18,12 +18,12 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
-import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 
 /// Network Records Screen for Wuy App
-/// 
+///
 /// This screen displays network activity and connection records.
-/// 
+///
 /// Localization Usage:
 /// - All user-facing text uses LocalizationKeysAppWuy constants with .tr(context) method
 /// - Text keys are defined in localization_keys_app_wuy.dart
@@ -33,7 +33,8 @@ class WuyNetworkRecordsScreen extends StatefulWidget {
   const WuyNetworkRecordsScreen({super.key});
 
   @override
-  State<WuyNetworkRecordsScreen> createState() => _WuyNetworkRecordsScreenState();
+  State<WuyNetworkRecordsScreen> createState() =>
+      _WuyNetworkRecordsScreenState();
 }
 
 class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
@@ -47,7 +48,7 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
 
   void _loadNetworkRecords() async {
     // Try to load from data manager first
-    final dataManager = WuyDataManager.instance;
+    final dataManager = WuyUnifiedService();
 
     // TODO: Implement real network records loading from data manager
     // For now, use mock data with localized strings
@@ -156,7 +157,7 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
                 ),
                 SizedBox(height: ThemeDimensions.spacingMedium),
                 Text(
-                  WuyDataManager.instance.currentUser?.displayName ?? 'User',
+                  WuyUnifiedService().currentUser?.displayName ?? 'User',
                   style: ThemeTextStyles.title2.copyWith(
                     color: ThemeColors.white,
                     fontWeight: FontWeight.bold,

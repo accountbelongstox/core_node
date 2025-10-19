@@ -24,7 +24,7 @@ import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
-import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 import '../../../models_app_wuy/user_model_app_wuy.dart';
 
 /// Profile Screen for Wuy App
@@ -41,7 +41,7 @@ class WuyProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataManager = WuyDataManager.instance;
+    final dataManager = WuyUnifiedService();
     final user = dataManager.currentUser;
 
     return Scaffold(

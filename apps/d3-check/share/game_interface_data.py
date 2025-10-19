@@ -8,6 +8,7 @@ Shared across all controllers and UI components
 
 import os
 import sys
+import tkinter as tk
 from typing import Optional, Dict, Tuple, List, Any, Set, Union, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -35,6 +36,21 @@ from providor.common_imports import ColorPrint
 # Global scale variables (moved from providor_index.py to avoid circular imports)
 GLOBAL_SCALE_X = 1.0  # Horizontal scale factor
 GLOBAL_SCALE_Y = 1.0  # Vertical scale factor
+
+# Screen resolution cache (get once, use many times)
+_screen_resolution = None
+
+def get_screen_resolution() -> tuple[int, int]:
+    """Get screen resolution with caching"""
+    global _screen_resolution
+    if _screen_resolution is None:
+        root = tk.Tk()
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        root.destroy()
+        _screen_resolution = (screen_width, screen_height)
+        print(f"[GameInterfaceData] Screen resolution cached: {screen_width}x{screen_height}")
+    return _screen_resolution
 
 # Window mode constants for coordinate calculation
 TITLE_BAR_HEIGHT = 31  # Fixed title bar height in windowed mode
@@ -110,11 +126,14 @@ def calculate_unified_scaled_coordinate(
     """
     actual_width, actual_height = game_window_size
     standard_width, standard_height = standard_resolution
-    
+
+    # DEBUG: Print for Team Count region
+    debug_this_coord = (standard_coord == (146, 310) or standard_coord == (228, 624))
+
     # Handle different coordinate formats: (x, y), (x, None), (None, y)
     return_vertical_only = False
     return_horizontal_only = False
-    
+
     if standard_coord[0] is None:
         # (None, y) - vertical offset only
         std_x, std_y = 0, standard_coord[1]
@@ -126,7 +145,10 @@ def calculate_unified_scaled_coordinate(
     else:
         # (x, y) - full coordinate
         std_x, std_y = standard_coord
-    
+
+    if debug_this_coord:
+        ColorPrint.blue(f"[CoordCalc] 🔍 Input: std={standard_coord}, actual_size={game_window_size}, std_size={standard_resolution}, windowed={is_windowed}")
+
     if is_windowed:
         # Windowed mode: account for title bar and borders
         # Standard coordinates include border offsets, so we need to handle them properly
@@ -150,7 +172,14 @@ def calculate_unified_scaled_coordinate(
         # - Use (a,b) coordinate system when possible
         scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x + WINDOW_BORDER_WIDTH)  # [0] -8, 计算后 +8
         scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y + TITLE_BAR_HEIGHT)  # [1] -31, 计算后 +31
-        
+
+        if debug_this_coord:
+            ColorPrint.blue(f"[CoordCalc] 🔍 Windowed mode:")
+            ColorPrint.blue(f"  effective_actual: {effective_actual_width}x{effective_actual_height}")
+            ColorPrint.blue(f"  effective_std: {effective_standard_width}x{effective_standard_height}")
+            ColorPrint.blue(f"  scale: {scale_x:.4f}, {scale_y:.4f}")
+            ColorPrint.blue(f"  ({std_x}, {std_y}) -> ({scaled_x}, {scaled_y})")
+
     else:
         # Fullscreen mode: no title bar or borders
         # Standard coordinates were measured in windowed mode, so we need to subtract the fixed offsets
@@ -166,6 +195,11 @@ def calculate_unified_scaled_coordinate(
         # - For coordinate[1]: subtract 31, calculate percentage, don't add back (no title bar)
         scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x)  # [0] -8, 计算后不加回
         scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y)  # [1] -31, 计算后不加回
+
+        if debug_this_coord:
+            ColorPrint.blue(f"[CoordCalc] 🔍 Fullscreen mode:")
+            ColorPrint.blue(f"  scale: {scale_x:.4f}, {scale_y:.4f}")
+            ColorPrint.blue(f"  ({std_x}, {std_y}) -> ({scaled_x}, {scaled_y})")
 
     # Return in the same format as input
     if return_vertical_only:
@@ -256,7 +290,7 @@ class D4StandardCoordinates:
 
     # Experience bar region
     exp_bar_region_start: Tuple[int, int] = (733, 993)
-    exp_bar_region_end: Tuple[int, int] = (1041, 996)
+    exp_bar_region_end: Tuple[int, int] = (1041, 1000)
 
     # Health orb point
     health_orb_point: Tuple[int, int] = (531, 1030)
@@ -267,7 +301,7 @@ class D4StandardCoordinates:
 
     # Map name region
     map_name_region_start: Tuple[int, int] = (1440, 40)
-    map_name_region_end: Tuple[int, int] = (1602, 68)
+    map_name_region_end: Tuple[int, int] = (1626, 68)
 
     # Quest text region
     quest_text_region_start: Tuple[int, int] = (1439, 315)
@@ -282,8 +316,8 @@ class D4StandardCoordinates:
     team_health_bar_end_offset: Tuple[int, None] = (178, None)   # (x, Null) - horizontal end offset
 
     # Team voting region
-    team_vote_region_start: Tuple[int, int] = (127, 119)
-    team_vote_region_end: Tuple[int, int] = (523, 327)
+    team_vote_region_start: Tuple[int, int] = (127, 219)
+    team_vote_region_end: Tuple[int, int] = (523, 500)
     team_vote_confirm_point: Tuple[int, int] = (225, 418)  # Accept team vote button (corrected)
 
     # Team menu relative dimensions
@@ -299,9 +333,9 @@ class D4StandardCoordinates:
     team_right_menu_right_offset: Tuple[int, None] = (633, None)  # (x, Null) - horizontal right offset from team member
     team_right_menu_down_offset: Tuple[None, int] = (None, 760)   # (Null, y) - vertical down offset from team member
 
-    # Dungeon progress bar (horizontal line)
-    dungeon_progress_start: Tuple[int, int] = (1460, 362)  # Progress bar start point
-    dungeon_progress_end: Tuple[int, int] = (1700, 362)    # Progress bar end point
+    # Dungeon progress bar (horizontal line with height for visibility)
+    dungeon_progress_start: Tuple[int, int] = (1460, 355)  # Progress bar region top-left
+    dungeon_progress_end: Tuple[int, int] = (1700, 370)    # Progress bar region bottom-right (height ~15px)
 
     # Red portal detection region (based on color_region_detector.py scan boundaries)
     red_portal_scan_left_margin: Tuple[int, None] = (150, None)    # (x, Null) - horizontal left edge margin
@@ -1128,6 +1162,15 @@ class D4InterfaceData:
     last_screenshot_path: Optional[str] = None
     last_screenshot_time: float = 0.0
 
+    # Debug window state
+    debug_window_open: bool = False  # Whether debug window is currently open
+    debug_window_paused: bool = False  # Whether debug window image updates are paused
+
+    # Map switching state
+    is_switching_map: bool = False  # Whether currently switching maps (black screen detected)
+    map_switch_count: int = 0  # Total number of map switches detected
+    is_post_switch_idle: bool = False  # After map switch, before any operation
+
     def clear(self):
         """Clear all data"""
         self.timestamp = None
@@ -1179,6 +1222,14 @@ class D4InterfaceData:
         # Clear screenshot state
         self.last_screenshot_path = None
         self.last_screenshot_time = 0.0
+        # Clear debug state
+        self.debug_window_open = False
+        self.debug_window_paused = False
+
+        # Clear map switching state
+        self.is_switching_map = False
+        self.map_switch_count = 0
+        self.is_post_switch_idle = False
 
     def add_screenshot_history(self, path: str, max_history: int = 10):
         """Add screenshot path to history"""

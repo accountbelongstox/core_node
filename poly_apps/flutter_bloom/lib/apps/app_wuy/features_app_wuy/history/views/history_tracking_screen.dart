@@ -18,7 +18,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
-import '../../../services_app_wuy/wuy_data_manager.dart';
+import '../../../services_app_wuy/wuy_unified_service.dart';
 
 /// History Tracking Screen for Wuy App
 ///
@@ -48,7 +48,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
 
   void _loadHistoryRecords() async {
     // Try to load from data manager first
-    final dataManager = WuyDataManager.instance;
+    final dataManager = WuyUnifiedService();
 
     // TODO: Implement real history records loading from data manager
     // The data manager should provide a method like:
@@ -154,7 +154,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
                 ),
                 SizedBox(height: ThemeDimensions.spacingMedium),
                 Text(
-                  WuyDataManager.instance.currentUser?.displayName ?? 'User',
+                  WuyUnifiedService().currentUser?.displayName ?? 'User',
                   style: ThemeTextStyles.title2.copyWith(
                     color: ThemeColors.white,
                     fontWeight: FontWeight.bold,

@@ -73,29 +73,75 @@ class D4Controller:
         Uses interceptor pattern: timer always runs but checks state before executing
         """
         try:
-            # Check if EXP farming is running (interceptor logic)
-            if not self.d4_data.is_exp_farming_running():
-                return  # Skip execution if not running
+            # Check if EXP farming is running
+            exp_farming_running = self.d4_data.is_exp_farming_running()
+            debug_window_open = self.d4_data.debug_window_open
 
-            # Increment tick counter
-            self.tick_counter += 1
+            if exp_farming_running:
+                # Full EXP farming process
+                # Increment tick counter
+                self.tick_counter += 1
 
-            # Print tick header
-            print("\n" + "="*80)
-            ColorPrint.blue(f"[D4 EXP Farming] Tick #{self.tick_counter}")
-            print("="*80)
+                # Print tick header
+                print("\n" + "="*80)
+                ColorPrint.blue(f"[D4 EXP Farming] Tick #{self.tick_counter}")
+                print("="*80)
 
-            # Delegate to EXP farming manager
-            success = self.exp_farming_manager.start_exp_farming_process(self.d4_data)
+                # Delegate to EXP farming manager
+                success = self.exp_farming_manager.start_exp_farming_process(self.d4_data)
 
-            # Update UI status with latest shared data
-            self.ui_status_updater.update_ui_status()
+                # Update UI status with latest shared data
+                self.ui_status_updater.update_ui_status()
 
-            # Check for state changes and trigger events
-            self.event_manager.check_state_changes()
+                # Check for state changes and trigger events
+                self.event_manager.check_state_changes()
 
-            # Print tick summary
-            self._print_tick_summary(success)
+                # Update debug window if open (interceptor pattern)
+                self._update_debug_window_if_open()
+
+                # Print tick summary
+                self._print_tick_summary(success)
+
+            elif debug_window_open:
+                # Debug window only mode - perform screenshot and region detection
+                ColorPrint.blue("[D4Controller] Debug window mode - performing screenshot and region detection...")
+                
+                # Use the same process as EXP farming but without the full farming logic
+                # Step 1: Capture screenshot
+                from .d4func.screenshot_handler import ScreenshotHandler
+                screenshot_handler = ScreenshotHandler()
+                screenshot_success = screenshot_handler.capture_and_collect_info(self.d4_data)
+                ColorPrint.blue(f"[D4Controller] Screenshot capture result: {screenshot_success}")
+                
+                if screenshot_success:
+                    # Step 2: Detect regions (this generates region_images)
+                    from .d4func.region_detector import RegionDetector
+                    region_detector = RegionDetector()
+                    ColorPrint.blue("[D4Controller] About to call detect_regions_from_shared_data...")
+                    detection_success = region_detector.detect_regions_from_shared_data()
+                    ColorPrint.blue(f"[D4Controller] Region detection result: {detection_success}")
+
+                    if detection_success:
+                        # Step 3: Detect map switching (monitors Map Name region for black screen)
+                        from .d4func.map_switch_detector import get_map_switch_detector
+                        map_switch_detector = get_map_switch_detector()
+                        map_switch_detector.detect_map_switch()
+                        
+                        # Step 4: Attempt map name recognition if in post-switch idle state
+                        from .d4func.map_name_recognizer import get_map_name_recognizer
+                        map_recognizer = get_map_name_recognizer()
+                        map_recognizer.recognize_map_name()
+
+                        # Update debug window with new data
+                        self._update_debug_window_if_open()
+                    else:
+                        ColorPrint.yellow("[D4Controller] Region detection failed for debug window")
+                else:
+                    ColorPrint.yellow("[D4Controller] Screenshot capture failed for debug window")
+
+            else:
+                # Neither EXP farming nor debug window - skip execution
+                return
 
         except Exception as e:
             ColorPrint.red(f"[D4Controller] Error in process: {e}")
@@ -107,11 +153,12 @@ class D4Controller:
         Get interceptor function for timer system
         
         Returns:
-            Function that checks if EXP farming is running before executing process
+            Function that checks if EXP farming is running OR debug window is open
         """
         def interceptor():
-            """Interceptor function that checks EXP farming state"""
-            return self.d4_data.is_exp_farming_running()
+            """Interceptor function that checks EXP farming state or debug window state"""
+            # Allow execution if EXP farming is running OR debug window is open
+            return self.d4_data.is_exp_farming_running() or self.d4_data.debug_window_open
         
         return interceptor
 
@@ -204,6 +251,46 @@ class D4Controller:
         """
         return self.d4_data.get_summary()
 
+    def _update_debug_window_if_open(self):
+        """
+        Update debug window images if debug window is open (interceptor pattern)
+
+        This method checks if debug window is open before updating images.
+        This implements the interceptor pattern - only execute when condition is met.
+        """
+        try:
+            ColorPrint.blue(f"[D4Controller] Checking debug window status: {self.d4_data.debug_window_open}")
+
+            # Check if debug window is open (interceptor logic)
+            if not self.d4_data.debug_window_open:
+                ColorPrint.yellow("[D4Controller] Debug window is closed, skipping update")
+                return  # Skip update if window is closed
+
+            ColorPrint.blue("[D4Controller] Debug window is open, updating images...")
+
+            # Check detected_regions status
+            if self.d4_data.detected_regions is None:
+                ColorPrint.yellow("[D4Controller] detected_regions is None")
+            elif 'region_images' not in self.d4_data.detected_regions:
+                ColorPrint.yellow(f"[D4Controller] 'region_images' not in detected_regions. Keys: {list(self.d4_data.detected_regions.keys())}")
+            else:
+                region_count = len(self.d4_data.detected_regions.get('region_images', {}))
+                ColorPrint.blue(f"[D4Controller] detected_regions has {region_count} region images")
+
+            # Get debug window and update images
+            from ui.components.debug_window import get_debug_window
+            debug_window = get_debug_window()
+
+            if debug_window is not None:
+                debug_window.update_images()
+                ColorPrint.green("[D4Controller] Debug window images updated successfully")
+            else:
+                ColorPrint.yellow("[D4Controller] Debug window instance is None")
+
+        except Exception as e:
+            ColorPrint.red(f"[D4Controller] Error updating debug window: {e}")
+            import traceback
+            traceback.print_exc()
 
 # Global D4 controller instance (singleton)
 _d4_controller = None
