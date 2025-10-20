@@ -366,6 +366,24 @@ class CrawlController {
       const screenshotDir = path.dirname(screenshotPath);
       this.ensureDirectory(screenshotDir);
 
+      // CRITICAL: Switch to the URL's page before taking screenshot
+      // The Puppeteer spider may have multiple tabs open, and we need to ensure
+      // we're capturing the correct page
+      if (this.fetcher && this.fetcher.driver && this.fetcher.driver.encapsulatedPageFuncs) {
+        const pageFuncs = this.fetcher.driver.encapsulatedPageFuncs;
+
+        try {
+          // Find and switch to the page that has this URL loaded
+          await pageFuncs.switchToPageByUrl(url);
+          logger.info(`[DEBUG-SCREENSHOT] Switched to page for URL: ${url}`);
+
+          // Give a brief moment for page to settle after switching
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (switchError) {
+          logger.warn(`[DEBUG-SCREENSHOT] Could not switch to page for ${url}: ${switchError.message}, proceeding with current active page`);
+        }
+      }
+
       await this.fetcher.takeScreenshot(screenshotPath, {
         fullPage: true,
         quality: 80
