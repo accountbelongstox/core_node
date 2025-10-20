@@ -55,6 +55,9 @@ class CrawlController {
     this.downloadedUrls = [];
     this.finalHostDir = null;
     this.disableJs = false;
+    this.screenshot = false;
+    this.screenshotsDir = null;
+    this.pageScreenshots = new Map();
   }
 
   openFolderInExplorer(folderPath) {
@@ -101,7 +104,7 @@ class CrawlController {
   }
 
   async start(argv = process.argv.slice(2)) {
-    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder, disableJs } = this.parseArguments(argv);
+    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder, disableJs, screenshot } = this.parseArguments(argv);
     this.domainContext = new DomainContext(targetUrl);
     this.resourceProcessor = new UnifiedResourceProcessor(
       this.domainContext,
@@ -113,6 +116,7 @@ class CrawlController {
     this.autoConfirm = autoConfirm;
     this.autoOpenFolder = autoOpenFolder;
     this.disableJs = disableJs;
+    this.screenshot = screenshot;
     this.downloadedUrls = [];
 
     logger.info(`Starting document offline analysis for: ${targetUrl}`);
@@ -126,10 +130,17 @@ class CrawlController {
     await this.selectDownloadScope(scopeType);
     await this.selectFetcherMethod(fetcherType);
     await this.selectJsDisabling();
+    await this.selectScreenshot();
 
     const parsed = new URL(this.domainContext.getOrigin());
     const hostDir = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', parsed.hostname);
     this.finalHostDir = await this.prepareDownloadDirectory(hostDir);
+
+    if (this.screenshot && this.fetcherType === 'puppeteer') {
+      this.screenshotsDir = path.join(this.finalHostDir, 'screenshots');
+      this.ensureDirectory(this.screenshotsDir);
+      logger.success(`Screenshots directory created: ${this.screenshotsDir}`);
+    }
 
     this.ensureDirectory(this.finalHostDir);
     if (this.autoOpenFolder) {
@@ -288,6 +299,83 @@ class CrawlController {
     return $.html();
   }
 
+  async selectScreenshot() {
+    if (this.fetcherType === 'http') {
+      logger.info('Screenshot feature is only available with Puppeteer fetcher');
+      this.screenshot = false;
+      return;
+    }
+
+    if (this.screenshot === true) {
+      logger.success('Screenshot feature: ENABLED (will capture screenshots of each HTML page)');
+      return;
+    }
+
+    if (this.autoConfirm) {
+      logger.info('Screenshot feature: DISABLED (auto-confirm mode)');
+      return;
+    }
+
+    return new Promise((resolve) => {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+      logger.info('\n========================================');
+      logger.info('Capture Screenshots of HTML Pages?');
+      logger.info('========================================');
+      logger.info('Note: Screenshots will be captured using Puppeteer browser');
+      logger.info('      and saved in a "screenshots" directory');
+      logger.info('========================================\n');
+
+      rl.question('Capture screenshots of HTML pages? (y/n, default is n): ', (answer) => {
+        rl.close();
+
+        const choice = answer.trim().toLowerCase() || 'n';
+        this.screenshot = choice === 'y' || choice === 'yes';
+
+        if (this.screenshot) {
+          logger.success('Screenshot feature: ENABLED (will capture screenshots of each HTML page)');
+        } else {
+          logger.success('Screenshot feature: DISABLED');
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  generateScreenshotName(htmlPath) {
+    const parsed = new URL(htmlPath);
+    let pathName = this.fileMapper.mapPath(parsed);
+
+    if (pathName === 'index.html') {
+      return 'index.png';
+    }
+
+    return pathName.replace(/\.html?$/, '').replace(/\//g, '|') + '.png';
+  }
+
+  async capturePageScreenshot(url) {
+    if (!this.screenshot || this.fetcherType !== 'puppeteer' || !this.screenshotsDir) {
+      return null;
+    }
+
+    const screenshotName = this.generateScreenshotName(url);
+    const screenshotPath = path.join(this.screenshotsDir, screenshotName);
+
+    try {
+      await this.fetcher.takeScreenshot(screenshotPath, {
+        fullPage: true,
+        quality: 80
+      });
+      logger.info(`Screenshot captured: ${screenshotName}`);
+      this.pageScreenshots.set(url, screenshotName);
+      return screenshotName;
+    } catch (error) {
+      logger.warn(`Failed to capture screenshot for ${url}: ${error.message}`);
+      return null;
+    }
+  }
+
   async cleanupFetcher() {
     if (this.fetcherType === 'puppeteer' && this.fetcher && this.fetcher.cleanup) {
       try {
@@ -363,6 +451,7 @@ class CrawlController {
     let autoConfirm = false;
     let autoOpenFolder = true;
     let disableJs = false;
+    let screenshot = false;
 
     for (let i = index + 1; i < argv.length; i++) {
       const arg = argv[i];
@@ -377,6 +466,8 @@ class CrawlController {
         autoOpenFolder = false;
       } else if (arg === '--no-js' || arg === '--disable-js') {
         disableJs = true;
+      } else if (arg === '--screenshot') {
+        screenshot = true;
       } else if (!arg.startsWith('--') && !arg.startsWith('-')) {
         const parsedDepth = parseInt(arg, 10);
         if (!Number.isNaN(parsedDepth)) {
@@ -397,7 +488,8 @@ class CrawlController {
       scopeType,
       autoConfirm,
       autoOpenFolder,
-      disableJs
+      disableJs,
+      screenshot
     };
   }
 
@@ -533,6 +625,11 @@ class CrawlController {
     }
     logger.info(`[DEBUG-SAVE-7] File saved: ${path.relative(this.finalHostDir, finalPath)}`);
 
+    if (!isBinary && this.isHtmlContent(relativePath) && this.screenshot && this.fetcherType === 'puppeteer') {
+      logger.info(`[DEBUG-SAVE-8] Capturing screenshot for: ${canonical}`);
+      await this.capturePageScreenshot(canonical);
+    }
+
     this.sitemapGenerator.addUrl(canonical);
     this.downloadedUrls.push(canonical);
   }
@@ -641,9 +738,43 @@ class CrawlController {
 
   async generateMapsite(hostDir) {
     try {
-      const mapsitePath = this.resourceProcessor.generateMapsite(this.downloadedUrls, hostDir);
+      const mapsitePath = path.join(hostDir, 'mapsite.json');
+
+      const mapsiteData = {
+        timestamp: new Date().toISOString(),
+        domain: this.domainContext.getOrigin(),
+        totalUrls: this.downloadedUrls.length,
+        resourceStats: this.resourceProcessor.resourceMap ? {
+          css: this.resourceProcessor.resourceMap.css.size,
+          js: this.resourceProcessor.resourceMap.js.size,
+          images: this.resourceProcessor.resourceMap.images.size,
+          fonts: this.resourceProcessor.resourceMap.fonts.size,
+          media: this.resourceProcessor.resourceMap.media.size,
+          backgroundImages: this.resourceProcessor.resourceMap.backgroundImages.size,
+          httpsImages: this.resourceProcessor.resourceMap.httpsImages.size
+        } : {},
+        screenshotEnabled: this.screenshot,
+        urls: this.downloadedUrls.map(url => {
+          const entry = {
+            url: url,
+            localPath: this.fileMapper.mapPath(new URL(url)),
+            fetchedAt: new Date().toISOString()
+          };
+
+          if (this.screenshot && this.pageScreenshots.has(url)) {
+            entry.screenshot = this.pageScreenshots.get(url);
+          }
+
+          return entry;
+        })
+      };
+
+      fs.writeFileSync(mapsitePath, JSON.stringify(mapsiteData, null, 2), 'utf8');
       logger.success(`Mapsite generated: ${mapsitePath}`);
       logger.info(`Total URLs in mapsite: ${this.downloadedUrls.length}`);
+      if (this.screenshot) {
+        logger.info(`Total screenshots captured: ${this.pageScreenshots.size}`);
+      }
     } catch (error) {
       logger.error(`Failed to generate mapsite: ${error.message}`);
     }
