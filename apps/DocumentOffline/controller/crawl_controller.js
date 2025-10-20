@@ -443,6 +443,8 @@ class CrawlController {
   }
 
   async savePage(targetUrl, content, isBinary = false) {
+    logger.info(`[DEBUG-SAVE-1] Saving: ${targetUrl}, isBinary=${isBinary}`);
+
     const canonical = this.domainContext.canonicalize(targetUrl) || targetUrl;
     const parsed = new URL(canonical);
     const relativePath = this.fileMapper.mapPath(parsed);
@@ -452,34 +454,28 @@ class CrawlController {
     this.ensureDirectory(directory);
 
     let finalContent = content;
-    let resources = null;
 
-    if (!isBinary) {
-      if (this.isHtmlContent(relativePath)) {
-        const isFullMode = this.scopeType === 'full';
-        resources = this.resourceProcessor.extractAllResources(content, canonical, isFullMode);
-        finalContent = this.resourceProcessor.rewriteHtml(content, canonical);
-      } else if (this.isCssContent(relativePath)) {
-        const cssUrls = this.resourceProcessor.extractCssUrls(content, canonical);
-        resources = { css: cssUrls, js: [], images: [], fonts: [], media: [] };
-        finalContent = this.resourceProcessor.rewriteCss(content, canonical);
-      }
+    if (!isBinary && this.isHtmlContent(relativePath)) {
+      logger.info(`[DEBUG-SAVE-2] Processing HTML: extracting, downloading, and rewriting resources`);
+      const result = await this.resourceProcessor.processPageResources(content, canonical, this.finalHostDir);
+      finalContent = result.html;
+      logger.info(`[DEBUG-SAVE-3] Processed ${result.resourcesProcessed} resources for: ${canonical}`);
+    } else if (!isBinary && this.isCssContent(relativePath)) {
+      logger.info(`[DEBUG-SAVE-4] Processing CSS: rewriting URLs`);
+      finalContent = this.resourceProcessor.rewriteCss(content, canonical);
+      logger.info(`[DEBUG-SAVE-5] CSS rewritten: ${canonical}`);
     }
 
+    logger.info(`[DEBUG-SAVE-6] Writing file to: ${finalPath}`);
     if (isBinary) {
       await fs.promises.writeFile(finalPath, finalContent);
     } else {
       await fs.promises.writeFile(finalPath, finalContent, 'utf8');
     }
+    logger.info(`[DEBUG-SAVE-7] File saved: ${path.relative(this.finalHostDir, finalPath)}`);
 
     this.sitemapGenerator.addUrl(canonical);
     this.downloadedUrls.push(canonical);
-
-    logger.info(`Saved ${isBinary ? 'binary' : 'text'} file: ${path.relative(this.finalHostDir, finalPath)}`);
-
-    if (resources) {
-      await this.downloadResources(resources, this.finalHostDir);
-    }
   }
 
   isHtmlContent(filePath) {

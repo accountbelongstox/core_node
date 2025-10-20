@@ -218,19 +218,35 @@ class UnifiedResourceProcessor {
 
     $('script[src]').each((i, elem) => {
       const src = $(elem).attr('src');
-      if (src && !this.domainContext.isInternalLink(new URL(src, baseUrl.href))) {
-        this.resourceMap.externalJs.add(src);
-        if (!resources.externalJs) resources.externalJs = [];
-        resources.externalJs.push(src);
+      if (src) {
+        try {
+          const srcUrl = new URL(src, baseUrl.href);
+          const isInternal = this.domainContext.isInternalLink(srcUrl);
+          if (!isInternal) {
+            this.resourceMap.externalJs.add(srcUrl.href);
+            if (!resources.externalJs) resources.externalJs = [];
+            resources.externalJs.push(srcUrl.href);
+          }
+        } catch (e) {
+          this.logger.warn(`Failed to parse script src URL: ${src}, error: ${e.message}`);
+        }
       }
     });
 
     $('link[rel="stylesheet"]').each((i, elem) => {
       const href = $(elem).attr('href');
-      if (href && !this.domainContext.isInternalLink(new URL(href, baseUrl.href))) {
-        this.resourceMap.externalCss.add(href);
-        if (!resources.externalCss) resources.externalCss = [];
-        resources.externalCss.push(href);
+      if (href) {
+        try {
+          const hrefUrl = new URL(href, baseUrl.href);
+          const isInternal = this.domainContext.isInternalLink(hrefUrl);
+          if (!isInternal) {
+            this.resourceMap.externalCss.add(hrefUrl.href);
+            if (!resources.externalCss) resources.externalCss = [];
+            resources.externalCss.push(hrefUrl.href);
+          }
+        } catch (e) {
+          this.logger.warn(`Failed to parse link href URL: ${href}, error: ${e.message}`);
+        }
       }
     });
 
@@ -239,10 +255,16 @@ class UnifiedResourceProcessor {
       if (style) {
         const fontUrls = this.extractFontUrls(style, baseUrlObj);
         fontUrls.forEach(url => {
-          if (!this.domainContext.isInternalLink(new URL(url, baseUrl.href))) {
-            this.resourceMap.externalFonts.add(url);
-            if (!resources.externalFonts) resources.externalFonts = [];
-            resources.externalFonts.push(url);
+          try {
+            const urlObj = new URL(url);
+            const isInternal = this.domainContext.isInternalLink(urlObj);
+            if (!isInternal) {
+              this.resourceMap.externalFonts.add(url);
+              if (!resources.externalFonts) resources.externalFonts = [];
+              resources.externalFonts.push(url);
+            }
+          } catch (e) {
+            this.logger.warn(`Failed to parse font URL: ${url}, error: ${e.message}`);
           }
         });
       }
@@ -253,12 +275,16 @@ class UnifiedResourceProcessor {
       if (src && !src.startsWith('data:')) {
         try {
           const srcUrl = new URL(src, baseUrl.href).href;
-          if (!this.domainContext.isInternalLink(new URL(srcUrl))) {
+          const urlObj = new URL(srcUrl);
+          const isInternal = this.domainContext.isInternalLink(urlObj);
+          if (!isInternal) {
             this.resourceMap.externalImages.add(srcUrl);
             if (!resources.externalImages) resources.externalImages = [];
             resources.externalImages.push(srcUrl);
           }
-        } catch (e) {}
+        } catch (e) {
+          this.logger.warn(`Failed to parse image src URL: ${src}, error: ${e.message}`);
+        }
       }
     });
 
@@ -266,13 +292,17 @@ class UnifiedResourceProcessor {
   }
 
   detectAndAddFavicon(baseUrlObj, resources) {
-    const faviconUrl = baseUrlObj.href.replace(/\/$/, '') + '/favicon.ico';
+    try {
+      const faviconUrl = baseUrlObj.href.replace(/\/$/, '') + '/favicon.ico';
 
-    if (!resources.externalImages) resources.externalImages = [];
+      if (!resources.externalImages) resources.externalImages = [];
 
-    if (!resources.externalImages.includes(faviconUrl)) {
-      this.resourceMap.externalImages.add(faviconUrl);
-      resources.externalImages.push(faviconUrl);
+      if (!resources.externalImages.includes(faviconUrl)) {
+        this.resourceMap.externalImages.add(faviconUrl);
+        resources.externalImages.push(faviconUrl);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to detect favicon: ${error.message}`);
     }
   }
 
@@ -373,6 +403,192 @@ class UnifiedResourceProcessor {
     this.rewriteLinks($, 'iframe', 'src', currentUrlObj);
 
     return $.html();
+  }
+
+  async processPageResources(html, currentUrl, baseDir) {
+    const resources = this.extractAllResources(html, currentUrl, false);
+
+    const allResourceUrls = [
+      ...resources.css,
+      ...resources.js,
+      ...resources.images,
+      ...resources.fonts,
+      ...resources.media,
+      ...(resources.externalCss || []),
+      ...(resources.externalJs || []),
+      ...(resources.externalImages || []),
+      ...(resources.externalFonts || []),
+      ...(resources.externalMedia || [])
+    ];
+
+    this.logger.info(`[PROCESS-RESOURCES] Found ${allResourceUrls.length} total resources to process`);
+
+    const downloadMap = new Map();
+
+    for (const url of allResourceUrls) {
+      if (!this.downloaded.has(url)) {
+        const localPath = this.getLocalPathForUrl(url);
+        if (localPath) {
+          downloadMap.set(url, localPath);
+        }
+      }
+    }
+
+    this.logger.info(`[PROCESS-RESOURCES] Downloading ${downloadMap.size} resources...`);
+
+    for (const [url, localPath] of downloadMap) {
+      const result = await this.downloadResource(url, baseDir);
+
+      if (result.success) {
+        this.logger.info(`[PROCESS-RESOURCES] Downloaded: ${url}`);
+
+        if (result.isText && this.isCssContent(result.path)) {
+          const rewrittenCss = this.rewriteCss(result.content, url);
+          await fs.promises.writeFile(result.path, rewrittenCss, 'utf8');
+          this.logger.info(`[PROCESS-RESOURCES] Rewrote CSS: ${url}`);
+        }
+      } else if (!result.skipped) {
+        this.logger.warn(`[PROCESS-RESOURCES] Failed to download: ${url}`);
+      }
+    }
+
+    const rewriteResult = this.processAndRewriteHtml(html, currentUrl, baseDir);
+    return {
+      html: rewriteResult.html,
+      resourcesProcessed: downloadMap.size
+    };
+  }
+
+  processAndRewriteHtml(html, currentUrl, baseDir) {
+    const $ = cheerio.load(html, { decodeEntities: false });
+    const currentLocalPath = this.getLocalPathForUrl(currentUrl);
+    const currentDir = currentLocalPath ? path.posix.dirname(currentLocalPath) : 'index.html';
+
+    const rewriteUrl = (url) => {
+      if (!url || url.startsWith('data:') || url.startsWith('javascript:') ||
+          url.startsWith('mailto:') || url.startsWith('tel:') || url.startsWith('blob:') ||
+          url.startsWith('#')) {
+        return url;
+      }
+
+      try {
+        const absoluteUrl = new URL(url, currentUrl);
+        const localPath = this.getLocalPathForUrl(absoluteUrl.href);
+
+        if (localPath) {
+          const relativePath = path.posix.relative(currentDir, localPath);
+          return relativePath.startsWith('..') ? relativePath : './' + relativePath;
+        }
+      } catch (e) {
+        this.logger.warn(`Failed to rewrite URL: ${url}, error: ${e.message}`);
+      }
+
+      return url;
+    };
+
+    $('script[src]').each((i, elem) => {
+      const src = $(elem).attr('src');
+      if (src) $(elem).attr('src', rewriteUrl(src));
+    });
+
+    $('link[rel="stylesheet"]').each((i, elem) => {
+      const href = $(elem).attr('href');
+      if (href) $(elem).attr('href', rewriteUrl(href));
+    });
+
+    $('img[src]').each((i, elem) => {
+      const src = $(elem).attr('src');
+      if (src && !src.startsWith('data:')) $(elem).attr('src', rewriteUrl(src));
+    });
+
+    $('source[src]').each((i, elem) => {
+      const src = $(elem).attr('src');
+      if (src && !src.startsWith('data:')) $(elem).attr('src', rewriteUrl(src));
+    });
+
+    $('video[src], audio[src]').each((i, elem) => {
+      const src = $(elem).attr('src');
+      if (src && !src.startsWith('data:')) $(elem).attr('src', rewriteUrl(src));
+    });
+
+    $('iframe[src]').each((i, elem) => {
+      const src = $(elem).attr('src');
+      if (src && !src.startsWith('data:')) $(elem).attr('src', rewriteUrl(src));
+    });
+
+    $('img[srcset]').each((i, elem) => {
+      const srcset = $(elem).attr('srcset');
+      if (srcset) {
+        const entries = srcset.split(',').map(entry => entry.trim());
+        const rewritten = entries.map(entry => {
+          const parts = entry.split(/\s+/);
+          if (parts.length === 0) return entry;
+          const url = parts[0];
+          const descriptor = parts.slice(1).join(' ');
+          const rewrittenUrl = rewriteUrl(url);
+          return descriptor ? `${rewrittenUrl} ${descriptor}` : rewrittenUrl;
+        });
+        $(elem).attr('srcset', rewritten.join(', '));
+      }
+    });
+
+    $('source[srcset]').each((i, elem) => {
+      const srcset = $(elem).attr('srcset');
+      if (srcset) {
+        const entries = srcset.split(',').map(entry => entry.trim());
+        const rewritten = entries.map(entry => {
+          const parts = entry.split(/\s+/);
+          if (parts.length === 0) return entry;
+          const url = parts[0];
+          const descriptor = parts.slice(1).join(' ');
+          const rewrittenUrl = rewriteUrl(url);
+          return descriptor ? `${rewrittenUrl} ${descriptor}` : rewrittenUrl;
+        });
+        $(elem).attr('srcset', rewritten.join(', '));
+      }
+    });
+
+    return {
+      html: $.html()
+    };
+  }
+
+  rewriteSrcsetForProcessing(srcset, currentUrl) {
+    const entries = srcset.split(',').map(entry => entry.trim());
+    const rewritten = entries.map(entry => {
+      const parts = entry.split(/\s+/);
+      if (parts.length === 0) return entry;
+
+      const url = parts[0];
+      const descriptor = parts.slice(1).join(' ');
+
+      try {
+        const absoluteUrl = new URL(url, currentUrl);
+        const localPath = this.getLocalPathForUrl(absoluteUrl.href);
+        if (localPath) {
+          const currentUrlObj = new URL(currentUrl);
+          const relativePath = this.calculateRelativePathForRewrite(currentUrlObj, localPath);
+          return descriptor ? `${relativePath} ${descriptor}` : relativePath;
+        }
+      } catch (e) {
+        this.logger.warn(`Failed to rewrite srcset URL: ${url}, error: ${e.message}`);
+      }
+
+      return entry;
+    });
+
+    return rewritten.join(', ');
+  }
+
+  calculateRelativePathForRewrite(currentUrlObj, localPath) {
+    const currentDir = path.posix.dirname(this.getLocalPathForUrl(currentUrlObj.href) || 'index.html');
+    const relativePath = path.posix.relative(currentDir, localPath);
+
+    if (!relativePath || relativePath === '.') {
+      return './' + path.basename(localPath);
+    }
+
+    return relativePath.startsWith('..') ? relativePath : './' + relativePath;
   }
 
   rewriteCss(cssContent, currentUrl) {
@@ -512,6 +728,7 @@ class UnifiedResourceProcessor {
       return relativePath || './';
 
     } catch (error) {
+      this.logger.warn(`rewriteUrl error for ${url}: ${error.message}`);
       return url;
     }
   }
