@@ -52,7 +52,11 @@ class MainFunctionsPanel:
         self.skill_vars = {}
         self.additional_vars = {}
 
-        # Strategy mapping: English key <-> Chinese display
+        # KEY-VALUE pattern: Strategy mapping
+        # Display: i18n multi-language text (Chinese, English, etc.)
+        # Value: Fixed English keys (continuous, single, hold)
+        # NOTE: This pattern ensures internal logic consistency regardless of UI language
+        # All comboboxes in the UI should follow this pattern
         self.strategy_en_to_zh = {
             'continuous': i18n_manager.get_ui_text("skill_config.strategies.continuous"),
             'single': i18n_manager.get_ui_text("skill_config.strategies.single"),
@@ -227,12 +231,14 @@ class MainFunctionsPanel:
         )
         key_input.grid(row=row, column=1, sticky="ew", padx=1, pady=1)
 
-        # Strategy combobox - display Chinese, save English
+        # Strategy combobox - KEY-VALUE pattern
+        # Display: i18n text (e.g., "连续", "Continuous")
+        # Save: Fixed English key (e.g., "continuous")
         strategy_en = skill_data.get('strategy', 'continuous')
         strategy_zh = self.strategy_en_to_zh.get(strategy_en, strategy_en)
         strategy_var = tk.StringVar(value=strategy_zh)
 
-        # Get Chinese strategy values for display
+        # Get i18n strategy values for display
         strategy_values_zh = list(self.strategy_en_to_zh.values())
 
         strategy_combo = ttk.Combobox(parent, textvariable=strategy_var,
@@ -283,8 +289,10 @@ class MainFunctionsPanel:
         self.skill_vars[f"{skill_key}_random_delay"] = random_delay_var
 
     def _on_strategy_changed(self, skill_key, strategy_zh):
-        """Handle strategy change - convert Chinese display to English key"""
-        # Convert Chinese display to English key
+        """Handle strategy change - KEY-VALUE pattern
+        Convert i18n display text to fixed English key for storage
+        """
+        # Convert i18n display to fixed English key
         strategy_en = self.strategy_zh_to_en.get(strategy_zh, 'continuous')
         self._on_skill_param_changed(skill_key, 'strategy', strategy_en)
 
@@ -451,7 +459,13 @@ class MainFunctionsPanel:
         return setting_mapping.get(label_text, label_text.lower().replace(" ", "_"))
 
     def _create_additional_settings(self, parent):
-        """Create additional settings section using ConfigBinding"""
+        """Create additional settings section using ConfigBinding
+
+        WARNING: These comboboxes currently use i18n text as values (legacy pattern)
+        TODO: Convert to KEY-VALUE pattern in future refactoring
+        - Display: i18n text
+        - Value: Fixed English keys
+        """
         settings_frame = ttk.LabelFrame(parent, text=i18n_manager.get_ui_text("additional_settings.title"), style='TLabelframe')
         settings_frame.grid(row=2, column=0, sticky="ew",
                            padx=UnifiedStyles.SPACING['sm'],
@@ -459,6 +473,7 @@ class MainFunctionsPanel:
         settings_frame.grid_columnconfigure(1, weight=1)
 
         # Animation speed setting
+        # TODO: Convert to KEY-VALUE pattern
         animation_speed_values = [
             i18n_manager.get_ui_text("main_functions_panel.animation_speed_slow"),
             i18n_manager.get_ui_text("main_functions_panel.animation_speed_medium"),
@@ -469,6 +484,7 @@ class MainFunctionsPanel:
                                        animation_speed_values, i18n_manager.get_ui_text("main_functions_panel.animation_speed_medium"), 0)
 
         # Game language setting
+        # TODO: Convert to KEY-VALUE pattern
         game_language_values = [
             i18n_manager.get_ui_text("main_functions_panel.game_language_simplified"),
             i18n_manager.get_ui_text("main_functions_panel.game_language_traditional"),
@@ -483,10 +499,8 @@ class MainFunctionsPanel:
                                       i18n_manager.get_ui_text("main_functions_panel.macro_start_hotkey_label"),
                                       "macro_configs.auxiliary_config.macro_start_hotkey", 2)
 
-        # Auxiliary macro hotkey - use HotkeyInput with ConfigBinding
-        self._create_hotkey_input_row(settings_frame,
-                                      i18n_manager.get_ui_text("main_functions_panel.macro_pause_hotkey_label"),
-                                      "macro_configs.auxiliary_config.assistant_hotkey", 3)
+        # Note: Auxiliary macro hotkey has been moved to Auxiliary Functions Panel (TABLE2)
+        # for better logical grouping with automation functions
 
     def _create_setting_row(self, parent, label_text, default_value, values, row):
         """Create a setting row with label and combobox"""

@@ -125,6 +125,21 @@ class UITheme:
         return cls.SIZES.get(size_name, 10)
 
     @classmethod
+    def _delayed_apply_ttk_style(cls, root: tk.Tk):
+        """
+        Delayed ttk style application after main loop starts
+
+        Args:
+            root: Root Tk window
+        """
+        try:
+            style = ttk.Style(root)
+            cls.apply_ttk_style(style)
+            print("[Theme] Successfully applied ttk style (delayed)")
+        except Exception as e:
+            print(f"[Theme] Error in delayed ttk style application: {e}")
+
+    @classmethod
     def apply_ttk_style(cls, style: ttk.Style):
         """
         Apply theme to ttk widgets
@@ -231,6 +246,11 @@ class UITheme:
             # Some Tkinter versions don't support bg option
             pass
 
-        # Apply ttk theme
-        style = ttk.Style()
-        cls.apply_ttk_style(style)
+        # Apply ttk theme - use root parameter to ensure proper initialization
+        try:
+            style = ttk.Style(root)
+            cls.apply_ttk_style(style)
+        except RuntimeError as e:
+            # If main loop not started yet, schedule it for later
+            print(f"[Theme] Warning: Cannot apply ttk style immediately: {e}")
+            root.after(1, lambda: cls._delayed_apply_ttk_style(root))
