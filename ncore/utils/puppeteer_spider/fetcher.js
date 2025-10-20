@@ -158,12 +158,18 @@ class PuppeteerSpiderFetcher {
       }
 
       logger.info(`[DEBUG] Taking screenshot for: ${filePath}`);
+
       const screenshotOptions = {
         path: filePath,
         fullPage: options.fullPage !== false,
-        quality: options.quality || 80,
-        type: 'png'
+        type: 'jpeg'
       };
+
+      if (options.quality !== undefined) {
+        screenshotOptions.quality = options.quality;
+      } else {
+        screenshotOptions.quality = 80;
+      }
 
       logger.info(`[DEBUG] Screenshot options: ${JSON.stringify(screenshotOptions)}`);
 

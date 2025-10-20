@@ -654,6 +654,39 @@ class Page {
             await this.open(url, options);
         }
     }
+
+    async takeScreenshot(options = {}) {
+        const page = await this.getCurrentPage();
+        const {
+            path = null,
+            fullPage = true,
+            quality = 80,
+            type = 'jpeg'
+        } = options;
+
+        const screenshotOptions = {
+            fullPage,
+            type
+        };
+
+        if (type === 'jpeg' || type === 'jpg') {
+            screenshotOptions.quality = quality;
+        }
+
+        if (path) {
+            screenshotOptions.path = path;
+        }
+
+        try {
+            await page.waitForFunction('document.readyState === "complete"', { timeout: 30000 });
+            const result = await page.screenshot(screenshotOptions);
+            logger.info(`Screenshot captured successfully${path ? ` at ${path}` : ''}`);
+            return result;
+        } catch (error) {
+            logger.error(`Failed to capture screenshot: ${error.message}`);
+            throw error;
+        }
+    }
 }
 
 Page.toString = () => '[class Page]';
