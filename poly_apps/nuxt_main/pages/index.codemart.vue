@@ -29,17 +29,14 @@ import ServiceFlowSection from '@/components/codemart/home/ServiceFlowSection.vu
 import TestimonialsCarousel from '@/components/codemart/home/TestimonialsCarousel.vue';
 import CodemartFooter from '@/components/codemart/home/CodemartFooter.vue';
 import CustomerServiceButton from '@/components/codemart/home/CustomerServiceButton.vue';
-import { codemartTheme } from '@/theme/apps/codemart-theme';
-import { useAppTheme } from '@/composables/useAppTheme';
 import { useCodemartStore } from '@/stores/apps/codemart-store';
 
 definePageMeta({
   title: 'CodeMart - Internet Software Outsourcing Service Platform',
-  layout: 'default',
+  layout: 'homepage',
   namespace: 'codemart'
 });
 
-const { colors, gradients } = useAppTheme(codemartTheme);
 const codemartStore = useCodemartStore();
 
 onMounted(() => {
@@ -47,10 +44,4 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.codemart-homepage {
-  min-height: 100vh;
-  background: white;
-  overflow-x: hidden;
-}
-</style>
+<!-- NO <style> tag - All styles defined in theme files -->

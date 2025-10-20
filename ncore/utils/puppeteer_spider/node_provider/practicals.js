@@ -1,0 +1,33 @@
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, or modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+const zip = require('./practical/zip.js');
+const win = require('./practical/win.js');
+const src = require('./practical/src.js');
+const opt = require('./practical/opt.js');
+const http = require('./practical/http.js');
+const serve = require('./practical/serve.js');
+const shoticon = require('./practical/shoticon.js');
+const softinstall = require('./practical/softinstall.js');
+
+
+module.exports = {
+    toString: () => '[class Practical]',
+    win,
+    zip,
+    src,
+    opt,
+    http,
+    serve,
+    shoticon,
+    softinstall,
+};

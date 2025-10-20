@@ -29,9 +29,7 @@ const UrlRewriter = require('../services/url_rewriter.js');
 const SitemapGenerator = require('../services/sitemap_generator.js');
 const BackupManager = require('../libs/backup_manager.js');
 
-const ResourceExtractor = require('#@ncore/utils/web_offline/resource_extractor.js');
-const ResourceDownloader = require('#@ncore/utils/web_offline/resource_downloader.js');
-const CssProcessor = require('#@ncore/utils/web_offline/css_processor.js');
+const UnifiedResourceProcessor = require('#@ncore/utils/web_offline/unified_resource_processor.js');
 
 const PuppeteerSpiderModule = require('#@puppeteer');
 
@@ -49,13 +47,11 @@ class CrawlController {
     ]));
     this.fetcher = null;
     this.fetcherType = 'http';
-    this.urlRewriter = null;
-    this.cssProcessor = null;
-    this.resourceExtractor = null;
-    this.resourceDownloader = null;
+    this.resourceProcessor = null;
     this.sitemapGenerator = new SitemapGenerator();
     this.backupManager = new BackupManager(5);
     this.autoOpenFolder = true;
+    this.downloadedUrls = [];
   }
 
   openFolderInExplorer(folderPath) {
@@ -104,13 +100,16 @@ class CrawlController {
   async start(argv = process.argv.slice(2)) {
     const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder } = this.parseArguments(argv);
     this.domainContext = new DomainContext(targetUrl);
-    this.urlRewriter = new UrlRewriter(this.domainContext, this.fileMapper);
-    this.cssProcessor = new CssProcessor(this.domainContext, this.fileMapper);
-    this.resourceExtractor = new ResourceExtractor(this.domainContext);
-    this.resourceDownloader = new ResourceDownloader(downloader, this.fileMapper, logger);
+    this.resourceProcessor = new UnifiedResourceProcessor(
+      this.domainContext,
+      this.fileMapper,
+      downloader,
+      logger
+    );
     this.maxDepth = depth;
     this.autoConfirm = autoConfirm;
     this.autoOpenFolder = autoOpenFolder;
+    this.downloadedUrls = [];
 
     logger.info(`Starting document offline analysis for: ${targetUrl}`);
     logger.info(`Recursion depth: ${depth}`);
@@ -147,7 +146,8 @@ class CrawlController {
 
     try {
       await this.processQueue();
-      await this.generateSitemap();
+      await this.generateSitemap(hostDir);
+      await this.generateMapsite(hostDir);
       await this.pauseForNextStep();
     } catch (error) {
       logger.error(`Processing failed: ${error.message}`);
@@ -437,12 +437,13 @@ class CrawlController {
 
     if (!isBinary) {
       if (this.isHtmlContent(relativePath)) {
-        resources = this.resourceExtractor.extractFromHtml(content, canonical);
-        finalContent = this.urlRewriter.rewriteHtml(content, canonical);
+        const isFullMode = this.scopeType === 'full';
+        resources = this.resourceProcessor.extractAllResources(content, canonical, isFullMode);
+        finalContent = this.resourceProcessor.rewriteHtml(content, canonical);
       } else if (this.isCssContent(relativePath)) {
-        const cssUrls = this.cssProcessor.extractUrls(content, canonical);
+        const cssUrls = this.resourceProcessor.extractCssUrls(content, canonical);
         resources = { css: cssUrls, js: [], images: [], fonts: [], media: [] };
-        finalContent = this.cssProcessor.rewriteCss(content, canonical);
+        finalContent = this.resourceProcessor.rewriteCss(content, canonical);
       }
     }
 
@@ -453,6 +454,7 @@ class CrawlController {
     }
 
     this.sitemapGenerator.addUrl(canonical);
+    this.downloadedUrls.push(canonical);
 
     logger.info(`Saved ${isBinary ? 'binary' : 'text'} file: ${path.relative(hostDir, finalPath)}`);
 
@@ -486,29 +488,8 @@ class CrawlController {
 
     logger.info(`Found ${allUrls.length} resources to download (CSS: ${resources.css.length}, JS: ${resources.js.length}, Images: ${resources.images.length}, Fonts: ${resources.fonts.length}, Media: ${resources.media.length})`);
 
-    let downloaded = 0;
-    let skipped = 0;
-    let failed = 0;
-
-    for (const url of allUrls) {
-      const result = await this.resourceDownloader.downloadResource(url, hostDir);
-
-      if (result.success) {
-        downloaded++;
-        if (result.isText && this.isCssContent(result.path)) {
-          const rewrittenCss = this.cssProcessor.rewriteCss(result.content, url);
-          await fs.promises.writeFile(result.path, rewrittenCss, 'utf8');
-        }
-      } else if (result.skipped) {
-        skipped++;
-      } else {
-        failed++;
-      }
-
-      await this.delay(50);
-    }
-
-    logger.info(`Resources: downloaded=${downloaded}, skipped=${skipped}, failed=${failed}`);
+    const stats = await this.resourceProcessor.downloadResources(resources, hostDir);
+    logger.info(`Resources: downloaded=${stats.downloaded}, skipped=${stats.skipped}, failed=${stats.failed}`);
   }
 
   delay(ms) {
@@ -572,9 +553,7 @@ class CrawlController {
     logger.info(`Queue status: pending=${this.queue.size()}, processed=${this.queue.processedCount()}`);
   }
 
-  async generateSitemap() {
-    const parsed = new URL(this.domainContext.getOrigin());
-    const hostDir = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', parsed.hostname);
+  async generateSitemap(hostDir) {
     const sitemapPath = path.join(hostDir, 'sitemap.xml');
 
     try {
@@ -583,6 +562,16 @@ class CrawlController {
       logger.info(`Total URLs in sitemap: ${this.sitemapGenerator.getUrlCount()}`);
     } catch (error) {
       logger.error(`Failed to generate sitemap: ${error.message}`);
+    }
+  }
+
+  async generateMapsite(hostDir) {
+    try {
+      const mapsitePath = this.resourceProcessor.generateMapsite(this.downloadedUrls, hostDir);
+      logger.success(`Mapsite generated: ${mapsitePath}`);
+      logger.info(`Total URLs in mapsite: ${this.downloadedUrls.length}`);
+    } catch (error) {
+      logger.error(`Failed to generate mapsite: ${error.message}`);
     }
   }
 

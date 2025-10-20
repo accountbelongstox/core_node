@@ -9,6 +9,9 @@ No dependencies on other project modules
 import sys
 import os
 import shutil
+import time
+import hashlib
+import re
 from typing import List, Callable, Optional
 
 columns = shutil.get_terminal_size().columns
@@ -66,6 +69,9 @@ class ColorPrint:
     WHITE = '\033[97m'
     BLUE = '\033[94m'
     RESET = '\033[0m'
+
+    _printed_hashes = set()
+    _last_print_times = {}
     
     @staticmethod
     def register_callback(callback):
@@ -218,6 +224,58 @@ class ColorPrint:
         for width in widths:
             separator_line += '-' * (width + 2) + separator
         print(separator_line)
+
+    @staticmethod
+    def _hash_message(message):
+        m = hashlib.md5()
+        m.update(str(message).encode('utf-8'))
+        return m.hexdigest()
+
+    @staticmethod
+    def _parse_duration_to_seconds(interval):
+        if isinstance(interval, (int, float)):
+            return float(interval)
+        s = str(interval).strip().lower()
+        m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)?\s*", s)
+        if not m:
+            return 0.0
+        value = float(m.group(1))
+        unit = m.group(2) or 's'
+        if unit in ('s', 'sec', 'secs', 'second', 'seconds'):
+            return value
+        if unit in ('m', 'min', 'mins', 'minute', 'minutes'):
+            return value * 60
+        if unit in ('h', 'hr', 'hrs', 'hour', 'hours'):
+            return value * 3600
+        if unit in ('d', 'day', 'days'):
+            return value * 86400
+        return value
+
+    @staticmethod
+    def _call_color_printer(color, message):
+        fn = getattr(ColorPrint, color, None)
+        if callable(fn):
+            fn(message)
+        else:
+            ColorPrint.white(message)
+
+    @staticmethod
+    def print_once(message, color='white'):
+        h = ColorPrint._hash_message(message)
+        if h in ColorPrint._printed_hashes:
+            return
+        ColorPrint._printed_hashes.add(h)
+        ColorPrint._call_color_printer(color, message)
+
+    @staticmethod
+    def print_min_interval(message, interval="1min", color='white'):
+        seconds = ColorPrint._parse_duration_to_seconds(interval)
+        h = ColorPrint._hash_message(message)
+        now = time.time()
+        last = ColorPrint._last_print_times.get(h)
+        if last is None or (now - last) >= seconds:
+            ColorPrint._last_print_times[h] = now
+            ColorPrint._call_color_printer(color, message)
 
 
 def main():

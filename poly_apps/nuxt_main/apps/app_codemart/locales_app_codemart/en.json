@@ -1,4 +1,11 @@
 {
+  "common": {
+    "view_all": "View All",
+    "learn_more": "Learn More",
+    "get_started": "Get Started",
+    "contact_us": "Contact Us"
+  },
+
   "codemart": {
     "platform_name": "CodeMart",
     "platform_slogan": "Internet Software Outsourcing Service Platform",
@@ -76,7 +83,23 @@
       "view_projects": "View Projects",
       "total_projects": "Total Projects",
       "total_developers": "Registered Developers",
-      "total_transactions": "Total Transactions"
+      "total_transactions": "Total Transactions",
+      "featured_projects": "Featured Projects",
+      "top_developers": "Top Developers",
+      "cta_title": "Ready to Start Your Project?",
+      "cta_desc": "Join thousands of satisfied clients and developers on CodeMart",
+      "get_started": "Get Started Now"
+    },
+
+    "workflow": {
+      "step1_title": "Post Your Project",
+      "step1_desc": "Describe your project requirements and get AI-powered analysis",
+      "step2_title": "Match with Developers",
+      "step2_desc": "Review proposals from qualified developers and select the best fit",
+      "step3_title": "Secure Development",
+      "step3_desc": "Work begins with secure payment escrow and progress tracking",
+      "step4_title": "Deliver & Review",
+      "step4_desc": "Receive completed work, review code quality, and release payment"
     },
 
     "roles": {
@@ -115,7 +138,10 @@
       "reference_url": "Reference Website",
       "reference_code": "Reference Code",
       "budget_range": "Budget Range",
+      "budget": "Budget",
       "expected_deadline": "Expected Deadline",
+      "deadline": "Deadline",
+      "category": "Category",
       "tech_stack": "Tech Stack",
       "languages": "Languages",
       "frameworks": "Frameworks",
@@ -124,11 +150,25 @@
       "ai_analysis": "AI Analysis",
       "ai_recommendations": "AI Recommendations",
       "accept_proposal": "Accept Proposal",
-      "modify_requirements": "Modify Requirements"
+      "modify_requirements": "Modify Requirements",
+      "view_details": "View Details",
+      "status": {
+        "draft": "Draft",
+        "active": "Active",
+        "pending": "Pending Analysis",
+        "analyzing": "AI Analyzing",
+        "awaiting_payment": "Awaiting Payment",
+        "awaiting_architect": "Awaiting Architect",
+        "in_progress": "In Progress",
+        "in_review": "Under Review",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      }
     },
 
     "project_status": {
       "draft": "Draft",
+      "active": "Active",
       "pending": "Pending Analysis",
       "analyzing": "AI Analyzing",
       "awaiting_payment": "Awaiting Payment",
