@@ -85,6 +85,34 @@ class UnifiedResourceProcessor {
       }
     });
 
+    $('link[href]').each((i, elem) => {
+      const href = $(elem).attr('href');
+      if (href && !href.startsWith('data:')) {
+        const rel = $(elem).attr('rel') || '';
+        if (rel.includes('stylesheet') || rel.includes('preload')) {
+          const resolved = this.resolveUrl(href, baseUrlObj);
+          if (resolved) resources.css.add(resolved);
+        } else if (rel.includes('icon') || rel.includes('apple-touch') || rel.includes('mask')) {
+          const resolved = this.resolveUrl(href, baseUrlObj);
+          if (resolved) resources.images.add(resolved);
+        } else if (rel.includes('manifest')) {
+          const resolved = this.resolveUrl(href, baseUrlObj);
+          if (resolved) resources.images.add(resolved);
+        } else {
+          const resolved = this.resolveUrl(href, baseUrlObj);
+          if (resolved) {
+            if (this.isCssContent(href)) {
+              resources.css.add(resolved);
+            } else if (this.isImageUrl(href)) {
+              resources.images.add(resolved);
+            } else if (this.isFontUrl(href)) {
+              resources.fonts.add(resolved);
+            }
+          }
+        }
+      }
+    });
+
     $('style').each((i, elem) => {
       const content = $(elem).html();
       if (content) {
@@ -492,6 +520,13 @@ class UnifiedResourceProcessor {
     $('link[rel="stylesheet"]').each((i, elem) => {
       const href = $(elem).attr('href');
       if (href) $(elem).attr('href', rewriteUrl(href));
+    });
+
+    $('link[href]').each((i, elem) => {
+      const href = $(elem).attr('href');
+      if (href && !href.startsWith('data:')) {
+        $(elem).attr('href', rewriteUrl(href));
+      }
     });
 
     $('img[src]').each((i, elem) => {
