@@ -52,6 +52,7 @@ class CrawlController {
     this.backupManager = new BackupManager(5);
     this.autoOpenFolder = true;
     this.downloadedUrls = [];
+    this.finalHostDir = null;
   }
 
   openFolderInExplorer(folderPath) {
@@ -124,20 +125,12 @@ class CrawlController {
 
     const parsed = new URL(this.domainContext.getOrigin());
     const hostDir = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', parsed.hostname);
+    this.finalHostDir = await this.prepareDownloadDirectory(hostDir);
 
-    if (this.backupManager.exists(hostDir)) {
-      const shouldContinue = await this.confirmOverwrite(hostDir);
-      if (!shouldContinue) {
-        logger.info('Download cancelled by user');
-        return;
-      }
-      await this.backupManager.createBackup(hostDir);
-    }
-
-    this.ensureDirectory(hostDir);
+    this.ensureDirectory(this.finalHostDir);
     if (this.autoOpenFolder) {
-      logger.info(`Auto-open folder enabled, opening: ${hostDir}`);
-      this.openFolderInExplorer(hostDir);
+      logger.info(`Auto-open folder enabled, opening: ${this.finalHostDir}`);
+      this.openFolderInExplorer(this.finalHostDir);
     }
 
     const canonicalTarget = this.domainContext.getStartUrl();
@@ -146,8 +139,9 @@ class CrawlController {
 
     try {
       await this.processQueue();
-      await this.generateSitemap(hostDir);
-      await this.generateMapsite(hostDir);
+      await this.generateSitemap(this.finalHostDir);
+      await this.generateMapsite(this.finalHostDir);
+      this.printDownloadSummary();
       await this.pauseForNextStep();
     } catch (error) {
       logger.error(`Processing failed: ${error.message}`);
@@ -256,25 +250,51 @@ class CrawlController {
     }
   }
 
-  async confirmOverwrite(targetDir) {
-    if (this.autoConfirm) {
-      logger.info('Auto-confirm enabled, skipping user confirmation');
-      return true;
+  async prepareDownloadDirectory(baseHostDir) {
+    const parentDir = path.dirname(baseHostDir);
+    const dirName = path.basename(baseHostDir);
+
+    if (!fs.existsSync(baseHostDir)) {
+      return baseHostDir;
     }
 
-    return new Promise((resolve) => {
-      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const stats = fs.statSync(baseHostDir);
+    if (!stats.isDirectory()) {
+      return baseHostDir;
+    }
 
-      logger.warn(`\nExisting download found: ${targetDir}`);
-      logger.warn('Continuing will overwrite previous download.');
-      logger.warn('A backup will be created automatically (max 5 backups kept).\n');
+    const files = fs.readdirSync(baseHostDir);
+    if (files.length === 0) {
+      return baseHostDir;
+    }
 
-      rl.question('Do you want to continue? (yes/no): ', (answer) => {
-        rl.close();
-        const confirmed = answer.toLowerCase().trim() === 'yes' || answer.toLowerCase().trim() === 'y';
-        resolve(confirmed);
-      });
-    });
+    logger.warn('\n========================================');
+    logger.warn('Existing downloads found:');
+    logger.warn('========================================');
+
+    const entries = fs.readdirSync(parentDir, { withFileTypes: true });
+    const conflictingDirs = entries
+      .filter(entry => entry.isDirectory() && entry.name === dirName)
+      .map(entry => ({
+        name: entry.name,
+        path: path.join(parentDir, entry.name),
+        mtime: fs.statSync(path.join(parentDir, entry.name)).mtime
+      }));
+
+    for (const dir of conflictingDirs) {
+      logger.warn(`  📁 ${dir.name} (modified: ${dir.mtime.toISOString()})`);
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_').substring(0, 19);
+    const newDirName = `${dirName}_${timestamp}`;
+    const newHostDir = path.join(parentDir, newDirName);
+
+    logger.info('========================================');
+    logger.success(`Creating new directory with timestamp:`);
+    logger.success(`  📂 ${newDirName}`);
+    logger.info('========================================\n');
+
+    return newHostDir;
   }
 
   parseArguments(argv) {
@@ -426,8 +446,7 @@ class CrawlController {
     const canonical = this.domainContext.canonicalize(targetUrl) || targetUrl;
     const parsed = new URL(canonical);
     const relativePath = this.fileMapper.mapPath(parsed);
-    const hostDir = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', parsed.hostname);
-    const finalPath = path.join(hostDir, relativePath);
+    const finalPath = path.join(this.finalHostDir, relativePath);
 
     const directory = path.dirname(finalPath);
     this.ensureDirectory(directory);
@@ -456,10 +475,10 @@ class CrawlController {
     this.sitemapGenerator.addUrl(canonical);
     this.downloadedUrls.push(canonical);
 
-    logger.info(`Saved ${isBinary ? 'binary' : 'text'} file: ${path.relative(hostDir, finalPath)}`);
+    logger.info(`Saved ${isBinary ? 'binary' : 'text'} file: ${path.relative(this.finalHostDir, finalPath)}`);
 
     if (resources) {
-      await this.downloadResources(resources, hostDir);
+      await this.downloadResources(resources, this.finalHostDir);
     }
   }
 
@@ -573,6 +592,53 @@ class CrawlController {
     } catch (error) {
       logger.error(`Failed to generate mapsite: ${error.message}`);
     }
+  }
+
+  printDownloadSummary() {
+    logger.info('\n========================================');
+    logger.info('DOWNLOAD SUMMARY');
+    logger.info('========================================');
+
+    const resourceStats = this.resourceProcessor.resourceMap;
+    const totalResources =
+      resourceStats.css.size +
+      resourceStats.js.size +
+      resourceStats.images.size +
+      resourceStats.fonts.size +
+      resourceStats.media.size;
+
+    logger.info(`Total URLs downloaded: ${this.downloadedUrls.length}`);
+    logger.info(`Queue status: processed=${this.queue.processedCount()}`);
+    logger.info('');
+
+    logger.info('Resources discovered:');
+    logger.info(`  CSS files:         ${resourceStats.css.size}`);
+    logger.info(`  JavaScript files:  ${resourceStats.js.size}`);
+    logger.info(`  Images:            ${resourceStats.images.size}`);
+    logger.info(`    - Background:    ${resourceStats.backgroundImages.size}`);
+    logger.info(`    - HTTPS direct:  ${resourceStats.httpsImages.size}`);
+    logger.info(`  Fonts:             ${resourceStats.fonts.size}`);
+    logger.info(`  Media:             ${resourceStats.media.size}`);
+    logger.info(`  Total:             ${totalResources}`);
+    logger.info('');
+
+    const recentUrls = Array.from(this.queue.processed).slice(-5);
+    if (recentUrls.length > 0) {
+      logger.info('Recently processed (last 5):');
+      recentUrls.forEach((url, index) => {
+        logger.info(`  [${index + 1}] ${url}`);
+      });
+    }
+
+    const pendingUrls = this.queue.pending.slice(0, 5);
+    if (pendingUrls.length > 0) {
+      logger.info('Pending queue (next 5):');
+      pendingUrls.forEach((item, index) => {
+        logger.info(`  [${index + 1}] depth=${item.depth} ${item.url}`);
+      });
+    }
+
+    logger.info('========================================\n');
   }
 
   async pauseForNextStep() {

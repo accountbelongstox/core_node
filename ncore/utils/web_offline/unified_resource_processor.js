@@ -398,7 +398,12 @@ class UnifiedResourceProcessor {
       }
 
       const relativePath = this.calculateRelativePath(currentUrlObj, absoluteUrl);
-      return relativePath;
+
+      if (relativePath.startsWith('../')) {
+        return relativePath;
+      }
+
+      return relativePath || './';
 
     } catch (error) {
       return url;
