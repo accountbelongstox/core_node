@@ -607,11 +607,18 @@ class CrawlController {
       resourceStats.fonts.size +
       resourceStats.media.size;
 
+    const totalExternal =
+      resourceStats.externalCss.size +
+      resourceStats.externalJs.size +
+      resourceStats.externalImages.size +
+      resourceStats.externalFonts.size +
+      resourceStats.externalMedia.size;
+
     logger.info(`Total URLs downloaded: ${this.downloadedUrls.length}`);
     logger.info(`Queue status: processed=${this.queue.processedCount()}`);
     logger.info('');
 
-    logger.info('Resources discovered:');
+    logger.info('Internal Resources discovered:');
     logger.info(`  CSS files:         ${resourceStats.css.size}`);
     logger.info(`  JavaScript files:  ${resourceStats.js.size}`);
     logger.info(`  Images:            ${resourceStats.images.size}`);
@@ -620,6 +627,15 @@ class CrawlController {
     logger.info(`  Fonts:             ${resourceStats.fonts.size}`);
     logger.info(`  Media:             ${resourceStats.media.size}`);
     logger.info(`  Total:             ${totalResources}`);
+    logger.info('');
+
+    logger.info('External Resources found:');
+    logger.info(`  CSS files:         ${resourceStats.externalCss.size}`);
+    logger.info(`  JavaScript files:  ${resourceStats.externalJs.size}`);
+    logger.info(`  Images:            ${resourceStats.externalImages.size}`);
+    logger.info(`  Fonts:             ${resourceStats.externalFonts.size}`);
+    logger.info(`  Media:             ${resourceStats.externalMedia.size}`);
+    logger.info(`  Total:             ${totalExternal}`);
     logger.info('');
 
     const recentUrls = Array.from(this.queue.processed).slice(-5);
