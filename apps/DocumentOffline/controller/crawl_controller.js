@@ -348,10 +348,10 @@ class CrawlController {
     let pathName = this.fileMapper.mapPath(parsed);
 
     if (pathName === 'index.html') {
-      return 'index.png';
+      return 'index.jpg';
     }
 
-    return pathName.replace(/\.html?$/, '').replace(/\//g, '|') + '.png';
+    return pathName.replace(/\.html?$/, '').replace(/\//g, '|') + '.jpg';
   }
 
   async capturePageScreenshot(url) {

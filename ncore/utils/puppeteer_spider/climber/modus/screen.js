@@ -28,13 +28,31 @@ class Screen {
         return page
     }
     
-    async screenshotOfWebpage(selector = null, filePath = null, page = null) {
+    async screenshotOfWebpage(selector = null, filePath = null, page = null, options = {}) {
         const currentPage = await this.getCurrentPage(page);
         filePath = this.getScreenshotSavePath(filePath);
         if (selector !== null) {
             return this.screenshotOfElement(selector, filePath, currentPage);
         }
-        await currentPage.screenshot({ path: filePath });
+
+        const screenshotOptions = {
+            path: filePath,
+            fullPage: options.fullPage !== false,
+            quality: options.quality || 80,
+            type: options.type || 'jpeg'
+        };
+
+        if (screenshotOptions.type !== 'jpeg' && screenshotOptions.type !== 'jpg') {
+            delete screenshotOptions.quality;
+        }
+
+        try {
+            await currentPage.waitForFunction('document.readyState === "complete"', { timeout: 30000 });
+            await currentPage.screenshot(screenshotOptions);
+        } catch (error) {
+            console.error(`Screenshot failed: ${error.message}`);
+            throw error;
+        }
         return filePath;
     }
 
