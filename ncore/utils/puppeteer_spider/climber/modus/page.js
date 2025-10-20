@@ -579,12 +579,23 @@ class Page {
         return null;
     }
 
-    async findPageIndexByUrl(url, options) {
+    async findPageIndexByUrl(url, options = {}) {
+        // FIXED: Use mainFrame().url() instead of deprecated page.url()
+        // FIXED: Use smart URL comparison instead of exact string match
+        const urlStrict = options?.urlStrict !== false;  // default to true for strict matching
         const pages = await this.getPages();
         for (let i = 0; i < pages.length; i++) {
-            const pageUrl = await pages[i].url();
-            if (pageUrl === url) {
-                return i;
+            const pageUrl = await pages[i].mainFrame().url();  // ✅ Correct method
+            if (urlStrict) {
+                // Full URL matching: domain + pathname + query
+                if (urltool.equalDomainFull(pageUrl, url)) {
+                    return i;
+                }
+            } else {
+                // Domain matching: domain + pathname only
+                if (urltool.equalDomain(pageUrl, url)) {
+                    return i;
+                }
             }
         }
         return -1;
