@@ -73,7 +73,8 @@ d3-check/
 │   ├── d3u_common/
 │   │   ├── __init__.py
 │   │   ├── hotkey_registry.py
-│   │   └── image_annotator_helper.py
+│   │   ├── image_annotator_helper.py
+│   │   └── image_utils.py
 │   ├── d3utils_tree.md
 │   ├── game_window_detector.py
 │   ├── global_hotkey_manager.py
@@ -96,6 +97,7 @@ d3-check/
 ├── d4_modules_detection/
 ├── d4utils/
 │   ├── __init__.py
+│   ├── auto_team_formation.py
 │   ├── black_screen_detector.py
 │   ├── d4_operation_base.py
 │   ├── d4_scaled_template_matcher.py
@@ -103,7 +105,6 @@ d3-check/
 │   ├── small_map_detector.py
 │   ├── team_formation_checker.py
 │   ├── team_health_detector.py
-│   ├── test_red_portal.py
 │   └── window_region_detector.py
 ├── images/
 │   ├── d4/
@@ -259,11 +260,15 @@ d3-check/
 │   ├── _obsolete_window_activator.py
 │   ├── _obsolete_window_analyzer.py
 │   └── _obsolete_window_ops.py
+├── AUTO_TEAM_COMPLETION_REPORT.md
+├── AUTO_TEAM_FORMATION_SPEC.md
+├── AUTO_TEAM_IMPLEMENTATION_SUMMARY.md
 ├── CONSTANTS_UNIFICATION_COMPLETE.md
 ├── README_MOUSE_COORDINATE_TOOL.md
 ├── REFACTORING_FINAL_REPORT.md
 ├── REFACTORING_RESOLUTION_CONSTANTS.md
 ├── REFACTORING_SUMMARY.md
+├── TEAM_CHECK_FLOW_ANALYSIS.md
 ├── WINDOW_CONSTANTS_ANALYSIS.md
 ├── d3-check_tree.md
 ├── debug_mouse.bat

@@ -169,15 +169,20 @@ ncore/
 │   └── index.js
 ├── mcp_server/
 │   ├── codebase-scanner/
-│   │   └── main.py
+│   │   ├── tmp_sessions/
+│   │   ├── constants.py
+│   │   ├── main.py
+│   │   ├── start_server.bat
+│   │   └── start_server.py
 │   ├── document_parser/
+│   ├── file_processor/
 │   │   ├── cnocr_engine.py
+│   │   ├── constants.py
 │   │   ├── image_processor.py
 │   │   ├── main.py
 │   │   ├── ocr_config.py
 │   │   ├── ocr_engines.py
 │   │   ├── ocr_queue_system.py
-│   │   ├── optimization_summary.txt
 │   │   ├── paddle_ocr_engine.py
 │   │   └── pdf_processor.py
 │   ├── mcp-alchemy/
@@ -186,21 +191,55 @@ ncore/
 │   │   │   ├── __init__.py
 │   │   │   └── server.py
 │   │   ├── tmp_sessions/
+│   │   │   ├── alchemy_master_036933f8/
+│   │   │   ├── alchemy_master_05abd839/
+│   │   │   ├── alchemy_master_394e92a9/
+│   │   │   ├── alchemy_master_3a63946d/
+│   │   │   ├── alchemy_master_3f5bb92f/
+│   │   │   ├── alchemy_master_4dde28fd/
+│   │   │   ├── alchemy_master_5158da24/
+│   │   │   ├── alchemy_master_59258708/
+│   │   │   ├── alchemy_master_6eda6e2e/
+│   │   │   ├── alchemy_master_7b5cbb42/
+│   │   │   ├── alchemy_master_7ca47b35/
+│   │   │   ├── alchemy_master_8147ac8a/
+│   │   │   ├── alchemy_master_89fd389c/
+│   │   │   ├── alchemy_master_9b64c255/
+│   │   │   ├── alchemy_master_a5936a79/
+│   │   │   ├── alchemy_master_a83a0c2b/
+│   │   │   ├── alchemy_master_ab1fa13e/
+│   │   │   ├── alchemy_master_ab24e6c6/
+│   │   │   ├── alchemy_master_bcd64542/
+│   │   │   ├── alchemy_master_bdb7f10a/
+│   │   │   ├── alchemy_master_c15bdac8/
+│   │   │   ├── alchemy_master_ca0b511c/
+│   │   │   ├── alchemy_master_cc3b20f5/
+│   │   │   ├── alchemy_master_cc62695b/
+│   │   │   ├── alchemy_master_ceac6474/
+│   │   │   ├── alchemy_master_ec93d044/
+│   │   │   ├── alchemy_master_f1fc192d/
 │   │   │   ├── vscode_00732031/
 │   │   │   ├── vscode_2089f079/
 │   │   │   ├── vscode_20a461df/
+│   │   │   ├── vscode_2ed01cc1/
 │   │   │   ├── vscode_36ff7487/
+│   │   │   ├── vscode_3c0185e2/
 │   │   │   ├── vscode_422fb150/
-│   │   │   ├── vscode_4623b968/
 │   │   │   ├── vscode_4ba8c9b4/
+│   │   │   ├── vscode_4cca1b4a/
+│   │   │   ├── vscode_51fc8140/
+│   │   │   ├── vscode_5eb795b5/
 │   │   │   ├── vscode_626b8137/
 │   │   │   ├── vscode_6737d159/
 │   │   │   ├── vscode_6bf43308/
-│   │   │   ├── vscode_6efd4db0/
+│   │   │   ├── vscode_77364060/
 │   │   │   ├── vscode_7d40b5bf/
+│   │   │   ├── vscode_8222aa0b/
 │   │   │   ├── vscode_85e9dd6e/
+│   │   │   ├── vscode_87d721dd/
 │   │   │   ├── vscode_966485bc/
 │   │   │   ├── vscode_99192e89/
+│   │   │   ├── vscode_a8e3b4f2/
 │   │   │   ├── vscode_ccf88277/
 │   │   │   ├── vscode_cd3105be/
 │   │   │   ├── vscode_d24f6bd4/
@@ -209,16 +248,21 @@ ncore/
 │   │   │   ├── vscode_e47914c8/
 │   │   │   ├── vscode_ed92e6a3/
 │   │   │   ├── vscode_f0f0bb85/
+│   │   │   ├── vscode_f9a88045/
 │   │   │   └── active_sessions.json
 │   │   ├── .gitignore
+│   │   ├── ARCHITECTURE_REFACTORING_COMPLETE.md
 │   │   ├── LICENSE
 │   │   ├── Makefile
 │   │   ├── README.md
 │   │   ├── config.json
+│   │   ├── constants.py
 │   │   ├── main.py
 │   │   ├── pyproject.toml
-│   │   └── requirements.txt
+│   │   ├── requirements.txt
+│   │   └── tmp_.service.status
 │   ├── placeholder_image_generator/
+│   │   ├── constants.py
 │   │   ├── main.py
 │   │   └── test_client.py
 │   └── wait_please/
@@ -422,43 +466,6 @@ ncore/
 │       ├── uno.config.ts
 │       ├── version.json
 │       └── vite.config.js
-├── pytools/
-│   ├── pyfoundations/
-│   │   ├── __init__.py
-│   │   ├── color_print.py
-│   │   └── encyclopedia.py
-│   ├── pygvar/
-│   │   ├── __init__.py
-│   │   └── global_var_manager.py
-│   ├── pyutils/
-│   │   ├── common/
-│   │   │   ├── __init__.py
-│   │   │   └── window_finder.py
-│   │   ├── examples/
-│   │   │   ├── dataset_generator_example.py
-│   │   │   └── ocr_example.py
-│   │   ├── app_launcher.py
-│   │   ├── click_handler.py
-│   │   ├── dataset_generator.py
-│   │   ├── hotkey_listener.py
-│   │   ├── image_annotator.py
-│   │   ├── image_comparator.py
-│   │   ├── image_crop.py
-│   │   ├── image_matcher.py
-│   │   ├── integrated_window_analyzer.py
-│   │   ├── ocr_cnocr_engine.py
-│   │   ├── paddle_ocr.py
-│   │   ├── png_matcher.py
-│   │   ├── process_manager.py
-│   │   ├── tray_clicker.py
-│   │   ├── ui_analyzer.py
-│   │   ├── ultralytics_trainer.py
-│   │   ├── window_activator.py
-│   │   ├── window_analyzer.py
-│   │   ├── window_ops.py
-│   │   └── window_screenshot.py
-│   ├── __init__.py
-│   └── __main__.py
 ├── utils/
 │   ├── ai_translator/
 │   │   ├── config/
@@ -602,7 +609,48 @@ ncore/
 │   │   │   └── strapi_v4_net_fetch.js
 │   │   └── unit/
 │   │       └── header.js
-│   ├── oldspider/
+│   ├── openai/
+│   │   ├── config/
+│   │   │   ├── index.js
+│   │   │   └── open_config.js
+│   │   ├── prompts/
+│   │   │   ├── codeConversion.js
+│   │   │   ├── index.js
+│   │   │   └── moduleSplit.js
+│   │   ├── utils/
+│   │   │   ├── codeAnalyzer.js
+│   │   │   ├── codeExtractor.js
+│   │   │   ├── fileHandler.js
+│   │   │   ├── moduleExtractor.js
+│   │   │   ├── promptWrapper.js
+│   │   │   └── xmlParser.js
+│   │   ├── chat.js
+│   │   ├── example.js
+│   │   └── example_to_es6.js
+│   ├── puppeteer-browser-bak/
+│   │   ├── core/
+│   │   │   ├── config.js
+│   │   │   ├── instance.js
+│   │   │   ├── main.js
+│   │   │   └── pool.js
+│   │   ├── libs/
+│   │   │   ├── mime.js
+│   │   │   └── stealth.min.js
+│   │   ├── puppeteer-api/
+│   │   │   ├── api.js
+│   │   │   ├── download.js
+│   │   │   ├── interaction.js
+│   │   │   ├── navigation.js
+│   │   │   ├── screenshot.js
+│   │   │   └── script.js
+│   │   ├── utils/
+│   │   │   ├── chrome-finder.js
+│   │   │   └── chrome-version.js
+│   │   ├── DEVELOPMENT_ANALYSIS.md
+│   │   ├── README.md
+│   │   ├── fetcher.js
+│   │   └── index.js
+│   ├── puppeteer_spider/
 │   │   ├── climber/
 │   │   │   ├── javascript/
 │   │   │   │   └── modus/
@@ -822,47 +870,8 @@ ncore/
 │   │   │   ├── htmlparseApi.md
 │   │   │   ├── watchf.js
 │   │   │   └── zip.js
+│   │   ├── fetcher.js
 │   │   └── main.js
-│   ├── openai/
-│   │   ├── config/
-│   │   │   ├── index.js
-│   │   │   └── open_config.js
-│   │   ├── prompts/
-│   │   │   ├── codeConversion.js
-│   │   │   ├── index.js
-│   │   │   └── moduleSplit.js
-│   │   ├── utils/
-│   │   │   ├── codeAnalyzer.js
-│   │   │   ├── codeExtractor.js
-│   │   │   ├── fileHandler.js
-│   │   │   ├── moduleExtractor.js
-│   │   │   ├── promptWrapper.js
-│   │   │   └── xmlParser.js
-│   │   ├── chat.js
-│   │   ├── example.js
-│   │   └── example_to_es6.js
-│   ├── puppeteer-browser/
-│   │   ├── core/
-│   │   │   ├── config.js
-│   │   │   ├── instance.js
-│   │   │   ├── main.js
-│   │   │   └── pool.js
-│   │   ├── libs/
-│   │   │   ├── mime.js
-│   │   │   └── stealth.min.js
-│   │   ├── puppeteer-api/
-│   │   │   ├── api.js
-│   │   │   ├── download.js
-│   │   │   ├── interaction.js
-│   │   │   ├── navigation.js
-│   │   │   ├── screenshot.js
-│   │   │   └── script.js
-│   │   ├── utils/
-│   │   │   ├── chrome-finder.js
-│   │   │   └── chrome-version.js
-│   │   ├── DEVELOPMENT_ANALYSIS.md
-│   │   ├── README.md
-│   │   └── index.js
 │   ├── shortcuttool/
 │   │   └── index.js
 │   ├── smart_compression/

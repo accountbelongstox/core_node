@@ -29,7 +29,7 @@ class WindowActivator:
     
     def __init__(self):
         """Initialize window activator"""
-        ColorPrint.green("[INIT] WindowActivator initialized")
+        ColorPrint.print_min_interval("[INIT] WindowActivator initialized", "5min", "green")
     
     def activate_window_by_title(self, window_title: str) -> bool:
         """
@@ -45,22 +45,22 @@ class WindowActivator:
             # Find window by title
             hwnd = win32gui.FindWindow(None, window_title)
             if not hwnd:
-                ColorPrint.yellow(f"[WARN] Window not found: {window_title}")
+                ColorPrint.print_min_interval(f"[WARN] Window not found: {window_title}", "5min", "yellow")
                 return False
             
             # Check if window is visible
             if not win32gui.IsWindowVisible(hwnd):
-                ColorPrint.yellow(f"[WARN] Window is not visible: {window_title}")
+                ColorPrint.print_min_interval(f"[WARN] Window is not visible: {window_title}", "5min", "yellow")
                 return False
             
             # Check if window is minimized
             if win32gui.IsIconic(hwnd):
-                ColorPrint.blue(f"[RESTORE] Restoring minimized window: {window_title}")
+                ColorPrint.print_min_interval(f"[RESTORE] Restoring minimized window: {window_title}", "5min", "blue")
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
                 time.sleep(0.5)
             
             # Bring window to foreground
-            ColorPrint.blue(f"[ACTIVATE] Activating window: {window_title}")
+            ColorPrint.print_min_interval(f"[ACTIVATE] Activating window: {window_title}", "5min", "blue")
             win32gui.SetForegroundWindow(hwnd)
             
             # Wait a bit for activation to take effect
@@ -69,14 +69,14 @@ class WindowActivator:
             # Verify window is now active
             active_hwnd = win32gui.GetForegroundWindow()
             if active_hwnd == hwnd:
-                ColorPrint.green(f"[SUCCESS] Window activated: {window_title}")
+                ColorPrint.print_min_interval(f"[SUCCESS] Window activated: {window_title}", "5min", "green")
                 return True
             else:
-                ColorPrint.yellow(f"[WARN] Window activation may have failed: {window_title}")
+                ColorPrint.print_min_interval(f"[WARN] Window activation may have failed: {window_title}", "5min", "yellow")
                 return False
                 
         except Exception as e:
-            ColorPrint.red(f"[ERROR] Error activating window {window_title}: {e}")
+            ColorPrint.print_min_interval(f"[ERROR] Error activating window {window_title}: {e}", "5min", "red")
             return False
     
     def activate_window_by_partial_title(self, partial_title: str, use_cache: bool = True) -> bool:
@@ -106,9 +106,9 @@ class WindowActivator:
                     if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
                         found_hwnd = hwnd
                         window_info = cached_info
-                        ColorPrint.green(f"[CACHE] Using cached window: '{cached_info.get('title')}' (Handle: {hwnd})")
+                        ColorPrint.print_min_interval(f"[CACHE] Using cached window: '{cached_info.get('title')}' (Handle: {hwnd})", "5min", "green")
                     else:
-                        ColorPrint.yellow(f"[CACHE] Cached window invalid, searching...")
+                        ColorPrint.print_min_interval(f"[CACHE] Cached window invalid, searching...", "5min", "yellow")
 
             # If not found in cache or cache invalid, search for window
             if not found_hwnd:
@@ -136,9 +136,9 @@ class WindowActivator:
                                 # Cache the window info
                                 cache_key = f"window_cache_{partial_title.lower()}"
                                 ENCYCLOPEDIA.add(cache_key, window_info)
-                                ColorPrint.blue(f"[CACHE] Cached window info for '{partial_title}'")
+                                ColorPrint.print_min_interval(f"[CACHE] Cached window info for '{partial_title}'", "5min", "blue")
                             except Exception as e:
-                                ColorPrint.yellow(f"[WARN] Error caching window info: {e}")
+                                ColorPrint.print_min_interval(f"[WARN] Error caching window info: {e}", "5min", "yellow")
                             return False  # Stop enumeration
                     return True
 
@@ -163,15 +163,15 @@ class WindowActivator:
                         cache_key = f"window_cache_{partial_title.lower()}"
                         ENCYCLOPEDIA.add(cache_key, window_info)
                     except Exception as e:
-                        ColorPrint.yellow(f"[WARN] Error updating cached position: {e}")
+                        ColorPrint.print_min_interval(f"[WARN] Error updating cached position: {e}", "5min", "yellow")
 
                 return result
             else:
-                ColorPrint.yellow(f"[WARN] No window found with partial title: {partial_title}")
+                ColorPrint.print_min_interval(f"[WARN] No window found with partial title: {partial_title}", "5min", "yellow")
                 return False
 
         except Exception as e:
-            ColorPrint.red(f"[ERROR] Error finding window with partial title {partial_title}: {e}")
+            ColorPrint.print_min_interval(f"[ERROR] Error finding window with partial title {partial_title}: {e}", "5min", "red")
             return False
     
     def activate_window_by_handle(self, hwnd: int) -> bool:
@@ -186,21 +186,21 @@ class WindowActivator:
         """
         try:
             if not win32gui.IsWindow(hwnd):
-                ColorPrint.red(f"[ERROR] Invalid window handle: {hwnd}")
+                ColorPrint.print_min_interval(f"[ERROR] Invalid window handle: {hwnd}", "5min", "red")
                 return False
             
             if not win32gui.IsWindowVisible(hwnd):
-                ColorPrint.yellow(f"[WARN] Window is not visible (handle: {hwnd})")
+                ColorPrint.print_min_interval(f"[WARN] Window is not visible (handle: {hwnd})", "5min", "yellow")
                 return False
             
             # Check if window is minimized
             if win32gui.IsIconic(hwnd):
-                ColorPrint.blue(f"[RESTORE] Restoring minimized window (handle: {hwnd})")
+                ColorPrint.print_min_interval(f"[RESTORE] Restoring minimized window (handle: {hwnd})", "5min", "blue")
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
                 time.sleep(0.5)
             
             # Bring window to foreground
-            ColorPrint.blue(f"[ACTIVATE] Activating window (handle: {hwnd})")
+            ColorPrint.print_min_interval(f"[ACTIVATE] Activating window (handle: {hwnd})", "5min", "blue")
             win32gui.SetForegroundWindow(hwnd)
             
             # Wait a bit for activation to take effect
@@ -209,14 +209,14 @@ class WindowActivator:
             # Verify window is now active
             active_hwnd = win32gui.GetForegroundWindow()
             if active_hwnd == hwnd:
-                ColorPrint.green(f"[SUCCESS] Window activated (handle: {hwnd})")
+                ColorPrint.print_min_interval(f"[SUCCESS] Window activated (handle: {hwnd})", "5min", "green")
                 return True
             else:
-                ColorPrint.yellow(f"[WARN] Window activation may have failed (handle: {hwnd})")
+                ColorPrint.print_min_interval(f"[WARN] Window activation may have failed (handle: {hwnd})", "5min", "yellow")
                 return False
                 
         except Exception as e:
-            ColorPrint.red(f"[ERROR] Error activating window (handle: {hwnd}): {e}")
+            ColorPrint.print_min_interval(f"[ERROR] Error activating window (handle: {hwnd}): {e}", "5min", "red")
             return False
     
     def get_active_window_info(self) -> dict:
@@ -245,7 +245,7 @@ class WindowActivator:
                 return {"handle": None, "title": None, "class": None, "rect": None}
                 
         except Exception as e:
-            ColorPrint.red(f"[ERROR] Error getting active window info: {e}")
+            ColorPrint.print_min_interval(f"[ERROR] Error getting active window info: {e}", "5min", "red")
             return {"handle": None, "title": None, "class": None, "rect": None}
     
     def get_window_info(
@@ -287,8 +287,8 @@ class WindowActivator:
             if match_mode == "exact" and title_mode != "startwith":
                 match_mode = title_mode
 
-            ColorPrint.blue(f"[GetWindowInfo] Searching for windows: {titles}")
-            ColorPrint.blue(f"[GetWindowInfo] Match mode: {match_mode}, Search process: {search_process}")
+            ColorPrint.print_min_interval(f"[GetWindowInfo] Searching for windows: {titles}", "5min", "blue")
+            ColorPrint.print_min_interval(f"[GetWindowInfo] Match mode: {match_mode}, Search process: {search_process}", "5min", "blue")
 
             # Step 1: Try to get from encyclopedia cache
             for title in titles:
@@ -300,6 +300,7 @@ class WindowActivator:
                     # Validate cached window
                     if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
                         ColorPrint.green(f"[Cache] Found valid cached window: '{cached_info.get('title')}'")
+                        ColorPrint.print_min_interval(f"[Cache] Found valid cached window: '{cached_info.get('title')}'", "5min", "green")
 
                         # Update position from current window state
                         try:
@@ -320,13 +321,13 @@ class WindowActivator:
                                 "source": "cache"
                             }
                         except Exception as e:
-                            ColorPrint.yellow(f"[Cache] Error reading window rect: {e}")
+                            ColorPrint.print_min_interval(f"[Cache] Error reading window rect: {e}", "5min", "yellow")
                     else:
-                        ColorPrint.yellow(f"[Cache] Cached window invalid for '{title}'")
+                        ColorPrint.print_min_interval(f"[Cache] Cached window invalid for '{title}'", "5min", "yellow")
 
             # Step 2: If search_process is True and not found in cache, search process
             if search_process:
-                ColorPrint.blue("[Process] Searching through visible windows...")
+                ColorPrint.print_min_interval("[Process] Searching through visible windows...", "5min", "blue")
 
                 found_window = None
 
@@ -382,21 +383,21 @@ class WindowActivator:
                                             "class_name": win32gui.GetClassName(hwnd)
                                         }
                                         ENCYCLOPEDIA.add(cache_key, cache_data)
-                                        ColorPrint.blue(f"[Process] Cached found window '{target_title}'")
+                                        ColorPrint.print_min_interval(f"[Process] Cached found window '{target_title}'", "5min", "blue")
 
                                         return False  # Stop enumeration
                         except Exception as e:
-                            ColorPrint.yellow(f"[Process] Error checking window: {e}")
+                            ColorPrint.print_min_interval(f"[Process] Error checking window: {e}", "5min", "yellow")
                     return True
 
                 win32gui.EnumWindows(enum_windows_callback, None)
 
                 if found_window:
-                    ColorPrint.green(f"[Process] Found window: '{found_window['title']}'")
+                    ColorPrint.print_min_interval(f"[Process] Found window: '{found_window['title']}'", "5min", "green")
                     return found_window
 
             # Step 3: Not found
-            ColorPrint.yellow("[GetWindowInfo] No matching window found")
+            ColorPrint.print_min_interval("[GetWindowInfo] No matching window found", "5min", "yellow")
             return {
                 "found": False,
                 "hwnd": None,
@@ -414,7 +415,7 @@ class WindowActivator:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[ERROR] Error in get_window_info: {e}")
+            ColorPrint.print_min_interval(f"[ERROR] Error in get_window_info: {e}", "5min", "red")
             import traceback
             traceback.print_exc()
             return {
@@ -466,5 +467,5 @@ class WindowActivator:
             win32gui.EnumWindows(enum_windows_callback, None)
             return windows
         except Exception as e:
-            ColorPrint.red(f"[ERROR] Error listing windows: {e}")
+            ColorPrint.print_min_interval(f"[ERROR] Error listing windows: {e}", "5min", "red")
             return []

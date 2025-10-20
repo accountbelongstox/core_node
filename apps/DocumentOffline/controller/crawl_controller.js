@@ -17,18 +17,21 @@ const downloader = require('#@downloader');
 const path = require('path');
 const fs = require('fs');
 const readline = require('readline');
+const { exec } = require('child_process');
+const os = require('os');
 
 const DomainContext = require('../libs/domain_context.js');
 const FileMapper = require('../libs/file_mapper.js');
 const UrlQueue = require('../libs/url_queue.js');
 const PageFetcher = require('../services/page_fetcher.js');
+const PuppeteerBrowser = require('#@puppeteer');
 const UrlRewriter = require('../services/url_rewriter.js');
 const SitemapGenerator = require('../services/sitemap_generator.js');
 const BackupManager = require('../libs/backup_manager.js');
 
-const ResourceExtractor = require('#@ncore/utils/web_offline/resource_extractor.js');
-const ResourceDownloader = require('#@ncore/utils/web_offline/resource_downloader.js');
-const CssProcessor = require('#@ncore/utils/web_offline/css_processor.js');
+const UnifiedResourceProcessor = require('#@ncore/utils/web_offline/unified_resource_processor.js');
+
+const PuppeteerSpiderModule = require('#@puppeteer');
 
 class CrawlController {
   constructor() {
@@ -42,23 +45,71 @@ class CrawlController {
       '.svg', '.webp', '.css', '.js', '.mp3', '.mp4', '.avi', '.mov', '.m4v', '.webm',
       '.woff', '.woff2', '.ttf', '.otf', '.eot'
     ]));
-    this.fetcher = new PageFetcher(this.fileMapper);
-    this.urlRewriter = null;
-    this.cssProcessor = null;
-    this.resourceExtractor = null;
-    this.resourceDownloader = null;
+    this.fetcher = null;
+    this.fetcherType = 'http';
+    this.resourceProcessor = null;
     this.sitemapGenerator = new SitemapGenerator();
     this.backupManager = new BackupManager(5);
+    this.autoOpenFolder = true;
+    this.downloadedUrls = [];
+  }
+
+  openFolderInExplorer(folderPath) {
+    if (!fs.existsSync(folderPath)) {
+      logger.warn(`Folder does not exist: ${folderPath}`);
+      return;
+    }
+
+    const platform = os.platform();
+    let command;
+
+    try {
+      if (platform === 'win32') {
+        command = `explorer /select,"${folderPath}"`;
+        exec(command, (error) => {
+          if (error) {
+            logger.error(`Failed to open folder: ${error.message}`);
+          } else {
+            logger.success(`Opened folder: ${folderPath}`);
+          }
+        });
+      } else if (platform === 'darwin') {
+        command = `open "${folderPath}"`;
+        exec(command, (error) => {
+          if (error) {
+            logger.error(`Failed to open folder: ${error.message}`);
+          } else {
+            logger.success(`Opened folder: ${folderPath}`);
+          }
+        });
+      } else if (platform === 'linux') {
+        command = `xdg-open "${folderPath}"`;
+        exec(command, (error) => {
+          if (error) {
+            logger.error(`Failed to open folder: ${error.message}`);
+          } else {
+            logger.success(`Opened folder: ${folderPath}`);
+          }
+        });
+      }
+    } catch (error) {
+      logger.error(`Error opening folder: ${error.message}`);
+    }
   }
 
   async start(argv = process.argv.slice(2)) {
-    const { targetUrl, depth } = this.parseArguments(argv);
+    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder } = this.parseArguments(argv);
     this.domainContext = new DomainContext(targetUrl);
-    this.urlRewriter = new UrlRewriter(this.domainContext, this.fileMapper);
-    this.cssProcessor = new CssProcessor(this.domainContext, this.fileMapper);
-    this.resourceExtractor = new ResourceExtractor(this.domainContext);
-    this.resourceDownloader = new ResourceDownloader(downloader, this.fileMapper, logger);
+    this.resourceProcessor = new UnifiedResourceProcessor(
+      this.domainContext,
+      this.fileMapper,
+      downloader,
+      logger
+    );
     this.maxDepth = depth;
+    this.autoConfirm = autoConfirm;
+    this.autoOpenFolder = autoOpenFolder;
+    this.downloadedUrls = [];
 
     logger.info(`Starting document offline analysis for: ${targetUrl}`);
     logger.info(`Recursion depth: ${depth}`);
@@ -67,6 +118,9 @@ class CrawlController {
     if (this.domainContext.getScopeUrl() !== this.domainContext.getOrigin()) {
       logger.info(`Scope root: ${this.domainContext.getScopeUrl()}`);
     }
+
+    await this.selectDownloadScope(scopeType);
+    await this.selectFetcherMethod(fetcherType);
 
     const parsed = new URL(this.domainContext.getOrigin());
     const hostDir = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', parsed.hostname);
@@ -80,21 +134,134 @@ class CrawlController {
       await this.backupManager.createBackup(hostDir);
     }
 
+    this.ensureDirectory(hostDir);
+    if (this.autoOpenFolder) {
+      logger.info(`Auto-open folder enabled, opening: ${hostDir}`);
+      this.openFolderInExplorer(hostDir);
+    }
+
     const canonicalTarget = this.domainContext.getStartUrl();
     this.queue.enqueue(canonicalTarget, 0);
     this.urlPool.add(canonicalTarget);
 
     try {
       await this.processQueue();
-      await this.generateSitemap();
+      await this.generateSitemap(hostDir);
+      await this.generateMapsite(hostDir);
       await this.pauseForNextStep();
     } catch (error) {
       logger.error(`Processing failed: ${error.message}`);
       throw error;
+    } finally {
+      await this.cleanupFetcher();
+    }
+  }
+
+  async selectDownloadScope(scopeType) {
+    if (scopeType === 'full' || scopeType === 'path') {
+      this.applyScopeType(scopeType);
+      logger.success(`Download scope set to: ${scopeType === 'full' ? 'Full Site' : 'Current Path Only'}`);
+      return;
+    }
+
+    return new Promise((resolve) => {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+      logger.info('\n========================================');
+      logger.info('Select Download Scope:');
+      logger.info('========================================');
+      logger.info('1. Full Site (download entire domain)');
+      logger.info('2. Current Path Only (download only URLs under the specified path)');
+      logger.info('========================================');
+      logger.info(`Target URL: ${this.domainContext.getStartUrl()}`);
+      logger.info(`Domain: ${this.domainContext.getOrigin()}`);
+      logger.info(`Path Scope: ${this.domainContext.getScopeUrl()}`);
+      logger.info('========================================\n');
+
+      rl.question('Enter your choice (1 or 2, default is 1): ', (answer) => {
+        rl.close();
+
+        const choice = answer.trim() || '1';
+        const selectedScope = choice === '2' ? 'path' : 'full';
+
+        this.applyScopeType(selectedScope);
+        logger.success(`Download scope set to: ${selectedScope === 'full' ? 'Full Site' : 'Current Path Only'}`);
+
+        resolve();
+      });
+    });
+  }
+
+  applyScopeType(scopeType) {
+    this.scopeType = scopeType;
+
+    if (scopeType === 'path') {
+      logger.info(`Path scope validation enabled: only URLs under path ${this.domainContext.getScopeUrl()} will be downloaded`);
+    } else {
+      const originalIsWithinScope = this.domainContext.isWithinScope.bind(this.domainContext);
+      this.domainContext.isWithinScope = () => true;
+      logger.info(`Full site scope enabled: all URLs under domain ${this.domainContext.getOrigin()} will be downloaded (path restriction removed)`);
+    }
+  }
+
+  async selectFetcherMethod(fetcherType) {
+    if (fetcherType === 'http' || fetcherType === 'puppeteer') {
+      await this.applyFetcherType(fetcherType);
+      return;
+    }
+
+    return new Promise((resolve) => {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+      logger.info('\n========================================');
+      logger.info('Select Fetcher Method:');
+      logger.info('========================================');
+      logger.info('1. HTTP Request (faster, gets source HTML)');
+      logger.info('2. Puppeteer Browser (slower, gets rendered HTML with JavaScript execution)');
+      logger.info('========================================\n');
+
+      rl.question('Enter your choice (1 or 2, default is 1): ', async (answer) => {
+        rl.close();
+
+        const choice = answer.trim() || '1';
+        const selectedType = choice === '2' ? 'puppeteer' : 'http';
+
+        await this.applyFetcherType(selectedType);
+
+        resolve();
+      });
+    });
+  }
+
+  async applyFetcherType(fetcherType) {
+    if (fetcherType === 'puppeteer') {
+      this.fetcherType = 'puppeteer';
+      this.fetcher = new PuppeteerSpiderModule.Fetcher();
+      await this.fetcher.initialize();
+      logger.success('Using Puppeteer Browser for fetching (renders JavaScript)');
+    } else {
+      this.fetcherType = 'http';
+      this.fetcher = new PageFetcher(this.fileMapper);
+      logger.success('Using HTTP Request for fetching (source HTML only)');
+    }
+  }
+
+  async cleanupFetcher() {
+    if (this.fetcherType === 'puppeteer' && this.fetcher && this.fetcher.cleanup) {
+      try {
+        await this.fetcher.cleanup();
+      } catch (error) {
+        logger.error(`Failed to cleanup fetcher: ${error.message}`);
+      }
     }
   }
 
   async confirmOverwrite(targetDir) {
+    if (this.autoConfirm) {
+      logger.info('Auto-confirm enabled, skipping user confirmation');
+      return true;
+    }
+
     return new Promise((resolve) => {
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -123,10 +290,28 @@ class CrawlController {
 
     const rawUrl = argv[index];
     let depth = 3;
+    let fetcherType = null;
+    let scopeType = null;
+    let autoConfirm = false;
+    let autoOpenFolder = true;
 
-    if (argv.length > index + 1 && !argv[index + 1].startsWith('--')) {
-      const parsedDepth = parseInt(argv[index + 1], 10);
-      depth = Number.isNaN(parsedDepth) ? 3 : Math.max(parsedDepth, 0);
+    for (let i = index + 1; i < argv.length; i++) {
+      const arg = argv[i];
+
+      if (arg.startsWith('--fetcher=')) {
+        fetcherType = arg.substring('--fetcher='.length).toLowerCase();
+      } else if (arg.startsWith('--scope=')) {
+        scopeType = arg.substring('--scope='.length).toLowerCase();
+      } else if (arg === '--auto-confirm' || arg === '-y' || arg === '--yes') {
+        autoConfirm = true;
+      } else if (arg === '--no-open' || arg === '--no-explorer') {
+        autoOpenFolder = false;
+      } else if (!arg.startsWith('--') && !arg.startsWith('-')) {
+        const parsedDepth = parseInt(arg, 10);
+        if (!Number.isNaN(parsedDepth)) {
+          depth = Math.max(parsedDepth, 0);
+        }
+      }
     }
 
     if (!rawUrl || !this.isValidUrl(rawUrl)) {
@@ -134,12 +319,35 @@ class CrawlController {
       throw new Error(`Invalid URL: ${rawUrl}`);
     }
 
-    return { targetUrl: rawUrl, depth };
+    return {
+      targetUrl: rawUrl,
+      depth,
+      fetcherType,
+      scopeType,
+      autoConfirm,
+      autoOpenFolder
+    };
   }
 
   printUsage() {
-    logger.info('Usage: node main.js app=DocumentOffline <url> [depth]');
-    logger.info('Example: node main.js app=DocumentOffline https://example.com 3');
+    logger.info('Usage: node main.js app=DocumentOffline <url> [depth] [options]');
+    logger.info('');
+    logger.info('Arguments:');
+    logger.info('  <url>                   Target URL to download');
+    logger.info('  [depth]                 Recursion depth (default: 3)');
+    logger.info('');
+    logger.info('Options:');
+    logger.info('  --fetcher=<type>        Fetcher type: http, puppeteer (default: prompt)');
+    logger.info('  --scope=<type>          Download scope: full, path (default: prompt)');
+    logger.info('  --auto-confirm, -y      Auto-confirm without prompts');
+    logger.info('  --no-open               Do NOT open folder in explorer after download');
+    logger.info('');
+    logger.info('Examples:');
+    logger.info('  node main.js app=DocumentOffline https://example.com 3');
+    logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=http');
+    logger.info('  node main.js app=DocumentOffline https://example.com --scope=path');
+    logger.info('  node main.js app=DocumentOffline https://example.com 2 --fetcher=puppeteer --scope=full -y');
+    logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=puppeteer -y --no-open');
   }
 
   isValidUrl(value) {
@@ -152,6 +360,9 @@ class CrawlController {
   }
 
   async processQueue() {
+    const maxRetries = 3;
+    const retryDelay = 1000;
+
     while (this.queue.hasPending()) {
       const item = this.queue.dequeue();
       if (!item) {
@@ -170,10 +381,26 @@ class CrawlController {
       logger.info(`Processing depth ${depth}: ${url}`);
 
       let fetchResult;
-      try {
-        fetchResult = await this.fetcher.fetch(url);
-      } catch (error) {
-        logger.error(`Failed to download ${url}: ${error.message}`);
+      let lastError;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          fetchResult = await this.fetcher.fetch(url);
+          lastError = null;
+          break;
+        } catch (error) {
+          lastError = error;
+          if (attempt < maxRetries) {
+            const delay = retryDelay * Math.pow(2, attempt - 1);
+            logger.warn(`Retry ${attempt}/${maxRetries} for ${url} after ${delay}ms. Error: ${error.message}`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            logger.error(`Failed to download ${url} after ${maxRetries} attempts: ${error.message}`);
+          }
+        }
+      }
+
+      if (lastError) {
         continue;
       }
 
@@ -188,6 +415,8 @@ class CrawlController {
       if (depth < this.maxDepth && fetchResult.isText) {
         await this.analysePage(url, fetchResult.content, depth);
       }
+
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     logger.info('Queue completed.');
@@ -208,12 +437,13 @@ class CrawlController {
 
     if (!isBinary) {
       if (this.isHtmlContent(relativePath)) {
-        resources = this.resourceExtractor.extractFromHtml(content, canonical);
-        finalContent = this.urlRewriter.rewriteHtml(content, canonical);
+        const isFullMode = this.scopeType === 'full';
+        resources = this.resourceProcessor.extractAllResources(content, canonical, isFullMode);
+        finalContent = this.resourceProcessor.rewriteHtml(content, canonical);
       } else if (this.isCssContent(relativePath)) {
-        const cssUrls = this.cssProcessor.extractUrls(content, canonical);
+        const cssUrls = this.resourceProcessor.extractCssUrls(content, canonical);
         resources = { css: cssUrls, js: [], images: [], fonts: [], media: [] };
-        finalContent = this.cssProcessor.rewriteCss(content, canonical);
+        finalContent = this.resourceProcessor.rewriteCss(content, canonical);
       }
     }
 
@@ -224,6 +454,7 @@ class CrawlController {
     }
 
     this.sitemapGenerator.addUrl(canonical);
+    this.downloadedUrls.push(canonical);
 
     logger.info(`Saved ${isBinary ? 'binary' : 'text'} file: ${path.relative(hostDir, finalPath)}`);
 
@@ -257,29 +488,8 @@ class CrawlController {
 
     logger.info(`Found ${allUrls.length} resources to download (CSS: ${resources.css.length}, JS: ${resources.js.length}, Images: ${resources.images.length}, Fonts: ${resources.fonts.length}, Media: ${resources.media.length})`);
 
-    let downloaded = 0;
-    let skipped = 0;
-    let failed = 0;
-
-    for (const url of allUrls) {
-      const result = await this.resourceDownloader.downloadResource(url, hostDir);
-
-      if (result.success) {
-        downloaded++;
-        if (result.isText && this.isCssContent(result.path)) {
-          const rewrittenCss = this.cssProcessor.rewriteCss(result.content, url);
-          await fs.promises.writeFile(result.path, rewrittenCss, 'utf8');
-        }
-      } else if (result.skipped) {
-        skipped++;
-      } else {
-        failed++;
-      }
-
-      await this.delay(50);
-    }
-
-    logger.info(`Resources: downloaded=${downloaded}, skipped=${skipped}, failed=${failed}`);
+    const stats = await this.resourceProcessor.downloadResources(resources, hostDir);
+    logger.info(`Resources: downloaded=${stats.downloaded}, skipped=${stats.skipped}, failed=${stats.failed}`);
   }
 
   delay(ms) {
@@ -343,9 +553,7 @@ class CrawlController {
     logger.info(`Queue status: pending=${this.queue.size()}, processed=${this.queue.processedCount()}`);
   }
 
-  async generateSitemap() {
-    const parsed = new URL(this.domainContext.getOrigin());
-    const hostDir = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', parsed.hostname);
+  async generateSitemap(hostDir) {
     const sitemapPath = path.join(hostDir, 'sitemap.xml');
 
     try {
@@ -357,7 +565,22 @@ class CrawlController {
     }
   }
 
+  async generateMapsite(hostDir) {
+    try {
+      const mapsitePath = this.resourceProcessor.generateMapsite(this.downloadedUrls, hostDir);
+      logger.success(`Mapsite generated: ${mapsitePath}`);
+      logger.info(`Total URLs in mapsite: ${this.downloadedUrls.length}`);
+    } catch (error) {
+      logger.error(`Failed to generate mapsite: ${error.message}`);
+    }
+  }
+
   async pauseForNextStep() {
+    if (this.autoConfirm) {
+      logger.info('Auto-confirm enabled, skipping pause');
+      return;
+    }
+
     return new Promise((resolve) => {
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
       rl.question('Analysis complete. Press Enter to continue...', () => {

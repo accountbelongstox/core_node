@@ -22,32 +22,13 @@ from share.game_interface_data import (
     D4_STANDARD_RESOLUTION_HEIGHT,
     calculate_unified_scaled_coordinate,
     get_d4_interface_data,
-    D4_ANNOTATED_DIR
+    D4_ANNOTATED_DIR,
+    D4RegionInfo,  # Import shared data class
+    D4PointInfo    # Import shared data class
 )
 from providor.common_imports import ColorPrint
 from providor.providor_index import DEBUG
 from d3utils.d3u_common.image_annotator_helper import create_annotator, get_image_pil, ANNOTATION_COLORS
-
-
-@dataclass
-class D4RegionInfo:
-    """D4 region detection information"""
-    name: str
-    standard_start: Tuple[int, int]
-    standard_end: Tuple[int, int]
-    scaled_start: Tuple[int, int]
-    scaled_end: Tuple[int, int]
-    width: int
-    height: int
-    center: Tuple[int, int]
-
-
-@dataclass
-class D4PointInfo:
-    """D4 point detection information"""
-    name: str
-    standard_coord: Tuple[int, int]
-    scaled_coord: Tuple[int, int]
 
 
 class D4WindowRegionDetector:

@@ -1,0 +1,26 @@
+'use strict';
+const Util = require('../../../../node_provider/utils')
+
+class Special {
+    async init(browser, page) {
+        this.browser = browser
+        this.pageModus = page
+        const methods = Object.getOwnPropertyNames(Special.prototype)
+            .filter(name => typeof Special.prototype[name] === 'function' && name !== 'constructor');
+        console.log('Total Special of methods:', methods.length);
+    }
+
+    方法。获取元素 组。有参数:tag 如input, 是否显示？离屏幕顶部是否有距离要求(该值，如果有，则值为距离。)？至少宽为多少？至少高为多少？根据该参数的要求。 J全局范围内查找符合要求的。并返回数组。
+    方法。获取一个元素。有参数:tag 如input,是否显示？离屏幕顶部是否有距离要求(该值，如果有，则值为距离。)？至少宽为多少？至少高为多少？根据该参数的要求。 J全局范围内查找符合要求的。并返回第一个匹配。
+
+    
+    /*-----------------------------------*/
+
+}
+
+
+
+根据以上的提示。完成该puppeteer node.js 辅助类。要求，不能用链式语法。我会给你二百元的小费。
+
+Special.toString = () => '[class Special]';
+module.exports = Special;

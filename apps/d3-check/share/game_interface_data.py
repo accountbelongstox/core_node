@@ -278,6 +278,31 @@ STANDARD_COORDS = StandardCoordinates()
 
 
 # ============================================================================
+# D4 Region and Point Data Classes
+# ============================================================================
+
+@dataclass
+class D4RegionInfo:
+    """D4 region detection information"""
+    name: str
+    standard_start: Tuple[int, int]
+    standard_end: Tuple[int, int]
+    scaled_start: Tuple[int, int]
+    scaled_end: Tuple[int, int]
+    width: int
+    height: int
+    center: Tuple[int, int]
+
+
+@dataclass
+class D4PointInfo:
+    """D4 point detection information"""
+    name: str
+    standard_coord: Tuple[int, int]
+    scaled_coord: Tuple[int, int]
+
+
+# ============================================================================
 # D4 Standard Resolution Coordinate Mapping
 # ============================================================================
 

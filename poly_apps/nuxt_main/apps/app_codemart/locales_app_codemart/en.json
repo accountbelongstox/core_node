@@ -1,7 +1,79 @@
 {
+  "common": {
+    "view_all": "View All",
+    "learn_more": "Learn More",
+    "get_started": "Get Started",
+    "contact_us": "Contact Us"
+  },
+
   "codemart": {
     "platform_name": "CodeMart",
     "platform_slogan": "Internet Software Outsourcing Service Platform",
+
+    "nav": {
+      "home": "Home",
+      "projects": "Projects",
+      "developers": "Developers",
+      "how_it_works": "How It Works",
+      "about": "About"
+    },
+
+    "footer": {
+      "about": "About",
+      "about_us": "About Us",
+      "how_it_works": "How It Works",
+      "pricing": "Pricing",
+      "blog": "Blog",
+      "for_clients": "For Clients",
+      "post_project": "Post Project",
+      "find_developers": "Find Developers",
+      "client_guide": "Client Guide",
+      "success_stories": "Success Stories",
+      "for_developers": "For Developers",
+      "browse_projects": "Browse Projects",
+      "become_developer": "Become Developer",
+      "developer_guide": "Developer Guide",
+      "skills": "Skills",
+      "support": "Support",
+      "help_center": "Help Center",
+      "contact": "Contact",
+      "faq": "FAQ",
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy"
+    },
+
+    "customer_service": {
+      "support_team": "Support Team",
+      "online": "Online",
+      "open_chat": "Open Chat",
+      "type_message": "Type a message...",
+      "welcome": "Hello! How can I help you today?"
+    },
+
+    "cs": {
+      "quick": {
+        "how_to_start": "How do I get started?",
+        "pricing": "Pricing options?",
+        "payment": "How does payment work?",
+        "support": "Need help with project"
+      },
+      "response": {
+        "pricing": "Our pricing is flexible based on project complexity. You can set your own budget range, and developers will submit proposals within that range.",
+        "payment": "Payments are held securely in escrow. Funds are only released to developers after you approve their work.",
+        "getting_started": "To get started, you can either post a project as a client or browse available projects as a developer. Would you like me to guide you through the process?",
+        "support": "I'd be happy to help! Please describe the issue you're experiencing, and I'll do my best to assist you.",
+        "default": "Thank you for your message. A support agent will respond shortly. In the meantime, you can check our Help Center for immediate answers."
+      }
+    },
+
+    "developer": {
+      "title": "Developer",
+      "verified": "Verified",
+      "view_profile": "View Profile",
+      "completed_projects": "Completed Projects",
+      "experience": "Years",
+      "hourly_rate": "Per Hour"
+    },
 
     "home": {
       "hero_title": "Internet Software Outsourcing Service Platform",
@@ -11,7 +83,23 @@
       "view_projects": "View Projects",
       "total_projects": "Total Projects",
       "total_developers": "Registered Developers",
-      "total_transactions": "Total Transactions"
+      "total_transactions": "Total Transactions",
+      "featured_projects": "Featured Projects",
+      "top_developers": "Top Developers",
+      "cta_title": "Ready to Start Your Project?",
+      "cta_desc": "Join thousands of satisfied clients and developers on CodeMart",
+      "get_started": "Get Started Now"
+    },
+
+    "workflow": {
+      "step1_title": "Post Your Project",
+      "step1_desc": "Describe your project requirements and get AI-powered analysis",
+      "step2_title": "Match with Developers",
+      "step2_desc": "Review proposals from qualified developers and select the best fit",
+      "step3_title": "Secure Development",
+      "step3_desc": "Work begins with secure payment escrow and progress tracking",
+      "step4_title": "Deliver & Review",
+      "step4_desc": "Receive completed work, review code quality, and release payment"
     },
 
     "roles": {
@@ -50,7 +138,10 @@
       "reference_url": "Reference Website",
       "reference_code": "Reference Code",
       "budget_range": "Budget Range",
+      "budget": "Budget",
       "expected_deadline": "Expected Deadline",
+      "deadline": "Deadline",
+      "category": "Category",
       "tech_stack": "Tech Stack",
       "languages": "Languages",
       "frameworks": "Frameworks",
@@ -59,11 +150,25 @@
       "ai_analysis": "AI Analysis",
       "ai_recommendations": "AI Recommendations",
       "accept_proposal": "Accept Proposal",
-      "modify_requirements": "Modify Requirements"
+      "modify_requirements": "Modify Requirements",
+      "view_details": "View Details",
+      "status": {
+        "draft": "Draft",
+        "active": "Active",
+        "pending": "Pending Analysis",
+        "analyzing": "AI Analyzing",
+        "awaiting_payment": "Awaiting Payment",
+        "awaiting_architect": "Awaiting Architect",
+        "in_progress": "In Progress",
+        "in_review": "Under Review",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      }
     },
 
     "project_status": {
       "draft": "Draft",
+      "active": "Active",
       "pending": "Pending Analysis",
       "analyzing": "AI Analyzing",
       "awaiting_payment": "Awaiting Payment",

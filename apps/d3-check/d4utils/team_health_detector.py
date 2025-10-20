@@ -22,13 +22,20 @@ sys.path.insert(0, str(current_dir))
 from providor.common_imports import ColorPrint
 from providor.providor_index import DEBUG, TMP_DIR
 from d3utils.i18n_manager import I18nManager
+from d3utils.d3u_common.image_utils import normalize_image_to_bgr
+from d3utils.d3u_common.image_annotator_helper import (
+    create_annotator,
+    get_image_pil,
+    get_annotation_color
+)
 # D4State functionality now integrated into D4InterfaceData
 from share.game_interface_data import (
     D4_STANDARD_COORDS,
     D4_STANDARD_RESOLUTION_WIDTH,
     D4_STANDARD_RESOLUTION_HEIGHT,
     calculate_unified_scaled_coordinate,
-    get_d4_interface_data
+    get_d4_interface_data,
+    D4_ANNOTATED_DIR
 )
 
 
@@ -85,7 +92,7 @@ class TeamHealthDetector:
             Dictionary with team health detection results
         """
         try:
-            ColorPrint.blue("[TeamHealthDetector] Starting team health detection...")
+            ColorPrint.print_min_interval("[TeamHealthDetector] Starting team health detection...")
             
             # Normalize input to BGR numpy array
             image_bgr = self._normalize_input_to_bgr(image_input)
@@ -135,15 +142,15 @@ class TeamHealthDetector:
             annotated_image = None
             if DEBUG:
                 annotated_image = self._create_annotated_image(
-                    image_bgr, team_region, health_detection_result, (x1, y1)
+                    team_region, health_detection_result, (x1, y1)
                 )
-                
-                # Save annotated image
+
+                # Save annotated image to unified D4_ANNOTATED_DIR
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
                 annotated_filename = f"team_health_detection_{timestamp}.png"
-                annotated_path = TMP_DIR / "d4_annotated" / annotated_filename
+                annotated_path = D4_ANNOTATED_DIR / annotated_filename
                 annotated_path.parent.mkdir(parents=True, exist_ok=True)
-                
+
                 if annotated_image:
                     annotated_image.save(annotated_path)
                     ColorPrint.green(f"[TeamHealthDetector] Annotated image saved: {annotated_path}")
@@ -164,33 +171,15 @@ class TeamHealthDetector:
 
     def _normalize_input_to_bgr(self, image_input: Union[str, Image.Image, np.ndarray]) -> np.ndarray:
         """
-        Normalize input to BGR numpy array
-        
+        Normalize input to BGR numpy array (uses shared utility)
+
         Args:
             image_input: Image as file path (str), PIL Image, or numpy array
-            
+
         Returns:
             BGR numpy array
         """
-        if isinstance(image_input, str):
-            # Load from file path
-            image = cv2.imread(image_input)
-            if image is None:
-                raise ValueError(f"Could not load image from path: {image_input}")
-            return image
-        elif isinstance(image_input, Image.Image):
-            # Convert PIL Image to BGR numpy array
-            image_array = np.array(image_input)
-            if len(image_array.shape) == 3:
-                # Convert RGB to BGR
-                return cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-            else:
-                return image_array
-        elif isinstance(image_input, np.ndarray):
-            # Already numpy array
-            return image_input
-        else:
-            raise ValueError(f"Unsupported image input type: {type(image_input)}")
+        return normalize_image_to_bgr(image_input)
 
     def _scan_health_bars(self, region: np.ndarray, region_offset: Tuple[int, int]) -> Dict[str, Any]:
         """
@@ -463,129 +452,173 @@ class TeamHealthDetector:
         
         return 0
 
-    def _create_annotated_image(self, original_image: np.ndarray, region: np.ndarray, 
+    def _create_annotated_image(self, region: np.ndarray,
                               detection_result: Dict[str, Any], region_offset: Tuple[int, int]) -> Optional[Image.Image]:
         """
-        Create annotated image showing detected team members and pixel counts for all rows
-        
+        Create annotated image showing detected team members and pixel counts for all rows (using ImageAnnotator)
+
         Args:
-            original_image: Original BGR image
-            region: Extracted region
+            region: Extracted region (BGR numpy array)
             detection_result: Detection results
             region_offset: Offset of region in original image
-            
+
         Returns:
             Annotated PIL Image or None
         """
         try:
-            # Create a copy of the region only (not the entire original image)
-            annotated = region.copy()
-            
-            # Since we're now working with region only, coordinates are relative to region
+            # Create annotator from BGR numpy array
+            annotator = create_annotator(region)
+
+            # Extract data
             team_members = detection_result.get("team_members", [])
             height, width = region.shape[:2]
-            
+
             # Create a set of detected row indices for quick lookup
             detected_rows = {member["row_index"] for member in team_members}
-            
+
             # Draw pixel count information for ALL rows (not just detected ones)
             for row_idx in range(height):
                 row = region[row_idx, :]  # Get entire row
-                
+
                 # Count matching pixels in this row
                 matching_pixels = self._count_matching_pixels_in_row(row)
                 total_pixels = width
                 match_percentage = (matching_pixels / total_pixels) * 100
-                
+
                 # Choose color based on whether this row was detected as a health bar
                 if row_idx in detected_rows:
                     # This row was detected as a health bar
                     if matching_pixels >= self.min_pixels_per_row:
-                        color = (0, 255, 0)  # Green for valid health bar
+                        color = get_annotation_color("green")  # Green for valid health bar
                     else:
-                        color = (0, 255, 255)  # Yellow for detected but below threshold
+                        color = get_annotation_color("yellow")  # Yellow for detected but below threshold
                 else:
                     # This row was not detected as a health bar
                     if matching_pixels > 0:
-                        color = (128, 128, 128)  # Gray for some pixels but not detected
+                        color = get_annotation_color("gray")  # Gray for some pixels but not detected
                     else:
-                        color = (64, 64, 64)  # Dark gray for no matching pixels
-                
-                # Draw a thin line for the row (coordinates relative to region)
+                        color = get_annotation_color("dark_gray")  # Dark gray for no matching pixels
+
+                # Draw a thin line for the row
                 y1 = row_idx
-                y2 = y1 + 1
                 x1 = 0
                 x2 = width
-                
-                cv2.line(annotated, (x1, y1), (x2, y2), color, 1)
-                
+
+                annotator.draw_line(
+                    start=(x1, y1),
+                    end=(x2, y1),
+                    color=color,
+                    thickness=1
+                )
+
                 # Add pixel count text for every row
                 pixel_text = f"R{row_idx}: {matching_pixels}/{total_pixels} ({match_percentage:.1f}%)"
-                cv2.putText(annotated, pixel_text, (x1, y1 - 2), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.25, color, 1)
-            
+                annotator.draw_text(
+                    text=pixel_text,
+                    position=(x1, y1 - 2),
+                    color=color,
+                    font_scale=0.25,
+                    thickness=1
+                )
+
             # Draw rectangles and detailed info for detected team members
             for member_info in team_members:
                 row_idx = member_info["row_index"]
                 group = member_info["group"]
                 member_index = member_info["member_index"]
-                
+
                 # Choose color based on group
                 if group == 1:
-                    color = (0, 255, 0)  # Green for group1 (Same Map)
+                    color = get_annotation_color("green")  # Green for group1 (Same Map)
                 elif group == 2:
-                    color = (0, 0, 255)  # Red for group2 (Different Map)
+                    color = get_annotation_color("red")  # Red for group2 (Different Map)
                 else:
-                    color = (255, 255, 0)  # Yellow for unknown
-                
-                # Draw rectangle for the entire row (coordinates relative to region)
+                    color = get_annotation_color("yellow")  # Yellow for unknown
+
+                # Draw rectangle for the entire row
                 y1 = row_idx
                 y2 = y1 + 1
                 x1 = 0
                 x2 = width
-                
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-                
+
+                annotator.draw_rectangle(
+                    top_left=(x1, y1),
+                    bottom_right=(x2, y2),
+                    color=color,
+                    thickness=2
+                )
+
                 # Add text label with member info
                 label = f"M{member_index} G{group} ({member_info['matching_pixels']}px)"
-                cv2.putText(annotated, label, (x1, y1 - 25), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-                
-                # Add group name and local map status (English only for OpenCV)
+                annotator.draw_text(
+                    text=label,
+                    position=(x1, y1 - 25),
+                    color=(255, 255, 255),
+                    font_scale=0.4,
+                    thickness=1,
+                    background_color=color
+                )
+
+                # Add group name and local map status
                 group_label = member_info.get("group_name", f"Group{group}")
                 local_status = "Local" if member_info.get("is_local_map", False) else "Non-Local"
                 scan_direction = member_info.get("scan_direction", "unknown")
-                cv2.putText(annotated, f"{group_label} ({local_status}) {scan_direction}", (x1, y1 + 15), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
-                
+                annotator.draw_text(
+                    text=f"{group_label} ({local_status}) {scan_direction}",
+                    position=(x1, y1 + 15),
+                    color=(255, 255, 255),
+                    font_scale=0.3,
+                    thickness=1,
+                    background_color=color
+                )
+
                 # Add HP offset coordinates (absolute screen coordinates)
                 hp_offset = member_info.get("hp_screen_offset", {})
                 offset_text = f"HP:({hp_offset.get('absolute_x', 0)},{hp_offset.get('absolute_y', 0)})"
-                cv2.putText(annotated, offset_text, (x1, y1 + 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.25, color, 1)
-            
-            # Add summary text at the top (coordinates relative to region)
+                annotator.draw_text(
+                    text=offset_text,
+                    position=(x1, y1 + 30),
+                    color=(255, 255, 255),
+                    font_scale=0.25,
+                    thickness=1,
+                    background_color=color
+                )
+
+            # Add summary text at the top
             total_members = detection_result.get("total_members", 0)
             group1_count = detection_result.get("group1_members", 0)
             group2_count = detection_result.get("group2_members", 0)
             local_map_count = detection_result.get("local_map_members", 0)
             non_local_map_count = detection_result.get("non_local_map_members", 0)
-            
+
             summary_text = f"Team: {total_members} total (G1:{group1_count}, G2:{group2_count})"
-            cv2.putText(annotated, summary_text, (0, 15), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            
-            # Use English text for OpenCV display (no Chinese characters)
+            annotator.draw_text(
+                text=summary_text,
+                position=(0, 15),
+                color=(255, 255, 255),
+                font_scale=0.5,
+                thickness=1,
+                background_color=get_annotation_color("green")
+            )
+
+            # Add map status text
             map_text = f"Map: Local:{local_map_count}, Non-Local:{non_local_map_count}"
-            cv2.putText(annotated, map_text, (0, 35), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            
-            # Convert BGR to RGB for PIL
-            annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-            return Image.fromarray(annotated_rgb)
-            
+            annotator.draw_text(
+                text=map_text,
+                position=(0, 35),
+                color=(255, 255, 255),
+                font_scale=0.5,
+                thickness=1,
+                background_color=get_annotation_color("blue")
+            )
+
+            # Get annotated image as PIL Image
+            return get_image_pil(annotator)
+
         except Exception as e:
             ColorPrint.red(f"[TeamHealthDetector] Error creating annotated image: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 

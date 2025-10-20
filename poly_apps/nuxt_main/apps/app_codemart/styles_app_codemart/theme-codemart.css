@@ -449,10 +449,216 @@
   border-left-color: var(--codemart-primary);
 }
 
+/* ===== CodeMart Header Styles ===== */
+.codemart-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.codemart-header-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) 0;
+}
+
+.codemart-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  text-decoration: none;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+}
+
+.codemart-logo-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--codemart-primary);
+}
+
+.codemart-logo-text {
+  color: var(--codemart-primary);
+}
+
+.codemart-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.codemart-nav-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.codemart-nav-link:hover {
+  color: var(--codemart-primary);
+  background: var(--codemart-primary-light);
+}
+
+.codemart-nav-link.active {
+  color: var(--codemart-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.codemart-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.codemart-lang-btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.codemart-lang-btn:hover {
+  border-color: var(--codemart-primary);
+  color: var(--codemart-primary);
+  background: var(--codemart-primary-light);
+}
+
+.codemart-user-menu {
+  position: relative;
+}
+
+.codemart-user-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.codemart-user-btn:hover {
+  background: var(--bg-hover);
+}
+
+.codemart-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  border: 2px solid var(--border-color);
+}
+
+.codemart-user-avatar-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--codemart-primary-light);
+  color: var(--codemart-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+}
+
+.codemart-user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: var(--spacing-sm);
+  min-width: 200px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-sm);
+}
+
+.codemart-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  color: var(--text-secondary);
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.codemart-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.codemart-auth-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.codemart-mobile-menu-btn {
+  display: none;
+  padding: var(--spacing-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.codemart-mobile-nav {
+  display: none;
+  flex-direction: column;
+  padding: var(--spacing-md);
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-color);
+}
+
+.codemart-mobile-nav-link {
+  padding: var(--spacing-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: var(--font-size-md);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.codemart-mobile-nav-link:hover {
+  background: var(--bg-hover);
+  color: var(--codemart-primary);
+}
+
 /* ===== CodeMart Layout Styles ===== */
 .codemart-layout {
+  display: flex;
   min-height: 100vh;
   background: var(--bg-secondary);
+}
+
+.main-container {
+  flex: 1;
+  margin-left: var(--codemart-sidebar-width);
+  display: flex;
+  flex-direction: column;
 }
 
 .codemart-main-container {
@@ -463,6 +669,193 @@
 
 .codemart-content {
   flex: 1;
+}
+
+/* Top Header */
+.top-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding: var(--spacing-md) var(--spacing-xl);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.mobile-menu-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+}
+
+.mobile-menu-btn:hover {
+  background: var(--bg-hover);
+}
+
+.mobile-menu-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.breadcrumb-item {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.breadcrumb-item.active {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.breadcrumb-separator {
+  width: 16px;
+  height: 16px;
+  color: var(--text-tertiary);
+}
+
+.search-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: var(--spacing-md);
+  width: 20px;
+  height: 20px;
+  color: var(--text-tertiary);
+}
+
+.search-input {
+  width: 320px;
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-sm) 48px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--codemart-primary);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+
+.notification-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+}
+
+.notification-btn:hover {
+  background: var(--bg-hover);
+}
+
+.notification-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--error-color);
+  color: white;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  min-width: 18px;
+  text-align: center;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.user-profile:hover {
+  background: var(--bg-hover);
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  border: 2px solid var(--border-color);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.user-role {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.dropdown-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-tertiary);
+}
+
+.main-content {
+  flex: 1;
+  padding: var(--spacing-xl);
+  overflow-y: auto;
 }
 
 /* Screen loader */
@@ -519,14 +912,741 @@
   height: 24px;
 }
 
+/* ===== CodeMart Footer Styles ===== */
+.codemart-footer {
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-color);
+  padding: var(--spacing-2xl) 0 var(--spacing-lg);
+  margin-top: var(--spacing-2xl);
+}
+
+.codemart-footer-content {
+  display: grid;
+  grid-template-columns: 2fr repeat(4, 1fr);
+  gap: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+}
+
+.codemart-footer-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.codemart-footer-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.codemart-footer-logo-text {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--codemart-primary);
+}
+
+.codemart-footer-desc {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--spacing-md);
+}
+
+.codemart-footer-social {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.codemart-social-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--bg-hover);
+  color: var(--text-tertiary);
+  transition: all var(--transition-fast);
+}
+
+.codemart-social-link:hover {
+  background: var(--codemart-primary);
+  color: white;
+  transform: translateY(-2px);
+}
+
+.codemart-footer-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.codemart-footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.codemart-footer-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  transition: color var(--transition-fast);
+}
+
+.codemart-footer-links a:hover {
+  color: var(--codemart-primary);
+}
+
+.codemart-footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
+}
+
+.codemart-copyright {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.codemart-footer-bottom-links {
+  display: flex;
+  gap: var(--spacing-lg);
+}
+
+.codemart-footer-bottom-links a {
+  color: var(--text-tertiary);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  transition: color var(--transition-fast);
+}
+
+.codemart-footer-bottom-links a:hover {
+  color: var(--text-primary);
+}
+
+/* ===== Customer Service Widget Styles ===== */
+.codemart-customer-service {
+  position: fixed;
+  bottom: var(--spacing-xl);
+  right: var(--spacing-xl);
+  z-index: var(--z-modal);
+}
+
+.codemart-cs-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--codemart-primary);
+  color: white;
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-xl);
+  transition: all var(--transition-fast);
+}
+
+.codemart-cs-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(67, 97, 238, 0.4);
+}
+
+.codemart-cs-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--error-color);
+  color: white;
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  min-width: 20px;
+  text-align: center;
+}
+
+.codemart-cs-window {
+  position: fixed;
+  bottom: var(--spacing-xl);
+  right: var(--spacing-xl);
+  width: 380px;
+  height: 600px;
+  max-height: calc(100vh - 120px);
+  background: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.codemart-cs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-lg);
+  background: var(--codemart-primary);
+  color: white;
+}
+
+.codemart-cs-header-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.codemart-cs-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.codemart-cs-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+}
+
+.codemart-cs-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  opacity: 0.9;
+}
+
+.codemart-cs-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--success-color);
+}
+
+.codemart-cs-close {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.codemart-cs-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.codemart-cs-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.codemart-cs-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 75%;
+}
+
+.codemart-cs-message-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.codemart-cs-message-agent {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.codemart-cs-message-content {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.codemart-cs-message-user .codemart-cs-message-content {
+  background: var(--codemart-primary);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.codemart-cs-message-agent .codemart-cs-message-content {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+
+.codemart-cs-message-time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 0 var(--spacing-sm);
+}
+
+.codemart-cs-typing {
+  display: flex;
+  gap: 4px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-hover);
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: 4px;
+}
+
+.codemart-cs-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--text-tertiary);
+  animation: typing-pulse 1.4s ease-in-out infinite;
+}
+
+.codemart-cs-typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.codemart-cs-typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-pulse {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.codemart-cs-quick-actions {
+  padding: 0 var(--spacing-lg) var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.codemart-cs-quick-action {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.codemart-cs-quick-action:hover {
+  border-color: var(--codemart-primary);
+  background: var(--codemart-primary-light);
+  color: var(--codemart-primary);
+}
+
+.codemart-cs-input-container {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.codemart-cs-input {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family-base);
+  resize: none;
+  max-height: 100px;
+  transition: border-color var(--transition-fast);
+}
+
+.codemart-cs-input:focus {
+  outline: none;
+  border-color: var(--codemart-primary);
+}
+
+.codemart-cs-send {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  background: var(--codemart-primary);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.codemart-cs-send:hover:not(:disabled) {
+  background: var(--codemart-primary-hover);
+}
+
+.codemart-cs-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== CodeMart Homepage Styles ===== */
+.codemart-homepage {
+  width: 100%;
+}
+
+/* Hero Section */
+.codemart-hero {
+  background: linear-gradient(135deg, var(--codemart-primary) 0%, var(--codemart-accent) 100%);
+  color: white;
+  padding: var(--spacing-3xl) 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.codemart-hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 40%;
+  height: 200%;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.1) 0%, transparent 70%);
+  transform: rotate(-15deg);
+}
+
+.codemart-hero-content {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+  padding: 0 var(--spacing-lg);
+}
+
+.codemart-hero-title {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-md);
+  line-height: 1.2;
+}
+
+.codemart-hero-subtitle {
+  font-size: var(--font-size-xl);
+  opacity: 0.95;
+  margin-bottom: var(--spacing-xl);
+  line-height: var(--line-height-relaxed);
+}
+
+.codemart-hero-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.codemart-btn-lg {
+  padding: var(--spacing-md) var(--spacing-2xl);
+  font-size: var(--font-size-md);
+}
+
+/* Statistics Section */
+.codemart-stats-section {
+  background: var(--bg-primary);
+  padding: var(--spacing-2xl) 0;
+  margin: -2rem 0 var(--spacing-2xl) 0;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  position: relative;
+  z-index: 2;
+}
+
+.codemart-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-xl);
+  padding: 0 var(--spacing-lg);
+}
+
+.codemart-stat-item {
+  text-align: center;
+  padding: var(--spacing-lg);
+  border-right: 1px solid var(--border-color);
+}
+
+.codemart-stat-item:last-child {
+  border-right: none;
+}
+
+.codemart-stat-value {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--codemart-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.codemart-stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Section Styles */
+.codemart-section {
+  padding: var(--spacing-2xl) 0;
+}
+
+.codemart-featured-section {
+  background: var(--bg-secondary);
+}
+
+.codemart-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+.codemart-section-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.codemart-section-title.text-center {
+  text-align: center;
+  width: 100%;
+  margin-bottom: var(--spacing-xl);
+}
+
+/* Workflow Section */
+.codemart-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-xl);
+}
+
+.codemart-workflow-step {
+  text-align: center;
+  padding: var(--spacing-xl);
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-base);
+}
+
+.codemart-workflow-step:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--codemart-primary);
+}
+
+.codemart-workflow-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--spacing-lg);
+  background: var(--codemart-primary-light);
+  color: var(--codemart-primary);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.codemart-workflow-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.codemart-workflow-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* Projects Grid */
+.codemart-projects-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-xl);
+}
+
+/* Developers Grid */
+.codemart-developers-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-xl);
+}
+
+/* CTA Section */
+.codemart-cta-section {
+  background: linear-gradient(135deg, var(--codemart-primary-light) 0%, var(--codemart-accent-light) 100%);
+  padding: var(--spacing-3xl) 0;
+  margin-top: var(--spacing-3xl);
+}
+
+.codemart-cta-content {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 0 var(--spacing-lg);
+}
+
+.codemart-cta-title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md);
+}
+
+.codemart-cta-desc {
+  font-size: var(--font-size-lg);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-xl);
+  line-height: var(--line-height-relaxed);
+}
+
+/* Utility Classes */
+.container {
+  max-width: var(--codemart-content-max-width);
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+}
+
+.text-center {
+  text-align: center;
+}
+
 /* 响应式 */
+@media (max-width: 1280px) {
+  .codemart-workflow-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .codemart-projects-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .codemart-developers-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .main-container {
+    margin-left: 0;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .search-bar {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
+  .top-header {
+    padding: var(--spacing-md);
+  }
+
+  .user-info {
+    display: none;
+  }
+
+  .breadcrumb {
+    display: none;
+  }
   .codemart-container {
     padding: var(--spacing-md);
   }
 
+  .codemart-hero {
+    padding: var(--spacing-2xl) 0;
+  }
+
+  .codemart-hero-title {
+    font-size: var(--font-size-2xl);
+  }
+
+  .codemart-hero-subtitle {
+    font-size: var(--font-size-md);
+  }
+
+  .codemart-hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .codemart-stats-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-lg);
+  }
+
+  .codemart-stat-item {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .codemart-stat-item:last-child {
+    border-bottom: none;
+  }
+
+  .codemart-workflow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .codemart-projects-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .codemart-developers-grid {
+    grid-template-columns: 1fr;
+  }
+
   .codemart-section-title {
     font-size: var(--font-size-xl);
+  }
+
+  .codemart-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+
+  .codemart-cta-title {
+    font-size: var(--font-size-2xl);
+  }
+
+  .codemart-cta-desc {
+    font-size: var(--font-size-md);
   }
 
   .codemart-developer-stats {
@@ -550,5 +1670,38 @@
     right: var(--spacing-lg);
     width: 40px;
     height: 40px;
+  }
+
+  .codemart-footer-content {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-xl);
+  }
+
+  .codemart-footer-bottom {
+    flex-direction: column;
+    gap: var(--spacing-md);
+    align-items: flex-start;
+  }
+
+  .codemart-mobile-menu-btn {
+    display: flex;
+  }
+
+  .codemart-mobile-nav {
+    display: flex;
+  }
+
+  .codemart-cs-window {
+    width: 100%;
+    height: 100vh;
+    max-height: 100vh;
+    bottom: 0;
+    right: 0;
+    border-radius: 0;
+  }
+
+  .codemart-customer-service {
+    bottom: var(--spacing-lg);
+    right: var(--spacing-lg);
   }
 }

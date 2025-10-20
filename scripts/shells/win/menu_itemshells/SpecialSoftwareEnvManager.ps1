@@ -49,7 +49,7 @@ $script:CurrentPsCommand = $null            # Current PowerShell command to exec
 
 function Write-ColorMessage {
     param(
-        [Parameter(Mandatory=$true)] [string]$Message,
+        [Parameter(Mandatory=$true)] [AllowEmptyString()] [string]$Message,
         [Parameter(Mandatory=$false)] [string]$Type = "Info",
         [Parameter(Mandatory=$false)] [switch]$NoNewline
     )
@@ -60,6 +60,16 @@ function Write-ColorMessage {
         "Success" { "Green" }
         "Info" { "Cyan" }
         default { "White" }
+    }
+    
+    # Gracefully handle empty string messages (used as blank separators)
+    if ($Message -eq "") {
+        if ($NoNewline) {
+            Write-Host "" -NoNewline
+        } else {
+            Write-Host ""
+        }
+        return
     }
     
     if ($NoNewline) {

@@ -26,8 +26,20 @@ nuxt_main/
 │   │       └── admin-theme.ts
 │   ├── app_codemart/
 │   │   ├── components_app_codemart/
-│   │   │   └── CodemartSidebar.vue
+│   │   │   ├── CodeMartCustomerService.vue
+│   │   │   ├── CodeMartDeveloperCard.vue
+│   │   │   ├── CodeMartFooter.vue
+│   │   │   ├── CodeMartHeader.vue
+│   │   │   ├── CodeMartProjectCard.vue
+│   │   │   ├── CodeMartTaskCard.vue
+│   │   │   ├── CodemartSidebar.vue
+│   │   │   └── index.ts
 │   │   ├── composables_app_codemart/
+│   │   │   ├── index.ts
+│   │   │   ├── use-codemart-payment.ts
+│   │   │   ├── use-codemart-project.ts
+│   │   │   ├── use-codemart-task.ts
+│   │   │   └── use-codemart-user.ts
 │   │   ├── config_app_codemart/
 │   │   │   └── app-config.ts
 │   │   ├── constants_app_codemart/
@@ -35,6 +47,8 @@ nuxt_main/
 │   │   ├── layouts_app_codemart/
 │   │   │   └── default.vue
 │   │   ├── locales_app_codemart/
+│   │   │   ├── en.json
+│   │   │   └── zh.json
 │   │   ├── pages_app_codemart/
 │   │   │   ├── apps/
 │   │   │   │   ├── invoice/
@@ -56,8 +70,12 @@ nuxt_main/
 │   │   ├── stores_app_codemart/
 │   │   │   └── codemart-store.ts
 │   │   ├── styles_app_codemart/
-│   │   └── theme_app_codemart/
-│   │       └── codemart-theme.ts
+│   │   │   └── theme-codemart.css
+│   │   ├── theme_app_codemart/
+│   │   │   └── codemart-theme.ts
+│   │   ├── types_app_codemart/
+│   │   │   └── index.ts
+│   │   └── README.md
 │   ├── app_dashboard/
 │   │   ├── components_app_dashboard/
 │   │   ├── composables_app_dashboard/
@@ -247,6 +265,8 @@ nuxt_main/
 │   ├── services/
 │   ├── stores/
 │   │   └── base-store.ts
+│   ├── styles/
+│   │   └── theme-base.css
 │   ├── theme/
 │   │   └── base-theme.config.ts
 │   ├── types/
