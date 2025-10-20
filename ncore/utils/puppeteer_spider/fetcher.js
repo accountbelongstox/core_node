@@ -145,6 +145,37 @@ class PuppeteerSpiderFetcher {
       }
     }
   }
+
+  async takeScreenshot(filePath, options = {}) {
+    if (!this.isInitialized || !this.driver) {
+      throw new Error('PuppeteerSpiderFetcher not initialized');
+    }
+
+    try {
+      const pageFuncs = this.driver.encapsulatedPageFuncs;
+      if (!pageFuncs) {
+        throw new Error('pageFuncs is not available in driver');
+      }
+
+      logger.info(`[DEBUG] Taking screenshot for: ${filePath}`);
+      const screenshotOptions = {
+        path: filePath,
+        fullPage: options.fullPage !== false,
+        quality: options.quality || 80,
+        type: 'png'
+      };
+
+      logger.info(`[DEBUG] Screenshot options: ${JSON.stringify(screenshotOptions)}`);
+
+      await pageFuncs.takeScreenshot(screenshotOptions);
+      logger.success(`Screenshot captured: ${filePath}`);
+
+      return filePath;
+    } catch (error) {
+      logger.error(`Failed to take screenshot: ${error.message}`);
+      throw error;
+    }
+  }
 }
 
 module.exports = PuppeteerSpiderFetcher;
