@@ -419,4 +419,75 @@ class StorageAppExample extends AppStorageBaseImpl {
       return false;
     }
   }
+
+  /// Get app statistics
+  Future<Map<String, dynamic>> getAppStats() async {
+    return {
+      'launch_count': await getApp<int>('launch_count') ?? 0,
+      'last_open_time': await getApp<int>('last_open_time'),
+      'app_version': await getApp<String>('app_version'),
+      'total_bookmarks': (await getBookmarks()).length,
+      'total_search_history': (await getSearchHistory()).length,
+      'total_study_sessions': (await getStudySessions()).length,
+      'learning_stats': await getLearningStats(),
+    };
+  }
+
+  /// Get launch count
+  Future<int> getLaunchCount() async {
+    return await getApp<int>('launch_count') ?? 0;
+  }
+
+  /// Set launch count
+  Future<void> setLaunchCount(int count) async {
+    await setApp<int>('launch_count', count);
+  }
+
+  /// Get last open time
+  Future<DateTime?> getLastOpenTime() async {
+    final timestamp = await getApp<int>('last_open_time');
+    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+  }
+
+  /// Set last open time
+  Future<void> setLastOpenTime(DateTime time) async {
+    await setApp<int>('last_open_time', time.millisecondsSinceEpoch);
+  }
+
+  /// Get user ID
+  Future<String?> getUserId() async {
+    return await getApp<String>('user_id');
+  }
+
+  /// Get user email
+  Future<String?> getUserEmail() async {
+    return await getApp<String>('user_email');
+  }
+
+  /// Get username
+  Future<String?> getUsername() async {
+    return await getApp<String>('username');
+  }
+
+  /// Get last login time
+  Future<DateTime?> getLastLoginTime() async {
+    final timestamp = await getApp<int>('last_login_time');
+    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+  }
+
+  /// Get app version
+  Future<String?> getAppVersion() async {
+    return await getApp<String>('app_version');
+  }
+
+  /// Set app version
+  Future<void> setAppVersion(String version) async {
+    await setApp<String>('app_version', version);
+  }
+
+  /// Check if offline mode is enabled
+  Future<bool> isOfflineModeEnabled() async {
+    final settings = await getAppSettings();
+    return settings['offline_mode'] as bool? ?? false;
+  }
 }

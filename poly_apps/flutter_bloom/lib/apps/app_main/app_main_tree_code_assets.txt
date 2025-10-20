@@ -1,336 +1,53 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-20 16:34:01
-App: app_example
+Generated: 2025-10-20 16:33:51
+App: app_main
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
 Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
 ================================================================================
 
-app_example [code_assets]
-├── lib/apps/app_example/
-│   ├── app_example_tree.md
-│   ├── app_example_tree_code_assets.txt
+app_main [code_assets]
+├── lib/apps/app_main/
+│   ├── apps_bootstrap_main.dart
 │   ├── build_config.ini
-│   ├── config_app_example
-│   │   ├── api_config_app_example.dart
-│   │   ├── api_data_models_app_example.dart
-│   │   ├── api_endpoints_app_example.dart
-│   │   ├── app_config_app_example.dart
-│   │   ├── constants_app_example.dart
-│   │   ├── prefs_app_example.dart
-│   │   ├── provider_app_example.dart
-│   │   ├── storage_app_example.dart
-│   │   └── storage_initialization_example.dart
-│   ├── controller_app_example
-│   │   ├── auth_controller_app_example.dart
-│   │   ├── profile_controller_app_example.dart
-│   │   ├── settings_controller_app_example.dart
-│   │   └── splash_controller_app_example.dart
-│   ├── features_app_example
-│   │   ├── about
-│   │   │   ├── about_screen.dart
-│   │   │   └── actions
-│   │   │       └── .gitkeep
-│   │   ├── authentication
-│   │   │   ├── actions
-│   │   │   │   ├── .gitkeep
-│   │   │   │   └── auth_actions.dart
-│   │   │   └── views
-│   │   │       ├── congratulation_screen.dart
-│   │   │       ├── create_pin_screen.dart
-│   │   │       ├── forgot_screen.dart
-│   │   │       ├── resetpassword_screen.dart
-│   │   │       ├── select_country.dart
-│   │   │       ├── signin_up_screen.dart
-│   │   │       ├── verify_screen.dart
-│   │   │       └── welcom_screen.dart
-│   │   ├── bookmark
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   └── bookmark_screen.dart
-│   │   ├── comming
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   └── coming_screen.dart
-│   │   ├── common_widgets
-│   │   │   ├── bar_menu
-│   │   │   │   └── home_bar.dart
-│   │   │   ├── home_widget
-│   │   │   │   ├── tab_widget.dart
-│   │   │   │   └── top_section.dart
-│   │   │   ├── route_navigation_example.dart
-│   │   │   └── settings_item
-│   │   │       ├── settings_arrow_item.dart
-│   │   │       ├── settings_badge_item.dart
-│   │   │       ├── settings_dropdown_item.dart
-│   │   │       ├── settings_group.dart
-│   │   │       └── settings_switch_item.dart
-│   │   ├── dashboard
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── models
-│   │   │   │   └── navigation_model.dart
-│   │   │   ├── views
-│   │   │   │   ├── dashboard_screen.dart
-│   │   │   │   └── inbox_screen.dart
-│   │   │   └── widgets
-│   │   │       └── appbar.dart
-│   │   ├── donation
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── domain
-│   │   │   │   └── model
-│   │   │   │       └── doantion_model.dart
-│   │   │   └── views
-│   │   │       ├── donation_all_screen.dart
-│   │   │       └── donation_screen.dart
-│   │   ├── fundraising
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── domain
-│   │   │   │   └── model
-│   │   │   │       ├── activity_model.dart
-│   │   │   │       ├── fundraising_model.dart
-│   │   │   │       └── my_fundraising_model.dart
-│   │   │   ├── views
-│   │   │   │   ├── activity_screen.dart
-│   │   │   │   ├── create_new_fundraising.dart
-│   │   │   │   ├── edit_fundaising.dart
-│   │   │   │   ├── fundraising_ditails.dart
-│   │   │   │   ├── fundrasing.dart
-│   │   │   │   ├── fundrasing_screen.dart
-│   │   │   │   └── my_fudrasing_screen.dart
-│   │   │   └── widget
-│   │   │       ├── card_widget.dart
-│   │   │       └── create_fundraisig_image_widget.dart
-│   │   ├── help
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── model
-│   │   │   │   └── help_data_model.dart
-│   │   │   ├── views
-│   │   │   │   ├── about_us_screen.dart
-│   │   │   │   ├── contact_screen.dart
-│   │   │   │   ├── fqa_screen.dart
-│   │   │   │   ├── privacy_policy.dart
-│   │   │   │   └── themes_conditions.dart
-│   │   │   └── widgets
-│   │   │       └── fqa_widet.dart
-│   │   ├── home
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── domain
-│   │   │   │   ├── model
-│   │   │   │   │   ├── all_screen_model.dart
-│   │   │   │   │   ├── banner_model.dart
-│   │   │   │   │   ├── comingto_model.dart
-│   │   │   │   │   ├── fund_rising_model.dart
-│   │   │   │   │   ├── medical_model.dart
-│   │   │   │   │   ├── notification_model.dart
-│   │   │   │   │   ├── prayer_model.dart
-│   │   │   │   │   ├── urgetnt_fundrasing_model.dart
-│   │   │   │   │   └── wacth_impact_model.dart
-│   │   │   │   └── service
-│   │   │   │       ├── banner_service.dart
-│   │   │   │       ├── home_service_interface.dart
-│   │   │   │       └── product_service.dart
-│   │   │   ├── views
-│   │   │   │   ├── home_screen.dart
-│   │   │   │   ├── play_video_screen.dart
-│   │   │   │   ├── prayer_screen.dart
-│   │   │   │   ├── urgent_fundraising.dart
-│   │   │   │   └── watch_impact.dart
-│   │   │   └── widget
-│   │   │       ├── actions_widget.dart
-│   │   │       ├── all_screen.dart
-│   │   │       ├── banner_widget.dart
-│   │   │       ├── coming_list.dart
-│   │   │       ├── coming_widget.dart
-│   │   │       ├── disaster_screen.dart
-│   │   │       ├── education_screen.dart
-│   │   │       ├── fund_rising_listview.dart
-│   │   │       ├── fund_rising_widget.dart
-│   │   │       ├── health_screen.dart
-│   │   │       ├── home_title.dart
-│   │   │       ├── logined_func_widget.dart
-│   │   │       ├── logined_wordgroup_widget.dart
-│   │   │       ├── medical_screen.dart
-│   │   │       ├── prayer_listview.dart
-│   │   │       ├── prayer_widget.dart
-│   │   │       ├── prayerfrom_pepole.dart
-│   │   │       ├── urgent_fund_rising_widget.dart
-│   │   │       ├── urgentfunding_widget.dart
-│   │   │       ├── watch_impact_list.dart
-│   │   │       └── watch_impact_widget.dart
-│   │   ├── home_login
-│   │   │   ├── views
-│   │   │   │   └── home_login_view.dart
-│   │   │   └── widget
-│   │   │       └── home_login_widget.dart
-│   │   ├── inbox
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── domain
-│   │   │   │   └── model
-│   │   │   │       └── inbox_model.dart
-│   │   │   └── views
-│   │   │       └── chat_screen.dart
-│   │   ├── interest
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   └── select_interest.dart
-│   │   ├── invite_friend
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   └── invite_friend_screen.dart
-│   │   ├── language
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   └── language_selector.dart
-│   │   ├── notification
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   └── notificaiton_screen.dart
-│   │   ├── onbording
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── controller
-│   │   │   │   └── home_controller.dart
-│   │   │   ├── model
-│   │   │   │   └── on_boarding_model.dart
-│   │   │   └── views
-│   │   │       └── onbording_screen.dart
-│   │   ├── prayer
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   └── prayer_screen.dart
-│   │   ├── profile
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
+│   ├── config_app_main
+│   │   ├── app_config_app_main.dart
+│   │   ├── prefs_app_main.dart
+│   │   └── storage_app_main.dart
+│   ├── error.txt
+│   ├── features_app_main
+│   │   ├── all_apps_showcase
 │   │   │   ├── controllers
-│   │   │   │   └── profile_controller_app_example.dart
-│   │   │   ├── domain
-│   │   │   │   └── model
-│   │   │   │       ├── about_model.dart
-│   │   │   │       └── select_insterest_model.dart
+│   │   │   │   └── all_apps_showcase_controller.dart
 │   │   │   ├── models
-│   │   │   │   └── profile_model_app_example.dart
+│   │   │   │   └── all_apps_showcase_model.dart
 │   │   │   └── views
-│   │   │       ├── edit_profile.dart
-│   │   │       ├── profile_screen.dart
-│   │   │       └── profile_view_screen.dart
-│   │   ├── profile_two
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── views
-│   │   │   │   ├── add_card_screen.dart
-│   │   │   │   ├── profile_two_screen.dart
-│   │   │   │   ├── set_withdraw_mail_screen.dart
-│   │   │   │   ├── top_up_screen.dart
-│   │   │   │   ├── topup_method_screen.dart
-│   │   │   │   ├── wallet_center_screen.dart
-│   │   │   │   └── withdraw_screen.dart
-│   │   │   └── widget
-│   │   │       ├── interest_widget.dart
-│   │   │       ├── setting_widget.dart
-│   │   │       └── top_card_widget.dart
-│   │   ├── search
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   └── search_screen.dart
-│   │   ├── setting
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── domain
-│   │   │   │   └── model
-│   │   │   │       └── invite_friend_model.dart
-│   │   │   ├── views
-│   │   │   │   ├── help_screen.dart
-│   │   │   │   ├── notification_setting.dart
-│   │   │   │   ├── security_screen.dart
-│   │   │   │   └── setting_screen_view.dart
-│   │   │   └── widgets
-│   │   │       ├── card_widget.dart
-│   │   │       └── notification_setting_widget.dart
-│   │   ├── social_feed
-│   │   │   ├── model
-│   │   │   │   └── post_model.dart
-│   │   │   ├── views
-│   │   │   │   └── social_feed_screen.dart
-│   │   │   └── widget
-│   │   │       ├── feed_header.dart
-│   │   │       └── post_card.dart
-│   │   ├── splash
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── views
-│   │   │   │   └── splash_screen.dart
-│   │   │   └── widgets
-│   │   │       └── slide_to_start_button.dart
-│   │   ├── tab
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
+│   │   │       └── all_apps_showcase_screen.dart
+│   │   ├── main_about
 │   │   │   └── views
-│   │   │       ├── all_screen.dart
-│   │   │       └── medical_screen.dart
-│   │   ├── top_menu
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── top_menu.dart
-│   │   │   └── widgets
-│   │   │       ├── custom_icon_label.dart
-│   │   │       └── custom_icon_label_group.dart
-│   │   ├── word_card
-│   │   │   ├── actions
-│   │   │   │   └── .gitkeep
-│   │   │   ├── controller
-│   │   │   │   └── word_card_controller.dart
-│   │   │   ├── models
-│   │   │   │   ├── word_card_model.dart
-│   │   │   │   └── word_model.dart
+│   │   │       └── main_about_screen.dart
+│   │   ├── main_home
 │   │   │   └── views
-│   │   │       ├── word_card_screen.dart
-│   │   │       └── word_card_style_test.dart
-│   │   └── word_cards
-│   │       ├── actions
-│   │       │   └── .gitkeep
-│   │       ├── types
-│   │       │   └── words_types.dart
+│   │   │       └── main_home_screen.dart
+│   │   └── main_settings
 │   │       └── views
-│   │           └── word_cards_screen.dart
-│   ├── localization_app_example
-│   │   ├── en_app_example.dart
-│   │   ├── localization_keys_app_example.dart
-│   │   └── zh_app_example.dart
-│   ├── main_app_example.dart
-│   ├── model_app_example
-│   │   └── user_model.dart
-│   ├── providers_app_example
-│   │   └── example_user_provider.dart
-│   ├── resources_app_example
-│   │   ├── assets_icons_app_example.dart
-│   │   ├── assets_images_app_example.dart
-│   │   ├── assets_launch_app_example.dart
-│   │   ├── text_styles_app_example.dart
-│   │   └── theme_extensions_app_example.dart
-│   ├── router_app_example
-│   │   ├── route_test_helper.dart
-│   │   ├── router_app_example.dart
-│   │   ├── router_legacy_qy.dart
-│   │   └── routes_provider_app_example.dart
-│   ├── services_app_example
-│   │   ├── app_example_service_manager.dart
-│   │   ├── auth_api_app_example_service.dart
-│   │   ├── product_api_app_example_service.dart
-│   │   ├── service_app_example.dart
-│   │   ├── services_app_example.dart
-│   │   └── user_api_app_example_service.dart
-│   ├── settings_app_example
-│   │   └── settings_app_example.dart
-│   └── utils_app_example
-│       └── utils_app_example.dart
+│   │           └── main_settings_screen.dart
+│   ├── localization_app_main
+│   │   ├── en_app_main.dart
+│   │   ├── localization_keys_app_main.dart
+│   │   └── zh_app_main.dart
+│   ├── main_app_main.dart
+│   ├── provider_app_main.dart
+│   ├── resources_app_main
+│   │   ├── assets_fonts_app_main.dart
+│   │   ├── assets_icons_app_main.dart
+│   │   ├── assets_images_app_main.dart
+│   │   ├── assets_launch_app_main.dart
+│   │   └── assets_manager_app_main.dart
+│   └── router_app_main
+│       └── routes_provider_app_main.dart
 ├── lib/common/
 │   ├── app
 │   │   └── main_common.dart
@@ -679,106 +396,27 @@ app_example [code_assets]
 │       ├── segmented_button.dart
 │       ├── settings_page_example.dart
 │       └── type_button_widget.dart
-├── assets/apps/app_example/
+├── assets/apps/app_main/
 │   ├── fonts
 │   │   └── .gitkeep
 │   ├── icons
 │   │   ├── .gitkeep
-│   │   ├── ic_launcher.backup.backup.png
 │   │   ├── ic_launcher.backup.png
 │   │   ├── ic_launcher.png
-│   │   ├── logo.backup.backup.png
 │   │   ├── logo.backup.png
 │   │   ├── logo.png
 │   │   ├── notification_icon.png
-│   │   ├── raw-logo.backup.backup.png
 │   │   ├── raw-logo.backup.png
 │   │   ├── raw-logo.png
-│   │   ├── splash_logo.backup.backup.png
 │   │   ├── splash_logo.backup.png
 │   │   └── splash_logo.png
 │   ├── images
-│   │   ├── .gitkeep
-│   │   ├── Feed.backup.backup.jpg
-│   │   ├── Feed.backup.jpg
-│   │   ├── Feed.jpg
-│   │   ├── Flood.backup.backup.png
-│   │   ├── Flood.backup.png
-│   │   ├── Flood.png
-│   │   ├── baby.backup.backup.jpg
-│   │   ├── baby.backup.jpg
-│   │   ├── baby.jpg
-│   │   ├── bannerchild.jpg
-│   │   ├── child1.jpeg
-│   │   ├── child2.jpg
-│   │   ├── child3.jpg
-│   │   ├── child5.backup.backup.jpg
-│   │   ├── child5.backup.jpg
-│   │   ├── child5.jpg
-│   │   ├── child6.jpg
-│   │   ├── education.backup.backup.jpg
-│   │   ├── education.backup.jpg
-│   │   ├── education.jpg
-│   │   ├── fire.backup.backup.jpg
-│   │   ├── fire.backup.jpg
-│   │   ├── fire.jpg
-│   │   ├── food.backup.backup.jpg
-│   │   ├── food.backup.jpg
-│   │   ├── food.jpg
-│   │   ├── funrasing1.backup.backup.jpeg
-│   │   ├── funrasing1.backup.jpeg
-│   │   ├── funrasing1.jpeg
-│   │   ├── gorom1.backup.backup.jpg
-│   │   ├── gorom1.backup.jpg
-│   │   ├── gorom1.jpg
-│   │   ├── health.jpg
-│   │   ├── help1.backup.backup.jpg
-│   │   ├── help1.backup.jpg
-│   │   ├── help1.jpg
-│   │   ├── helpchild.jpg
-│   │   ├── hospital.jpg
-│   │   ├── one.jpg
-│   │   ├── poor1.backup.backup.jpg
-│   │   ├── poor1.backup.jpg
-│   │   ├── poor1.jpg
-│   │   ├── poor3.backup.backup.jpg
-│   │   ├── poor3.backup.jpg
-│   │   ├── poor3.jpg
-│   │   ├── poor4.backup.backup.png
-│   │   ├── poor4.backup.png
-│   │   ├── poor4.png
-│   │   ├── poor5.backup.jpg
-│   │   ├── poor5.jpg
-│   │   ├── poor6.backup.jpg
-│   │   ├── poor6.jpg
-│   │   ├── running.backup.jpg
-│   │   ├── running.jpg
-│   │   ├── student.backup.jpg
-│   │   ├── student.jpg
-│   │   ├── student2.jpeg
-│   │   ├── urgen4.jpg
-│   │   ├── urgent1.backup.jpg
-│   │   ├── urgent1.jpg
-│   │   ├── urgent2.backup.jpg
-│   │   ├── urgent2.jpg
-│   │   ├── urgent5.backup.jpg
-│   │   ├── urgent5.jpg
-│   │   ├── urgent6.backup.jpg
-│   │   ├── urgent6.jpg
-│   │   ├── user.png
-│   │   ├── user1.jpg
-│   │   ├── user2.jpg
-│   │   └── user3.jpg
+│   │   └── .gitkeep
 │   └── launch
 │       ├── .gitkeep
-│       ├── background.backup.jpg
 │       ├── background.jpg
-│       ├── dark_launch.backup.png
-│       ├── dark_launch.png
-│       ├── light_launch.backup.png
-│       ├── light_launch.png
-│       ├── light_launch_1.backup.jpg
-│       └── light_launch_1.jpg
+│       ├── background.png
+│       └── bg03.png
 └── assets/common/
     ├── fonts
     │   ├── .gitkeep
