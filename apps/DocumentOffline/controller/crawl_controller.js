@@ -19,6 +19,7 @@ const fs = require('fs');
 const readline = require('readline');
 const { exec } = require('child_process');
 const os = require('os');
+const cheerio = require('cheerio');
 
 const DomainContext = require('../libs/domain_context.js');
 const FileMapper = require('../libs/file_mapper.js');
@@ -53,6 +54,7 @@ class CrawlController {
     this.autoOpenFolder = true;
     this.downloadedUrls = [];
     this.finalHostDir = null;
+    this.disableJs = false;
   }
 
   openFolderInExplorer(folderPath) {
@@ -99,7 +101,7 @@ class CrawlController {
   }
 
   async start(argv = process.argv.slice(2)) {
-    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder } = this.parseArguments(argv);
+    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder, disableJs } = this.parseArguments(argv);
     this.domainContext = new DomainContext(targetUrl);
     this.resourceProcessor = new UnifiedResourceProcessor(
       this.domainContext,
@@ -110,6 +112,7 @@ class CrawlController {
     this.maxDepth = depth;
     this.autoConfirm = autoConfirm;
     this.autoOpenFolder = autoOpenFolder;
+    this.disableJs = disableJs;
     this.downloadedUrls = [];
 
     logger.info(`Starting document offline analysis for: ${targetUrl}`);
@@ -122,6 +125,7 @@ class CrawlController {
 
     await this.selectDownloadScope(scopeType);
     await this.selectFetcherMethod(fetcherType);
+    await this.selectJsDisabling();
 
     const parsed = new URL(this.domainContext.getOrigin());
     const hostDir = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', parsed.hostname);
@@ -240,6 +244,50 @@ class CrawlController {
     }
   }
 
+  async selectJsDisabling() {
+    if (this.disableJs === true) {
+      logger.success('JavaScript disabling: ENABLED (script tags will be removed from HTML)');
+      return;
+    }
+
+    if (this.autoConfirm) {
+      logger.info('JavaScript disabling: DISABLED (auto-confirm mode)');
+      return;
+    }
+
+    return new Promise((resolve) => {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+      logger.info('\n========================================');
+      logger.info('Remove JavaScript Tags from HTML?');
+      logger.info('========================================');
+      logger.info('Note: Script tags will be removed from HTML');
+      logger.info('      but JavaScript files will still be downloaded locally');
+      logger.info('========================================\n');
+
+      rl.question('Remove JavaScript tags from HTML? (y/n, default is n): ', (answer) => {
+        rl.close();
+
+        const choice = answer.trim().toLowerCase() || 'n';
+        this.disableJs = choice === 'y' || choice === 'yes';
+
+        if (this.disableJs) {
+          logger.success('JavaScript disabling: ENABLED (script tags will be removed from HTML)');
+        } else {
+          logger.success('JavaScript disabling: DISABLED (script tags will be kept)');
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  stripScriptTags(html) {
+    const $ = cheerio.load(html, { decodeEntities: false });
+    $('script').remove();
+    return $.html();
+  }
+
   async cleanupFetcher() {
     if (this.fetcherType === 'puppeteer' && this.fetcher && this.fetcher.cleanup) {
       try {
@@ -314,6 +362,7 @@ class CrawlController {
     let scopeType = null;
     let autoConfirm = false;
     let autoOpenFolder = true;
+    let disableJs = false;
 
     for (let i = index + 1; i < argv.length; i++) {
       const arg = argv[i];
@@ -326,6 +375,8 @@ class CrawlController {
         autoConfirm = true;
       } else if (arg === '--no-open' || arg === '--no-explorer') {
         autoOpenFolder = false;
+      } else if (arg === '--no-js' || arg === '--disable-js') {
+        disableJs = true;
       } else if (!arg.startsWith('--') && !arg.startsWith('-')) {
         const parsedDepth = parseInt(arg, 10);
         if (!Number.isNaN(parsedDepth)) {
@@ -345,7 +396,8 @@ class CrawlController {
       fetcherType,
       scopeType,
       autoConfirm,
-      autoOpenFolder
+      autoOpenFolder,
+      disableJs
     };
   }
 
@@ -359,15 +411,16 @@ class CrawlController {
     logger.info('Options:');
     logger.info('  --fetcher=<type>        Fetcher type: http, puppeteer (default: prompt)');
     logger.info('  --scope=<type>          Download scope: full, path (default: prompt)');
+    logger.info('  --no-js                 Remove all script tags from HTML (default: keep JS)');
+    logger.info('  --disable-js            Same as --no-js');
     logger.info('  --auto-confirm, -y      Auto-confirm without prompts');
     logger.info('  --no-open               Do NOT open folder in explorer after download');
     logger.info('');
     logger.info('Examples:');
     logger.info('  node main.js app=DocumentOffline https://example.com 3');
     logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=http');
-    logger.info('  node main.js app=DocumentOffline https://example.com --scope=path');
-    logger.info('  node main.js app=DocumentOffline https://example.com 2 --fetcher=puppeteer --scope=full -y');
-    logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=puppeteer -y --no-open');
+    logger.info('  node main.js app=DocumentOffline https://example.com --no-js -y');
+    logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=puppeteer --scope=full --no-js');
   }
 
   isValidUrl(value) {
@@ -460,6 +513,12 @@ class CrawlController {
       const result = await this.resourceProcessor.processPageResources(content, canonical, this.finalHostDir);
       finalContent = result.html;
       logger.info(`[DEBUG-SAVE-3] Processed ${result.resourcesProcessed} resources for: ${canonical}`);
+
+      if (this.disableJs) {
+        logger.info(`[DEBUG-SAVE-3.5] Removing JavaScript tags from HTML`);
+        finalContent = this.stripScriptTags(finalContent);
+        logger.info(`[DEBUG-SAVE-3.7] JavaScript tags removed from HTML`);
+      }
     } else if (!isBinary && this.isCssContent(relativePath)) {
       logger.info(`[DEBUG-SAVE-4] Processing CSS: rewriting URLs`);
       finalContent = this.resourceProcessor.rewriteCss(content, canonical);
