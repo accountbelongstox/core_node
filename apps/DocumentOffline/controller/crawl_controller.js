@@ -56,13 +56,14 @@ class CrawlController {
   }
 
   async start(argv = process.argv.slice(2)) {
-    const { targetUrl, depth, fetcherType, scopeType } = this.parseArguments(argv);
+    const { targetUrl, depth, fetcherType, scopeType, autoConfirm } = this.parseArguments(argv);
     this.domainContext = new DomainContext(targetUrl);
     this.urlRewriter = new UrlRewriter(this.domainContext, this.fileMapper);
     this.cssProcessor = new CssProcessor(this.domainContext, this.fileMapper);
     this.resourceExtractor = new ResourceExtractor(this.domainContext);
     this.resourceDownloader = new ResourceDownloader(downloader, this.fileMapper, logger);
     this.maxDepth = depth;
+    this.autoConfirm = autoConfirm;
 
     logger.info(`Starting document offline analysis for: ${targetUrl}`);
     logger.info(`Recursion depth: ${depth}`);
@@ -203,6 +204,11 @@ class CrawlController {
   }
 
   async confirmOverwrite(targetDir) {
+    if (this.autoConfirm) {
+      logger.info('Auto-confirm enabled, skipping user confirmation');
+      return true;
+    }
+
     return new Promise((resolve) => {
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -233,6 +239,7 @@ class CrawlController {
     let depth = 3;
     let fetcherType = null;
     let scopeType = null;
+    let autoConfirm = false;
 
     for (let i = index + 1; i < argv.length; i++) {
       const arg = argv[i];
@@ -241,7 +248,9 @@ class CrawlController {
         fetcherType = arg.substring('--fetcher='.length).toLowerCase();
       } else if (arg.startsWith('--scope=')) {
         scopeType = arg.substring('--scope='.length).toLowerCase();
-      } else if (!arg.startsWith('--')) {
+      } else if (arg === '--auto-confirm' || arg === '-y' || arg === '--yes') {
+        autoConfirm = true;
+      } else if (!arg.startsWith('--') && !arg.startsWith('-')) {
         const parsedDepth = parseInt(arg, 10);
         if (!Number.isNaN(parsedDepth)) {
           depth = Math.max(parsedDepth, 0);
@@ -258,7 +267,8 @@ class CrawlController {
       targetUrl: rawUrl,
       depth,
       fetcherType,
-      scopeType
+      scopeType,
+      autoConfirm
     };
   }
 
@@ -272,12 +282,13 @@ class CrawlController {
     logger.info('Options:');
     logger.info('  --fetcher=<type>        Fetcher type: http, puppeteer (default: prompt)');
     logger.info('  --scope=<type>          Download scope: full, path (default: prompt)');
+    logger.info('  --auto-confirm, -y      Auto-confirm without prompts');
     logger.info('');
     logger.info('Examples:');
     logger.info('  node main.js app=DocumentOffline https://example.com 3');
     logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=http');
     logger.info('  node main.js app=DocumentOffline https://example.com --scope=path');
-    logger.info('  node main.js app=DocumentOffline https://example.com 2 --fetcher=puppeteer --scope=full');
+    logger.info('  node main.js app=DocumentOffline https://example.com 2 --fetcher=puppeteer --scope=full -y');
   }
 
   isValidUrl(value) {
@@ -517,6 +528,11 @@ class CrawlController {
   }
 
   async pauseForNextStep() {
+    if (this.autoConfirm) {
+      logger.info('Auto-confirm enabled, skipping pause');
+      return;
+    }
+
     return new Promise((resolve) => {
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
       rl.question('Analysis complete. Press Enter to continue...', () => {
