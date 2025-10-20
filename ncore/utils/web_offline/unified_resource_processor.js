@@ -488,7 +488,12 @@ class UnifiedResourceProcessor {
         const pathname = absoluteUrl.pathname;
         const localPath = path.posix.join('src', domain, pathname);
 
-        const fromDir = path.posix.dirname(this.getLocalPathForUrl(currentUrlObj.href));
+        const currentUrlPath = this.getLocalPathForUrl(currentUrlObj.href);
+        if (!currentUrlPath) {
+          return url;
+        }
+
+        const fromDir = path.posix.dirname(currentUrlPath);
         const relativePath = path.posix.relative(fromDir, localPath);
 
         if (relativePath.startsWith('../')) {
