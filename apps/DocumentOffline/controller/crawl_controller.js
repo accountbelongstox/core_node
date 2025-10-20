@@ -17,6 +17,8 @@ const downloader = require('#@downloader');
 const path = require('path');
 const fs = require('fs');
 const readline = require('readline');
+const { exec } = require('child_process');
+const os = require('os');
 
 const DomainContext = require('../libs/domain_context.js');
 const FileMapper = require('../libs/file_mapper.js');
@@ -53,10 +55,54 @@ class CrawlController {
     this.resourceDownloader = null;
     this.sitemapGenerator = new SitemapGenerator();
     this.backupManager = new BackupManager(5);
+    this.autoOpenFolder = true;
+  }
+
+  openFolderInExplorer(folderPath) {
+    if (!fs.existsSync(folderPath)) {
+      logger.warn(`Folder does not exist: ${folderPath}`);
+      return;
+    }
+
+    const platform = os.platform();
+    let command;
+
+    try {
+      if (platform === 'win32') {
+        command = `explorer /select,"${folderPath}"`;
+        exec(command, (error) => {
+          if (error) {
+            logger.error(`Failed to open folder: ${error.message}`);
+          } else {
+            logger.success(`Opened folder: ${folderPath}`);
+          }
+        });
+      } else if (platform === 'darwin') {
+        command = `open "${folderPath}"`;
+        exec(command, (error) => {
+          if (error) {
+            logger.error(`Failed to open folder: ${error.message}`);
+          } else {
+            logger.success(`Opened folder: ${folderPath}`);
+          }
+        });
+      } else if (platform === 'linux') {
+        command = `xdg-open "${folderPath}"`;
+        exec(command, (error) => {
+          if (error) {
+            logger.error(`Failed to open folder: ${error.message}`);
+          } else {
+            logger.success(`Opened folder: ${folderPath}`);
+          }
+        });
+      }
+    } catch (error) {
+      logger.error(`Error opening folder: ${error.message}`);
+    }
   }
 
   async start(argv = process.argv.slice(2)) {
-    const { targetUrl, depth, fetcherType, scopeType, autoConfirm } = this.parseArguments(argv);
+    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder } = this.parseArguments(argv);
     this.domainContext = new DomainContext(targetUrl);
     this.urlRewriter = new UrlRewriter(this.domainContext, this.fileMapper);
     this.cssProcessor = new CssProcessor(this.domainContext, this.fileMapper);
@@ -64,6 +110,7 @@ class CrawlController {
     this.resourceDownloader = new ResourceDownloader(downloader, this.fileMapper, logger);
     this.maxDepth = depth;
     this.autoConfirm = autoConfirm;
+    this.autoOpenFolder = autoOpenFolder;
 
     logger.info(`Starting document offline analysis for: ${targetUrl}`);
     logger.info(`Recursion depth: ${depth}`);
@@ -86,6 +133,12 @@ class CrawlController {
         return;
       }
       await this.backupManager.createBackup(hostDir);
+    }
+
+    this.ensureDirectory(hostDir);
+    if (this.autoOpenFolder) {
+      logger.info(`Auto-open folder enabled, opening: ${hostDir}`);
+      this.openFolderInExplorer(hostDir);
     }
 
     const canonicalTarget = this.domainContext.getStartUrl();
@@ -240,6 +293,7 @@ class CrawlController {
     let fetcherType = null;
     let scopeType = null;
     let autoConfirm = false;
+    let autoOpenFolder = true;
 
     for (let i = index + 1; i < argv.length; i++) {
       const arg = argv[i];
@@ -250,6 +304,8 @@ class CrawlController {
         scopeType = arg.substring('--scope='.length).toLowerCase();
       } else if (arg === '--auto-confirm' || arg === '-y' || arg === '--yes') {
         autoConfirm = true;
+      } else if (arg === '--no-open' || arg === '--no-explorer') {
+        autoOpenFolder = false;
       } else if (!arg.startsWith('--') && !arg.startsWith('-')) {
         const parsedDepth = parseInt(arg, 10);
         if (!Number.isNaN(parsedDepth)) {
@@ -268,7 +324,8 @@ class CrawlController {
       depth,
       fetcherType,
       scopeType,
-      autoConfirm
+      autoConfirm,
+      autoOpenFolder
     };
   }
 
@@ -283,12 +340,14 @@ class CrawlController {
     logger.info('  --fetcher=<type>        Fetcher type: http, puppeteer (default: prompt)');
     logger.info('  --scope=<type>          Download scope: full, path (default: prompt)');
     logger.info('  --auto-confirm, -y      Auto-confirm without prompts');
+    logger.info('  --no-open               Do NOT open folder in explorer after download');
     logger.info('');
     logger.info('Examples:');
     logger.info('  node main.js app=DocumentOffline https://example.com 3');
     logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=http');
     logger.info('  node main.js app=DocumentOffline https://example.com --scope=path');
     logger.info('  node main.js app=DocumentOffline https://example.com 2 --fetcher=puppeteer --scope=full -y');
+    logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=puppeteer -y --no-open');
   }
 
   isValidUrl(value) {
