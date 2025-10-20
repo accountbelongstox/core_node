@@ -212,41 +212,55 @@ team_checker.execute()
 
 ## 📝 下一步工作
 
-### 1. 定义UI区域坐标 ⚠️ 重要
+### ✅ 1. UI区域坐标 - 已完成
 
-需要在 `controller/d4func/window_region_detector.py` 或相关文件中添加以下区域定义：
+所有坐标已从 `D4StandardCoordinates` 获取并集成到 `AutoTeamFormation.REGION_COORDS`。
 
-```python
-# 队伍面板区域定义（标准分辨率 1763x1126）
-TEAM_PANEL_REGIONS = {
-    'Find Team': (x1, y1, x2, y2),  # 寻找队伍区域
-    'Min Level Input': (x1, y1, x2, y2),  # 最低等级输入框
-    'Max Level Input': (x1, y1, x2, y2),  # 最高等级输入框
-    'Party Activity Dropdown': (x1, y1, x2, y2),  # 组队活动下拉框
-    'Activity Selection Area': (315, 445, 640, 700),  # ✅ 已提供
-    'Activity Min Level Input': (x1, y1, x2, y2),  # 活动最低等级
-    'Activity Max Level Input': (x1, y1, x2, y2),  # 活动最高等级
-    'Submit Party Button': (x1, y1, x2, y2),  # 提交按钮
-}
-```
+### 2. 测试完整流程 ⚠️ 待测试
 
-**如何获取坐标**:
-1. 使用 `debug_mouse_coordinate.py` 工具
-2. 打开游戏队伍面板（按 'O'）
-3. 移动鼠标到各个UI元素
-4. 记录游戏坐标（标准分辨率）
-5. 确定区域边界（左上角和右下角）
-
-### 2. 测试完整流程
-
+**测试步骤**:
 1. 启动游戏（窗口模式）
 2. 确保没有组队（"寻找队伍"状态）
 3. 点击 "启动挂机经验" 按钮
-4. 观察日志输出
-5. 验证自动组队流程执行
+4. 观察控制台日志输出
+5. 验证自动组队流程执行：
+   - 窗口激活（标题栏点击）
+   - 按 'O' 打开队伍面板
+   - OCR识别 "寻找队伍"
+   - 自动组队流程执行
+   - 最终显示 "✓ 自动挂机准备完毕"
 6. 检查最终队伍状态
 
-### 3. 错误处理优化（可选）
+**预期日志**:
+```
+[D4] Checking team status before starting EXP farming
+[D4] Capturing screenshot to initialize window data...
+[D4] Window data initialized: fullscreen=(2560, 1600), window=(1826, 1031), windowed=True
+[D4Operation] Windowed mode detected, will click title bar
+[D4Operation] ✓ Title bar clicked successfully
+[TeamFormationChecker] Starting team formation check...
+[TeamFormationChecker] OCR result: '寻找队伍'
+[TeamFormationChecker] ✗ Player has NO team
+[TeamFormationChecker] Triggering automatic team formation...
+[AutoTeamFormation] Starting auto team formation workflow...
+[AutoTeamFormation] Step 2: Clicking Find Team region...
+[AutoTeamFormation] Step 3: Setting min level to 80...
+[AutoTeamFormation] Step 4: Setting max level to 120...
+[AutoTeamFormation] Step 5: Selecting party activity (row 5/7)...
+[AutoTeamFormation] Step 6: Confirming activity levels (80-120)...
+[AutoTeamFormation] Step 7: Submitting party...
+[AutoTeamFormation] ✓ 自动挂机准备完毕
+```
+
+### 3. 可能需要的调整
+
+根据实际测试结果，可能需要：
+- 调整延迟时间（如果UI响应较慢）
+- 调整坐标偏移（如果点击位置不准确）
+- 添加额外的等待逻辑（如果UI动画较长）
+- 调整OCR识别逻辑（如果文本识别不准确）
+
+### 4. 错误处理优化（可选）
 
 - 添加重试机制（如果某步失败）
 - 添加超时保护
@@ -306,13 +320,32 @@ TEAM_PANEL_REGIONS = {
 - [x] D4OperationBase 扩展（100%）
 - [x] AutoTeamFormation 类（100%）
 - [x] TeamFormationChecker 集成（100%）
-- [ ] UI区域坐标定义（12.5% - 只有1/8完成）
-- [ ] 完整流程测试（0%）
+- [x] UI区域坐标定义（100% - 已从 D4StandardCoordinates 获取）
+- [ ] 完整流程测试（0% - 待测试）
 
-**总体完成度**: ~70%
+**总体完成度**: ~95%
 
-**阻塞项**: UI区域坐标定义（需要用户提供或使用 debug 工具获取）
+**待完成项**: 实际测试验证
 
 ---
 
-**下一步建议**: 使用 `debug_mouse_coordinate.py` 工具获取剩余7个UI区域的坐标，然后进行完整流程测试。
+## 📋 坐标映射总结
+
+所有坐标均已从 `share/game_interface_data.py` 的 `D4StandardCoordinates` 类获取：
+
+```python
+# AutoTeamFormation.REGION_COORDS
+{
+    'Find Team': (155, 94, 275, 129),           # find_team_region_start/end
+    'Form Team': (292, 73, 406, 126),           # form_team_region_start/end
+    'Min Level Input': (410, 550),              # idle_team_min_tier
+    'Max Level Input': (805, 550),              # idle_team_max_tier
+    'Activity Dropdown': (375, 456),            # idle_activity_selection
+    'Activity Selection Area': (315, 445, 640, 700),  # User provided
+    'Confirm Team Button': (728, 861, 831, 879),     # confirm_team_button_start/end
+    'Edit Team Button': (950, 265),             # edit_team_button
+    'Confirm Edit Team': (730, 950),            # confirm_edit_team
+}
+```
+
+**下一步建议**: 在游戏中测试完整流程，根据实际表现调整延迟和坐标偏移。

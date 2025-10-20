@@ -62,14 +62,14 @@ class WindowFinder:
                 ...
             ]
         """
-        ColorPrint.blue(f"\n[WindowFinder] Searching for windows: {titles}")
-        ColorPrint.blue(f"[WindowFinder] Match mode: {match_mode}, Use cache: {use_cache}")
+        ColorPrint.print_min_interval(f"\n[WindowFinder] Searching for windows: {titles}", "1min", "blue")
+        ColorPrint.print_min_interval(f"[WindowFinder] Match mode: {match_mode}, Use cache: {use_cache}", "1min", "blue")
 
         found_windows = []
 
         # Step 1: Try to get from encyclopedia cache first
         if use_cache:
-            ColorPrint.blue("[WindowFinder] Checking encyclopedia cache...")
+            ColorPrint.print_min_interval("[WindowFinder] Checking encyclopedia cache...", "1min", "blue")
 
             for title in titles:
                 cache_key = f"window_cache_{title.lower()}"
@@ -91,18 +91,18 @@ class WindowFinder:
                                 "height": rect[3] - rect[1]
                             }
                             found_windows.append(window_info)
-                            ColorPrint.green(f"[Cache] Found cached window: '{window_info['title']}'")
+                            ColorPrint.print_min_interval(f"[Cache] Found cached window: '{window_info['title']}'", "1min", "green")
 
                             # Found at least one - can return early if only need first match
                             # But continue to check all titles for completeness
                         except Exception as e:
-                            ColorPrint.yellow(f"[Cache] Error reading cached window: {e}")
+                            ColorPrint.print_min_interval(f"[Cache] Error reading cached window: {e}", "1min", "yellow")
                     else:
-                        ColorPrint.yellow(f"[Cache] Cached window invalid for '{title}'")
+                        ColorPrint.print_min_interval(f"[Cache] Cached window invalid for '{title}'", "1min", "yellow")
 
         # Step 2: If not found in cache (or cache disabled), search all windows
         if not found_windows:
-            ColorPrint.blue("[WindowFinder] Searching through visible windows...")
+            ColorPrint.print_min_interval("[WindowFinder] Searching through visible windows...", "1min", "blue")
 
             def enum_windows_callback(hwnd, lparam):
                 if win32gui.IsWindowVisible(hwnd):
@@ -126,7 +126,7 @@ class WindowFinder:
 
                             # Additional validation: avoid browser windows
                             if match_found and WindowFinder._is_browser_window(window_title):
-                                ColorPrint.yellow(f"[WindowFinder] Skipping browser window: '{window_title}'")
+                                ColorPrint.print_min_interval(f"[WindowFinder] Skipping browser window: '{window_title}'", "1min", "yellow")
                                 match_found = False
 
                             if match_found:
@@ -140,7 +140,7 @@ class WindowFinder:
                                     "height": rect[3] - rect[1]
                                 }
                                 found_windows.append(window_info)
-                                ColorPrint.green(f"[Found] Window: '{window_title}'")
+                                ColorPrint.print_min_interval(f"[Found] Window: '{window_title}'", "1min", "green")
 
                                 # Cache the found window
                                 if use_cache:
@@ -158,23 +158,23 @@ class WindowFinder:
                                         "class_name": win32gui.GetClassName(hwnd)
                                     }
                                     ENCYCLOPEDIA.add(cache_key, cache_data)
-                                    ColorPrint.blue(f"[Cache] Cached window info for '{target_title}'")
+                                    ColorPrint.print_min_interval(f"[Cache] Cached window info for '{target_title}'", "1min", "blue")
 
                                 # Don't break - continue searching for other matching windows
                                 break
                     except Exception as e:
-                        ColorPrint.yellow(f"[WindowFinder] Error checking window: {e}")
+                        ColorPrint.print_min_interval(f"[WindowFinder] Error checking window: {e}", "1min", "yellow")
                 return True
 
             try:
                 win32gui.EnumWindows(enum_windows_callback, None)
             except Exception as e:
-                ColorPrint.red(f"[WindowFinder] Error enumerating windows: {e}")
+                ColorPrint.print_min_interval(f"[WindowFinder] Error enumerating windows: {e}", "1min", "red")
 
         if found_windows:
-            ColorPrint.green(f"[WindowFinder] Found {len(found_windows)} window(s)")
+            ColorPrint.print_min_interval(f"[WindowFinder] Found {len(found_windows)} window(s)", "1min", "green")
         else:
-            ColorPrint.yellow(f"[WindowFinder] No windows found matching: {titles}")
+            ColorPrint.print_min_interval(f"[WindowFinder] No windows found matching: {titles}", "1min", "yellow")
 
         return found_windows
 

@@ -1,4 +1,11 @@
 {
+  "common": {
+    "view_all": "查看全部",
+    "learn_more": "了解更多",
+    "get_started": "开始使用",
+    "contact_us": "联系我们"
+  },
+
   "codemart": {
     "platform_name": "码市",
     "platform_slogan": "互联网软件外包服务平台",
@@ -76,7 +83,23 @@
       "view_projects": "查看项目",
       "total_projects": "累计项目数",
       "total_developers": "注册开发者",
-      "total_transactions": "交易总额"
+      "total_transactions": "交易总额",
+      "featured_projects": "精选项目",
+      "top_developers": "优秀开发者",
+      "cta_title": "准备开始您的项目了吗？",
+      "cta_desc": "加入CodeMart数千满意的客户和开发者",
+      "get_started": "立即开始"
+    },
+
+    "workflow": {
+      "step1_title": "发布项目",
+      "step1_desc": "描述您的项目需求，获取AI智能分析",
+      "step2_title": "匹配开发者",
+      "step2_desc": "审查合格开发者的方案，选择最佳人选",
+      "step3_title": "安全开发",
+      "step3_desc": "通过安全托管支付开始工作，实时跟踪进度",
+      "step4_title": "交付与审查",
+      "step4_desc": "接收完成的工作，审查代码质量，释放付款"
     },
 
     "roles": {
@@ -124,11 +147,28 @@
       "ai_analysis": "AI 分析",
       "ai_recommendations": "AI 推荐方案",
       "accept_proposal": "接受方案",
-      "modify_requirements": "修改需求"
+      "modify_requirements": "修改需求",
+      "budget": "预算",
+      "deadline": "截止日期",
+      "category": "分类",
+      "view_details": "查看详情",
+      "status": {
+        "draft": "草稿",
+        "active": "进行中",
+        "pending": "待分析",
+        "analyzing": "AI 分析中",
+        "awaiting_payment": "待支付",
+        "awaiting_architect": "待架构师",
+        "in_progress": "开发中",
+        "in_review": "审核中",
+        "completed": "已完成",
+        "cancelled": "已取消"
+      }
     },
 
     "project_status": {
       "draft": "草稿",
+      "active": "进行中",
       "pending": "待分析",
       "analyzing": "AI 分析中",
       "awaiting_payment": "待支付",
