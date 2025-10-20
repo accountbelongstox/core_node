@@ -248,7 +248,7 @@ class UnifiedResourceProcessor {
       const src = $(elem).attr('src');
       if (src) {
         try {
-          const srcUrl = new URL(src, baseUrl.href);
+          const srcUrl = new URL(src, baseUrl);
           const isInternal = this.domainContext.isInternalLink(srcUrl);
           if (!isInternal) {
             this.resourceMap.externalJs.add(srcUrl.href);
@@ -265,7 +265,7 @@ class UnifiedResourceProcessor {
       const href = $(elem).attr('href');
       if (href) {
         try {
-          const hrefUrl = new URL(href, baseUrl.href);
+          const hrefUrl = new URL(href, baseUrl);
           const isInternal = this.domainContext.isInternalLink(hrefUrl);
           if (!isInternal) {
             this.resourceMap.externalCss.add(hrefUrl.href);
@@ -302,7 +302,7 @@ class UnifiedResourceProcessor {
       const src = $(elem).attr('src');
       if (src && !src.startsWith('data:')) {
         try {
-          const srcUrl = new URL(src, baseUrl.href).href;
+          const srcUrl = new URL(src, baseUrl).href;
           const urlObj = new URL(srcUrl);
           const isInternal = this.domainContext.isInternalLink(urlObj);
           if (!isInternal) {
@@ -952,6 +952,7 @@ class UnifiedResourceProcessor {
 
       return absoluteUrl.toString();
     } catch (error) {
+      this.logger.warn(`Failed to resolve URL "${url}" with base "${baseUrl.href}": ${error.message}`);
       return null;
     }
   }
