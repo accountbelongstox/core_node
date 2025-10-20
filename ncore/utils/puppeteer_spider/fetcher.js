@@ -32,7 +32,7 @@ class PuppeteerSpiderFetcher {
       logger.info(`[DEBUG] Starting PuppeteerSpiderFetcher initialization`);
 
       const defaultConfig = {
-        headless: true,
+        headless: false,
         showImages: false,
         showStyle: false,
         mute: true,
@@ -44,6 +44,7 @@ class PuppeteerSpiderFetcher {
 
       const mergedConfig = { ...defaultConfig, ...config };
       logger.info(`[DEBUG] Config: ${JSON.stringify(mergedConfig)}`);
+      logger.info(`[DEBUG] Headless mode: ${mergedConfig.headless}`);
 
       logger.info(`[DEBUG] Creating Spider instance`);
       this.spider = new Spider(mergedConfig);
