@@ -292,18 +292,6 @@ class UnifiedResourceProcessor {
   }
 
   detectAndAddFavicon(baseUrlObj, resources) {
-    try {
-      const faviconUrl = baseUrlObj.href.replace(/\/$/, '') + '/favicon.ico';
-
-      if (!resources.externalImages) resources.externalImages = [];
-
-      if (!resources.externalImages.includes(faviconUrl)) {
-        this.resourceMap.externalImages.add(faviconUrl);
-        resources.externalImages.push(faviconUrl);
-      }
-    } catch (error) {
-      this.logger.warn(`Failed to detect favicon: ${error.message}`);
-    }
   }
 
   extractFontUrls(styleContent, baseUrl) {
@@ -446,6 +434,16 @@ class UnifiedResourceProcessor {
           const rewrittenCss = this.rewriteCss(result.content, url);
           await fs.promises.writeFile(result.path, rewrittenCss, 'utf8');
           this.logger.info(`[PROCESS-RESOURCES] Rewrote CSS: ${url}`);
+
+          const cssUrls = this.extractCssUrls(result.content, url);
+          for (const cssUrl of cssUrls) {
+            if (!this.downloaded.has(cssUrl)) {
+              const cssLocalPath = this.getLocalPathForUrl(cssUrl);
+              if (cssLocalPath && !downloadMap.has(cssUrl)) {
+                downloadMap.set(cssUrl, cssLocalPath);
+              }
+            }
+          }
         }
       } else if (!result.skipped) {
         this.logger.warn(`[PROCESS-RESOURCES] Failed to download: ${url}`);
@@ -593,47 +591,50 @@ class UnifiedResourceProcessor {
 
   rewriteCss(cssContent, currentUrl) {
     const currentUrlObj = new URL(currentUrl);
+    const currentLocalPath = this.getLocalPathForUrl(currentUrl);
+    const currentDir = currentLocalPath ? path.posix.dirname(currentLocalPath) : 'index.html';
+
+    const rewriteUrl = (url) => {
+      if (!url || url.startsWith('data:') || url.startsWith('#')) {
+        return url;
+      }
+
+      try {
+        const absoluteUrl = new URL(url, currentUrl);
+        const localPath = this.getLocalPathForUrl(absoluteUrl.href);
+
+        if (localPath) {
+          const relativePath = path.posix.relative(currentDir, localPath);
+          return relativePath.startsWith('..') ? relativePath : './' + relativePath;
+        }
+      } catch (e) {
+        this.logger.warn(`Failed to rewrite CSS URL: ${url}, error: ${e.message}`);
+      }
+
+      return url;
+    };
+
     let rewritten = cssContent;
 
     rewritten = rewritten.replace(this.urlPattern, (match, quote, url) => {
       const trimmedUrl = url.trim();
-      if (!trimmedUrl || trimmedUrl.startsWith('data:') || trimmedUrl.startsWith('#')) {
-        return match;
-      }
+      if (!trimmedUrl) return match;
 
-      try {
-        const absoluteUrl = new URL(trimmedUrl, currentUrlObj.href);
+      const rewrittenUrl = rewriteUrl(trimmedUrl);
+      if (rewrittenUrl === trimmedUrl) return match;
 
-        if (!this.domainContext.isInternalLink(absoluteUrl)) {
-          return match;
-        }
-
-        const relativePath = this.calculateRelativePath(currentUrlObj, absoluteUrl);
-        const q = quote || '';
-        return `url(${q}${relativePath}${q})`;
-      } catch (error) {
-        return match;
-      }
+      const q = quote || '';
+      return `url(${q}${rewrittenUrl}${q})`;
     });
 
     rewritten = rewritten.replace(this.importPattern, (match, quote, url) => {
       const trimmedUrl = url.trim();
-      if (!trimmedUrl || trimmedUrl.startsWith('data:')) {
-        return match;
-      }
+      if (!trimmedUrl) return match;
 
-      try {
-        const absoluteUrl = new URL(trimmedUrl, currentUrlObj.href);
+      const rewrittenUrl = rewriteUrl(trimmedUrl);
+      if (rewrittenUrl === trimmedUrl) return match;
 
-        if (!this.domainContext.isInternalLink(absoluteUrl)) {
-          return match;
-        }
-
-        const relativePath = this.calculateRelativePath(currentUrlObj, absoluteUrl);
-        return `@import ${quote}${relativePath}${quote}`;
-      } catch (error) {
-        return match;
-      }
+      return `@import ${quote}${rewrittenUrl}${quote}`;
     });
 
     return rewritten;
