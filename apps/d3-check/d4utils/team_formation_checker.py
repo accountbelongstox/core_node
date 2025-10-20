@@ -84,7 +84,14 @@ class TeamFormationChecker(D4OperationBase):
 
     def execute(self) -> bool:
         """
-        Execute team formation check
+        Execute team formation check and auto-formation if needed
+
+        Workflow:
+        1. Press 'O' to open team panel
+        2. Wait for next tick
+        3. OCR recognize "Find Team" region
+        4. If "寻找" detected (no team), trigger auto team formation
+        5. Otherwise, update status and close panel
 
         Returns:
             bool: True if check completed successfully
@@ -130,14 +137,37 @@ class TeamFormationChecker(D4OperationBase):
 
             if has_team:
                 ColorPrint.green(f"[TeamFormationChecker] ✓ Player HAS team (text: '{recognized_text}')")
+
+                # Step 6a: Close panel by pressing 'O' again
+                ColorPrint.blue("[TeamFormationChecker] Closing team panel")
+                self._press_key('o', delay=0.1)
+
+                return True
             else:
                 ColorPrint.yellow(f"[TeamFormationChecker] ✗ Player has NO team (text: '{recognized_text}')")
 
-            # Step 6: Close panel by pressing 'O' again
-            ColorPrint.blue("[TeamFormationChecker] Closing team panel")
-            self._press_key('o', delay=0.1)
+                # Step 6b: Trigger automatic team formation
+                ColorPrint.blue("[TeamFormationChecker] Triggering automatic team formation...")
 
-            return True
+                from d4utils.auto_team_formation import get_auto_team_formation
+                auto_team = get_auto_team_formation()
+
+                # Note: Panel is already open from step 1, no need to press 'O' again
+                # Execute auto team formation (which will handle all subsequent steps)
+                formation_result = auto_team.execute()
+
+                if formation_result:
+                    ColorPrint.green("[TeamFormationChecker] ✓ Auto team formation completed")
+                    # Update shared data - now has team
+                    self.d4_data.has_team = True
+                else:
+                    ColorPrint.yellow("[TeamFormationChecker] ⚠ Auto team formation failed")
+
+                # Close panel after auto formation
+                ColorPrint.blue("[TeamFormationChecker] Closing team panel")
+                self._press_key('o', delay=0.1)
+
+                return formation_result
 
         except Exception as e:
             ColorPrint.red(f"[TeamFormationChecker] Error executing check: {e}")

@@ -294,3 +294,187 @@ class D4OperationBase(ABC):
             import traceback
             traceback.print_exc()
             return False
+
+    # ============================================================================
+    # Extended Methods for Auto Team Formation
+    # ============================================================================
+
+    def _get_region_info(self, region_name: str) -> Optional[dict]:
+        """
+        Get region information from detected_regions
+
+        Args:
+            region_name: Region name (e.g., "Find Team")
+
+        Returns:
+            dict with 'coords' or None if not found
+        """
+        if not hasattr(self.d4_data, 'detected_regions') or not self.d4_data.detected_regions:
+            ColorPrint.yellow(f"[D4Operation] No detected_regions available")
+            return None
+
+        if 'region_coords' not in self.d4_data.detected_regions:
+            ColorPrint.yellow(f"[D4Operation] No region_coords in detected_regions")
+            return None
+
+        region_coords = self.d4_data.detected_regions['region_coords']
+        if region_name not in region_coords:
+            ColorPrint.yellow(f"[D4Operation] Region '{region_name}' not found")
+            return None
+
+        return {'coords': region_coords[region_name]}
+
+    def click_region_center_random(
+        self,
+        region_name: str,
+        margin: int = 5,
+        delay_ms: Tuple[int, int] = (100, 300)
+    ) -> bool:
+        """
+        Click random position near region center
+
+        Args:
+            region_name: Region name from detected_regions
+            margin: Random offset range in pixels
+            delay_ms: Delay range in milliseconds (min, max)
+
+        Returns:
+            bool: True if successful
+        """
+        try:
+            # Get region info
+            region_info = self._get_region_info(region_name)
+            if not region_info:
+                return False
+
+            coords = region_info['coords']
+            x1, y1, x2, y2 = coords
+
+            # Calculate center
+            center_x = (x1 + x2) // 2
+            center_y = (y1 + y2) // 2
+
+            # Add random offset
+            offset_x = random.randint(-margin, margin)
+            offset_y = random.randint(-margin, margin)
+
+            target_x = center_x + offset_x
+            target_y = center_y + offset_y
+
+            ColorPrint.blue(f"[D4Operation] Clicking region '{region_name}' at ({target_x}, {target_y})")
+
+            # Click
+            point = (target_x, target_y)
+            if not self._click_point(point, use_standard_resolution=False):
+                return False
+
+            # Random delay
+            delay_seconds = random.uniform(delay_ms[0], delay_ms[1]) / 1000.0
+            time.sleep(delay_seconds)
+
+            ColorPrint.green(f"[D4Operation] ✓ Region clicked")
+            return True
+
+        except Exception as e:
+            ColorPrint.red(f"[D4Operation] Error clicking region '{region_name}': {e}")
+            return False
+
+    def type_text(
+        self,
+        text: str,
+        char_delay_ms: Tuple[int, int] = (50, 100)
+    ) -> bool:
+        """
+        Type text character by character with random delay
+
+        Args:
+            text: Text to type
+            char_delay_ms: Delay range between characters (ms)
+
+        Returns:
+            bool: True if successful
+        """
+        try:
+            ColorPrint.blue(f"[D4Operation] Typing text: '{text}'")
+
+            for char in text:
+                pyautogui.write(char)
+                delay_seconds = random.uniform(char_delay_ms[0], char_delay_ms[1]) / 1000.0
+                time.sleep(delay_seconds)
+
+            ColorPrint.green(f"[D4Operation] ✓ Text typed")
+            return True
+
+        except Exception as e:
+            ColorPrint.red(f"[D4Operation] Error typing text: {e}")
+            return False
+
+    def type_number(
+        self,
+        number: int,
+        char_delay_ms: Tuple[int, int] = (50, 100)
+    ) -> bool:
+        """
+        Type number
+
+        Args:
+            number: Number to type
+            char_delay_ms: Delay range between characters (ms)
+
+        Returns:
+            bool: True if successful
+        """
+        return self.type_text(str(number), char_delay_ms)
+
+    def calculate_region_row_point(
+        self,
+        region_name: str,
+        total_rows: int,
+        target_row: int,
+        random_offset: int = 5
+    ) -> Optional[Tuple[int, int]]:
+        """
+        Calculate click point for a specific row in a region
+
+        Args:
+            region_name: Region name
+            total_rows: Total number of rows in region
+            target_row: Target row number (1-based)
+            random_offset: Random offset in pixels
+
+        Returns:
+            (x, y) coordinate or None
+        """
+        try:
+            # Get region info
+            region_info = self._get_region_info(region_name)
+            if not region_info:
+                return None
+
+            coords = region_info['coords']
+            x1, y1, x2, y2 = coords
+
+            # Calculate row height
+            region_height = y2 - y1
+            row_height = region_height / total_rows
+
+            # Calculate target row center Y coordinate
+            # Row 1 is at the top, so: y = y1 + (row_number - 0.5) * row_height
+            target_y = y1 + (target_row - 0.5) * row_height
+
+            # Calculate center X
+            center_x = (x1 + x2) // 2
+
+            # Add random offset
+            offset_x = random.randint(-random_offset, random_offset)
+            offset_y = random.randint(-random_offset, random_offset)
+
+            result_x = int(center_x + offset_x)
+            result_y = int(target_y + offset_y)
+
+            ColorPrint.blue(f"[D4Operation] Calculated row {target_row}/{total_rows} point: ({result_x}, {result_y})")
+            return (result_x, result_y)
+
+        except Exception as e:
+            ColorPrint.red(f"[D4Operation] Error calculating row point: {e}")
+            return None
