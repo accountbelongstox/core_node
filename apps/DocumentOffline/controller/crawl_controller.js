@@ -363,6 +363,9 @@ class CrawlController {
     const screenshotPath = path.join(this.screenshotsDir, screenshotName);
 
     try {
+      const screenshotDir = path.dirname(screenshotPath);
+      this.ensureDirectory(screenshotDir);
+
       await this.fetcher.takeScreenshot(screenshotPath, {
         fullPage: true,
         quality: 80
