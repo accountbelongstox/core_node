@@ -33,7 +33,12 @@ class UnifiedResourceProcessor {
       fonts: new Set(),
       media: new Set(),
       backgroundImages: new Set(),
-      httpsImages: new Set()
+      httpsImages: new Set(),
+      externalCss: new Set(),
+      externalJs: new Set(),
+      externalImages: new Set(),
+      externalFonts: new Set(),
+      externalMedia: new Set()
     };
     this.downloaded = new Set();
     this.processedUrls = new Set();
@@ -46,6 +51,8 @@ class UnifiedResourceProcessor {
       this.extractBackgroundImages(html, baseUrl, resources);
       this.extractHttpsImages(html, baseUrl, resources);
     }
+
+    this.extractExternalResources(html, baseUrl, resources);
 
     return resources;
   }
@@ -203,6 +210,88 @@ class UnifiedResourceProcessor {
     }
 
     resources.images = Array.from(imagesSet);
+  }
+
+  extractExternalResources(html, baseUrl, resources) {
+    const baseUrlObj = new URL(baseUrl);
+    const $ = cheerio.load(html, { decodeEntities: false });
+
+    $('script[src]').each((i, elem) => {
+      const src = $(elem).attr('src');
+      if (src && !this.domainContext.isInternalLink(new URL(src, baseUrl.href))) {
+        this.resourceMap.externalJs.add(src);
+        if (!resources.externalJs) resources.externalJs = [];
+        resources.externalJs.push(src);
+      }
+    });
+
+    $('link[rel="stylesheet"]').each((i, elem) => {
+      const href = $(elem).attr('href');
+      if (href && !this.domainContext.isInternalLink(new URL(href, baseUrl.href))) {
+        this.resourceMap.externalCss.add(href);
+        if (!resources.externalCss) resources.externalCss = [];
+        resources.externalCss.push(href);
+      }
+    });
+
+    $('[style]').each((i, elem) => {
+      const style = $(elem).attr('style');
+      if (style) {
+        const fontUrls = this.extractFontUrls(style, baseUrlObj);
+        fontUrls.forEach(url => {
+          if (!this.domainContext.isInternalLink(new URL(url, baseUrl.href))) {
+            this.resourceMap.externalFonts.add(url);
+            if (!resources.externalFonts) resources.externalFonts = [];
+            resources.externalFonts.push(url);
+          }
+        });
+      }
+    });
+
+    $('img[src]').each((i, elem) => {
+      const src = $(elem).attr('src');
+      if (src && !src.startsWith('data:')) {
+        try {
+          const srcUrl = new URL(src, baseUrl.href).href;
+          if (!this.domainContext.isInternalLink(new URL(srcUrl))) {
+            this.resourceMap.externalImages.add(srcUrl);
+            if (!resources.externalImages) resources.externalImages = [];
+            resources.externalImages.push(srcUrl);
+          }
+        } catch (e) {}
+      }
+    });
+
+    this.detectAndAddFavicon(baseUrlObj, resources);
+  }
+
+  detectAndAddFavicon(baseUrlObj, resources) {
+    const faviconUrl = baseUrlObj.href.replace(/\/$/, '') + '/favicon.ico';
+
+    if (!resources.externalImages) resources.externalImages = [];
+
+    if (!resources.externalImages.includes(faviconUrl)) {
+      this.resourceMap.externalImages.add(faviconUrl);
+      resources.externalImages.push(faviconUrl);
+    }
+  }
+
+  extractFontUrls(styleContent, baseUrl) {
+    const urls = [];
+    const fontPattern = /url\s*\(\s*['"]?([^'")\s]+\.(?:woff2?|ttf|otf|eot))['"]?\s*\)/gi;
+    let match;
+
+    while ((match = fontPattern.exec(styleContent)) !== null) {
+      const url = match[1].trim();
+      if (url) {
+        try {
+          const absoluteUrl = new URL(url, baseUrl.href);
+          urls.push(absoluteUrl.toString());
+        } catch (error) {}
+      }
+    }
+
+    return urls;
   }
 
   extractInlineStyleUrls(styleContent, baseUrl) {
@@ -392,9 +481,21 @@ class UnifiedResourceProcessor {
 
     try {
       const absoluteUrl = new URL(url, currentUrlObj.href);
+      const isInternal = this.domainContext.isInternalLink(absoluteUrl);
 
-      if (!this.domainContext.isInternalLink(absoluteUrl)) {
-        return url;
+      if (!isInternal) {
+        const domain = absoluteUrl.hostname;
+        const pathname = absoluteUrl.pathname;
+        const localPath = path.posix.join('src', domain, pathname);
+
+        const fromDir = path.posix.dirname(this.getLocalPathForUrl(currentUrlObj.href));
+        const relativePath = path.posix.relative(fromDir, localPath);
+
+        if (relativePath.startsWith('../')) {
+          return relativePath;
+        }
+
+        return relativePath || './';
       }
 
       const relativePath = this.calculateRelativePath(currentUrlObj, absoluteUrl);
@@ -424,13 +525,36 @@ class UnifiedResourceProcessor {
     return relativePath || './';
   }
 
+  getLocalPathForUrl(url) {
+    try {
+      const urlObj = new URL(url);
+      const isInternal = this.domainContext.isInternalLink(urlObj);
+
+      if (isInternal) {
+        return this.fileMapper.mapPath(urlObj);
+      } else {
+        const domain = urlObj.hostname;
+        const pathname = urlObj.pathname;
+        const localPath = path.posix.join('src', domain, pathname);
+        return localPath;
+      }
+    } catch (error) {
+      return null;
+    }
+  }
+
   async downloadResources(resources, baseDir) {
     const allUrls = [
       ...resources.css,
       ...resources.js,
       ...resources.images,
       ...resources.fonts,
-      ...resources.media
+      ...resources.media,
+      ...(resources.externalCss || []),
+      ...(resources.externalJs || []),
+      ...(resources.externalImages || []),
+      ...(resources.externalFonts || []),
+      ...(resources.externalMedia || [])
     ];
 
     if (allUrls.length === 0) {
@@ -470,8 +594,11 @@ class UnifiedResourceProcessor {
     }
 
     try {
-      const urlObj = new URL(url);
-      const relativePath = this.fileMapper.mapPath(urlObj);
+      const relativePath = this.getLocalPathForUrl(url);
+      if (!relativePath) {
+        return { success: false, error: 'invalid_url' };
+      }
+
       const finalPath = path.join(baseDir, relativePath);
 
       if (fs.existsSync(finalPath)) {
@@ -627,7 +754,12 @@ class UnifiedResourceProcessor {
       fonts: new Set(),
       media: new Set(),
       backgroundImages: new Set(),
-      httpsImages: new Set()
+      httpsImages: new Set(),
+      externalCss: new Set(),
+      externalJs: new Set(),
+      externalImages: new Set(),
+      externalFonts: new Set(),
+      externalMedia: new Set()
     };
     this.downloaded.clear();
     this.processedUrls.clear();
