@@ -29,6 +29,13 @@ class CoordinateCalibrationPanel:
     Handles coordinate picking and analysis for game windows
     """
 
+    # Window title mappings for different client types
+    WINDOW_TITLES_MAP = {
+        'battlenet': ['Battle.net Launcher', 'Battle.net', 'Blizzard Launcher'],  # Battle.net launcher UI
+        'd3_game': ['Diablo III', 'Diablo 3', 'D3'],  # D3 game window
+        'd4_game': ['Diablo IV', 'Diablo 4', 'D4']  # D4 game window
+    }
+
     def __init__(self, parent):
         """Initialize coordinate calibration panel"""
         self.parent = parent
@@ -36,7 +43,7 @@ class CoordinateCalibrationPanel:
         self.screenshot = None
         self.screenshot_path = None
         self.pick_history: List[Dict] = []
-        self.current_game_type = 'd3'  # D3 or D4 game window type
+        self.current_client_type = 'battlenet'  # battlenet, d3_game, or d4_game
         self.should_save_screenshot = True
         self.should_compress_screenshot = False
         self.popup_window = None
@@ -69,28 +76,42 @@ class CoordinateCalibrationPanel:
         control_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, UnifiedStyles.SPACING['md']))
         control_frame.grid_columnconfigure(1, weight=1)
 
-        # Game type selection (only one selector for D3 or D4)
-        mode_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        mode_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
+        # Client type selection - Three independent clients
+        client_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        client_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
 
-        mode_label = tk.Label(
-            mode_frame,
-            text=i18n_manager.get_ui_text("ui.coord_calibration.game_mode"),
+        client_label = tk.Label(
+            client_frame,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.client_type"),
             bg=UnifiedStyles.COLORS['bg_secondary'],
             fg=UnifiedStyles.COLORS['text_primary'],
             font=UnifiedStyles.FONTS['label']
         )
-        mode_label.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
+        client_label.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
 
-        mode_var = tk.StringVar(value='d3')
-        self.vars['game_mode'] = mode_var
+        client_var = tk.StringVar(value='battlenet')
+        self.vars['client_type'] = client_var
 
-        for mode in ['d3', 'd4']:
+        def on_client_type_change(*args):
+            """Update current_client_type when selection changes"""
+            self.current_client_type = client_var.get()
+            ColorPrint.blue(f"[COORD_CALIBRATION] Client type changed to: {self.current_client_type}")
+
+        client_var.trace('w', on_client_type_change)
+
+        # Three independent client options
+        client_types = [
+            ('battlenet', i18n_manager.get_ui_text("ui.coord_calibration.client_battlenet")),
+            ('d3_game', i18n_manager.get_ui_text("ui.coord_calibration.client_d3_game")),
+            ('d4_game', i18n_manager.get_ui_text("ui.coord_calibration.client_d4_game"))
+        ]
+
+        for type_value, type_label in client_types:
             rb = tk.Radiobutton(
-                mode_frame,
-                text=mode.upper(),
-                variable=mode_var,
-                value=mode,
+                client_frame,
+                text=type_label,
+                variable=client_var,
+                value=type_value,
                 bg=UnifiedStyles.COLORS['bg_secondary'],
                 fg=UnifiedStyles.COLORS['text_primary'],
                 activebackground=UnifiedStyles.COLORS['bg_tertiary'],
@@ -242,42 +263,49 @@ class CoordinateCalibrationPanel:
         )
 
     def _on_capture_screenshot(self):
-        """Capture screenshot from game window"""
-        ColorPrint.blue("[COORD_CALIBRATION] Capturing screenshot...")
+        """Capture screenshot from game window based on selected client type"""
+        ColorPrint.blue(f"[COORD_CALIBRATION] Capturing screenshot for client: {self.current_client_type}...")
 
         try:
+            # Get window titles for the selected client type
+            window_titles = self.WINDOW_TITLES_MAP.get(self.current_client_type, self.WINDOW_TITLES_MAP['battlenet'])
+            ColorPrint.blue(f"[COORD_CALIBRATION] Looking for windows: {window_titles}")
+
+            # Use WindowScreenshot to capture the window
             ws = WindowScreenshot()
 
-            if not ws.get_game_window():
+            # Use the capture_first_window_by_titles method to capture the window
+            result = ws.screenshot_first_window_by_titles(
+                titles=window_titles,
+                filename_prefix=f"calibration_{self.current_client_type}",
+                use_cache=True
+            )
+
+            if not result or not result.get('screenshot_path'):
                 messagebox.showwarning(
                     i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
                     i18n_manager.get_ui_text("ui.coord_calibration.no_game_window")
                 )
+                ColorPrint.yellow(f"[COORD_CALIBRATION] Could not find window matching: {window_titles}")
                 return
 
-            screenshot = ws.take_screenshot()
-            if screenshot is None:
-                messagebox.showerror(
-                    i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
-                    i18n_manager.get_ui_text("ui.coord_calibration.capture_failed")
-                )
-                return
+            # Load the screenshot from the saved file path
+            from PIL import Image
+            screenshot_path = result['screenshot_path']
+            self.screenshot = Image.open(screenshot_path)
+            self.screenshot_path = screenshot_path
 
-            self.screenshot = screenshot
-
-            if self.vars['save_screenshot'].get():
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                screenshots_dir = Path(__file__).parent.parent.parent / "screenshots" / "calibration"
-                screenshots_dir.mkdir(parents=True, exist_ok=True)
-
-                self.screenshot_path = screenshots_dir / f"calibration_{timestamp}.png"
-                screenshot.save(str(self.screenshot_path))
-                ColorPrint.green(f"[COORD_CALIBRATION] Screenshot saved to {self.screenshot_path}")
+            ColorPrint.green(f"[COORD_CALIBRATION] Screenshot captured successfully")
+            ColorPrint.blue(f"[COORD_CALIBRATION] Window: {result.get('window_title', 'unknown')}")
+            ColorPrint.blue(f"[COORD_CALIBRATION] Window offset: {result.get('window_offset', 'N/A')}")
+            ColorPrint.blue(f"[COORD_CALIBRATION] Window size: {result.get('window_size', 'N/A')}")
 
             self._open_calibration_window()
 
         except Exception as e:
             ColorPrint.red(f"[COORD_CALIBRATION] Error capturing screenshot: {e}")
+            import traceback
+            traceback.print_exc()
             messagebox.showerror(
                 i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
                 f"{i18n_manager.get_ui_text('ui.coord_calibration.error_prefix')}: {str(e)}"
@@ -291,10 +319,9 @@ class CoordinateCalibrationPanel:
         from ..components.coordinate_picker_window import CoordinatePicker
         self.popup_window = CoordinatePicker(
             screenshot=self.screenshot,
-            game_mode=self.vars['game_mode'].get(),
             on_picks_updated=self._on_picks_updated,
             parent=self.parent,
-            client_mode=self.vars['client_mode'].get()
+            client_type=self.current_client_type
         )
 
     def _on_picks_updated(self, picks: List[Dict]):

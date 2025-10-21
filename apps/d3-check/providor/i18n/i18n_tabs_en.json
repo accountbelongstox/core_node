@@ -31,9 +31,9 @@
       "export_failed": "Export failed",
       "rename_title": "Rename Item",
       "new_name": "New name:",
-      "client_battlenet": "Battle.net",
-      "client_d3": "D3 Game",
-      "client_d4": "D4 Game"
+      "client_battlenet": "Battle.net Client",
+      "client_d3_game": "D3 Game",
+      "client_d4_game": "D4 Game"
     },
     "coord_picker": {
       "window_title": "Coordinate Calibration Tool",

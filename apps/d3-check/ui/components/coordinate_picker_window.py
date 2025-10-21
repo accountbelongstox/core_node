@@ -652,7 +652,7 @@ class CoordinatePicker:
                     return
 
                 self.template_matcher.set_image(self.original_screenshot.copy())
-                if self.template_matcher.match_templates(self.game_mode):
+                if self.template_matcher.match_templates(self.client_var.get()):
                     self.template_matcher.draw_matches_on_image()
                     self._update_canvas_display()
                     ColorPrint.green(f"[COORD_PICKER] Templates matched and drawn with modes: {self.template_matcher.match_modes}")
