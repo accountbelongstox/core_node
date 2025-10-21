@@ -26,26 +26,38 @@ nuxt_main/
 │   │       └── admin-theme.ts
 │   ├── app_codemart/
 │   │   ├── components_app_codemart/
+│   │   │   ├── registration/
+│   │   │   │   ├── RegistrationStepComplete.vue
+│   │   │   │   ├── RegistrationStepEmailVerify.vue
+│   │   │   │   ├── RegistrationStepKycVerify.vue
+│   │   │   │   ├── RegistrationStepPayment.vue
+│   │   │   │   ├── RegistrationStepPhoneVerify.vue
+│   │   │   │   └── RegistrationStepRegister.vue
 │   │   │   ├── CodeMartCustomerService.vue
 │   │   │   ├── CodeMartDeveloperCard.vue
 │   │   │   ├── CodeMartFooter.vue
 │   │   │   ├── CodeMartHeader.vue
 │   │   │   ├── CodeMartProjectCard.vue
+│   │   │   ├── CodeMartRegistrationForm.vue
 │   │   │   ├── CodeMartTaskCard.vue
 │   │   │   ├── CodemartSidebar.vue
 │   │   │   └── index.ts
 │   │   ├── composables_app_codemart/
 │   │   │   ├── index.ts
+│   │   │   ├── use-async-operation.ts
 │   │   │   ├── use-codemart-payment.ts
 │   │   │   ├── use-codemart-project.ts
 │   │   │   ├── use-codemart-task.ts
-│   │   │   └── use-codemart-user.ts
+│   │   │   ├── use-codemart-user.ts
+│   │   │   ├── use-data-list.ts
+│   │   │   └── use-registration.ts
 │   │   ├── config_app_codemart/
 │   │   │   └── app-config.ts
 │   │   ├── constants_app_codemart/
 │   │   │   └── codemart-constants.ts
 │   │   ├── layouts_app_codemart/
-│   │   │   └── default.vue
+│   │   │   ├── default.vue
+│   │   │   └── homepage.vue
 │   │   ├── locales_app_codemart/
 │   │   │   ├── en.json
 │   │   │   └── zh.json
@@ -67,6 +79,13 @@ nuxt_main/
 │   │   ├── router_app_codemart/
 │   │   │   └── routes.ts
 │   │   ├── services_app_codemart/
+│   │   │   ├── auth-api.ts
+│   │   │   ├── codemart-api-base.ts
+│   │   │   ├── index.ts
+│   │   │   ├── payment-api.ts
+│   │   │   ├── project-api.ts
+│   │   │   ├── task-api.ts
+│   │   │   └── user-api.ts
 │   │   ├── stores_app_codemart/
 │   │   │   └── codemart-store.ts
 │   │   ├── styles_app_codemart/
@@ -75,6 +94,9 @@ nuxt_main/
 │   │   │   └── codemart-theme.ts
 │   │   ├── types_app_codemart/
 │   │   │   └── index.ts
+│   │   ├── utils/
+│   │   │   └── formatter.ts
+│   │   ├── INTEGRATION_GUIDE.md
 │   │   └── README.md
 │   ├── app_dashboard/
 │   │   ├── components_app_dashboard/
@@ -184,6 +206,29 @@ nuxt_main/
 │   │   ├── styles_app_example/
 │   │   └── theme_app_example/
 │   │       └── example-theme.ts
+│   ├── app_ittools/
+│   │   ├── components_app_ittools/
+│   │   ├── composables_app_ittools/
+│   │   │   └── useItTools.ts
+│   │   ├── config_app_ittools/
+│   │   │   └── index.ts
+│   │   ├── constants_app_ittools/
+│   │   │   └── tools.ts
+│   │   ├── layouts_app_ittools/
+│   │   ├── locales_app_ittools/
+│   │   ├── pages_app_ittools/
+│   │   │   └── index.vue
+│   │   ├── router_app_ittools/
+│   │   ├── services_app_ittools/
+│   │   │   └── ittools-main-api.ts
+│   │   ├── stores_app_ittools/
+│   │   │   └── ittools-store.ts
+│   │   ├── styles_app_ittools/
+│   │   ├── theme_app_ittools/
+│   │   │   └── colors.ts
+│   │   ├── types_app_ittools/
+│   │   │   └── index.ts
+│   │   └── app-config.json
 │   └── app_main/
 │       ├── components_app_main/
 │       ├── composables_app_main/
@@ -833,6 +878,7 @@ nuxt_main/
 │   └── vite.svg
 ├── scripts/
 │   ├── functions/
+│   │   ├── AppScanner.ps1
 │   │   ├── ErrorHandler.ps1
 │   │   ├── GvarExchange.ps1
 │   │   ├── InteractiveMenu.ps1
@@ -904,6 +950,7 @@ nuxt_main/
 ├── IMPLEMENTATION_PHASES.txt
 ├── MIGRATION_FINAL_REPORT.txt
 ├── README.md
+├── SCRIPT_AUTO_DISCOVERY_DESIGN.md
 ├── app-entry.ts
 ├── app-setting.ts
 ├── env.example

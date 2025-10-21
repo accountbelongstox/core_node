@@ -11,8 +11,14 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Menu Configuration for Nuxt Main Apps
+# Automatically discovers applications from apps/ directory with support for manual overrides
 
-$script:AppConfigs = @{
+$script:AppConfigs = $null
+$script:IsAutoDiscoveryEnabled = $true
+$script:AppsDirectory = $null
+
+# Hardcoded fallback configuration (used only if auto-discovery fails)
+$script:FallbackAppConfigs = @{
     "example" = @{
         Name = "example"
         DisplayName = "Example App"
@@ -50,7 +56,37 @@ $script:AppConfigs = @{
     }
 }
 
+function Initialize-AppConfigs {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AppDirectory
+    )
+
+    $script:AppsDirectory = Join-Path $AppDirectory "apps"
+
+    if (Test-Path $script:AppsDirectory -PathType Container) {
+        try {
+            $script:AppConfigs = Build-ApplicationConfigs -AppsDirectory $script:AppsDirectory -BasePort 3000
+            if ($script:AppConfigs.Count -gt 0) {
+                Log-DiscoveredApplications -AppConfigs $script:AppConfigs
+                return $true
+            }
+        }
+        catch {
+            Write-Host "[WARNING] Auto-discovery failed: $_" -ForegroundColor Yellow
+        }
+    }
+
+    Write-Host "[INFO] Falling back to hardcoded application configuration" -ForegroundColor Yellow
+    $script:AppConfigs = $script:FallbackAppConfigs
+    return $false
+}
+
 function Get-AppConfigs {
+    if ($null -eq $script:AppConfigs) {
+        Write-Host "[WARNING] AppConfigs not initialized. Returning fallback configuration." -ForegroundColor Yellow
+        return $script:FallbackAppConfigs
+    }
     return $script:AppConfigs
 }
 
@@ -59,5 +95,11 @@ function Get-AppConfig {
         [Parameter(Mandatory = $true)]
         [string]$AppName
     )
-    return $script:AppConfigs[$AppName]
+
+    $configs = Get-AppConfigs
+    if ($configs.ContainsKey($AppName)) {
+        return $configs[$AppName]
+    }
+
+    return $null
 }

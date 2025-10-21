@@ -18,7 +18,8 @@
       "auxiliary_functions": "Auxiliary Functions",
       "log": "Log",
       "rosbot_extension": "Rosbot Extension",
-      "d4_functions": "D4 Functions"
+      "d4_functions": "D4 Functions",
+      "coordinate_calibration": "Coordinate Calibration"
     },
     "macro_controls": {
       "start_macro": "Start Macro",

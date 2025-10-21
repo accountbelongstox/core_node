@@ -18,6 +18,7 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FUNCTIONS_DIR = Join-Path $SCRIPT_DIR "functions"
 $APP_DIR = Split-Path -Parent $SCRIPT_DIR
 
+. (Join-Path $FUNCTIONS_DIR "AppScanner.ps1")
 . (Join-Path $FUNCTIONS_DIR "MenuConfig.ps1")
 . (Join-Path $FUNCTIONS_DIR "MenuState.ps1")
 . (Join-Path $FUNCTIONS_DIR "InteractiveMenu.ps1")
@@ -29,6 +30,7 @@ Set-Location $APP_DIR
 
 Test-Prerequisites -AppDirectory $APP_DIR
 
+Initialize-AppConfigs -AppDirectory $APP_DIR
 $appConfigs = Get-AppConfigs
 $menuItems = @()
 

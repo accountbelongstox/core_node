@@ -8,7 +8,7 @@ Unified template matching interface for the entire application
 Workflow:
 1. Get actual game window size from screenshot_provider
 2. Calculate scale factors: actual_size / STANDARD_RESOLUTION
-3. Auto-scale templates from TEMPLATE_CONFIGS based on scale factors
+3. Auto-scale templates from D3_TEMPLATE_CONFIGS based on scale factors
 4. Cache scaled templates in memory for performance
 5. Call image_matcher with scaled templates
 6. Return results
@@ -19,7 +19,7 @@ Usage:
     matcher = ScaledTemplateMatcher()
     result = matcher.match_template(
         target_image=game_window_image,  # PIL Image or path
-        template_name="bag_left",        # Name from TEMPLATE_CONFIGS
+        template_name="bag_left",        # Name from D3_TEMPLATE_CONFIGS
         output_dir=None                  # Optional output directory
     )
 """
@@ -40,8 +40,9 @@ sys.path.insert(0, project_root)
 
 from providor.common_imports import ColorPrint, ImageMatcher
 from providor.providor_index import (
-    TEMPLATE_CONFIGS,
-    D4_TEMPLATE_CONFIGS,
+    D3_D3_TEMPLATE_CONFIGS,
+    D4_D3_TEMPLATE_CONFIGS,
+    BATTLENET_D3_TEMPLATE_CONFIGS,
     STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
     STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
     SCALED_TEMPLATES_CACHE_DIR,
@@ -69,7 +70,7 @@ class ScaledTemplateMatcher:
     - Intelligent threshold conversion between match methods (via get_adjusted_threshold)
 
     Threshold Management:
-    - Each template in TEMPLATE_CONFIGS has a threshold designed for its match_method
+    - Each template in D3_TEMPLATE_CONFIGS has a threshold designed for its match_method
     - Use get_template_threshold() for standard operation (recommended)
     - Use get_adjusted_threshold(template_name, override_method) when changing match methods at runtime
     """
@@ -79,7 +80,7 @@ class ScaledTemplateMatcher:
         Initialize scaled template matcher
         
         Args:
-            use_d4_templates: If True, use D4_TEMPLATE_CONFIGS; otherwise use TEMPLATE_CONFIGS
+            use_d4_templates: If True, use D4_D3_TEMPLATE_CONFIGS; otherwise use D3_TEMPLATE_CONFIGS
         """
         # Create ImageMatcher instances for different feature detectors
         # We'll create them on-demand to save memory
@@ -95,7 +96,7 @@ class ScaledTemplateMatcher:
         
         # Select template config based on game type
         self.use_d4_templates = use_d4_templates
-        self.template_configs = D4_TEMPLATE_CONFIGS if use_d4_templates else TEMPLATE_CONFIGS
+        self.template_configs = D4_D3_TEMPLATE_CONFIGS if use_d4_templates else D3_TEMPLATE_CONFIGS
 
         ColorPrint.green(f"[ScaledTemplateMatcher] Initialized (D4 mode: {use_d4_templates})")
 
@@ -206,7 +207,7 @@ class ScaledTemplateMatcher:
         Load original template image from disk (cached)
 
         Args:
-            template_name: Template name from TEMPLATE_CONFIGS or D4_TEMPLATE_CONFIGS
+            template_name: Template name from D3_TEMPLATE_CONFIGS or D4_D3_TEMPLATE_CONFIGS
 
         Returns:
             Original template as numpy array (BGR or BGRA) or None if failed
@@ -266,7 +267,7 @@ class ScaledTemplateMatcher:
         Get scaled template image data in memory (creates if not cached)
 
         Args:
-            template_name: Template name from TEMPLATE_CONFIGS
+            template_name: Template name from D3_TEMPLATE_CONFIGS
             scale_x: X scale factor
             scale_y: Y scale factor
             force_refresh: Force re-scaling even if cached
@@ -334,7 +335,7 @@ class ScaledTemplateMatcher:
 
         Args:
             target_image: Target image (path, PIL Image, or numpy array)
-            template_name: Template name from TEMPLATE_CONFIGS
+            template_name: Template name from D3_TEMPLATE_CONFIGS
             output_dir: Optional output directory for debug images
             force_refresh_scale: Force re-scaling template even if cached
 
@@ -437,7 +438,7 @@ class ScaledTemplateMatcher:
 
         Args:
             target_image: Target image (path, PIL Image, or numpy array)
-            template_names: List of template names from TEMPLATE_CONFIGS
+            template_names: List of template names from D3_TEMPLATE_CONFIGS
             output_dir: Optional output directory for debug images
             force_refresh_scale: Force re-scaling templates even if cached
 
@@ -528,7 +529,7 @@ class ScaledTemplateMatcher:
 
         Args:
             target_image: Target region image (path, PIL Image, or numpy array)
-            template_name: Template name from TEMPLATE_CONFIGS
+            template_name: Template name from D3_TEMPLATE_CONFIGS
             output_dir: Optional output directory for debug images
 
         Returns:
