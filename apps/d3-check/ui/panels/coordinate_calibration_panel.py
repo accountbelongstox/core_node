@@ -1,0 +1,484 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Coordinate Calibration Panel (TABLE5) - Unified Style Version
+Contains coordinate picking and calibration tools for game window analysis
+"""
+
+import tkinter as tk
+from tkinter import ttk, messagebox
+import sys
+import os
+from typing import Optional, Callable, List, Dict
+from pathlib import Path
+import json
+from datetime import datetime
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from providor.common_imports import ColorPrint, WindowScreenshot, ClickHandler, ImageAnnotator, ENCYCLOPEDIA
+from providor.providor_index import CONFIG, save_config
+from ..unified_styles import UnifiedStyles
+from d3utils.i18n_manager import i18n_manager
+from ui.utils.config_binding import ConfigBinding
+
+
+class CoordinateCalibrationPanel:
+    """
+    Coordinate Calibration Panel for TABLE5
+    Handles coordinate picking and analysis for game windows
+    """
+
+    def __init__(self, parent):
+        """Initialize coordinate calibration panel"""
+        self.parent = parent
+        self.vars = {}
+        self.screenshot = None
+        self.screenshot_path = None
+        self.pick_history: List[Dict] = []
+        self.current_game_mode = 'd3'
+        self.current_client_mode = 'battlenet'
+        self.should_save_screenshot = True
+        self.should_compress_screenshot = False
+        self.popup_window = None
+
+        self.style = UnifiedStyles.configure_ttk_styles()
+
+        self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
+        self.container.pack(fill=tk.BOTH, expand=True,
+                           padx=UnifiedStyles.SPACING['md'],
+                           pady=UnifiedStyles.SPACING['md'])
+
+        self.container.grid_columnconfigure(0, weight=1)
+        self.container.grid_rowconfigure(0, weight=0)
+        self.container.grid_rowconfigure(1, weight=1)
+
+        self.create_content()
+
+    def create_content(self):
+        """Create panel content"""
+        self._create_control_panel()
+        self._create_history_panel()
+
+    def _create_control_panel(self):
+        """Create control panel with settings"""
+        control_frame = ttk.LabelFrame(
+            self.container,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.control_title"),
+            style='TLabelframe'
+        )
+        control_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, UnifiedStyles.SPACING['md']))
+        control_frame.grid_columnconfigure(1, weight=1)
+
+        # Game mode selection
+        mode_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        mode_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
+
+        mode_label = tk.Label(
+            mode_frame,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.game_mode"),
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['label']
+        )
+        mode_label.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
+
+        mode_var = tk.StringVar(value='d3')
+        self.vars['game_mode'] = mode_var
+
+        for mode in ['d3', 'd4']:
+            rb = tk.Radiobutton(
+                mode_frame,
+                text=mode.upper(),
+                variable=mode_var,
+                value=mode,
+                bg=UnifiedStyles.COLORS['bg_secondary'],
+                fg=UnifiedStyles.COLORS['text_primary'],
+                activebackground=UnifiedStyles.COLORS['bg_tertiary'],
+                activeforeground=UnifiedStyles.COLORS['text_primary'],
+                selectcolor=UnifiedStyles.COLORS['accent'],
+                font=UnifiedStyles.FONTS['label']
+            )
+            rb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
+
+        # Client mode selection
+        client_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        client_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
+
+        client_label = tk.Label(
+            client_frame,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.client_mode"),
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['label']
+        )
+        client_label.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
+
+        client_var = tk.StringVar(value='battlenet')
+        self.vars['client_mode'] = client_var
+
+        # Three client mode options: Battle.net, D3, D4
+        client_modes = [
+            ('battlenet', i18n_manager.get_ui_text("ui.coord_calibration.client_battlenet")),
+            ('d3', i18n_manager.get_ui_text("ui.coord_calibration.client_d3")),
+            ('d4', i18n_manager.get_ui_text("ui.coord_calibration.client_d4"))
+        ]
+
+        for mode_value, mode_label in client_modes:
+            rb = tk.Radiobutton(
+                client_frame,
+                text=mode_label,
+                variable=client_var,
+                value=mode_value,
+                bg=UnifiedStyles.COLORS['bg_secondary'],
+                fg=UnifiedStyles.COLORS['text_primary'],
+                activebackground=UnifiedStyles.COLORS['bg_tertiary'],
+                activeforeground=UnifiedStyles.COLORS['text_primary'],
+                selectcolor=UnifiedStyles.COLORS['accent'],
+                font=UnifiedStyles.FONTS['label']
+            )
+            rb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
+
+        # Options frame
+        options_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        options_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
+
+        save_var = tk.BooleanVar(value=True)
+        self.vars['save_screenshot'] = save_var
+        save_cb = tk.Checkbutton(
+            options_frame,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.save_screenshot"),
+            variable=save_var,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            activebackground=UnifiedStyles.COLORS['bg_tertiary'],
+            activeforeground=UnifiedStyles.COLORS['text_primary'],
+            selectcolor=UnifiedStyles.COLORS['accent'],
+            font=UnifiedStyles.FONTS['label']
+        )
+        save_cb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['sm'])
+
+        compress_var = tk.BooleanVar(value=False)
+        self.vars['compress_screenshot'] = compress_var
+        compress_cb = tk.Checkbutton(
+            options_frame,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.compress_screenshot"),
+            variable=compress_var,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            activebackground=UnifiedStyles.COLORS['bg_tertiary'],
+            activeforeground=UnifiedStyles.COLORS['text_primary'],
+            selectcolor=UnifiedStyles.COLORS['accent'],
+            font=UnifiedStyles.FONTS['label']
+        )
+        compress_cb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['sm'])
+
+        # Action buttons
+        button_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        button_frame.grid(row=3, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
+
+        capture_btn = tk.Button(
+            button_frame,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.capture_button"),
+            command=self._on_capture_screenshot,
+            bg=UnifiedStyles.COLORS['accent'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            activebackground=UnifiedStyles.COLORS['accent_light'],
+            activeforeground=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['button'],
+            padx=UnifiedStyles.SPACING['md'],
+            pady=UnifiedStyles.SPACING['sm'],
+            relief=tk.FLAT,
+            cursor='hand2'
+        )
+        capture_btn.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
+
+        clear_btn = tk.Button(
+            button_frame,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.clear_button"),
+            command=self._on_clear_history,
+            bg=UnifiedStyles.COLORS['error'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            activebackground=UnifiedStyles.COLORS['error'],
+            activeforeground=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['button'],
+            padx=UnifiedStyles.SPACING['md'],
+            pady=UnifiedStyles.SPACING['sm'],
+            relief=tk.FLAT,
+            cursor='hand2'
+        )
+        clear_btn.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
+
+        export_btn = tk.Button(
+            button_frame,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.export_button"),
+            command=self._on_export_history,
+            bg=UnifiedStyles.COLORS['success'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            activebackground=UnifiedStyles.COLORS['success'],
+            activeforeground=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['button'],
+            padx=UnifiedStyles.SPACING['md'],
+            pady=UnifiedStyles.SPACING['sm'],
+            relief=tk.FLAT,
+            cursor='hand2'
+        )
+        export_btn.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
+
+    def _create_history_panel(self):
+        """Create history list panel"""
+        history_frame = ttk.LabelFrame(
+            self.container,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.history_title"),
+            style='TLabelframe'
+        )
+        history_frame.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
+        history_frame.grid_rowconfigure(0, weight=1)
+        history_frame.grid_columnconfigure(0, weight=1)
+
+        # Create scrollbar
+        scrollbar = ttk.Scrollbar(history_frame)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+
+        # Create Treeview
+        self.history_tree = ttk.Treeview(
+            history_frame,
+            columns=('Index', 'Type', 'Coordinates', 'GameMode', 'Timestamp'),
+            height=15,
+            yscrollcommand=scrollbar.set,
+            style='Treeview'
+        )
+        scrollbar.config(command=self.history_tree.yview)
+
+        self.history_tree.column('#0', width=0, stretch=tk.NO)
+        self.history_tree.column('Index', width=50, anchor=tk.CENTER)
+        self.history_tree.column('Type', width=80, anchor=tk.CENTER)
+        self.history_tree.column('Coordinates', width=150, anchor=tk.W)
+        self.history_tree.column('GameMode', width=80, anchor=tk.CENTER)
+        self.history_tree.column('Timestamp', width=150, anchor=tk.W)
+
+        self.history_tree.heading('#0', text='', anchor=tk.W)
+        self.history_tree.heading('Index', text='ID')
+        self.history_tree.heading('Type', text=i18n_manager.get_ui_text("ui.coord_calibration.history_type"))
+        self.history_tree.heading('Coordinates', text=i18n_manager.get_ui_text("ui.coord_calibration.history_coords"))
+        self.history_tree.heading('GameMode', text=i18n_manager.get_ui_text("ui.coord_calibration.history_mode"))
+        self.history_tree.heading('Timestamp', text=i18n_manager.get_ui_text("ui.coord_calibration.history_time"))
+
+        self.history_tree.grid(row=0, column=0, sticky="nsew")
+
+        # Bind right-click context menu
+        self.history_tree.bind('<Button-3>', self._on_history_context_menu)
+
+        # Add context menu
+        self.context_menu = tk.Menu(self.history_tree, tearoff=0)
+        self.context_menu.add_command(
+            label=i18n_manager.get_ui_text("ui.coord_calibration.rename_item"),
+            command=self._on_rename_item
+        )
+        self.context_menu.add_command(
+            label=i18n_manager.get_ui_text("ui.coord_calibration.delete_item"),
+            command=self._on_delete_item
+        )
+
+    def _on_capture_screenshot(self):
+        """Capture screenshot from game window"""
+        ColorPrint.blue("[COORD_CALIBRATION] Capturing screenshot...")
+
+        try:
+            ws = WindowScreenshot()
+
+            if not ws.get_game_window():
+                messagebox.showwarning(
+                    i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
+                    i18n_manager.get_ui_text("ui.coord_calibration.no_game_window")
+                )
+                return
+
+            screenshot = ws.take_screenshot()
+            if screenshot is None:
+                messagebox.showerror(
+                    i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
+                    i18n_manager.get_ui_text("ui.coord_calibration.capture_failed")
+                )
+                return
+
+            self.screenshot = screenshot
+
+            if self.vars['save_screenshot'].get():
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                screenshots_dir = Path(__file__).parent.parent.parent / "screenshots" / "calibration"
+                screenshots_dir.mkdir(parents=True, exist_ok=True)
+
+                self.screenshot_path = screenshots_dir / f"calibration_{timestamp}.png"
+                screenshot.save(str(self.screenshot_path))
+                ColorPrint.green(f"[COORD_CALIBRATION] Screenshot saved to {self.screenshot_path}")
+
+            self._open_calibration_window()
+
+        except Exception as e:
+            ColorPrint.red(f"[COORD_CALIBRATION] Error capturing screenshot: {e}")
+            messagebox.showerror(
+                i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
+                f"{i18n_manager.get_ui_text('ui.coord_calibration.error_prefix')}: {str(e)}"
+            )
+
+    def _open_calibration_window(self):
+        """Open calibration window for coordinate picking"""
+        if self.popup_window:
+            self.popup_window.destroy()
+
+        from ..components.coordinate_picker_window import CoordinatePicker
+        self.popup_window = CoordinatePicker(
+            screenshot=self.screenshot,
+            game_mode=self.vars['game_mode'].get(),
+            on_picks_updated=self._on_picks_updated,
+            parent=self.parent,
+            client_mode=self.vars['client_mode'].get()
+        )
+
+    def _on_picks_updated(self, picks: List[Dict]):
+        """Handle updated picks from calibration window"""
+        for pick in picks:
+            pick['timestamp'] = datetime.now().isoformat()
+            pick['game_mode'] = self.vars['game_mode'].get()
+            self.pick_history.append(pick)
+
+        self._update_history_display()
+        ColorPrint.green(f"[COORD_CALIBRATION] Added {len(picks)} picks to history")
+
+    def _update_history_display(self):
+        """Update history tree display"""
+        for item in self.history_tree.get_children():
+            self.history_tree.delete(item)
+
+        for idx, pick in enumerate(self.pick_history, 1):
+            coords = f"({pick.get('x', 0)}, {pick.get('y', 0)})"
+            pick_type = pick.get('type', 'point')
+            game_mode = pick.get('game_mode', 'd3')
+            timestamp = pick.get('timestamp', '')[:19]
+
+            self.history_tree.insert(
+                '',
+                'end',
+                iid=f"item_{idx}",
+                values=(idx, pick_type, coords, game_mode, timestamp)
+            )
+
+    def _on_history_context_menu(self, event):
+        """Show context menu for history item"""
+        item = self.history_tree.identify('item', event.x, event.y)
+        if item:
+            self.history_tree.selection_set(item)
+            self.selected_item = item
+            try:
+                self.context_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.context_menu.grab_release()
+
+    def _on_rename_item(self):
+        """Rename selected history item"""
+        if not hasattr(self, 'selected_item') or not self.selected_item:
+            messagebox.showwarning(
+                i18n_manager.get_ui_text("ui.coord_calibration.warning_title"),
+                i18n_manager.get_ui_text("ui.coord_calibration.select_item_first")
+            )
+            return
+
+        try:
+            item_id = int(self.selected_item.split('_')[1]) - 1
+            old_name = self.pick_history[item_id].get('name', '')
+
+            dialog = tk.Toplevel(self.parent)
+            dialog.title(i18n_manager.get_ui_text("ui.coord_calibration.rename_title"))
+            dialog.geometry("300x100")
+            dialog.resizable(False, False)
+
+            label = tk.Label(dialog, text=i18n_manager.get_ui_text("ui.coord_calibration.new_name"))
+            label.pack(padx=10, pady=5)
+
+            entry = tk.Entry(dialog)
+            entry.insert(0, old_name)
+            entry.pack(padx=10, pady=5, fill=tk.X)
+            entry.focus()
+
+            def on_ok():
+                new_name = entry.get()
+                self.pick_history[item_id]['name'] = new_name
+                self._update_history_display()
+                dialog.destroy()
+
+            btn = tk.Button(dialog, text="OK", command=on_ok)
+            btn.pack(pady=5)
+
+        except (ValueError, IndexError):
+            messagebox.showerror(
+                i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
+                i18n_manager.get_ui_text("ui.coord_calibration.invalid_selection")
+            )
+
+    def _on_delete_item(self):
+        """Delete selected history item"""
+        if not hasattr(self, 'selected_item') or not self.selected_item:
+            messagebox.showwarning(
+                i18n_manager.get_ui_text("ui.coord_calibration.warning_title"),
+                i18n_manager.get_ui_text("ui.coord_calibration.select_item_first")
+            )
+            return
+
+        try:
+            item_id = int(self.selected_item.split('_')[1]) - 1
+            del self.pick_history[item_id]
+            self._update_history_display()
+        except (ValueError, IndexError):
+            messagebox.showerror(
+                i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
+                i18n_manager.get_ui_text("ui.coord_calibration.invalid_selection")
+            )
+
+    def _on_clear_history(self):
+        """Clear all history"""
+        if messagebox.askyesno(
+            i18n_manager.get_ui_text("ui.coord_calibration.confirm_title"),
+            i18n_manager.get_ui_text("ui.coord_calibration.confirm_clear")
+        ):
+            self.pick_history.clear()
+            self._update_history_display()
+            ColorPrint.green("[COORD_CALIBRATION] History cleared")
+
+    def _on_export_history(self):
+        """Export history to JSON"""
+        if not self.pick_history:
+            messagebox.showwarning(
+                i18n_manager.get_ui_text("ui.coord_calibration.warning_title"),
+                i18n_manager.get_ui_text("ui.coord_calibration.history_empty")
+            )
+            return
+
+        try:
+            export_dir = Path(__file__).parent.parent.parent / "exports" / "calibration"
+            export_dir.mkdir(parents=True, exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_path = export_dir / f"calibration_export_{timestamp}.json"
+
+            export_data = {
+                'timestamp': datetime.now().isoformat(),
+                'total_picks': len(self.pick_history),
+                'picks': self.pick_history
+            }
+
+            with open(export_path, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+            messagebox.showinfo(
+                i18n_manager.get_ui_text("ui.coord_calibration.success_title"),
+                f"{i18n_manager.get_ui_text('ui.coord_calibration.export_success')}\n{export_path}"
+            )
+            ColorPrint.green(f"[COORD_CALIBRATION] Export saved to {export_path}")
+
+        except Exception as e:
+            ColorPrint.red(f"[COORD_CALIBRATION] Export error: {e}")
+            messagebox.showerror(
+                i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
+                f"{i18n_manager.get_ui_text('ui.coord_calibration.export_failed')}: {str(e)}"
+            )

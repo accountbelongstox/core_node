@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 UI Components Module
-Main UI components for the application
+Provides reusable UI components for the application
 """
 
 from .title_bar import TitleBar
@@ -10,8 +10,13 @@ from .menu_bar import MenuBar
 from .bottom_bar import BottomBar
 from .macro_controls import MacroControls
 from .system_tray import SystemTray
-from .status_bar import StatusBar
-from .debug_window import DebugWindow, get_debug_window, close_debug_window
+from .coordinate_picker_window import CoordinatePicker
 
-__all__ = ['TitleBar', 'MenuBar', 'BottomBar', 'MacroControls', 'SystemTray', 'StatusBar',
-           'DebugWindow', 'get_debug_window', 'close_debug_window']
+__all__ = [
+    'TitleBar',
+    'MenuBar',
+    'BottomBar',
+    'MacroControls',
+    'SystemTray',
+    'CoordinatePicker',
+]

@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 // Application Entry Point Manager
-export type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard';
+export type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'ittools';
 
 export interface AppEntryConfig {
   name: string;
@@ -40,6 +40,35 @@ export interface AppEntryConfig {
 
 // App Entry Registry
 const appEntryRegistry: Record<AppEntryType, AppEntryConfig> = {
+  ittools: {
+    name: 'ittools',
+    displayName: 'IT Tools',
+    description: 'Collection of 88+ handy online tools for developers',
+    namespace: 'ittools',
+    defaultRoute: '/ittools',
+    theme: {
+      primary: '#3b82f6',
+      secondary: '#8b5cf6',
+      layout: 'default'
+    },
+    api: {
+      namespace: 'ittools',
+      baseUrl: '/api/ittools',
+      version: 'v1'
+    },
+    features: {
+      search: true,
+      favorites: true,
+      history: true,
+      api: true,
+      themes: true,
+      localization: false
+    },
+    permissions: {
+      required: ['ittools.access'],
+      roles: ['user', 'developer', 'admin']
+    }
+  },
   example: {
     name: 'example',
     displayName: 'Core Node Examples',

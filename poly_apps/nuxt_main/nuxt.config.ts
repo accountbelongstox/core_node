@@ -100,12 +100,15 @@ export default defineNuxtConfig({
     ],
     vite: {
         plugins: [tailwindcss()],
-        optimizeDeps: { 
+        optimizeDeps: {
             include: ['quill'],
             exclude: ['vue3-easymde', 'vue-json-excel3', 'easymde', 'vue3-quill']
         },
         ssr: {
             noExternal: ['vue3-quill']
+        },
+        build: {
+            sourcemap: process.env.NODE_ENV === 'production' ? false : 'hidden'
         },
         define: {
             'process.env.NODE_ENV': '"development"'
