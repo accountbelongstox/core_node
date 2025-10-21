@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CodeMartV1WalletModel extends Model
 {
-    protected $table = 'codemart_wallets';
+    protected $table = 'codemart_v1_wallets';
 
     protected $fillable = [
         'user_id',

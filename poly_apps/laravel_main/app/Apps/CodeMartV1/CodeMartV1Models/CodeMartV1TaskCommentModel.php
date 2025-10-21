@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1TaskCommentModel extends Model
 {
-    protected $table = 'codemart_task_comments';
+    protected $table = 'codemart_v1_task_comments';
 
     protected $fillable = [
         'task_id',

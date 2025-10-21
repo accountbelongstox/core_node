@@ -792,7 +792,7 @@ PLAY_BUTTON_AUTOMATION_IDS = [
 # ============================================================================
 # BATTLENET TEMPLATE CONFIGURATIONS - Battle.net client template paths and thresholds
 # ============================================================================
-BATTLENET_D3_TEMPLATE_CONFIGS = {
+BATTLENET_TEMPLATE_CONFIGS = {
     # Placeholder for Battle.net-specific templates
     # Will contain templates specific to the Battle.net client UI
     # Add templates here as needed for Battle.net screenshot analysis
@@ -801,7 +801,7 @@ BATTLENET_D3_TEMPLATE_CONFIGS = {
 # ============================================================================
 # D4 TEMPLATE CONFIGURATIONS - D4-specific template paths and thresholds
 # ============================================================================
-D4_D3_TEMPLATE_CONFIGS = {
+D4_TEMPLATE_CONFIGS = {
     # D4 Small map templates
     "d4_small_map": {
         "path": os.path.join(TEMPLATE_DIR, "d4", "small_map.jpg"),

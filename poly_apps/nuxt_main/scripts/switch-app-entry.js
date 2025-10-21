@@ -14,22 +14,22 @@
 
 /**
  * Multi-App Entry Switcher Script
- * 
+ *
  * This script dynamically replaces pages/index.vue with the appropriate
  * app-specific index file based on the APP_ENTRY environment variable.
- * 
+ *
  * Usage:
  *   node scripts/switch-app-entry.js [appname]
  *   APP_ENTRY=dev node scripts/switch-app-entry.js
- * 
- * Supported apps: example, codemart, dev, admin, dashboard
+ *
+ * Supported apps: example, codemart, dev, admin, dashboard, ittools
  */
 
 const fs = require('fs');
 const path = require('path');
 
 // Configuration
-const SUPPORTED_APPS = ['example', 'codemart', 'dev', 'admin', 'dashboard'];
+const SUPPORTED_APPS = ['example', 'codemart', 'dev', 'admin', 'dashboard', 'ittools'];
 const PAGES_DIR = path.join(__dirname, '../pages');
 const INDEX_FILE = path.join(PAGES_DIR, 'index.vue');
 const BACKUP_DIR = path.join(__dirname, '../.app-backups');

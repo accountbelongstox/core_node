@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CodeMartV1MilestoneModel extends Model
 {
-    protected $table = 'codemart_milestones';
+    protected $table = 'codemart_v1_milestones';
 
     protected $fillable = [
         'project_id',

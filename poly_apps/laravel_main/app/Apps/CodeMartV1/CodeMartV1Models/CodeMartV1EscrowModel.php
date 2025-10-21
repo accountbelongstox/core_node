@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1EscrowModel extends Model
 {
-    protected $table = 'codemart_escrows';
+    protected $table = 'codemart_v1_escrows';
 
     protected $fillable = [
         'project_id',

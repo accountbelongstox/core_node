@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CodeMartV1TaskModel extends Model
 {
-    protected $table = 'codemart_tasks';
+    protected $table = 'codemart_v1_tasks';
 
     protected $fillable = [
         'milestone_id',
