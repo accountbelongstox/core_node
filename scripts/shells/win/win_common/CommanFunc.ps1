@@ -10,18 +10,126 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Windows Service Management Library
-# Provides functions for managing Windows services with safety checks
-# Supports configurable service prefix for different applications
+# ===== VARIABLE DECLARATIONS - ALL VARIABLES AT FILE START =====
 
 param(
     [string]$ServicePrefix = "DD"
 )
 
-# Global variables
+# Global variables for service management
 $Global:SERVICE_OPERATION_COUNT = 0
 $Global:MAX_SERVICE_OPERATIONS = 10
 $Global:SERVICE_PREFIX = $ServicePrefix
+
+# Color constants for message output
+$script:COLOR_SUCCESS = "Green"
+$script:COLOR_WARNING = "Yellow"
+$script:COLOR_ERROR = "Red"
+$script:COLOR_INFO = "White"
+
+# Global variables directory (from GlobalVars.ps1)
+$Global:GLOBAL_VAR_DIR = Join-Path $env:USERPROFILE ".core_node\.global_vars"
+
+# Windows Service Management Library
+# Provides functions for managing Windows services with safety checks
+# Supports configurable service prefix for different applications
+
+# ===== COMMON UTILITY FUNCTIONS =====
+
+function Get-GlobalVar {
+    param (
+        [string]$Key
+    )
+    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $Key
+    if (Test-Path $filePath) {
+        $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
+        return $content -replace "`0", ""
+    }
+    return $null
+}
+
+function Set-GlobalVar {
+    param (
+        [string]$Key,
+        [string]$Value
+    )
+    if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
+        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
+    }
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $cleanValue = $Value -replace "`0", ""
+    [System.IO.File]::WriteAllText((Join-Path $Global:GLOBAL_VAR_DIR $Key), $cleanValue, $utf8NoBom)
+}
+
+function Get-RegionDownloadBaseURL {
+    $selectedRegion = Get-GlobalVar -Key "SELECTED_REGION"
+    if ($selectedRegion -eq "Global") {
+        return "https://raw.githubusercontent.com/accountbelongstox/core_node/main"
+    } else {
+        return "https://gitee.com/accountbelongstox/core_node/raw/main"
+    }
+}
+
+function Write-ColorMessage {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateSet("Success", "Warning", "Error", "Info")]
+        [string]$Type = "Info"
+    )
+
+    if ($Type -eq "Success") {
+        $color = $script:COLOR_SUCCESS
+    } elseif ($Type -eq "Warning") {
+        $color = $script:COLOR_WARNING
+    } elseif ($Type -eq "Error") {
+        $color = $script:COLOR_ERROR
+    } elseif ($Type -eq "Info") {
+        $color = $script:COLOR_INFO
+    } else {
+        $color = $script:COLOR_INFO
+    }
+
+    if (-not $color) {
+        $color = "White"
+    }
+
+    if ($Type -eq "Success") {
+        $prefix = "[OK] "
+    } elseif ($Type -eq "Warning") {
+        $prefix = "[!] "
+    } elseif ($Type -eq "Error") {
+        $prefix = "[ERROR] "
+    } else {
+        $prefix = "[INFO] "
+    }
+
+    Write-Host "$prefix$Message" -ForegroundColor $color
+}
+
+function Get-VariableFromFile {
+    param(
+        [string]$key,
+        [string]$defaultValue = ""
+    )
+
+    $globalVarDir = Join-Path $env:USERPROFILE ".core_node\.global_vars"
+    if (-not (Test-Path $globalVarDir)) {
+        New-Item -ItemType Directory -Path $globalVarDir -Force | Out-Null
+    }
+
+    $filePath = Join-Path $globalVarDir $key
+    if (Test-Path $filePath) {
+        $value = Get-Content $filePath -Raw
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return $value.Trim()
+        }
+    }
+
+    return $defaultValue
+}
 
 function Write-ServiceLog {
     param(
@@ -35,6 +143,14 @@ function Test-AdministratorPrivileges {
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Check-AdminPrivileges {
+    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-ColorMessage -Message "This script requires administrator privileges. Please run as administrator." -Type "Error"
+        exit 1
+    }
 }
 
 function Test-ServiceOperationLimit {
@@ -337,5 +453,97 @@ function Show-ServiceStatus {
     }
     
     return $serviceInfo
+}
+
+function Invoke-SmartLoadScript {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SubPath,
+        
+        [Parameter(Mandatory = $false)]
+        [bool]$ForceDownload = $false
+    )
+    
+    # Get the current script directory to determine the base path
+    # The CommanFunc.ps1 is in scripts/shells/win/win_common/
+    # So we need to go up 3 levels to get to the project root
+    $currentScriptDir = Split-Path -Parent $MyInvocation.PSCommandPath
+    $basePath = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $currentScriptDir))
+    
+    
+    # If basePath is empty or null, try alternative method
+    if ([string]::IsNullOrEmpty($basePath)) {
+        # Try to find the project root by looking for common markers
+        $currentDir = $currentScriptDir
+        while ($currentDir -and $currentDir -ne (Split-Path -Parent $currentDir)) {
+            if ((Test-Path (Join-Path $currentDir "package.json")) -or 
+                (Test-Path (Join-Path $currentDir "main.js")) -or
+                (Test-Path (Join-Path $currentDir "scripts"))) {
+                $basePath = $currentDir
+                break
+            }
+            $currentDir = Split-Path -Parent $currentDir
+        }
+    }
+    
+    # Construct local file path
+    $localPath = Join-Path $basePath $SubPath
+    
+    # Check if local file exists and is not forced to download
+    if ((Test-Path $localPath) -and -not $ForceDownload) {
+        Write-Host "Using local script: $localPath" -ForegroundColor Green
+        return $localPath
+    }
+    
+    # If local file doesn't exist or force download is requested, try to download
+    try {
+        # Get region setting to determine download source
+        $globalVarDir = Join-Path $env:USERPROFILE ".core_node\.global_vars"
+        $regionFile = Join-Path $globalVarDir "SELECTED_REGION"
+        $selectedRegion = "China"  # Default to China
+        
+        if (Test-Path $regionFile) {
+            $selectedRegion = Get-Content $regionFile -TotalCount 1 -ErrorAction SilentlyContinue
+            if (-not $selectedRegion) {
+                $selectedRegion = "China"
+            }
+        }
+        
+        # Determine download base URL based on region
+        $baseUrl = if ($selectedRegion -eq "Global") {
+            "https://raw.githubusercontent.com/accountbelongstox/core_node/main"
+        } else {
+            "https://gitee.com/accountbelongstox/core_node/raw/main"
+        }
+        
+        $downloadUrl = "$baseUrl/$SubPath"
+        $downloadDir = Split-Path $localPath -Parent
+        
+        # Ensure download directory exists
+        if (-not (Test-Path $downloadDir)) {
+            New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
+        }
+        
+        Write-Host "Downloading script from: $downloadUrl" -ForegroundColor Cyan
+        Write-Host "Saving to: $localPath" -ForegroundColor Cyan
+        
+        # Download the file
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $localPath -UseBasicParsing -ErrorAction Stop
+        
+        if (Test-Path $localPath) {
+            Write-Host "Successfully downloaded script: $localPath" -ForegroundColor Green
+            return $localPath
+        } else {
+            Write-Host "Failed to download script" -ForegroundColor Red
+            return $null
+        }
+        
+    } catch {
+        Write-Host "Failed to download script: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Falling back to local path: $localPath" -ForegroundColor Yellow
+        
+        # Return local path even if it doesn't exist, let the calling script handle the error
+        return $localPath
+    }
 }
 

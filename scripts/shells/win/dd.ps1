@@ -1379,6 +1379,19 @@ function Show-SpecialSoftwareEnvMenu {
 Initialize-Environment
 Check-AdminPrivileges
 
+# Load common functions
+$commonFuncPath = Join-Path $script:PS_CURENT_DIR "win_common\CommanFunc.ps1"
+if (Test-Path $commonFuncPath) {
+    try {
+        . $commonFuncPath
+        Write-ColorMessage -Message "Loaded common functions from: $commonFuncPath" -Type "Success"
+    } catch {
+        Write-ColorMessage -Message "Failed to load common functions: $_" -Type "Warning"
+    }
+} else {
+    Write-ColorMessage -Message "Common functions file not found: $commonFuncPath" -Type "Warning"
+}
+
 # Skip initialization operations if SkipInitialization parameter is provided
 # This is used when returning from other scripts to avoid redundant processing
 if (-not $SkipInitialization) {
