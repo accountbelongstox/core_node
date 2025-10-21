@@ -36,8 +36,7 @@ class CoordinateCalibrationPanel:
         self.screenshot = None
         self.screenshot_path = None
         self.pick_history: List[Dict] = []
-        self.current_game_mode = 'd3'
-        self.current_client_mode = 'battlenet'
+        self.current_game_type = 'd3'  # D3 or D4 game window type
         self.should_save_screenshot = True
         self.should_compress_screenshot = False
         self.popup_window = None
@@ -70,7 +69,7 @@ class CoordinateCalibrationPanel:
         control_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, UnifiedStyles.SPACING['md']))
         control_frame.grid_columnconfigure(1, weight=1)
 
-        # Game mode selection
+        # Game type selection (only one selector for D3 or D4)
         mode_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
         mode_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
 
@@ -101,47 +100,9 @@ class CoordinateCalibrationPanel:
             )
             rb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
 
-        # Client mode selection
-        client_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        client_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
-
-        client_label = tk.Label(
-            client_frame,
-            text=i18n_manager.get_ui_text("ui.coord_calibration.client_mode"),
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['label']
-        )
-        client_label.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
-
-        client_var = tk.StringVar(value='battlenet')
-        self.vars['client_mode'] = client_var
-
-        # Three client mode options: Battle.net, D3, D4
-        client_modes = [
-            ('battlenet', i18n_manager.get_ui_text("ui.coord_calibration.client_battlenet")),
-            ('d3', i18n_manager.get_ui_text("ui.coord_calibration.client_d3")),
-            ('d4', i18n_manager.get_ui_text("ui.coord_calibration.client_d4"))
-        ]
-
-        for mode_value, mode_label in client_modes:
-            rb = tk.Radiobutton(
-                client_frame,
-                text=mode_label,
-                variable=client_var,
-                value=mode_value,
-                bg=UnifiedStyles.COLORS['bg_secondary'],
-                fg=UnifiedStyles.COLORS['text_primary'],
-                activebackground=UnifiedStyles.COLORS['bg_tertiary'],
-                activeforeground=UnifiedStyles.COLORS['text_primary'],
-                selectcolor=UnifiedStyles.COLORS['accent'],
-                font=UnifiedStyles.FONTS['label']
-            )
-            rb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
-
         # Options frame
         options_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        options_frame.grid(row=2, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
+        options_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
 
         save_var = tk.BooleanVar(value=True)
         self.vars['save_screenshot'] = save_var
