@@ -31,9 +31,9 @@
       "export_failed": "导出失败",
       "rename_title": "重命名项目",
       "new_name": "新名称:",
-      "client_battlenet": "战网",
-      "client_d3": "D3游戏",
-      "client_d4": "D4游戏"
+      "client_battlenet": "战网客户端",
+      "client_d3_game": "D3游戏",
+      "client_d4_game": "D4游戏"
     },
     "coord_picker": {
       "window_title": "坐标效准工具",
