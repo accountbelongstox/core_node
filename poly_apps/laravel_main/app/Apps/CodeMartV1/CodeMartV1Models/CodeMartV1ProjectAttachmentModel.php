@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1ProjectAttachmentModel extends Model
 {
-    protected $table = 'codemart_project_attachments';
+    protected $table = 'codemart_v1_project_attachments';
 
     protected $fillable = [
         'project_id',

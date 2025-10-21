@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1WalletTransactionModel extends Model
 {
-    protected $table = 'codemart_wallet_transactions';
+    protected $table = 'codemart_v1_wallet_transactions';
 
     protected $fillable = [
         'wallet_id',

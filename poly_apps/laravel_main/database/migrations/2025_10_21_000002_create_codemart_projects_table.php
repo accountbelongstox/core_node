@@ -7,7 +7,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('codemart_projects', function (Blueprint $table) {
+        Schema::create('codemart_v1_projects', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained('users')->onDelete('cascade');
             $table->string('title');
@@ -32,9 +32,9 @@ return new class extends Migration
             $table->index('complexity');
         });
 
-        Schema::create('codemart_project_proposals', function (Blueprint $table) {
+        Schema::create('codemart_v1_project_proposals', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained('codemart_projects')->onDelete('cascade');
+            $table->foreignId('project_id')->constrained('codemart_v1_projects')->onDelete('cascade');
             $table->enum('status', ['draft', 'pending', 'approved', 'rejected', 'revised'])->default('pending');
             $table->json('recommended_tech_stack')->nullable();
             $table->json('suggested_team_composition')->nullable();
@@ -46,9 +46,9 @@ return new class extends Migration
             $table->unique('project_id');
         });
 
-        Schema::create('codemart_milestones', function (Blueprint $table) {
+        Schema::create('codemart_v1_milestones', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained('codemart_projects')->onDelete('cascade');
+            $table->foreignId('project_id')->constrained('codemart_v1_projects')->onDelete('cascade');
             $table->string('title');
             $table->text('description')->nullable();
             $table->enum('status', ['pending', 'in_progress', 'completed', 'failed', 'cancelled'])->default('pending');
@@ -62,9 +62,9 @@ return new class extends Migration
             $table->index('status');
         });
 
-        Schema::create('codemart_project_attachments', function (Blueprint $table) {
+        Schema::create('codemart_v1_project_attachments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained('codemart_projects')->onDelete('cascade');
+            $table->foreignId('project_id')->constrained('codemart_v1_projects')->onDelete('cascade');
             $table->string('file_name');
             $table->string('original_name');
             $table->string('mime_type');
@@ -78,9 +78,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('codemart_project_attachments');
-        Schema::dropIfExists('codemart_milestones');
-        Schema::dropIfExists('codemart_project_proposals');
-        Schema::dropIfExists('codemart_projects');
+        Schema::dropIfExists('codemart_v1_project_attachments');
+        Schema::dropIfExists('codemart_v1_milestones');
+        Schema::dropIfExists('codemart_v1_project_proposals');
+        Schema::dropIfExists('codemart_v1_projects');
     }
 };

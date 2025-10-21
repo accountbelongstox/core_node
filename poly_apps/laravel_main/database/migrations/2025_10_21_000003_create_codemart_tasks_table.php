@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         // Tasks table
-        Schema::create('codemart_tasks', function (Blueprint $table) {
+        Schema::create('codemart_v1_tasks', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('milestone_id')->constrained('codemart_milestones')->onDelete('cascade');
+            $table->foreignId('milestone_id')->constrained('codemart_v1_milestones')->onDelete('cascade');
             $table->string('title');
             $table->text('description');
             $table->enum('status', ['pending', 'in_progress', 'review', 'completed', 'blocked'])->default('pending');
@@ -28,9 +28,9 @@ return new class extends Migration
         });
 
         // Task submissions (when developers submit completed tasks)
-        Schema::create('codemart_task_submissions', function (Blueprint $table) {
+        Schema::create('codemart_v1_task_submissions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('task_id')->constrained('codemart_tasks')->onDelete('cascade');
+            $table->foreignId('task_id')->constrained('codemart_v1_tasks')->onDelete('cascade');
             $table->foreignId('submitted_by')->constrained('users')->onDelete('cascade');
             $table->text('submission_note')->nullable();
             $table->json('files')->nullable(); // Array of file paths/IDs
@@ -41,9 +41,9 @@ return new class extends Migration
         });
 
         // Task comments
-        Schema::create('codemart_task_comments', function (Blueprint $table) {
+        Schema::create('codemart_v1_task_comments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('task_id')->constrained('codemart_tasks')->onDelete('cascade');
+            $table->foreignId('task_id')->constrained('codemart_v1_tasks')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->text('comment');
             $table->json('mentions')->nullable(); // @mentions
@@ -53,9 +53,9 @@ return new class extends Migration
         });
 
         // Code reviews (for task submissions)
-        Schema::create('codemart_code_reviews', function (Blueprint $table) {
+        Schema::create('codemart_v1_code_reviews', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('task_submission_id')->constrained('codemart_task_submissions')->onDelete('cascade');
+            $table->foreignId('task_submission_id')->constrained('codemart_v1_task_submissions')->onDelete('cascade');
             $table->foreignId('reviewer_id')->constrained('users')->onDelete('cascade');
             $table->text('review_notes');
             $table->enum('status', ['approved', 'needs_revision', 'rejected'])->default('needs_revision');
@@ -69,9 +69,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('codemart_code_reviews');
-        Schema::dropIfExists('codemart_task_comments');
-        Schema::dropIfExists('codemart_task_submissions');
-        Schema::dropIfExists('codemart_tasks');
+        Schema::dropIfExists('codemart_v1_code_reviews');
+        Schema::dropIfExists('codemart_v1_task_comments');
+        Schema::dropIfExists('codemart_v1_task_submissions');
+        Schema::dropIfExists('codemart_v1_tasks');
     }
 };

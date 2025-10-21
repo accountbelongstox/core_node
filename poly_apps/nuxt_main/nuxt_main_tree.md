@@ -92,6 +92,9 @@ nuxt_main/
 │   │   │   └── theme-codemart.css
 │   │   ├── theme_app_codemart/
 │   │   │   └── codemart-theme.ts
+│   │   ├── types/
+│   │   │   ├── codemart-enums.ts
+│   │   │   └── codemart-types.ts
 │   │   ├── types_app_codemart/
 │   │   │   └── index.ts
 │   │   ├── utils/

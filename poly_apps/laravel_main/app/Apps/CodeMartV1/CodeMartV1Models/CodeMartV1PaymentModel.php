@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CodeMartV1PaymentModel extends Model
 {
-    protected $table = 'codemart_payments';
+    protected $table = 'codemart_v1_payments';
 
     protected $fillable = [
         'payer_id',

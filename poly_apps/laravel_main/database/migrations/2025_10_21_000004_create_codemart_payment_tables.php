@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         // Wallets table
-        Schema::create('codemart_wallets', function (Blueprint $table) {
+        Schema::create('codemart_v1_wallets', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->unique()->constrained('users')->onDelete('cascade');
             $table->decimal('balance', 15, 2)->default(0);
@@ -21,9 +21,9 @@ return new class extends Migration
         });
 
         // Wallet transactions
-        Schema::create('codemart_wallet_transactions', function (Blueprint $table) {
+        Schema::create('codemart_v1_wallet_transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('wallet_id')->constrained('codemart_wallets')->onDelete('cascade');
+            $table->foreignId('wallet_id')->constrained('codemart_v1_wallets')->onDelete('cascade');
             $table->enum('type', ['deposit', 'withdrawal', 'payment', 'refund', 'earning', 'escrow_hold', 'escrow_release'])->default('payment');
             $table->decimal('amount', 15, 2);
             $table->decimal('balance_after', 15, 2);
@@ -37,12 +37,12 @@ return new class extends Migration
         });
 
         // Payments table
-        Schema::create('codemart_payments', function (Blueprint $table) {
+        Schema::create('codemart_v1_payments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('payer_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('payee_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('project_id')->nullable()->constrained('codemart_projects')->onDelete('set null');
-            $table->foreignId('milestone_id')->nullable()->constrained('codemart_milestones')->onDelete('set null');
+            $table->foreignId('project_id')->nullable()->constrained('codemart_v1_projects')->onDelete('set null');
+            $table->foreignId('milestone_id')->nullable()->constrained('codemart_v1_milestones')->onDelete('set null');
             $table->decimal('amount', 15, 2);
             $table->string('currency')->default('CNY');
             $table->enum('type', ['milestone', 'hourly', 'refund', 'bonus'])->default('milestone');
@@ -59,9 +59,9 @@ return new class extends Migration
         });
 
         // Escrow accounts
-        Schema::create('codemart_escrows', function (Blueprint $table) {
+        Schema::create('codemart_v1_escrows', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained('codemart_projects')->onDelete('cascade');
+            $table->foreignId('project_id')->constrained('codemart_v1_projects')->onDelete('cascade');
             $table->foreignId('payer_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('payee_id')->constrained('users')->onDelete('cascade');
             $table->decimal('amount', 15, 2);
@@ -77,9 +77,9 @@ return new class extends Migration
         });
 
         // Invoices
-        Schema::create('codemart_invoices', function (Blueprint $table) {
+        Schema::create('codemart_v1_invoices', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('payment_id')->constrained('codemart_payments')->onDelete('cascade');
+            $table->foreignId('payment_id')->constrained('codemart_v1_payments')->onDelete('cascade');
             $table->string('invoice_number')->unique();
             $table->foreignId('issued_by')->constrained('users')->onDelete('cascade');
             $table->text('description')->nullable();
@@ -98,9 +98,9 @@ return new class extends Migration
         });
 
         // Refunds
-        Schema::create('codemart_refunds', function (Blueprint $table) {
+        Schema::create('codemart_v1_refunds', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('payment_id')->constrained('codemart_payments')->onDelete('cascade');
+            $table->foreignId('payment_id')->constrained('codemart_v1_payments')->onDelete('cascade');
             $table->decimal('amount', 15, 2);
             $table->enum('status', ['pending', 'approved', 'rejected', 'completed'])->default('pending');
             $table->text('reason');
@@ -115,11 +115,11 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('codemart_refunds');
-        Schema::dropIfExists('codemart_invoices');
-        Schema::dropIfExists('codemart_escrows');
-        Schema::dropIfExists('codemart_payments');
-        Schema::dropIfExists('codemart_wallet_transactions');
-        Schema::dropIfExists('codemart_wallets');
+        Schema::dropIfExists('codemart_v1_refunds');
+        Schema::dropIfExists('codemart_v1_invoices');
+        Schema::dropIfExists('codemart_v1_escrows');
+        Schema::dropIfExists('codemart_v1_payments');
+        Schema::dropIfExists('codemart_v1_wallet_transactions');
+        Schema::dropIfExists('codemart_v1_wallets');
     }
 };
