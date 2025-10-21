@@ -97,13 +97,13 @@ export const useItToolsStore = defineStore('ittools', {
      */
     categoriesWithCounts: (state) => {
       const categories = [
-        { id: 'all', name: 'All Tools', icon: '🔧' },
-        { id: 'crypto', name: 'Crypto & Security', icon: '🔐' },
-        { id: 'converter', name: 'Converters', icon: '🔄' },
-        { id: 'web', name: 'Web Dev', icon: '🌐' },
-        { id: 'text', name: 'Text Processing', icon: '📝' },
-        { id: 'math', name: 'Math', icon: '🔢' },
-        { id: 'network', name: 'Network', icon: '🖥️' }
+        { id: 'all', name: 'All Tools', icon: 'tools' },
+        { id: 'crypto', name: 'Crypto & Security', icon: 'lock' },
+        { id: 'converter', name: 'Converters', icon: 'convert' },
+        { id: 'web', name: 'Web Dev', icon: 'globe' },
+        { id: 'text', name: 'Text Processing', icon: 'text' },
+        { id: 'math', name: 'Math', icon: 'calculator' },
+        { id: 'network', name: 'Network', icon: 'network' }
       ];
 
       return categories.map(cat => ({
@@ -312,7 +312,7 @@ export const useItToolsStore = defineStore('ittools', {
     /**
      * Save favorites to localStorage
      */
-    private saveFavorites(): void {
+    saveFavorites(): void {
       try {
         localStorage.setItem('ittools_favorites', JSON.stringify(this.favorites));
       } catch (error) {
@@ -323,7 +323,7 @@ export const useItToolsStore = defineStore('ittools', {
     /**
      * Save history to localStorage
      */
-    private saveHistory(): void {
+    saveHistory(): void {
       try {
         localStorage.setItem('ittools_history', JSON.stringify(this.history));
       } catch (error) {
@@ -334,7 +334,7 @@ export const useItToolsStore = defineStore('ittools', {
     /**
      * Save API base URL to localStorage
      */
-    private saveApiBaseUrl(): void {
+    saveApiBaseUrl(): void {
       try {
         localStorage.setItem('ittools_api_base_url', this.apiBaseUrl);
       } catch (error) {
@@ -345,7 +345,7 @@ export const useItToolsStore = defineStore('ittools', {
     /**
      * Save theme to localStorage
      */
-    private saveTheme(): void {
+    saveTheme(): void {
       try {
         localStorage.setItem('ittools_theme', this.theme);
       } catch (error) {
