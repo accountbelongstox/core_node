@@ -40,9 +40,9 @@ sys.path.insert(0, project_root)
 
 from providor.common_imports import ColorPrint, ImageMatcher
 from providor.providor_index import (
-    D3_D3_TEMPLATE_CONFIGS,
-    D4_D3_TEMPLATE_CONFIGS,
-    BATTLENET_D3_TEMPLATE_CONFIGS,
+    D3_TEMPLATE_CONFIGS,
+    D4_TEMPLATE_CONFIGS,
+    BATTLENET_TEMPLATE_CONFIGS,
     STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
     STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
     SCALED_TEMPLATES_CACHE_DIR,
@@ -78,9 +78,9 @@ class ScaledTemplateMatcher:
     def __init__(self, use_d4_templates: bool = False):
         """
         Initialize scaled template matcher
-        
+
         Args:
-            use_d4_templates: If True, use D4_D3_TEMPLATE_CONFIGS; otherwise use D3_TEMPLATE_CONFIGS
+            use_d4_templates: If True, use D4_TEMPLATE_CONFIGS; otherwise use D3_TEMPLATE_CONFIGS
         """
         # Create ImageMatcher instances for different feature detectors
         # We'll create them on-demand to save memory
@@ -96,7 +96,7 @@ class ScaledTemplateMatcher:
         
         # Select template config based on game type
         self.use_d4_templates = use_d4_templates
-        self.template_configs = D4_D3_TEMPLATE_CONFIGS if use_d4_templates else D3_TEMPLATE_CONFIGS
+        self.template_configs = D4_TEMPLATE_CONFIGS if use_d4_templates else D3_TEMPLATE_CONFIGS
 
         ColorPrint.green(f"[ScaledTemplateMatcher] Initialized (D4 mode: {use_d4_templates})")
 
@@ -207,7 +207,7 @@ class ScaledTemplateMatcher:
         Load original template image from disk (cached)
 
         Args:
-            template_name: Template name from D3_TEMPLATE_CONFIGS or D4_D3_TEMPLATE_CONFIGS
+            template_name: Template name from D3_TEMPLATE_CONFIGS or D4_TEMPLATE_CONFIGS
 
         Returns:
             Original template as numpy array (BGR or BGRA) or None if failed
