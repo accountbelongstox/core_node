@@ -14,6 +14,9 @@
 # Nuxt Main Start Script - Interactive Launcher
 # Starts nuxt_main application with interactive menu selection
 
+# Record original working directory
+$ORIGINAL_WORKING_DIR = Get-Location
+
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FUNCTIONS_DIR = Join-Path $SCRIPT_DIR "functions"
 $APP_DIR = Split-Path -Parent $SCRIPT_DIR
@@ -141,12 +144,15 @@ Write-Host ""
 
 if ($mode -eq "debug") {
     Write-Host "[INFO] Starting in debug mode..." -ForegroundColor Cyan
+    Write-Host "[INFO] Configuring port dynamically: $($selectedApp.Port)" -ForegroundColor Cyan
     Write-Host "[CMD] yarn $($selectedApp.DevCommand)" -ForegroundColor Gray
     Write-Host ""
 
     Invoke-CommandWithErrorHandling -Command {
+        $env:NUXT_PORT = $selectedApp.Port
+        $env:NUXT_HOST = "0.0.0.0"
         yarn $selectedApp.DevCommand
-    } -CommandDescription "Start $($selectedApp.DisplayName) in debug mode" -PauseOnError $true
+    } -CommandDescription "Start $($selectedApp.DisplayName) in debug mode at port $($selectedApp.Port)" -PauseOnError $true
 }
 else {
     Write-Host "[INFO] Starting in build mode..." -ForegroundColor Cyan
@@ -154,6 +160,22 @@ else {
     Write-Host ""
 
     Invoke-CommandWithErrorHandling -Command {
+        $env:NUXT_PORT = $selectedApp.Port
         yarn $selectedApp.BuildCommand
     } -CommandDescription "Build $($selectedApp.DisplayName)" -PauseOnError $true
 }
+
+# Restore original working directory
+Write-Host ""
+Write-Host "===============================================================================" -ForegroundColor Cyan
+Write-Host "  RESTORING ORIGINAL WORKING DIRECTORY" -ForegroundColor Cyan
+Write-Host "===============================================================================" -ForegroundColor Cyan
+Write-Host "Original directory: $ORIGINAL_WORKING_DIR" -ForegroundColor Green
+Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+Write-Host "Switching back to original directory..." -ForegroundColor Cyan
+
+Set-Location $ORIGINAL_WORKING_DIR
+
+Write-Host "Restored to: $(Get-Location)" -ForegroundColor Green
+Write-Host "===============================================================================" -ForegroundColor Cyan
+Write-Host ""
