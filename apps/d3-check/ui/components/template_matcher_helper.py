@@ -15,7 +15,7 @@ import copy
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from providor.common_imports import ColorPrint, ImageMatcher
-from providor.providor_index import D3_TEMPLATE_CONFIGS, D4_TEMPLATE_CONFIGS, BATTLENET_TEMPLATE_CONFIGS
+from providor.providor_index import D3_TEMPLATE_CONFIGS, D4_TEMPLATE_CONFIGS
 
 
 class TemplateMatcherHelper:
@@ -45,24 +45,22 @@ class TemplateMatcherHelper:
         self.backup_image = image.copy()
         ColorPrint.green("[TEMPLATE_MATCHER] Image set and backups created")
 
-    def get_available_templates(self, game_mode: str = 'd3', client_mode: str = 'battlenet') -> Dict[str, List[str]]:
+    def get_available_templates(self, game_mode: str = 'd3') -> Dict[str, List[str]]:
         """
         Get available templates grouped by category
 
         Args:
-            game_mode: 'd3' or 'd4' (ignored when client_mode is battlenet)
-            client_mode: 'battlenet', 'd3', or 'd4'
+            game_mode: 'd3' or 'd4' - specifies which game's templates to load
 
         Returns:
             Dict with categories and template names
         """
-        # Select config based on client_mode
-        if client_mode == 'battlenet':
-            configs = BATTLENET_TEMPLATE_CONFIGS
-        elif client_mode == 'd4':
+        # Select config based on game_mode
+        if game_mode == 'd4':
             configs = D4_TEMPLATE_CONFIGS
         else:  # 'd3'
             configs = D3_TEMPLATE_CONFIGS
+
         templates_by_category = {}
 
         for template_name, config in configs.items():
@@ -97,13 +95,12 @@ class TemplateMatcherHelper:
         self.match_modes['circle'] = circle
         ColorPrint.blue(f"[TEMPLATE_MATCHER] Match modes set: {self.match_modes}")
 
-    def match_templates(self, game_mode: str = 'd3', client_mode: str = 'battlenet') -> bool:
+    def match_templates(self, game_mode: str = 'd3') -> bool:
         """
         Match selected templates on the image
 
         Args:
-            game_mode: 'd3' or 'd4' (ignored when client_mode is battlenet, d3, or d4)
-            client_mode: 'battlenet', 'd3', or 'd4'
+            game_mode: 'd3' or 'd4' - specifies which game's templates to use
 
         Returns:
             True if matching succeeded
@@ -112,13 +109,12 @@ class TemplateMatcherHelper:
             ColorPrint.yellow("[TEMPLATE_MATCHER] No image or templates selected")
             return False
 
-        # Select config based on client_mode
-        if client_mode == 'battlenet':
-            configs = BATTLENET_TEMPLATE_CONFIGS
-        elif client_mode == 'd4':
+        # Select config based on game_mode
+        if game_mode == 'd4':
             configs = D4_TEMPLATE_CONFIGS
         else:  # 'd3'
             configs = D3_TEMPLATE_CONFIGS
+
         self.matches = []
 
         for template_name in self.selected_templates:

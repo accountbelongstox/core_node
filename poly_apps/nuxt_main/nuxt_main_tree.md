@@ -519,6 +519,7 @@ nuxt_main/
 │   ├── index.dashboard.vue
 │   ├── index.dev.vue
 │   ├── index.example.vue
+│   ├── index.ittools.vue
 │   ├── index.vue
 │   ├── mainsite-dashboard.vue
 │   ├── tables.vue
