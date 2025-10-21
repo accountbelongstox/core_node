@@ -64,6 +64,7 @@ export default defineNuxtConfig({
         '@/app_example': './apps/app_example',
         '@/app_dev': './apps/app_dev',
         '@/app_dashboard': './apps/app_dashboard',
+        '@/app_ittools': './apps/app_ittools',
     },
 
     i18n: {
