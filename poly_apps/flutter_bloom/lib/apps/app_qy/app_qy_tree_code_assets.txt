@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-20 04:25:24
+Generated: 2025-10-21 19:22:19
 App: app_qy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -11,6 +11,7 @@ Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
 app_qy [code_assets]
 ├── lib/apps/app_qy/
 │   ├── app_qy_tree.md
+│   ├── app_qy_tree_code_assets.txt
 │   ├── build_config.ini
 │   ├── config_app_qy
 │   │   ├── api_config_app_qy.dart
@@ -455,7 +456,7 @@ app_qy [code_assets]
 │   │   ├── endpoints
 │   │   │   ├── endpoint_catalog.dart
 │   │   │   └── endpoint_presets.dart
-│   │   ├── qy_usage.dart
+│   │   ├── example_usage.dart
 │   │   ├── loading
 │   │   │   ├── loading_controller.dart
 │   │   │   └── loading_state.dart
@@ -679,99 +680,24 @@ app_qy [code_assets]
 │       ├── settings_page_example.dart
 │       └── type_button_widget.dart
 ├── assets/apps/app_qy/
-│   ├── fonts
-│   │   └── .gitkeep
 │   ├── icons
-│   │   ├── .gitkeep
-│   │   ├── ic_launcher.backup.backup.png
 │   │   ├── ic_launcher.backup.png
 │   │   ├── ic_launcher.png
-│   │   ├── logo.backup.backup.png
 │   │   ├── logo.backup.png
 │   │   ├── logo.png
 │   │   ├── notification_icon.png
-│   │   ├── raw-logo.backup.backup.png
 │   │   ├── raw-logo.backup.png
 │   │   ├── raw-logo.png
-│   │   ├── splash_logo.backup.backup.png
 │   │   ├── splash_logo.backup.png
 │   │   └── splash_logo.png
 │   ├── images
 │   │   ├── .gitkeep
-│   │   ├── Feed.backup.backup.jpg
-│   │   ├── Feed.backup.jpg
-│   │   ├── Feed.jpg
-│   │   ├── Flood.backup.backup.png
-│   │   ├── Flood.backup.png
-│   │   ├── Flood.png
-│   │   ├── baby.backup.backup.jpg
-│   │   ├── baby.backup.jpg
-│   │   ├── baby.jpg
-│   │   ├── bannerchild.jpg
-│   │   ├── child1.jpeg
-│   │   ├── child2.jpg
-│   │   ├── child3.jpg
-│   │   ├── child5.backup.backup.jpg
-│   │   ├── child5.backup.jpg
-│   │   ├── child5.jpg
-│   │   ├── child6.jpg
-│   │   ├── education.backup.backup.jpg
-│   │   ├── education.backup.jpg
-│   │   ├── education.jpg
-│   │   ├── fire.backup.backup.jpg
-│   │   ├── fire.backup.jpg
-│   │   ├── fire.jpg
-│   │   ├── food.backup.backup.jpg
-│   │   ├── food.backup.jpg
-│   │   ├── food.jpg
-│   │   ├── funrasing1.backup.backup.jpeg
-│   │   ├── funrasing1.backup.jpeg
-│   │   ├── funrasing1.jpeg
-│   │   ├── gorom1.backup.backup.jpg
-│   │   ├── gorom1.backup.jpg
-│   │   ├── gorom1.jpg
-│   │   ├── health.jpg
-│   │   ├── help1.backup.backup.jpg
-│   │   ├── help1.backup.jpg
-│   │   ├── help1.jpg
-│   │   ├── helpchild.jpg
-│   │   ├── hospital.jpg
-│   │   ├── one.jpg
-│   │   ├── poor1.backup.backup.jpg
-│   │   ├── poor1.backup.jpg
-│   │   ├── poor1.jpg
-│   │   ├── poor3.backup.backup.jpg
-│   │   ├── poor3.backup.jpg
-│   │   ├── poor3.jpg
-│   │   ├── poor4.backup.backup.png
-│   │   ├── poor4.backup.png
-│   │   ├── poor4.png
-│   │   ├── poor5.backup.jpg
-│   │   ├── poor5.jpg
-│   │   ├── poor6.backup.jpg
-│   │   ├── poor6.jpg
-│   │   ├── running.backup.jpg
-│   │   ├── running.jpg
-│   │   ├── student.backup.jpg
-│   │   ├── student.jpg
-│   │   ├── student2.jpeg
-│   │   ├── urgen4.jpg
-│   │   ├── urgent1.backup.jpg
-│   │   ├── urgent1.jpg
-│   │   ├── urgent2.backup.jpg
-│   │   ├── urgent2.jpg
-│   │   ├── urgent5.backup.jpg
-│   │   ├── urgent5.jpg
-│   │   ├── urgent6.backup.jpg
-│   │   ├── urgent6.jpg
-│   │   ├── user.png
-│   │   ├── user1.jpg
-│   │   ├── user2.jpg
-│   │   └── user3.jpg
+│   │   └── one.jpg
 │   └── launch
 │       ├── .gitkeep
 │       ├── background.backup.jpg
 │       ├── background.jpg
+│       ├── background_converted.png
 │       ├── dark_launch.backup.png
 │       ├── dark_launch.png
 │       ├── light_launch.backup.png

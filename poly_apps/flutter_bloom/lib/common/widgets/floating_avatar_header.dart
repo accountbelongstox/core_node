@@ -88,15 +88,14 @@ class FloatingAvatarHeader extends StatelessWidget {
               ),
               child: Stack(
                 children: [
-                  // Status bar overlay
                   Positioned(
                     top: 0,
                     left: 0,
                     right: 0,
                     child: Container(
-                      height: MediaQuery.of(context).padding.top + 50,
+                      height: MediaQuery.of(context).padding.top + 44,
                       padding: EdgeInsets.only(
-                        top: MediaQuery.of(context).padding.top + 10,
+                        top: MediaQuery.of(context).padding.top + 4,
                         left: ThemeDimensions.defaultPadding,
                         right: ThemeDimensions.defaultPadding,
                       ),
@@ -122,7 +121,6 @@ class FloatingAvatarHeader extends StatelessWidget {
                             )
                           else
                             SizedBox(width: 40),
-                          // Time display
                           Text(
                             '12:00',
                             style: ThemeTextStyles.bodyLarge.copyWith(
@@ -130,7 +128,6 @@ class FloatingAvatarHeader extends StatelessWidget {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          // Status icons
                           Row(
                             children: [
                               Icon(

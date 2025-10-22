@@ -98,7 +98,7 @@ else
 fi
 
 # Initialize global temporary directory
-GLOBAL_TEMP_DIR="/www/wwwroot/.tmp"
+GLOBAL_TEMP_DIR="/var/tmp/core_node"
 
 # Ensure global temporary directory exists
 if [ ! -d "$GLOBAL_TEMP_DIR" ]; then

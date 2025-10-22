@@ -327,6 +327,10 @@ class UserModelAppWuy extends LaravelUserModel {
     return nickname ?? name ?? username ?? '';
   }
 
+  String get unifiedPhoneNumber => phoneNumber ?? phone ?? '';
+
+  String get unifiedAvatarUrl => avatarUrl ?? avatar ?? '';
+
   bool hasRole(String role) {
     return roles.contains(role);
   }

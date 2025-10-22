@@ -247,13 +247,10 @@ class WuyUnifiedService extends AdvancedNetworkService {
     return _realSendVerificationCode(phone);
   }
 
-  /// Logout user
+  /// Logout user - delegates to AuthGuard for centralized logout logic
   Future<void> logout() async {
-    if (AppConfigAppWuy.enableMockApi) {
-      await _mockLogout();
-    } else {
-      await _realLogout();
-    }
+    await _authStateManager.clearAuthentication();
+    _userProvider?.syncWithAuthStateManager();
   }
 
   // ==================== MOCK API METHODS ====================
@@ -315,11 +312,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
 
   /// Mock logout API call
   Future<void> _mockLogout() async {
-    // Use auth state manager for consistent state management
-    await _authStateManager.clearAuthentication();
-
-    // Sync user provider state
-    _userProvider?.syncWithAuthStateManager();
+    await logout();
   }
 
   // ==================== REAL API METHODS ====================
@@ -344,7 +337,10 @@ class WuyUnifiedService extends AdvancedNetworkService {
       final userData = ApiConfigAppWuy.parseUserFromResponse(response.data!);
       if (userData != null) {
         final user = UserModelAppWuy.fromJson(userData);
-        _userProvider?.setAppUser(profile: user);
+
+        await _authStateManager.setAuthenticatedUser(user);
+        _userProvider?.syncWithAuthStateManager();
+        await Future.delayed(const Duration(milliseconds: 50));
 
         return AuthResult.success(user, 'Login successful');
       }
@@ -375,7 +371,10 @@ class WuyUnifiedService extends AdvancedNetworkService {
       final userData = ApiConfigAppWuy.parseUserFromResponse(response.data!);
       if (userData != null) {
         final user = UserModelAppWuy.fromJson(userData);
-        _userProvider?.setAppUser(profile: user);
+
+        await _authStateManager.setAuthenticatedUser(user);
+        _userProvider?.syncWithAuthStateManager();
+        await Future.delayed(const Duration(milliseconds: 50));
 
         return AuthResult.success(user, 'Registration successful');
       }
@@ -425,7 +424,7 @@ class WuyUnifiedService extends AdvancedNetworkService {
     } catch (e) {
       debugPrint('${LocalizationKeysAppWuy.wuyDebugRealLogoutFailed.tr()}: $e');
     } finally {
-      // Clear user data - functionality removed as WuyDataCenter was deleted
+      await logout();
     }
   }
 

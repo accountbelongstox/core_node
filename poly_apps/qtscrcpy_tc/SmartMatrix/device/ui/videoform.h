@@ -6,8 +6,6 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 
-#include "ui_mainwindow.h"
-
 namespace Ui
 {
     class videoForm;

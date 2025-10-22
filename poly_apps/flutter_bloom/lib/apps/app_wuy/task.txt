@@ -1,0 +1,155 @@
+
+  一、架构层面的不合理设计
+
+  1. Edit Profile功能缺失但路由已定义
+
+  位置: router_app_wuy.dart:53, 159-164
+  问题:
+  - 路由定义了routeEditProfile = '/wuy/edit-profile'
+  - 但实际映射到的是WuyPersonalInfoScreen(个人信息屏)
+  - 多处代码调用context.go(WuyAppRouter.getEditProfileRoute())实际跳转到personal_info_screen.dart
+  - 命名混乱: 路由叫"edit-profile"但实际组件是"personal-info"
+
+  建议: 统一命名,要么改路由名为routePersonalInfo,要么重命名组件为EditProfileScreen
+
+  2. WuyPersonalInfoScreen编辑功能未实现
+
+  位置: personal_info_screen.dart:42-323
+  问题:
+  - 定义了_isEditing状态变量(第53行)
+  - 所有输入框根据_isEditing状态切换enabled/disabled
+  - 但完全没有按钮或交互来切换_isEditing状态
+  - 用户无法真正编辑任何信息
+  - 缺少"编辑"和"保存"按钮
+
+  建议: 添加编辑/保存按钮及保存逻辑,调用WuyUnifiedService.updateUserProfile
+
+  3. 头像上传功能未接入UI
+
+  位置: wuy_avatar_service.dart + personal_info_screen.dart:105-106
+  问题:
+  - WuyAvatarService已实现完整的头像选择、裁剪、缓存功能
+  - personal_info_screen.dart的onAvatarTap是空实现(第105-107行)
+  - profile_screen.dart的onAvatarTap只是跳转到编辑页面(第58-60行)
+  - 头像选择功能从未被调用
+
+  建议: 实现onAvatarTap,调用WuyAvatarService.pickImageFromGallery/Camera
+
+  4. logout功能调用不一致
+
+  位置:
+  - profile_screen.dart:313 - AuthGuard.onLogout(context)
+  - wuy_unified_service.dart:251-257 - logout() 方法
+  问题:
+  - AuthGuard.onLogout现在是异步方法(刚修改)
+  - 但profile_screen调用时未await
+  - WuyUnifiedService也有logout方法但从未被使用
+  - 两套logout逻辑共存
+
+  建议: 统一logout入口,删除WuyUnifiedService.logout或让其调用AuthGuard.onLogout
+
+  二、数据层面的不合理设计
+
+  5. UserModelAppWuy字段重复和不一致
+
+  位置: user_model_app_wuy.dart + 多处使用
+  问题:
+  - phoneNumber vs phone (两个字段保存同一个数据)
+  - avatarUrl vs avatar (两个字段保存同一个数据)
+  - displayName vs name vs nickname (三个字段语义模糊)
+  - 代码中到处使用user?.displayName ?? user?.name ?? ''这种fallback
+
+  建议: 统一字段名,删除重复字段,使用单一数据源
+
+  6. WuyFakeDataGenerator依赖但未清理标记
+
+  位置: wuy_fake_data_generator.dart:393-403
+  问题:
+  - 有isEnabled、disable()、enable()方法
+  - 但实际isEnabled永远返回true(第393行)
+  - disable/enable方法只打印日志,不改变任何状态
+  - fake data无法真正被禁用
+
+  建议: 实现真正的开关,或删除这些无用方法
+
+  三、服务层面的不合理设计
+
+  7. WuyUnifiedService的realAPI方法未正确集成AuthStateManager
+
+  位置: wuy_unified_service.dart:328-430
+  问题:
+  - _realLogin和_realRegister成功后只调用_userProvider?.setAppUser(347, 378行)
+  - 但不调用_authStateManager.setAuthenticatedUser
+  - 与mockAPI的逻辑不一致(mockAPI正确调用了authStateManager第274,299行)
+  - 可能导致real API登录后状态不同步
+
+  建议: realAPI方法也要调用authStateManager.setAuthenticatedUser
+
+  8. _realLogout清理逻辑被注释掉
+
+  位置: wuy_unified_service.dart:414-430
+  问题:
+  - 第428行注释: // Clear user data - functionality removed as WuyDataCenter was deleted
+  - logout时不清理任何本地数据
+  - 虽然有AuthGuard.onLogout,但WuyUnifiedService.logout被调用时不清理
+
+  建议: 删除此方法或让其调用AuthGuard.onLogout
+
+  四、UI/UX层面的不合理设计
+
+  9. Profile信息显示ID Number但fake data从未设置
+
+  位置:
+  - profile_screen.dart:195-211 (显示ID Number)
+  - wuy_fake_data_generator.dart (生成假数据)
+  问题:
+  - profile显示ID Number,从user?.meta['id_number']读取
+  - 但WuyFakeDataGenerator生成user时从不设置meta或preferences
+  - 所有假数据用户的ID Number永远为空
+
+  建议: fake data generator添加id_number字段
+
+  10. 个人信息页面缺少性别保存逻辑
+
+  位置: personal_info_screen.dart:273-322
+  问题:
+  - 性别选择器已实现(_buildGenderField)
+  - 有_selectedGender状态变量
+  - 但没有任何保存/提交逻辑
+  - 用户选择性别后无法保存
+
+  建议: 添加保存按钮,调用API更新用户性别
+
+  五、代码质量问题
+
+  11. 腾讯地图Key硬编码为
+  功公类库skd完善,及app中实际相关页,并注意朋友数据列表会有一个每个位置的位置.点击后会调用地图
+  问题: 地图功能无法使用
+
+  建议: 配置真实API Key或从环境变量读取
+
+  12. 大量TODO未完成
+
+  位置: app_info_app_wuy.dart:84, 94
+  // TODO: Add any Wuy-specific initialization here
+  // TODO: Add any readiness checks here
+  问题: 初始化和就绪检查逻辑为空
+
+  六、扩展功能
+
+  13. 图片裁剪功能提到但未实现
+
+  对话历史: 用户要求"正方形裁剪框"
+  当前状态: WuyAvatarService使用image_picker但没有裁剪
+  问题: 缺少image_cropper包和裁剪逻辑,在公共类库lib/common 中实现.
+
+  14. 网络层ResponseType处理不完整
+
+  位置: wuy_unified_service.dart:740-835
+  问题: 泛型包装方法没有真正的反序列化逻辑,只是类型转换
+
+  总结优先级:
+  - P0(紧急): #2编辑功能, #3头像上传, #7 realAPI认证集成
+  - P1(高): #1命名统一, #4 logout统一, #5字段去重
+  - P2(中): #9假数据完整性, #10性别保存, #13图片裁剪
+  - P3(低): #6 fake data开关, #8 realLogout, #11地图key, #12 TODO
