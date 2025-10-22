@@ -300,3 +300,16 @@ quint16 DeviceManage::getFreePort()
     }
     return 0;
 }
+
+// 单例模式实现
+DeviceManage& DeviceManage::getInstance()
+{
+    static DeviceManage instance;
+    return instance;
+}
+
+// 获取设备序列号列表
+QList<QString> DeviceManage::getDeviceSerials() const
+{
+    return m_devices.keys();
+}

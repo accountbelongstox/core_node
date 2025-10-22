@@ -151,7 +151,10 @@ class WuyAppRouter {
         GoRoute(
           path: routeProfile,
           name: 'wuy_profile',
-          builder: (context, state) => const WuyProfileScreen(),
+          builder: (context, state) => AuthGuard.requireAuth(
+            context,
+            const WuyProfileScreen(),
+          ),
         ),
 
         // Edit Profile route

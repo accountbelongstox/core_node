@@ -39,17 +39,14 @@ CONFIG -= precompile_header
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
-    dialog.cpp \
     ui/customtitlebar.cpp
 
 HEADERS += \
     mainwindow.h \
-    dialog.h \
     ui/customtitlebar.h
 
 FORMS += \
-    mainwindow.ui \
-    dialog.ui
+    mainwindow.ui
 
 TRANSLATIONS = \
     $$PWD/QtScrcpy/res/i18n/QtScrcpy_en.ts \

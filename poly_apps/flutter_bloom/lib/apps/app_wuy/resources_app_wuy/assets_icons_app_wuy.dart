@@ -21,7 +21,6 @@ class WuyAppAssetsIcons {
   static const String logo = '$_basePath/logo.png';
   static const String logoBak = '$_basePath/logo.png';
 
-  // Placeholder images
   static const String avatarPlaceholder = '$_basePath/avatar_placeholder.png';
   static const String bannerPlaceholder = '$_basePath/banner_placeholder.png';
   static const String imagePlaceholder = '$_basePath/image_placeholder.png';
