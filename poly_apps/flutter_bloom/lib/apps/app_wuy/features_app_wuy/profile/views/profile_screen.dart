@@ -12,13 +12,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/widgets/floating_avatar_header.dart';
-import 'package:qyflutter/common/widgets/info_row_widget.dart';
 import 'package:qyflutter/common/assets/common_assets_images.dart';
+import '../../../providers_app_wuy/wu_user_provider.dart';
 import '../../../widgets_app_wuy/wuy_bottom_navigation.dart';
 import '../../../widgets_app_wuy/wuy_gradient_button.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
@@ -26,6 +27,7 @@ import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../utils_app_wuy/auth_guard.dart';
 import '../../../services_app_wuy/wuy_unified_service.dart';
 import '../../../models_app_wuy/user_model_app_wuy.dart';
+import '../../../resources_app_wuy/assets_icons_app_wuy.dart';
 
 /// Profile Screen for Wuy App
 ///
@@ -41,41 +43,80 @@ class WuyProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dataManager = WuyUnifiedService();
-    final user = dataManager.currentUser;
+    return Consumer<WuUserProvider>(
+      builder: (context, userProvider, child) {
+        final user = userProvider.user as UserModelAppWuy?;
 
-    return Scaffold(
-      backgroundColor: ThemeColors.lightBackground,
+        return Scaffold(
+      backgroundColor: ThemeColors.grey50,
       body: Column(
         children: [
-          // Floating avatar header
           FloatingAvatarHeader(
             backgroundImage: CommonAssetsImages.wuyBackground1,
-            avatarImage: user?.avatarUrl ?? user?.avatar,
-            displayName: user?.displayName ?? user?.name ?? '',
+            avatarImage: user?.unifiedAvatarUrl.isEmpty ?? true ? WuyAppAssetsIcons.avatarPlaceholder : user!.unifiedAvatarUrl,
+            displayName: user?.displayName ?? '',
             subtitle: user?.about ?? '',
             onBackTap: () => Navigator.of(context).pop(),
             onAvatarTap: () {
-              // Handle avatar tap - could open image picker
+              context.go(WuyAppRouter.getEditProfileRoute());
             },
             showBackButton: true,
-            backgroundHeight: 200.0,
-            avatarSize: 120.0,
+            backgroundHeight: 120.0,
+            avatarSize: 60.0,
+            gradientColors: [
+              ThemeColors.teal.withOpacity(0.85),
+              ThemeColors.green.withOpacity(0.75),
+              ThemeColors.blue60.withOpacity(0.65),
+            ],
+            gradientOpacity: 0.4,
           ),
-          // Profile content with space for floating avatar
           Expanded(
             child: Container(
-              margin: EdgeInsets.only(top: 60), // Space for floating avatar
+              margin: EdgeInsets.only(top: 24),
               child: SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-                  child: Column(
-                    children: [
-                      _buildProfileInfo(context, user),
-                      SizedBox(height: ThemeDimensions.spacingLarge),
-                      _buildProfileActions(context),
-                    ],
-                  ),
+                physics: BouncingScrollPhysics(),
+                child: Column(
+                  children: [
+                    SizedBox(height: 8),
+                    Center(
+                      child: Column(
+                        children: [
+                          Text(
+                            user?.displayName ?? '',
+                            style: ThemeTextStyles.headline.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: ThemeColors.black,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          if (user?.about != null && user!.about!.isNotEmpty) ...[
+                            SizedBox(height: 4),
+                            Text(
+                              user.about!,
+                              style: ThemeTextStyles.footnote.copyWith(
+                                color: ThemeColors.textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ThemeDimensions.paddingSizeDefault,
+                      ),
+                      child: Column(
+                        children: [
+                          _buildProfileInfo(context, user),
+                          SizedBox(height: 12),
+                          _buildProfileActions(context),
+                          SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -83,7 +124,7 @@ class WuyProfileScreen extends StatelessWidget {
         ],
       ),
       bottomNavigationBar: WuyBottomNavigation(
-        currentIndex: 3, // Profile is the 4th item (index 3)
+        currentIndex: 3,
         onTap: (index) {
           switch (index) {
             case 0:
@@ -96,11 +137,12 @@ class WuyProfileScreen extends StatelessWidget {
               context.go(WuyAppRouter.getFindFriendsRoute());
               break;
             case 3:
-              // Already on profile page
               break;
           }
         },
       ),
+        );
+      },
     );
   }
 
@@ -143,7 +185,7 @@ class WuyProfileScreen extends StatelessWidget {
   }
 
   String _getPhoneDisplay(UserModelAppWuy? user) {
-    final phone = user?.phoneNumber ?? user?.phone;
+    final phone = user?.unifiedPhoneNumber;
     if (phone == null || phone.isEmpty) return '';
     return _maskPhoneNumber(phone);
   }
@@ -174,60 +216,72 @@ class WuyProfileScreen extends StatelessWidget {
 
   Widget _buildProfileInfo(BuildContext context, UserModelAppWuy? user) {
     return Card(
-      elevation: 2,
+      elevation: 0.3,
+      shadowColor: ThemeColors.black.withOpacity(0.03),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+        borderRadius: BorderRadius.circular(12),
       ),
+      color: ThemeColors.white,
       child: Padding(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+        padding: EdgeInsets.symmetric(
+          vertical: 6,
+          horizontal: 12,
+        ),
         child: Column(
           children: [
-            InfoRowWidget(
-              label: LocalizationKeysAppWuy.wuyProfileName.tr(context),
-              value: user?.displayName ?? '',
-              onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
+            _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileName.tr(context), user?.displayName ?? ''),
+            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileSignature.tr(context), user?.about ?? ''),
+            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileGender.tr(context), _getGenderDisplay(user?.gender, context)),
+            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfilePhone.tr(context), _getPhoneDisplay(user)),
+            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileBirthDate.tr(context), _formatBirthDate(user?.birthday) ?? ''),
+            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileLocation.tr(context), user?.city ?? ''),
+            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileEmail.tr(context), _getEmailDisplay(user)),
+            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileIdNumber.tr(context), _getIdNumberDisplay(user)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactInfoRow(BuildContext context, String label, String value) {
+    return GestureDetector(
+      onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: ThemeTextStyles.footnote.copyWith(
+                color: ThemeColors.grey600,
+              ),
             ),
-            Divider(),
-            InfoRowWidget(
-              label: LocalizationKeysAppWuy.wuyProfileSignature.tr(context),
-              value: user?.about ?? '',
-              onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
-            ),
-            Divider(),
-            InfoRowWidget(
-              label: LocalizationKeysAppWuy.wuyProfileGender.tr(context),
-              value: _getGenderDisplay(user?.gender, context),
-              onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
-            ),
-            Divider(),
-            InfoRowWidget(
-              label: LocalizationKeysAppWuy.wuyProfilePhone.tr(context),
-              value: _getPhoneDisplay(user),
-              onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
-            ),
-            Divider(),
-            InfoRowWidget(
-              label: LocalizationKeysAppWuy.wuyProfileBirthDate.tr(context),
-              value: _formatBirthDate(user?.birthday) ?? '',
-              onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
-            ),
-            Divider(),
-            InfoRowWidget(
-              label: LocalizationKeysAppWuy.wuyProfileLocation.tr(context),
-              value: user?.city ?? '',
-              onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
-            ),
-            Divider(),
-            InfoRowWidget(
-              label: LocalizationKeysAppWuy.wuyProfileEmail.tr(context),
-              value: _getEmailDisplay(user),
-              onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
-            ),
-            Divider(),
-            InfoRowWidget(
-              label: LocalizationKeysAppWuy.wuyProfileIdNumber.tr(context),
-              value: _getIdNumberDisplay(user),
-              onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
+            Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    value,
+                    style: ThemeTextStyles.footnote.copyWith(
+                      color: ThemeColors.black,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                SizedBox(width: 4),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 12,
+                  color: ThemeColors.grey400,
+                ),
+              ],
             ),
           ],
         ),
@@ -241,20 +295,39 @@ class WuyProfileScreen extends StatelessWidget {
         WuyGradientButton(
           text: LocalizationKeysAppWuy.wuyProfileEditProfile.tr(context),
           onPressed: () {
-            // Edit profile action
+            context.go(WuyAppRouter.getEditProfileRoute());
           },
-          height: 50,
+          height: 38,
         ),
-        SizedBox(height: ThemeDimensions.spacingMedium),
-        WuyGradientButton(
-          text: LocalizationKeysAppWuy.wuyProfileLogout.tr(context),
-          onPressed: () {
-            AuthGuard.onLogout(context);
-          },
-          height: 50,
-          backgroundColor: Colors.white,
-          textColor: ThemeColors.error,
-          gradientColors: null,
+        SizedBox(height: 8),
+        Container(
+          height: 38,
+          decoration: BoxDecoration(
+            color: ThemeColors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: ThemeColors.red.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          child: Material(
+            color: ThemeColors.transparent,
+            child: InkWell(
+              onTap: () async {
+                await AuthGuard.onLogout(context);
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Center(
+                child: Text(
+                  LocalizationKeysAppWuy.wuyProfileLogout.tr(context),
+                  style: ThemeTextStyles.subhead.copyWith(
+                    color: ThemeColors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );

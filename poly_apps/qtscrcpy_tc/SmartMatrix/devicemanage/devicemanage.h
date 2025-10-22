@@ -12,6 +12,9 @@ class DeviceManage : public QObject
 {
     Q_OBJECT
 public:
+    // 单例模式
+    static DeviceManage& getInstance();
+
     explicit DeviceManage(QObject *parent = nullptr);
     virtual ~DeviceManage();
 
@@ -23,6 +26,9 @@ public:
     bool disconnectDevice(const QString &serial);
     void disconnectAllDevice();
     quint16 getFreePort();
+
+    // 获取设备序列号列表
+    QList<QString> getDeviceSerials() const;
 
 protected:
     void setGroupControlSignals(Device *host, Device *client, bool install);

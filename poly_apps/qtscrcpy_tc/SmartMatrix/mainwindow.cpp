@@ -8,7 +8,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "toolform.h"
-#include "dialog.h"
 #include "config.h"
 #include "customtitlebar.h"
 #include "devicemanage.h"
@@ -20,7 +19,6 @@
 
 using namespace std;
 
-static Dialog *g_mainDlg = Q_NULLPTR;
 MainWindow* MainWindow::mainwin = nullptr;
 
 MainWindow::MainWindow(QWidget *parent)
@@ -164,14 +162,23 @@ void MainWindow::closeEvent(QCloseEvent *event)
 bool MainWindow::hasActiveDevices()
 {
     // 检查是否有活动设备连接
-    // 这里需要访问 DeviceManage 的设备列表
-    // 由于 DeviceManage 没有单例模式，我们需要通过 treewidget 访问
-    // 暂时返回 false，后续可以完善
+    // 通过 DeviceManage 单例获取设备列表
+    try {
+        DeviceManage& dm = DeviceManage::getInstance();
+        QList<QString> serials = dm.getDeviceSerials();
 
-    // TODO: 实现正确的设备检查逻辑
-    // 可以通过 ui->treewidget->getDeviceManage() 或类似接口访问
+        if (serials.count() > 0) {
+            qInfo("Found %d active devices", serials.count());
+            return true;
+        }
 
-    return false;  // 简化实现
+        qInfo("No active devices found");
+        return false;
+
+    } catch (const std::exception &e) {
+        qWarning("Exception in hasActiveDevices(): %s", e.what());
+        return false;
+    }
 }
 
 void MainWindow::shutdownApplication()
@@ -182,17 +189,19 @@ void MainWindow::shutdownApplication()
         // 1. 断开所有设备连接
         qInfo("Step 1: Disconnecting all devices...");
 
-        // 通过 treewidget 访问 DeviceManage 并断开所有设备
-        // 注意：需要确认 CustomTreeWidget 是否提供访问 DeviceManage 的接口
-        // 这里使用简化的实现
+        // 通过 DeviceManage 单例断开所有设备
+        DeviceManage& dm = DeviceManage::getInstance();
+        QList<QString> serials = dm.getDeviceSerials();
 
-        // DeviceManage 的实例通常在 CustomTreeWidget 中管理
-        // 我们需要调用 disconnectAllDevice()
-
-        // TODO: 正确访问 DeviceManage 实例
-        // 暂时使用 500ms 延迟模拟设备断开
-        QThread::msleep(500);
-        qInfo("  All devices disconnected");
+        if (serials.count() > 0) {
+            qInfo("  Disconnecting %d devices...", serials.count());
+            dm.disconnectAllDevice();
+            // 等待设备断开完成
+            QThread::msleep(500);
+            qInfo("  All %d devices disconnected", serials.count());
+        } else {
+            qInfo("  No devices to disconnect");
+        }
 
         // 2. 清理全局资源
         qInfo("Step 2: Cleaning up global resources...");
@@ -228,7 +237,17 @@ void MainWindow::restartApplication()
 
         // 断开所有设备
         qInfo("  Disconnecting devices...");
-        QThread::msleep(500);
+        DeviceManage& dm = DeviceManage::getInstance();
+        QList<QString> serials = dm.getDeviceSerials();
+
+        if (serials.count() > 0) {
+            qInfo("  Found %d devices to disconnect", serials.count());
+            dm.disconnectAllDevice();
+            QThread::msleep(500);
+            qInfo("  Devices disconnected");
+        } else {
+            qInfo("  No devices to disconnect");
+        }
 
         // 清理全局资源
         qInfo("  Cleaning up resources...");
@@ -289,10 +308,8 @@ void MainWindow::restartApplication()
 
 void MainWindow::on_configbutton_clicked()
 {
-    g_mainDlg = new Dialog;
-    g_mainDlg->setWindowTitle(Config::getInstance().getTitle());
-    g_mainDlg->hide();
-    g_mainDlg->show();
+    // TODO: 配置对话框功能待重新实现
+    qInfo("Config button clicked - feature to be implemented");
 }
 
 void MainWindow::on_pushButton_clicked()

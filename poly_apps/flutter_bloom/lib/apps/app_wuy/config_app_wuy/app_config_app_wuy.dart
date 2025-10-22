@@ -39,6 +39,8 @@ class AppConfigAppWuy {
   static const int apiRetryAttempts = 3;
 
   // Tencent Maps Configuration
+  // NOTE: Segments 3-6 need to be configured with actual API key segments
+  // Obtain from Tencent Maps console: https://lbs.qq.com/console/mykey.html
   static const String _tencentMapKeySegment1 = 'WUYAPP';
   static const String _tencentMapKeySegment2 = '-TBZBZ-';
   static const String _tencentMapKeySegment3 = 'XXXXX-';
