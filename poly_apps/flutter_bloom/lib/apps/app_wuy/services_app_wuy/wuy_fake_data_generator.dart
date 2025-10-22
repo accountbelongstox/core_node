@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart';
 import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
 import '../models_app_wuy/chat_message_model_app_wuy.dart';
+import '../resources_app_wuy/assets_icons_app_wuy.dart';
 
 /// Wuy Fake Data Generator
 /// Independent fake data generation library for development and testing
@@ -23,6 +24,8 @@ class WuyFakeDataGenerator {
       WuyFakeDataGenerator._internal();
   factory WuyFakeDataGenerator() => _instance;
   WuyFakeDataGenerator._internal();
+
+  static bool _isEnabled = kDebugMode;
 
   // Fake user data templates
   static const List<String> _fakeNames = [
@@ -78,6 +81,7 @@ class WuyFakeDataGenerator {
     final phoneSuffix =
         phone.length >= 4 ? phone.substring(phone.length - 4) : '0000';
     final nameIndex = phone.hashCode.abs() % _fakeNames.length;
+    final fakeIdNumber = '4201${phone.hashCode.abs() % 100000000}'.padLeft(18, '0');
 
     return UserModelAppWuy(
       id: phone.hashCode,
@@ -85,9 +89,9 @@ class WuyFakeDataGenerator {
       nickname: nickname ?? _fakeNames[nameIndex],
       email: email ?? 'user_$phoneSuffix@anwuyou.test',
       phone: phone,
-      phoneNumber: phone, // Ensure phoneNumber is set
-      avatar: 'assets/common/icons/people.png',
-      avatarUrl: 'assets/common/icons/people.png', // Ensure avatarUrl is set
+      phoneNumber: phone,
+      avatar: WuyAppAssetsIcons.avatarPlaceholder,
+      avatarUrl: WuyAppAssetsIcons.avatarPlaceholder,
       isOnline: true,
       isVerified: true,
       bio: _fakeBios[nameIndex % _fakeBios.length],
@@ -95,6 +99,10 @@ class WuyFakeDataGenerator {
       createdAt: DateTime.now().subtract(const Duration(days: 30)),
       updatedAt: DateTime.now(),
       roles: ['user'],
+      meta: {
+        'id_number': fakeIdNumber,
+      },
+      preferences: {},
     );
   }
 
@@ -119,7 +127,7 @@ class WuyFakeDataGenerator {
         displayName: '小飞侠',
         bio: '热爱生活，积极向上',
         isOnline: true,
-        avatarUrl: 'assets/common/icons/people.png',
+        avatarUrl: WuyAppAssetsIcons.avatarPlaceholder,
         phoneNumber: '138****8888',
         lastSeen: DateTime.now(),
         createdAt: DateTime.now().subtract(const Duration(days: 30)),
@@ -131,7 +139,7 @@ class WuyFakeDataGenerator {
         displayName: '小明',
         bio: '喜欢旅行和摄影',
         isOnline: false,
-        avatarUrl: 'assets/common/icons/people.png',
+        avatarUrl: WuyAppAssetsIcons.avatarPlaceholder,
         phoneNumber: '139****9999',
         lastSeen: DateTime.now().subtract(const Duration(hours: 2)),
         createdAt: DateTime.now().subtract(const Duration(days: 25)),
@@ -143,7 +151,7 @@ class WuyFakeDataGenerator {
         displayName: '小红',
         bio: '程序员，热爱技术',
         isOnline: true,
-        avatarUrl: 'assets/common/icons/people.png',
+        avatarUrl: WuyAppAssetsIcons.avatarPlaceholder,
         phoneNumber: '137****7777',
         lastSeen: DateTime.now(),
         createdAt: DateTime.now().subtract(const Duration(days: 20)),
@@ -155,7 +163,7 @@ class WuyFakeDataGenerator {
         displayName: '小李',
         bio: '设计师，追求美',
         isOnline: false,
-        avatarUrl: 'assets/common/icons/people.png',
+        avatarUrl: WuyAppAssetsIcons.avatarPlaceholder,
         phoneNumber: '136****6666',
         lastSeen: DateTime.now().subtract(const Duration(hours: 5)),
         createdAt: DateTime.now().subtract(const Duration(days: 15)),
@@ -167,7 +175,7 @@ class WuyFakeDataGenerator {
         displayName: '小王',
         bio: '音乐爱好者',
         isOnline: true,
-        avatarUrl: 'assets/common/icons/people.png',
+        avatarUrl: WuyAppAssetsIcons.avatarPlaceholder,
         phoneNumber: '135****5555',
         lastSeen: DateTime.now(),
         createdAt: DateTime.now().subtract(const Duration(days: 10)),
@@ -389,15 +397,17 @@ class WuyFakeDataGenerator {
   }
 
   /// Check if fake data generation is enabled
-  static bool get isEnabled => true; // Can be controlled by config
+  static bool get isEnabled => _isEnabled;
 
   /// Disable fake data generation (for production)
   static void disable() {
+    _isEnabled = false;
     debugPrint('WuyFakeDataGenerator: Fake data generation disabled');
   }
 
   /// Enable fake data generation (for development)
   static void enable() {
+    _isEnabled = true;
     debugPrint('WuyFakeDataGenerator: Fake data generation enabled');
   }
 }

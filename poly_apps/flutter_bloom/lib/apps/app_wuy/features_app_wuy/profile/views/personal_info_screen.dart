@@ -10,17 +10,24 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/widgets/floating_avatar_header.dart';
 import 'package:qyflutter/common/assets/common_assets_images.dart';
+import '../../../providers_app_wuy/wu_user_provider.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../services_app_wuy/wuy_unified_service.dart';
+import '../../../services_app_wuy/wuy_avatar_service.dart';
+import '../../../services_app_wuy/wuy_auth_state_manager.dart';
+import '../../../models_app_wuy/user_model_app_wuy.dart';
+import '../../../resources_app_wuy/assets_icons_app_wuy.dart';
 
 /// Personal Info Screen for Wuy App
 ///
@@ -47,9 +54,13 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
   final _addressController = TextEditingController();
   final _emailController = TextEditingController();
   final _idController = TextEditingController();
+  final _avatarService = WuyAvatarService();
+  final _unifiedService = WuyUnifiedService();
 
   String _selectedGender = 'male';
   bool _isEditing = false;
+  bool _isSaving = false;
+  String? _currentAvatarPath;
 
   @override
   void initState() {
@@ -58,13 +69,13 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
   }
 
   void _initializeFormData() {
-    // Initialize form data from data manager
-    final dataManager = WuyUnifiedService();
-    final user = dataManager.currentUser;
+    // Initialize form data from user provider
+    final userProvider = Provider.of<WuUserProvider>(context, listen: false);
+    final user = userProvider.user as UserModelAppWuy?;
 
-    _nicknameController.text = user?.displayName ?? user?.name ?? '';
+    _nicknameController.text = user?.displayName ?? '';
     _signatureController.text = user?.about ?? '';
-    _phoneController.text = user?.phoneNumber ?? user?.phone ?? '';
+    _phoneController.text = user?.unifiedPhoneNumber ?? '';
     _birthdayController.text = user?.birthday ?? '';
     _addressController.text = user?.city ?? '';
     _emailController.text = user?.email ?? '';
@@ -86,93 +97,119 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dataManager = WuyUnifiedService();
-    final user = dataManager.currentUser;
+    final userProvider = Provider.of<WuUserProvider>(context);
+    final user = userProvider.user as UserModelAppWuy?;
 
     return Scaffold(
-      backgroundColor: ThemeColors.lightBackground,
-      body: Column(
-        children: [
-          // Floating avatar header with background2
-          FloatingAvatarHeader(
-            backgroundImage: CommonAssetsImages.wuyBackground2,
-            avatarImage: user?.avatarUrl ?? user?.avatar,
-            displayName: user?.displayName ?? user?.name ?? '',
-            subtitle: user?.about ?? '',
-            onBackTap: () => context.go(WuyAppRouter.getProfileRoute()),
-            onAvatarTap: () {
-              // Handle avatar tap - could open image picker
-            },
-            showBackButton: true,
-            backgroundHeight: 200.0,
-            avatarSize: 120.0,
-          ),
-          // Form content with space for floating avatar
-          Expanded(
-            child: Container(
-              margin: EdgeInsets.only(top: 60), // Space for floating avatar
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-                  child: Column(
-                    children: [
-                      _buildFormSection(),
-                    ],
+      backgroundColor: ThemeColors.grey50,
+      body: SingleChildScrollView(
+        physics: BouncingScrollPhysics(),
+        child: Column(
+          children: [
+            FloatingAvatarHeader(
+              backgroundImage: CommonAssetsImages.wuyBackground1,
+              avatarImage: user?.unifiedAvatarUrl.isEmpty ?? true ? WuyAppAssetsIcons.avatarPlaceholder : user!.unifiedAvatarUrl,
+              displayName: user?.displayName ?? '',
+              subtitle: user?.about ?? '',
+              onBackTap: () => context.go(WuyAppRouter.getProfileRoute()),
+              onAvatarTap: () => _handleAvatarTap(),
+              showBackButton: true,
+              backgroundHeight: 180.0,
+              avatarSize: 90.0,
+              gradientColors: [
+                ThemeColors.teal.withOpacity(0.85),
+                ThemeColors.green.withOpacity(0.75),
+                ThemeColors.blue60.withOpacity(0.65),
+              ],
+              gradientOpacity: 0.4,
+            ),
+            SizedBox(height: 35),
+            Center(
+              child: Column(
+                children: [
+                  Text(
+                    user?.displayName ?? '',
+                    style: ThemeTextStyles.title3.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: ThemeColors.black,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
+                  if (user?.about != null && user!.about!.isNotEmpty) ...[
+                    SizedBox(height: 6),
+                    Text(
+                      user.about!,
+                      style: ThemeTextStyles.subhead.copyWith(
+                        color: ThemeColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
               ),
             ),
-          ),
-        ],
+            SizedBox(height: ThemeDimensions.spacingMedium),
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: ThemeDimensions.defaultPadding,
+              ),
+              child: Column(
+                children: [
+                  _buildFormSection(),
+                  SizedBox(height: 16),
+                  _buildActionButtons(),
+                  SizedBox(height: ThemeDimensions.spacingLarge),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildFormSection() {
-    return Container(
-      padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-      decoration: BoxDecoration(
-        color: ThemeColors.white,
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
+    return Card(
+      elevation: 0.5,
+      shadowColor: ThemeColors.black.withOpacity(0.05),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
       ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildInfoField(
-                LocalizationKeysAppWuy.wuyProfileNickname.tr(context),
-                _nicknameController,
-                Icons.person_outline),
-            _buildInfoField(
-                LocalizationKeysAppWuy.wuyProfileSignature.tr(context),
-                _signatureController,
-                Icons.edit),
-            _buildGenderField(),
-            _buildInfoField(LocalizationKeysAppWuy.wuyProfilePhone.tr(context),
-                _phoneController, Icons.phone),
-            _buildInfoField(
-                LocalizationKeysAppWuy.wuyProfileBirthday.tr(context),
-                _birthdayController,
-                Icons.cake),
-            _buildInfoField(
-                LocalizationKeysAppWuy.wuyProfileAddress.tr(context),
-                _addressController,
-                Icons.location_on),
-            _buildInfoField(LocalizationKeysAppWuy.wuyProfileEmail.tr(context),
-                _emailController, Icons.email),
-            _buildInfoField(
-                LocalizationKeysAppWuy.wuyProfileIdNumber.tr(context),
-                _idController,
-                Icons.credit_card),
-          ],
+      color: ThemeColors.white,
+      child: Padding(
+        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildInfoField(
+                  LocalizationKeysAppWuy.wuyProfileNickname.tr(context),
+                  _nicknameController,
+                  Icons.person_outline),
+              _buildInfoField(
+                  LocalizationKeysAppWuy.wuyProfileSignature.tr(context),
+                  _signatureController,
+                  Icons.edit),
+              _buildGenderField(),
+              _buildInfoField(LocalizationKeysAppWuy.wuyProfilePhone.tr(context),
+                  _phoneController, Icons.phone),
+              _buildInfoField(
+                  LocalizationKeysAppWuy.wuyProfileBirthday.tr(context),
+                  _birthdayController,
+                  Icons.cake),
+              _buildInfoField(
+                  LocalizationKeysAppWuy.wuyProfileAddress.tr(context),
+                  _addressController,
+                  Icons.location_on),
+              _buildInfoField(LocalizationKeysAppWuy.wuyProfileEmail.tr(context),
+                  _emailController, Icons.email),
+              _buildInfoField(
+                  LocalizationKeysAppWuy.wuyProfileIdNumber.tr(context),
+                  _idController,
+                  Icons.credit_card),
+            ],
+          ),
         ),
       ),
     );
@@ -180,32 +217,65 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
   Widget _buildInfoField(
       String label, TextEditingController controller, IconData icon) {
+    final fieldColors = [
+      ThemeColors.blue,
+      ThemeColors.teal,
+      ThemeColors.green,
+      ThemeColors.purple,
+      ThemeColors.orange,
+      ThemeColors.pink,
+      ThemeColors.indigo,
+      ThemeColors.red,
+    ];
+
+    final colorIndex = label.hashCode.abs() % fieldColors.length;
+    final fieldColor = fieldColors[colorIndex];
+
     return Padding(
-      padding: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
-      child: TextFormField(
-        controller: controller,
-        enabled: _isEditing,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, color: ThemeColors.primary),
-          border: OutlineInputBorder(
-            borderRadius:
-                BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+      padding: EdgeInsets.only(bottom: 14),
+      child: Container(
+        height: 52,
+        child: TextFormField(
+          controller: controller,
+          enabled: _isEditing,
+          style: ThemeTextStyles.callout,
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: ThemeTextStyles.footnote.copyWith(
+              color: _isEditing ? fieldColor : ThemeColors.grey600,
+            ),
+            prefixIcon: Icon(
+              icon,
+              color: _isEditing ? fieldColor : ThemeColors.grey500,
+              size: 20,
+            ),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: ThemeColors.grey300, width: 1),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: ThemeColors.grey300, width: 1),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: fieldColor, width: 1.5),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: ThemeColors.grey200, width: 1),
+            ),
+            filled: true,
+            fillColor: _isEditing ? ThemeColors.white : ThemeColors.grey50,
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius:
-                BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-            borderSide: BorderSide(color: ThemeColors.primary, width: 2),
-          ),
-          filled: !_isEditing,
-          fillColor: _isEditing ? null : ThemeColors.grey100,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter $label';
+            }
+            return null;
+          },
         ),
-        validator: (value) {
-          if (value == null || value.isEmpty) {
-            return 'Please enter $label';
-          }
-          return null;
-        },
       ),
     );
   }
@@ -255,6 +325,159 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleAvatarTap() async {
+    if (!_isEditing) {
+      setState(() => _isEditing = true);
+      return;
+    }
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(LocalizationKeysAppWuy.wuyProfileEditProfile.tr(context)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.photo_library),
+              title: Text('Gallery'),
+              onTap: () => Navigator.pop(context, 'gallery'),
+            ),
+            ListTile(
+              leading: Icon(Icons.camera_alt),
+              title: Text('Camera'),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == null) return;
+
+    File? imageFile;
+    if (result == 'gallery') {
+      imageFile = await _avatarService.pickImageFromGallery();
+    } else if (result == 'camera') {
+      imageFile = await _avatarService.pickImageFromCamera();
+    }
+
+    if (imageFile == null) return;
+
+    final user = _unifiedService.currentUser;
+    if (user == null) return;
+
+    final success = await _avatarService.updateUserAvatar(imageFile, user);
+    if (success && mounted) {
+      setState(() {
+        _currentAvatarPath = imageFile?.path;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Avatar updated successfully')),
+      );
+    }
+  }
+
+  Future<void> _toggleEditMode() async {
+    if (_isEditing) {
+      await _saveProfile();
+    } else {
+      setState(() => _isEditing = true);
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final userProvider = Provider.of<WuUserProvider>(context, listen: false);
+      final user = userProvider.user as UserModelAppWuy?;
+      if (user == null) {
+        throw Exception('No user logged in');
+      }
+
+      final updatedUser = user.copyWith(
+        nickname: _nicknameController.text,
+        about: _signatureController.text,
+        gender: _selectedGender,
+        phoneNumber: _phoneController.text,
+        birthday: _birthdayController.text,
+        city: _addressController.text,
+        email: _emailController.text,
+        meta: {
+          ...user.meta,
+          'id_number': _idController.text,
+        },
+        updatedAt: DateTime.now(),
+      );
+
+      final authStateManager = WuyAuthStateManager.instance;
+      await authStateManager.setAuthenticatedUser(updatedUser);
+
+      setState(() {
+        _isEditing = false;
+        _isSaving = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Profile updated successfully')),
+        );
+      }
+    } catch (e) {
+      setState(() => _isSaving = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update profile: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildActionButtons() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultPadding),
+      child: Row(
+        children: [
+          if (_isEditing) ...[
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isSaving
+                    ? null
+                    : () {
+                        _initializeFormData();
+                        setState(() => _isEditing = false);
+                      },
+                child: Text('Cancel'),
+              ),
+            ),
+            SizedBox(width: 12),
+          ],
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _isSaving ? null : _toggleEditMode,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isEditing ? ThemeColors.green : ThemeColors.blue,
+              ),
+              child: _isSaving
+                  ? SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
+                      ),
+                    )
+                  : Text(_isEditing ? 'Save' : 'Edit'),
+            ),
           ),
         ],
       ),

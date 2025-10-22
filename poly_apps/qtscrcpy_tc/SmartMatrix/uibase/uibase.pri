@@ -1,9 +1,7 @@
 FORMS +=
 
 HEADERS += \
-    $$PWD/keepratiowidget.h \
-    $$PWD/magneticwidget.h
+    $$PWD/keepratiowidget.h
 
 SOURCES += \
-    $$PWD/keepratiowidget.cpp \
-    $$PWD/magneticwidget.cpp
+    $$PWD/keepratiowidget.cpp

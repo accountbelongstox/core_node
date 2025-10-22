@@ -46,53 +46,58 @@ class WuyBottomNavigation extends StatelessWidget {
         color: ThemeColors.white,
         boxShadow: [
           BoxShadow(
-            color: ThemeColors.black.withOpacity(0.1),
-            blurRadius: 8,
+            color: ThemeColors.black.withOpacity(0.08),
+            blurRadius: 12,
             offset: const Offset(0, -2),
           ),
         ],
       ),
       child: SafeArea(
-        child: Container(
-          height: 70,
-          padding: EdgeInsets.only(
-            left: ThemeDimensions.paddingSizeDefault,
-            right: ThemeDimensions.paddingSizeDefault,
-            top: ThemeDimensions.paddingSizeSmall,
-            bottom: ThemeDimensions.paddingSizeSmall,
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: 70,
+            minHeight: 60,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                context,
-                Icons.chat,
-                LocalizationKeysAppWuy.wuyMenuMessages.tr(context),
-                WuyAppRouter.getSearchRoute(),
-                0,
-              ),
-              _buildNavItem(
-                context,
-                Icons.people,
-                LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
-                WuyAppRouter.getFriendsRoute(),
-                1,
-              ),
-              _buildNavItem(
-                context,
-                Icons.explore,
-                LocalizationKeysAppWuy.wuySearchTitle.tr(context),
-                WuyAppRouter.getFindFriendsRoute(),
-                2,
-              ),
-              _buildNavItem(
-                context,
-                Icons.person,
-                LocalizationKeysAppWuy.wuyMenuProfile.tr(context),
-                WuyAppRouter.getProfileRoute(),
-                3,
-              ),
-            ],
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: ThemeDimensions.paddingSizeDefault,
+              vertical: ThemeDimensions.paddingSizeExtraSmall,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildNavItem(
+                  context,
+                  Icons.chat,
+                  LocalizationKeysAppWuy.wuyMenuMessages.tr(context),
+                  WuyAppRouter.getSearchRoute(),
+                  0,
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.people,
+                  LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
+                  WuyAppRouter.getFriendsRoute(),
+                  1,
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.explore,
+                  LocalizationKeysAppWuy.wuySearchTitle.tr(context),
+                  WuyAppRouter.getFindFriendsRoute(),
+                  2,
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.person,
+                  LocalizationKeysAppWuy.wuyMenuProfile.tr(context),
+                  WuyAppRouter.getProfileRoute(),
+                  3,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -107,7 +112,7 @@ class WuyBottomNavigation extends StatelessWidget {
     int index,
   ) {
     final isActive = currentIndex == index;
-    final color = isActive ? ThemeColors.primary : ThemeColors.textSecondary;
+    final color = isActive ? ThemeColors.primary : ThemeColors.grey600;
 
     return Expanded(
       child: Material(
@@ -121,28 +126,32 @@ class WuyBottomNavigation extends StatelessWidget {
             }
           },
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusDefault),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: ThemeDimensions.paddingSizeSmall,
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              vertical: ThemeDimensions.paddingSizeExtraSmall,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   icon,
                   color: color,
-                  size: ThemeDimensions.iconSizeMedium,
+                  size: 22,
                 ),
-                SizedBox(height: ThemeDimensions.spacing4),
-                Text(
-                  label,
-                  style: ThemeTextStyles.bodySmall.copyWith(
-                    color: color,
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                SizedBox(height: 2),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: ThemeTextStyles.caption2.copyWith(
+                      color: color,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                      fontSize: 10,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

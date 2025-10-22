@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../providers_app_wuy/wu_user_provider.dart';
 import '../services_app_wuy/wuy_auth_state_manager.dart';
+import '../services_app_wuy/wuy_avatar_service.dart';
 import '../router_app_wuy/router_app_wuy.dart';
 
 /// Authentication Guard for Wuy App
@@ -182,10 +183,33 @@ class AuthGuard {
   }
 
   /// Handle logout
-  static void onLogout(BuildContext context) {
-    // Use auth state manager for logout handling
-    final authStateManager = WuyAuthStateManager.instance;
-    authStateManager.clearAuthentication();
-    context.go(WuyAppRouter.routeLoginEntry);
+  static Future<void> onLogout(BuildContext context) async {
+    try {
+      debugPrint('AuthGuard: Starting logout process...');
+
+      final authStateManager = WuyAuthStateManager.instance;
+      final userProvider = Provider.of<WuUserProvider>(context, listen: false);
+      final avatarService = WuyAvatarService();
+
+      debugPrint('AuthGuard: Clearing auth state manager...');
+      await authStateManager.clearAuthentication();
+
+      debugPrint('AuthGuard: Clearing user provider...');
+      userProvider.clearUser();
+
+      debugPrint('AuthGuard: Clearing avatar cache...');
+      await avatarService.clearAllCache();
+
+      debugPrint('AuthGuard: Logout complete. Navigating to login...');
+
+      if (context.mounted) {
+        context.go(WuyAppRouter.routeLoginEntry);
+      }
+    } catch (e) {
+      debugPrint('AuthGuard: Error during logout: $e');
+      if (context.mounted) {
+        context.go(WuyAppRouter.routeLoginEntry);
+      }
+    }
   }
 }
