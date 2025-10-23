@@ -143,7 +143,7 @@ check_native_files() {
 
 # Step 1: Scan ncoreApps
 step1_scan_ncore_apps() {
-    echo -e "\033[36mStep 1: Scanning $NCORE_APPS directory...\033[0m"
+    echo -e "\033[36mStep 1: Scanning $NCORE_APPS directory...\033[0m" >&2
     
     local ncore_apps=()
     
@@ -152,12 +152,12 @@ step1_scan_ncore_apps() {
             if [ -d "$dir" ]; then
                 local app_name="$(basename "$dir")"
                 ncore_apps+=("$app_name|$dir|ncoreApp")
-                echo -e "  \033[90mFound: $app_name [ncoreApp]\033[0m"
+                echo -e "  \033[90mFound: $app_name [ncoreApp]\033[0m" >&2
             fi
         done
-        echo -e "  \033[32mTotal ncoreApps: ${#ncore_apps[@]}\033[0m"
+        echo -e "  \033[32mTotal ncoreApps: ${#ncore_apps[@]}\033[0m" >&2
     else
-        echo -e "  \033[31mDirectory not found: $NCORE_APPS\033[0m"
+        echo -e "  \033[31mDirectory not found: $NCORE_APPS\033[0m" >&2
     fi
     
     # Return array as string (newline separated)
@@ -166,7 +166,7 @@ step1_scan_ncore_apps() {
 
 # Step 2: Scan poly_apps
 step2_scan_poly_apps() {
-    echo -e "\033[36mStep 2: Scanning $POLY_APPS directory...\033[0m"
+    echo -e "\033[36mStep 2: Scanning $POLY_APPS directory...\033[0m" >&2
     
     local poly_apps=()
     
@@ -175,12 +175,12 @@ step2_scan_poly_apps() {
             if [ -d "$dir" ]; then
                 local app_name="$(basename "$dir")"
                 poly_apps+=("$app_name|$dir|poly_apps")
-                echo -e "  \033[90mFound: $app_name [poly_apps]\033[0m"
+                echo -e "  \033[90mFound: $app_name [poly_apps]\033[0m" >&2
             fi
         done
-        echo -e "  \033[32mTotal poly_apps: ${#poly_apps[@]}\033[0m"
+        echo -e "  \033[32mTotal poly_apps: ${#poly_apps[@]}\033[0m" >&2
     else
-        echo -e "  \033[31mDirectory not found: $POLY_APPS\033[0m"
+        echo -e "  \033[31mDirectory not found: $POLY_APPS\033[0m" >&2
     fi
     
     printf '%s\n' "${poly_apps[@]}"
@@ -190,7 +190,7 @@ step2_scan_poly_apps() {
 step3_generate_native_startup() {
     local app_list=("$@")
     
-    echo -e "\033[36mStep 3: Generating native startup commands...\033[0m"
+    echo -e "\033[36mStep 3: Generating native startup commands...\033[0m" >&2
     
     for app_data in "${app_list[@]}"; do
         IFS='|' read -r app_name app_path app_type <<< "$app_data"
@@ -211,7 +211,7 @@ step3_generate_native_startup() {
                 current_script="ncoreStart"
                 script_index=0
                 found_native=1
-                echo -e "  \033[35m$app_name: ncoreStart - $cmd\033[0m"
+                echo -e "  \033[35m$app_name: ncoreStart - $cmd\033[0m" >&2
             fi
         fi
         
@@ -229,7 +229,7 @@ step3_generate_native_startup() {
                     else
                         available_scripts+=("flutterStart")
                     fi
-                    echo -e "  \033[35m$app_name: flutterStart - $cmd\033[0m"
+                    echo -e "  \033[35m$app_name: flutterStart - $cmd\033[0m" >&2
                 fi
             fi
             
@@ -245,7 +245,7 @@ step3_generate_native_startup() {
                     else
                         available_scripts+=("laravelStart")
                     fi
-                    echo -e "  \033[35m$app_name: laravelStart - $cmd\033[0m"
+                    echo -e "  \033[35m$app_name: laravelStart - $cmd\033[0m" >&2
                 fi
             fi
             
@@ -261,7 +261,7 @@ step3_generate_native_startup() {
                     else
                         available_scripts+=("nuxtStart")
                     fi
-                    echo -e "  \033[35m$app_name: nuxtStart - $cmd\033[0m"
+                    echo -e "  \033[35m$app_name: nuxtStart - $cmd\033[0m" >&2
                 fi
             fi
             
@@ -277,7 +277,7 @@ step3_generate_native_startup() {
                     else
                         available_scripts+=("phpStart")
                     fi
-                    echo -e "  \033[35m$app_name: phpStart - $cmd\033[0m"
+                    echo -e "  \033[35m$app_name: phpStart - $cmd\033[0m" >&2
                 fi
             fi
         fi
@@ -294,7 +294,7 @@ step3_generate_native_startup() {
                 else
                     available_scripts+=("pyStart")
                 fi
-                echo -e "  \033[35m$app_name: pyStart - $cmd\033[0m"
+                echo -e "  \033[35m$app_name: pyStart - $cmd\033[0m" >&2
             fi
         fi
         
@@ -306,9 +306,13 @@ step3_generate_native_startup() {
 
 # Step 4: Scan scripts directory
 step4_scan_scripts_directory() {
-    echo -e "\033[36mStep 4: Scanning scripts directories...\033[0m"
+    local app_list=("$@")
     
-    while IFS='|' read -r app_name app_path app_type scripts_str current_script script_index; do
+    echo -e "\033[36mStep 4: Scanning scripts directories...\033[0m" >&2
+    
+    for app_data in "${app_list[@]}"; do
+        IFS='|' read -r app_name app_path app_type scripts_str current_script script_index <<< "$app_data"
+        
         local scripts_path="$app_path/scripts"
         local found_scripts=()
         
@@ -320,16 +324,20 @@ step4_scan_scripts_directory() {
             done
             
             if [ ${#found_scripts[@]} -gt 0 ]; then
-                echo -e "  \033[90m$app_name: ${found_scripts[*]}\033[0m"
+                echo -e "  \033[90m$app_name: ${found_scripts[*]}\033[0m" >&2
             fi
         fi
         
-        # Merge scripts
+        # Merge scripts - add found scripts to existing scripts
         if [ -n "$scripts_str" ]; then
-            IFS=',' read -ra existing_scripts <<< "$scripts_str"
-            scripts_str="${existing_scripts[*]}"
             if [ ${#found_scripts[@]} -gt 0 ]; then
-                scripts_str="$scripts_str,${found_scripts[*]}"
+                # Add found scripts to existing scripts
+                for script in "${found_scripts[@]}"; do
+                    # Check if script already exists
+                    if [[ ! "$scripts_str" =~ $script ]]; then
+                        scripts_str="$scripts_str,$script"
+                    fi
+                done
             fi
         else
             scripts_str="$(IFS=','; echo "${found_scripts[*]}")"
@@ -338,10 +346,31 @@ step4_scan_scripts_directory() {
         # Set default if no scripts
         if [ -z "$scripts_str" ]; then
             current_script="None"
-        elif [ -z "$current_script" ]; then
-            IFS=',' read -ra all_scripts <<< "$scripts_str"
-            current_script="${all_scripts[0]}"
             script_index=0
+        else
+            # Always parse the scripts string and set the first one as current
+            IFS=',' read -ra all_scripts <<< "$scripts_str"
+            
+            # Check if current_script is already set and is in the available scripts
+            if [ -n "$current_script" ] && [ "$current_script" != "None" ]; then
+                local found=false
+                for i in "${!all_scripts[@]}"; do
+                    if [ "${all_scripts[$i]}" = "$current_script" ]; then
+                        script_index=$i
+                        found=true
+                        break
+                    fi
+                done
+                if [ "$found" = false ]; then
+                    # If current_script is not in the list, use the first one
+                    current_script="${all_scripts[0]}"
+                    script_index=0
+                fi
+            else
+                # Use the first script
+                current_script="${all_scripts[0]}"
+                script_index=0
+            fi
         fi
         
         echo "$app_name|$app_path|$app_type|$scripts_str|$current_script|$script_index"
@@ -359,10 +388,82 @@ load_cache() {
             CURRENT_INDEX=$current_index_cached
         fi
         
+        # Restore app states from cache
+        local app_states=$(grep -o '"AppStates":\[.*\]' "$CACHE_FILE" | sed 's/"AppStates"://')
+        if [ -n "$app_states" ]; then
+            # Extract app names, types, and current scripts from cache
+            local cached_names=$(echo "$app_states" | grep -o '"Name":"[^"]*"' | sed 's/"Name":"//g' | sed 's/"//g')
+            local cached_types=$(echo "$app_states" | grep -o '"AppType":"[^"]*"' | sed 's/"AppType":"//g' | sed 's/"//g')
+            local cached_scripts=$(echo "$app_states" | grep -o '"CurrentScript":"[^"]*"' | sed 's/"CurrentScript":"//g' | sed 's/"//g')
+            local cached_indices=$(echo "$app_states" | grep -o '"ScriptIndex":[0-9]*' | grep -o '[0-9]*')
+            
+            # Convert to arrays
+            local names_array=()
+            local types_array=()
+            local scripts_array=()
+            local indices_array=()
+            
+            for name in $cached_names; do names_array+=("$name"); done
+            for type in $cached_types; do types_array+=("$type"); done
+            for script in $cached_scripts; do scripts_array+=("$script"); done
+            for index in $cached_indices; do indices_array+=("$index"); done
+            
+            # Restore states for each app
+            for i in "${!APPS_NAME[@]}"; do
+                local app_name="${APPS_NAME[$i]}"
+                local app_type="${APPS_TYPE[$i]}"
+                
+                # Find matching app in cache
+                for j in "${!names_array[@]}"; do
+                    if [ "${names_array[$j]}" = "$app_name" ] && [ "${types_array[$j]}" = "$app_type" ]; then
+                        # Restore script index and current script
+                        if [ $j -lt ${#indices_array[@]} ]; then
+                            local cached_index="${indices_array[$j]}"
+                            local cached_script="${scripts_array[$j]}"
+                            
+                            # Validate cached script exists in available scripts
+                            local scripts_str="${APPS_AVAILABLE_SCRIPTS[$i]}"
+                            if [ -n "$scripts_str" ] && [ "$scripts_str" != "None" ]; then
+                                IFS=',' read -ra scripts <<< "$scripts_str"
+                                
+                                # Check if cached script is in available scripts
+                                local found=false
+                                for k in "${!scripts[@]}"; do
+                                    if [ "${scripts[$k]}" = "$cached_script" ]; then
+                                        APPS_SCRIPT_INDEX[$i]=$k
+                                        APPS_CURRENT_SCRIPT[$i]="$cached_script"
+                                        found=true
+                                        break
+                                    fi
+                                done
+                                
+                                # If cached script not found, use first available script
+                                if [ "$found" = false ]; then
+                                    APPS_SCRIPT_INDEX[$i]=0
+                                    APPS_CURRENT_SCRIPT[$i]="${scripts[0]}"
+                                fi
+                            fi
+                        fi
+                        break
+                    fi
+                done
+            done
+        fi
+        
         echo -e "  \033[32mCache loaded\033[0m"
         return 0
+    else
+        # No cache file, reset to ensure clean state
+        reset_cache
+        return 1
     fi
-    return 1
+}
+
+# Reset cache if corrupted
+reset_cache() {
+    echo -e "\033[33mResetting corrupted cache...\033[0m"
+    rm -f "$CACHE_FILE"
+    echo -e "\033[32mCache reset complete\033[0m"
 }
 
 # Save cache
@@ -409,7 +510,7 @@ scan_apps() {
     echo ""
     
     # Step 4: Scan scripts directory
-    mapfile -t final_apps < <(echo "${apps_with_native[@]}" | step4_scan_scripts_directory)
+    mapfile -t final_apps < <(step4_scan_scripts_directory "${apps_with_native[@]}")
     echo ""
     
     # Populate global arrays
@@ -510,7 +611,7 @@ toggle_script() {
     local scripts_str="${APPS_AVAILABLE_SCRIPTS[$CURRENT_INDEX]}"
     
     if [ -z "$scripts_str" ] || [ "$scripts_str" = "None" ]; then
-        echo "No alternative scripts available"
+        echo -e "\033[33mNo alternative scripts available for ${APPS_NAME[$CURRENT_INDEX]}\033[0m"
         return
     fi
     
@@ -524,7 +625,10 @@ toggle_script() {
         APPS_SCRIPT_INDEX[$CURRENT_INDEX]=$current_index
         APPS_CURRENT_SCRIPT[$CURRENT_INDEX]="${scripts[$current_index]}"
         
+        echo -e "\033[32mSwitched to ${APPS_CURRENT_SCRIPT[$CURRENT_INDEX]} for ${APPS_NAME[$CURRENT_INDEX]}\033[0m"
         save_cache
+    else
+        echo -e "\033[33mNo alternative scripts available for ${APPS_NAME[$CURRENT_INDEX]}\033[0m"
     fi
 }
 
@@ -532,8 +636,10 @@ toggle_script() {
 toggle_selection() {
     if [ "${APPS_IS_SELECTED[$CURRENT_INDEX]}" = "Y" ]; then
         APPS_IS_SELECTED[$CURRENT_INDEX]="N"
+        echo -e "\033[32m${APPS_NAME[$CURRENT_INDEX]} deselected\033[0m"
     else
         APPS_IS_SELECTED[$CURRENT_INDEX]="Y"
+        echo -e "\033[32m${APPS_NAME[$CURRENT_INDEX]} selected\033[0m"
     fi
     save_cache
 }
@@ -681,7 +787,7 @@ EOF
 
 # Main loop
 main() {
-    # Scan apps
+    # Always scan apps first
     scan_apps
     
     # Save terminal settings
@@ -727,14 +833,67 @@ main() {
                 ;;
             'r'|'R')  # Rescan
                 scan_apps
+                echo -e "\033[32mApplication list updated\033[0m"
+                sleep 1
                 ;;
             's'|'S')  # Save
                 save_cache
                 echo -e "\033[32mState saved\033[0m"
                 sleep 1
                 ;;
+            'e'|'E')  # Execute
+                execute_selected_apps
+                read -p "Press Enter to continue..."
+                ;;
+            'd'|'D')  # Debug
+                show_cache_debug
+                read -p "Press Enter to continue..."
+                ;;
         esac
     done
+}
+
+# Execute selected apps
+execute_selected_apps() {
+    local selected_count=0
+    local selected_apps=()
+    
+    # Find selected apps
+    for i in "${!APPS_IS_SELECTED[@]}"; do
+        if [ "${APPS_IS_SELECTED[$i]}" = "Y" ]; then
+            selected_apps+=("$i")
+            ((selected_count++))
+        fi
+    done
+    
+    if [ $selected_count -eq 0 ]; then
+        echo -e "\033[33mNo applications selected\033[0m"
+        return
+    fi
+    
+    echo -e "\033[33mExecuting selected applications with their current scripts:\033[0m"
+    for app_index in "${selected_apps[@]}"; do
+        local app_name="${APPS_NAME[$app_index]}"
+        local current_script="${APPS_CURRENT_SCRIPT[$app_index]}"
+        
+        if [ -n "$current_script" ] && [ "$current_script" != "None" ]; then
+            echo -e "\033[37mExecuting $current_script for $app_name...\033[0m"
+            # Here you would implement the actual execution logic
+            echo -e "\033[32m$current_script for $app_name completed\033[0m"
+        else
+            echo -e "\033[31mNo script selected for $app_name\033[0m"
+        fi
+    done
+}
+
+# Show cache debug
+show_cache_debug() {
+    if [ -f "$CACHE_FILE" ]; then
+        echo -e "\033[36mCache file content:\033[0m"
+        cat "$CACHE_FILE"
+    else
+        echo -e "\033[33mNo cache file found\033[0m"
+    fi
 }
 
 #endregion

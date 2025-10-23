@@ -10,13 +10,41 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+// ============================================================================
+// NUXT CONFIGURATION - MULTI-APP ARCHITECTURE
+// ============================================================================
+//
+// **ARCHITECTURE OVERVIEW**:
+// This project uses a multi-app architecture where:
+// 1. Each app is isolated in apps/app_{namespace}/ directory
+// 2. Entry files (pages/index.{app}.vue) are switched at build time by scripts/switch-app-entry.js
+// 3. Only the current app's code is included in the build
+//
+// **BUILD PROCESS**:
+// start.ps1 → switch-app-entry.js (physical file copy) → yarn dev/build → nuxt
+//
+// **CRITICAL DEPENDENCY RULE**:
+// ✓ Apps CAN import from common libraries (apps → common)
+// ✗ Common libraries MUST NOT import from specific apps (common ↛ apps)
+//
+// **ENTRY POINT SWITCHING**:
+// - Environment variable APP_ENTRY determines the active app (example, ittools, codemart, etc.)
+// - scripts/switch-app-entry.js copies pages/index.{APP_ENTRY}.vue → pages/index.vue
+// - Nuxt only sees the active app's entry point
+// ============================================================================
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineNuxtConfig({
     compatibilityDate: '2025-01-17',
 
-    // Runtime configuration
+    // ========================================================================
+    // Runtime Configuration
+    // ========================================================================
+    // APP_ENTRY environment variable identifies the current active app
+    // Set by: start.ps1 → cross-env APP_ENTRY={app} → nuxt dev/build
+    // ========================================================================
     runtimeConfig: {
         // Private keys (only available on server-side)
         appEntry: process.env.APP_ENTRY || 'example',
@@ -55,16 +83,29 @@ export default defineNuxtConfig({
     css: ['~/assets/css/app.css'],
     modules: ['@pinia/nuxt', '@nuxtjs/i18n'],
 
+    // ========================================================================
+    // Path Aliases - INTENTIONALLY MINIMAL
+    // ========================================================================
+    // **IMPORTANT**: Only universal aliases are defined here.
+    // App-specific aliases (@/app_xxx) are REMOVED to prevent:
+    // 1. Cross-app dependencies
+    // 2. Accidental imports from common libraries to specific apps
+    // 3. Global namespace pollution
+    //
+    // **USAGE**:
+    // ✓ Correct: import { useItToolsStore } from '@/apps/app_ittools/stores_app_ittools/ittools-store'
+    // ✗ Wrong:   import { useItToolsStore } from '@/app_ittools/stores_app_ittools/ittools-store'
+    //
+    // **RATIONALE**:
+    // By forcing full paths, we ensure:
+    // - Tree-shaking can properly eliminate unused apps
+    // - No accidental cross-app imports
+    // - Clear dependency boundaries
+    // ========================================================================
     alias: {
-        '@/apps': './apps',
-        '@/common': './common',
-        '@/app_main': './apps/app_main',
-        '@/app_codemart': './apps/app_codemart',
-        '@/app_admin': './apps/app_admin',
-        '@/app_example': './apps/app_example',
-        '@/app_dev': './apps/app_dev',
-        '@/app_dashboard': './apps/app_dashboard',
-        '@/app_ittools': './apps/app_ittools',
+        '@/apps': './apps',      // Universal access to all apps (read-only by common/)
+        '@/common': './common',  // Shared utilities, components, composables
+        // NOTE: App-specific aliases intentionally removed for isolation
     },
 
     i18n: {

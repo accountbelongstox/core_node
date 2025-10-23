@@ -10,7 +10,36 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-// Application Entry Point Manager
+// ============================================================================
+// APPLICATION ENTRY POINT CONFIGURATION REGISTRY
+// ============================================================================
+//
+// **PURPOSE**:
+// Central registry for all application metadata including themes, API configs,
+// features, and permissions. This file is imported by middleware and entry points
+// to provide app-specific configuration.
+//
+// **ARCHITECTURE NOTE**:
+// ⚠️ KNOWN LIMITATION: This file contains ALL app configurations in one place.
+// While metadata objects are small (~1KB each), having them centralized means:
+// 1. All app configs are loaded even if only one app is active
+// 2. Increases coupling between apps
+// 3. Requires modification of this file when adding new apps
+//
+// **FUTURE OPTIMIZATION**:
+// Consider moving configs to individual app directories:
+//   apps/app_ittools/app-config.json
+//   apps/app_example/app-config.json
+// Then dynamically import only the active app's config:
+//   const config = await import(`./apps/app_${APP_ENTRY}/app-config.json`);
+//
+// **USAGE**:
+// - Middleware: getCurrentAppEntry() to detect active app
+// - Entry points: getAppEntryConfig('ittools') to load app settings
+// - Routes: getAppEntryByNamespace('ittools') to find app by namespace
+// ============================================================================
+
+// Supported application types (must match directory names in apps/)
 export type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'ittools';
 
 export interface AppEntryConfig {

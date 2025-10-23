@@ -49,75 +49,72 @@ class WuyProfileScreen extends StatelessWidget {
 
         return Scaffold(
       backgroundColor: ThemeColors.grey50,
-      body: Column(
-        children: [
-          FloatingAvatarHeader(
-            backgroundImage: CommonAssetsImages.wuyBackground1,
-            avatarImage: user?.unifiedAvatarUrl.isEmpty ?? true ? WuyAppAssetsIcons.avatarPlaceholder : user!.unifiedAvatarUrl,
-            displayName: user?.displayName ?? '',
-            subtitle: user?.about ?? '',
-            onBackTap: () => Navigator.of(context).pop(),
-            onAvatarTap: () {
-              context.go(WuyAppRouter.getEditProfileRoute());
-            },
-            showBackButton: true,
-            backgroundHeight: 120.0,
-            avatarSize: 60.0,
-            gradientColors: [
-              ThemeColors.teal.withOpacity(0.85),
-              ThemeColors.green.withOpacity(0.75),
-              ThemeColors.blue60.withOpacity(0.65),
-            ],
-            gradientOpacity: 0.4,
+      body: CustomScrollView(
+        physics: BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: FloatingAvatarHeader(
+              backgroundImage: CommonAssetsImages.wuyBackground1,
+              avatarImage: user?.unifiedAvatarUrl.isEmpty ?? true ? WuyAppAssetsIcons.avatarPlaceholder : user!.unifiedAvatarUrl,
+              displayName: user?.displayName ?? '',
+              subtitle: user?.about ?? '',
+              onBackTap: () => Navigator.of(context).pop(),
+              onAvatarTap: () {
+                context.go(WuyAppRouter.getEditProfileRoute());
+              },
+              showBackButton: true,
+              backgroundHeight: 120.0,
+              avatarSize: 60.0,
+              gradientColors: [
+                ThemeColors.teal.withOpacity(0.85),
+                ThemeColors.green.withOpacity(0.75),
+                ThemeColors.blue60.withOpacity(0.65),
+              ],
+              gradientOpacity: 0.4,
+            ),
           ),
-          Expanded(
-            child: Container(
-              margin: EdgeInsets.only(top: 24),
-              child: SingleChildScrollView(
-                physics: BouncingScrollPhysics(),
-                child: Column(
-                  children: [
-                    SizedBox(height: 8),
-                    Center(
-                      child: Column(
-                        children: [
-                          Text(
-                            user?.displayName ?? '',
-                            style: ThemeTextStyles.headline.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: ThemeColors.black,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          if (user?.about != null && user!.about!.isNotEmpty) ...[
-                            SizedBox(height: 4),
-                            Text(
-                              user.about!,
-                              style: ThemeTextStyles.footnote.copyWith(
-                                color: ThemeColors.textSecondary,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ],
-                      ),
+          SliverToBoxAdapter(
+            child: SizedBox(height: 32),
+          ),
+          SliverToBoxAdapter(
+            child: Center(
+              child: Column(
+                children: [
+                  Text(
+                    user?.displayName ?? '',
+                    style: ThemeTextStyles.headline.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: ThemeColors.black,
                     ),
-                    SizedBox(height: 12),
-                    Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: ThemeDimensions.paddingSizeDefault,
+                    textAlign: TextAlign.center,
+                  ),
+                  if (user?.about != null && user!.about!.isNotEmpty) ...[
+                    SizedBox(height: 4),
+                    Text(
+                      user.about!,
+                      style: ThemeTextStyles.footnote.copyWith(
+                        color: ThemeColors.textSecondary,
                       ),
-                      child: Column(
-                        children: [
-                          _buildProfileInfo(context, user),
-                          SizedBox(height: 12),
-                          _buildProfileActions(context),
-                          SizedBox(height: 16),
-                        ],
-                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ],
-                ),
+                ],
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.symmetric(
+              horizontal: ThemeDimensions.paddingSizeDefault,
+              vertical: 12,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  _buildProfileInfo(context, user),
+                  SizedBox(height: 12),
+                  _buildProfileActions(context),
+                  SizedBox(height: 16),
+                ],
               ),
             ),
           ),

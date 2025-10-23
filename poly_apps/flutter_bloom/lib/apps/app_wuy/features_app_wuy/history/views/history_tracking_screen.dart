@@ -141,32 +141,36 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
             top: 50,
             left: 0,
             right: 0,
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: ThemeColors.white.withOpacity(0.2),
-                  child: Icon(
-                    Icons.person,
-                    size: 40,
-                    color: ThemeColors.white,
+            child: SizedBox(
+              height: 150,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: ThemeColors.white.withOpacity(0.2),
+                    child: Icon(
+                      Icons.person,
+                      size: 40,
+                      color: ThemeColors.white,
+                    ),
                   ),
-                ),
-                SizedBox(height: ThemeDimensions.spacingMedium),
-                Text(
-                  WuyUnifiedService().currentUser?.displayName ?? 'User',
-                  style: ThemeTextStyles.title2.copyWith(
-                    color: ThemeColors.white,
-                    fontWeight: FontWeight.bold,
+                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  Text(
+                    WuyUnifiedService().currentUser?.displayName ?? 'User',
+                    style: ThemeTextStyles.title2.copyWith(
+                      color: ThemeColors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                Text(
-                  LocalizationKeysAppWuy.wuyHistoryActivity.tr(context),
-                  style: ThemeTextStyles.bodyLarge.copyWith(
-                    color: ThemeColors.white.withOpacity(0.9),
+                  Text(
+                    LocalizationKeysAppWuy.wuyHistoryActivity.tr(context),
+                    style: ThemeTextStyles.bodyLarge.copyWith(
+                      color: ThemeColors.white.withOpacity(0.9),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

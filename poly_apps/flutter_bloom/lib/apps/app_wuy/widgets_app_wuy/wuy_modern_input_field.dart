@@ -94,15 +94,21 @@ class _WuyModernInputFieldState extends State<WuyModernInputField>
   }
 
   void _onFocusChange() {
-    setState(() {
-      _isFocused = _focusNode.hasFocus;
+    if (!mounted) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      setState(() {
+        _isFocused = _focusNode.hasFocus;
+      });
+
+      if (_isFocused) {
+        _animationController.forward();
+      } else {
+        _animationController.reverse();
+      }
     });
-    
-    if (_isFocused) {
-      _animationController.forward();
-    } else {
-      _animationController.reverse();
-    }
   }
 
   @override

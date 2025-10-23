@@ -1,0 +1,425 @@
+Laravel 12 Compatibility Check Guide
+====================================
+
+OVERVIEW
+========
+
+The compatibility checker provides comprehensive verification of system
+requirements for Laravel 12 before deployment. It checks:
+
+1. PHP version and extensions
+2. Nginx version and configuration
+3. Project structure
+4. Database setup
+5. System dependencies
+
+QUICK START
+===========
+
+Standalone Compatibility Check:
+  bash scripts/check-compatibility.sh
+
+Embedded Check (during deployment):
+  Automatically runs at start of:
+  bash scripts/deploy.sh
+
+WHAT GETS CHECKED
+=================
+
+1. PHP Version Detection
+   - Installed PHP version
+   - Minimum requirement: 8.2
+   - Recommended: 8.3
+   - Optimal: 8.4
+   - Real-time output of version info
+
+2. PHP-FPM Configuration
+   - PHP-FPM service status
+   - Socket file location
+   - Socket availability verification
+   - Real-time FPM version display
+
+3. PHP Extensions (Laravel 12 Required)
+   Required: bcmath, ctype, curl, dom, fileinfo, filter, hash,
+             json, mbstring, openssl, pdo, pcre, session, tokenizer,
+             xml, xmlrpc, zlib
+
+   Optional but recommended: redis, memcached, imagick, gd, intl
+
+   Real-time status: PASS/FAIL/WARN for each
+
+4. PHP Configuration
+   - Configuration file location
+   - Critical settings:
+     * memory_limit (recommended: 256M)
+     * max_execution_time
+     * post_max_size
+     * upload_max_filesize
+   - Real-time display of current values
+
+5. Nginx Version Detection
+   - Installed Nginx version
+   - Minimum requirement: 1.20
+   - Real-time version info
+
+6. Nginx Configuration
+   - Configuration file location
+   - Configuration syntax verification
+   - Laravel-specific config directory: /www/nginxconfig
+   - Nginx service status (running/stopped)
+   - Real-time validation results
+
+7. Nginx Modules
+   Required modules verification:
+   - http_ssl_module
+   - http_rewrite_module
+   - http_gzip_module
+   - http_fastcgi_module
+   Real-time status for each
+
+8. Laravel Project Structure
+   Required files:
+   - artisan
+   - composer.json
+   - composer.lock
+
+   Required directories:
+   - app/
+   - config/
+   - database/
+   - routes/
+   - storage/
+   - public/
+   - bootstrap/app.php
+
+   Real-time PASS/FAIL for each
+
+9. Composer
+   - Installation verification
+   - Laravel framework presence
+   - Version information
+   - Vendor directory status
+   - Real-time output
+
+10. Database Configuration
+    - .env file existence
+    - Database connection type
+    - Database file location (SQLite)
+    - Real-time status
+
+USAGE EXAMPLES
+==============
+
+Example 1: Pre-Deployment Check
+  $ bash scripts/check-compatibility.sh
+
+  Output:
+    Laravel 12 Compatibility Check
+    ==============================
+    [PASS] PHP version meets Laravel 12 minimum requirement (8.2)
+    [PASS] PHP version is optimal for Laravel 12 (8.4)
+    [PASS] PHP-FPM socket found: /var/run/php/php8.4-fpm.sock
+    [PASS] All required PHP extensions installed
+    ...
+    System is compatible with Laravel 12
+
+Example 2: During Deployment
+  $ bash scripts/deploy.sh
+
+  Output shows:
+    Compatibility checker module loaded
+    Performing Laravel 12 compatibility check...
+
+    [Full compatibility report]
+
+    Continuing with deployment...
+
+Example 3: Targeted Checks
+  You can also run individual checks by sourcing the module:
+
+  source scripts/deploy_tools/compatibility_checker.sh
+  check_php_version
+  check_nginx_config
+  check_laravel_structure
+
+CHECK RESULTS INTERPRETATION
+============================
+
+Status Indicators:
+  [PASS] - Check passed, requirement met
+  [FAIL] - Critical failure, deployment may not work
+  [WARN] - Warning, feature may be unavailable
+  [INFO] - Informational, just displaying values
+
+Color Coding:
+  Green  - Success (PASS)
+  Red    - Failure (FAIL)
+  Yellow - Warning (WARN)
+  Cyan   - Information (INFO)
+
+Examples:
+  [PASS] PHP version meets Laravel 12 minimum requirement (8.2)
+    -> PHP is installed and version is adequate
+
+  [WARN] Nginx is not installed
+    -> Nginx not required for development mode
+
+  [FAIL] File missing: composer.json
+    -> Critical issue, Laravel structure incomplete
+
+  [INFO] PHP configuration file: /etc/php/8.4/fpm/php.ini
+    -> Just displaying the current configuration location
+
+LARAVEL 12 REQUIREMENTS
+=======================
+
+Minimum Versions:
+  PHP: 8.2.0
+  Nginx: 1.20.0 (for web server mode)
+
+Recommended Versions:
+  PHP: 8.3.0 or higher
+  Nginx: Latest stable (1.25+)
+
+Optimal Versions:
+  PHP: 8.4.0
+  Nginx: Latest stable
+
+Required PHP Extensions:
+  bcmath, ctype, curl, dom, fileinfo, filter, hash, json,
+  mbstring, openssl, pdo, pcre, session, tokenizer, xml, xmlrpc, zlib
+
+Recommended PHP Settings:
+  memory_limit: 256M or higher
+  max_execution_time: 300 seconds or higher
+  post_max_size: 64M or higher
+  upload_max_filesize: 64M or higher
+
+REAL-TIME OUTPUT EXAMPLE
+========================
+
+$ bash scripts/check-compatibility.sh
+
+========================================
+  Laravel 12 Compatibility Check
+========================================
+
+========================================
+  PHP Version Detection
+========================================
+[INFO] PHP detected: PHP 8.4.0 (cli) (built: Oct 1 2024, 10:30:00) (ZTS)
+[PASS] PHP version meets Laravel 12 minimum requirement (8.2)
+[PASS] PHP version is optimal for Laravel 12 (8.4)
+
+========================================
+  PHP-FPM Configuration
+========================================
+[INFO] PHP-FPM detected: PHP 8.4.0 (fpm-fcgi) (built: Oct 1 2024)
+[PASS] PHP 8.4-FPM socket found: /var/run/php/php8.4-fpm.sock
+[PASS] PHP-FPM service is running
+
+========================================
+  PHP Extensions (Laravel 12 Required)
+========================================
+[INFO] Checking 17 required extensions
+Found: 17 extensions
+[PASS] All required PHP extensions installed
+
+========================================
+  PHP Configuration
+========================================
+[INFO] PHP configuration file: /etc/php/8.4/fpm/php.ini
+[INFO] memory_limit: 256M
+[INFO] max_execution_time: 300
+[INFO] post_max_size: 64M
+[INFO] upload_max_filesize: 64M
+[PASS] Memory limit is adequate
+
+========================================
+  Nginx Version Detection
+========================================
+[INFO] Nginx detected: nginx/1.24.0
+[PASS] Nginx version meets Laravel 12 requirement
+
+========================================
+  Nginx Configuration
+========================================
+[PASS] Nginx configuration found: /etc/nginx/nginx.conf
+[PASS] Nginx configuration syntax is valid
+[PASS] Nginx Laravel config directory exists: /www/nginxconfig
+[INFO] Laravel Nginx configurations found: 1 file(s)
+       - /www/nginxconfig/laravel_main.conf
+[PASS] Nginx service is running
+
+========================================
+  Nginx Modules (Laravel 12 Requirements)
+========================================
+[PASS] Module installed: http_ssl_module
+[PASS] Module installed: http_rewrite_module
+[PASS] Module installed: http_gzip_module
+[PASS] Module installed: http_fastcgi_module
+
+========================================
+  Laravel 12 Project Structure
+========================================
+Checking required files:
+[PASS] File exists: artisan
+[PASS] File exists: composer.json
+[PASS] File exists: composer.lock
+Checking required directories:
+[PASS] Directory exists: app
+[PASS] Directory exists: config
+[PASS] Directory exists: database
+[PASS] Directory exists: routes
+[PASS] Directory exists: storage
+[PASS] Directory exists: public
+[PASS] Laravel bootstrap file exists
+
+========================================
+  Composer (PHP Dependency Manager)
+========================================
+[PASS] Composer installed: Composer 2.6.5 2023-11-01
+[PASS] Vendor directory exists
+[PASS] Laravel framework installed: Version: 12.0
+
+========================================
+  Database Configuration
+========================================
+[INFO] .env file found
+[INFO] Database connection: sqlite
+[PASS] SQLite database file exists
+
+========================================
+  Laravel 12 Compatibility Summary
+========================================
+
+System Information:
+  PHP Version: 8.4
+  PHP-FPM Version: PHP 8.4.0 (fpm-fcgi)
+  Nginx Version: 1.24.0
+
+Laravel 12 Requirements:
+  Minimum PHP: 8.2
+  Recommended PHP: 8.3
+  Optimal PHP: 8.4
+  Minimum Nginx: 1.20
+
+Directory Paths:
+  Nginx Config: /www/nginxconfig
+  Web Root: /www/wwwroot
+  Current Directory: /www/wwwroot/laravel_main
+
+========================================
+System is compatible with Laravel 12
+========================================
+
+TROUBLESHOOTING
+===============
+
+Issue: PHP version check fails
+  Cause: PHP not installed or version < 8.2
+  Solution:
+    1. Install PHP 8.2+: apt install php8.4
+    2. Verify: php --version
+    3. Rerun check: bash scripts/check-compatibility.sh
+
+Issue: Missing PHP extensions
+  Cause: Required extension not installed
+  Solution:
+    1. List missing extensions from check output
+    2. Install: apt install php8.4-{extension}
+    3. Restart PHP-FPM: systemctl restart php8.4-fpm
+    4. Rerun check
+
+Issue: Nginx not found
+  Cause: Nginx not installed (OK for development mode)
+  Solution:
+    For production: apt install nginx
+    For development: Skip, use php artisan serve
+
+Issue: Nginx configuration syntax error
+  Cause: Invalid configuration in /etc/nginx/nginx.conf
+  Solution:
+    1. Check syntax: nginx -t
+    2. View full config: nginx -T | less
+    3. Fix configuration file
+    4. Reload: systemctl reload nginx
+    5. Rerun check
+
+Issue: Database connection fails
+  Cause: .env not configured or database missing
+  Solution:
+    1. Copy .env: cp .env.example .env
+    2. Run migrations: php artisan migrate
+    3. Rerun check
+
+ADVANCED USAGE
+==============
+
+Source Module Directly:
+  source scripts/deploy_tools/compatibility_checker.sh
+
+  Individual functions:
+    check_php_version          - Check PHP version
+    check_php_extensions       - Check extensions
+    check_nginx_version        - Check Nginx version
+    check_nginx_config         - Check Nginx config
+    check_laravel_structure    - Check project files
+    check_composer            - Check Composer
+    check_database            - Check database setup
+    perform_full_compatibility_check - Run all checks
+
+Integrate into Custom Script:
+  #!/bin/bash
+  source scripts/deploy_tools/compatibility_checker.sh
+
+  if perform_full_compatibility_check; then
+    echo "Ready to deploy"
+  else
+    echo "Fix compatibility issues first"
+  fi
+
+CREATE CUSTOM REPORTS:
+  #!/bin/bash
+  source scripts/deploy_tools/compatibility_checker.sh
+
+  check_php_version
+  check_nginx_config
+  generate_compatibility_report > report.txt
+
+MONITORING
+==========
+
+Continuous Monitoring:
+  Watch system status:
+  watch -n 5 'bash scripts/check-compatibility.sh'
+
+Scheduled Checks:
+  Add to crontab:
+  0 */6 * * * /path/to/scripts/check-compatibility.sh >> /var/log/laravel-compat.log
+
+Log Results:
+  bash scripts/check-compatibility.sh | tee compatibility-check.log
+
+SUPPORT
+=======
+
+Documentation:
+  DEPLOYMENT_ANALYSIS.txt      - Comprehensive analysis
+  NGINX_INTEGRATION_GUIDE.txt  - Nginx setup guide
+  COMPATIBILITY_CHECK_GUIDE.txt - This file (you are here)
+
+Module Source:
+  deploy_tools/compatibility_checker.sh - Full implementation
+
+Related Files:
+  scripts/deploy.sh            - Main deployment script
+  scripts/check-compatibility.sh - Quick check script
+
+Run Full Deployment with Check:
+  bash scripts/deploy.sh       - Includes compatibility check
+
+Run Just Compatibility Check:
+  bash scripts/check-compatibility.sh - Standalone check
+
+============================================================
