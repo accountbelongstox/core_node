@@ -1,4 +1,4 @@
-import os, json, hashlib, logging, uuid
+import os, json, hashlib, logging, uuid, subprocess, sys
 from datetime import datetime, date
 from pathlib import Path
 from urllib.parse import urlparse
@@ -8,12 +8,65 @@ from filelock import FileLock
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.utilities.logging import get_logger
 
-from sqlalchemy import create_engine, inspect, text, MetaData, Table, Column, Integer, String, DateTime, Boolean
-from sqlalchemy.exc import SQLAlchemyError, OperationalError
-from sqlalchemy.sql import select, insert, update, delete
-from sqlalchemy.schema import CreateTable, DropTable, CreateIndex, DropIndex
-
 ### Helpers ###
+
+def get_python_executable():
+    """Get the Python executable path"""
+    return sys.executable
+
+def install_dependencies():
+    """Install required dependencies using pip"""
+    try:
+        python_exe = get_python_executable()
+        
+        # Try core requirements first
+        core_requirements = Path(__file__).parent.parent / "requirements_core.txt"
+        full_requirements = Path(__file__).parent.parent / "requirements.txt"
+        
+        requirements_file = None
+        if core_requirements.exists():
+            requirements_file = core_requirements
+        elif full_requirements.exists():
+            requirements_file = full_requirements
+        
+        if not requirements_file:
+            print(f"[MCP Alchemy] No requirements file found")
+            return False
+            
+        print(f"[MCP Alchemy] Installing dependencies from {requirements_file}")
+        print(f"[MCP Alchemy] Using Python: {python_exe}")
+        
+        # Install dependencies
+        result = subprocess.run([
+            python_exe, "-m", "pip", "install", "-r", str(requirements_file)
+        ], capture_output=True, text=True, check=True)
+        
+        print("[MCP Alchemy] Dependencies installed successfully")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"[MCP Alchemy] Failed to install dependencies: {e}")
+        print(f"[MCP Alchemy] Error output: {e.stderr}")
+        return False
+    except Exception as e:
+        print(f"[MCP Alchemy] Unexpected error installing dependencies: {e}")
+        return False
+
+# Try to import sqlalchemy, if it fails, install dependencies
+try:
+    from sqlalchemy import create_engine, inspect, text, MetaData, Table, Column, Integer, String, DateTime, Boolean
+    from sqlalchemy.exc import SQLAlchemyError, OperationalError
+    from sqlalchemy.sql import select, insert, update, delete
+    from sqlalchemy.schema import CreateTable, DropTable, CreateIndex, DropIndex
+except ImportError as e:
+    print(f"[MCP Alchemy] Missing dependency: {e}")
+    print("[MCP Alchemy] Attempting to install dependencies...")
+    install_dependencies()
+    # Try importing again after installation
+    from sqlalchemy import create_engine, inspect, text, MetaData, Table, Column, Integer, String, DateTime, Boolean
+    from sqlalchemy.exc import SQLAlchemyError, OperationalError
+    from sqlalchemy.sql import select, insert, update, delete
+    from sqlalchemy.schema import CreateTable, DropTable, CreateIndex, DropIndex
 
 def tests_set_global(k, v):
     globals()[k] = v
