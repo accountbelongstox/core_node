@@ -1,0 +1,4 @@
+# Core MCP and database dependencies
+mcp>=1.2.0
+sqlalchemy>=2.0.36
+filelock>=3.12.0
