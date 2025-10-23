@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-19 11:17:27
+Generated: 2025-10-22 23:20:42
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -186,11 +186,14 @@ app_wuy [code_assets]
 │   │   └── router_app_wuy.dart
 │   ├── services_app_wuy
 │   │   ├── wuy_auth_state_manager.dart
+│   │   ├── wuy_avatar_service.dart
 │   │   ├── wuy_fake_data_generator.dart
 │   │   ├── wuy_sqlite_storage_service.dart
 │   │   └── wuy_unified_service.dart
 │   ├── settings_app_wuy
 │   │   └── settings_app_wuy.dart
+│   ├── task.txt
+│   ├── task2.txt
 │   ├── theme_app_wuy
 │   │   └── theme_config_app_wuy.dart
 │   ├── utils_app_wuy

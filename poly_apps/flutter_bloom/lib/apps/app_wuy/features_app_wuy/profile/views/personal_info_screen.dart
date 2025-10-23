@@ -102,11 +102,11 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
     return Scaffold(
       backgroundColor: ThemeColors.grey50,
-      body: SingleChildScrollView(
+      body: CustomScrollView(
         physics: BouncingScrollPhysics(),
-        child: Column(
-          children: [
-            FloatingAvatarHeader(
+        slivers: [
+          SliverToBoxAdapter(
+            child: FloatingAvatarHeader(
               backgroundImage: CommonAssetsImages.wuyBackground1,
               avatarImage: user?.unifiedAvatarUrl.isEmpty ?? true ? WuyAppAssetsIcons.avatarPlaceholder : user!.unifiedAvatarUrl,
               displayName: user?.displayName ?? '',
@@ -123,8 +123,12 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
               ],
               gradientOpacity: 0.4,
             ),
-            SizedBox(height: 35),
-            Center(
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(height: 35),
+          ),
+          SliverToBoxAdapter(
+            child: Center(
               child: Column(
                 children: [
                   Text(
@@ -148,11 +152,13 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
                 ],
               ),
             ),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: ThemeDimensions.defaultPadding,
-              ),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.symmetric(
+              horizontal: ThemeDimensions.defaultPadding,
+              vertical: ThemeDimensions.spacingMedium,
+            ),
+            sliver: SliverToBoxAdapter(
               child: Column(
                 children: [
                   _buildFormSection(),
@@ -162,8 +168,8 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
