@@ -25,7 +25,7 @@ class CoordinatePicker:
     Displays large screenshot and allows coordinate picking with optional template matching
     """
 
-    def __init__(self, screenshot, game_mode: str = 'd3', on_picks_updated: Optional[Callable] = None, parent=None, client_mode: str = 'game'):
+    def __init__(self, screenshot, game_mode: str = 'd3', on_picks_updated: Optional[Callable] = None, parent=None, client_mode: str = 'game', pick_history_ref: Optional[List] = None):
         """Initialize coordinate picker window"""
         self.screenshot = screenshot
         self.game_mode = game_mode
@@ -34,19 +34,26 @@ class CoordinatePicker:
         self.parent = parent
         self.picks: List[Dict] = []
         self.current_pick_type = 'point'
-        self.pick_mode = False
+        self.pick_mode = True  # Always in picking mode
         self.temp_points: List[tuple] = []
+        self.pick_history_ref = pick_history_ref  # Reference to main UI's pick history
 
         from .template_matcher_helper import TemplateMatcherHelper
         self.template_matcher = TemplateMatcherHelper()
 
         self.window = tk.Toplevel(parent) if parent else tk.Tk()
-        self.window.title(i18n_manager.get_ui_text("ui.coord_picker.window_title"))
+
+        # Set window title with screenshot size info
+        width, height = screenshot.size if screenshot else (0, 0)
+        title = i18n_manager.get_ui_text("ui.coord_picker.window_title")
+        self.window.title(f"{title} - {width}x{height}")
+
         self.window.geometry("1400x800")
         self.window.resizable(True, True)
 
         self._create_ui()
         self._setup_screenshot_display()
+        self._update_history_display()  # Initial display of history
 
     def _create_ui(self):
         """Create UI components"""
@@ -64,7 +71,7 @@ class CoordinatePicker:
         """Create left side menu panel"""
         menu_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'],
                              width=200)
-        menu_frame.grid(row=0, column=0, sticky="ns", fill=tk.Y)
+        menu_frame.grid(row=0, column=0, sticky="ns")  # Fixed: removed fill=tk.Y (not valid for grid)
         menu_frame.grid_propagate(False)
 
         # Title
@@ -211,58 +218,7 @@ class CoordinatePicker:
         sep3 = ttk.Separator(menu_frame, orient=tk.HORIZONTAL)
         sep3.pack(fill=tk.X, padx=10, pady=5)
 
-        # Action buttons
-        start_btn = tk.Button(
-            menu_frame,
-            text=i18n_manager.get_ui_text("ui.coord_picker.start_picking"),
-            command=self._on_start_picking,
-            bg=UnifiedStyles.COLORS['success'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            activebackground=UnifiedStyles.COLORS['success'],
-            font=UnifiedStyles.FONTS['button'],
-            padx=10,
-            pady=8,
-            relief=tk.FLAT,
-            cursor='hand2'
-        )
-        start_btn.pack(padx=10, pady=5, fill=tk.X)
-        self.start_btn = start_btn
-
-        stop_btn = tk.Button(
-            menu_frame,
-            text=i18n_manager.get_ui_text("ui.coord_picker.stop_picking"),
-            command=self._on_stop_picking,
-            bg=UnifiedStyles.COLORS['error'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            activebackground=UnifiedStyles.COLORS['error'],
-            font=UnifiedStyles.FONTS['button'],
-            padx=10,
-            pady=8,
-            relief=tk.FLAT,
-            cursor='hand2',
-            state=tk.DISABLED
-        )
-        stop_btn.pack(padx=10, pady=5, fill=tk.X)
-        self.stop_btn = stop_btn
-
-        undo_btn = tk.Button(
-            menu_frame,
-            text=i18n_manager.get_ui_text("ui.coord_picker.undo"),
-            command=self._on_undo,
-            bg=UnifiedStyles.COLORS['warning'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            activebackground=UnifiedStyles.COLORS['warning'],
-            font=UnifiedStyles.FONTS['button'],
-            padx=10,
-            pady=5,
-            relief=tk.FLAT,
-            cursor='hand2'
-        )
-        undo_btn.pack(padx=10, pady=3, fill=tk.X)
-
-        # Separator
-        sep4 = ttk.Separator(menu_frame, orient=tk.HORIZONTAL)
-        sep4.pack(fill=tk.X, padx=10, pady=5)
+        # Note: Start/Stop/Undo buttons removed - window is always in picking mode
 
         # Template Matching Section
         template_label = tk.Label(
@@ -324,24 +280,45 @@ class CoordinatePicker:
         sep5 = ttk.Separator(menu_frame, orient=tk.HORIZONTAL)
         sep5.pack(fill=tk.X, padx=10, pady=5)
 
-        # Info section
-        info_label = tk.Label(
+        # History section - Treeview list like main panel
+        history_label = tk.Label(
             menu_frame,
-            text=i18n_manager.get_ui_text("ui.coord_picker.picks_count"),
+            text=i18n_manager.get_ui_text("ui.coord_picker.history_title"),
             bg=UnifiedStyles.COLORS['bg_secondary'],
             fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['small']
-        )
-        info_label.pack(padx=10, pady=(10, 5), anchor=tk.W)
-
-        self.count_label = tk.Label(
-            menu_frame,
-            text="0",
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['accent'],
             font=UnifiedStyles.FONTS['bold']
         )
-        self.count_label.pack(padx=10, pady=3, anchor=tk.W)
+        history_label.pack(padx=10, pady=(10, 5), anchor=tk.W)
+
+        # Create frame for treeview and scrollbar
+        tree_frame = tk.Frame(menu_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        tree_frame.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+
+        # Create scrollbar
+        tree_scrollbar = ttk.Scrollbar(tree_frame)
+        tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Create compact Treeview
+        self.history_tree = ttk.Treeview(
+            tree_frame,
+            columns=('ID', 'Type', 'Coords'),
+            height=8,
+            yscrollcommand=tree_scrollbar.set,
+            style='Treeview',
+            show='headings'
+        )
+        tree_scrollbar.config(command=self.history_tree.yview)
+
+        # Configure columns - compact version
+        self.history_tree.column('ID', width=30, anchor=tk.CENTER)
+        self.history_tree.column('Type', width=50, anchor=tk.CENTER)
+        self.history_tree.column('Coords', width=100, anchor=tk.W)
+
+        self.history_tree.heading('ID', text='ID')
+        self.history_tree.heading('Type', text='Type')
+        self.history_tree.heading('Coords', text='Coords')
+
+        self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         close_btn = tk.Button(
             menu_frame,
@@ -359,10 +336,11 @@ class CoordinatePicker:
         close_btn.pack(padx=10, pady=10, fill=tk.X, side=tk.BOTTOM)
 
     def _create_screenshot_canvas(self, parent):
-        """Create screenshot canvas"""
+        """Create screenshot canvas with transparent overlay for drawing"""
         canvas_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
-        canvas_frame.grid(row=0, column=1, sticky="nsew", fill=tk.BOTH, expand=True)
+        canvas_frame.grid(row=0, column=1, sticky="nsew")
 
+        # Main canvas for screenshot
         self.canvas = tk.Canvas(
             canvas_frame,
             bg=UnifiedStyles.COLORS['bg_secondary'],
@@ -373,6 +351,9 @@ class CoordinatePicker:
 
         self.canvas.bind('<Button-1>', self._on_canvas_click)
         self.canvas.bind('<Motion>', self._on_canvas_motion)
+
+        # Initialize drawing marks list
+        self.canvas_marks = []  # Store canvas item IDs for drawn marks
 
     def _setup_screenshot_display(self):
         """Setup screenshot on canvas"""
@@ -413,6 +394,65 @@ class CoordinatePicker:
         self.canvas_offset_x = (canvas_width - new_width) // 2
         self.canvas_offset_y = (canvas_height - new_height) // 2
 
+        # Redraw all existing marks after canvas update
+        self._redraw_all_marks()
+
+    def _redraw_all_marks(self):
+        """Redraw all pick marks on canvas after display update"""
+        # Clear old canvas marks list
+        self.canvas_marks = []
+
+        # Use main UI's history if available, otherwise local picks
+        history = self.pick_history_ref if self.pick_history_ref is not None else self.picks
+
+        # Redraw all marks from history
+        for pick in history:
+            x = pick.get('x', 0)
+            y = pick.get('y', 0)
+            pick_type = pick.get('type', 'point')
+
+            if pick_type == 'point':
+                self._draw_mark_at(x, y)
+
+    def _draw_mark_at(self, x: int, y: int):
+        """Draw a mark at given original coordinates"""
+        if not hasattr(self, 'scale_factor'):
+            return
+
+        # Convert original coordinates to canvas coordinates
+        canvas_x = int(x * self.scale_factor) + self.canvas_offset_x
+        canvas_y = int(y * self.scale_factor) + self.canvas_offset_y
+
+        # Draw circle marker
+        marker_size = 8
+        mark_id = self.canvas.create_oval(
+            canvas_x - marker_size, canvas_y - marker_size,
+            canvas_x + marker_size, canvas_y + marker_size,
+            outline='#00FF00',  # Green outline
+            fill='',  # No fill for transparency effect
+            width=2,
+            tags='pick_mark'
+        )
+
+        # Draw crosshair
+        cross_size = 15
+        h_line = self.canvas.create_line(
+            canvas_x - cross_size, canvas_y,
+            canvas_x + cross_size, canvas_y,
+            fill='#00FF00',
+            width=2,
+            tags='pick_mark'
+        )
+        v_line = self.canvas.create_line(
+            canvas_x, canvas_y - cross_size,
+            canvas_x, canvas_y + cross_size,
+            fill='#00FF00',
+            width=2,
+            tags='pick_mark'
+        )
+
+        self.canvas_marks.extend([mark_id, h_line, v_line])
+
     def _set_pick_type(self, pick_type: str):
         """Set current pick type"""
         self.current_pick_type = pick_type
@@ -424,26 +464,11 @@ class CoordinatePicker:
             else:
                 btn.configure(bg=UnifiedStyles.COLORS['bg_tertiary'])
 
-    def _on_start_picking(self):
-        """Start picking mode"""
-        self.pick_mode = True
-        self.temp_points = []
-        self.start_btn.configure(state=tk.DISABLED)
-        self.stop_btn.configure(state=tk.NORMAL)
-        ColorPrint.green(f"[COORD_PICKER] Picking mode started - Type: {self.current_pick_type}")
-
-    def _on_stop_picking(self):
-        """Stop picking mode"""
-        self.pick_mode = False
-        self.start_btn.configure(state=tk.NORMAL)
-        self.stop_btn.configure(state=tk.DISABLED)
-        self.temp_points = []
-        ColorPrint.blue("[COORD_PICKER] Picking mode stopped")
+    # Note: _on_start_picking and _on_stop_picking removed - always in picking mode
 
     def _on_canvas_click(self, event):
-        """Handle canvas click"""
-        if not self.pick_mode:
-            return
+        """Handle canvas click - always active since window is in constant picking mode"""
+        # No need to check pick_mode - always active
 
         if not hasattr(self, 'scale_factor'):
             return
@@ -462,7 +487,13 @@ class CoordinatePicker:
                 'name': f"Point {len(self.picks) + 1}"
             }
             self.picks.append(pick)
+
+            # Immediately sync to main UI if callback provided
+            if self.on_picks_updated:
+                self.on_picks_updated([pick])
+
             self._draw_pick(x, y)
+            self._update_history_display()  # Update list display
             ColorPrint.green(f"[COORD_PICKER] Pick added: {pick}")
 
         elif self.current_pick_type == 'rect':
@@ -480,7 +511,13 @@ class CoordinatePicker:
                 }
                 self.picks.append(pick)
                 self.temp_points = []
+
+                # Immediately sync to main UI
+                if self.on_picks_updated:
+                    self.on_picks_updated([pick])
+
                 self._update_canvas_display()
+                self._update_history_display()
 
         elif self.current_pick_type == 'circle':
             if len(self.temp_points) == 0:
@@ -497,9 +534,13 @@ class CoordinatePicker:
                 }
                 self.picks.append(pick)
                 self.temp_points = []
-                self._update_canvas_display()
 
-        self._update_count()
+                # Immediately sync to main UI
+                if self.on_picks_updated:
+                    self.on_picks_updated([pick])
+
+                self._update_canvas_display()
+                self._update_history_display()
 
     def _on_canvas_motion(self, event):
         """Handle canvas motion"""
@@ -507,26 +548,51 @@ class CoordinatePicker:
             return
 
     def _draw_pick(self, x: int, y: int):
-        """Draw a point on the screenshot"""
-        self._update_canvas_display()
+        """Draw a point on the canvas overlay - real-time visual feedback"""
+        self._draw_mark_at(x, y)
+        ColorPrint.blue(f"[COORD_PICKER] Drew mark at original pos ({x}, {y})")
 
     def _on_undo(self):
         """Undo last pick"""
         if self.picks:
             self.picks.pop()
             self._update_canvas_display()
-            self._update_count()
+            self._update_history_display()
             ColorPrint.blue("[COORD_PICKER] Last pick undone")
 
-    def _update_count(self):
-        """Update pick count display"""
-        self.count_label.configure(text=str(len(self.picks)))
+    def _update_history_display(self):
+        """Update history tree display - shows main UI's pick history"""
+        # Clear existing items
+        for item in self.history_tree.get_children():
+            self.history_tree.delete(item)
+
+        # Use main UI's history if available, otherwise local picks
+        history = self.pick_history_ref if self.pick_history_ref is not None else self.picks
+
+        # Populate tree with history
+        for idx, pick in enumerate(history, 1):
+            pick_type = pick.get('type', 'point')
+            x = pick.get('x', 0)
+            y = pick.get('y', 0)
+            coords = f"({x}, {y})"
+
+            self.history_tree.insert(
+                '',
+                'end',
+                iid=f"item_{idx}",
+                values=(idx, pick_type, coords)
+            )
 
     def _on_close(self):
-        """Close window and save picks"""
-        if self.picks and self.on_picks_updated:
-            self.on_picks_updated(self.picks)
+        """Close window - picks already synced in real-time"""
+        # Note: Picks are now synced immediately on each click
+        # No need to sync again on close
         self.window.destroy()
+
+    def destroy(self):
+        """Destroy the coordinate picker window (delegate to internal window)"""
+        if hasattr(self, 'window') and self.window:
+            self.window.destroy()
 
     def _on_select_templates(self):
         """Open template selection dialog"""

@@ -13,55 +13,61 @@ from typing import Dict, Any
 class UITheme:
     """UI Theme configuration class - contains only theme definitions"""
 
-    # Color definitions
+    # Color definitions - Organized by component and state
     COLORS = {
-        # Background colors
-        'bg_primary': '#1a1a2e',      # Main background
-        'bg_secondary': '#16213e',     # Secondary background
-        'bg_tertiary': '#0f3460',      # Tertiary background
-        'bg_dark': '#0a0a0a',          # Dark background
-        'bg_input': '#2a2a3e',         # Input field background
-        'bg_input_dark': '#1a1a2e',     # Dark input field background
+        # ============ Background Colors ============
+        'bg_primary': '#1a1a2e',        # Main dark background
+        'bg_secondary': '#16213e',      # Secondary dark background
+        'bg_tertiary': '#0f3460',       # Tertiary dark background
+        'bg_dark': '#0a0a0a',           # Darkest background
+        'bg_light': '#f0f0f0',          # Light background (for contrast elements)
+        'bg_hover': '#2a2a3e',          # Hover state background
 
-        # Text colors
-        'text_primary': '#e0e0e0',     # Primary text (light gray - high contrast)
-        'text_secondary': '#00d4ff',   # Secondary text (cyan)
-        'text_accent': '#ff6b6b',      # Accent text (red)
-        'text_success': '#00ff88',     # Success text (green)
-        'text_warning': '#ff9800',     # Warning text (orange)
+        # ============ Text Colors ============
+        'text_primary': '#e0e0e0',      # Primary light text
+        'text_secondary': '#00d4ff',    # Secondary cyan text
+        'text_tertiary': '#a0a0a0',     # Muted gray text
+        'text_dark': '#1a1a1a',         # Dark text (for light backgrounds)
+        'text_accent': '#ff6b6b',       # Accent red text
+        'text_success': '#00ff88',      # Success green text
+        'text_warning': '#ff9800',      # Warning orange text
+        'text_error': '#ff4444',        # Error red text
 
-        # Button colors
-        'btn_primary': '#4CAF50',      # Primary button (green)
+        # ============ Interactive States ============
+        'state_normal': '#16213e',      # Normal state
+        'state_hover': '#0f3460',       # Hover state
+        'state_active': '#2196F3',      # Active/Selected state
+        'state_focus': '#00d4ff',       # Focus state
+        'state_disabled': '#2a2a3e',    # Disabled state
+
+        # ============ Button Colors ============
+        'btn_primary': '#4CAF50',       # Primary green button
         'btn_primary_hover': '#45a049',
-        'btn_secondary': '#f44336',    # Secondary button (red)
+        'btn_secondary': '#f44336',     # Secondary red button
         'btn_secondary_hover': '#da190b',
-        'btn_accent': '#ff9800',       # Accent button (orange)
+        'btn_accent': '#ff9800',        # Accent orange button
         'btn_accent_hover': '#f57c00',
-        'btn_info': '#2196F3',         # Info button (blue)
+        'btn_info': '#2196F3',          # Info blue button
         'btn_info_hover': '#1976D2',
 
-        # UI component colors
-        'tab_selected_bg': '#2196F3',   # Tab selected background (blue)
-        'tab_selected_fg': '#e0e0e0',   # Tab selected foreground (light gray)
-        'combobox_bg': '#f0f0f0',       # Combobox background (light gray)
-        'combobox_fg': '#1a1a1a',       # Combobox foreground (dark gray - high contrast)
-        'combobox_arrow': '#1a1a1a',    # Combobox arrow color (dark gray)
-        
-        # Tab colors - multiple variants to force override
-        'tab_unselected_bg': '#f0f0f0',  # Tab unselected background (light gray)
-        'tab_unselected_fg': '#1a1a1a',  # Tab unselected foreground (dark gray)
-        'tab_hover_bg': '#e0e0e0',       # Tab hover background (lighter gray)
-        'tab_hover_fg': '#000000',       # Tab hover foreground (black)
-        'tab_active_bg': '#d0d0d0',      # Tab active background (medium gray)
-        'tab_active_fg': '#000000',      # Tab active foreground (black)
-        
-        # Test colors for high contrast
-        'test_high_contrast': '#00ff00', # High contrast green for testing
+        # ============ Input/Form Elements ============
+        'input_bg': '#2a2a3e',          # Input background
+        'input_text': '#e0e0e0',        # Input text color
+        'input_border': '#00d4ff',      # Input border
+        'input_focus': '#2196F3',       # Input focus border
 
-        # Border and decoration
-        'border_primary': '#00d4ff',   # Primary border
-        'border_secondary': '#ff6b6b', # Secondary border
-        'separator': '#2a2a3e',        # Separator line
+        # ============ Border & Decoration ============
+        'border_primary': '#00d4ff',    # Primary border
+        'border_secondary': '#ff6b6b',  # Secondary border
+        'border_subtle': '#2a2a3e',     # Subtle border
+        'separator': '#2a2a3e',         # Separator line
+
+        # ============ Accent Colors ============
+        'accent_blue': '#2196F3',       # Blue accent
+        'accent_cyan': '#00d4ff',       # Cyan accent
+        'accent_red': '#ff6b6b',        # Red accent
+        'accent_orange': '#ff9800',     # Orange accent
+        'accent_green': '#00ff88',      # Green accent
     }
 
     # Font definitions (9px as minimum font size)
@@ -147,23 +153,47 @@ class UITheme:
         Args:
             style: ttk.Style instance to configure
         """
+        # Force use 'clam' theme to override system defaults
+        try:
+            current = style.theme_use()
+            if current != 'clam':
+                style.theme_use('clam')
+                print(f"[Theme] Switched from '{current}' to 'clam' in apply_ttk_style")
+        except tk.TclError as e:
+            print(f"[Theme] Failed to set clam theme: {e}")
+
         # Configure Notebook style (scaled to 60%)
+        # IMPORTANT: Explicitly set all colors to override clam defaults
         style.configure('TNotebook',
                        background=cls.get_color('bg_primary'),
                        borderwidth=0,
                        tabmargins=[1, 3, 1, 0])  # [2,5,2,0] * 0.6 = [1.2,3,1.2,0] -> [1,3,1,0]
 
+        # Configure Tab style with explicit colors
+        # CRITICAL: configure() sets the DEFAULT/BASE colors for unselected tabs
+        # map() only overrides for SPECIFIC states (selected, active)
         style.configure('TNotebook.Tab',
-                       background=cls.get_color('bg_secondary'),
-                       foreground=cls.get_color('text_primary'),
-                       padding=[12, 6],  # [20,10] * 0.6 = [12,6]
+                       background=cls.get_color('bg_light'),        # BASE: Light bg for unselected
+                       foreground=cls.get_color('text_dark'),       # BASE: Dark text for unselected
+                       bordercolor=cls.get_color('bg_light'),
+                       lightcolor=cls.get_color('bg_light'),
+                       darkcolor=cls.get_color('bg_light'),
+                       padding=[12, 6],
                        font=cls.get_font('button'))
 
+        # Map ONLY specific states - DO NOT include default state tuple
+        # Let configure() handle the default/unselected appearance
         style.map('TNotebook.Tab',
-                 background=[('selected', cls.get_color('bg_tertiary')),
-                           ('active', cls.get_color('bg_input'))],
-                 foreground=[('selected', cls.get_color('text_secondary')),
-                           ('active', cls.get_color('text_accent'))])
+                 background=[('selected', cls.get_color('bg_secondary')),     # Override: selected
+                           ('active', cls.get_color('state_hover'))],         # Override: hover
+                 foreground=[('selected', cls.get_color('text_primary')),     # Override: selected
+                           ('active', cls.get_color('text_primary'))],        # Override: hover
+                 bordercolor=[('selected', cls.get_color('bg_secondary')),
+                            ('active', cls.get_color('state_hover'))],
+                 lightcolor=[('selected', cls.get_color('bg_secondary')),
+                           ('active', cls.get_color('state_hover'))],
+                 darkcolor=[('selected', cls.get_color('bg_secondary')),
+                          ('active', cls.get_color('state_hover'))])
 
         # Configure Frame style
         style.configure('TFrame', background=cls.get_color('bg_primary'))
@@ -246,9 +276,22 @@ class UITheme:
             # Some Tkinter versions don't support bg option
             pass
 
-        # Apply ttk theme - use root parameter to ensure proper initialization
+        # CRITICAL: Force non-native theme at startup
+        # Windows native themes (vista/xpnative) ignore custom colors
         try:
             style = ttk.Style(root)
+            current_theme = style.theme_use()
+            print(f"[Theme] Initial theme: {current_theme}")
+
+            # Force switch to 'clam' theme for custom styling
+            if current_theme in ('vista', 'xpnative', 'winnative'):
+                print(f"[Theme] Forcing switch from native theme '{current_theme}' to 'clam'")
+                style.theme_use('clam')
+            elif current_theme != 'clam':
+                # Also switch other themes to clam for consistency
+                print(f"[Theme] Switching theme from '{current_theme}' to 'clam'")
+                style.theme_use('clam')
+
             cls.apply_ttk_style(style)
         except RuntimeError as e:
             # If main loop not started yet, schedule it for later

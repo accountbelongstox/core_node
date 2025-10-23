@@ -75,6 +75,11 @@
           "config3": "配置3",
           "config4": "配置4"
         },
+        "main_functions_sub_tabs": {
+          "function_1": "功能一",
+          "function_2": "待扩展",
+          "function_3": "待扩展"
+        },
         "basic_info": {
           "title": "基本信息",
           "current_config_info": "当前配置信息",
@@ -500,6 +505,11 @@
           "config2": "Config 2",
           "config3": "Config 3",
           "config4": "Config 4"
+        },
+        "main_functions_sub_tabs": {
+          "function_1": "Function 1",
+          "function_2": "To be Extended",
+          "function_3": "To be Extended"
         },
         "basic_info": {
           "title": "Basic Info",

@@ -17,7 +17,18 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from providor.common_imports import ColorPrint, WindowScreenshot, ClickHandler, ImageAnnotator, ENCYCLOPEDIA
-from providor.providor_index import CONFIG, save_config
+from providor.providor_index import (
+    CONFIG,
+    save_config,
+    # Client type constants
+    CLIENT_TYPE_BATTLENET,
+    CLIENT_TYPE_D3_GAME,
+    CLIENT_TYPE_D4_GAME,
+    # Window title lists
+    BATTLE_NET_WINDOW_TITLES,
+    DIABLO_III_WINDOW_TITLES,
+    DIABLO_IV_WINDOW_TITLES
+)
 from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
@@ -30,10 +41,11 @@ class CoordinateCalibrationPanel:
     """
 
     # Window title mappings for different client types
+    # Use centralized window title definitions from providor_index.py
     WINDOW_TITLES_MAP = {
-        'battlenet': ['Battle.net Launcher', 'Battle.net', 'Blizzard Launcher'],  # Battle.net launcher UI
-        'd3_game': ['Diablo III', 'Diablo 3', 'D3'],  # D3 game window
-        'd4_game': ['Diablo IV', 'Diablo 4', 'D4']  # D4 game window
+        CLIENT_TYPE_BATTLENET: BATTLE_NET_WINDOW_TITLES,  # Full list from providor_index.py (13+ variants)
+        CLIENT_TYPE_D3_GAME: DIABLO_III_WINDOW_TITLES,    # Full list from providor_index.py (13+ variants)
+        CLIENT_TYPE_D4_GAME: DIABLO_IV_WINDOW_TITLES      # Full list from providor_index.py (20+ variants)
     }
 
     def __init__(self, parent):
@@ -43,7 +55,7 @@ class CoordinateCalibrationPanel:
         self.screenshot = None
         self.screenshot_path = None
         self.pick_history: List[Dict] = []
-        self.current_client_type = 'battlenet'  # battlenet, d3_game, or d4_game
+        self.current_client_type = CLIENT_TYPE_BATTLENET  # Use constant instead of hardcoded string
         self.should_save_screenshot = True
         self.should_compress_screenshot = False
         self.popup_window = None
@@ -89,7 +101,7 @@ class CoordinateCalibrationPanel:
         )
         client_label.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
 
-        client_var = tk.StringVar(value='battlenet')
+        client_var = tk.StringVar(value=CLIENT_TYPE_BATTLENET)  # Use constant
         self.vars['client_type'] = client_var
 
         def on_client_type_change(*args):
@@ -99,11 +111,11 @@ class CoordinateCalibrationPanel:
 
         client_var.trace('w', on_client_type_change)
 
-        # Three independent client options
+        # Three independent client options - Use constants instead of hardcoded strings
         client_types = [
-            ('battlenet', i18n_manager.get_ui_text("ui.coord_calibration.client_battlenet")),
-            ('d3_game', i18n_manager.get_ui_text("ui.coord_calibration.client_d3_game")),
-            ('d4_game', i18n_manager.get_ui_text("ui.coord_calibration.client_d4_game"))
+            (CLIENT_TYPE_BATTLENET, i18n_manager.get_ui_text("ui.coord_calibration.client_battlenet")),
+            (CLIENT_TYPE_D3_GAME, i18n_manager.get_ui_text("ui.coord_calibration.client_d3_game")),
+            (CLIENT_TYPE_D4_GAME, i18n_manager.get_ui_text("ui.coord_calibration.client_d4_game"))
         ]
 
         for type_value, type_label in client_types:
@@ -268,7 +280,10 @@ class CoordinateCalibrationPanel:
 
         try:
             # Get window titles for the selected client type
-            window_titles = self.WINDOW_TITLES_MAP.get(self.current_client_type, self.WINDOW_TITLES_MAP['battlenet'])
+            window_titles = self.WINDOW_TITLES_MAP.get(
+                self.current_client_type,
+                self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET]  # Default fallback
+            )
             ColorPrint.blue(f"[COORD_CALIBRATION] Looking for windows: {window_titles}")
 
             # Use WindowScreenshot to capture the window
@@ -321,7 +336,8 @@ class CoordinateCalibrationPanel:
             screenshot=self.screenshot,
             on_picks_updated=self._on_picks_updated,
             parent=self.parent,
-            client_type=self.current_client_type
+            client_mode=self.current_client_type,  # Fixed: client_type -> client_mode
+            pick_history_ref=self.pick_history  # Pass reference to main UI's pick history
         )
 
     def _on_picks_updated(self, picks: List[Dict]):

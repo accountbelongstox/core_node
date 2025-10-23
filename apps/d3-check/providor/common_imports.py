@@ -56,10 +56,23 @@ from pycore.pyutils.hotkey_listener import (  # noqa: E402
 )
 
 # pytools utils - Advanced features (from pycore)
-from pycore.pyutils.ultralytics.ultralytics_trainer import UltralyticsTrainer, TrainingConfig  # noqa: E402
-from pycore.pyutils.ultralytics.classification_trainer import (  # noqa: E402
-    ClassificationTrainer as UltralyticsClassificationTrainer,
-)
+# Lazy import for ultralytics to avoid loading torch/CUDA at startup
+# Only import when actually needed to prevent memory issues
+def _get_ultralytics_trainer():
+    """Lazy import UltralyticsTrainer to avoid loading torch at startup"""
+    from pycore.pyutils.ultralytics.ultralytics_trainer import UltralyticsTrainer, TrainingConfig
+    return UltralyticsTrainer, TrainingConfig
+
+def _get_classification_trainer():
+    """Lazy import ClassificationTrainer to avoid loading torch at startup"""
+    from pycore.pyutils.ultralytics.classification_trainer import ClassificationTrainer
+    return ClassificationTrainer
+
+# Expose lazy loading functions
+UltralyticsTrainer = None  # Will be loaded on demand
+TrainingConfig = None  # Will be loaded on demand
+UltralyticsClassificationTrainer = None  # Will be loaded on demand
+
 from pycore.pyutils.window_activator import WindowActivator  # noqa: E402
 from pycore.pyutils.dataset_generator import DatasetGenerator  # noqa: E402
 # Note: PNGMatcher has been replaced by ImageMatcher, no need to import separately
@@ -82,12 +95,11 @@ __all__ = [
     'unregister_global_hotkey',
     'start_global_hotkey_listening',
     'stop_global_hotkey_listening',
+    '_get_ultralytics_trainer',
+    '_get_classification_trainer',
     'UltralyticsTrainer',
     'TrainingConfig',
-    'ClassificationTrainer',
-    'ClassificationPreprocessor',
-    'ClassificationDataConfig',
-    'create_classification_trainer',
+    'UltralyticsClassificationTrainer',
     'WindowActivator',
     'DatasetGenerator',
 ]

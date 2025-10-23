@@ -302,76 +302,68 @@ class Diablo3MacroUI:
         """Apply dark theme to notebook with multiple methods"""
         style = ttk.Style()
 
+        # CRITICAL: Must avoid Windows native themes (vista/xpnative) which ignore custom colors
+        # Use 'clam' theme - it's fully customizable and cross-platform
+        current_theme = style.theme_use()
+        ColorPrint.blue(f"[UI] Current theme: {current_theme}, available: {style.theme_names()}")
+
+        # Force use clam theme to enable custom colors
+        if current_theme in ('vista', 'xpnative', 'winnative'):
+            ColorPrint.yellow(f"[UI] Switching from native theme '{current_theme}' to 'clam' for custom styling")
         style.theme_use('clam')
         
-        # Method 2: Configure notebook style with consistent tab margins (scaled to 60%)
+        # Configure notebook style
         style.configure('Dark.TNotebook',
                        background=UITheme.get_color('bg_primary'),
                        borderwidth=0,
-                       tabmargins=[1, 3, 1, 0],  # [2,5,2,0] * 0.6 = [1.2,3,1.2,0] -> [1,3,1,0]
-                       tabposition='nw')  # Ensure tabs are at top-left
-        
+                       tabmargins=[1, 3, 1, 0])
+
         # Configure frame style for tab content
         style.configure('Dark.TFrame',
                        background=UITheme.get_color('bg_primary'),
                        borderwidth=0)
-        
-        # Method 3: Configure tab style with explicit colors (scaled to 60%)
+
+        # Configure tab style - BASE colors for unselected tabs
+        # configure() sets DEFAULT appearance, map() overrides for specific states
         style.configure('Dark.TNotebook.Tab',
-                       background=UITheme.get_color('tab_unselected_bg'),  # Light background for unselected
-                       foreground=UITheme.get_color('tab_unselected_fg'),  # Dark text for unselected
-                       padding=[12, 6],  # [20,10] * 0.6 = [12,6]
-                       borderwidth=1,
-                       focuscolor='none',  # Remove focus border
-                       lightcolor=UITheme.get_color('tab_unselected_bg'),
-                       darkcolor=UITheme.get_color('tab_unselected_bg'),
-                       relief='flat')  # Remove border relief
-        
-        # Method 4: Map tab states with all possible states - ensure consistent sizing
+                       background=UITheme.get_color('bg_light'),     # BASE: Light bg for unselected
+                       foreground=UITheme.get_color('text_dark'),    # BASE: Dark text for unselected
+                       padding=[12, 6],
+                       borderwidth=0)
+
+        # Map ONLY specific states, let configure() handle default
         style.map('Dark.TNotebook.Tab',
-                 background=[('selected', UITheme.get_color('bg_secondary')),  # Dark background for selected
-                           ('active', UITheme.get_color('tab_hover_bg')),      # Light background for hover
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))], # Light background for unselected
-                 foreground=[('selected', UITheme.get_color('text_primary')),  # Light text for selected
-                           ('active', UITheme.get_color('tab_hover_fg')),      # Dark text for hover
-                           ('!selected', UITheme.get_color('tab_unselected_fg'))], # Dark text for unselected
-                 lightcolor=[('selected', UITheme.get_color('bg_secondary')),
-                           ('active', UITheme.get_color('tab_hover_bg')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 darkcolor=[('selected', UITheme.get_color('bg_secondary')),
-                          ('active', UITheme.get_color('tab_hover_bg')),
-                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 padding=[('selected', [12, 6]),   # [20,10] * 0.6 = [12,6] for selected
-                         ('active', [12, 6]),      # [20,10] * 0.6 = [12,6] for hover
-                         ('!selected', [12, 6])],  # [20,10] * 0.6 = [12,6] for unselected
-                 borderwidth=[('selected', 1),     # Same border for selected
-                             ('active', 1),        # Same border for hover
-                             ('!selected', 1)],    # Same border for unselected
-                 relief=[('selected', 'flat'),     # Same relief for selected
-                        ('active', 'flat'),        # Same relief for hover
-                        ('!selected', 'flat')])    # Same relief for unselected
+                 background=[('selected', UITheme.get_color('bg_secondary')),   # Override: selected
+                           ('active', UITheme.get_color('state_hover'))],       # Override: hover
+                 foreground=[('selected', UITheme.get_color('text_primary')),   # Override: selected
+                           ('active', UITheme.get_color('text_primary'))])
         
-        # Method 5: Apply style and force update
+        # Apply style to notebook
         self.main_notebook.configure(style='Dark.TNotebook')
-        
-        # Method 6: Force style update after a short delay to ensure it takes effect
+
+        # Force style update after a short delay to ensure it takes effect
         self.root.after(100, self._force_style_update)
 
     def _force_style_update(self):
         """Force style update for all notebook tabs"""
         style = ttk.Style()
 
+        # Re-apply BASE configuration for default/unselected state
         style.configure('Dark.TNotebook.Tab',
-                       background=UITheme.get_color('tab_unselected_bg'),
-                       foreground=UITheme.get_color('tab_unselected_fg'),
+                       background=UITheme.get_color('bg_light'),
+                       foreground=UITheme.get_color('text_dark'),
                        padding=[12, 6],
-                       borderwidth=1,
-                       focuscolor='none',
-                       lightcolor=UITheme.get_color('tab_unselected_bg'),
-                       darkcolor=UITheme.get_color('tab_unselected_bg'),
-                       relief='flat')
+                       borderwidth=0)
 
-        self.main_notebook.update()
+        # Re-apply state overrides ONLY for specific states
+        style.map('Dark.TNotebook.Tab',
+                 background=[('selected', UITheme.get_color('bg_secondary')),
+                           ('active', UITheme.get_color('state_hover'))],
+                 foreground=[('selected', UITheme.get_color('text_primary')),
+                           ('active', UITheme.get_color('text_primary'))])
+
+        # Force widget update
+        self.main_notebook.update_idletasks()
         ColorPrint.green("[UI] Forced notebook style update")
 
     def _apply_all_tab_styles(self):

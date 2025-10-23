@@ -29,7 +29,6 @@ pycore/
 │   │   ├── detection_trainer.py
 │   │   ├── device_manager.py
 │   │   ├── gpu_image_processor.py
-│   │   ├── test_gpu_system.py
 │   │   ├── ultralytics_trainer.py
 │   │   ├── unified_gpu_manager.py
 │   │   └── unified_trainer.py
