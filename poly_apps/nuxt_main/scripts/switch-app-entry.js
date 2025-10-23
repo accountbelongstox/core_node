@@ -12,18 +12,47 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-/**
- * Multi-App Entry Switcher Script
- *
- * This script dynamically replaces pages/index.vue with the appropriate
- * app-specific index file based on the APP_ENTRY environment variable.
- *
- * Usage:
- *   node scripts/switch-app-entry.js [appname]
- *   APP_ENTRY=dev node scripts/switch-app-entry.js
- *
- * Supported apps: example, codemart, dev, admin, dashboard, ittools
- */
+// ============================================================================
+// MULTI-APP ENTRY POINT SWITCHER
+// ============================================================================
+//
+// **CRITICAL FUNCTION**:
+// This script is the CORE of the multi-app architecture. It physically replaces
+// pages/index.vue with the target app's entry file BEFORE Nuxt build/dev starts.
+//
+// **WHY THIS APPROACH**:
+// 1. **Physical Isolation**: Nuxt only sees ONE app's entry point at a time
+// 2. **Zero Cross-Contamination**: Other apps' code is not even visible to Nuxt
+// 3. **Optimal Tree-Shaking**: Only the active app is included in the build
+// 4. **No Runtime Overhead**: No dynamic loading, no conditional imports
+//
+// **WORKFLOW**:
+// 1. start.ps1 calls this script: node switch-app-entry.js ittools
+// 2. Validate 'ittools' is in SUPPORTED_APPS
+// 3. Backup current pages/index.vue → .app-backups/index.backup.{timestamp}.vue
+// 4. Copy pages/index.ittools.vue → pages/index.vue (with metadata comment)
+// 5. Nuxt dev/build starts → only sees pages/index.vue (which is ittools)
+//
+// **RESULT**:
+// When you run 'yarn dev:ittools', the build ONLY includes:
+// - pages/index.vue (= pages/index.ittools.vue content)
+// - apps/app_ittools/** (imported by index.vue)
+// - common/** (imported by ittools)
+//
+// Other apps (example, codemart, dev, admin, dashboard) are NOT included.
+//
+// **USAGE**:
+//   node scripts/switch-app-entry.js [appname]
+//   APP_ENTRY=dev node scripts/switch-app-entry.js
+//
+// **SUPPORTED APPS**: example, codemart, dev, admin, dashboard, ittools
+//
+// **COMMANDS**:
+//   --current     Show currently active app
+//   --list        List all backup files
+//   --restore     Restore from backup
+//   --help        Show help message
+// ============================================================================
 
 const fs = require('fs');
 const path = require('path');

@@ -951,6 +951,7 @@ nuxt_main/
 │   └── namespace-registry.ts
 ├── .gitignore
 ├── ARCHITECTURE_COMPLETE.txt
+├── COMMAND_TRACE_EXPLANATION.md
 ├── IMPLEMENTATION_PHASES.txt
 ├── MIGRATION_FINAL_REPORT.txt
 ├── README.md
@@ -966,6 +967,8 @@ nuxt_main/
 ├── startByServer.sh
 ├── startByWinDev.ps1
 ├── task.txt
+├── task2.txt
+├── task3.txt
 ├── theme.config.ts
 ├── tsconfig.bak.json
 └── tsconfig.json

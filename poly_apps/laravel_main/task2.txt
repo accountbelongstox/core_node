@@ -1,0 +1,192 @@
+# Task: Fix IT Tools App Architecture Compliance
+
+## Current Issue
+`index.ittools.vue` exists but "ittools" namespace is NOT registered in the Nuxt Multi-App Namespace Architecture.
+
+## Architecture Compliance Check (Based on NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md)
+
+### Registered Apps (Current: 5)
+```typescript
+type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard'
+```
+
+### Issue: Missing "ittools" Namespace
+The file `pages/index.ittools.vue` exists but is NOT in the registered namespace list.
+
+## Required Steps to Register "ittools" Namespace
+
+### 1. Register in App Entry
+**File:** `app-entry.ts`
+```typescript
+const appEntryRegistry = {
+  ittools: {
+    name: 'ittools',
+    displayName: 'IT Tools',
+    namespace: 'ittools',
+    defaultRoute: '/ittools',
+    theme: {
+      primary: '#3b82f6',  // Blue theme for IT Tools
+      secondary: '#8b5cf6',
+      layout: 'ittools-layout'
+    },
+    api: {
+      namespace: 'ittools',
+      baseUrl: '/api/ittools',
+      version: 'v1'
+    },
+    features: {
+      converter: true,
+      crypto: true,
+      network: true,
+      text: true,
+      math: true,
+      web: true
+    },
+    permissions: {
+      required: [],
+      roles: ['user', 'admin']
+    }
+  }
+}
+```
+
+### 2. Create Config File
+**File:** `configs/ittools.config.ts`
+```typescript
+export const itToolsConfig = {
+  name: 'IT Tools',
+  namespace: 'ittools',
+  routes: {
+    prefix: '/ittools',
+    pages: ['tools', 'converter', 'crypto', 'network', 'text', 'math', 'web']
+  },
+  theme: {
+    primary: '#3b82f6',
+    secondary: '#8b5cf6',
+    layout: 'default'
+  },
+  api: {
+    baseUrl: '/api/ittools',
+    endpoints: {
+      tools: '/tools',
+      categories: '/categories'
+    }
+  }
+}
+```
+
+### 3. Register Route Namespace
+**File:** `composables/useRouteNamespace.ts`
+```typescript
+import itToolsConfig from '@/configs/ittools.config'
+
+const namespaceRegistry = {
+  // ... existing namespaces
+  ittools: {
+    namespace: 'ittools',
+    prefix: '/ittools',
+    config: itToolsConfig,
+    pages: ['ittools-dashboard', 'ittools-tools'],
+    theme: itToolsConfig.theme
+  }
+}
+```
+
+### 4. Create API Service
+**File:** `services/api/ittools/ittools-main-api.ts`
+```typescript
+export class ItToolsMainAPI {
+  private baseUrl = '/api/ittools'
+  private namespace = 'ittools'
+
+  async getTools() {
+    return $fetch(`${this.baseUrl}/tools`, {
+      headers: { 'X-App-Namespace': this.namespace }
+    })
+  }
+
+  async getCategories() {
+    return $fetch(`${this.baseUrl}/categories`, {
+      headers: { 'X-App-Namespace': this.namespace }
+    })
+  }
+}
+```
+
+### 5. Update Switch Script
+**File:** `scripts/switch-app-entry.js`
+```javascript
+const SUPPORTED_APPS = ['example', 'codemart', 'dev', 'admin', 'dashboard', 'ittools']
+```
+
+### 6. Update Type System
+**File:** `utils/namespace-registry.ts`
+```typescript
+export type RegisteredNamespace = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'ittools'
+
+getNamespacesList(): RegisteredNamespace[] {
+  return ['example', 'codemart', 'dev', 'admin', 'dashboard', 'ittools']
+}
+```
+
+### 7. Fix Syntax Error in index.ittools.vue
+**File:** `pages/index.ittools.vue` (Line 41)
+
+**Current (BROKEN):**
+```vue
+<div v-if="activeTab === 'tools\" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+```
+
+**Fixed:**
+```vue
+<div v-if="activeTab === 'tools'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+```
+
+## Execution Plan
+
+1. ✅ Fix syntax error in `pages/index.ittools.vue:41`
+2. ✅ Create `configs/ittools.config.ts`
+3. ✅ Update `app-entry.ts` to register ittools namespace
+4. ✅ Update `composables/useRouteNamespace.ts` to add ittools route namespace
+5. ✅ Create API service `services/api/ittools/ittools-main-api.ts`
+6. ✅ Update `scripts/switch-app-entry.js` to support ittools
+7. ✅ Update `utils/namespace-registry.ts` type system
+8. ✅ Run validation: `validateNamespace('ittools')`
+
+## Laravel Backend Mapping (ItToolsV1)
+
+Based on existing Laravel structure:
+- Controller: `poly_apps/laravel_main/app/Apps/ItToolsV1/`
+- API Namespace: `ItToolsV1`
+- Endpoints:
+  - Converter: `/api/ittools/converter`
+  - Crypto: `/api/ittools/crypto`
+  - Network: `/api/ittools/network`
+  - Text: `/api/ittools/text`
+  - Math: `/api/ittools/math`
+  - Web: `/api/ittools/web`
+
+## Testing Commands
+
+```bash
+# Switch to ittools app
+node scripts/switch-app-entry.js ittools
+
+# Start dev server
+yarn dev:ittools
+
+# Validate namespace
+# In app: validateNamespace('ittools')
+```
+
+## Success Criteria
+
+- ✅ No compilation errors
+- ✅ `ittools` namespace registered in all 6 required files
+- ✅ TypeScript type safety enforced
+- ✅ API service uses `X-App-Namespace: ittools` header
+- ✅ Route prefix `/ittools` works correctly
+- ✅ Namespace validation passes
+
+## Priority: HIGH
+**Reason:** Existing file violates architecture standards and causes compilation errors
