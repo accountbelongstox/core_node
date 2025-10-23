@@ -139,7 +139,7 @@ class ConfigBinding:
         current_value = ConfigBinding.get_config_value(key_path, default_value)
 
         # 创建变量
-        var = tk.StringVar(value=str(current_value))
+        var = tk.StringVar(master=parent, value=str(current_value))
 
         # Register binding for two-way sync
         ConfigBinding._register_binding(key_path, var)
@@ -175,7 +175,7 @@ class ConfigBinding:
         current_value = ConfigBinding.get_config_value(key_path, default_value)
 
         # 创建变量
-        var = tk.BooleanVar(value=bool(current_value))
+        var = tk.BooleanVar(master=parent, value=bool(current_value))
 
         # Register binding for two-way sync
         ConfigBinding._register_binding(key_path, var)
@@ -212,7 +212,7 @@ class ConfigBinding:
         current_value = ConfigBinding.get_config_value(key_path, default_value)
 
         # 创建变量
-        var = tk.StringVar(value=str(current_value))
+        var = tk.StringVar(master=parent, value=str(current_value))
 
         # Register binding for two-way sync
         ConfigBinding._register_binding(key_path, var)
@@ -254,7 +254,7 @@ class ConfigBinding:
         current_value = ConfigBinding.get_config_value(key_path, default_value)
 
         # 创建变量
-        var = tk.StringVar(value=str(current_value))
+        var = tk.StringVar(master=parent, value=str(current_value))
 
         # Register binding for two-way sync
         ConfigBinding._register_binding(key_path, var)

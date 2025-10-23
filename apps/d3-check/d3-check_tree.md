@@ -75,6 +75,7 @@ d3-check/
 │   │   ├── hotkey_registry.py
 │   │   ├── image_annotator_helper.py
 │   │   └── image_utils.py
+│   ├── share/
 │   ├── d3utils_tree.md
 │   ├── game_window_detector.py
 │   ├── global_hotkey_manager.py
@@ -94,7 +95,6 @@ d3-check/
 │   ├── model_registry.json
 │   ├── progress_bar_detector.json
 │   └── progress_bar_detector.pt
-├── d4_modules_detection/
 ├── d4utils/
 │   ├── __init__.py
 │   ├── auto_team_formation.py
@@ -146,8 +146,6 @@ d3-check/
 │   │   ├── i18n_base.json
 │   │   ├── i18n_common_en.json
 │   │   ├── i18n_common_zh.json
-│   │   ├── i18n_coordinate_calibration_en.json
-│   │   ├── i18n_coordinate_calibration_zh.json
 │   │   ├── i18n_d4_panel_en.json
 │   │   ├── i18n_d4_panel_zh.json
 │   │   ├── i18n_errors_en.json
@@ -159,23 +157,18 @@ d3-check/
 │   │   ├── i18n_rosbot_panel_en.json
 │   │   ├── i18n_rosbot_panel_zh.json
 │   │   ├── i18n_skill_config_en.json
-│   │   └── i18n_skill_config_zh.json
+│   │   ├── i18n_skill_config_zh.json
+│   │   ├── i18n_tabs_en.json
+│   │   └── i18n_tabs_zh.json
 │   ├── _obsolete_game_state.py
 │   ├── _obsolete_window_mapping_provider.py
 │   ├── common_imports.py
 │   ├── i18n_config.json
-│   ├── i18n_config.json.backup
 │   ├── providor_index.py
 │   └── template_config.json
-├── pycore/
-│   └── pyutils/
 ├── scripts/
-│   ├── output/
-│   │   ├── 微信截图_20251016030310_bars_detected.png
-│   │   └── 微信截图_20251016030310_bars_mask.png
 │   ├── _obsolete_multi_scale_image_matcher.py
 │   ├── color_region_detector.py
-│   ├── d3planner_tooltip_test.py
 │   ├── interactive_menu.py
 │   ├── prepare_detection_training.py
 │   ├── prepare_progressbar_training.py
@@ -184,8 +177,6 @@ d3-check/
 │   ├── reorganize_training_data.py
 │   ├── show_color_palette.py
 │   ├── template_matchertest.py
-│   ├── test_color_detector.py
-│   ├── test_image.png
 │   └── testmenu.py
 ├── share/
 │   ├── __init__.py
@@ -265,21 +256,6 @@ d3-check/
 │   ├── _obsolete_window_activator.py
 │   ├── _obsolete_window_analyzer.py
 │   └── _obsolete_window_ops.py
-├── AUTO_TEAM_COMPLETION_REPORT.md
-├── AUTO_TEAM_FORMATION_SPEC.md
-├── AUTO_TEAM_IMPLEMENTATION_SUMMARY.md
-├── CONSTANTS_UNIFICATION_COMPLETE.md
-├── COORDINATE_CALIBRATION_IMPLEMENTATION.md
-├── FINAL_STATUS.md
-├── IMPLEMENTATION_CHECKLIST.md
-├── IMPLEMENTATION_SUMMARY.txt
-├── README_MOUSE_COORDINATE_TOOL.md
-├── REFACTORING_FINAL_REPORT.md
-├── REFACTORING_RESOLUTION_CONSTANTS.md
-├── REFACTORING_SUMMARY.md
-├── TEAM_CHECK_FLOW_ANALYSIS.md
-├── TEMPLATE_MATCHING_IMPLEMENTATION.md
-├── WINDOW_CONSTANTS_ANALYSIS.md
 ├── d3-check_tree.md
 ├── debug_mouse.bat
 ├── debug_mouse_coordinate.py
@@ -287,7 +263,6 @@ d3-check/
 ├── main.py
 ├── migrate_structure.py
 ├── task.txt
-├── test_image_enhancement.py
 ├── train.py
 ├── validate.py
 ├── yolov8n-cls.pt

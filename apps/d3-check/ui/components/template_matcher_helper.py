@@ -15,7 +15,15 @@ import copy
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from providor.common_imports import ColorPrint, ImageMatcher
-from providor.providor_index import D3_TEMPLATE_CONFIGS, D4_TEMPLATE_CONFIGS, BATTLENET_TEMPLATE_CONFIGS
+from providor.providor_index import (
+    D3_TEMPLATE_CONFIGS,
+    D4_TEMPLATE_CONFIGS,
+    BATTLENET_TEMPLATE_CONFIGS,
+    # Client type constants
+    CLIENT_TYPE_BATTLENET,
+    CLIENT_TYPE_D3_GAME,
+    CLIENT_TYPE_D4_GAME
+)
 
 
 class TemplateMatcherHelper:
@@ -45,22 +53,22 @@ class TemplateMatcherHelper:
         self.backup_image = image.copy()
         ColorPrint.green("[TEMPLATE_MATCHER] Image set and backups created")
 
-    def get_available_templates(self, client_type: str = 'battlenet') -> Dict[str, List[str]]:
+    def get_available_templates(self, client_type: str = CLIENT_TYPE_BATTLENET) -> Dict[str, List[str]]:
         """
         Get available templates grouped by category
 
         Args:
-            client_type: 'battlenet', 'd3_game', or 'd4_game' - specifies which client's templates to load
+            client_type: CLIENT_TYPE_BATTLENET, CLIENT_TYPE_D3_GAME, or CLIENT_TYPE_D4_GAME
 
         Returns:
             Dict with categories and template names
         """
-        # Select config based on client_type
-        if client_type == 'd4_game':
+        # Select config based on client_type (use constants for comparison)
+        if client_type == CLIENT_TYPE_D4_GAME:
             configs = D4_TEMPLATE_CONFIGS
-        elif client_type == 'd3_game':
+        elif client_type == CLIENT_TYPE_D3_GAME:
             configs = D3_TEMPLATE_CONFIGS
-        else:  # 'battlenet'
+        else:  # CLIENT_TYPE_BATTLENET (default)
             configs = BATTLENET_TEMPLATE_CONFIGS
 
         templates_by_category = {}
@@ -97,12 +105,12 @@ class TemplateMatcherHelper:
         self.match_modes['circle'] = circle
         ColorPrint.blue(f"[TEMPLATE_MATCHER] Match modes set: {self.match_modes}")
 
-    def match_templates(self, client_type: str = 'battlenet') -> bool:
+    def match_templates(self, client_type: str = CLIENT_TYPE_BATTLENET) -> bool:
         """
         Match selected templates on the image
 
         Args:
-            client_type: 'battlenet', 'd3_game', or 'd4_game' - specifies which client's templates to use
+            client_type: CLIENT_TYPE_BATTLENET, CLIENT_TYPE_D3_GAME, or CLIENT_TYPE_D4_GAME
 
         Returns:
             True if matching succeeded
@@ -111,12 +119,12 @@ class TemplateMatcherHelper:
             ColorPrint.yellow("[TEMPLATE_MATCHER] No image or templates selected")
             return False
 
-        # Select config based on client_type
-        if client_type == 'd4_game':
+        # Select config based on client_type (use constants for comparison)
+        if client_type == CLIENT_TYPE_D4_GAME:
             configs = D4_TEMPLATE_CONFIGS
-        elif client_type == 'd3_game':
+        elif client_type == CLIENT_TYPE_D3_GAME:
             configs = D3_TEMPLATE_CONFIGS
-        else:  # 'battlenet'
+        else:  # CLIENT_TYPE_BATTLENET (default)
             configs = BATTLENET_TEMPLATE_CONFIGS
 
         self.matches = []

@@ -91,19 +91,81 @@ class MainFunctionsPanel:
         # Note: Language change is handled by main UI, not individual panels
 
     def create_content(self):
-        """Create panel content"""
-        # Left panel - Skill configuration
-        self._create_skill_panel()
+        """Create panel content with sub-tabs"""
+        # Create sub-tab notebook for main functions
+        self._create_sub_tab_notebook()
 
-        # Right panel - Basic info
-        self._create_basic_info_panel()
+    def _create_sub_tab_notebook(self):
+        """Create sub-tab notebook inside main functions panel"""
+        # Create notebook for sub-tabs
+        self.sub_notebook = ttk.Notebook(self.container, style='Dark.TNotebook')
+        self.sub_notebook.grid(row=0, column=0, columnspan=2, sticky="nsew",
+                              padx=0, pady=0)
+
+        # Configure notebook style - reuse existing UnifiedStyles colors
+        # No need to reconfigure - it will inherit from parent's Dark.TNotebook.Tab style
+
+        # Create sub-tab frames
+        self._create_function1_tab()
+        self._create_placeholder_tab("function_2")
+        self._create_placeholder_tab("function_3")
+
+    def _create_function1_tab(self):
+        """Create Function 1 sub-tab with original content"""
+        func1_frame = ttk.Frame(self.sub_notebook, style='Dark.TFrame')
+        self.sub_notebook.add(func1_frame,
+                             text=i18n_manager.get_ui_text("main_functions_sub_tabs.function_1"))
+
+        # Configure grid weights for the frame
+        func1_frame.grid_columnconfigure(0, weight=1)
+        func1_frame.grid_columnconfigure(1, weight=1)
+        func1_frame.grid_rowconfigure(0, weight=1)
+
+        # Create original content in this sub-tab
+        self._create_skill_panel_in_frame(func1_frame)
+        self._create_basic_info_panel_in_frame(func1_frame)
+
+    def _create_placeholder_tab(self, tab_key):
+        """Create placeholder tab for future expansion"""
+        placeholder_frame = ttk.Frame(self.sub_notebook, style='Dark.TFrame')
+        self.sub_notebook.add(placeholder_frame,
+                             text=i18n_manager.get_ui_text(f"main_functions_sub_tabs.{tab_key}"))
+
+        # Add centered placeholder text
+        placeholder_label = tk.Label(placeholder_frame,
+                                    text=i18n_manager.get_ui_text(f"main_functions_sub_tabs.{tab_key}"),
+                                    bg=UnifiedStyles.COLORS['bg_primary'],
+                                    fg=UnifiedStyles.COLORS['text_secondary'],
+                                    font=('Arial', 16))
+        placeholder_label.place(relx=0.5, rely=0.5, anchor='center')
+
+    def _create_skill_panel_in_frame(self, parent_frame):
+        """Create skill configuration panel in specified frame"""
+        # Create left frame for skill configuration
+        skill_frame = ttk.LabelFrame(parent_frame, text=i18n_manager.get_ui_text("skill_config.title"), style='TLabelframe')
+        skill_frame.grid(row=0, column=0, sticky="nsew",
+                        padx=(0, UnifiedStyles.SPACING['sm']),
+                        pady=UnifiedStyles.SPACING['xs'])
+
+        # Configure skill frame grid
+        skill_frame.grid_columnconfigure(0, weight=1)
+        skill_frame.grid_rowconfigure(1, weight=1)
+
+        # Configuration selection
+        self._create_config_selection(skill_frame)
+
+        # Skill configuration tabs
+        self._create_skill_tabs(skill_frame)
+
+        # Additional settings
+        self._create_additional_settings(skill_frame)
 
     def _create_skill_panel(self):
-        """Create skill configuration panel"""
+        """Create skill configuration panel (deprecated - use _create_skill_panel_in_frame)"""
         # Create left frame for skill configuration
         skill_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("skill_config.title"), style='TLabelframe')
-        skill_frame.grid(row=0, column=0, sticky="nsew", 
-                        padx=(0, UnifiedStyles.SPACING['sm']), 
+        skill_frame.grid(row=0, column=0, sticky="nsew",
+                        padx=(0, UnifiedStyles.SPACING['sm']),
                         pady=UnifiedStyles.SPACING['xs'])
         
         # Configure skill frame grid
@@ -618,11 +680,30 @@ class MainFunctionsPanel:
                          padx=UnifiedStyles.SPACING['sm'],
                          pady=UnifiedStyles.SPACING['xs'])
 
+    def _create_basic_info_panel_in_frame(self, parent_frame):
+        """Create basic info display panel in specified frame"""
+        info_frame = ttk.LabelFrame(parent_frame, text=i18n_manager.get_ui_text("basic_info.title"), style='TLabelframe')
+        info_frame.grid(row=0, column=1, sticky="nsew",
+                       padx=(UnifiedStyles.SPACING['sm'], 0),
+                       pady=UnifiedStyles.SPACING['xs'])
+
+        # Create text widget for info display
+        self.info_text = tk.Text(info_frame,
+                                bg=UnifiedStyles.COLORS['bg_secondary'],
+                                fg=UnifiedStyles.COLORS['text_primary'],
+                                font=UnifiedStyles.FONTS['code'],
+                                wrap=tk.WORD,
+                                height=15,
+                                width=35)
+        self.info_text.pack(fill=tk.BOTH, expand=True,
+                           padx=UnifiedStyles.SPACING['sm'],
+                           pady=UnifiedStyles.SPACING['sm'])
+
     def _create_basic_info_panel(self):
-        """Create basic info display panel"""
+        """Create basic info display panel (deprecated - use _create_basic_info_panel_in_frame)"""
         info_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("basic_info.title"), style='TLabelframe')
-        info_frame.grid(row=0, column=1, sticky="nsew", 
-                       padx=(UnifiedStyles.SPACING['sm'], 0), 
+        info_frame.grid(row=0, column=1, sticky="nsew",
+                       padx=(UnifiedStyles.SPACING['sm'], 0),
                        pady=UnifiedStyles.SPACING['xs'])
         
         # Create text widget for info display

@@ -485,8 +485,49 @@ CONFIG = {}
 # Dynamic path that needs DOCUMENTS_PATH
 DOCUMENTS_PATH = os.path.expanduser("~/Documents")
 
+# ============================================================================
+# CLIENT TYPE CONSTANTS - Unified client type identifiers
+# ============================================================================
+# These constants define the standard client type identifiers used throughout the application
+# to identify different game clients and launchers. Use these constants instead of hardcoded strings.
+#
+# Usage:
+#   - UI components: Use these to identify which client window to capture/interact with
+#   - Template matching: Use these to select appropriate template configurations
+#   - Window detection: Use these to map to corresponding window title lists
+#
+# IMPORTANT: Always use these constants instead of hardcoded strings like 'battlenet', 'd3_game', etc.
+
+CLIENT_TYPE_BATTLENET = 'battlenet'  # Battle.net launcher client
+CLIENT_TYPE_D3_GAME = 'd3_game'      # Diablo III game client
+CLIENT_TYPE_D4_GAME = 'd4_game'      # Diablo IV game client
+
+# All valid client types (for validation)
+VALID_CLIENT_TYPES = [
+    CLIENT_TYPE_BATTLENET,
+    CLIENT_TYPE_D3_GAME,
+    CLIENT_TYPE_D4_GAME
+]
+
 # Game tab auto_id constants
 DIABLO_III_TAB_AUTO_ID = "game-nav-btn-D3"
+
+# Battle.net Launcher window title constants
+BATTLE_NET_WINDOW_TITLES = [
+    "Battle.net",                    # EN standard
+    "Battle.net Launcher",           # EN with Launcher suffix
+    "Blizzard Launcher",             # Alternative EN name
+    "战网",                          # CN short form
+    "戰網",                          # TW short form
+    "战网启动器",                    # CN
+    "戰網啟動器",                    # TW
+    "Battle.net 启动器",             # CN with EN prefix
+    "Battle.net 啟動器",             # TW with EN prefix
+    "暴雪战网",                      # CN Blizzard Battle.net
+    "暴雪戰網",                      # TW Blizzard Battle.net
+    "Blizzard Battle.net",          # EN full name
+    "Battle.net - Blizzard Entertainment",  # EN with company
+]
 
 # Diablo III window title constants
 DIABLO_III_WINDOW_TITLES = [

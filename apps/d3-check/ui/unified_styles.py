@@ -76,6 +76,7 @@ class UnifiedStyles:
         'default': ('Segoe UI', 9),      # 9px as minimum font size
         'heading': ('Segoe UI', 9, 'bold'),  # 9px as minimum font size
         'subheading': ('Segoe UI', 9, 'bold'),  # 9px as minimum font size
+        'bold': ('Segoe UI', 9, 'bold'), # 9px as minimum font size (bold style)
         'small': ('Segoe UI', 9),        # 9px as minimum font size
         'code': ('Consolas', 9),         # 9px as minimum font size
         'button': ('Segoe UI', 9, 'bold'),  # 9px as minimum font size

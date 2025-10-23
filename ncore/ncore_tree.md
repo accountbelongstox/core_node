@@ -174,7 +174,6 @@ ncore/
 │   │   ├── main.py
 │   │   ├── start_server.bat
 │   │   └── start_server.py
-│   ├── document_parser/
 │   ├── file_processor/
 │   │   ├── cnocr_engine.py
 │   │   ├── constants.py
@@ -186,71 +185,9 @@ ncore/
 │   │   ├── paddle_ocr_engine.py
 │   │   └── pdf_processor.py
 │   ├── mcp-alchemy/
-│   │   ├── data/
 │   │   ├── mcp_alchemy/
 │   │   │   ├── __init__.py
 │   │   │   └── server.py
-│   │   ├── tmp_sessions/
-│   │   │   ├── alchemy_master_036933f8/
-│   │   │   ├── alchemy_master_05abd839/
-│   │   │   ├── alchemy_master_394e92a9/
-│   │   │   ├── alchemy_master_3a63946d/
-│   │   │   ├── alchemy_master_3f5bb92f/
-│   │   │   ├── alchemy_master_4dde28fd/
-│   │   │   ├── alchemy_master_5158da24/
-│   │   │   ├── alchemy_master_59258708/
-│   │   │   ├── alchemy_master_6eda6e2e/
-│   │   │   ├── alchemy_master_7b5cbb42/
-│   │   │   ├── alchemy_master_7ca47b35/
-│   │   │   ├── alchemy_master_8147ac8a/
-│   │   │   ├── alchemy_master_89fd389c/
-│   │   │   ├── alchemy_master_9b64c255/
-│   │   │   ├── alchemy_master_a5936a79/
-│   │   │   ├── alchemy_master_a83a0c2b/
-│   │   │   ├── alchemy_master_ab1fa13e/
-│   │   │   ├── alchemy_master_ab24e6c6/
-│   │   │   ├── alchemy_master_bbd31306/
-│   │   │   ├── alchemy_master_bcd64542/
-│   │   │   ├── alchemy_master_bdb7f10a/
-│   │   │   ├── alchemy_master_c15bdac8/
-│   │   │   ├── alchemy_master_ca0b511c/
-│   │   │   ├── alchemy_master_cc3b20f5/
-│   │   │   ├── alchemy_master_cc62695b/
-│   │   │   ├── alchemy_master_ceac6474/
-│   │   │   ├── alchemy_master_ec93d044/
-│   │   │   ├── alchemy_master_f1fc192d/
-│   │   │   ├── vscode_00732031/
-│   │   │   ├── vscode_2089f079/
-│   │   │   ├── vscode_20a461df/
-│   │   │   ├── vscode_2ed01cc1/
-│   │   │   ├── vscode_36ff7487/
-│   │   │   ├── vscode_3c0185e2/
-│   │   │   ├── vscode_422fb150/
-│   │   │   ├── vscode_4ba8c9b4/
-│   │   │   ├── vscode_4cca1b4a/
-│   │   │   ├── vscode_51fc8140/
-│   │   │   ├── vscode_5eb795b5/
-│   │   │   ├── vscode_626b8137/
-│   │   │   ├── vscode_6737d159/
-│   │   │   ├── vscode_6bf43308/
-│   │   │   ├── vscode_77364060/
-│   │   │   ├── vscode_7d40b5bf/
-│   │   │   ├── vscode_8222aa0b/
-│   │   │   ├── vscode_85e9dd6e/
-│   │   │   ├── vscode_87d721dd/
-│   │   │   ├── vscode_966485bc/
-│   │   │   ├── vscode_99192e89/
-│   │   │   ├── vscode_a8e3b4f2/
-│   │   │   ├── vscode_ccf88277/
-│   │   │   ├── vscode_cd3105be/
-│   │   │   ├── vscode_d24f6bd4/
-│   │   │   ├── vscode_db90727d/
-│   │   │   ├── vscode_e2254c6c/
-│   │   │   ├── vscode_e47914c8/
-│   │   │   ├── vscode_ed92e6a3/
-│   │   │   ├── vscode_f0f0bb85/
-│   │   │   ├── vscode_f9a88045/
-│   │   │   └── active_sessions.json
 │   │   ├── .gitignore
 │   │   ├── ARCHITECTURE_REFACTORING_COMPLETE.md
 │   │   ├── LICENSE
@@ -260,12 +197,10 @@ ncore/
 │   │   ├── constants.py
 │   │   ├── main.py
 │   │   ├── pyproject.toml
-│   │   ├── requirements.txt
-│   │   └── tmp_.service.status
+│   │   └── requirements.txt
 │   ├── placeholder_image_generator/
 │   │   ├── constants.py
-│   │   ├── main.py
-│   │   └── test_client.py
+│   │   └── main.py
 │   └── wait_please/
 │       ├── icons/
 │       │   ├── icon-128.png
@@ -467,6 +402,11 @@ ncore/
 │       ├── uno.config.ts
 │       ├── version.json
 │       └── vite.config.js
+├── pytools/
+│   ├── pyfoundations/
+│   ├── pygvar/
+│   └── pyutils/
+│       └── common/
 ├── utils/
 │   ├── ai_translator/
 │   │   ├── config/
@@ -628,29 +568,6 @@ ncore/
 │   │   ├── chat.js
 │   │   ├── example.js
 │   │   └── example_to_es6.js
-│   ├── puppeteer-browser-bak/
-│   │   ├── core/
-│   │   │   ├── config.js
-│   │   │   ├── instance.js
-│   │   │   ├── main.js
-│   │   │   └── pool.js
-│   │   ├── libs/
-│   │   │   ├── mime.js
-│   │   │   └── stealth.min.js
-│   │   ├── puppeteer-api/
-│   │   │   ├── api.js
-│   │   │   ├── download.js
-│   │   │   ├── interaction.js
-│   │   │   ├── navigation.js
-│   │   │   ├── screenshot.js
-│   │   │   └── script.js
-│   │   ├── utils/
-│   │   │   ├── chrome-finder.js
-│   │   │   └── chrome-version.js
-│   │   ├── DEVELOPMENT_ANALYSIS.md
-│   │   ├── README.md
-│   │   ├── fetcher.js
-│   │   └── index.js
 │   ├── puppeteer_spider/
 │   │   ├── climber/
 │   │   │   ├── javascript/
@@ -729,7 +646,6 @@ ncore/
 │   │   │   │   │   │       │   │   ├── large_pages.htm
 │   │   │   │   │   │       │   │   ├── list_tech.htm
 │   │   │   │   │   │       │   │   ├── method.htm
-│   │   │   │   │   │       │   │   ├── output_dir.htm
 │   │   │   │   │   │       │   │   ├── overwrite.htm
 │   │   │   │   │   │       │   │   ├── password.htm
 │   │   │   │   │   │       │   │   ├── recurse.htm
