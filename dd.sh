@@ -913,8 +913,6 @@ show_interactive_menu() {
                 esac
                 ;;
             '')  # Enter key
-                stty "$old_settings"
-                
                 local key="${menu_order[$selected]}"
                 local item="${menu_items[$key]}"
                 local values=($(echo "$item" | grep -o 'values=[^;]*' | cut -d= -f2 | tr ',' ' '))
@@ -922,7 +920,10 @@ show_interactive_menu() {
                 local action=$(echo "$item" | grep -o 'action=[^;]*' | cut -d= -f2)
                 local var_key=$(echo "$item" | grep -o 'key=[^;]*' | cut -d= -f2)
                 
+                # Restore terminal settings before executing action
+                stty "$old_settings"
                 printf "\033c"
+                
                 handle_menu_action "$action" "${values[$current]}" "$var_key"
                 local cloud_item="${menu_items[\"Cloud Provider\"]}"
                 local cloud_values=($(echo "$cloud_item" | grep -o 'values=[^;]*' | cut -d= -f2 | tr ',' ' '))
@@ -937,6 +938,7 @@ show_interactive_menu() {
                     exit 0
                 fi
                 
+                # Restore terminal settings for menu navigation
                 stty -icanon -echo
                 ;;
         esac

@@ -8,7 +8,7 @@ use App\Apps\ItToolsV1\ItToolsV1TextCtl\ItToolsV1TextCtl;
 use App\Apps\ItToolsV1\ItToolsV1MathCtl\ItToolsV1MathCtl;
 use App\Apps\ItToolsV1\ItToolsV1NetworkCtl\ItToolsV1NetworkCtl;
 
-Route::prefix('it-tools/v1')->group(function () {
+Route::prefix('ittools/v1')->group(function () {
 
     // Crypto & Security Endpoints
     Route::prefix('crypto')->group(function () {

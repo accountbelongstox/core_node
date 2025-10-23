@@ -15,7 +15,7 @@ from typing import List, Dict, Optional, Tuple
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from providor.providor_index import TEMPLATE_CONFIGS, D4_TEMPLATE_CONFIGS
+from providor.providor_index import D3_D3_TEMPLATE_CONFIGS, D4_D3_TEMPLATE_CONFIGS, BATTLENET_D3_TEMPLATE_CONFIGS
 
 # Import interactive menu library
 from scripts.interactive_menu import InteractiveMenu
@@ -94,9 +94,9 @@ class TemplateMatchingTester:
         """Show template selection menu"""
         # Get template configs based on game type
         if self.game_type == "d3":
-            configs = TEMPLATE_CONFIGS
+            configs = D3_TEMPLATE_CONFIGS
         else:
-            configs = D4_TEMPLATE_CONFIGS
+            configs = D4_D3_TEMPLATE_CONFIGS
 
         # Build template list with categories
         template_items = []
@@ -664,9 +664,9 @@ class TemplateMatchingTester:
 
         # Step 4: Get template configs
         if self.game_type == "d3":
-            template_configs = TEMPLATE_CONFIGS
+            template_configs = D3_TEMPLATE_CONFIGS
         else:
-            template_configs = D4_TEMPLATE_CONFIGS
+            template_configs = D4_D3_TEMPLATE_CONFIGS
 
         # Step 5: Test each screenshot
         all_results = []

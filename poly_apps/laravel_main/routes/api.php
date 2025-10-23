@@ -94,6 +94,9 @@ Route::prefix('servermanager/v1')->group(function () {
 // ItToolsV1 Routes
 require_once 'ItToolsV1Router/api.php';
 
+// CodeMartV1 Routes
+require_once 'CodeMartV1Router/api.php';
+
 // AChatV1 Routes
 Route::prefix('achat/v1')->group(function () {
     require_once __DIR__ . '/achat_v1/api_info.php';

@@ -146,6 +146,8 @@ d3-check/
 │   │   ├── i18n_base.json
 │   │   ├── i18n_common_en.json
 │   │   ├── i18n_common_zh.json
+│   │   ├── i18n_coordinate_calibration_en.json
+│   │   ├── i18n_coordinate_calibration_zh.json
 │   │   ├── i18n_d4_panel_en.json
 │   │   ├── i18n_d4_panel_zh.json
 │   │   ├── i18n_errors_en.json
@@ -201,14 +203,17 @@ d3-check/
 │   ├── components/
 │   │   ├── __init__.py
 │   │   ├── bottom_bar.py
+│   │   ├── coordinate_picker_window.py
 │   │   ├── debug_window.py
 │   │   ├── macro_controls.py
 │   │   ├── menu_bar.py
 │   │   ├── status_bar.py
 │   │   ├── system_tray.py
+│   │   ├── template_matcher_helper.py
 │   │   └── title_bar.py
 │   ├── panels/
 │   │   ├── auxiliary_functions_panel.py
+│   │   ├── coordinate_calibration_panel.py
 │   │   ├── d4_panel.py
 │   │   ├── log_panel.py
 │   │   ├── main_functions_panel.py
@@ -264,11 +269,16 @@ d3-check/
 ├── AUTO_TEAM_FORMATION_SPEC.md
 ├── AUTO_TEAM_IMPLEMENTATION_SUMMARY.md
 ├── CONSTANTS_UNIFICATION_COMPLETE.md
+├── COORDINATE_CALIBRATION_IMPLEMENTATION.md
+├── FINAL_STATUS.md
+├── IMPLEMENTATION_CHECKLIST.md
+├── IMPLEMENTATION_SUMMARY.txt
 ├── README_MOUSE_COORDINATE_TOOL.md
 ├── REFACTORING_FINAL_REPORT.md
 ├── REFACTORING_RESOLUTION_CONSTANTS.md
 ├── REFACTORING_SUMMARY.md
 ├── TEAM_CHECK_FLOW_ANALYSIS.md
+├── TEMPLATE_MATCHING_IMPLEMENTATION.md
 ├── WINDOW_CONSTANTS_ANALYSIS.md
 ├── d3-check_tree.md
 ├── debug_mouse.bat
