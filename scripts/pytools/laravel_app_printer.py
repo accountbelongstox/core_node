@@ -8,12 +8,14 @@ import os
 import sys
 import json
 import argparse
+import re
 from pathlib import Path
 from datetime import datetime
 
 # Directory definitions
 ROOT_DIR = Path(__file__).parent / "../.."
 LARAVEL_DIR = ROOT_DIR / "poly_apps" / "laravel_main"
+APPS_NAMESPACE_DIR = LARAVEL_DIR / "app" / "Apps"
 CACHE_DIR = Path.home() / ".core_node" / ".laravel_build"
 CACHE_FILE = CACHE_DIR / "laravel_menu_cache.json"
 
@@ -44,6 +46,14 @@ EXCLUDE_DOT_DIRS = {
 EXCLUDE_EXTENSIONS = {
     ".pyd", ".pyc", ".so", ".dll", ".exe", ".bin", ".obj",
     ".class", ".jar", ".war", ".ear", ".lock", ".log"
+}
+
+ROUTE_GLOBAL_ALLOW = {
+    "api",
+    "api.php",
+    "console.php",
+    "settings.php",
+    "web.php"
 }
 
 # ANSI color codes
@@ -175,16 +185,59 @@ class DirectoryTreePrinter:
         self.output_lines = []
         self.base_dir = Path(base_dir) if base_dir else None
         self.selected_app = selected_app
+        self.namespace_root = APPS_NAMESPACE_DIR
+        self.selected_namespace_path = None
+        self.selected_namespace_printed = False
+        self.namespace_tokens = set()
+        if self.selected_app:
+            lower_name = self.selected_app.lower()
+            snake_case = re.sub(r'(?<!^)(?=[A-Z])', '_', self.selected_app).lower()
+            compact_name = re.sub(r'[^a-z0-9]+', '', lower_name)
+            self.namespace_tokens.update({lower_name, snake_case, compact_name})
+            potential_namespace = self.namespace_root / self.selected_app
+            if potential_namespace.exists():
+                self.selected_namespace_path = potential_namespace.resolve()
         debug_print(f"  base_dir: {self.base_dir}")
         debug_print(f"  selected_app: {self.selected_app}")
+        debug_print(f"  namespace_root: {self.namespace_root}")
+        debug_print(f"  selected_namespace_path: {self.selected_namespace_path}")
+        debug_print(f"  namespace_tokens: {sorted(self.namespace_tokens)}")
         debug_print("=== DirectoryTreePrinter.__init__() END ===")
 
     def should_exclude(self, path, is_dir=False):
         """Check if path should be excluded"""
         name = os.path.basename(path)
         path_obj = Path(path)
+        resolved_path = path_obj.resolve()
+        relative_parts = ()
+        if self.base_dir:
+            try:
+                relative_parts = resolved_path.relative_to(self.base_dir.resolve()).parts
+            except Exception:
+                relative_parts = ()
 
         debug_print(f"  should_exclude() - path: {path}, is_dir: {is_dir}, name: {name}")
+
+        if self.selected_app and self.namespace_root and self.namespace_root.exists():
+            try:
+                namespace_relative = resolved_path.relative_to(self.namespace_root.resolve())
+            except Exception:
+                namespace_relative = None
+            if namespace_relative and namespace_relative.parts:
+                namespace_owner = namespace_relative.parts[0]
+                if namespace_owner != self.selected_app:
+                    debug_print(f"    -> EXCLUDED (other namespace): {namespace_owner}")
+                    return True
+
+        if self.selected_app and relative_parts:
+            if relative_parts[0] == 'routes' and len(relative_parts) >= 2:
+                top_name = relative_parts[1]
+                normalized = top_name.lower()
+                if normalized not in ROUTE_GLOBAL_ALLOW:
+                    token_match = any(token and token in normalized for token in self.namespace_tokens)
+                    if not token_match:
+                        debug_print(f"    -> EXCLUDED (unrelated route segment): {top_name}")
+                        return True
 
         # Exclude dot directories
         if is_dir and (name.startswith('.') or name in EXCLUDE_DOT_DIRS):
@@ -211,6 +264,22 @@ class DirectoryTreePrinter:
                 return True
 
         debug_print(f"    -> NOT EXCLUDED: {path}")
+        return False
+
+    def should_skip_subtree(self, path):
+        """Check if subtree traversal should be skipped to avoid duplication"""
+        if not self.selected_app or not self.selected_namespace_path:
+            return False
+
+        try:
+            resolved_path = Path(path).resolve()
+        except Exception:
+            return False
+
+        if self.selected_namespace_printed and resolved_path == self.selected_namespace_path:
+            debug_print(f"      -> Skipping subtree for already printed namespace: {resolved_path}")
+            return True
+
         return False
 
     def print_tree(self, directory, prefix="", is_last=True):
@@ -256,7 +325,10 @@ class DirectoryTreePrinter:
             if is_dir:
                 extension = "    " if is_last_entry else "│   "
                 debug_print(f"      -> Recursing into subdirectory: {entry_path}")
-                self.print_tree(entry_path, prefix + extension, is_last_entry)
+                if self.should_skip_subtree(entry_path):
+                    debug_print(f"      -> Subtree skipped for: {entry_path}")
+                else:
+                    self.print_tree(entry_path, prefix + extension, is_last_entry)
 
     def generate_tree(self, paths, root_name="Root", header_info=None):
         """Generate tree for multiple paths with optional header"""
@@ -266,6 +338,7 @@ class DirectoryTreePrinter:
         debug_print(f"  header_info: {'YES' if header_info else 'NO'}")
 
         self.output_lines = []
+        self.selected_namespace_printed = False
 
         # Add header information if provided
         if header_info:
@@ -316,6 +389,13 @@ class DirectoryTreePrinter:
                 extension = "    " if is_last else "│   "
                 debug_print(f"    -> Starting tree traversal for: {path}")
                 self.print_tree(path, extension, is_last)
+
+            if (
+                self.selected_namespace_path
+                and Path(path).resolve() == self.selected_namespace_path
+            ):
+                self.selected_namespace_printed = True
+                debug_print("    -> Marked namespace as printed")
 
         result = "\n".join(self.output_lines)
         debug_print(f"=== DirectoryTreePrinter.generate_tree() END - Total lines: {len(self.output_lines)} ===")

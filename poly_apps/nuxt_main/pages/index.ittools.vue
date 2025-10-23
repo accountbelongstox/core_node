@@ -38,7 +38,7 @@
       </div>
 
       <!-- Tools Grid -->
-      <div v-if="activeTab === 'tools\" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-if="activeTab === 'tools'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
           v-for="tool in itToolsStore.filteredTools"
           :key="tool.id"
@@ -73,10 +73,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useItToolsStore } from '@/app_ittools/stores_app_ittools/ittools-store';
-import type { Tool, HistoryEntry } from '@/app_ittools/types_app_ittools';
-import ToolModal from '@/app_ittools/components_app_ittools/ToolModal.vue';
-import SettingsModal from '@/app_ittools/components_app_ittools/SettingsModal.vue';
+import { useItToolsStore } from '@/apps/app_ittools/stores_app_ittools/ittools-store';
+import type { Tool, HistoryEntry } from '@/apps/app_ittools/types_app_ittools';
+import ToolModal from '@/apps/app_ittools/components_app_ittools/ToolModal.vue';
+import SettingsModal from '@/apps/app_ittools/components_app_ittools/SettingsModal.vue';
 
 definePageMeta({
   title: 'IT Tools - Developer Utilities',
@@ -105,7 +105,7 @@ const selectToolAndOpen = (tool: Tool) => {
 const executeTool = async (toolId: string, params: Record<string, any>) => {
   const tool = itToolsStore.allTools.find(t => t.id === toolId);
   if (tool) {
-    const { ItToolsMainAPI } = await import('@/app_ittools/services_app_ittools/ittools-main-api');
+    const { ItToolsMainAPI } = await import('@/apps/app_ittools/services_app_ittools/ittools-main-api');
     const api = new ItToolsMainAPI();
     try {
       const response = await api.executeTool(tool.endpoint, tool.method, params);

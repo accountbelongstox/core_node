@@ -1,0 +1,381 @@
+Nginx Integration Guide for Laravel Main Application
+=====================================================
+
+QUICK START
+===========
+
+Production Deployment with Nginx:
+  cd /path/to/laravel_main
+  DEPLOY_MODE=production bash scripts/deploy.sh
+
+Development Deployment (no Nginx):
+  cd /path/to/laravel_main
+  DEPLOY_MODE=development bash scripts/deploy.sh
+
+Quick Deploy Script:
+  bash scripts/quick-deploy.sh production
+  bash scripts/quick-deploy.sh development
+
+FEATURE OVERVIEW
+================
+
+Automatic Nginx Configuration:
+  1. Checks Laravel artisan command availability
+  2. Attempts ServerManagerV1 artisan command integration
+  3. Falls back to manual configuration if needed
+  4. Verifies Nginx configuration syntax
+  5. Reloads Nginx service
+  6. Provides real-time console feedback throughout
+
+Configuration Locations:
+  Nginx Config: /www/nginxconfig/laravel_main.conf
+  Application: /www/wwwroot/laravel_main
+  Logs: /var/log/nginx/laravel_main.{access,error}.log
+
+Module Files
+============
+
+Main Entry Point:
+  scripts/deploy.sh - Complete deployment orchestrator
+
+Module Files (in scripts/deploy_tools/):
+  1. environment_checker.sh - System environment validation
+  2. system_dependencies.sh - Install required tools
+  3. permission_manager.sh - Configure file permissions
+  4. environment_setup.sh - Configure .env file
+  5. database_manager.sh - Setup SQLite database
+  6. deployment_helper.sh - Utility functions
+  7. safety_checker.sh - Pre-deployment validation
+  8. nginx_integrator.sh - Nginx configuration (NEW)
+
+Supporting Files:
+  config.example.sh - Configuration template
+  README.txt - Module documentation
+  DEPLOYMENT_ANALYSIS.txt - Comprehensive analysis
+  NGINX_INTEGRATION_GUIDE.txt - This file
+
+ARTISAN COMMAND INTEGRATION
+============================
+
+Primary Integration: ServerManagerV1
+  Command: php artisan servermanager:website:add
+  Parameters:
+    --name: Application name
+    --domain: Domain name
+    --path: Public directory path
+    --type: Set to "laravel"
+    --php-version: PHP version (default: 8.4)
+
+Command Verification:
+  The deployment script automatically checks if this command is available
+  Output displays: "ServerManagerV1 commands found" or warning message
+
+Fallback Configuration:
+  If ServerManagerV1 command not available:
+  - Automatic manual Nginx configuration
+  - Uses built-in template with PHP-FPM settings
+  - Customizable via sed replacement in nginx_integrator.sh
+
+NGINX CONFIGURATION DETAILS
+===========================
+
+Configuration File Location:
+  /www/nginxconfig/{app_name}.conf
+
+Nginx Configuration Includes:
+  - Upstream PHP-FPM socket definition
+  - Server block for port 80
+  - Laravel public directory routing
+  - PHP script processing via FastCGI
+  - Gzip compression settings
+  - Security headers (X-Frame-Options, X-Content-Type-Options, etc.)
+  - Static file caching (1 year expiry)
+  - Access/error logging
+  - Protection for sensitive files (.env, .htaccess, etc.)
+
+PHP-FPM Socket Configuration:
+  Automatic detection: /var/run/php/php{version}-fpm.sock
+  Default version: 8.4
+  Fallback: /var/run/php/php-fpm.sock
+
+Directory Standards:
+  Nginx Config: /www/nginxconfig
+  Application Root: /www/wwwroot
+  These align with system installation scripts (25_install_nginx.sh, 31_ensure_php84_intelligent.sh)
+
+REAL-TIME OUTPUT
+================
+
+All Operations Show Live Feedback:
+
+Environment Check:
+  [Environment checker module loaded]
+  Checking Laravel artisan command availability...
+  Laravel artisan command verified
+  [INFO] Starting Laravel application deployment...
+
+Dependencies Installation:
+  [ARCHIVE TOOLS] Checking archive extraction tools
+  Archive extraction tools already available
+  [PHP] Checking PHP requirements
+  PHP version: 8.4.0
+
+Database Setup:
+  [DATABASE] SAFE Database Setup (preserving existing data)
+  Database file location: /mnt/d/wwwroot/laravel_main/laravel_db/database.sqlite
+  Creating database directory...
+  Created database directory with 777 permissions
+
+Nginx Integration:
+  Starting Nginx integration for Laravel application
+  =======================================
+  Checking Laravel artisan command availability...
+  Laravel artisan command verified
+  Testing Laravel artisan command...
+  Laravel artisan command is working
+  Retrieving Laravel application configuration...
+    Application Name: laravel_main
+    Application Path: /www/wwwroot/laravel_main
+    Application Domain: localhost
+  Checking ServerManagerV1 artisan commands...
+  ServerManagerV1 commands found
+  (Attempts ServerManagerV1 or falls back to manual configuration)
+  Verifying Nginx configuration syntax...
+  Nginx configuration is valid
+  Reloading Nginx to apply new configuration...
+  Nginx reloaded successfully
+
+TROUBLESHOOTING
+===============
+
+Issue: PHP Artisan Command Not Found
+  Solution: Ensure php is installed and artisan file exists
+  Check: php --version, ls artisan
+  Module: nginx_integrator.sh:42-48
+
+Issue: ServerManagerV1 Command Not Available
+  Expected: Automatic fallback to manual configuration
+  Verify: Check app/Apps/ServerManagerV1/ServerManagerV1CLI/Commands/
+  Result: Manual Nginx config created at /www/nginxconfig/{app_name}.conf
+
+Issue: Nginx Not Starting
+  Check: systemctl status nginx
+  Verify: Nginx configuration syntax with: nginx -t
+  Log: /var/log/nginx/error.log
+
+Issue: Application Not Accessible
+  Verify: Nginx configuration file syntax (nginx -t)
+  Check: Public directory path correct in config
+  Verify: PHP-FPM socket accessible and running
+  Log: /var/log/nginx/{app_name}.error.log
+
+Issue: Port Already in Use (Development Mode)
+  Module handles automatic port cleanup
+  Check: lsof -i :8000
+  Manual cleanup: pkill -f "php artisan serve"
+
+DEPLOYMENT MODES
+================
+
+Development Mode:
+  Entry: bash scripts/quick-deploy.sh development
+  Features:
+    - No Nginx setup
+    - Starts development server on port 8000
+    - Real-time Laravel output
+    - Hot reload support
+    - PHP artisan available for manual commands
+
+  Command: php artisan serve --host=0.0.0.0 --port=8000
+
+Production Mode:
+  Entry: bash scripts/quick-deploy.sh production
+  Features:
+    - Full Nginx configuration
+    - Production-optimized Laravel caching
+    - Static file optimization
+    - Security headers enabled
+    - Compression enabled
+
+  Optimization Includes:
+    - Config caching: php artisan config:cache
+    - Route caching: php artisan route:cache
+    - View caching: php artisan view:cache
+
+ENVIRONMENT CONFIGURATION
+=========================
+
+.env File Settings for Nginx:
+  APP_ENV=production
+  APP_DEBUG=false
+  APP_URL=http://localhost
+
+Database Configuration:
+  DB_CONNECTION=sqlite
+  DB_DATABASE=/mnt/d/wwwroot/laravel_main/laravel_db/database.sqlite
+
+PHP-FPM Configuration:
+  Automatically detected and configured
+  Default socket: /var/run/php/php-fpm.sock
+  Configurable via php_version parameter
+
+MONITORING AND LOGS
+===================
+
+Nginx Access Log:
+  Location: /var/log/nginx/laravel_main.access.log
+  Format: Combined access log format
+  Usage: tail -f /var/log/nginx/laravel_main.access.log
+
+Nginx Error Log:
+  Location: /var/log/nginx/laravel_main.error.log
+  Usage: tail /var/log/nginx/laravel_main.error.log
+
+Laravel Application Log:
+  Location: storage/logs/laravel.log
+  Usage: tail -f storage/logs/laravel.log
+
+Artisan Output Log (Integration):
+  Location: /tmp/artisan_output.log
+  Created during: ServerManagerV1 command execution
+
+Deployment Log:
+  Location: /var/log/ncore-services/ncore-laravel_main.log
+  Enabled if: LOG_FILE is configured
+
+CUSTOM CONFIGURATION
+====================
+
+Configuration Template:
+  File: scripts/deploy_tools/config.example.sh
+  Usage: cp config.example.sh config.sh && edit config.sh
+
+Customizable Settings:
+  APP_NAME: Application name (default: laravel_main)
+  SERVICE_NAME: Service name (default: ncore-laravel_main)
+  DB_DIR: Database directory location
+  PROJECT_ROOT: Core node project root
+  DEPLOY_MODE: production or development
+  APP_SERVER_HOST: Server host (default: 0.0.0.0)
+  APP_SERVER_PORT: Server port (default: 8000 for dev)
+  APP_USER: Application owner user
+  MIN_DISK_SPACE: Minimum required disk space (MB)
+  PHP_VERSION: PHP version to use (default: 8.4)
+
+ADVANCED USAGE
+==============
+
+Manual Nginx Reload:
+  nginx -s reload
+  systemctl reload nginx
+
+Verify Nginx Configuration:
+  nginx -t
+  nginx -T (shows full configuration)
+
+Check PHP-FPM Status:
+  systemctl status php-fpm
+  php-fpm -v
+
+Test Laravel Configuration:
+  php artisan config:show
+  php artisan list (shows all available commands)
+
+Manual Nginx Configuration Editing:
+  File: /www/nginxconfig/laravel_main.conf
+  After edit: nginx -t && systemctl reload nginx
+
+INTEGRATION WITH SYSTEM SCRIPTS
+================================
+
+Consistency with:
+  25_install_nginx.sh
+    - Uses same directory: /www/nginxconfig
+    - Uses same root: /www/wwwroot
+    - Nginx service management aligned
+
+  31_ensure_php84_intelligent.sh
+    - PHP version detection same approach
+    - State detection patterns similar
+    - Real-time output aligned
+
+Common Directory Structure:
+  /www/nginxconfig/ - All Nginx configurations
+  /www/wwwroot/ - All web applications
+  /var/run/php/ - PHP-FPM socket files
+  /var/log/nginx/ - Nginx logs
+
+DEPLOYMENT CHECKLIST
+====================
+
+Pre-Deployment:
+  [ ] Run: bash scripts/verify-deployment.sh
+  [ ] Check: PHP and PHP-FPM installed
+  [ ] Check: Nginx installed (for production)
+  [ ] Check: /www/nginxconfig directory exists
+  [ ] Check: Sufficient disk space (100MB+ recommended)
+
+Deployment:
+  [ ] Development: bash scripts/quick-deploy.sh development
+  [ ] Or Production: bash scripts/quick-deploy.sh production
+  [ ] Monitor: Real-time console output
+  [ ] Verify: All modules loaded successfully
+
+Post-Deployment:
+  [ ] Access application (localhost:8000 for dev)
+  [ ] Check logs: tail -f storage/logs/laravel.log
+  [ ] Verify database: php artisan migrate:status
+  [ ] Test artisan: php artisan list
+
+Production Setup:
+  [ ] Application accessible at configured domain
+  [ ] Nginx configuration verified: nginx -t
+  [ ] Nginx service running: systemctl status nginx
+  [ ] Check Nginx logs: tail /var/log/nginx/laravel_main.error.log
+  [ ] PHP-FPM running: systemctl status php-fpm
+  [ ] Database synchronized: php artisan migrate:status
+
+SUPPORT AND DOCUMENTATION
+==========================
+
+Main Documentation:
+  - DEPLOYMENT_ANALYSIS.txt: Comprehensive analysis
+  - NGINX_INTEGRATION_GUIDE.txt: This file
+  - README.txt: Module documentation
+  - LARAVEL_GUIDE_THIS_FILE_NO_AI_EDIT.md: Laravel project guide
+
+Module Source Code:
+  - scripts/deploy_tools/nginx_integrator.sh: Full implementation
+  - scripts/deploy_tools/deployment_helper.sh: Helper functions
+  - scripts/deploy.sh: Main orchestrator
+
+Related System Scripts:
+  - ../../../scripts/shells/linux/debian/install_shells/25_install_nginx.sh
+  - ../../../scripts/shells/linux/debian/install_shells/31_ensure_php84_intelligent.sh
+
+PHP Artisan Documentation:
+  - Laravel 12: development-guides/laravel-12.x-docs/artisan.htm
+
+ServerManagerV1 Implementation:
+  - app/Apps/ServerManagerV1/ServerManagerV1CLI/Commands/
+
+GETTING HELP
+============
+
+To view this guide:
+  cat scripts/deploy_tools/NGINX_INTEGRATION_GUIDE.txt
+
+To check deployment status:
+  bash scripts/verify-deployment.sh
+
+To see real-time deployment:
+  bash scripts/deploy.sh
+
+To view Nginx configuration:
+  cat /www/nginxconfig/laravel_main.conf
+
+To check system logs:
+  journalctl -u nginx -f
+  tail -f /var/log/nginx/laravel_main.error.log
+
+============================================================
