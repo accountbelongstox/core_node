@@ -106,9 +106,9 @@ def reset_assistant_state():
     ASSISTANT_EXECUTION_STATE["enabled"] = True
 
 # ============================================================================
-# TEMPLATE CONFIGURATIONS - Global template paths and thresholds
+# D3 TEMPLATE CONFIGURATIONS - D3 game template paths and thresholds
 # ============================================================================
-TEMPLATE_CONFIGS = {
+D3_TEMPLATE_CONFIGS = {
     # Bag templates
     "bag_opened_indicator": {
         "path": os.path.join(TEMPLATE_DIR, "bag_opened_indicator.png"),
@@ -318,20 +318,20 @@ TEMPLATE_CONFIGS = {
 def get_templates_by_category(category: str) -> Dict[str, Dict]:
     """Get all templates in a specific category"""
     return {
-        name: config for name, config in TEMPLATE_CONFIGS.items()
+        name: config for name, config in D3_TEMPLATE_CONFIGS.items()
         if config.get("category") == category
     }
 
 # Helper function to get template path
 def get_template_path(template_name: str) -> Optional[str]:
     """Get template file path by name"""
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     return config["path"] if config else None
 
 # Helper function to get template threshold
 def get_template_threshold(template_name: str) -> float:
     """Get template matching threshold by name"""
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     return config.get("threshold", 0.8) if config else 0.8
 
 # Helper function to get template match method
@@ -342,7 +342,7 @@ def get_template_match_method(template_name: str) -> str:
     Returns:
         'SIFT', 'ORB', or 'TEMPLATE' (default)
     """
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     return config.get("match_method", "ORB") if config else "ORB"
 
 # Helper function for intelligent threshold conversion
@@ -359,7 +359,7 @@ def get_adjusted_threshold(template_name: str, target_match_method: Optional[str
     - TM_SQDIFF methods: Use distance thresholds (lower is better, inverted logic)
 
     Args:
-        template_name: Template name from TEMPLATE_CONFIGS
+        template_name: Template name from D3_TEMPLATE_CONFIGS
         target_match_method: Target matching method (if None, uses template's original method)
 
     Returns:
@@ -374,7 +374,7 @@ def get_adjusted_threshold(template_name: str, target_match_method: Optional[str
         >>> get_adjusted_threshold("blacksmith_indicator_1", "SIFT")
         0.75  # Adjusted for SIFT feature matching
     """
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     if not config:
         ColorPrint.yellow(f"[ThresholdConvert] Template '{template_name}' not found, using default 0.8")
         return 0.8
@@ -453,7 +453,7 @@ def get_adjusted_threshold(template_name: str, target_match_method: Optional[str
 # Helper function to get use_alpha setting
 def get_template_use_alpha(template_name: str) -> bool:
     """Get whether template should use alpha channel"""
-    config = TEMPLATE_CONFIGS.get(template_name)
+    config = D3_TEMPLATE_CONFIGS.get(template_name)
     return config.get("use_alpha", False) if config else False
 
 # Deprecated: PNG matcher has been removed, use image_matcher with use_alpha instead
@@ -788,6 +788,15 @@ PLAY_BUTTON_AUTOMATION_IDS = [
     "launch-game-btn",
     "game-launch-btn"
 ]
+
+# ============================================================================
+# BATTLENET TEMPLATE CONFIGURATIONS - Battle.net client template paths and thresholds
+# ============================================================================
+BATTLENET_TEMPLATE_CONFIGS = {
+    # Placeholder for Battle.net-specific templates
+    # Will contain templates specific to the Battle.net client UI
+    # Add templates here as needed for Battle.net screenshot analysis
+}
 
 # ============================================================================
 # D4 TEMPLATE CONFIGURATIONS - D4-specific template paths and thresholds

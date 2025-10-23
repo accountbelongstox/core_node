@@ -26,6 +26,7 @@ from .panels.auxiliary_functions_panel import AuxiliaryFunctionsPanel
 from .panels.log_panel import LogPanel
 from .panels.rosbot_extension_panel import RosbotExtensionPanel
 from .panels.d4_panel import D4Panel
+from .panels.coordinate_calibration_panel import CoordinateCalibrationPanel
 
 # Import theme
 from .theme import UITheme
@@ -288,6 +289,7 @@ class Diablo3MacroUI:
         self._create_table2_tab()  # Auxiliary functions
         self._create_rosbot_tab()  # ROSBOT extension
         self._create_d4_tab()  # D4 functions
+        self._create_coordinate_calibration_tab()  # Coordinate calibration
         self._create_table3_tab()  # Test and logs
         
         # Bind tab change event
@@ -505,6 +507,25 @@ class Diablo3MacroUI:
         if hasattr(self.d4_panel, 'set_config_change_callback'):
             self.d4_panel.set_config_change_callback(self._on_config_change)
 
+    def _create_coordinate_calibration_tab(self):
+        """Create Coordinate Calibration tab"""
+        self.calibration_frame = ttk.Frame(self.main_notebook)
+        # Set theme background color for the frame
+        self.calibration_frame.configure(style='Dark.TFrame')
+        tab_id = self.main_notebook.add(
+            self.calibration_frame,
+            text=i18n_manager.get_ui_text("tabs.coordinate_calibration")
+        )
+        # Force apply style to this tab
+        self._apply_tab_style(tab_id)
+
+        # Create coordinate calibration panel
+        self.coordinate_calibration_panel = CoordinateCalibrationPanel(self.calibration_frame)
+
+        # Set callbacks
+        if hasattr(self.coordinate_calibration_panel, 'set_config_change_callback'):
+            self.coordinate_calibration_panel.set_config_change_callback(self._on_config_change)
+
     def _create_table3_tab(self):
         """Create TABLE3 - Test and logs tab"""
         self.table3_frame = ttk.Frame(self.main_notebook)
@@ -551,6 +572,7 @@ class Diablo3MacroUI:
         self._create_table2_tab()
         self._create_rosbot_tab()
         self._create_d4_tab()
+        self._create_coordinate_calibration_tab()
         self._create_table3_tab()
 
         if not hasattr(self, 'macro_controls') or not self.macro_controls:
@@ -574,6 +596,7 @@ class Diablo3MacroUI:
         self._create_table2_tab()
         self._create_rosbot_tab()
         self._create_d4_tab()
+        self._create_coordinate_calibration_tab()
         self._create_table3_tab()
 
         if not hasattr(self, 'macro_controls') or not self.macro_controls:
