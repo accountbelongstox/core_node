@@ -1,0 +1,273 @@
+= Nuxt Main Application Launcher ===
+
+Use Arrow Keys: Up/Down to select app, Left/Right to toggle mode
+Press Enter to start, ESC to exit
+
+  Admin
+  Codemart
+  Dashboard
+  Dev
+  Example
+> IT Tools Suite [Debug]
+  Main
+
+Selected: IT Tools Suite - Port: 3005 - Mode: debug
+
+===============================================================================
+  NUXT MULTI-APP LAUNCHER - APPLICATION STARTUP INFO
+===============================================================================
+
+=== Application Selection ===
+  Selected App     : IT Tools Suite
+  Namespace        : ittools
+  Mode             : debug
+  Port             : 3005
+  Host             : 0.0.0.0 (accessible from network)
+
+=== Entry Point Configuration ===
+  Entry File       : pages/index.vue
+  Source Template  : pages/index.ittools.vue
+  Switch Script    : scripts/switch-app-entry.js
+  APP_ENTRY Env    : ittools
+
+=== Architecture Locations ===
+  App Directory    : D:\programing\core_node\poly_apps\nuxt_main
+  Theme Location   : apps/app_ittools/theme_app_ittools/
+  Store Location   : apps/app_ittools/stores_app_ittools/
+  Constants        : apps/app_ittools/constants_app_ittools/
+  Router           : apps/app_ittools/router_app_ittools/
+
+=== Network Configuration ===
+  Local URL        : http://127.0.0.1:3005
+  Network URL      : http://0.0.0.0:3005
+
+=== Global Variables (Gvar Exchange) ===
+  AppDirectory = D:\programing\core_node\poly_apps\nuxt_main
+  LastUpdated = 2025-10-22 21:27:30
+
+===============================================================================
+
+[INFO] Switching app entry point to ittools...
+
+🚀 Switching to ittools app...
+ℹ️  Backed up current index.vue to: D:\programing\core_node\poly_apps\nuxt_main\.app-backups\index.backup.2025-10-22T14-27-30-834Z.vue
+✅ Successfully switched to ittools app
+ℹ️  Source: pages/index.ittools.vue
+ℹ️  Target: pages/index.vue
+
+🎉 Ready to start ittools app!
+Run: yarn dev:ittools
+[SUCCESS] App entry switched successfully
+
+[INFO] Opening browser at http://127.0.0.1:3005
+
+[INFO] Starting in debug mode...
+[INFO] Configuring port dynamically: 3005
+[CMD] yarn dev:ittools
+
+yarn run v1.22.22
+$ npm run switch-app ittools && cross-env APP_ENTRY=ittools nuxt dev
+npm warn Unknown env config "argv". This will stop working in the next major version of npm.
+npm warn Unknown env config "version-commit-hooks". This will stop working in the next major version of npm.
+npm warn Unknown env config "version-git-message". This will stop working in the next major version of npm.
+npm warn Unknown env config "version-git-tag". This will stop working in the next major version of npm.
+npm warn Unknown env config "version-tag-prefix". This will stop working in the next major version of npm.
+
+> switch-app
+> node scripts/switch-app-entry.js ittools
+
+
+🚀 Switching to ittools app...
+ℹ️  Backed up current index.vue to: D:\programing\core_node\poly_apps\nuxt_main\.app-backups\index.backup.2025-10-22T14-27-31-759Z.vue
+✅ Successfully switched to ittools app
+ℹ️  Source: pages/index.ittools.vue
+ℹ️  Target: pages/index.vue
+
+🎉 Ready to start ittools app!
+Run: yarn dev:ittools
+Nuxt 4.0.0 with Nitro 2.12.0                                                                           nuxi 9:27:32 PM
+                                                                                                            9:27:32 PM
+  ➜ Local:    http://localhost:3005/
+  ➜ Network:  use --host to expose
+
+  ➜ DevTools: press Shift + Alt + D in the browser (v2.6.2)                                                 9:27:34 PM
+
+√ Vite client built in 39ms                                                                                 9:27:36 PM
+√ Vite server built in 53ms                                                                                 9:27:36 PM
+√ Nuxt Nitro server built in 876ms                                                                    nitro 9:27:37 PM
+i Vite client warmed up in 3ms                                                                              9:27:37 PM
+i Vite server warmed up in 28ms                                                                             9:27:37 PM
+ ERROR  [request error] [unhandled] [GET] http://127.0.0.1:3005/                                            9:27:39 PM
+
+
+ℹ Error: Error parsing JavaScript expression: Unterminated string constant. (1:15)
+
+ ⁃ at createError (D:/programing/core_node/poly_apps/nuxt_main/node_modules/h3/dist/index.mjs:71:15)
+
+   66 ┃      return new H3Error(input);
+   67 ┃    }
+   68 ┃    if (isError(input)) {
+   69 ┃      return input;
+   70 ┃    }
+ ❯ 71 ┃    const err = new H3Error(input.message ?? input.statusMessage ?? "", {
+   72 ┃      cause: input.cause || input
+   73 ┃    });
+   74 ┃    if (hasProp(input, "stack")) {
+   75 ┃      try {
+   76 ┃        Object.defineProperty(err, "stack", {
+
+ ⁃ (D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:403:21)
+ ⁃ at async processMessage (D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:386:30)
+
+[CAUSE]
+Error {
+  stack: 'Error parsing JavaScript expression: Unterminated string constant. (1:15)\n' +
+  'at createError (D:/programing/core_node/poly_apps/nuxt_main/node_modules/h3/dist/index.mjs:71:15)\n' +
+  'at D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:403:21)\n' +
+  'at async processMessage (D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:386:30)',
+  message: 'Error parsing JavaScript expression: Unterminated string constant.
+  (1:15)',
+  data: {
+    code: 'VITE_ERROR',
+    id: '/pages/index.vue?macro=true',
+    stack: 'SyntaxError: Error parsing JavaScript expression: Unterminated string constant. (1:15)\n' +
+    '    at createCompilerError (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:1364:17)\n' +
+    '    at emitError (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:2949:5)\n' +
+    '    at createExp (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:2942:7)\n' +
+    '    at Object.onattribend (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:2459:29)\n' +
+    '    at Tokenizer.handleInAttrValue (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:945:16)\n' +
+    '    at Tokenizer.stateInAttrValueDoubleQuotes (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:955:10)\n' +
+    '    at Tokenizer.parse (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modu'... 465 more characters,
+    message: 'Error parsing JavaScript expression: Unterminated string constant.
+    (1:15)',
+    frame: '48 |  \n' +
+
+    '49 |        <!-- Tools Grid -->\n' +
+
+    50 |        <div v-if="activeTab === 'tools\\" class="grid
+    grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">\n +
+
+    '   |                    ^\n' +
+
+    '51 |          <div\n' +
+
+    '52 |            v-for="tool in itToolsStore.filteredTools"',
+  },
+  statusCode: 500,
+}
+ ERROR  [request error] [unhandled] [GET] http://127.0.0.1:3005/                                            9:27:39 PM
+
+
+ℹ Error: Error parsing JavaScript expression: Unterminated string constant. (1:15)
+
+ ⁃ at createError (D:/programing/core_node/poly_apps/nuxt_main/node_modules/h3/dist/index.mjs:71:15)
+
+   66 ┃      return new H3Error(input);
+   67 ┃    }
+   68 ┃    if (isError(input)) {
+   69 ┃      return input;
+   70 ┃    }
+ ❯ 71 ┃    const err = new H3Error(input.message ?? input.statusMessage ?? "", {
+   72 ┃      cause: input.cause || input
+   73 ┃    });
+   74 ┃    if (hasProp(input, "stack")) {
+   75 ┃      try {
+   76 ┃        Object.defineProperty(err, "stack", {
+
+ ⁃ (D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:403:21)
+ ⁃ at async processMessage (D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:386:30)
+
+[CAUSE]
+Error {
+  stack: 'Error parsing JavaScript expression: Unterminated string constant. (1:15)\n' +
+  'at createError (D:/programing/core_node/poly_apps/nuxt_main/node_modules/h3/dist/index.mjs:71:15)\n' +
+  'at D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:403:21)\n' +
+  'at async processMessage (D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:386:30)',
+  message: 'Error parsing JavaScript expression: Unterminated string constant.
+  (1:15)',
+  data: {
+    code: 'VITE_ERROR',
+    id: '/pages/index.vue?macro=true',
+    stack: 'SyntaxError: Error parsing JavaScript expression: Unterminated string constant. (1:15)\n' +
+    '    at createCompilerError (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:1364:17)\n' +
+    '    at emitError (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:2949:5)\n' +
+    '    at createExp (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:2942:7)\n' +
+    '    at Object.onattribend (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:2459:29)\n' +
+    '    at Tokenizer.handleInAttrValue (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:945:16)\n' +
+    '    at Tokenizer.stateInAttrValueDoubleQuotes (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:955:10)\n' +
+    '    at Tokenizer.parse (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modu'... 465 more characters,
+    message: 'Error parsing JavaScript expression: Unterminated string constant.
+    (1:15)',
+    frame: '48 |  \n' +
+
+    '49 |        <!-- Tools Grid -->\n' +
+
+    50 |        <div v-if="activeTab === 'tools\\" class="grid
+    grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">\n +
+
+    '   |                    ^\n' +
+
+    '51 |          <div\n' +
+
+    '52 |            v-for="tool in itToolsStore.filteredTools"',
+  },
+  statusCode: 500,
+}
+[9:27:39 PM]  ERROR  [request error] [unhandled] [GET] http://127.0.0.1:3005/__nuxt_error?error=true&url=%2F&statusCode=500&statusMessage=Server+Error&message=Error+parsing+JavaScript+expression:+Unterminated+string+constant.+(1:15)&data=%7B%22code%22:%22VITE_ERROR%22,%22id%22:%22%2Fpages%2Findex.vue?macro=true%22,%22stack%22:%22SyntaxError:+Error+parsing+JavaScript+expression:+Unterminated+string+constant.+(1:15)%5Cn++++at+createCompilerError+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-core%5C%5Cdist%5C%5Ccompiler-core.cjs.js:1364:17)%5Cn++++at+emitError+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-core%5C%5Cdist%5C%5Ccompiler-core.cjs.js:2949:5)%5Cn++++at+createExp+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-core%5C%5Cdist%5C%5Ccompiler-core.cjs.js:2942:7)%5Cn++++at+Object.onattribend+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-core%5C%5Cdist%5C%5Ccompiler-core.cjs.js:2459:29)%5Cn++++at+Tokenizer.handleInAttrValue+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-core%5C%5Cdist%5C%5Ccompiler-core.cjs.js:945:16)%5Cn++++at+Tokenizer.stateInAttrValueDoubleQuotes+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-core%5C%5Cdist%5C%5Ccompiler-core.cjs.js:955:10)%5Cn++++at+Tokenizer.parse+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-core%5C%5Cdist%5C%5Ccompiler-core.cjs.js:1099:16)%5Cn++++at+Object.baseParse+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-core%5C%5Cdist%5C%5Ccompiler-core.cjs.js:2988:13)%5Cn++++at+Object.parse+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-dom%5C%5Cdist%5C%5Ccompiler-dom.cjs.js:907:23)%5Cn++++at+Object.parse$1+%5Bas+parse%5D+(D:%5C%5Cprograming%5C%5Ccore_node%5C%5Cpoly_apps%5C%5Cnuxt_main%5C%5Cnode_modules%5C%5C@vue%5C%5Ccompiler-sfc%5C%5Cdist%5C%5Ccompiler-sfc.cjs.js:1794:24)%22,%22message%22:%22Error+parsing+JavaScript+expression:+Unterminated+string+constant.+(1:15)%22,%22frame%22:%2248+|++%5Cn49+|++++++++%3C!--+Tools+Grid+--%3E%5Cn50+|++++++++%3Cdiv+v-if=%5C%22activeTab+===+%27tools%5C%5C%5C%22+class=%5C%22grid+grid-cols-1+md:grid-cols-2+lg:grid-cols-3+gap-4%5C%22%3E%5Cn+++|++++++++++++++++++++^%5Cn51+|++++++++++%3Cdiv%5Cn52+|++++++++++++v-for=%5C%22tool+in+itToolsStore.filteredTools%5C%22%22%7D&stack=Error+parsing+JavaScript+expression:+Unterminated+string+constant.+(1:15)%0Aat+createError+(D:%2Fprograming%2Fcore_node%2Fpoly_apps%2Fnuxt_main%2Fnode_modules%2Fh3%2Fdist%2Findex.mjs:71:15)%0Aat+D:%2Fprograming%2Fcore_node%2Fpoly_apps%2Fnuxt_main%2Fnode_modules%2F@nuxt%2Fvite-builder%2Fdist%2Findex.mjs:403:21)%0Aat+async+processMessage+(D:%2Fprograming%2Fcore_node%2Fpoly_apps%2Fnuxt_main%2Fnode_modules%2F@nuxt%2Fvite-builder%2Fdist%2Findex.mjs:386:30)
+
+
+ℹ Error: Error parsing JavaScript expression: Unterminated string constant. (1:15)
+
+ ⁃ at createError (D:/programing/core_node/poly_apps/nuxt_main/node_modules/h3/dist/index.mjs:71:15)
+
+   66 ┃      return new H3Error(input);
+   67 ┃    }
+   68 ┃    if (isError(input)) {
+   69 ┃      return input;
+   70 ┃    }
+ ❯ 71 ┃    const err = new H3Error(input.message ?? input.statusMessage ?? "", {
+   72 ┃      cause: input.cause || input
+   73 ┃    });
+   74 ┃    if (hasProp(input, "stack")) {
+   75 ┃      try {
+   76 ┃        Object.defineProperty(err, "stack", {
+
+ ⁃ (D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:403:21)
+ ⁃ at async processMessage (D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:386:30)
+
+[CAUSE]
+Error {
+  stack: 'Error parsing JavaScript expression: Unterminated string constant. (1:15)\n' +
+  'at createError (D:/programing/core_node/poly_apps/nuxt_main/node_modules/h3/dist/index.mjs:71:15)\n' +
+  'at D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:403:21)\n' +
+  'at async processMessage (D:/programing/core_node/poly_apps/nuxt_main/node_modules/@nuxt/vite-builder/dist/index.mjs:386:30)',
+  message: 'Error parsing JavaScript expression: Unterminated string constant.
+  (1:15)',
+  data: {
+    code: 'VITE_ERROR',
+    id: '/pages/index.vue?macro=true',
+    stack: 'SyntaxError: Error parsing JavaScript expression: Unterminated string constant. (1:15)\n' +
+    '    at createCompilerError (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:1364:17)\n' +
+    '    at emitError (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:2949:5)\n' +
+    '    at createExp (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:2942:7)\n' +
+    '    at Object.onattribend (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:2459:29)\n' +
+    '    at Tokenizer.handleInAttrValue (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:945:16)\n' +
+    '    at Tokenizer.stateInAttrValueDoubleQuotes (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modules\\@vue\\compiler-core\\dist\\compiler-core.cjs.js:955:10)\n' +
+    '    at Tokenizer.parse (D:\\programing\\core_node\\poly_apps\\nuxt_main\\node_modu'... 465 more characters,
+    message: 'Error parsing JavaScript expression: Unterminated string constant.
+    (1:15)',
+    frame: '48 |  \n' +
+
+    '49 |        <!-- Tools Grid -->\n' +
+
+    50 |        <div v-if="activeTab === 'tools\\" class="grid
+    grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">\n +
+
+    '   |                    ^\n' +
+
+    '51 |          <div\n' +
+
+    '52 |            v-for="tool in itToolsStore.filteredTools"',
+  },
+  statusCode: 500,
+}

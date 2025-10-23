@@ -29,6 +29,69 @@ if [ -f "$LINUX_COMMON_DIR/gvar_common.sh" ]; then
     source "$LINUX_COMMON_DIR/gvar_common.sh"
 fi
 
+# Smart Recognition Helper Functions
+test_string_has_whitespace_in_middle() {
+    local input_string="$1"
+    
+    # Check if string contains whitespace, newlines, or carriage returns in the middle
+    local trimmed=$(echo "$input_string" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    if [ ${#trimmed} -ne ${#input_string} ]; then
+        return 0  # Has leading/trailing whitespace
+    fi
+    
+    # Check for whitespace characters in the middle
+    if echo "$input_string" | grep -q '[[:space:]]'; then
+        return 0
+    fi
+    
+    # Check for newlines or carriage returns
+    if echo "$input_string" | grep -q '[\r\n]'; then
+        return 0
+    fi
+    
+    return 1
+}
+
+extract_api_url_and_token() {
+    local input_text="$1"
+    
+    # Clean up the text: remove extra whitespace and normalize line breaks
+    local cleaned_text=$(echo "$input_text" | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    
+    # Split using whitespace pattern
+    local tokens=($(echo "$cleaned_text" | tr ' ' '\n' | grep -v '^$'))
+    
+    # Extract API URLs and Tokens
+    EXTRACTED_API_URLS=()
+    EXTRACTED_TOKENS=()
+    CLEANED_INPUT_TEXT="$cleaned_text"
+    
+    for token in "${tokens[@]}"; do
+        if echo "$token" | grep -q '^https\?://'; then
+            EXTRACTED_API_URLS+=("$token")
+        elif [ ${#token} -gt 37 ]; then
+            EXTRACTED_TOKENS+=("$token")
+        fi
+    done
+    
+    echo "Extraction Results:"
+    echo "Total segments: ${#tokens[@]}"
+    
+    if [ ${#EXTRACTED_API_URLS[@]} -gt 0 ]; then
+        echo "Found API URLs:"
+        for url in "${EXTRACTED_API_URLS[@]}"; do
+            echo "  - $url"
+        done
+    fi
+    
+    if [ ${#EXTRACTED_TOKENS[@]} -gt 0 ]; then
+        echo "Found Tokens (length > 37):"
+        for token in "${EXTRACTED_TOKENS[@]}"; do
+            echo "  - $token"
+        done
+    fi
+}
+
 # Global variables for file management
 SELECTED_FILE_ACTION=""
 SELECTED_FILE_TEXT=""
@@ -44,14 +107,126 @@ CURRENT_FILE_NUMBER=1
 CURRENT_FILE_NAME=""
 CURRENT_SCRIPT_CONTENT=""
 
+# Smart recognition variables
+SMART_RECOGNITION_ENABLED=false
+EXTRACTED_API_URLS=()
+EXTRACTED_TOKENS=()
+CLEANED_INPUT_TEXT=""
+
+# Smart Input Processing Functions
+get_smart_input_for_variable() {
+    local var_name="$1"
+    local var_display="$2"
+    local var_description="$3"
+    local has_current_value="$4"
+    local is_first_variable="$5"
+    
+    # Build prompt
+    local prompt=""
+    if [ "$has_current_value" = "true" ]; then
+        prompt="Please enter $var_display (or press Enter to keep current value):"
+    else
+        prompt="Please enter $var_display (or press Enter to skip):"
+    fi
+    
+    if [ -n "$var_description" ]; then
+        prompt="$prompt\nDescription: $var_description"
+    fi
+    
+    # Add smart recognition hint if enabled and this is the first variable
+    if [ "$SMART_RECOGNITION_ENABLED" = "true" ] && [ "$is_first_variable" = "true" ]; then
+        prompt="$prompt\nNote: Multi-line input is supported and will be intelligently parsed."
+        prompt="$prompt\nIf input contains spaces or line breaks, smart extraction will be applied."
+        prompt="$prompt\nSubsequent variables may be auto-filled if both URL and Token are detected."
+    fi
+    
+    echo -e "$prompt"
+    
+    # Get user input (support multi-line)
+    local user_input=""
+    local line
+    while IFS= read -r line; do
+        if [ -z "$user_input" ]; then
+            user_input="$line"
+        else
+            user_input="$user_input\n$line"
+        fi
+    done
+    
+    # Check if input is empty
+    if [ -z "$user_input" ]; then
+        return 1
+    fi
+    
+    # Check if smart recognition should be applied
+    if [ "$SMART_RECOGNITION_ENABLED" = "true" ] && [ "$is_first_variable" = "true" ]; then
+        # Check if input has whitespace/newlines in the middle
+        if test_string_has_whitespace_in_middle "$user_input"; then
+            echo "Multi-line input detected. Applying smart recognition..."
+            
+            # Extract API URLs and tokens
+            extract_api_url_and_token "$user_input"
+            
+            echo ""
+            echo "Press Enter to continue with smart extraction, or any other key to return to manual input:"
+            read -n 1 confirm_key
+            
+            if [ "$confirm_key" != "" ]; then
+                # User pressed a key other than Enter, return to manual input
+                echo "Returning to manual input..."
+                echo "$user_input"
+                return 0
+            fi
+            
+            # Continue with smart extraction
+            echo "Continuing with smart extraction..."
+            echo "$user_input"
+            return 0
+        fi
+    fi
+    
+    echo "$user_input"
+    return 0
+}
+
 # Environment Variables Configuration
 declare -A ENVIRONMENT_CONFIGS
-ENVIRONMENT_CONFIGS["Claude AI"]="title=Claude AI Environment Variables;description=Set up Claude AI environment variables for API access;common=claude;command_prefix=claude;vars=ANTHROPIC_BASE_URL,ANTHROPIC_AUTH_TOKEN;secrets=ANTHROPIC_AUTH_TOKEN"
-ENVIRONMENT_CONFIGS["Alibaba Cloud"]="title=Alibaba Cloud Environment Variables;description=Set up Alibaba Cloud environment variables for API access;common=alibaba;command_prefix=aliyun;vars=ALIBABA_CLOUD_ACCESS_KEY_ID,ALIBABA_CLOUD_ACCESS_KEY_SECRET;secrets=ALIBABA_CLOUD_ACCESS_KEY_SECRET"
+ENVIRONMENT_CONFIGS["Claude AI"]="title=Claude AI Environment Variables;description=Set up Claude AI environment variables for API access;common=claude;command_prefix=claude;vars=ANTHROPIC_BASE_URL,ANTHROPIC_AUTH_TOKEN;secrets=ANTHROPIC_AUTH_TOKEN;smart_recognition=true"
+ENVIRONMENT_CONFIGS["Alibaba Cloud"]="title=Alibaba Cloud Environment Variables;description=Set up Alibaba Cloud environment variables for API access;common=alibaba;command_prefix=aliyun;vars=ALIBABA_CLOUD_ACCESS_KEY_ID,ALIBABA_CLOUD_ACCESS_KEY_SECRET;secrets=ALIBABA_CLOUD_ACCESS_KEY_SECRET;smart_recognition=false"
 # Example: Add new service configuration
 # ENVIRONMENT_CONFIGS["OpenAI"]="title=OpenAI Environment Variables;description=Set up OpenAI environment variables for API access;common=openai;command_prefix=openai;vars=OPENAI_API_KEY,OPENAI_BASE_URL;secrets=OPENAI_API_KEY"
 
 # Helper Functions
+# Environment Variable Management Functions
+set_environment_variable() {
+    local var_name="$1"
+    local var_value="$2"
+    local delete_flag="$3"
+    
+    if [ "$delete_flag" = "true" ]; then
+        # Delete the environment variable
+        unset "$var_name"
+        # Remove from shell profile files
+        sed -i "/export $var_name=/d" ~/.bashrc 2>/dev/null || true
+        sed -i "/export $var_name=/d" ~/.profile 2>/dev/null || true
+        sed -i "/export $var_name=/d" ~/.bash_profile 2>/dev/null || true
+        echo "Environment variable $var_name deleted"
+    else
+        # Set the environment variable
+        export "$var_name=$var_value"
+        # Add to shell profile files
+        echo "export $var_name=\"$var_value\"" >> ~/.bashrc
+        echo "export $var_name=\"$var_value\"" >> ~/.profile
+        echo "Environment variable $var_name set to: $var_value"
+    fi
+    return 0
+}
+
+get_environment_variable() {
+    local var_name="$1"
+    echo "${!var_name}"
+}
+
 test_admin_privileges() {
     [ "$EUID" -eq 0 ]
 }
@@ -180,6 +355,61 @@ get_existing_scripts() {
 
     local pattern="${list_script_name}*"
     find "$LINUX_ENVS_DIR" -name "$pattern" -type f 2>/dev/null | sort
+}
+
+generate_global_command() {
+    local config_name="$1"
+    local target_file_path="$2"
+    
+    local command_prefix=$(get_command_prefix "$config_name")
+    local title=$(get_config_value "$config_name" "title")
+    
+    if [ -z "$command_prefix" ]; then
+        print_color red "No command prefix found for $config_name"
+        return 1
+    fi
+    
+    # Create temp scripts directory
+    mkdir -p "$TEMP_SCRIPTS_DIR"
+    
+    # Generate script content
+    local script_content="#!/bin/bash\n"
+    script_content+="# $title\n"
+    script_content+="# Generated by Special Software Environment Variables Manager\n\n"
+    
+    # Add environment variable exports
+    local vars_str=$(get_config_value "$config_name" "vars")
+    if [ -n "$vars_str" ]; then
+        IFS=',' read -ra vars <<< "$vars_str"
+        for var in "${vars[@]}"; do
+            local var_value=$(get_env_variable "$var")
+            if [ -n "$var_value" ]; then
+                script_content+="export $var=\"$var_value\"\n"
+            fi
+        done
+    fi
+    
+    script_content+="\n# Execute command with environment variables\n"
+    script_content+="exec \"\$@\"\n"
+    
+    # Determine output file
+    local output_file
+    if [ -n "$target_file_path" ]; then
+        output_file="$target_file_path"
+    else
+        local file_number=1
+        while [ -f "$LINUX_ENVS_DIR/${command_prefix}${file_number}" ]; do
+            ((file_number++))
+        done
+        output_file="$LINUX_ENVS_DIR/${command_prefix}${file_number}"
+    fi
+    
+    # Write script content
+    echo -e "$script_content" > "$output_file"
+    chmod +x "$output_file"
+    
+    print_color green "Global command script generated: $output_file"
+    return 0
 }
 
 show_existing_scripts_menu() {
@@ -1013,7 +1243,7 @@ show_existing_files_menu() {
                         ;;
                 esac
                 ;;
-            $'\n')
+            $'\n'|$'\r'|'')
                 SELECTED_FILE_ACTION="${menu_actions[$selected_index]}"
                 SELECTED_FILE_TEXT="${menu_items[$selected_index]}"
                 SELECTED_FILE_INDEX="$selected_index"
@@ -1268,8 +1498,9 @@ show_config_submenu() {
                         ;;
                 esac
                 ;;
-            $'\n')
+            $'\n'|$'\r'|'')
                 local selected_option="${menu_options[$selected_index]}"
+                # Restore terminal settings before executing action
                 stty "$old_settings"
                 case "$selected_option" in
                     "Add $title Global Command")
@@ -1294,6 +1525,7 @@ show_config_submenu() {
                         return
                         ;;
                 esac
+                # Restore terminal settings for menu navigation
                 stty -icanon -echo
                 trap 'stty "$old_settings"' EXIT
                 ;;
@@ -1383,8 +1615,9 @@ main_special_env_menu() {
                         ;;
                 esac
                 ;;
-            $'\n')
+            $'\n'|$'\r'|'')
                 local selected_option="${menu_options[$selected_index]}"
+                # Restore terminal settings before executing action
                 stty "$old_settings"
                 case "$selected_option" in
                     "Claude AI")
