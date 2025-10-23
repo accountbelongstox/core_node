@@ -34,27 +34,26 @@ class WuySettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final settingsController = context.watch<SettingsController>();
 
-    return Scaffold(
-      body: Container(
-        decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
-        child: Scaffold(
-          backgroundColor: ThemeColors.transparent,
-          appBar: AppBar(
-            title: Text(
-              LocalizationKeysAppWuy.wuySettingsTitle.tr(context),
-              style: WuyAppThemeConfig.wuyAppBarTitle,
-            ),
-            backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
-            foregroundColor: ThemeColors.white,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
-              onPressed: () => context.pop(),
-            ),
+    return Container(
+      decoration: WuyAppThemeConfig.wuyBackgroundDecoration,
+      child: Scaffold(
+        backgroundColor: ThemeColors.transparent,
+        appBar: AppBar(
+          title: Text(
+            LocalizationKeysAppWuy.wuySettingsTitle.tr(context),
+            style: WuyAppThemeConfig.wuyAppBarTitle,
           ),
-          body: ListView(
-            padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-            children: [
+          backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
+          foregroundColor: ThemeColors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: ListView(
+          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          children: [
               _buildCategorySection(
                 context,
                 settingsController,
@@ -113,7 +112,6 @@ class WuySettingsScreen extends StatelessWidget {
               SizedBox(height: ThemeDimensions.spacingLarge),
               _buildResetButton(context, settingsController),
             ],
-          ),
         ),
       ),
     );
