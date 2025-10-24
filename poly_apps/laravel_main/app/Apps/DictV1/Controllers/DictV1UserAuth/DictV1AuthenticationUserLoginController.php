@@ -12,7 +12,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
-namespace App\Apps\DictV1\Controllers\DictV1AuthPublic;
+namespace App\Apps\DictV1\Controllers\DictV1UserAuth;
 
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;

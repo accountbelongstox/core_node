@@ -33,26 +33,30 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
     {
         $domain = $this->argument('domain');
         $type = $this->argument('type');
-        
+
+        // Print environment information
+        $this->printEnvironmentInfo();
+
         // Validate domain
         if (!$this->validateDomain($domain)) {
             return 1;
         }
-        
+
         // Validate type
         $validTypes = ['laravel', 'poly-app', 'ncore-app', 'static', 'proxy'];
         if (!in_array($type, $validTypes)) {
             $this->error("Invalid deployment type. Valid types: " . implode(', ', $validTypes));
             return 1;
         }
-        
+
         // Check if configuration exists and handle force option
         if ($this->nginxConfigExists($domain) && !$this->option('force')) {
             $this->error("Configuration already exists for $domain. Use --force to update.");
             return 1;
         }
-        
+
         // Validate SSL configuration first
+        $this->info("=== SSL Configuration Validation ===");
         if (!$this->validateSSLConfiguration()) {
             return 1;
         }
@@ -61,14 +65,14 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
         if ($this->option('dry-run')) {
             return $this->showDryRun($domain, $type);
         }
-        
+
         // Log deployment start
         Log::info("ServerManagerV1 CLI: Starting deployment", [
             'domain' => $domain,
             'type' => $type,
             'options' => $this->options()
         ]);
-        
+
         // Execute deployment based on type
         $success = match($type) {
             'laravel' => $this->deployLaravel($domain),
@@ -78,7 +82,7 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
             'proxy' => $this->deployProxy($domain),
             default => false
         };
-        
+
         if ($success) {
             $this->info("Deployment completed successfully!");
             return 0;
@@ -86,6 +90,51 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
             $this->error("Deployment failed!");
             return 1;
         }
+    }
+
+    /**
+     * Print environment information
+     */
+    private function printEnvironmentInfo(): void
+    {
+        $this->info("=== Environment Information ===");
+
+        try {
+            $envInfo = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::getEnvironmentInfo();
+            $this->line($envInfo);
+
+            $env = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::detectEnvironment();
+
+            // Debug paths
+            $this->info("\n=== Path Debug Information ===");
+            $paths = [
+                ['Core Node Root', $env['core_node_path']],
+                ['Secret Keys Dir', \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::getSecretKeysPath()],
+                ['DD Script', \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::getDdScriptPath()],
+                ['Web Root', \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::resolveWebRoot()]
+            ];
+
+            foreach ($paths as [$label, $path]) {
+                $exists = file_exists($path);
+                $status = $exists ? '✓ EXISTS' : '✗ NOT FOUND';
+                $color = $exists ? 'info' : 'error';
+                $this->$color("$label: $path [$status]");
+            }
+
+            // Nginx paths
+            $nginxPaths = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver::getNginxPaths();
+            $this->info("\n=== Nginx Configuration ===");
+            $this->line("Config Path: {$nginxPaths['config_path']}");
+            $this->line("Enabled Path: {$nginxPaths['enabled_path']}");
+            $this->line("Available: " . ($nginxPaths['available'] ? 'Yes' : 'No'));
+            $this->line("Note: {$nginxPaths['note']}");
+
+        } catch (\Exception $e) {
+            $this->error("Failed to load environment info: " . $e->getMessage());
+            $this->error("Stack trace: " . $e->getTraceAsString());
+        }
+
+        $this->line("");
     }
     
     /**
