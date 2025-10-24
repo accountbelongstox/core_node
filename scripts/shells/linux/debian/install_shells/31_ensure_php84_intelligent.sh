@@ -119,6 +119,7 @@ check_composer_binary_state() {
         return 0
     else
         echo -e "${RED}$SCRIPT_INDEX ${BINARY_STATES["COMPOSER_MISSING"]}${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 34_install_composer.sh${NC}"
         return 1
     fi
 }
@@ -185,6 +186,155 @@ check_php_extensions() {
         echo -e "${YELLOW}$SCRIPT_INDEX Missing extensions: ${missing_extensions[*]}${NC}"
         return 1
     fi
+}
+
+# NEW: Fix missing extensions for already installed PHP
+fix_missing_extensions() {
+    echo -e "${BLUE}$SCRIPT_INDEX [FIX] Checking and fixing missing PHP extensions...${NC}"
+
+    if ! command -v php8.4 >/dev/null 2>&1; then
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.4 not installed, cannot fix extensions${NC}"
+        return 1
+    fi
+
+    # Get list of loaded modules
+    local loaded_modules=$(php8.4 -m 2>/dev/null)
+    local missing_packages=()
+    local installed_packages=()
+
+    echo -e "${CYAN}$SCRIPT_INDEX Checking all required extensions...${NC}"
+
+    # Check each required extension
+    for ext in "${REQUIRED_EXTENSIONS[@]}"; do
+        local module_name="${EXTENSION_MAP[$ext]}"
+        local package_name="php8.4-${ext}"
+
+        # Check if module is loaded
+        if echo "$loaded_modules" | grep -qi "^$module_name$"; then
+            echo -e "${GREEN}$SCRIPT_INDEX $module_name: loaded ï¿?{NC}"
+            continue
+        fi
+
+        # Module not loaded, check if package is installed
+        if dpkg -l | grep -q "^ii.*$package_name[[:space:]]"; then
+            echo -e "${YELLOW}$SCRIPT_INDEX $package_name: installed but not loaded (may need restart)${NC}"
+        else
+            echo -e "${RED}$SCRIPT_INDEX $package_name: NOT installed${NC}"
+            missing_packages+=("$package_name")
+        fi
+    done
+
+    # Install missing packages
+    if [ ${#missing_packages[@]} -gt 0 ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Found ${#missing_packages[@]} missing extension packages${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Missing packages: ${missing_packages[*]}${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Installing missing extensions...${NC}"
+
+        for pkg in "${missing_packages[@]}"; do
+            echo -e "${CYAN}$SCRIPT_INDEX Installing $pkg...${NC}"
+
+            # Install package and capture output
+            if $USE_SUDO apt install "$pkg" -y --no-install-recommends 2>&1 | tee /tmp/ext_fix.log; then
+                # Check if package was actually installed (dpkg may report errors for other packages like nginx)
+                if dpkg -l | grep -q "^ii.*$pkg[[:space:]]"; then
+                    echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed successfully ï¿?{NC}"
+                    installed_packages+=("$pkg")
+                else
+                    # Check if dpkg error was due to other packages, not our PHP extension
+                    if grep -q "Setting up $pkg" /tmp/ext_fix.log; then
+                        # Package was actually set up, just dpkg had issues with other packages
+                        if dpkg -l | grep -q "^i.*$pkg"; then
+                            echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with dpkg warnings) ï¿?{NC}"
+                            installed_packages+=("$pkg")
+                        else
+                            # Try with recommends
+                            echo -e "${YELLOW}$SCRIPT_INDEX $pkg: retrying with recommends...${NC}"
+                            if $USE_SUDO apt install "$pkg" -y 2>&1 | tee /tmp/ext_fix.log; then
+                                if dpkg -l | grep -q "^i.*$pkg"; then
+                                    echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with recommends) ï¿?{NC}"
+                                    installed_packages+=("$pkg")
+                                else
+                                    echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                                fi
+                            else
+                                echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                            fi
+                        fi
+                    else
+                        # Try without --no-install-recommends
+                        echo -e "${YELLOW}$SCRIPT_INDEX $pkg: retrying with recommends...${NC}"
+                        if $USE_SUDO apt install "$pkg" -y 2>&1 | tee /tmp/ext_fix.log; then
+                            if dpkg -l | grep -q "^i.*$pkg"; then
+                                echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with recommends) ï¿?{NC}"
+                                installed_packages+=("$pkg")
+                            else
+                                echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                            fi
+                        else
+                            echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                        fi
+                    fi
+                fi
+            else
+                # Installation failed, check if it's because of other package issues
+                if dpkg -l | grep -q "^i.*$pkg"; then
+                    echo -e "${YELLOW}$SCRIPT_INDEX $pkg: installed but apt returned errors (likely other packages)${NC}"
+                    installed_packages+=("$pkg")
+                else
+                    echo -e "${YELLOW}$SCRIPT_INDEX $pkg: retrying with recommends...${NC}"
+                    if $USE_SUDO apt install "$pkg" -y 2>&1 | tee /tmp/ext_fix.log; then
+                        if dpkg -l | grep -q "^i.*$pkg"; then
+                            echo -e "${GREEN}$SCRIPT_INDEX $pkg: installed (with recommends) ï¿?{NC}"
+                            installed_packages+=("$pkg")
+                        else
+                            echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                        fi
+                    else
+                        echo -e "${RED}$SCRIPT_INDEX $pkg: installation failed ï¿?{NC}"
+                    fi
+                fi
+            fi
+        done
+
+        rm -f /tmp/ext_fix.log
+
+        if [ ${#installed_packages[@]} -gt 0 ]; then
+            echo -e "${GREEN}$SCRIPT_INDEX Installed ${#installed_packages[@]} extension packages${NC}"
+
+            # Restart PHP-FPM to load new extensions
+            if systemctl is-active --quiet php8.4-fpm 2>/dev/null; then
+                echo -e "${YELLOW}$SCRIPT_INDEX Restarting PHP-FPM to load new extensions...${NC}"
+                $USE_SUDO systemctl restart php8.4-fpm
+                echo -e "${GREEN}$SCRIPT_INDEX PHP-FPM restarted${NC}"
+            fi
+
+            # Verify extensions are now loaded
+            echo -e "${CYAN}$SCRIPT_INDEX Verifying newly installed extensions...${NC}"
+            local verification_failed=0
+            for pkg in "${installed_packages[@]}"; do
+                local ext_name=$(echo "$pkg" | sed 's/php8.4-//')
+                local module_name="${EXTENSION_MAP[$ext_name]}"
+
+                if php8.4 -m 2>/dev/null | grep -qi "^$module_name$"; then
+                    echo -e "${GREEN}$SCRIPT_INDEX $module_name: now loaded ï¿?{NC}"
+                else
+                    echo -e "${YELLOW}$SCRIPT_INDEX $module_name: still not loaded (may need system restart)${NC}"
+                    ((verification_failed++))
+                fi
+            done
+
+            if [ $verification_failed -eq 0 ]; then
+                echo -e "${GREEN}$SCRIPT_INDEX All extensions verified and loaded${NC}"
+            else
+                echo -e "${YELLOW}$SCRIPT_INDEX $verification_failed extensions not loaded yet${NC}"
+                echo -e "${YELLOW}$SCRIPT_INDEX Try restarting PHP-FPM: sudo systemctl restart php8.4-fpm${NC}"
+            fi
+        fi
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX All required extension packages are installed${NC}"
+    fi
+
+    return 0
 }
 
 # 1.5 Check symbolic link integrity for universal PHP paths - now using PHP common function
@@ -286,6 +436,7 @@ cleanup_old_php_versions() {
     local old_versions=(7.4 8.0 8.1 8.2 8.3)
     local cleanup_errors=0
 
+    echo -e "${CYAN}$SCRIPT_INDEX Step 1: Stopping and disabling old PHP-FPM services...${NC}"
     for version in "${old_versions[@]}"; do
         echo -e "${YELLOW}$SCRIPT_INDEX Processing PHP $version cleanup...${NC}"
 
@@ -295,7 +446,8 @@ cleanup_old_php_versions() {
             echo -e "${YELLOW}$SCRIPT_INDEX Stopping and disabling $fpm_service...${NC}"
             $USE_SUDO systemctl stop "$fpm_service" 2>/dev/null || true
             $USE_SUDO systemctl disable "$fpm_service" 2>/dev/null || true
-            echo -e "${GREEN}$SCRIPT_INDEX Disabled $fpm_service service${NC}"
+            $USE_SUDO systemctl mask "$fpm_service" 2>/dev/null || true
+            echo -e "${GREEN}$SCRIPT_INDEX Disabled and masked $fpm_service service${NC}"
         fi
 
         # Remove from alternatives if present
@@ -312,9 +464,23 @@ cleanup_old_php_versions() {
         fi
     done
 
+    echo -e "${CYAN}$SCRIPT_INDEX Step 2: Removing old PHP packages (optional - keeping for compatibility)...${NC}"
+    # Note: We keep old PHP packages installed but disabled to avoid breaking system dependencies
+    # If you want to remove them completely, uncomment the following:
+    #
+    # for version in "${old_versions[@]}"; do
+    #     echo -e "${YELLOW}$SCRIPT_INDEX Checking for PHP $version packages...${NC}"
+    #     if dpkg -l | grep -q "^ii.*php${version}"; then
+    #         echo -e "${YELLOW}$SCRIPT_INDEX Removing PHP $version packages...${NC}"
+    #         $USE_SUDO apt remove --purge "php${version}*" -y 2>/dev/null || true
+    #         echo -e "${GREEN}$SCRIPT_INDEX PHP $version packages removed${NC}"
+    #     fi
+    # done
+    # $USE_SUDO apt autoremove -y 2>/dev/null || true
+
+    echo -e "${CYAN}$SCRIPT_INDEX Step 3: Cleaning old PHP paths from /etc/environment...${NC}"
     # Clean up /etc/environment PATH if it contains old PHP paths
     if [ -f /etc/environment ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Cleaning old PHP paths from /etc/environment...${NC}"
         # Create a backup
         $USE_SUDO cp /etc/environment /etc/environment.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
 
@@ -330,6 +496,7 @@ cleanup_old_php_versions() {
         fi
     fi
 
+    echo -e "${CYAN}$SCRIPT_INDEX Step 4: Cleaning PHP-specific environment variables...${NC}"
     # Also clean up any PHP-specific environment variables for old versions
     if [ -f /etc/environment ]; then
         for old_version in 74 80 81 82 83; do
@@ -339,6 +506,48 @@ cleanup_old_php_versions() {
                 $USE_SUDO sed -i "/^$php_var=/d" /etc/environment 2>/dev/null || true
             fi
         done
+    fi
+
+    echo -e "${CYAN}$SCRIPT_INDEX Step 5: Ensuring only PHP 8.4 is in update-alternatives...${NC}"
+    # Remove all PHP alternatives first
+    if update-alternatives --query php >/dev/null 2>&1; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Removing all existing PHP alternatives...${NC}"
+        $USE_SUDO update-alternatives --remove-all php 2>/dev/null || true
+    fi
+
+    # Add only PHP 8.4 to alternatives
+    if [ -f "/usr/bin/php8.4" ] && [ -x "/usr/bin/php8.4" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP 8.4 to alternatives with priority 84...${NC}"
+        $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.4 84 2>/dev/null || true
+
+        # Set PHP 8.4 as the default
+        $USE_SUDO update-alternatives --set php /usr/bin/php8.4 2>/dev/null || true
+
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 set as default via update-alternatives${NC}"
+    fi
+
+    echo -e "${CYAN}$SCRIPT_INDEX Step 6: Verifying cleanup results...${NC}"
+    # Verify that 'php' command points to PHP 8.4
+    if command -v php >/dev/null 2>&1; then
+        local current_version=$(php -v 2>/dev/null | head -1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
+        if [[ "$current_version" == "8.4"* ]]; then
+            echo -e "${GREEN}$SCRIPT_INDEX Verification: 'php' command points to PHP 8.4 ï¿?{NC}"
+        else
+            echo -e "${YELLOW}$SCRIPT_INDEX Warning: 'php' command points to PHP $current_version${NC}"
+        fi
+    fi
+
+    # Check if any old PHP-FPM services are still running
+    local running_old_fpm=false
+    for version in "${old_versions[@]}"; do
+        if systemctl is-active --quiet "php${version}-fpm" 2>/dev/null; then
+            echo -e "${RED}$SCRIPT_INDEX Warning: php${version}-fpm is still running!${NC}"
+            running_old_fpm=true
+        fi
+    done
+
+    if ! $running_old_fpm; then
+        echo -e "${GREEN}$SCRIPT_INDEX Verification: No old PHP-FPM services running ï¿?{NC}"
     fi
 
     echo -e "${GREEN}$SCRIPT_INDEX Old PHP versions cleanup completed${NC}"
@@ -365,13 +574,13 @@ verify_php_symbolic_link_fix() {
     if [ -L "$target_link" ]; then
         local actual_target=$(readlink "$target_link")
         if [ "$actual_target" = "$expected_binary" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX âœ?Symbolic link correct: $target_link -> $actual_target${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX ï¿?Symbolic link correct: $target_link -> $actual_target${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX âœ?Symbolic link incorrect: $target_link -> $actual_target (expected: $expected_binary)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX ï¿?Symbolic link incorrect: $target_link -> $actual_target (expected: $expected_binary)${NC}"
             verification_passed=false
         fi
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ?Symbolic link missing: $target_link${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?Symbolic link missing: $target_link${NC}"
         verification_passed=false
     fi
 
@@ -379,22 +588,22 @@ verify_php_symbolic_link_fix() {
     if command -v php >/dev/null 2>&1; then
         local php_version=$(php -v 2>/dev/null | head -n 1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
         if [[ "$php_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX âœ?PHP command version correct: $php_version${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP command version correct: $php_version${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX âœ?PHP command version incorrect: $php_version (expected: 8.4.x)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX ï¿?PHP command version incorrect: $php_version (expected: 8.4.x)${NC}"
             verification_passed=false
         fi
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ?PHP command not available${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?PHP command not available${NC}"
         verification_passed=false
     fi
 
     # Test 3: Check if which php returns the correct path
     local which_php=$(which php 2>/dev/null || echo "not_found")
     if [ "$which_php" = "$target_link" ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX âœ?'which php' returns correct path: $which_php${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?'which php' returns correct path: $which_php${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ?'which php' returns incorrect path: $which_php (expected: $target_link)${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?'which php' returns incorrect path: $which_php (expected: $target_link)${NC}"
         verification_passed=false
     fi
 
@@ -404,23 +613,23 @@ verify_php_symbolic_link_fix() {
         if command -v "php${old_version}" >/dev/null 2>&1; then
             local old_php_path=$(which "php${old_version}" 2>/dev/null)
             if [[ "$old_php_path" == "/usr/local/bin/"* ]]; then
-                echo -e "${RED}$SCRIPT_INDEX âœ?Old PHP version still in /usr/local/bin: $old_php_path${NC}"
+                echo -e "${RED}$SCRIPT_INDEX ï¿?Old PHP version still in /usr/local/bin: $old_php_path${NC}"
                 old_versions_found=true
             fi
         fi
     done
 
     if ! $old_versions_found; then
-        echo -e "${GREEN}$SCRIPT_INDEX âœ?No old PHP versions found in /usr/local/bin${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?No old PHP versions found in /usr/local/bin${NC}"
     else
         verification_passed=false
     fi
 
     # Test 5: Check if PHP alternatives are clean
     if update-alternatives --query php >/dev/null 2>&1; then
-        echo -e "${YELLOW}$SCRIPT_INDEX âš?PHP alternatives still configured (may be intentional)${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX ï¿?PHP alternatives still configured (may be intentional)${NC}"
     else
-        echo -e "${GREEN}$SCRIPT_INDEX âœ?PHP alternatives are clean${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP alternatives are clean${NC}"
     fi
 
     # Final result
@@ -445,13 +654,13 @@ verify_php_symbolic_link_fix() {
     if [ -L "$target_link" ]; then
         local actual_target=$(readlink "$target_link")
         if [ "$actual_target" = "$expected_binary" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX âœ?Symbolic link correct: $target_link -> $actual_target${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX ï¿?Symbolic link correct: $target_link -> $actual_target${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX âœ?Symbolic link incorrect: $target_link -> $actual_target (expected: $expected_binary)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX ï¿?Symbolic link incorrect: $target_link -> $actual_target (expected: $expected_binary)${NC}"
             success=false
         fi
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ?Symbolic link missing: $target_link${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?Symbolic link missing: $target_link${NC}"
         success=false
     fi
 
@@ -459,22 +668,22 @@ verify_php_symbolic_link_fix() {
     if command -v php >/dev/null 2>&1; then
         local php_version=$(php -v 2>/dev/null | head -n 1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
         if [[ "$php_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX âœ?PHP command version correct: $php_version${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP command version correct: $php_version${NC}"
         else
-            echo -e "${RED}$SCRIPT_INDEX âœ?PHP command version incorrect: $php_version (expected: 8.4)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX ï¿?PHP command version incorrect: $php_version (expected: 8.4)${NC}"
             success=false
         fi
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ?PHP command not available${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?PHP command not available${NC}"
         success=false
     fi
 
     # Test 3: Check if which php returns the correct path
     local which_php=$(which php 2>/dev/null || echo "not found")
     if [ "$which_php" = "$target_link" ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX âœ?'which php' returns correct path: $which_php${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?'which php' returns correct path: $which_php${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ?'which php' returns incorrect path: $which_php (expected: $target_link)${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?'which php' returns incorrect path: $which_php (expected: $target_link)${NC}"
         success=false
     fi
 
@@ -484,23 +693,23 @@ verify_php_symbolic_link_fix() {
         if command -v "php${old_version}" >/dev/null 2>&1; then
             local old_php_path=$(which "php${old_version}" 2>/dev/null)
             if [[ "$old_php_path" == "/usr/local/bin/"* ]]; then
-                echo -e "${RED}$SCRIPT_INDEX âœ?Old PHP version still in /usr/local/bin: $old_php_path${NC}"
+                echo -e "${RED}$SCRIPT_INDEX ï¿?Old PHP version still in /usr/local/bin: $old_php_path${NC}"
                 old_php_found=true
             fi
         fi
     done
 
     if ! $old_php_found; then
-        echo -e "${GREEN}$SCRIPT_INDEX âœ?No old PHP versions found in /usr/local/bin${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?No old PHP versions found in /usr/local/bin${NC}"
     else
         success=false
     fi
 
     # Test 5: Test PHP functionality with a simple command
     if timeout 10 php -r "echo 'PHP is working';" >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX âœ?PHP functionality test passed${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP functionality test passed${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX âœ?PHP functionality test failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?PHP functionality test failed${NC}"
         success=false
     fi
 
@@ -584,6 +793,7 @@ analyze_composer_state() {
         return 0
     else
         echo -e "${YELLOW}$SCRIPT_INDEX Composer: Not available${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 34_install_composer.sh${NC}"
         return 1
     fi
 }
@@ -784,16 +994,89 @@ install_php_core() {
 
     # Use core extensions from common variables
     local core_extensions=("${CORE_EXTENSIONS[@]}")
+    local failed_extensions=()
+    local installed_count=0
+    local already_installed_count=0
+
+    echo -e "${CYAN}$SCRIPT_INDEX Total extensions to check: ${#core_extensions[@]}${NC}"
 
     for ext in "${core_extensions[@]}"; do
-        if ! dpkg -l | grep -q "^ii.*$ext[[:space:]]"; then
-            echo -e "${CYAN}$SCRIPT_INDEX Installing $ext...${NC}"
-            # Install with --no-install-recommends to avoid Apache2
-            $USE_SUDO apt install "$ext" -y --no-install-recommends 2>/dev/null || {
-                echo -e "${YELLOW}$SCRIPT_INDEX Failed to install $ext, continuing...${NC}"
-            }
+        # Check if already installed
+        if dpkg -l | grep -q "^ii.*$ext[[:space:]]"; then
+            echo -e "${GREEN}$SCRIPT_INDEX $ext: already installed ï¿?{NC}"
+            ((already_installed_count++))
+            continue
+        fi
+
+        echo -e "${CYAN}$SCRIPT_INDEX Installing $ext...${NC}"
+
+        # Try to install with --no-install-recommends first
+        if $USE_SUDO apt install "$ext" -y --no-install-recommends 2>&1 | tee /tmp/php_ext_install.log; then
+            # Verify installation
+            if dpkg -l | grep -q "^ii.*$ext[[:space:]]"; then
+                echo -e "${GREEN}$SCRIPT_INDEX $ext: installed successfully ï¿?{NC}"
+                ((installed_count++))
+            else
+                echo -e "${YELLOW}$SCRIPT_INDEX $ext: installation reported success but package not found${NC}"
+                # Try without --no-install-recommends
+                if $USE_SUDO apt install "$ext" -y 2>&1 | tee /tmp/php_ext_install.log; then
+                    if dpkg -l | grep -q "^ii.*$ext[[:space:]]"; then
+                        echo -e "${GREEN}$SCRIPT_INDEX $ext: installed successfully (with recommends) ï¿?{NC}"
+                        ((installed_count++))
+                    else
+                        echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿?{NC}"
+                        failed_extensions+=("$ext")
+                    fi
+                else
+                    echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿?{NC}"
+                    cat /tmp/php_ext_install.log
+                    failed_extensions+=("$ext")
+                fi
+            fi
+        else
+            echo -e "${YELLOW}$SCRIPT_INDEX $ext: first attempt failed, trying with recommends...${NC}"
+            # Try without --no-install-recommends
+            if $USE_SUDO apt install "$ext" -y 2>&1 | tee /tmp/php_ext_install.log; then
+                if dpkg -l | grep -q "^ii.*$ext[[:space:]]"; then
+                    echo -e "${GREEN}$SCRIPT_INDEX $ext: installed successfully (with recommends) ï¿?{NC}"
+                    ((installed_count++))
+                else
+                    echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿?{NC}"
+                    cat /tmp/php_ext_install.log
+                    failed_extensions+=("$ext")
+                fi
+            else
+                echo -e "${RED}$SCRIPT_INDEX $ext: installation failed ï¿?{NC}"
+                cat /tmp/php_ext_install.log
+                failed_extensions+=("$ext")
+            fi
         fi
     done
+
+    # Clean up log file
+    rm -f /tmp/php_ext_install.log
+
+    # Installation summary
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Extension Installation Summary:${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX Already installed: $already_installed_count${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX Newly installed: $installed_count${NC}"
+
+    if [ ${#failed_extensions[@]} -gt 0 ]; then
+        echo -e "${RED}$SCRIPT_INDEX Failed installations: ${#failed_extensions[@]}${NC}"
+        echo -e "${RED}$SCRIPT_INDEX Failed extensions: ${failed_extensions[*]}${NC}"
+        echo -e "${CYAN}========================================${NC}"
+
+        # CRITICAL: Do not fail immediately, try to continue with available extensions
+        echo -e "${YELLOW}$SCRIPT_INDEX Some extensions failed to install, but continuing...${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX You can install them manually later with:${NC}"
+        for ext in "${failed_extensions[@]}"; do
+            echo -e "${YELLOW}$SCRIPT_INDEX   sudo apt install $ext${NC}"
+        done
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX All extensions installed successfully ï¿?{NC}"
+        echo -e "${CYAN}========================================${NC}"
+    fi
 
     # Simplified Apache2 cleanup - disable without detection
     echo -e "${CYAN}$SCRIPT_INDEX Disabling Apache2 if present...${NC}"
@@ -814,9 +1097,30 @@ install_php_core() {
         return 1
     fi
 
+    # Step 4: Verify critical extensions are loaded
+    echo -e "${YELLOW}$SCRIPT_INDEX Step 4: Verifying critical extensions...${NC}"
+    local critical_extensions=("curl" "mbstring" "xml" "dom")
+    local missing_critical=()
+
+    for ext in "${critical_extensions[@]}"; do
+        if php8.4 -m 2>/dev/null | grep -qi "^${ext}$"; then
+            echo -e "${GREEN}$SCRIPT_INDEX   $ext: loaded ï¿?{NC}"
+        else
+            echo -e "${RED}$SCRIPT_INDEX   $ext: NOT loaded ï¿?{NC}"
+            missing_critical+=("$ext")
+        fi
+    done
+
+    if [ ${#missing_critical[@]} -gt 0 ]; then
+        echo -e "${RED}$SCRIPT_INDEX Critical extensions missing: ${missing_critical[*]}${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX This may cause issues with Composer and Laravel${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Install with: sudo apt install php8.4-curl php8.4-mbstring php8.4-xml${NC}"
+        # Don't fail, just warn
+    fi
+
     # Set the actual installed version
     ACTUAL_PHP_VERSION="8.4"
-    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 core installation completed successfully${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 core installation completed${NC}"
 }
 
 # Composer installation is now handled by separate script 32_install_composer.sh
@@ -1094,6 +1398,14 @@ main() {
     # Phase 1.5: Check if we only need to fix symbolic link
     local php_state_result=0
     analyze_php_state; php_state_result=$?
+
+    # ALWAYS try to fix missing extensions if PHP 8.4 is installed
+    if command -v php8.4 >/dev/null 2>&1; then
+        echo -e "${CYAN}$SCRIPT_INDEX PHP 8.4 detected, checking for missing extensions...${NC}"
+        fix_missing_extensions || {
+            echo -e "${YELLOW}$SCRIPT_INDEX Extension fix completed with warnings${NC}"
+        }
+    fi
 
     # If PHP is installed but only symbolic link is wrong, just fix the link
     if [ $php_state_result -eq 5 ] || [ $php_state_result -eq 6 ] || [ $php_state_result -eq 2 ]; then
