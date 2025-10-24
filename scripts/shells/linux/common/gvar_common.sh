@@ -11,9 +11,21 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Detect environment type
+IS_WSL=false
+IS_PRODUCTION=false
+WSL_USERS_PATH="/mnt/c/Users"
+WSL_D_DRIVE="/mnt/d/programing/core_node"
+
+# Check if running in WSL
+if [ -d "$WSL_USERS_PATH" ] || [ -d "$WSL_D_DRIVE" ]; then
+    IS_WSL=true
+elif [ -d "/www/wwwroot" ]; then
+    IS_PRODUCTION=true
+fi
+
 # Determine CORE_NODE_DATA_DIR based on environment
 CORE_NODE_DATA_DIR="/usr/.core_node"
-WSL_USERS_PATH="/mnt/c/Users"
 
 # Check if WSL Windows users path exists
 if [ -d "$WSL_USERS_PATH" ]; then
@@ -21,7 +33,7 @@ if [ -d "$WSL_USERS_PATH" ]; then
     for user_dir in "$WSL_USERS_PATH"/*; do
         if [ -d "$user_dir" ]; then
             potential_dir="$user_dir/.core_node"
-            
+
             # Check if the .core_node directory exists
             if [ -d "$potential_dir" ]; then
                 CORE_NODE_DATA_DIR="$potential_dir"
@@ -32,6 +44,109 @@ if [ -d "$WSL_USERS_PATH" ]; then
 fi
 
 GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
+
+# Function to map Linux paths to appropriate paths based on environment
+# In WSL, check if Windows directories exist first; if they exist, use them
+# If Windows directories don't exist, use Linux paths (will be created there)
+# In Production, use standard Linux paths
+map_web_path() {
+    local linux_path="$1"
+    local mapped_path="$linux_path"
+
+    if [ "$IS_WSL" = true ]; then
+        # Map web server paths to Windows directories in WSL
+        case "$linux_path" in
+            /www/wwwroot*)
+                # Check if D:\wwwroot\ exists in WSL (not D:\www\wwwroot\)
+                if [ -d "/mnt/d/wwwroot" ]; then
+                    mapped_path="/mnt/d/wwwroot${linux_path#/www/wwwroot}"
+                else
+                    # Use Linux path if Windows directory doesn't exist
+                    mapped_path="$linux_path"
+                fi
+                ;;
+            /www/nginxconfig*)
+                # Check if D:\nginxconfig\ exists in WSL
+                if [ -d "/mnt/d/nginxconfig" ]; then
+                    mapped_path="/mnt/d/nginxconfig${linux_path#/www/nginxconfig}"
+                else
+                    mapped_path="$linux_path"
+                fi
+                ;;
+            /www/shared-data*)
+                # Check if D:\shared-data\ exists in WSL
+                if [ -d "/mnt/d/shared-data" ]; then
+                    mapped_path="/mnt/d/shared-data${linux_path#/www/shared-data}"
+                else
+                    mapped_path="$linux_path"
+                fi
+                ;;
+            /www/backup*)
+                # Check if D:\backup\ exists in WSL
+                if [ -d "/mnt/d/backup" ]; then
+                    mapped_path="/mnt/d/backup${linux_path#/www/backup}"
+                else
+                    mapped_path="$linux_path"
+                fi
+                ;;
+            /www/dev_*)
+                # Check if D:\www\ parent exists in WSL
+                if [ -d "/mnt/d/www" ]; then
+                    mapped_path="/mnt/d${linux_path}"
+                else
+                    mapped_path="$linux_path"
+                fi
+                ;;
+            /etc/nginx*)
+                # Keep /etc/nginx in Linux filesystem even in WSL
+                # (system configuration should stay in Linux)
+                mapped_path="$linux_path"
+                ;;
+            /etc/php*)
+                # Keep /etc/php in Linux filesystem even in WSL
+                mapped_path="$linux_path"
+                ;;
+            /var/log*)
+                # Keep logs in Linux filesystem even in WSL
+                mapped_path="$linux_path"
+                ;;
+            *)
+                # Default: no mapping
+                mapped_path="$linux_path"
+                ;;
+        esac
+    fi
+
+    echo "$mapped_path"
+    return 0
+}
+
+# Function to ensure directory exists with proper permissions
+ensure_web_directory() {
+    local linux_path="$1"
+    local permissions="${2:-755}"
+    local owner="${3:-www-data:www-data}"
+
+    # Map to appropriate path
+    local actual_path=$(map_web_path "$linux_path")
+
+    # Create directory if it doesn't exist
+    if [ ! -d "$actual_path" ]; then
+        echo "Creating directory: $actual_path (mapped from $linux_path)"
+        $USE_SUDO mkdir -p "$actual_path"
+    fi
+
+    # Set permissions
+    $USE_SUDO chmod "$permissions" "$actual_path" 2>/dev/null || true
+
+    # Set owner (only if not in WSL, Windows filesystem doesn't support chown)
+    if [ "$IS_WSL" = false ]; then
+        $USE_SUDO chown "$owner" "$actual_path" 2>/dev/null || true
+    fi
+
+    echo "$actual_path"
+    return 0
+}
 
 # Function to determine and create COMPILE_DIR based on OS and version
 determine_compile_dir() {
@@ -68,7 +183,10 @@ determine_compile_dir() {
     
     # Create compile directory path
     local compile_dir="/www/dev_${os_id}${version_id}"
-    
+
+    # Map to Windows path if in WSL
+    compile_dir=$(map_web_path "$compile_dir")
+
     echo "$compile_dir"
     return 0
 }
@@ -406,39 +524,64 @@ export COMPILE_DIR
 # Initialize batch decryption flag
 BATCH_DECRYPTION_COMPLETED=false
 
+# Function to detect and return CORE_NODE_DIR dynamically based on gvar_common.sh location
+get_core_node_dir() {
+    # Calculate CORE_NODE_DIR based on gvar_common.sh location
+    # gvar_common.sh is at: core_node/scripts/shells/linux/common/gvar_common.sh
+    # So we need to go up 4 levels: common -> linux -> shells -> scripts -> core_node
+
+    local gvar_common_path="${BASH_SOURCE[0]}"
+
+    # Resolve to absolute path if it's a symlink
+    if [ -L "$gvar_common_path" ]; then
+        gvar_common_path="$(readlink -f "$gvar_common_path")"
+    fi
+
+    # Get directory of gvar_common.sh
+    local gvar_common_dir="$(cd "$(dirname "$gvar_common_path")" && pwd)"
+
+    # Go up 4 levels to reach core_node root
+    # common -> linux -> shells -> scripts -> core_node
+    local core_node_dir="$(dirname "$(dirname "$(dirname "$(dirname "$gvar_common_dir")")")")"
+
+    # Verify this is actually core_node directory by checking for markers
+    if [ ! -d "$core_node_dir/.secret_keys" ] && [ ! -f "$core_node_dir/package.json" ]; then
+        # Fallback: try environment variable
+        if [ -n "$CORE_NODE_DIR" ]; then
+            core_node_dir="$CORE_NODE_DIR"
+        else
+            # Fallback: check common paths based on environment
+            if [ "$IS_WSL" = true ] && [ -d "/mnt/d/programing/core_node" ]; then
+                core_node_dir="/mnt/d/programing/core_node"
+            elif [ -d "/www/wwwroot/core_node" ]; then
+                core_node_dir="/www/wwwroot/core_node"
+            elif [ -d "/opt/core_node" ]; then
+                core_node_dir="/opt/core_node"
+            else
+                # Final fallback
+                core_node_dir="/opt/core_node"
+            fi
+        fi
+    fi
+
+    echo "$core_node_dir"
+}
+
+# Export CORE_NODE_DIR for use in other scripts
+export CORE_NODE_DIR=$(get_core_node_dir)
+
 # Function to get encrypted content by key name (equivalent to Invoke-DisguiseDecryption)
 get_secret_content() {
     local key_name="$1"
-    
+
     if [ -z "$key_name" ]; then
         echo "Error: KeyName parameter is required"
         return 1
     fi
-    
-    # Find CORE_NODE_DIR by walking up from current script directory
-    local script_dir="$(dirname "$(readlink -f "$0")")"
-    local core_node_dir=""
-    
-    # Try to find core_node directory
-    local current_dir="$script_dir"
-    while [ "$current_dir" != "/" ] && [ "$current_dir" != "." ]; do
-        if [ -d "$current_dir/.secret_keys" ] || [ -f "$current_dir/package.json" ]; then
-            core_node_dir="$current_dir"
-            break
-        fi
-        current_dir="$(dirname "$current_dir")"
-    done
-    
-    # Fallback to environment variable or default
-    if [ -z "$core_node_dir" ]; then
-        if [ -n "$CORE_NODE_DIR" ]; then
-            core_node_dir="$CORE_NODE_DIR"
-        else
-            # Default fallback
-            core_node_dir="/opt/core_node"
-        fi
-    fi
-    
+
+    # Use centralized core_node directory detection
+    local core_node_dir=$(get_core_node_dir)
+
     # Variables declaration
     local scripts_dir="$core_node_dir/scripts"
     local secret_keys_dir="$core_node_dir/.secret_keys"

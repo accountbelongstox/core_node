@@ -436,6 +436,17 @@ declare -gA AI_PACKAGES=(
     ["auggie_description"]="Augment Code Auggie - AI-powered code enhancement and development assistant"
     ["auggie_verify_command"]="--version"
     ["auggie_launch_command"]="which auggie && $USE_SUDO auggie"
+
+    # Droid AI Assistant
+    ["droid_name"]="Droid AI Assistant"
+    ["droid_exec"]="droid"
+    ["droid_package_id"]="https://app.factory.ai/cli"
+    ["droid_install_method"]="$METHOD_CURL"
+    ["droid_category"]="$CATEGORY_AI_TOOLS"
+    ["droid_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["droid_description"]="Droid AI Assistant - AI-powered development assistant from Factory.ai"
+    ["droid_verify_command"]="--version"
+    ["droid_launch_command"]="which droid && $USE_SUDO droid"
 )
 
 # Package group lists for iteration
@@ -455,7 +466,7 @@ APP_PACKAGE_LIST=(
 )
 
 AI_PACKAGE_LIST=(
-    "gemini" "claude" "codex" "cursor_agent" "langchain" "superclaude" "opencode" "auggie"
+    "gemini" "claude" "codex" "cursor_agent" "langchain" "superclaude" "opencode" "auggie" "droid"
 )
 
 MCP_PACKAGE_LIST=(

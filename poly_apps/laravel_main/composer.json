@@ -9,7 +9,7 @@
     ],
     "license": "MIT",
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "deepseek-php/deepseek-php-client": "^2.0",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/breeze": "^2.3",
@@ -36,6 +36,7 @@
             "Database\\Seeders\\": "database/seeders/"
         },
         "files": [
+            "app/Helpers/MbstringPolyfill.php",
             "app/Helpers/AppVersionHelper.php"
         ]
     },

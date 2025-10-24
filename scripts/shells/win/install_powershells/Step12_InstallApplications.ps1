@@ -202,6 +202,7 @@ function Install-SinglePackageViaManager {
             "choco" { $executable = Invoke-ChocoCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "scoop" { $executable = Invoke-ScoopCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "brew" { $executable = Invoke-BrewCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
+            "powershell" { $executable = Invoke-PowerShellCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             default { 
                 Write-Host "$SCRIPT_INDEX Unknown installation type '$InstallType'" -ForegroundColor Red
                 return $null
@@ -612,6 +613,10 @@ function Install-BasePackage {
             Write-Host "$SCRIPT_INDEX ForceToInstallDir: $FORCE_TO_INSTALL_DIR" -ForegroundColor Cyan
             # Check if already installed using binary presence (idempotent, fast path)
             $executable = Invoke-WingetCommand -IncludeSystemPaths $INCLUDE_SYSTEM_PATHS -Id $PACKAGE_ID -InstallDir $InstallDir -OnlyCheckFlag $false -Keyword $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -ForceToInstallDir $FORCE_TO_INSTALL_DIR -RegistrySearchKeyword $REGISTRY_SEARCH_KEYWORD
+        }
+        "powershell" {
+            $executable = Invoke-PowerShellCommand -PackageName $PackageName -Keyword $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -ForceInstall $false
+            $installed = $null -ne $executable
         }
         { $_ -in @("npm", "pip", "pipx", "uv", "uvx", "poetry", "choco", "scoop", "cargo", "go", "gem", "brew") } {
             $executable = Invoke-StandardPackageInstallation -InstallType $InstallType -PackageId $PACKAGE_ID -ExecName $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -Description $DESCRIPTION -PackageName $PackageName -PackageMeta $PackageMeta

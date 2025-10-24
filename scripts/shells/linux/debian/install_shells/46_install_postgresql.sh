@@ -44,9 +44,10 @@ SCRIPT_INDEX="46"
 INSTALL_POSTGRESQL=$(get_var "INSTALL_POSTGRESQL")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 POSTGRESQL_VERSION="15"
-POSTGRESQL_DATA_DIR="/www/wwwroot/postgresql/data"
+# Use path mapping from gvar_common.sh to support WSL Windows directories
+POSTGRESQL_DATA_DIR=$(map_web_path "/www/wwwroot/postgresql/data")
 POSTGRESQL_CONFIG_DIR=""
-POSTGRESQL_LOG_DIR="/www/wwwroot/postgresql/logs"
+POSTGRESQL_LOG_DIR=$(map_web_path "/www/wwwroot/postgresql/logs")
 
 echo "[$SCRIPT_INDEX] PostgreSQL Database Management Script"
 echo "[$SCRIPT_INDEX] INSTALL_POSTGRESQL: $INSTALL_POSTGRESQL"
@@ -99,11 +100,18 @@ detect_postgresql_version() {
 create_postgresql_directories() {
     echo "[$SCRIPT_INDEX] Ensuring PostgreSQL directories..."
 
+    # Use path mapping from gvar_common.sh to support WSL Windows directories
+    local postgresql_parent=$(map_web_path "/www/wwwroot/postgresql")
+
     # Parent and logs
-    $USE_SUDO mkdir -p "/www/wwwroot/postgresql"
+    $USE_SUDO mkdir -p "$postgresql_parent"
     $USE_SUDO mkdir -p "$POSTGRESQL_LOG_DIR"
-    $USE_SUDO chown -R postgres:postgres "/www/wwwroot/postgresql"
-    $USE_SUDO chmod 755 "$POSTGRESQL_LOG_DIR"
+
+    # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+    if [ "$IS_WSL" = false ]; then
+        $USE_SUDO chown -R postgres:postgres "$postgresql_parent"
+    fi
+    $USE_SUDO chmod 755 "$POSTGRESQL_LOG_DIR" 2>/dev/null || true
 
     echo "[$SCRIPT_INDEX] Directories prepared"
 }
@@ -170,8 +178,10 @@ configure_postgresql() {
     # Case 1: If target data dir already initialized (PG_VERSION exists), adopt it via config
     if [ -f "$POSTGRESQL_DATA_DIR/PG_VERSION" ]; then
         echo "[$SCRIPT_INDEX] Existing initialized data directory detected: $POSTGRESQL_DATA_DIR"
-        # Ensure correct ownership
-        $USE_SUDO chown -R postgres:postgres "$POSTGRESQL_DATA_DIR"
+        # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+        if [ "$IS_WSL" = false ]; then
+            $USE_SUDO chown -R postgres:postgres "$POSTGRESQL_DATA_DIR"
+        fi
         # Ensure config dir exists
         if [ ! -d "$cluster_dir" ]; then
             echo "[$SCRIPT_INDEX] Creating cluster directory structure"
@@ -214,7 +224,10 @@ configure_postgresql() {
             fi
             # Ensure parent and permissions; do not pre-create data dir (pg_createcluster will create it)
             $USE_SUDO mkdir -p "$(dirname "$POSTGRESQL_DATA_DIR")"
-            $USE_SUDO chown -R postgres:postgres "$(dirname "$POSTGRESQL_DATA_DIR")"
+            # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+            if [ "$IS_WSL" = false ]; then
+                $USE_SUDO chown -R postgres:postgres "$(dirname "$POSTGRESQL_DATA_DIR")"
+            fi
             # Create cluster in the desired data directory and start it
             $USE_SUDO pg_createcluster "$POSTGRESQL_VERSION" main --datadir="$POSTGRESQL_DATA_DIR" --start
             POSTGRESQL_CONFIG_DIR="/etc/postgresql/$POSTGRESQL_VERSION/main"
@@ -326,7 +339,9 @@ remove_postgresql() {
     echo "[$SCRIPT_INDEX] Do you want to remove PostgreSQL data directories? (y/N)"
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
-        $USE_SUDO rm -rf "/www/wwwroot/postgresql"
+        # Use path mapping from gvar_common.sh to support WSL Windows directories
+        local postgresql_parent=$(map_web_path "/www/wwwroot/postgresql")
+        $USE_SUDO rm -rf "$postgresql_parent"
         echo "[$SCRIPT_INDEX] PostgreSQL data directories removed"
     fi
 
