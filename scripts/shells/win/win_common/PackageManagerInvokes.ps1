@@ -3110,6 +3110,45 @@ function Invoke-PowerShellCommand {
             return $null
         }
         
+        # Build search keywords
+        $searchKeywords = @($Keyword)
+        if ($AdditionalKeywords) {
+            $searchKeywords += $AdditionalKeywords
+        }
+        if (-not $searchKeywords -or $searchKeywords -eq "") {
+            $searchKeywords = @($PackageName)
+        }
+        
+        # Define search paths for PowerShell-installed packages
+        $searchPaths = @()
+        
+        # Common PowerShell installation paths
+        $userProfile = $env:USERPROFILE
+        $searchPaths += Join-Path $userProfile "bin"
+        $searchPaths += Join-Path $userProfile ".local\bin"
+        $searchPaths += Join-Path $userProfile "AppData\Local\Microsoft\WindowsApps"
+        $searchPaths += Join-Path $userProfile "AppData\Roaming\Microsoft\Windows\Start Menu\Programs"
+        
+        # System paths
+        $searchPaths += "C:\Program Files"
+        $searchPaths += "C:\Program Files (x86)"
+        $searchPaths += "C:\Windows\System32"
+        $searchPaths += "C:\Windows"
+        
+        # Check if already installed - search in all paths
+        Write-Host "       [PS] Checking if package is already installed..." -ForegroundColor Cyan
+        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+        
+        if ($executable -and -not $ForceInstall) {
+            Write-Host "       [PS] Package already installed: $executable" -ForegroundColor Green
+            Write-Host "       [PS] Skipping installation (ForceInstall = $ForceInstall)" -ForegroundColor Cyan
+            return $executable
+        }
+        
+        if ($OnlyCheckFlag) {
+            return $executable
+        }
+        
         # Get PowerShell command
         $powerShellCommand = if ($packageMeta.ContainsKey("PowerShellCommand")) { 
             $packageMeta.PowerShellCommand 
@@ -3126,13 +3165,23 @@ function Invoke-PowerShellCommand {
         if ($LASTEXITCODE -eq 0 -or $?) {
             Write-Host "       [PS] PowerShell installation completed successfully for: $PackageName" -ForegroundColor Green
             
-            # Try to find the executable
-            $executable = $null
-            if ($packageMeta.ContainsKey("Exec")) {
-                $executable = $packageMeta.Exec
-            }
+            # Find the installed executable after installation
+            Write-Host "       [PS] Searching for installed executable..." -ForegroundColor Cyan
+            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
             
-            return $executable
+            if ($executable) {
+                Write-Host "       [PS] Found executable: $executable" -ForegroundColor Green
+                return $executable
+            } else {
+                Write-Host "       [PS] Installation completed but executable not found" -ForegroundColor Yellow
+                # Fallback: return the expected executable name from metadata
+                if ($packageMeta.ContainsKey("Exec")) {
+                    $expectedExec = $packageMeta.Exec
+                    Write-Host "       [PS] Returning expected executable name: $expectedExec" -ForegroundColor Yellow
+                    return $expectedExec
+                }
+                return $null
+            }
         } else {
             Write-Host "       [PS] PowerShell installation failed for: $PackageName" -ForegroundColor Red
             return $null
