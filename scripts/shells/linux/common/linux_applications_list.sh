@@ -52,17 +52,6 @@ readonly GROUP_ALL="all"                  # All applications
 
 # Base Packages - Essential system tools and basic applications
 declare -gA BASE_PACKAGES=(
-    # Firefox Browser
-    ["firefox_name"]="Firefox"
-    ["firefox_exec"]="firefox"
-    ["firefox_package_id"]="firefox"
-    ["firefox_install_method"]="$METHOD_SNAP"
-    ["firefox_category"]="$CATEGORY_BROWSERS"
-    ["firefox_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
-    ["firefox_description"]="Mozilla Firefox web browser"
-    ["firefox_verify_command"]="--version"
-    ["firefox_launch_command"]="which firefox && $USE_SUDO firefox"
-
     # Chrome Browser
     ["chrome_name"]="Google Chrome"
     ["chrome_exec"]="google-chrome"
@@ -96,7 +85,27 @@ declare -gA BASE_PACKAGES=(
     ["rustdesk_verify_command"]="--version"
     ["rustdesk_launch_command"]="which rustdesk && $USE_SUDO rustdesk"
 
+    # CMake Build System
+    ["cmake_name"]="CMake"
+    ["cmake_exec"]="cmake"
+    ["cmake_package_id"]="cmake"
+    ["cmake_install_method"]="$METHOD_APT"
+    ["cmake_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
+    ["cmake_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
+    ["cmake_description"]="Cross-platform build system"
+    ["cmake_verify_command"]="--version"
+    ["cmake_launch_command"]=""
 
+    # PowerShell
+    ["powershell_name"]="PowerShell"
+    ["powershell_exec"]="pwsh"
+    ["powershell_package_id"]="powershell"
+    ["powershell_install_method"]="$METHOD_APT"
+    ["powershell_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
+    ["powershell_groups"]="$GROUP_ESSENTIAL $GROUP_DEVELOPMENT $GROUP_ALL"
+    ["powershell_description"]="PowerShell cross-platform shell and scripting language"
+    ["powershell_verify_command"]="--version"
+    ["powershell_launch_command"]="which pwsh && $USE_SUDO pwsh"
 )
 
 # Development Tools - Programming environments and development utilities
@@ -222,16 +231,6 @@ declare -gA DEV_PACKAGES=(
     ["beekeeper_verify_command"]=""
     ["beekeeper_launch_command"]="which beekeeper-studio && $USE_SUDO beekeeper-studio"
 
-    # CMake Build System
-    ["cmake_name"]="CMake"
-    ["cmake_exec"]="cmake"
-    ["cmake_package_id"]="cmake"
-    ["cmake_install_method"]="$METHOD_APT"
-    ["cmake_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["cmake_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["cmake_description"]="Cross-platform build system"
-    ["cmake_verify_command"]="--version"
-    ["cmake_launch_command"]=""
 
     # VSCode Insiders
     ["code_insiders_name"]="Visual Studio Code Insiders"
@@ -258,6 +257,17 @@ declare -gA DEV_PACKAGES=(
 
 # Application Software - End-user applications (can be skipped via variable)
 declare -gA APP_PACKAGES=(
+    # Firefox Browser
+    ["firefox_name"]="Firefox"
+    ["firefox_exec"]="firefox"
+    ["firefox_package_id"]="firefox"
+    ["firefox_install_method"]="$METHOD_SNAP"
+    ["firefox_category"]="$CATEGORY_BROWSERS"
+    ["firefox_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
+    ["firefox_description"]="Mozilla Firefox web browser"
+    ["firefox_verify_command"]="--version"
+    ["firefox_launch_command"]="which firefox && $USE_SUDO firefox"
+
     # LibreOffice Office Suite
     ["libreoffice_name"]="LibreOffice"
     ["libreoffice_exec"]="libreoffice"
@@ -393,17 +403,6 @@ declare -gA AI_PACKAGES=(
     ["cursor_agent_verify_command"]="--version"
     ["cursor_agent_launch_command"]="which cursor && $USE_SUDO cursor"
 
-    # LangChain CLI
-    ["langchain_name"]="LangChain CLI"
-    ["langchain_exec"]="langchain"
-    ["langchain_package_id"]="langchain-cli"
-    ["langchain_install_method"]="$METHOD_PIPX"
-    ["langchain_category"]="$CATEGORY_AI_TOOLS"
-    ["langchain_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["langchain_description"]="LangChain CLI - Framework for developing applications with language models"
-    ["langchain_verify_command"]="--version"
-    ["langchain_launch_command"]="which langchain && $USE_SUDO langchain"
-
     # SuperClaude
     ["superclaude_name"]="SuperClaude Framework"
     ["superclaude_exec"]="superclaude"
@@ -436,31 +435,80 @@ declare -gA AI_PACKAGES=(
     ["auggie_description"]="Augment Code Auggie - AI-powered code enhancement and development assistant"
     ["auggie_verify_command"]="--version"
     ["auggie_launch_command"]="which auggie && $USE_SUDO auggie"
+
+    # Droid AI Assistant
+    ["droid_name"]="Droid AI Assistant"
+    ["droid_exec"]="droid"
+    ["droid_package_id"]="https://app.factory.ai/cli"
+    ["droid_install_method"]="$METHOD_CURL"
+    ["droid_category"]="$CATEGORY_AI_TOOLS"
+    ["droid_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["droid_description"]="Droid AI Assistant - AI-powered development assistant from Factory.ai"
+    ["droid_verify_command"]="--version"
+    ["droid_launch_command"]="which droid && $USE_SUDO droid"
+)
+
+# MCP Services - Model Context Protocol services and tools
+declare -gA MCP_PACKAGES=(
+    # Cunzhi MCP Service
+    ["cunzhi_name"]="Cunzhi MCP Service"
+    ["cunzhi_exec"]="cunzhi"
+    ["cunzhi_package_id"]="cunzhi-mcp"
+    ["cunzhi_install_method"]="$METHOD_NPM"
+    ["cunzhi_category"]="$CATEGORY_MCP_SERVICES"
+    ["cunzhi_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["cunzhi_description"]="Cunzhi MCP service for AI model context protocol"
+    ["cunzhi_verify_command"]="--version"
+    ["cunzhi_launch_command"]="which cunzhi && $USE_SUDO cunzhi"
+
+    # Alibaba DataWorks MCP Service
+    ["alibaba_dataworks_name"]="Alibaba DataWorks MCP Service"
+    ["alibaba_dataworks_exec"]="alibaba-dataworks"
+    ["alibaba_dataworks_package_id"]="alibaba-dataworks-mcp"
+    ["alibaba_dataworks_install_method"]="$METHOD_NPM"
+    ["alibaba_dataworks_category"]="$CATEGORY_MCP_SERVICES"
+    ["alibaba_dataworks_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["alibaba_dataworks_description"]="Alibaba DataWorks MCP service for data processing"
+    ["alibaba_dataworks_verify_command"]="--version"
+    ["alibaba_dataworks_launch_command"]="which alibaba-dataworks && $USE_SUDO alibaba-dataworks"
+
+    # Feedback Enhanced MCP Service
+    ["feedback_enhanced_name"]="Feedback Enhanced MCP Service"
+    ["feedback_enhanced_exec"]="feedback-enhanced"
+    ["feedback_enhanced_package_id"]="feedback-enhanced-mcp"
+    ["feedback_enhanced_install_method"]="$METHOD_NPM"
+    ["feedback_enhanced_category"]="$CATEGORY_MCP_SERVICES"
+    ["feedback_enhanced_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["feedback_enhanced_description"]="Feedback Enhanced MCP service for user interaction"
+    ["feedback_enhanced_verify_command"]="--version"
+    ["feedback_enhanced_launch_command"]="which feedback-enhanced && $USE_SUDO feedback-enhanced"
 )
 
 # Package group lists for iteration
 BASE_PACKAGE_LIST=(
-    "firefox" "chrome" "vim" "rustdesk" "rust" "ruby" "go" "dotnet" "powershell"
+    "chrome" "vim" "rustdesk" "cmake" "powershell"
 )
 
 DEV_PACKAGE_LIST=(
     "vscode" "cursor" "postman" "termius" "android_studio"
     "intellij" "pycharm" "clion" "sublime" "insomnia" "beekeeper"
-    "flutter" "cmake" "code_insiders" "text_editor"
+    "code_insiders" "text_editor"
 )
 
 APP_PACKAGE_LIST=(
-    "libreoffice" "opera" "whatsapp" "wechat" "hey_mail"
+    "firefox" "libreoffice" "opera" "whatsapp" "wechat" "hey_mail"
     "gemini_desktop" "copilot_desktop" "deepseek_desktop"
 )
 
 AI_PACKAGE_LIST=(
-    "gemini" "claude" "codex" "cursor_agent" "langchain" "superclaude" "opencode" "auggie"
+    "gemini" "claude" "codex" "cursor_agent" "langchain" "superclaude" "opencode" "auggie" "droid"
 )
 
 MCP_PACKAGE_LIST=(
     "cunzhi" "alibaba_dataworks" "feedback_enhanced"
 )
+
+
 
 # Function to get application property from specific package group
 get_package_property() {
@@ -519,6 +567,13 @@ get_app_property() {
 
     # Try AI packages
     result=$(get_package_property "AI" "$app_name" "$property")
+    if [ -n "$result" ]; then
+        echo "$result"
+        return 0
+    fi
+
+    # Try MCP packages
+    result=$(get_package_property "MCP" "$app_name" "$property")
     if [ -n "$result" ]; then
         echo "$result"
         return 0

@@ -36,7 +36,6 @@ declare -a MENU_CONFIG=(
     "[V] Install Development Tools|INSTALL_DEV_PACKAGES|false true|false|false|true|true"
     "[A] Install Application Packages|INSTALL_APP_PACKAGES|false true|false|false|false|true"
     "[I] Install AI Development Tools|INSTALL_AI_PACKAGES|false true|true|true|true|true"
-    "[S] Install MCP Service Packages|INSTALL_MCP_PACKAGES|false true|false|true|true|true"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
 )

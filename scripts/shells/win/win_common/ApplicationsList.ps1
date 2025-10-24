@@ -27,6 +27,7 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
     - "go"      : Go Module Manager (for Go packages)
     - "gem"     : RubyGems Package Manager (for Ruby gems)
     - "brew"    : Homebrew Package Manager (if available on Windows)
+    - "powershell" : PowerShell Script Installation (for PowerShell-based installers)
 
 .PARAMETER Required Properties
     - PackageId: Package ID for winget installation
@@ -48,6 +49,9 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
       * Minimum 2 keywords recommended for accurate detection
       * Avoid overly broad terms (e.g., "ai", "google", "code") that match many binaries
       * Use specific tool names, hyphenated variants, or unique identifiers
+    - PowerShellCommand: PowerShell command to execute for installation (required for powershell InstallType)
+      * Used for PowerShell-based installations (e.g., irm https://app.factory.ai/cli/windows | iex)
+      * Should be a complete PowerShell command that can be executed with Invoke-Expression
       * Chinese software should use Unicode variables for cross-platform compatibility
     - ForceToInstallDir: Force to install to install directory, bucase some package need to install to install directory
     - AppCustomInstallDir: App specific install directory, if not specified, uses LANG_COMPILER_DIR\app_name
@@ -1162,6 +1166,50 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
     }
+    Droid          = @{
+        PackageId           = ""
+        Exec               = "droid.exe"
+        Name               = "Droid"
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description        = "AI-powered development assistant from Factory.ai"
+        InstallType        = "powershell"
+        ForceToInstallDir  = $false
+        VerifySuffix       = ""
+        AdditionalKeywords = @("Droid", "factory-ai", "ai-assistant")
+        DesktopShortcuts   = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars            = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+        PowerShellCommand  = "irm https://app.factory.ai/cli/windows | iex"
+    }
+    ClaudeCodeRouter = @{
+        PackageId           = ""
+        Exec               = "claude-code-router.exe"
+        Name               = "ClaudeCodeRouter"
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description        = "Claude Code Router for AI-powered code analysis and routing"
+        InstallType        = "powershell"
+        ForceToInstallDir  = $false
+        VerifySuffix       = ""
+        AdditionalKeywords = @("ClaudeCodeRouter", "claude-router", "code-analysis")
+        DesktopShortcuts   = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars            = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+        PowerShellCommand  = "irm https://app.factory.ai/cli/windows | iex"
+    }
     AlibabaQoder   = @{
         PackageId           = "Alibaba.Qoder"
         Exec               = "Qoder.exe"
@@ -1243,23 +1291,6 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
                 Description = "Add context7 MCP service to Claude"
             }
         )
-    }
-    ClaudeCodeRouter = @{
-        PackageId         = "@musistudio/claude-code-router"
-        Exec              = "ccr.exe"
-        Name              = "ClaudeCodeRouter"
-        DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description       = "Claude Code Router - Routing and management tool for Claude Code"
-        InstallType       = "npm"
-        ForceToInstallDir = $false
-        VerifySuffix      = "--version"
-        AdditionalKeywords = @("ccr", "claude-router")
-        EnvVars           = @(
-            @{
-                Type = @("Path")
-            }
-        )
-        # TODO: Unknown callback requirements for Claude Code Router
     }
     Tabby = @{
         PackageId           = "Eugeny.Tabby"
@@ -1413,43 +1444,6 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
 # MCP Services Packages - Tools providing MCP services for IDEs
 # For PostInstallCallbacks usage, see: <#POSTINSTALL_CALLBACKS_ANCHOR#>
 $Global:MCP_SERVICES_PACKAGES = @{
-    CunzhiCli = @{
-        Exec              = "$($Global:CHINESE_CUNZHI).exe"
-        Name              = "CunzhiCli"
-        DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description       = "Cunzhi CLI - Smart clipboard and memory tool providing MCP service"
-        InstallType       = "web"
-        ForceToInstallDir = $true
-        VerifySuffix      = "--version"
-        PackageId         = "https://github.com/imhuso/cunzhi/releases/download/v0.3.8/cunzhi-cli-v0.3.8-windows-x86_64.zip"
-        ExecutableName    = "$($Global:CHINESE_CUNZHI).exe"
-        MenuName          = "Cunzhi CLI"
-        IsArchive         = $true
-        ArchiveType       = "zip"
-        EnvVars           = @(
-            @{
-                Type = @("AddExec")
-                ExecutableFiles = @("cunzhi.exe", "wait.exe", "$($Global:CHINESE_CUNZHI).exe", "$($Global:CHINESE_DENGYIXIA).exe")
-            }
-        )
-        PostInstallCallbacks = @(
-            @{
-                Type       = "copy"
-                SourceFile = "$($Global:CHINESE_CUNZHI).exe"
-                TargetFile = "cunzhi.exe"
-            }
-            @{
-                Type       = "copy"
-                SourceFile = "$($Global:CHINESE_DENGYIXIA).exe"
-                TargetFile = "wait.exe"
-            }
-            @{
-                Type = "mcp"
-                Operation = "replace_path"
-            }
-        )
-    }
-    # Remote MCP Services from Step103_InstallMCPService.ps1
     AlibabaDataworksMCP = @{
         Name              = "AlibabaDataworksMCP"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS

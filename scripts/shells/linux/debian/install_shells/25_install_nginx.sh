@@ -23,9 +23,11 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 INSTALL_NGINX=$(get_global_var "INSTALL_NGINX" "false")
 INSTALL_MODE=$(get_global_var "INSTALL_MODE" "base")
 NGINX_PORT="80"
-WWW_ROOT="/www/wwwroot"
+
+# Use path mapping from gvar_common.sh to support WSL Windows directories
+WWW_ROOT=$(map_web_path "/www/wwwroot")
 DEFAULT_SITE_DIR="$WWW_ROOT/default"
-NGINX_CONFIG_DIR="/www/nginxconfig"
+NGINX_CONFIG_DIR=$(map_web_path "/www/nginxconfig")
 
 echo "[$SCRIPT_INDEX] Nginx Installation Script"
 echo "[$SCRIPT_INDEX] INSTALL_NGINX: $INSTALL_NGINX"
@@ -199,28 +201,100 @@ disable_conflicting_web_servers() {
 force_stop_port_80_services() {
     echo "[$SCRIPT_INDEX] Checking for services using port 80..."
 
+    # Use global WSL detection from gvar_common.sh
+    if [ "$IS_WSL" = true ]; then
+        echo "[$SCRIPT_INDEX] WSL environment detected"
+    fi
+
     local port_80_pids=$(lsof -ti:80 2>/dev/null || netstat -tlnp 2>/dev/null | grep ":80 " | awk '{print $7}' | cut -d'/' -f1 | grep -v '^-$' | sort -u)
 
     if [ -n "$port_80_pids" ]; then
-        echo "[$SCRIPT_INDEX] Found services using port 80, force stopping..."
+        echo "[$SCRIPT_INDEX] Found services using port 80, checking details..."
 
-        # Force kill processes using port 80
+        # Show which processes are using port 80
+        echo "[$SCRIPT_INDEX] Processes using port 80:"
+        lsof -i:80 2>/dev/null || netstat -tlnp 2>/dev/null | grep ":80 "
+
+        # If in WSL, provide Windows IIS disable instructions
+        if [ "$IS_WSL" = true ]; then
+            echo ""
+            echo "======================================================================"
+            echo "⚠️  WSL ENVIRONMENT DETECTED - Port 80 Conflict"
+            echo "======================================================================"
+            echo ""
+            echo "Port 80 is being used, likely by Windows IIS or another Windows service."
+            echo ""
+            echo "To disable IIS in Windows (run in PowerShell as Administrator):"
+            echo ""
+            echo "  # Method 1: Disable IIS Service"
+            echo "  Stop-Service -Name W3SVC -Force"
+            echo "  Set-Service -Name W3SVC -StartupType Disabled"
+            echo ""
+            echo "  # Method 2: Disable IIS completely via Windows Features"
+            echo "  Disable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole"
+            echo ""
+            echo "  # Method 3: Stop all IIS-related services"
+            echo "  Stop-Service -Name 'W3SVC','WAS','IISADMIN' -Force -ErrorAction SilentlyContinue"
+            echo "  Set-Service -Name 'W3SVC','WAS','IISADMIN' -StartupType Disabled -ErrorAction SilentlyContinue"
+            echo ""
+            echo "  # Method 4: Check what's using port 80 in Windows"
+            echo "  netstat -ano | findstr :80"
+            echo "  # Then kill the process (replace <PID> with actual process ID):"
+            echo "  taskkill /PID <PID> /F"
+            echo ""
+            echo "After disabling IIS in Windows, restart WSL:"
+            echo "  # In PowerShell:"
+            echo "  wsl --shutdown"
+            echo "  # Then restart WSL and run this script again"
+            echo ""
+            echo "======================================================================"
+            echo ""
+
+            # Prompt user
+            read -p "Have you disabled IIS/Windows services? Press Enter to continue or Ctrl+C to abort..."
+        fi
+
+        # Force kill processes using port 80 (for Linux services)
         local remaining_pids=$(lsof -ti:80 2>/dev/null)
         if [ -n "$remaining_pids" ]; then
-            echo "[$SCRIPT_INDEX] Force killing processes on port 80: $remaining_pids"
-            echo "$remaining_pids" | xargs -r $USE_SUDO kill -9
+            echo "[$SCRIPT_INDEX] Attempting to force kill Linux processes on port 80: $remaining_pids"
+
+            # Try graceful kill first
+            echo "$remaining_pids" | xargs -r $USE_SUDO kill -TERM 2>/dev/null || true
+            sleep 2
+
+            # Force kill if still running
+            remaining_pids=$(lsof -ti:80 2>/dev/null)
+            if [ -n "$remaining_pids" ]; then
+                echo "[$SCRIPT_INDEX] Force killing remaining processes: $remaining_pids"
+                echo "$remaining_pids" | xargs -r $USE_SUDO kill -9 2>/dev/null || true
+            fi
         fi
 
         # Wait and verify
         sleep 2
         if lsof -ti:80 2>/dev/null; then
-            echo "[$SCRIPT_INDEX] Warning: Some processes still using port 80"
+            echo "[$SCRIPT_INDEX] ⚠️  WARNING: Port 80 is still in use!"
+            echo "[$SCRIPT_INDEX] This may be a Windows service (IIS, HTTP.sys, etc.)"
+            echo "[$SCRIPT_INDEX] Please disable Windows services using the commands above"
+
+            if [ "$IS_WSL" = true ]; then
+                echo ""
+                echo "[$SCRIPT_INDEX] Quick check - Run this in PowerShell (as Admin):"
+                echo "  Get-Service W3SVC,WAS,IISADMIN | Select-Object Name,Status,StartType"
+                echo ""
+            fi
+
+            # Don't fail, just warn
+            return 1
         else
-            echo "[$SCRIPT_INDEX] Port 80 cleared for Nginx"
+            echo "[$SCRIPT_INDEX] �?Port 80 cleared for Nginx"
         fi
     else
-        echo "[$SCRIPT_INDEX] Port 80 is available"
+        echo "[$SCRIPT_INDEX] �?Port 80 is available"
     fi
+
+    return 0
 }
 
 # Function to check if Nginx is already installed
@@ -992,12 +1066,17 @@ verify_nginx_installation() {
 setup_laravel_compatibility() {
     echo "[$SCRIPT_INDEX] Setting up Laravel ServerManager compatibility..."
 
+    # Map paths using gvar_common.sh function for WSL support
+    local www_root=$(map_web_path "/www/wwwroot")
+    local nginx_config_dir=$(map_web_path "/www/nginxconfig")
+    local backup_dir=$(map_web_path "/www/backup/nginx-configs")
+
     # Create necessary directories for Laravel ServerManager
     local laravel_dirs=(
-        "/www/nginxconfig/sites-available"
-        "/www/nginxconfig/sites-enabled"
-        "/www/backup/nginx-configs"
-        "/www/wwwroot"
+        "$nginx_config_dir/sites-available"
+        "$nginx_config_dir/sites-enabled"
+        "$backup_dir"
+        "$www_root"
     )
 
     for dir in "${laravel_dirs[@]}"; do
@@ -1007,20 +1086,23 @@ setup_laravel_compatibility() {
         fi
     done
 
-    # Set proper permissions
-    $USE_SUDO chown -R www-data:www-data /www/wwwroot 2>/dev/null || true
-    $USE_SUDO chmod 755 /www/wwwroot 2>/dev/null || true
+    # Set proper permissions (skip chown in WSL as Windows filesystem doesn't support it)
+    if [ "$IS_WSL" = false ]; then
+        $USE_SUDO chown -R www-data:www-data "$www_root" 2>/dev/null || true
+    fi
+    $USE_SUDO chmod 755 "$www_root" 2>/dev/null || true
 
     # Create a basic sites-available/sites-enabled structure if not exists
-    if [ ! -f "/www/nginxconfig/sites-available/default" ]; then
+    local default_site="$nginx_config_dir/sites-available/default"
+    if [ ! -f "$default_site" ]; then
         echo "[$SCRIPT_INDEX] Creating basic sites-available/default configuration..."
-        $USE_SUDO tee "/www/nginxconfig/sites-available/default" > /dev/null << EOF
+        $USE_SUDO tee "$default_site" > /dev/null << EOF
 # Default server configuration for Laravel ServerManager compatibility
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
 
-    root /www/wwwroot;
+    root $www_root;
     index index.html index.htm index.nginx-debian.html;
 
     server_name _;
@@ -1032,7 +1114,7 @@ server {
     # Allow Let's Encrypt challenges
     location ^~ /.well-known/acme-challenge/ {
         allow all;
-        root /www/wwwroot;
+        root $www_root;
         try_files \$uri =404;
     }
 }
@@ -1040,8 +1122,9 @@ EOF
     fi
 
     # Enable the default site if not already enabled
-    if [ ! -L "/www/nginxconfig/sites-enabled/default" ]; then
-        $USE_SUDO ln -sf "/www/nginxconfig/sites-available/default" "/www/nginxconfig/sites-enabled/default"
+    local default_enabled="$nginx_config_dir/sites-enabled/default"
+    if [ ! -L "$default_enabled" ]; then
+        $USE_SUDO ln -sf "$default_site" "$default_enabled"
         echo "[$SCRIPT_INDEX] Enabled default site configuration"
     fi
 
@@ -1049,8 +1132,8 @@ EOF
     update_nginx_conf
 
     # Create backup directory with proper permissions
-    $USE_SUDO mkdir -p /www/backup/nginx-configs
-    $USE_SUDO chmod 755 /www/backup/nginx-configs
+    $USE_SUDO mkdir -p "$backup_dir"
+    $USE_SUDO chmod 755 "$backup_dir" 2>/dev/null || true
 
     echo "[$SCRIPT_INDEX] Laravel ServerManager compatibility setup completed"
 }
@@ -1060,6 +1143,9 @@ update_nginx_conf() {
     echo "[$SCRIPT_INDEX] Updating nginx.conf with proper includes..."
     local nginx_conf="/etc/nginx/nginx.conf"
 
+    # Get mapped path for WSL support
+    local nginx_config_sites=$(map_web_path "/www/nginxconfig/sites-enabled")
+
     if [ ! -f "$nginx_conf" ]; then
         echo "[$SCRIPT_INDEX] [FAIL] nginx.conf not found at $nginx_conf"
         return 1
@@ -1068,22 +1154,23 @@ update_nginx_conf() {
     # Replace the default sites-enabled include with our custom one to avoid conflicts
     # This prevents duplicate default_server declarations
 
-    # First, remove any existing /www/nginxconfig/sites-enabled/* includes to avoid duplicates
-    if grep -q "include /www/nginxconfig/sites-enabled/\*;" "$nginx_conf"; then
-        echo "[$SCRIPT_INDEX] Removing existing /www/nginxconfig/sites-enabled/* include to prevent duplicates..."
-        $USE_SUDO sed -i '/include \/www\/nginxconfig\/sites-enabled\/\*;/d' "$nginx_conf"
+    # First, remove any existing mapped path includes to avoid duplicates
+    local escaped_path=$(echo "$nginx_config_sites" | sed 's/\//\\\//g')
+    if grep -q "include $nginx_config_sites/\*;" "$nginx_conf"; then
+        echo "[$SCRIPT_INDEX] Removing existing $nginx_config_sites/* include to prevent duplicates..."
+        $USE_SUDO sed -i "/include ${escaped_path}\/\*;/d" "$nginx_conf"
     fi
 
     # Replace the system sites-enabled include with our custom one
     if grep -q "include /etc/nginx/sites-enabled/\*;" "$nginx_conf"; then
         echo "[$SCRIPT_INDEX] Replacing system sites-enabled include with custom one..."
-        $USE_SUDO sed -i 's|include /etc/nginx/sites-enabled/\*;|include /www/nginxconfig/sites-enabled/*;|' "$nginx_conf"
-        echo "[$SCRIPT_INDEX] Replaced /etc/nginx/sites-enabled/* with /www/nginxconfig/sites-enabled/*"
+        $USE_SUDO sed -i "s|include /etc/nginx/sites-enabled/\*;|include $nginx_config_sites/*;|" "$nginx_conf"
+        echo "[$SCRIPT_INDEX] Replaced /etc/nginx/sites-enabled/* with $nginx_config_sites/*"
     else
         # Add our include if no sites-enabled exists
-        echo "[$SCRIPT_INDEX] Adding /www/nginxconfig/sites-enabled/* include to nginx.conf..."
-        $USE_SUDO sed -i '/include \/etc\/nginx\/conf\.d\/\*\.conf;/a\\tinclude /www/nginxconfig/sites-enabled/*;' "$nginx_conf"
-        echo "[$SCRIPT_INDEX] Added /www/nginxconfig/sites-enabled/* to nginx.conf"
+        echo "[$SCRIPT_INDEX] Adding $nginx_config_sites/* include to nginx.conf..."
+        $USE_SUDO sed -i "/include \/etc\/nginx\/conf\.d\/\*\.conf;/a\\\\tinclude $nginx_config_sites/*;" "$nginx_conf"
+        echo "[$SCRIPT_INDEX] Added $nginx_config_sites/* to nginx.conf"
     fi
 
     # Test nginx configuration

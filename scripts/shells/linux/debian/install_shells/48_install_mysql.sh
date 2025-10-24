@@ -1,5 +1,5 @@
 #!/bin/bash
-n# Include common functions
+# Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
@@ -43,7 +43,8 @@ SCRIPT_INDEX="48"
 INSTALL_MYSQL=$(get_var "INSTALL_MYSQL")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 MYSQL_CONFIG_FILE="/etc/mysql/mysql.conf.d/mysqld.cnf"
-MYSQL_DATA_DIR="/www/mysql/data"
+# Use path mapping from gvar_common.sh to support WSL Windows directories
+MYSQL_DATA_DIR=$(map_web_path "/www/mysql/data")
 MYSQL_LOG_DIR="/var/log/mysql"
 
 echo "[$SCRIPT_INDEX] MySQL Management Script"
@@ -137,17 +138,20 @@ enable_mysql_services() {
 
 # Function to setup MySQL data directory
 setup_data_dir() {
-    local DATA_DIR="/www/mysql/data"
-    
+    # Use the mapped path from variable initialization
+    local DATA_DIR="$MYSQL_DATA_DIR"
+
     # Create MySQL directories
     mkdir -p "$DATA_DIR"
     mkdir -p /var/log/mysql
-    
-    # Set proper ownership
-    chown -R mysql:mysql "$DATA_DIR"
-    chown -R mysql:mysql /var/log/mysql
-    chmod 750 "$DATA_DIR"
-    
+
+    # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+    if [ "$IS_WSL" = false ]; then
+        chown -R mysql:mysql "$DATA_DIR"
+        chown -R mysql:mysql /var/log/mysql
+    fi
+    chmod 750 "$DATA_DIR" 2>/dev/null || true
+
     # Check if data directory is empty
     if [ -z "$(ls -A $DATA_DIR)" ]; then
         return 1  # Need initialization
@@ -274,7 +278,7 @@ install_mysql() {
     # Initialize MySQL if needed
     if [ $need_init -eq 1 ]; then
         echo "Initializing MySQL data directory..."
-        mysql_install_db --user=mysql --datadir=/www/mysql/data
+        mysql_install_db --user=mysql --datadir="$MYSQL_DATA_DIR"
     fi
     
     # Start MariaDB service
@@ -295,7 +299,8 @@ store_mysql_info() {
     set_global_var "MYSQLD_BIN" "$(which mysqld)"
     set_global_var "MYSQL_VERSION" "$(mysql --version)"
     set_global_var "MYSQL_CONFIG_DIR" "/etc/mysql"
-    set_global_var "MYSQL_DATA_DIR" "/www/mysql/data"
+    # Use the mapped path from variable initialization
+    set_global_var "MYSQL_DATA_DIR" "$MYSQL_DATA_DIR"
     set_global_var "MYSQL_LOG_DIR" "/var/log/mysql"
     set_global_var "MYSQL_CONFIG_FILE" "/etc/mysql/mysql.conf.d/mysqld.cnf"
     set_global_var "MYSQL_SERVICE_STATUS" "$(systemctl is-active mariadb)"

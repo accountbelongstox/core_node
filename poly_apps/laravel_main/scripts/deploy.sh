@@ -25,6 +25,275 @@ APP_NAME="laravel_main"
 SERVICE_NAME="ncore-$APP_NAME"
 LOG_FILE="/var/log/ncore-services/$SERVICE_NAME.log"
 
+# Source common functions for WSL path mapping
+CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+COMMON_FUNCTIONS_PATH="$CORE_NODE_ROOT/scripts/shells/linux/common/common_functions.sh"
+GVAR_COMMON_PATH="$CORE_NODE_ROOT/scripts/shells/linux/common/gvar_common.sh"
+
+# Source gvar_common.sh for environment detection and path mapping
+if [ -f "$GVAR_COMMON_PATH" ]; then
+    source "$GVAR_COMMON_PATH"
+    echo "Loaded WSL path mapping functions from gvar_common.sh"
+    echo "Environment: IS_WSL=$IS_WSL, IS_PRODUCTION=$IS_PRODUCTION"
+else
+    echo "WARNING: gvar_common.sh not found at $GVAR_COMMON_PATH"
+    echo "WSL path mapping will not be available"
+    # Provide fallback function
+    map_web_path() {
+        echo "$1"
+    }
+    ensure_web_directory() {
+        local path="$1"
+        mkdir -p "$path" 2>/dev/null || true
+        echo "$path"
+    }
+fi
+
+# Check PHP version and compatibility
+check_php_version() {
+    echo "=== PHP Version Check ==="
+
+    echo "Getting PHP version..."
+    php -r "echo PHP_VERSION;" > /tmp/php_version.txt
+    local php_version=$(cat /tmp/php_version.txt)
+    local php_major=$(echo "$php_version" | cut -d. -f1)
+    local php_minor=$(echo "$php_version" | cut -d. -f2)
+    rm -f /tmp/php_version.txt
+
+    echo "Current PHP version: $php_version"
+    echo "PHP major version: $php_major"
+    echo "PHP minor version: $php_minor"
+
+    # Check for PHP 8.4+
+    if [ "$php_major" -ge 8 ] && [ "$php_minor" -ge 4 ]; then
+        echo ""
+        echo "⚠️  WARNING: PHP $php_version detected!"
+        echo "PHP 8.4+ removed deprecated mb_ereg functions (mb_split, mb_ereg, etc.)"
+        echo ""
+        echo "The polyfill has been added to app/Helpers/MbstringPolyfill.php"
+        echo "This provides compatibility for Laravel dependencies."
+        echo ""
+        echo "Recommended actions:"
+        echo "  1. Update Laravel and all dependencies to latest versions"
+        echo "  2. Run: composer update --with-all-dependencies"
+        echo "  3. Review deprecated function usage in vendor packages"
+        echo ""
+    fi
+
+    # Check required PHP extensions
+    local missing_extensions=()
+    
+    if ! php -m | grep -q mbstring; then
+        missing_extensions+=("mbstring")
+    fi
+    
+    if ! php -m | grep -q dom; then
+        echo "WARNING: dom extension missing, but xml extension should provide it"
+        # Don't add to missing_extensions as it's usually provided by xml
+    fi
+    
+    if ! php -m | grep -q curl; then
+        missing_extensions+=("curl")
+    fi
+    
+    if [ ${#missing_extensions[@]} -gt 0 ]; then
+        echo "ERROR: Missing required PHP extensions: ${missing_extensions[*]}" >&2
+        echo "Install with: sudo apt-get install php$php_major.$php_minor-${missing_extensions[*]}" >&2
+        echo ""
+        echo "Alternatively, you can run Composer with --ignore-platform-req to skip these checks." >&2
+        echo ""
+        read -p "Do you want to continue with --ignore-platform-req? (y/N): " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo "Will use --ignore-platform-req for Composer operations"
+            COMPOSER_IGNORE_PLATFORM="--ignore-platform-req=ext-mbstring --ignore-platform-req=ext-dom --ignore-platform-req=ext-curl"
+        else
+            exit 1
+        fi
+    else
+        echo "Required PHP extensions: INSTALLED ✓"
+        COMPOSER_IGNORE_PLATFORM=""
+    fi
+    echo ""
+}
+
+# Auto-detect and setup Composer
+auto_detect_composer() {
+    composer_cmd=""
+    
+    # Check if composer is in PATH
+    if command -v composer &> /dev/null; then
+        composer_cmd="composer"
+        echo "[INFO] Composer found in PATH"
+        return 0
+    fi
+    
+    # Check for composer in parent directory first (for scripts directory)
+    if [ -f "../composer" ]; then
+        composer_cmd="php ../composer"
+        echo "[INFO] Composer found in parent directory"
+        return 0
+    fi
+    
+    # Check for local composer.phar
+    if [ -f "./composer.phar" ]; then
+        composer_cmd="php ./composer.phar"
+        echo "[INFO] Local composer.phar found"
+        return 0
+    fi
+    
+    # Check for local composer executable
+    if [ -f "./composer" ]; then
+        composer_cmd="php ./composer"
+        echo "[INFO] Local composer executable found"
+        return 0
+    fi
+    
+    # Try to install composer locally
+    echo "[INFO] Composer not found, attempting to install locally..."
+    
+    if command -v php &> /dev/null; then
+        echo "[INFO] Downloading Composer installer..."
+        if php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"; then
+            echo "[INFO] Installing Composer..."
+            if php composer-setup.php --install-dir=. --filename=composer; then
+                composer_cmd="php ./composer"
+                echo "[INFO] Composer installed successfully"
+                rm -f composer-setup.php
+                return 0
+            else
+                echo "[ERROR] Failed to install Composer"
+                rm -f composer-setup.php
+                return 1
+            fi
+        else
+            echo "[ERROR] Failed to download Composer installer"
+            return 1
+        fi
+    else
+        echo "[ERROR] PHP not available - cannot install Composer"
+        return 1
+    fi
+}
+
+# Upgrade composer dependencies
+upgrade_composer_dependencies() {
+    echo "=== Upgrading Composer Dependencies ==="
+
+    if [ ! -f "composer.json" ]; then
+        echo "ERROR: composer.json not found in $APP_DIR" >&2
+        return 1
+    fi
+
+    # Auto-detect Composer
+    if ! auto_detect_composer; then
+        echo "ERROR: composer not found and could not be installed!" >&2
+        return 1
+    fi
+
+    echo "Getting Composer version..."
+    $composer_cmd --version 2>&1 | head -1 > /tmp/composer_version.txt
+    local composer_version=$(cat /tmp/composer_version.txt)
+    echo "Composer version: $composer_version"
+    rm -f /tmp/composer_version.txt
+    echo ""
+
+    # Ask for upgrade confirmation
+    echo "This will upgrade all dependencies to their latest compatible versions."
+    echo "Current composer.json requires:"
+    grep -A 5 '"require":' composer.json || true
+    echo ""
+
+    read -p "Do you want to upgrade dependencies? (y/N): " -n 1 -r
+    echo ""
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Upgrading dependencies..."
+
+        # Backup composer.lock
+        if [ -f "composer.lock" ]; then
+            cp composer.lock composer.lock.backup
+            echo "Backed up composer.lock to composer.lock.backup"
+        fi
+
+        # Update dependencies
+        echo "Running: $composer_cmd update --with-all-dependencies --prefer-stable $COMPOSER_IGNORE_PLATFORM"
+        $composer_cmd update --with-all-dependencies --prefer-stable $COMPOSER_IGNORE_PLATFORM || {
+            echo "ERROR: Composer update failed!" >&2
+            if [ -f "composer.lock.backup" ]; then
+                echo "Restoring composer.lock from backup..."
+                mv composer.lock.backup composer.lock
+            fi
+            return 1
+        }
+
+        # Dump autoload
+        echo "Regenerating autoload files..."
+        $composer_cmd dump-autoload --optimize $COMPOSER_IGNORE_PLATFORM
+
+        echo "Dependencies upgraded successfully ✓"
+        echo ""
+    else
+        echo "Skipping dependency upgrade."
+        echo ""
+    fi
+}
+
+# Update composer.json for PHP 8.4 compatibility
+update_composer_json_for_php84() {
+    echo "=== Checking composer.json PHP Version Requirement ==="
+
+    # Auto-detect Composer first
+    if ! auto_detect_composer; then
+        echo "WARNING: Composer not available for validation" >&2
+        return 0
+    fi
+
+    echo "Reading PHP requirement from composer.json..."
+    grep -oP '(?<="php": ")[^"]+' composer.json > /tmp/php_req.txt
+    local current_php_req=$(cat /tmp/php_req.txt)
+    echo "Current PHP requirement: $current_php_req"
+    rm -f /tmp/php_req.txt
+
+    # Check if we need to update
+    if [[ "$current_php_req" == "^8.2" ]]; then
+        echo ""
+        echo "⚠️  composer.json still requires PHP ^8.2"
+        echo "For PHP 8.4 compatibility, consider updating to:"
+        echo '  "php": "^8.2|^8.3|^8.4"'
+        echo ""
+
+        read -p "Update PHP requirement in composer.json? (y/N): " -n 1 -r
+        echo ""
+
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            # Backup composer.json
+            cp composer.json composer.json.backup
+            echo "Backed up composer.json to composer.json.backup"
+
+            # Update PHP requirement
+            sed -i 's/"php": "\^8\.2"/"php": "^8.2|^8.3|^8.4"/' composer.json
+
+            echo "Updated composer.json PHP requirement ✓"
+            echo ""
+
+            # Validate composer.json
+            if $composer_cmd validate $COMPOSER_IGNORE_PLATFORM; then
+                echo "composer.json is valid ✓"
+            else
+                echo "ERROR: composer.json validation failed!" >&2
+                echo "Restoring from backup..."
+                mv composer.json.backup composer.json
+                return 1
+            fi
+        fi
+    else
+        echo "PHP requirement is already flexible: $current_php_req ✓"
+    fi
+
+    echo ""
+}
+
 # Load module functions
 if [ -f "$DEPLOY_TOOLS_DIR/environment_checker.sh" ]; then
     source "$DEPLOY_TOOLS_DIR/environment_checker.sh"
@@ -107,8 +376,12 @@ else
 fi
 
 # Get environment-specific directories
-DB_DIR=$(get_database_directory)
-PROJECT_ROOT=$(get_project_root)
+echo "Getting environment-specific directories..."
+get_database_directory > /tmp/db_dir.txt
+DB_DIR=$(cat /tmp/db_dir.txt)
+get_project_root > /tmp/project_root.txt
+PROJECT_ROOT=$(cat /tmp/project_root.txt)
+rm -f /tmp/db_dir.txt /tmp/project_root.txt
 DB_FILE="$DB_DIR/database.sqlite"
 ENV_FILE="$APP_DIR/.env"
 ENV_EXAMPLE="$APP_DIR/.env.example"
@@ -130,6 +403,41 @@ echo ""
 echo "Starting Laravel Main Application Deployment (SAFE MODE)"
 echo ""
 
+# Check PHP version first
+check_php_version
+
+# Record original directory and change to application directory
+echo "Getting current working directory..."
+pwd > /tmp/original_dir.txt
+ORIGINAL_DIR=$(cat /tmp/original_dir.txt)
+rm -f /tmp/original_dir.txt
+echo ""
+echo "=== Directory Debug Information ==="
+echo "Original working directory: $ORIGINAL_DIR"
+echo "Target application directory: $APP_DIR"
+echo "Script directory: $SCRIPT_DIR"
+echo ""
+
+echo "Changing to application directory: $APP_DIR"
+cd "$APP_DIR" || {
+    echo "ERROR: Failed to change to app directory: $APP_DIR" >&2
+    exit 1
+}
+
+echo "Getting current working directory after change..."
+pwd > /tmp/current_dir.txt
+CURRENT_DIR=$(cat /tmp/current_dir.txt)
+echo "Current working directory after change: $CURRENT_DIR"
+rm -f /tmp/current_dir.txt
+echo "=== End Directory Debug ==="
+echo ""
+
+# Update composer.json for PHP 8.4 if needed
+update_composer_json_for_php84
+
+# Offer to upgrade dependencies
+upgrade_composer_dependencies
+
 # Run Laravel 12 compatibility check first
 echo ""
 echo "Performing Laravel 12 compatibility check..."
@@ -148,12 +456,6 @@ echo ""
 
 # Run comprehensive environment check
 comprehensive_environment_check
-
-# Change to application directory
-cd "$APP_DIR" || {
-    echo "ERROR: Failed to change to app directory: $APP_DIR" >&2
-    exit 1
-}
 
 # Run pre-deployment checks
 if ! pre_deployment_check; then
@@ -194,8 +496,12 @@ install_dependencies || true
 setup_database "$DB_DIR" "$DB_FILE" "$ENV_FILE"
 
 # Determine deployment mode
-CURRENT_ENV=$(get_current_environment "$ENV_FILE")
-CURRENT_DEBUG=$(get_current_debug_setting "$ENV_FILE")
+echo "Getting current environment settings..."
+get_current_environment "$ENV_FILE" > /tmp/current_env.txt
+CURRENT_ENV=$(cat /tmp/current_env.txt)
+get_current_debug_setting "$ENV_FILE" > /tmp/current_debug.txt
+CURRENT_DEBUG=$(cat /tmp/current_debug.txt)
+rm -f /tmp/current_env.txt /tmp/current_debug.txt
 
 echo ""
 echo "Environment configuration: APP_ENV=$CURRENT_ENV, APP_DEBUG=$CURRENT_DEBUG"
@@ -216,6 +522,36 @@ if [ "$CURRENT_ENV" = "production" ]; then
         echo "WARNING: Nginx integration encountered issues"
     fi
 
+    # Deploy domain to nginx using ServerManagerV1 CLI
+    echo ""
+    echo "=== Domain Deployment to Nginx ==="
+    echo "You can deploy this Laravel application to a domain using:"
+    echo "  php artisan servermanager:deploy <domain> laravel [OPTIONS]"
+    echo ""
+    echo "Examples:"
+    echo "  1. Deploy to api.local.12gm.com with auto SSL:"
+    echo "     php artisan servermanager:deploy api.local.12gm.com laravel --php-version=8.4"
+    echo ""
+    echo "  2. Deploy without SSL:"
+    echo "     php artisan servermanager:deploy api.local.12gm.com laravel --no-ssl"
+    echo ""
+    echo "  3. Force update existing configuration:"
+    echo "     php artisan servermanager:deploy api.local.12gm.com laravel --force"
+    echo ""
+    read -p "Do you want to deploy a domain now? (y/N): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        read -p "Enter domain name (e.g., api.local.12gm.com): " domain_input
+        if [ -n "$domain_input" ]; then
+            echo "Deploying domain: $domain_input"
+            php artisan servermanager:deploy "$domain_input" laravel --php-version=8.4
+        else
+            echo "No domain entered, skipping deployment."
+        fi
+    else
+        echo "Skipping domain deployment. You can run it manually later."
+    fi
+
     echo ""
     print_deployment_summary "$APP_DIR" "production" "$APP_NAME"
 else
@@ -230,5 +566,24 @@ else
         start_development_server "0.0.0.0" "8000"
     fi
 fi
+
+# Restore original directory
+echo ""
+echo "=== Directory Restore Debug ==="
+echo "Getting current working directory before restore..."
+pwd > /tmp/before_restore.txt
+BEFORE_RESTORE=$(cat /tmp/before_restore.txt)
+echo "Current working directory before restore: $BEFORE_RESTORE"
+rm -f /tmp/before_restore.txt
+echo "Restoring to original directory: $ORIGINAL_DIR"
+cd "$ORIGINAL_DIR" || {
+    echo "WARNING: Failed to restore original directory: $ORIGINAL_DIR" >&2
+}
+echo "Getting current working directory after restore..."
+pwd > /tmp/after_restore.txt
+AFTER_RESTORE=$(cat /tmp/after_restore.txt)
+echo "Current working directory after restore: $AFTER_RESTORE"
+rm -f /tmp/after_restore.txt
+echo "=== End Directory Restore Debug ==="
 
 # sudo apt update && sudo apt install -y dos2unix &&  find . -maxdepth 3 -type f -name 'deploy.sh' -print0 |  while IFS= read -r -d '' f; do sudo dos2unix "$f" && sudo chmod +x "$f"; done

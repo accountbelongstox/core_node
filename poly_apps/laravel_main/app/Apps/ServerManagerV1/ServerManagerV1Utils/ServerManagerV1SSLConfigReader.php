@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1SSLConfigReader
 {
-    private const CONFIG_DIR_PATH = '/www/wwwroot/core_node/.secret_keys/.secret_ignore';
-    private const DD_SCRIPT_PATH = '/www/wwwroot/core_node/scripts/dd.sh';
-
     private static ?array $cachedConfig = null;
     
     /**
@@ -20,13 +17,20 @@ class ServerManagerV1SSLConfigReader
             return self::$cachedConfig;
         }
 
-        if (!is_dir(self::CONFIG_DIR_PATH)) {
-            throw new \Exception("SSL configuration directory not found. Please run dd.sh to decrypt SSL configuration.");
+        $configDirPath = ServerManagerV1PathResolver::getSecretKeysPath();
+
+        Log::info('ServerManagerV1: Looking for SSL config in: ' . $configDirPath);
+
+        if (!is_dir($configDirPath)) {
+            $ddScriptPath = ServerManagerV1PathResolver::getDdScriptPath();
+            throw new \Exception("SSL configuration directory not found: $configDirPath. Please run dd.sh to decrypt SSL configuration: bash $ddScriptPath");
         }
 
         // Look for uppercase files without extension in the directory
-        $configFiles = glob(self::CONFIG_DIR_PATH . '/*');
+        $configFiles = glob($configDirPath . '/*');
         $jsonFile = null;
+
+        Log::info('ServerManagerV1: Scanning for config files', ['files_found' => count($configFiles)]);
 
         foreach ($configFiles as $file) {
             if (is_file($file)) {
@@ -36,31 +40,34 @@ class ServerManagerV1SSLConfigReader
                     // Prefer files ending with _JSON, but accept any uppercase file
                     if (strpos($filename, '_JSON') !== false) {
                         $jsonFile = $file;
+                        Log::info('ServerManagerV1: Found _JSON config file: ' . $filename);
                         break;
                     } elseif (!$jsonFile) {
                         // Use as fallback if no _JSON file found
                         $jsonFile = $file;
+                        Log::info('ServerManagerV1: Found uppercase config file: ' . $filename);
                     }
                 }
             }
         }
 
         if (!$jsonFile) {
-            throw new \Exception("SSL configuration JSON file not found in directory. Please run dd.sh to decrypt SSL configuration.");
+            $ddScriptPath = ServerManagerV1PathResolver::getDdScriptPath();
+            throw new \Exception("SSL configuration JSON file not found in directory: $configDirPath. Please run dd.sh to decrypt SSL configuration: bash $ddScriptPath");
         }
 
         $content = file_get_contents($jsonFile);
         if ($content === false) {
-            throw new \Exception("Failed to read SSL configuration file: " . basename($jsonFile) . ". Please run dd.sh to decrypt SSL configuration.");
+            throw new \Exception("Failed to read SSL configuration file: " . basename($jsonFile) . ". Please check file permissions.");
         }
 
         $config = json_decode($content, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \Exception("Invalid SSL configuration JSON format in file: " . basename($jsonFile) . ". Please run dd.sh to decrypt SSL configuration.");
+            throw new \Exception("Invalid SSL configuration JSON format in file: " . basename($jsonFile) . ". JSON error: " . json_last_error_msg());
         }
 
         if (!isset($config['ssl_config'])) {
-            throw new \Exception("SSL configuration section not found in file: " . basename($jsonFile) . ". Please run dd.sh to decrypt SSL configuration.");
+            throw new \Exception("SSL configuration section not found in file: " . basename($jsonFile) . ". Expected 'ssl_config' key in JSON.");
         }
 
         self::$cachedConfig = $config;
@@ -162,7 +169,11 @@ class ServerManagerV1SSLConfigReader
     public static function getDefaultWebRoot(): string
     {
         $deploymentConfig = self::getDeploymentConfig();
-        return $deploymentConfig['default_web_root'] ?? '/www/wwwroot';
+        if (isset($deploymentConfig['default_web_root'])) {
+            return $deploymentConfig['default_web_root'];
+        }
+
+        return ServerManagerV1PathResolver::resolveWebRoot();
     }
 
     /**
@@ -180,7 +191,7 @@ class ServerManagerV1SSLConfigReader
         $webRoot = self::getDefaultWebRoot();
         return rtrim($webRoot, '/') . '/' . ltrim($path, '/');
     }
-    
+
     /**
      * Check if auto SSL is enabled
      */
@@ -189,7 +200,7 @@ class ServerManagerV1SSLConfigReader
         $deploymentConfig = self::getDeploymentConfig();
         return $deploymentConfig['auto_ssl'] ?? true;
     }
-    
+
     /**
      * Check if auto backup is enabled
      */
@@ -198,18 +209,23 @@ class ServerManagerV1SSLConfigReader
         $deploymentConfig = self::getDeploymentConfig();
         return $deploymentConfig['auto_backup'] ?? true;
     }
-    
+
     /**
      * Get nginx configuration paths
      */
     public static function getNginxPaths(): array
     {
         $deploymentConfig = self::getDeploymentConfig();
-        return [
-            'config_path' => $deploymentConfig['nginx_config_path'] ?? '/etc/nginx/sites-available',
-            'enabled_path' => $deploymentConfig['nginx_enabled_path'] ?? '/etc/nginx/sites-enabled',
-            'backup_path' => $deploymentConfig['backup_path'] ?? '/www/backup/nginx-configs'
-        ];
+
+        if (isset($deploymentConfig['nginx_config_path']) && isset($deploymentConfig['nginx_enabled_path'])) {
+            return [
+                'config_path' => $deploymentConfig['nginx_config_path'],
+                'enabled_path' => $deploymentConfig['nginx_enabled_path'],
+                'backup_path' => $deploymentConfig['backup_path'] ?? '/www/backup/nginx-configs'
+            ];
+        }
+
+        return ServerManagerV1PathResolver::getNginxPaths();
     }
     
     /**
@@ -359,14 +375,14 @@ class ServerManagerV1SSLConfigReader
      */
     public static function ddScriptExists(): bool
     {
-        return file_exists(self::DD_SCRIPT_PATH);
+        return file_exists(ServerManagerV1PathResolver::getDdScriptPath());
     }
-    
+
     /**
      * Get dd.sh script path
      */
     public static function getDdScriptPath(): string
     {
-        return self::DD_SCRIPT_PATH;
+        return ServerManagerV1PathResolver::getDdScriptPath();
     }
 }
