@@ -309,6 +309,7 @@ $script:MenuItems = @(
         Text              = "Unified App Manager"
         Values            = @("default")
         CurrentValueIndex = 0
+        Key               = $null
         Action            = {
             $unifiedManagerScript = Join-Path $script:SCRIPT_DIR "unified_manager\unified_manager.ps1"
             if (Test-Path $unifiedManagerScript) {
@@ -360,6 +361,15 @@ $script:MenuItems = @(
         Key               = $null
         Action            = {
             Show-WSLUbuntuSubMenu
+        }
+    },
+    @{
+        Text              = "Backup this project"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            Show-BackupSubMenu
         }
     },
     @{
@@ -1356,6 +1366,24 @@ function Show-WSLUbuntuSubMenu {
     } else {
         Write-ColorMessage -Message "Error: WSLUbuntuManager.ps1 script not found at: $wslMenuScript" -Type "Error"
         Write-ColorMessage -Message "Please check if the WSL Ubuntu manager is properly installed" -Type "Info"
+        Read-Host "Press Enter to continue"
+    }
+}
+
+function Show-BackupSubMenu {
+    $backupScript = Join-Path $script:SCRIPT_DIR "pytools\backup_core_node_script\backup_manager.py"
+    
+    if (Test-Path $backupScript) {
+        Write-ColorMessage -Message "Launching Backup Manager..." -Type "Info"
+        try {
+            & python $backupScript
+        } catch {
+            Write-ColorMessage -Message "Error running backup script: $($_.Exception.Message)" -Type "Error"
+            Read-Host "Press Enter to continue"
+        }
+    } else {
+        Write-ColorMessage -Message "Error: backup_manager.py script not found at: $backupScript" -Type "Error"
+        Write-ColorMessage -Message "Please check if the backup script is properly installed" -Type "Info"
         Read-Host "Press Enter to continue"
     }
 }

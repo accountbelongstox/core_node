@@ -12,7 +12,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
-namespace App\Apps\DictV1\Controllers;
+namespace App\Apps\DictV1\Controllers\DictV1UserAuth;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

@@ -12,19 +12,22 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 r"""
-Universal MCP Servers Configuration Sync Tool
+Universal MCP Servers Configuration Sync Tool for Linux/WSL
 
 This script synchronizes MCP server configurations from the project template
-to various AI tool configuration files.
+to various AI tool configuration files on Linux and WSL systems.
 
 Supported targets:
-- Claude: C:\Users\{USERNAME}\.claude.json
-- Factory AI Droid: C:\Users\{USERNAME}\.factory\mcp.json
+- Claude (WSL): /mnt/c/Users/{USERNAME}/.claude.json
+- Claude (Linux): ~/.claude.json
+- Factory AI Droid (WSL): /mnt/c/Users/{USERNAME}/.factory/mcp.json
+- Factory AI Droid (Linux): ~/.factory/mcp.json
 
-Template: D:\programing\core_node\.prompt\mcpWindowsTemplate.json
+Templates:
+- WSL: D:\programing\core_node\.prompt\mcpWSLTemplate.json
+- Linux: /www/wwwroot/core_node/.prompt/mcpLinuxTemplate.json (or detected project root)
 
-The script recursively finds all 'mcpServers' objects in the target file
-and merges missing servers from the template.
+The script automatically detects WSL vs native Linux and uses appropriate paths.
 """
 
 import json
@@ -32,49 +35,96 @@ import os
 import sys
 import argparse
 from pathlib import Path
-from typing import Dict, Any, Set, Optional
+from typing import Dict, Any, Set, Optional, Tuple
 import shutil
 from datetime import datetime
+import platform
 
-TEMPLATE_PATH = r"D:\programing\core_node\.prompt\mcpWindowsTemplate.json"
+def detect_environment() -> Tuple[str, str]:
+    """
+    Detect the current environment and return template path and config base.
+    
+    Returns:
+        Tuple of (template_path, config_base_dir)
+    """
+    # Check if running in WSL
+    is_wsl = False
+    try:
+        with open('/proc/version', 'r') as f:
+            if 'microsoft' in f.read().lower():
+                is_wsl = True
+    except:
+        pass
+    
+    # Detect script location to find project root
+    script_dir = Path(__file__).parent.absolute()
+    
+    # Try to find project root (look for key directories)
+    project_root = script_dir
+    for _ in range(10):  # Search up to 10 levels
+        if (project_root / '.prompt').exists() or (project_root / 'ncore').exists():
+            break
+        parent = project_root.parent
+        if parent == project_root:
+            break
+        project_root = parent
+    
+    if is_wsl:
+        # WSL environment
+        wsl_template = project_root / '.prompt' / 'mcpWSLTemplate.json'
+        
+        # Fallback to Windows path if needed
+        if not wsl_template.exists():
+            wsl_template = Path('/mnt/d/programing/core_node/.prompt/mcpWSLTemplate.json')
+        
+        # Config base is Windows user directory via /mnt/c/Users/
+        username = os.environ.get('USER', os.environ.get('USERNAME', ''))
+        config_base = Path(f'/mnt/c/Users/{username}')
+        
+        return str(wsl_template), str(config_base)
+    else:
+        # Native Linux environment
+        linux_template = project_root / '.prompt' / 'mcpLinuxTemplate.json'
+        
+        # Fallback paths
+        if not linux_template.exists():
+            linux_template = Path('/www/wwwroot/core_node/.prompt/mcpLinuxTemplate.json')
+        if not linux_template.exists():
+            linux_template = Path.home() / 'core_node' / '.prompt' / 'mcpLinuxTemplate.json'
+        
+        # Config base is user's home directory
+        config_base = Path.home()
+        
+        return str(linux_template), str(config_base)
 
 def print_same_line(message: str, end_with_newline: bool = False) -> None:
     """
     Print message on the same line (overwriting previous content).
-
+    
     Args:
         message: The message to print
         end_with_newline: If True, ends with newline; if False, stays on same line for next update
-
-    Usage:
-        print_same_line("Processing... 1/10")  # Updates same line
-        print_same_line("Processing... 2/10")  # Overwrites previous
-        print_same_line("Completed!", True)     # Final message with newline
     """
-    # Clear the line by padding with spaces (80 chars wide)
     padded_message = message.ljust(80)
-
+    
     if end_with_newline:
         print(f"\r{padded_message}")
     else:
         print(f"\r{padded_message}", end='', flush=True)
 
-def get_user_config_path(target: str = "claude") -> Path:
+def get_user_config_path(target: str = "claude", config_base: str = None) -> Path:
     """Get the path to user's configuration file based on target."""
-    username = os.environ.get('USERNAME') or os.environ.get('USER')
-    if not username:
-        raise RuntimeError("Cannot determine username from environment variables")
-
+    if config_base is None:
+        _, config_base = detect_environment()
+    
+    base_path = Path(config_base)
+    
     if target.lower() == "claude":
-        return Path(f"C:\\Users\\{username}\\.claude.json")
+        return base_path / '.claude.json'
     elif target.lower() == "droid":
-        return Path(f"C:\\Users\\{username}\\.factory\\mcp.json")
+        return base_path / '.factory' / 'mcp.json'
     else:
         raise ValueError(f"Unsupported target: {target}. Supported targets: claude, droid")
-
-def get_user_claude_config_path() -> Path:
-    """Get the path to user's .claude.json configuration file (backward compatibility)."""
-    return get_user_config_path("claude")
 
 def load_json_file(file_path: Path) -> Dict[str, Any]:
     """Load JSON file with error handling."""
@@ -91,18 +141,17 @@ def load_json_file(file_path: Path) -> Dict[str, Any]:
         print(f"[ERROR] Failed to read {file_path}: {e}")
         raise
 
-def get_backup_directory(target: str) -> Path:
+def get_backup_directory(target: str, config_base: str = None) -> Path:
     """Get the backup directory for the specified target."""
-    username = os.environ.get('USERNAME') or os.environ.get('USER')
-    if not username:
-        raise RuntimeError("Cannot determine username from environment variables")
+    if config_base is None:
+        _, config_base = detect_environment()
+    
+    base_path = Path(config_base)
     
     if target.lower() == "claude":
-        base_dir = Path(f"C:\\Users\\{username}")
-        backup_dir = base_dir / ".claude.backups"
+        backup_dir = base_path / '.claude.backups'
     elif target.lower() == "droid":
-        base_dir = Path(f"C:\\Users\\{username}\\.factory")
-        backup_dir = base_dir / ".droid.backups"
+        backup_dir = base_path / '.factory' / '.droid.backups'
     else:
         raise ValueError(f"Unsupported target: {target}")
     
@@ -132,20 +181,12 @@ def cleanup_old_backups(backup_dir: Path, keep_count: int = 5) -> None:
             except Exception as e:
                 print(f"[WARNING] Failed to remove old backup {file_path.name}: {e}")
 
-def move_existing_backups_to_namespace(target: str) -> None:
+def move_existing_backups_to_namespace(target: str, config_base: str = None) -> None:
     """Move existing backup files to the namespace backup directory."""
-    username = os.environ.get('USERNAME') or os.environ.get('USER')
-    if not username:
-        return
+    if config_base is None:
+        _, config_base = detect_environment()
     
-    if target.lower() == "claude":
-        config_path = Path(f"C:\\Users\\{username}\\.claude.json")
-        base_dir = Path(f"C:\\Users\\{username}")
-    elif target.lower() == "droid":
-        config_path = Path(f"C:\\Users\\{username}\\.factory\\mcp.json")
-        base_dir = Path(f"C:\\Users\\{username}\\.factory")
-    else:
-        return
+    config_path = get_user_config_path(target, config_base)
     
     # Find existing backup files in the config directory
     existing_backups = []
@@ -154,7 +195,7 @@ def move_existing_backups_to_namespace(target: str) -> None:
             existing_backups.append(file_path)
     
     if existing_backups:
-        backup_dir = get_backup_directory(target)
+        backup_dir = get_backup_directory(target, config_base)
         backup_dir.mkdir(parents=True, exist_ok=True)
         
         for backup_file in existing_backups:
@@ -165,15 +206,18 @@ def move_existing_backups_to_namespace(target: str) -> None:
             except Exception as e:
                 print(f"[WARNING] Failed to move backup {backup_file.name}: {e}")
 
-def save_json_file(file_path: Path, data: Dict[str, Any], backup: bool = True, target: str = "claude") -> None:
+def save_json_file(file_path: Path, data: Dict[str, Any], backup: bool = True, target: str = "claude", config_base: str = None) -> None:
     """Save JSON file with backup and formatting."""
+    if config_base is None:
+        _, config_base = detect_environment()
+    
     if backup and file_path.exists():
         # Create namespace backup directory
-        backup_dir = get_backup_directory(target)
+        backup_dir = get_backup_directory(target, config_base)
         backup_dir.mkdir(parents=True, exist_ok=True)
         
         # Move existing backups to namespace directory
-        move_existing_backups_to_namespace(target)
+        move_existing_backups_to_namespace(target, config_base)
         
         # Create new backup in namespace directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -182,73 +226,73 @@ def save_json_file(file_path: Path, data: Dict[str, Any], backup: bool = True, t
         
         # Clean up old backups (keep only 5 most recent)
         cleanup_old_backups(backup_dir, keep_count=5)
-
+    
     file_path.parent.mkdir(parents=True, exist_ok=True)
-
+    
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
 def find_mcp_servers_objects(obj: Any, path: str = "root") -> Dict[str, Dict[str, Any]]:
     """
     Recursively find all 'mcpServers' objects in the configuration.
-
+    
     Returns a dictionary mapping path -> mcpServers object
     """
     result = {}
-
+    
     if isinstance(obj, dict):
         for key, value in obj.items():
             current_path = f"{path}.{key}"
-
+            
             if key == "mcpServers" and isinstance(value, dict):
                 result[current_path] = value
-
+            
             if isinstance(value, (dict, list)):
                 nested_results = find_mcp_servers_objects(value, current_path)
                 result.update(nested_results)
-
+    
     elif isinstance(obj, list):
         for idx, item in enumerate(obj):
             current_path = f"{path}[{idx}]"
             if isinstance(item, (dict, list)):
                 nested_results = find_mcp_servers_objects(item, current_path)
                 result.update(nested_results)
-
+    
     return result
 
-def merge_mcp_servers(target_servers: Dict[str, Any], template_servers: Dict[str, Any]) -> tuple[Dict[str, Any], Set[str]]:
+def merge_mcp_servers(target_servers: Dict[str, Any], template_servers: Dict[str, Any]) -> tuple:
     """
     Merge template servers into target servers, adding missing ones.
-
+    
     Returns (merged_servers, added_server_names)
     """
     merged = target_servers.copy()
     added = set()
-
+    
     for server_name, server_config in template_servers.items():
         if server_name not in merged:
             merged[server_name] = server_config
             added.add(server_name)
-
+    
     return merged, added
 
-def update_nested_object(obj: Any, path_parts: list[str], new_value: Dict[str, Any]) -> None:
+def update_nested_object(obj: Any, path_parts: list, new_value: Dict[str, Any]) -> None:
     """Update a nested object in-place using a path."""
     if not path_parts:
         return
-
+    
     if len(path_parts) == 1:
         if isinstance(obj, dict):
             obj[path_parts[0]] = new_value
         return
-
+    
     current_key = path_parts[0]
-
+    
     if current_key.endswith(']'):
         key_name = current_key[:current_key.index('[')]
         index_str = current_key[current_key.index('[')+1:current_key.index(']')]
         index = int(index_str)
-
+        
         if isinstance(obj, dict) and key_name in obj:
             if isinstance(obj[key_name], list) and len(obj[key_name]) > index:
                 update_nested_object(obj[key_name][index], path_parts[1:], new_value)
@@ -256,43 +300,59 @@ def update_nested_object(obj: Any, path_parts: list[str], new_value: Dict[str, A
         if isinstance(obj, dict) and current_key in obj:
             update_nested_object(obj[current_key], path_parts[1:], new_value)
 
-def sync_mcp_configuration(target: str = "claude") -> int:
+def sync_mcp_configuration(target: str = "claude", template_path: str = None, config_base: str = None) -> int:
     """
     Main synchronization function.
-
+    
     Args:
         target: Target configuration ("claude" or "droid")
-
+        template_path: Optional override for template path
+        config_base: Optional override for config base directory
+    
     Returns 0 on success, 1 on error.
     """
+    # Detect environment if paths not provided
+    if template_path is None or config_base is None:
+        detected_template, detected_base = detect_environment()
+        template_path = template_path or detected_template
+        config_base = config_base or detected_base
+    
+    # Environment detection info
+    is_wsl = '/mnt/' in str(config_base)
+    env_type = "WSL" if is_wsl else "Linux"
+    print(f"[INFO] Detected environment: {env_type}")
+    print(f"[INFO] Template path: {template_path}")
+    print(f"[INFO] Config base: {config_base}")
+    print()
+    
     # Clean up old backups at the start of each execution
     print_same_line("[0/3] Cleaning up old backups...")
     try:
-        backup_dir = get_backup_directory(target)
+        backup_dir = get_backup_directory(target, config_base)
         cleanup_old_backups(backup_dir, keep_count=5)
         print_same_line("[0/3] Backup cleanup completed", True)
     except Exception as e:
         print_same_line(f"[0/3] Backup cleanup warning: {e}", True)
     
-    template_path = Path(TEMPLATE_PATH)
-    user_config_path = get_user_config_path(target)
-
-    if not template_path.exists():
-        print(f"[ERROR] Template file not found: {template_path}")
+    template_file = Path(template_path)
+    user_config_path = get_user_config_path(target, config_base)
+    
+    if not template_file.exists():
+        print(f"[ERROR] Template file not found: {template_file}")
         return 1
-
-    # Step 1: Load template (show progress on same line)
+    
+    # Step 1: Load template
     print_same_line("[1/4] Loading template...")
-    template_data = load_json_file(template_path)
-
+    template_data = load_json_file(template_file)
+    
     if "mcpServers" not in template_data:
         print(f"\n[ERROR] Template file does not contain 'mcpServers' key")
         return 1
-
+    
     template_servers = template_data["mcpServers"]
     print_same_line(f"[1/4] Template: {len(template_servers)} MCP servers found", True)
-
-    # Step 2: Load user config (show progress on same line)
+    
+    # Step 2: Load user config
     print_same_line("[2/4] Loading user config...")
     if not user_config_path.exists():
         # For droid, create the .factory directory structure
@@ -304,48 +364,48 @@ def sync_mcp_configuration(target: str = "claude") -> int:
     else:
         user_data = load_json_file(user_config_path)
     print_same_line("[2/4] User config loaded", True)
-
-    # Step 3: Sync configurations (show progress on same line)
+    
+    # Step 3: Sync configurations
     print_same_line("[3/4] Syncing configurations...")
     mcp_servers_paths = find_mcp_servers_objects(user_data)
-
+    
     if not mcp_servers_paths:
         mcp_servers_paths = {"root.mcpServers": {}}
         user_data["mcpServers"] = {}
-
+    
     total_added = set()
     locations_updated = 0
     total_locations = len(mcp_servers_paths)
-
+    
     for idx, (path, current_servers) in enumerate(mcp_servers_paths.items(), 1):
         print_same_line(f"[3/4] Syncing... ({idx}/{total_locations} locations)")
         merged_servers, added_servers = merge_mcp_servers(current_servers, template_servers)
-
+        
         if added_servers:
             total_added.update(added_servers)
             locations_updated += 1
-
+            
             path_parts = path.replace("root.", "").split(".")
             update_nested_object(user_data, path_parts, merged_servers)
-
+    
     print_same_line("[3/4] Sync completed", True)
     
     # Step 4: Save configuration with backup management
     print_same_line("[4/4] Saving configuration with backup management...")
-
+    
     # Summary
     print()
     print("=" * 80)
-
+    
     if total_added:
         print(f"[SUCCESS] Updated {locations_updated} of {total_locations} mcpServers location(s)")
         print(f"[SUCCESS] Added {len(total_added)} unique MCP server(s):")
-
+        
         for server_name in sorted(total_added):
             print(f"  + {server_name}")
-
+        
         print()
-        save_json_file(user_config_path, user_data, backup=True, target=target)
+        save_json_file(user_config_path, user_data, backup=True, target=target, config_base=config_base)
         print_same_line("[4/4] Configuration saved with backup management", True)
         print("=" * 80)
         if target.lower() == "claude":
@@ -356,21 +416,25 @@ def sync_mcp_configuration(target: str = "claude") -> int:
     else:
         print("[INFO] Configuration is up to date - no changes needed")
         print("=" * 80)
-
+    
     return 0
 
 def main() -> int:
     """Entry point."""
-    parser = argparse.ArgumentParser(description="Sync MCP servers configuration")
-    parser.add_argument("--target", "-t", 
-                       choices=["claude", "droid"], 
+    parser = argparse.ArgumentParser(description="Sync MCP servers configuration for Linux/WSL")
+    parser.add_argument("--target", "-t",
+                       choices=["claude", "droid"],
                        default="claude",
                        help="Target configuration (default: claude)")
+    parser.add_argument("--template",
+                       help="Override template file path")
+    parser.add_argument("--config-base",
+                       help="Override config base directory")
     
     args = parser.parse_args()
     
     try:
-        return sync_mcp_configuration(args.target)
+        return sync_mcp_configuration(args.target, args.template, args.config_base)
     except KeyboardInterrupt:
         print("\n[INFO] Interrupted by user")
         return 130

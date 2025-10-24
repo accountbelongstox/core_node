@@ -3135,9 +3135,18 @@ function Invoke-PowerShellCommand {
         $searchPaths += "C:\Windows\System32"
         $searchPaths += "C:\Windows"
         
-        # Check if already installed - search in all paths
+        # Check if already installed - simple check using Get-Command
         Write-Host "       [PS] Checking if package is already installed..." -ForegroundColor Cyan
-        $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+        $executable = $null
+        
+        # Try to find the executable using Get-Command
+        foreach ($keyword in $searchKeywords) {
+            $found = Get-Command $keyword -ErrorAction SilentlyContinue
+            if ($found) {
+                $executable = $found.Source
+                break
+            }
+        }
         
         if ($executable -and -not $ForceInstall) {
             Write-Host "       [PS] Package already installed: $executable" -ForegroundColor Green
@@ -3167,7 +3176,16 @@ function Invoke-PowerShellCommand {
             
             # Find the installed executable after installation
             Write-Host "       [PS] Searching for installed executable..." -ForegroundColor Cyan
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+            $executable = $null
+            
+            # Try to find the executable using Get-Command
+            foreach ($keyword in $searchKeywords) {
+                $found = Get-Command $keyword -ErrorAction SilentlyContinue
+                if ($found) {
+                    $executable = $found.Source
+                    break
+                }
+            }
             
             if ($executable) {
                 Write-Host "       [PS] Found executable: $executable" -ForegroundColor Green
