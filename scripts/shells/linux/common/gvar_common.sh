@@ -14,6 +14,8 @@
 # Detect environment type
 IS_WSL=false
 IS_PRODUCTION=false
+HAS_DESKTOP_ENVIRONMENT=false
+DESKTOP_ENVIRONMENT=""
 WSL_USERS_PATH="/mnt/c/Users"
 WSL_D_DRIVE="/mnt/d/programing/core_node"
 
@@ -23,6 +25,52 @@ if [ -d "$WSL_USERS_PATH" ] || [ -d "$WSL_D_DRIVE" ]; then
 elif [ -d "/www/wwwroot" ]; then
     IS_PRODUCTION=true
 fi
+
+# Function to detect desktop environment
+detect_desktop_environment() {
+    # Check for X11 session
+    if [ -n "$DISPLAY" ] && [ "$DISPLAY" != ":0" ]; then
+        HAS_DESKTOP_ENVIRONMENT=true
+    fi
+    
+    # Check for Wayland session
+    if [ -n "$WAYLAND_DISPLAY" ]; then
+        HAS_DESKTOP_ENVIRONMENT=true
+    fi
+    
+    # Check for common desktop environment variables
+    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
+        HAS_DESKTOP_ENVIRONMENT=true
+        DESKTOP_ENVIRONMENT="$XDG_CURRENT_DESKTOP"
+    elif [ -n "$DESKTOP_SESSION" ]; then
+        HAS_DESKTOP_ENVIRONMENT=true
+        DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
+    fi
+    
+    # Check for running desktop processes
+    if pgrep -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session\|lxde-session\|lxqt-session\|openbox\|fluxbox\|i3\|awesome\|dwm" >/dev/null 2>&1; then
+        HAS_DESKTOP_ENVIRONMENT=true
+    fi
+    
+    # Check for desktop environment directories
+    if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
+        # Additional check: see if we're in a graphical session
+        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+            HAS_DESKTOP_ENVIRONMENT=true
+        fi
+    fi
+    
+    # Check for WSL with desktop environment
+    if [ "$IS_WSL" = true ]; then
+        # In WSL, check if X11 forwarding is available or if WSLg is running
+        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || pgrep -x "wslg" >/dev/null 2>&1; then
+            HAS_DESKTOP_ENVIRONMENT=true
+        fi
+    fi
+}
+
+# Detect desktop environment
+detect_desktop_environment
 
 # Determine CORE_NODE_DATA_DIR based on environment
 CORE_NODE_DATA_DIR="/usr/.core_node"
@@ -350,6 +398,11 @@ get_global_var() {
     fi
 }
 
+# Alias for get_global_var for backward compatibility
+get_var() {
+    get_global_var "$@"
+}
+
 # Function to clear all global variables
 clear_all_global_vars() {
     if [[ ! -d "$GLOBAL_VAR_DIR" ]]; then
@@ -463,6 +516,11 @@ is_centos() {
     else
         return 1
     fi
+}
+
+# Alias for set_global_var for backward compatibility
+set_var() {
+    set_global_var "$@"
 }
 
 # Function to set a variable both in global_var and /etc/environment
@@ -691,15 +749,7 @@ get_secret_content() {
     return 1
 }
 
-# Alias for get_global_var for backward compatibility
-get_var() {
-    get_global_var "$@"
-}
 
 # Alias for set_global_var for backward compatibility  
-set_var() {
-    set_global_var "$@"
-}
-
 # Call set_is_global after all functions are defined
 set_is_global
