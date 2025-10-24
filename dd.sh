@@ -11,31 +11,36 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# =============================================================================
 # Variable Declarations
+# =============================================================================
+# All variables are declared at the beginning of the file for clarity
+
+# Directory Path Variables
 CORE_NODE_ROOT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 SCRIPT_DIR="$CORE_NODE_ROOT_DIR/scripts"
 SHELLS_DIR="$SCRIPT_DIR/shells"
 INSTALL_DIR="$CORE_NODE_ROOT_DIR/install"
 COMMON_SHELLS_DIR="$SHELLS_DIR/linux/common" 
 COMMON_SCRIPTS_DIR="$SHELLS_DIR/scripts"
-# Initialize GLOBAL_VAR_DIR (will be set after function definition)
+
+# Global Variable Directory (will be set after function definition)
 GLOBAL_VAR_DIR=""
+
+# Script Path Variables
 script_symlink_path="/usr/local/bin/dd.sh"
 script_path="$(readlink -f "$0")"
+
+# Array Variables
 target_dirs=("apps" "ncore" "scripts")
+
+# System Variables
 sudo=""
 SYSTEM_VERSION=""
 SYSTEM_NAME=""
 
-# Detection module (Windows PowerShell) presence check for messaging
-ENV_DETECTOR_PATH="$SHELLS_DIR/win/win_common/EnvironmentDetection.ps1"
-if [ -f "$ENV_DETECTOR_PATH" ]; then
-  DETECTOR_AVAILABLE=1
-else
-  DETECTOR_AVAILABLE=0
-fi
 
-# Menu Configuration
+# Menu Configuration Variables
 declare -A menu_items
 declare -a menu_order
 
@@ -674,7 +679,7 @@ handle_menu_action() {
             ;;
         "show_install_test_menu")
             echo "Opening Install and Test Environment menu..."
-            local install_test_menu_script="$SHELLS_DIR/linux/common/install_test_menu.sh"
+            local install_test_menu_script="$COMMON_SHELLS_DIR/install_test_menu.sh"
             if [ -f "$install_test_menu_script" ]; then
                 bash "$install_test_menu_script"
             else
@@ -830,9 +835,6 @@ show_interactive_menu() {
         # Clear screen and show header
         printf "\033c"  # Clear screen more reliably
         printf "Current system: %s\n" "$SYSTEM_VERSION"
-        if [ "$DETECTOR_AVAILABLE" -eq 0 ]; then
-            echo "[Info] Current script has no detection module."
-        fi
         printf "Select an option (Up/Down to move, Left/Right to change value, Enter to select):\n"
         printf "Press Ctrl+C to exit\n\n"
 

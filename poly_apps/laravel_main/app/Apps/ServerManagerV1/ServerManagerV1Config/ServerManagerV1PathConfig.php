@@ -2,135 +2,243 @@
 
 namespace App\Apps\ServerManagerV1\ServerManagerV1Config;
 
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PathResolver;
+
 /**
  * ServerManagerV1 Path Configuration
- * 
+ *
  * IMPORTANT FOR AI DEVELOPERS:
  * This class centralizes all path constants used throughout the ServerManagerV1 system.
  * When modifying any path-related functionality, ALWAYS update the constants here first,
  * then use these constants throughout the codebase instead of hardcoded paths.
- * 
+ *
  * This prevents path inconsistencies and makes future path changes easier to manage.
- * 
+ *
  * Usage: ServerManagerV1PathConfig::NGINX_SITES_AVAILABLE
+ *
+ * NOTE: This class now uses ServerManagerV1PathResolver for environment-aware paths.
+ * Paths are resolved dynamically based on environment (WSL/Production).
  */
 class ServerManagerV1PathConfig
 {
     // ==========================================
-    // NGINX CONFIGURATION PATHS
+    // NGINX CONFIGURATION PATHS (ENVIRONMENT-AWARE)
     // ==========================================
-    
-    /** Main nginx configuration directory */
+
+    /**
+     * Get main nginx configuration directory (environment-aware)
+     */
+    public static function getNginxConfigDir(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig');
+    }
+
+    /**
+     * Get nginx sites-available directory (environment-aware)
+     */
+    public static function getNginxSitesAvailable(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/sites-available');
+    }
+
+    /**
+     * Get nginx sites-enabled directory (environment-aware)
+     */
+    public static function getNginxSitesEnabled(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/sites-enabled');
+    }
+
+    /** Legacy constants - DEPRECATED: Use getter methods instead */
     public const NGINX_CONFIG_DIR = '/www/nginxconfig';
-    
-    /** Nginx sites-available directory */
     public const NGINX_SITES_AVAILABLE = '/www/nginxconfig/sites-available';
-    
-    /** Nginx sites-enabled directory */
     public const NGINX_SITES_ENABLED = '/www/nginxconfig/sites-enabled';
-    
-    /** Nginx configuration snippets directory */
     public const NGINX_CONF_D = '/www/nginxconfig/conf.d';
-    
-    /** Main nginx configuration file */
     public const NGINX_MAIN_CONFIG = '/etc/nginx/nginx.conf';
-    
+
     // ==========================================
-    // SSL CERTIFICATE PATHS
+    // SSL CERTIFICATE PATHS (ENVIRONMENT-AWARE)
     // ==========================================
-    
-    /** SSL certificates base directory */
+
+    /**
+     * Get SSL base directory (environment-aware)
+     */
+    public static function getSslBaseDir(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/ssl');
+    }
+
+    /**
+     * Get SSL credentials directory (environment-aware)
+     */
+    public static function getSslCredentialsDir(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/ssl/credentials');
+    }
+
+    /** Legacy constants - DEPRECATED: Use getter methods instead */
     public const SSL_BASE_DIR = '/www/nginxconfig/ssl';
-    
-    /** SSL credentials directory for DNS providers */
     public const SSL_CREDENTIALS_DIR = '/www/nginxconfig/ssl/credentials';
-    
+
     // ==========================================
-    // WEB ROOT PATHS
+    // WEB ROOT PATHS (ENVIRONMENT-AWARE)
     // ==========================================
-    
-    /** Main web root directory */
+
+    /**
+     * Get main web root directory (environment-aware)
+     * Returns: /www/wwwroot (production) or /mnt/d/www/wwwroot (WSL)
+     */
+    public static function getWwwRoot(): string
+    {
+        return ServerManagerV1PathResolver::resolveWebRoot();
+    }
+
+    /**
+     * Get default website directory (environment-aware)
+     */
+    public static function getDefaultSiteDir(): string
+    {
+        return self::getWwwRoot() . '/default';
+    }
+
+    // Legacy constants for backwards compatibility
+    // DEPRECATED: Use getWwwRoot() instead
     public const WWW_ROOT = '/www/wwwroot';
-    
-    /** Default website directory */
     public const DEFAULT_SITE_DIR = '/www/wwwroot/default';
-    
+
     // ==========================================
-    // LARAVEL APPLICATION PATHS
+    // LARAVEL APPLICATION PATHS (ENVIRONMENT-AWARE)
     // ==========================================
-    
-    /** Laravel application base directory (will be set dynamically) */
+
+    /**
+     * Get Laravel base directory (environment-aware)
+     * Calculates relative to core_node root
+     */
+    public static function getLaravelBaseDir(): string
+    {
+        return ServerManagerV1PathResolver::getCoreNodePath() . '/poly_apps/laravel_main';
+    }
+
+    /**
+     * Get Laravel public directory (environment-aware)
+     */
+    public static function getLaravelPublicDir(): string
+    {
+        return self::getLaravelBaseDir() . '/public';
+    }
+
+    // Legacy constants for backwards compatibility
+    // DEPRECATED: Use getLaravelBaseDir() instead
     public const LARAVEL_BASE_DIR = '/mnt/d/programing/core_node/poly_apps/laravel_main';
-    
-    /** Laravel public directory */
     public const LARAVEL_PUBLIC_DIR = '/mnt/d/programing/core_node/poly_apps/laravel_main/public';
-    
+
     // ==========================================
-    // DATA STORAGE PATHS
+    // DATA STORAGE PATHS (ENVIRONMENT-AWARE)
     // ==========================================
-    
-    /** Shared data directory */
+
+    /**
+     * Get shared data directory (environment-aware)
+     */
+    public static function getSharedDataDir(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/shared-data');
+    }
+
+    /**
+     * Get SSL configuration JSON file path (environment-aware)
+     */
+    public static function getSslConfigFile(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/shared-data/ssl/ssl_config.json');
+    }
+
+    /**
+     * Get domain configuration JSON file path (environment-aware)
+     */
+    public static function getDomainConfigFile(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/shared-data/domains/domains_config.json');
+    }
+
+    /**
+     * Get certificate configuration JSON file path (environment-aware)
+     */
+    public static function getCertificateConfigFile(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/shared-data/ssl/certificates_config.json');
+    }
+
+    /** Legacy constants - DEPRECATED: Use getter methods instead */
     public const SHARED_DATA_DIR = '/www/shared-data';
-    
-    /** SSL configuration JSON file */
     public const SSL_CONFIG_FILE = '/www/shared-data/ssl/ssl_config.json';
-    
-    /** Domain configuration JSON file */
     public const DOMAIN_CONFIG_FILE = '/www/shared-data/domains/domains_config.json';
-    
-    /** Certificate configuration JSON file */
     public const CERTIFICATE_CONFIG_FILE = '/www/shared-data/ssl/certificates_config.json';
-    
+
     // ==========================================
     // LOG PATHS
     // ==========================================
-    
+
     /** Nginx log directory */
     public const NGINX_LOG_DIR = '/var/log/nginx';
-    
+
     /** ServerManager log directory */
     public const SERVERMANAGER_LOG_DIR = '/var/log/servermanager';
-    
+
     // ==========================================
-    // BACKUP PATHS
+    // BACKUP PATHS (ENVIRONMENT-AWARE)
     // ==========================================
-    
-    /** Nginx configuration backup directory */
+
+    /**
+     * Get nginx configuration backup directory (environment-aware)
+     */
+    public static function getNginxBackupDir(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/backup/nginx-configs');
+    }
+
+    /**
+     * Get SSL certificate backup directory (environment-aware)
+     */
+    public static function getSslBackupDir(): string
+    {
+        return ServerManagerV1PathResolver::mapWebPath('/www/backup/ssl-certs');
+    }
+
+    /** Legacy constants - DEPRECATED: Use getter methods instead */
     public const NGINX_BACKUP_DIR = '/www/backup/nginx-configs';
-    
-    /** SSL certificate backup directory */
     public const SSL_BACKUP_DIR = '/www/backup/ssl-certs';
-    
+
     // ==========================================
     // HELPER METHODS
     // ==========================================
-    
+
     /**
-     * Get SSL certificate directory for a specific domain
-     * 
+     * Get SSL certificate directory for a specific domain (environment-aware)
+     *
      * @param string $domain The domain name
      * @return string The SSL certificate directory path
      */
     public static function getSslCertDir(string $domain): string
     {
         $cleanDomain = trim(preg_replace('/[\r\n\t]/', '', $domain));
-        return self::SSL_BASE_DIR . '/' . $cleanDomain;
+        $basePath = self::getSslBaseDir();
+        return $basePath . '/' . $cleanDomain;
     }
-    
+
     /**
-     * Get website directory for a specific domain
-     * 
+     * Get website directory for a specific domain (environment-aware)
+     *
      * @param string $domain The domain name
      * @return string The website directory path
      */
     public static function getWebsiteDir(string $domain): string
     {
-        return self::WWW_ROOT . '/' . $domain;
+        return self::getWwwRoot() . '/' . $domain;
     }
-    
+
     /**
-     * Get nginx site configuration file path
-     * 
+     * Get nginx site configuration file path (environment-aware)
+     *
      * @param string $domain The domain name
      * @param bool $ssl Whether this is an SSL configuration
      * @return string The configuration file path
@@ -138,50 +246,52 @@ class ServerManagerV1PathConfig
     public static function getNginxSiteConfig(string $domain, bool $ssl = false): string
     {
         $suffix = $ssl ? '-ssl' : '';
-        return self::NGINX_SITES_AVAILABLE . '/' . $domain . $suffix;
+        $sitesAvailable = self::getNginxSitesAvailable();
+        return $sitesAvailable . '/' . $domain . $suffix;
     }
-    
+
     /**
-     * Get nginx enabled site link path
-     * 
+     * Get nginx enabled site link path (environment-aware)
+     *
      * @param string $domain The domain name
      * @return string The enabled site link path
      */
     public static function getNginxEnabledSite(string $domain): string
     {
-        return self::NGINX_SITES_ENABLED . '/' . $domain;
+        $sitesEnabled = self::getNginxSitesEnabled();
+        return $sitesEnabled . '/' . $domain;
     }
-    
+
     /**
-     * Get all required directories that should be created
-     * 
+     * Get all required directories that should be created (environment-aware)
+     *
      * @return array Array of directory paths
      */
     public static function getRequiredDirectories(): array
     {
         return [
-            self::NGINX_CONFIG_DIR,
-            self::NGINX_SITES_AVAILABLE,
-            self::NGINX_SITES_ENABLED,
-            self::NGINX_CONF_D,
-            self::SSL_BASE_DIR,
-            self::SSL_CREDENTIALS_DIR,
-            self::WWW_ROOT,
-            self::DEFAULT_SITE_DIR,
-            self::SHARED_DATA_DIR,
-            dirname(self::SSL_CONFIG_FILE),
-            dirname(self::DOMAIN_CONFIG_FILE),
-            dirname(self::CERTIFICATE_CONFIG_FILE),
+            self::getNginxConfigDir(),
+            self::getNginxSitesAvailable(),
+            self::getNginxSitesEnabled(),
+            ServerManagerV1PathResolver::mapWebPath('/www/nginxconfig/conf.d'),
+            self::getSslBaseDir(),
+            self::getSslCredentialsDir(),
+            self::getWwwRoot(),
+            self::getDefaultSiteDir(),
+            self::getSharedDataDir(),
+            dirname(self::getSslConfigFile()),
+            dirname(self::getDomainConfigFile()),
+            dirname(self::getCertificateConfigFile()),
             self::NGINX_LOG_DIR,
             self::SERVERMANAGER_LOG_DIR,
-            self::NGINX_BACKUP_DIR,
-            self::SSL_BACKUP_DIR,
+            self::getNginxBackupDir(),
+            self::getSslBackupDir(),
         ];
     }
-    
+
     /**
      * Validate that all required directories exist
-     * 
+     *
      * @return array Array of missing directories
      */
     public static function validateDirectories(): array

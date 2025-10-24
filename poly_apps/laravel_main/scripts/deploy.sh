@@ -25,6 +25,30 @@ APP_NAME="laravel_main"
 SERVICE_NAME="ncore-$APP_NAME"
 LOG_FILE="/var/log/ncore-services/$SERVICE_NAME.log"
 
+# Source common functions for WSL path mapping
+CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+COMMON_FUNCTIONS_PATH="$CORE_NODE_ROOT/scripts/shells/linux/common/common_functions.sh"
+GVAR_COMMON_PATH="$CORE_NODE_ROOT/scripts/shells/linux/common/gvar_common.sh"
+
+# Source gvar_common.sh for environment detection and path mapping
+if [ -f "$GVAR_COMMON_PATH" ]; then
+    source "$GVAR_COMMON_PATH"
+    echo "Loaded WSL path mapping functions from gvar_common.sh"
+    echo "Environment: IS_WSL=$IS_WSL, IS_PRODUCTION=$IS_PRODUCTION"
+else
+    echo "WARNING: gvar_common.sh not found at $GVAR_COMMON_PATH"
+    echo "WSL path mapping will not be available"
+    # Provide fallback function
+    map_web_path() {
+        echo "$1"
+    }
+    ensure_web_directory() {
+        local path="$1"
+        mkdir -p "$path" 2>/dev/null || true
+        echo "$path"
+    }
+fi
+
 # Check PHP version and compatibility
 check_php_version() {
     echo "=== PHP Version Check ==="
@@ -496,6 +520,36 @@ if [ "$CURRENT_ENV" = "production" ]; then
         echo "Nginx integration completed successfully"
     else
         echo "WARNING: Nginx integration encountered issues"
+    fi
+
+    # Deploy domain to nginx using ServerManagerV1 CLI
+    echo ""
+    echo "=== Domain Deployment to Nginx ==="
+    echo "You can deploy this Laravel application to a domain using:"
+    echo "  php artisan servermanager:deploy <domain> laravel [OPTIONS]"
+    echo ""
+    echo "Examples:"
+    echo "  1. Deploy to api.local.12gm.com with auto SSL:"
+    echo "     php artisan servermanager:deploy api.local.12gm.com laravel --php-version=8.4"
+    echo ""
+    echo "  2. Deploy without SSL:"
+    echo "     php artisan servermanager:deploy api.local.12gm.com laravel --no-ssl"
+    echo ""
+    echo "  3. Force update existing configuration:"
+    echo "     php artisan servermanager:deploy api.local.12gm.com laravel --force"
+    echo ""
+    read -p "Do you want to deploy a domain now? (y/N): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        read -p "Enter domain name (e.g., api.local.12gm.com): " domain_input
+        if [ -n "$domain_input" ]; then
+            echo "Deploying domain: $domain_input"
+            php artisan servermanager:deploy "$domain_input" laravel --php-version=8.4
+        else
+            echo "No domain entered, skipping deployment."
+        fi
+    else
+        echo "Skipping domain deployment. You can run it manually later."
     fi
 
     echo ""
