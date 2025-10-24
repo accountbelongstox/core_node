@@ -29,7 +29,7 @@ if [ -z "$USE_SUDO" ]; then
     USE_SUDO="sudo"
 fi
 
-CHECK_PACKAGES_SCRIPT="$SHELLS_SCRIPTS_DIR/check_global_packages.js"
+CHECK_PACKAGES_SCRIPT="$(dirname "$PARENT_DIR_LEVEL_2")/scripts/check_global_packages.js"
 
 # Function to extract package names from npm list output
 get_installed_packages() {
@@ -107,47 +107,75 @@ echo "[$SCRIPT_INDEX] Currently installed global packages:"
 echo "$INSTALLED_PACKAGES"
 echo "[$SCRIPT_INDEX] ----------------------------------------"
 
-# List of packages to install
-PACKAGES=(
-    "js-yaml"
-    "pm2"
-    "typescript"
-    "ts-node"
-    "nodemon"
-    "yarn"
-    "pnpm"
-    "http-server"
-    "puppeteer"
-    "serve"
-    "npm-check-updates"
-    "node-gyp"
+# Package mapping: install_name:import_name
+declare -A PACKAGES=(
+    ["js-yaml"]="js-yaml"
+    ["pm2"]="pm2"
+    ["typescript"]="typescript"
+    ["ts-node"]="ts-node"
+    ["nodemon"]="nodemon"
+    ["yarn"]="yarn"
+    ["pnpm"]="pnpm"
+    ["http-server"]="http-server"
+    ["puppeteer"]="puppeteer"
+    ["serve"]="serve"
+    ["npm-check-updates"]="npm-check-updates"
+    ["node-gyp"]="node-gyp"
 )
 
-# Install packages
-echo "[$SCRIPT_INDEX] Checking and installing required packages..."
-failed_packages=()
-
-for package in "${PACKAGES[@]}"; do
-    if ! ensure_package "$package"; then
-        failed_packages+=("$package")
+# Convert PACKAGES array to JSON format for Node.js script
+PACKAGES_JSON="{"
+first=true
+for install_name in "${!PACKAGES[@]}"; do
+    import_name="${PACKAGES[$install_name]}"
+    if [ "$first" = true ]; then
+        first=false
+    else
+        PACKAGES_JSON+=","
     fi
+    PACKAGES_JSON+="\"$install_name\":\"$import_name\""
 done
+PACKAGES_JSON+="}"
 
-# Report any failures
-if [ ${#failed_packages[@]} -gt 0 ]; then
-    echo "[$SCRIPT_INDEX] Failed to install packages: ${failed_packages[*]}"
-    echo "[$SCRIPT_INDEX] Some packages may require manual installation"
+echo "[$SCRIPT_INDEX] Checking packages using Node.js script..."
+echo "[$SCRIPT_INDEX] Package mapping: $PACKAGES_JSON"
+
+# Use Node.js script to check which packages are missing
+if [ -f "$CHECK_PACKAGES_SCRIPT" ]; then
+    echo "[$SCRIPT_INDEX] Using Node.js script for package detection..."
+    MISSING_PACKAGES=$(node "$CHECK_PACKAGES_SCRIPT" check "$PACKAGES_JSON")
+    
+    if [ -n "$MISSING_PACKAGES" ] && [ "$MISSING_PACKAGES" != "[]" ]; then
+        echo "[$SCRIPT_INDEX] Missing packages detected: $MISSING_PACKAGES"
+        
+        # Parse missing packages and install them
+        echo "$MISSING_PACKAGES" | jq -r '.[]' | while read -r package; do
+            if [ -n "$package" ]; then
+                echo "[$SCRIPT_INDEX] Installing missing package: $package"
+                if ! ensure_package "$package"; then
+                    echo "[$SCRIPT_INDEX] Failed to install $package"
+                fi
+            fi
+        done
+    else
+        echo "[$SCRIPT_INDEX] All required packages are already installed"
+    fi
 else
-    echo "[$SCRIPT_INDEX] All packages installed successfully"
+    echo "[$SCRIPT_INDEX] Warning: check_global_packages.js not found, falling back to individual package checking..."
+    failed_packages=()
+    
+    for install_name in "${!PACKAGES[@]}"; do
+        if ! ensure_package "$install_name"; then
+            failed_packages+=("$install_name")
+        fi
+    done
+    
+    if [ ${#failed_packages[@]} -gt 0 ]; then
+        echo "[$SCRIPT_INDEX] Failed to install packages: ${failed_packages[*]}"
+    else
+        echo "[$SCRIPT_INDEX] All packages installed successfully"
+    fi
 fi
-
-# Verify installations
-echo "[$SCRIPT_INDEX] Verifying installations..."
-npm list -g --depth=0
-
-# Display npm configuration
-echo "[$SCRIPT_INDEX] NPM Configuration:"
-npm config list
 
 echo "[$SCRIPT_INDEX] Package installation process completed"
 

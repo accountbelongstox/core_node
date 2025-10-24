@@ -9,10 +9,10 @@
 #   ./120_install_desktop_applications.sh --cleanup code    # Force cleanup "code" from all package managers
 #
 # Parameter Rules:
-#   â€?Single parameter: UPPERCASE = group match, lowercase = app name match
-#   â€?Two parameters: first = group, second = app name within that group
-#   â€?All matching is case-insensitive internally
-#   â€?Any parameters will show rules and wait for confirmation
+#   ï¿½?Single parameter: UPPERCASE = group match, lowercase = app name match
+#   ï¿½?Two parameters: first = group, second = app name within that group
+#   ï¿½?All matching is case-insensitive internally
+#   ï¿½?Any parameters will show rules and wait for confirmation
 #
 # Test mode ignores installation flag files and installs matching packages directly
 # Cleanup mode removes packages from snap, apt, flatpak and cleans up binaries
@@ -51,12 +51,37 @@ INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "120_install_desktop_applications")
 LOG_FILE="$SCRIPT_TEMP_DIR/desktop_apps_install_$(date +%Y%m%d_%H%M%S).log"
 
-# Package group installation flags
+# Package group installation flags - set defaults based on environment
+# Base packages: always true for essential tools
 INSTALL_BASE_PACKAGES=$(get_var "INSTALL_BASE_PACKAGES" "true")
-INSTALL_DEV_PACKAGES=$(get_var "INSTALL_DEV_PACKAGES" "false")
-INSTALL_APP_PACKAGES=$(get_var "INSTALL_APP_PACKAGES" "false")
-INSTALL_AI_PACKAGES=$(get_var "INSTALL_AI_PACKAGES" "false")
-INSTALL_MCP_PACKAGES=$(get_var "INSTALL_MCP_PACKAGES" "false")
+
+# Development packages: true if desktop environment or WSL
+if [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || [ "$IS_WSL" = true ]; then
+    INSTALL_DEV_PACKAGES=$(get_var "INSTALL_DEV_PACKAGES" "true")
+else
+    INSTALL_DEV_PACKAGES=$(get_var "INSTALL_DEV_PACKAGES" "false")
+fi
+
+# Application packages: true only if desktop environment (not server)
+if [ "$HAS_DESKTOP_ENVIRONMENT" = true ]; then
+    INSTALL_APP_PACKAGES=$(get_var "INSTALL_APP_PACKAGES" "true")
+else
+    INSTALL_APP_PACKAGES=$(get_var "INSTALL_APP_PACKAGES" "false")
+fi
+
+# AI packages: true if desktop environment or WSL
+if [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || [ "$IS_WSL" = true ]; then
+    INSTALL_AI_PACKAGES=$(get_var "INSTALL_AI_PACKAGES" "true")
+else
+    INSTALL_AI_PACKAGES=$(get_var "INSTALL_AI_PACKAGES" "false")
+fi
+
+# MCP packages: true if desktop environment or WSL
+if [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || [ "$IS_WSL" = true ]; then
+    INSTALL_MCP_PACKAGES=$(get_var "INSTALL_MCP_PACKAGES" "true")
+else
+    INSTALL_MCP_PACKAGES=$(get_var "INSTALL_MCP_PACKAGES" "false")
+fi
 
 # Logging function
 log_message() {
@@ -69,6 +94,11 @@ INSTALL_AI_TOOLS=$(get_var "INSTALL_AI_TOOLS" "false")
 
 log_message "Starting desktop applications installation for Linux..."
 log_message "Install mode: $INSTALL_MODE"
+log_message "Environment detection:"
+log_message "  IS_WSL: $IS_WSL"
+log_message "  IS_PRODUCTION: $IS_PRODUCTION"
+log_message "  HAS_DESKTOP_ENVIRONMENT: $HAS_DESKTOP_ENVIRONMENT"
+log_message "  DESKTOP_ENVIRONMENT: $DESKTOP_ENVIRONMENT"
 
 # Function to check if command exists
 command_exists() {
@@ -488,13 +518,19 @@ install_application() {
     local verify_command=""
     local launch_command=""
 
+    # Handle MCP apps (remove mcp_ prefix for property lookup)
+    local lookup_app="$app_name"
+    if [[ "$app_name" == mcp_* ]]; then
+        lookup_app="${app_name#mcp_}"
+    fi
+
     # Get application properties using the unified structure
-    display_name=$(get_app_property "$app_name" "name")
-    exec_name=$(get_app_property "$app_name" "exec")
-    install_method=$(get_install_method "$app_name")
-    package_id=$(get_package_id "$app_name")
-    verify_command=$(get_app_property "$app_name" "verify_command")
-    launch_command=$(get_launch_command "$app_name")
+    display_name=$(get_app_property "$lookup_app" "name")
+    exec_name=$(get_app_property "$lookup_app" "exec")
+    install_method=$(get_install_method "$lookup_app")
+    package_id=$(get_package_id "$lookup_app")
+    verify_command=$(get_app_property "$lookup_app" "verify_command")
+    launch_command=$(get_launch_command "$lookup_app")
     
     # Skip if no package ID or install method
     if [ -z "$package_id" ] || [ -z "$install_method" ]; then
@@ -521,7 +557,7 @@ install_application() {
     # Create launch script if installation was successful and launch command exists
     if [ $install_result -eq 0 ] && [ -n "$launch_command" ]; then
         log_message "Creating launch script for $display_name"
-        create_launch_script "$app_name"
+        create_launch_script "$lookup_app"
     fi
     
     # Verify installation
@@ -759,13 +795,13 @@ show_help() {
     echo "  $0 --help                # Show this help message"
     echo ""
     echo "Parameter Rules:"
-    echo "  â€?Single parameter:"
+    echo "  ï¿½?Single parameter:"
     echo "    - UPPERCASE: Match package group (e.g., DEV, BASE, APP)"
     echo "    - lowercase: Match application name (e.g., code, firefox)"
-    echo "  â€?Two parameters:"
+    echo "  ï¿½?Two parameters:"
     echo "    - First: Package group name"
     echo "    - Second: Application name within that group"
-    echo "  â€?All matching is case-insensitive internally"
+    echo "  ï¿½?All matching is case-insensitive internally"
     echo ""
     echo "Package Groups:"
     echo "  BASE - Essential base applications"
@@ -787,13 +823,13 @@ show_parameter_rules_and_confirm() {
     echo "=========================================="
     echo "PARAMETER MATCHING RULES"
     echo "=========================================="
-    echo "â€?Single parameter:"
+    echo "ï¿½?Single parameter:"
     echo "  - UPPERCASE: Match package group (e.g., DEV, BASE, APP)"
     echo "  - lowercase: Match application name (e.g., code, firefox)"
-    echo "â€?Two parameters:"
+    echo "ï¿½?Two parameters:"
     echo "  - First: Package group name"
     echo "  - Second: Application name within that group"
-    echo "â€?All matching is case-insensitive internally"
+    echo "ï¿½?All matching is case-insensitive internally"
     echo ""
 
     if [ -n "$param2" ]; then
