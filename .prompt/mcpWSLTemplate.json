@@ -1,14 +1,18 @@
 {
     "mcpServers": {
-        "github.com/upstash/context7-mcp": {
-            "command": "npx",
+        "AutoContext7MCP": {
+            "command": "bash",
             "args": [
-                "-y",
-                "@upstash/context7-mcp"
+                "/mnt/d/programing/core_node/ncore/mcp_server/auto-context7-mcp/auto_fix_context7.sh"
             ],
+            "env": {
+                "MAX_RETRIES": "3",
+                "RETRY_DELAY": "2",
+                "FORCE_REINSTALL": "false"
+            },
             "disabled": false,
             "autoApprove": [],
-            "timeout": 60000
+            "timeout": 120000
         },
         "McpAlchemy": {
             "command": "python3",
