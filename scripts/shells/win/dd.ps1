@@ -364,15 +364,6 @@ $script:MenuItems = @(
         }
     },
     @{
-        Text              = "Backup this project"
-        Values            = @("default")
-        CurrentValueIndex = 0
-        Key               = $null
-        Action            = {
-            Show-BackupSubMenu
-        }
-    },
-    @{
         Text              = "Get the latest git version"
         Values            = @("default")
         CurrentValueIndex = 0
@@ -387,8 +378,25 @@ $script:MenuItems = @(
         Values            = @("default")
         CurrentValueIndex = 0
         Key               = $null
-        Action            = { 
+        Action            = {
             Show-SpecialSoftwareEnvMenu
+        }
+    },
+    @{
+        Text              = "Backup Management"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
+            if (Test-Path $backupMenuScript) {
+                Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
+            } else {
+                Write-ColorMessage -Message "Error: BackupManager.ps1 script not found at: $backupMenuScript" -Type "Error"
+                Write-ColorMessage -Message "Please check if the backup manager is properly installed" -Type "Info"
+                Read-Host "Press Enter to continue"
+            }
         }
     },
     @{
@@ -1366,24 +1374,6 @@ function Show-WSLUbuntuSubMenu {
     } else {
         Write-ColorMessage -Message "Error: WSLUbuntuManager.ps1 script not found at: $wslMenuScript" -Type "Error"
         Write-ColorMessage -Message "Please check if the WSL Ubuntu manager is properly installed" -Type "Info"
-        Read-Host "Press Enter to continue"
-    }
-}
-
-function Show-BackupSubMenu {
-    $backupScript = Join-Path $script:SCRIPT_DIR "pytools\backup_core_node_script\backup_manager.py"
-    
-    if (Test-Path $backupScript) {
-        Write-ColorMessage -Message "Launching Backup Manager..." -Type "Info"
-        try {
-            & python $backupScript
-        } catch {
-            Write-ColorMessage -Message "Error running backup script: $($_.Exception.Message)" -Type "Error"
-            Read-Host "Press Enter to continue"
-        }
-    } else {
-        Write-ColorMessage -Message "Error: backup_manager.py script not found at: $backupScript" -Type "Error"
-        Write-ColorMessage -Message "Please check if the backup script is properly installed" -Type "Info"
         Read-Host "Press Enter to continue"
     }
 }
