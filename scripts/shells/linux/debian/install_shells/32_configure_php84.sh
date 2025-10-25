@@ -139,7 +139,7 @@ setup_php_default() {
         echo -e "${CYAN}$SCRIPT_INDEX Current PHP default: $current_php${NC}"
 
         if [ "$current_php" = "/usr/bin/php8.4" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is now the system default ï¿½?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is now the system default ï¿?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.4 default verification failed${NC}"
         fi
@@ -155,7 +155,7 @@ setup_php_default() {
         echo -e "${GREEN}$SCRIPT_INDEX Current PHP version: $php_version${NC}"
 
         if [[ "$php_version" == "8.4"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is active and working ï¿½?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 is active and working ï¿?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP version mismatch: expected 8.4.x, got $php_version${NC}"
         fi
@@ -188,7 +188,7 @@ setup_php_default() {
         local alternatives_count=$(echo "$alternatives_list" | wc -l)
 
         if [ $alternatives_count -eq 1 ] && echo "$alternatives_list" | grep -q "php8.4"; then
-            echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.4 is in alternatives ï¿½?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.4 is in alternatives ï¿?{NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Warning: Multiple PHP versions in alternatives:${NC}"
             echo "$alternatives_list"

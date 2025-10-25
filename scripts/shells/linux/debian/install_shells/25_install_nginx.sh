@@ -288,10 +288,10 @@ force_stop_port_80_services() {
             # Don't fail, just warn
             return 1
         else
-            echo "[$SCRIPT_INDEX] ï¿½?Port 80 cleared for Nginx"
+            echo "[$SCRIPT_INDEX] ï¿?Port 80 cleared for Nginx"
         fi
     else
-        echo "[$SCRIPT_INDEX] ï¿½?Port 80 is available"
+        echo "[$SCRIPT_INDEX] ï¿?Port 80 is available"
     fi
 
     return 0
