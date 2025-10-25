@@ -1,3 +1,40 @@
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+<#
+.SYNOPSIS
+    Applications list management and export utility
+
+.DESCRIPTION
+    This script manages application package definitions and can export them in JSON format
+    for use by backup systems and other automation tools.
+
+.PARAMETER OutputApplicationsList
+    When specified, outputs the applications list in JSON format and exits.
+    This is used by backup systems to get the list of applications to backup.
+
+.EXAMPLE
+    .\ApplicationsList.ps1 -OutputApplicationsList
+    Outputs JSON array of all applications with their installation paths
+
+.EXAMPLE
+    . .\ApplicationsList.ps1
+    Loads the applications configuration (normal usage)
+#>
+
+param(
+    [Parameter(Mandatory=$false)]
+    [switch]$OutputApplicationsList
+)
 
 # Import GlobalVars for access to global variables
 $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\GlobalVars.ps1"
@@ -1837,7 +1874,85 @@ $Global:CUSTOM_SCRIPTS_AND_COMMANDS = @{
         ItemCommand           = "$Global:CORE_NODE_SCRIPTS_DIR\gitput.bat"
         DesktopCategory       = $Global:DESKTOP_CATEGORY_DEV_SCRIPTS
         Description           = "Quick Git status and recent commits"
-        CreateDesktopShortcut = $true 
+        CreateDesktopShortcut = $true
     }
 }
+
+# Output applications list in JSON format if requested
+# This is used by backup systems to get the list of installed applications
+if ($OutputApplicationsList) {
+    $applicationsOutput = @()
+
+    # Combine all package collections with source tracking
+    $allPackages = @{}
+
+    # Add APPLICATIONS_PACKAGES
+    if ($Global:APPLICATIONS_PACKAGES) {
+        foreach ($key in $Global:APPLICATIONS_PACKAGES.Keys) {
+            $packageCopy = $Global:APPLICATIONS_PACKAGES[$key].Clone()
+            $packageCopy['_PackageSource'] = 'APPLICATIONS_PACKAGES'
+            $allPackages[$key] = $packageCopy
+        }
+    }
+
+    # Add DEV_SOFTWARE_PACKAGES
+    if ($Global:DEV_SOFTWARE_PACKAGES) {
+        foreach ($key in $Global:DEV_SOFTWARE_PACKAGES.Keys) {
+            $packageCopy = $Global:DEV_SOFTWARE_PACKAGES[$key].Clone()
+            $packageCopy['_PackageSource'] = 'DEV_SOFTWARE_PACKAGES'
+            $allPackages[$key] = $packageCopy
+        }
+    }
+
+    # Add COMMON_SOFTWARE_PACKAGES
+    if ($Global:COMMON_SOFTWARE_PACKAGES) {
+        foreach ($key in $Global:COMMON_SOFTWARE_PACKAGES.Keys) {
+            $packageCopy = $Global:COMMON_SOFTWARE_PACKAGES[$key].Clone()
+            $packageCopy['_PackageSource'] = 'COMMON_SOFTWARE_PACKAGES'
+            $allPackages[$key] = $packageCopy
+        }
+    }
+
+    # Process each package
+    foreach ($packageKey in $allPackages.Keys) {
+        $package = $allPackages[$packageKey]
+
+        $appInfo = @{
+            Name = if ($package.ContainsKey('Name')) { $package.Name } else { $packageKey }
+            Exec = if ($package.ContainsKey('Exec')) { $package.Exec } else { $null }
+            PackageId = if ($package.ContainsKey('PackageId')) { $package.PackageId } else { $null }
+            Description = if ($package.ContainsKey('Description')) { $package.Description } else { $null }
+            InstallType = if ($package.ContainsKey('InstallType')) { $package.InstallType } else { $null }
+            ForceToInstallDir = if ($package.ContainsKey('ForceToInstallDir')) { $package.ForceToInstallDir } else { $false }
+            AppCustomInstallDir = if ($package.ContainsKey('AppCustomInstallDir')) { $package.AppCustomInstallDir } else { $null }
+            Category = if ($package.ContainsKey('DesktopCategory')) { $package.DesktopCategory } else { $null }
+            PackageSource = if ($package.ContainsKey('_PackageSource')) { $package._PackageSource } else { 'UNKNOWN' }
+        }
+
+        $applicationsOutput += $appInfo
+    }
+
+    # Define output directory and file path
+    $userProfile = $env:USERPROFILE
+    $pybackupDir = Join-Path $userProfile ".core_node\pybackup"
+    $jsonOutputFile = Join-Path $pybackupDir "applications_list.json"
+
+    # Ensure directory exists
+    if (-not (Test-Path $pybackupDir)) {
+        New-Item -ItemType Directory -Path $pybackupDir -Force | Out-Null
+    }
+
+    # Convert to JSON and save to file
+    $jsonOutput = $applicationsOutput | ConvertTo-Json -Depth 10
+
+    # Write to file
+    $jsonOutput | Out-File -FilePath $jsonOutputFile -Encoding UTF8 -Force
+
+    # Also output to stdout for compatibility
+    Write-Output $jsonOutput
+
+    # Exit immediately to prevent loading rest of the script
+    exit 0
+}
+
 
