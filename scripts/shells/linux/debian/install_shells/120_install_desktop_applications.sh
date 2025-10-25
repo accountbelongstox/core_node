@@ -9,10 +9,10 @@
 #   ./120_install_desktop_applications.sh --cleanup code    # Force cleanup "code" from all package managers
 #
 # Parameter Rules:
-#   ï¿½?Single parameter: UPPERCASE = group match, lowercase = app name match
-#   ï¿½?Two parameters: first = group, second = app name within that group
-#   ï¿½?All matching is case-insensitive internally
-#   ï¿½?Any parameters will show rules and wait for confirmation
+#   ï¿?Single parameter: UPPERCASE = group match, lowercase = app name match
+#   ï¿?Two parameters: first = group, second = app name within that group
+#   ï¿?All matching is case-insensitive internally
+#   ï¿?Any parameters will show rules and wait for confirmation
 #
 # Test mode ignores installation flag files and installs matching packages directly
 # Cleanup mode removes packages from snap, apt, flatpak and cleans up binaries
@@ -795,13 +795,13 @@ show_help() {
     echo "  $0 --help                # Show this help message"
     echo ""
     echo "Parameter Rules:"
-    echo "  ï¿½?Single parameter:"
+    echo "  ï¿?Single parameter:"
     echo "    - UPPERCASE: Match package group (e.g., DEV, BASE, APP)"
     echo "    - lowercase: Match application name (e.g., code, firefox)"
-    echo "  ï¿½?Two parameters:"
+    echo "  ï¿?Two parameters:"
     echo "    - First: Package group name"
     echo "    - Second: Application name within that group"
-    echo "  ï¿½?All matching is case-insensitive internally"
+    echo "  ï¿?All matching is case-insensitive internally"
     echo ""
     echo "Package Groups:"
     echo "  BASE - Essential base applications"
@@ -823,13 +823,13 @@ show_parameter_rules_and_confirm() {
     echo "=========================================="
     echo "PARAMETER MATCHING RULES"
     echo "=========================================="
-    echo "ï¿½?Single parameter:"
+    echo "ï¿?Single parameter:"
     echo "  - UPPERCASE: Match package group (e.g., DEV, BASE, APP)"
     echo "  - lowercase: Match application name (e.g., code, firefox)"
-    echo "ï¿½?Two parameters:"
+    echo "ï¿?Two parameters:"
     echo "  - First: Package group name"
     echo "  - Second: Application name within that group"
-    echo "ï¿½?All matching is case-insensitive internally"
+    echo "ï¿?All matching is case-insensitive internally"
     echo ""
 
     if [ -n "$param2" ]; then
