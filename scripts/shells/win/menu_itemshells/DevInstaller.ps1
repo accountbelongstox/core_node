@@ -35,7 +35,7 @@ $script:BASE_SCRIPTS_DOWNLOADED = $false
 
 # Load common/global modules first (as per spec)
 . "$WIN_COMMON_DIR/GlobalVars.ps1"
-. "$WIN_COMMON_DIR/CommanFunc.ps1"
+. "$WIN_COMMON_DIR/CommonFunc.ps1"
 . "$WIN_COMMON_DIR/WindowsPathFunction.ps1" -version
 
 

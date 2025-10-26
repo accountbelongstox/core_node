@@ -12,7 +12,7 @@
 
 $WinCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) "win_common"
 . (Join-Path $WinCommonDir "GlobalVars.ps1")
-. (Join-Path $WinCommonDir "CommanFunc.ps1")
+. (Join-Path $WinCommonDir "CommonFunc.ps1")
 
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"

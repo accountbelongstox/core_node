@@ -38,7 +38,7 @@
 
 # Import global variables and common functions
 . "$PSScriptRoot\GlobalVars.ps1"
-. "$PSScriptRoot\CommanFunc.ps1"
+. "$PSScriptRoot\CommonFunc.ps1"
 
 # MCP path constants - Fixed paths for consistent MCP configuration handling
 $Global:MCP_CONFIG_PATH = Join-Path $Global:PROJECT_DIR ".prompt\mcp.json"

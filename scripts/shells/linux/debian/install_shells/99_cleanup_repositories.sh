@@ -151,10 +151,10 @@ stop_mysql_services() {
 # Function to remove MySQL packages
 remove_mysql_packages() {
     echo "[$SCRIPT_INDEX] Removing MySQL packages..."
-    
+
     # Stop services first
     stop_mysql_services
-    
+
     # Remove MySQL/MariaDB packages
     $USE_SUDO apt remove --purge -y \
         mariadb-server \
@@ -167,19 +167,20 @@ remove_mysql_packages() {
         libmariadb-dev \
         libmysqlclient21 \
         libmysqlclient-dev 2>/dev/null || true
-    
-    # Remove MySQL data directories
-    if [ -d "/www/mysql" ]; then
-        $USE_SUDO rm -rf "/www/mysql"
-        echo "[$SCRIPT_INDEX] Removed MySQL data directory"
+
+    # Remove MySQL data directories using path mapping from gvar_common.sh
+    local mysql_data_dir=$(map_web_path "/www/mysql")
+    if [ -d "$mysql_data_dir" ]; then
+        $USE_SUDO rm -rf "$mysql_data_dir"
+        echo "[$SCRIPT_INDEX] Removed MySQL data directory: $mysql_data_dir"
     fi
-    
+
     # Remove MySQL configuration
     if [ -d "/etc/mysql" ]; then
         $USE_SUDO rm -rf "/etc/mysql"
         echo "[$SCRIPT_INDEX] Removed MySQL configuration directory"
     fi
-    
+
     # Remove MySQL user and group
     if getent passwd mysql >/dev/null 2>&1; then
         $USE_SUDO userdel mysql 2>/dev/null || true
@@ -189,7 +190,7 @@ remove_mysql_packages() {
         $USE_SUDO groupdel mysql 2>/dev/null || true
         echo "[$SCRIPT_INDEX] Removed MySQL group"
     fi
-    
+
     echo "[$SCRIPT_INDEX] MySQL packages removal completed"
 }
 

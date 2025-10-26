@@ -63,7 +63,7 @@ fi
 
 # Function to kill hanging Edge processes
 kill_edge_processes() {
-    local count=$(pgrep -c "microsoft-edge" 2>/dev/null || echo "0")
+    local count=$(pgrep -c "microsoft-edge" 2>/dev/null | tr -d '\n' || echo "0")
     if [ "$count" -gt 3 ]; then
         echo "[$SCRIPT_INDEX] Found $count Edge processes, cleaning up..."
         $USE_SUDO pkill -f "microsoft-edge" 2>/dev/null || true
@@ -150,7 +150,7 @@ echo "[$SCRIPT_INDEX] ==============================="
 check_edge_version
 
 # Check running processes
-local edge_processes=$(ps aux | grep -i "microsoft-edge" | grep -v grep | wc -l)
+local edge_processes=$(ps aux | grep -i "microsoft-edge" | grep -v grep | wc -l | tr -d '\n')
 if [ "$edge_processes" -gt 0 ]; then
     echo "[$SCRIPT_INDEX] Found $edge_processes Edge processes running"
 else

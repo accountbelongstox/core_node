@@ -15,10 +15,6 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 
-// Register ServerManagerV1 Commands
-use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1CertificateCommand;
-use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1WebsiteCommand;
-
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');

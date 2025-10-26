@@ -1,0 +1,595 @@
+=== System Information ===
+Script Directory: /mnt/d/programing/core_node/scripts/shells/linux
+Shells Directory: /mnt/d/programing/core_node/scripts/shells/linux
+Core Scripts Directory: /mnt/d/programing/core_node/scripts/shells
+Core Node Directory: /mnt/d/programing/core_node
+COMPILE_DIR: /www/dev_ubuntu24
+Global temporary directory: /var/tmp/core_node
+/mnt/d/programing/core_node/scripts/shells/linux/common/gvar_common.sh: line 354: set_var: command not found
+=== System Information ===
+Script Directory: /mnt/d/programing/core_node/scripts/shells/linux
+Shells Directory: /mnt/d/programing/core_node/scripts/shells/linux
+Core Scripts Directory: /mnt/d/programing/core_node/scripts/shells
+Core Node Directory: /mnt/d/programing/core_node
+COMPILE_DIR: /www/dev_ubuntu24
+Global temporary directory: /var/tmp/core_node
+COMPILE_DIR: /www/dev_ubuntu24
+Global temporary directory: /var/tmp/core_node
+=== System Information ===
+Script Directory: /mnt/d/programing/core_node/scripts/shells/linux
+Shells Directory: /mnt/d/programing/core_node/scripts/shells/linux
+Core Scripts Directory: /mnt/d/programing/core_node/scripts/shells
+Core Node Directory: /mnt/d/programing/core_node
+COMPILE_DIR: /www/dev_ubuntu24
+Global temporary directory: /var/tmp/core_node
+[31_PHP84_INTELLIGENT] INSTALL_NGINX: true
+============================================================================
+[31_PHP84_INTELLIGENT] Intelligent PHP 8.4 Installation System
+============================================================================
+[31_PHP84_INTELLIGENT] [PRE-FLIGHT] Running system checks...
+[31_PHP84_INTELLIGENT] Running as root
+[31_PHP84_INTELLIGENT] [PRE-CHECK] Running pre-installation verification...
+[31_PHP84_INTELLIGENT] Checking PHP 8.4 state...
+[31_PHP84_INTELLIGENT] [ANALYSIS] Performing comprehensive PHP state analysis...
+[31_PHP84_INTELLIGENT] PHP 8.4 binary found: /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] [DETECTION] Analyzing PHP binary state...
+[31_PHP84_INTELLIGENT] PHP command found: /usr/local/bin/php
+[31_PHP84_INTELLIGENT] PHP version: 8.4
+[31_PHP84_INTELLIGENT]
+[31_PHP84_INTELLIGENT] [DETECTION] Checking PHP version...
+[31_PHP84_INTELLIGENT] Current PHP version: 8.4
+[31_PHP84_INTELLIGENT] PHP version is compatible
+>>> [31_PHP84_INTELLIGENT] Checking PHP-FPM service status...
+[OK] [31_PHP84_INTELLIGENT] PHP-FPM service is running: php8.4-fpm
+[OK] [31_PHP84_INTELLIGENT] PHP-FPM socket exists: /run/php/php8.4-fpm.sock
+[INFO] [31_PHP84_INTELLIGENT] Socket permissions: 660
+[31_PHP84_INTELLIGENT] [DETECTION] Checking required PHP extensions...
+[31_PHP84_INTELLIGENT] Extension curl (curl): OK
+[31_PHP84_INTELLIGENT] Extension mbstring (mbstring): OK
+[31_PHP84_INTELLIGENT] Extension xml (xml): OK
+[31_PHP84_INTELLIGENT] Extension zip (zip): OK
+[31_PHP84_INTELLIGENT] Extension gd (gd): OK
+[31_PHP84_INTELLIGENT] Extension mysql (mysqli): OK
+[31_PHP84_INTELLIGENT] Extension opcache (Zend OPcache): OK
+[31_PHP84_INTELLIGENT] Extension intl (intl): OK
+[31_PHP84_INTELLIGENT] Extension bcmath (bcmath): OK
+[31_PHP84_INTELLIGENT] All required extensions are available
+>>> [31_PHP84_INTELLIGENT] Checking symbolic link: /usr/local/bin/php
+[INFO] [31_PHP84_INTELLIGENT] Current symlink target: /usr/bin/php8.4
+[OK] [31_PHP84_INTELLIGENT] Symlink is correct: /usr/local/bin/php -> /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] State: Fully configured and operational
+[31_PHP84_INTELLIGENT] Checking Composer state...
+[31_PHP84_INTELLIGENT] [ANALYSIS] Performing Composer state analysis...
+[31_PHP84_INTELLIGENT] [DETECTION] Analyzing Composer binary state...
+[31_PHP84_INTELLIGENT] Composer not found
+[31_PHP84_INTELLIGENT] Composer: Not available
+[31_PHP84_INTELLIGENT]  PHP 8.4 is fully configured and ready
+[31_PHP84_INTELLIGENT]  Composer needs attention (state code: 1)
+[31_PHP84_INTELLIGENT] Some components require installation/repair. Proceeding with installation...
+[31_PHP84_INTELLIGENT]  Composer installation required
+[31_PHP84_INTELLIGENT] Proceeding with installation/configuration...
+[31_PHP84_INTELLIGENT] [ANALYSIS] Performing comprehensive PHP state analysis...
+[31_PHP84_INTELLIGENT] PHP 8.4 binary found: /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] [DETECTION] Analyzing PHP binary state...
+[31_PHP84_INTELLIGENT] PHP command found: /usr/local/bin/php
+[31_PHP84_INTELLIGENT] PHP version: 8.4
+[31_PHP84_INTELLIGENT]
+[31_PHP84_INTELLIGENT] [DETECTION] Checking PHP version...
+[31_PHP84_INTELLIGENT] Current PHP version: 8.4
+[31_PHP84_INTELLIGENT] PHP version is compatible
+>>> [31_PHP84_INTELLIGENT] Checking PHP-FPM service status...
+[OK] [31_PHP84_INTELLIGENT] PHP-FPM service is running: php8.4-fpm
+[OK] [31_PHP84_INTELLIGENT] PHP-FPM socket exists: /run/php/php8.4-fpm.sock
+[INFO] [31_PHP84_INTELLIGENT] Socket permissions: 660
+[31_PHP84_INTELLIGENT] [DETECTION] Checking required PHP extensions...
+[31_PHP84_INTELLIGENT] Extension curl (curl): OK
+[31_PHP84_INTELLIGENT] Extension mbstring (mbstring): OK
+[31_PHP84_INTELLIGENT] Extension xml (xml): OK
+[31_PHP84_INTELLIGENT] Extension zip (zip): OK
+[31_PHP84_INTELLIGENT] Extension gd (gd): OK
+[31_PHP84_INTELLIGENT] Extension mysql (mysqli): OK
+[31_PHP84_INTELLIGENT] Extension opcache (Zend OPcache): OK
+[31_PHP84_INTELLIGENT] Extension intl (intl): OK
+[31_PHP84_INTELLIGENT] Extension bcmath (bcmath): OK
+[31_PHP84_INTELLIGENT] All required extensions are available
+>>> [31_PHP84_INTELLIGENT] Checking symbolic link: /usr/local/bin/php
+[INFO] [31_PHP84_INTELLIGENT] Current symlink target: /usr/bin/php8.4
+[OK] [31_PHP84_INTELLIGENT] Symlink is correct: /usr/local/bin/php -> /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] State: Fully configured and operational
+[31_PHP84_INTELLIGENT] PHP 8.4 detected, checking for missing extensions...
+[31_PHP84_INTELLIGENT] [FIX] Checking and fixing missing PHP extensions...
+[31_PHP84_INTELLIGENT] Checking all required extensions...
+[31_PHP84_INTELLIGENT] curl: loaded ✓
+[31_PHP84_INTELLIGENT] mbstring: loaded ✓
+[31_PHP84_INTELLIGENT] xml: loaded ✓
+[31_PHP84_INTELLIGENT] zip: loaded ✓
+[31_PHP84_INTELLIGENT] gd: loaded ✓
+[31_PHP84_INTELLIGENT] mysqli: loaded ✓
+[31_PHP84_INTELLIGENT] Zend OPcache: loaded ✓
+[31_PHP84_INTELLIGENT] intl: loaded ✓
+[31_PHP84_INTELLIGENT] bcmath: loaded ✓
+[31_PHP84_INTELLIGENT] All required extension packages are installed
+[31_PHP84_INTELLIGENT] [EXECUTION] Starting PHP 8.4 installation process...
+/mnt/d/programing/core_node/scripts/shells/linux/debian/install_shells/31_ensure_php84_intelligent.sh: line 863: prevent_apache2_conflicts_from_common_functions: command not found
+[31_PHP84_INTELLIGENT] Apache2 cleanup completed with warnings
+[31_PHP84_INTELLIGENT] [CLEANUP] Removing old PHP versions from PATH and disabling services...
+[31_PHP84_INTELLIGENT] Step 1: Stopping and disabling old PHP-FPM services...
+[31_PHP84_INTELLIGENT] Processing PHP 7.4 cleanup...
+[31_PHP84_INTELLIGENT] Processing PHP 8.0 cleanup...
+[31_PHP84_INTELLIGENT] Processing PHP 8.1 cleanup...
+[31_PHP84_INTELLIGENT] Processing PHP 8.2 cleanup...
+[31_PHP84_INTELLIGENT] Processing PHP 8.3 cleanup...
+[31_PHP84_INTELLIGENT] Step 2: Removing old PHP packages (optional - keeping for compatibility)...
+[31_PHP84_INTELLIGENT] Step 3: Cleaning old PHP paths from /etc/environment...
+[31_PHP84_INTELLIGENT] /etc/environment PATH is clean
+[31_PHP84_INTELLIGENT] Step 4: Cleaning PHP-specific environment variables...
+[31_PHP84_INTELLIGENT] Step 5: Ensuring only PHP 8.4 is in update-alternatives...
+[31_PHP84_INTELLIGENT] Adding PHP 8.4 to alternatives with priority 84...
+update-alternatives: using /usr/bin/php8.4 to provide /usr/bin/php (php) in auto mode
+[31_PHP84_INTELLIGENT] PHP 8.4 set as default via update-alternatives
+[31_PHP84_INTELLIGENT] Step 6: Verifying cleanup results...
+[31_PHP84_INTELLIGENT] Verification: 'php' command points to PHP 8.4 ✓
+[31_PHP84_INTELLIGENT] Verification: No old PHP-FPM services running ✓
+[31_PHP84_INTELLIGENT] Old PHP versions cleanup completed
+[31_PHP84_INTELLIGENT] All cleanup operations completed successfully
+[31_PHP84_INTELLIGENT] [CLEANUP] Stopping existing PHP services (keeping packages)...
+[31_PHP84_INTELLIGENT] No conflicting PHP versions found
+[31_PHP84_INTELLIGENT] [INSTALL] Setting up PHP repository...
+>>> [31_PHP84_INTELLIGENT] Checking network connectivity...
+[OK] [31_PHP84_INTELLIGENT] Network connectivity confirmed (via 8.8.8.8)
+[31_PHP84_INTELLIGENT] Detected OS: ubuntu noble
+[31_PHP84_INTELLIGENT] Step 1: Updating APT package index...
+Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease
+Get:2 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+Err:1 http://archive.ubuntu.com/ubuntu noble InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Hit:3 https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble InRelease
+Err:2 http://security.ubuntu.com/ubuntu noble-security InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Get:4 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+Err:4 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Get:5 http://archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+Err:5 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Fetched 378 kB in 2s (154 kB/s)
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+30 packages can be upgraded. Run 'apt list --upgradable' to see them.
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: http://archive.ubuntu.com/ubuntu noble InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: http://security.ubuntu.com/ubuntu noble-security InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: http://archive.ubuntu.com/ubuntu noble-updates InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: An error occurred during the signature verification. The repository is not updated and the previous index files will be used. GPG error: http://archive.ubuntu.com/ubuntu noble-backports InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Failed to fetch http://archive.ubuntu.com/ubuntu/dists/noble/InRelease  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Failed to fetch http://archive.ubuntu.com/ubuntu/dists/noble-updates/InRelease  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Failed to fetch http://archive.ubuntu.com/ubuntu/dists/noble-backports/InRelease  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Failed to fetch http://security.ubuntu.com/ubuntu/dists/noble-security/InRelease  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: Some index files failed to download. They have been ignored, or old ones used instead.
+W: Target Packages (main/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (main/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (main/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (main/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (main/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (universe/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (universe/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (universe/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (universe/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (universe/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (universe/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (universe/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (restricted/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (restricted/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (restricted/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (restricted/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (restricted/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (restricted/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (restricted/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (multiverse/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (multiverse/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (multiverse/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (multiverse/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (multiverse/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (multiverse/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (multiverse/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (main/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (main/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (main/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (main/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (main/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (universe/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (universe/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (universe/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (universe/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (universe/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (universe/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (universe/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (restricted/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (restricted/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (restricted/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (restricted/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (restricted/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (restricted/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (restricted/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (multiverse/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (multiverse/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (multiverse/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (multiverse/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (multiverse/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (multiverse/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (multiverse/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (main/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (main/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (main/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (main/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (main/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (universe/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (universe/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (universe/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (universe/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (universe/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (universe/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (universe/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (restricted/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (restricted/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (restricted/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (restricted/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (restricted/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (restricted/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (restricted/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (multiverse/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (multiverse/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Translations (multiverse/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (multiverse/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target DEP-11 (multiverse/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (multiverse/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target CNF (multiverse/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:4 and /etc/apt/sources.list.d/ubuntu.sources:1
+W: Target Packages (main/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target DEP-11 (main/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target DEP-11 (main/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target CNF (main/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target CNF (main/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Packages (universe/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Packages (universe/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Translations (universe/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target DEP-11 (universe/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target DEP-11 (universe/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target CNF (universe/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target CNF (universe/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Packages (restricted/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Packages (restricted/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Translations (restricted/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target DEP-11 (restricted/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target DEP-11 (restricted/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target CNF (restricted/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target CNF (restricted/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Packages (multiverse/binary-amd64/Packages) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Packages (multiverse/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target Translations (multiverse/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target DEP-11 (multiverse/dep11/Components-amd64.yml) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target DEP-11 (multiverse/dep11/Components-all.yml) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target CNF (multiverse/cnf/Commands-amd64) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+W: Target CNF (multiverse/cnf/Commands-all) is configured multiple times in /etc/apt/sources.list:5 and /etc/apt/sources.list.d/ubuntu.sources:2
+[31_PHP84_INTELLIGENT] Installing dependencies...
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+software-properties-common is already the newest version (0.99.49.3).
+lsb-release is already the newest version (12.0-2).
+ca-certificates is already the newest version (20240203).
+curl is already the newest version (8.5.0-2ubuntu10.6).
+wget is already the newest version (1.21.4-1ubuntu4.1).
+gnupg2 is already the newest version (2.4.4-2ubuntu17.3).
+The following packages were automatically installed and are no longer required:
+  apache2-data apache2-utils
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 30 not upgraded.
+2 not fully installed or removed.
+After this operation, 0 B of additional disk space will be used.
+Setting up nginx (1.24.0-2ubuntu7.5) ...
+Not attempting to start NGINX, port 80 is already in use.
+Setting up python3-certbot-nginx (2.9.0-1) ...
+[31_PHP84_INTELLIGENT] Cleaning existing PHP repositories...
+[31_PHP84_INTELLIGENT] Setting up Ubuntu PPA repository...
+PPA publishes dbgsym, you may need to include 'main/debug' component
+Repository: 'Types: deb
+URIs: https://ppa.launchpadcontent.net/ondrej/php/ubuntu/
+Suites: noble
+Components: main
+'
+Description:
+Co-installable PHP versions: PHP 5.6, PHP 7.x, PHP 8.x and most requested extensions are included. Packages are provided for *Current* Ubuntu *LTS* releases (https://wiki.ubuntu.com/Releases).  Expanded Security Maintenance releases ARE NOT supported.
+
+Debian stable, oldstable and Debian LTS packages are provided from a separate repository: https://deb.sury.org/#debian-dpa
+
+You can get more information about the packages at https://deb.sury.org
+
+BUGS&FEATURES: This PPA has a issue tracker:
+https://deb.sury.org/#bug-reporting
+
+Issues reported in a private email don't scale and most likely will be ignored.  I simply don't have capacity to answer questions privately.
+
+CAVEATS:
+1. If you are using apache2, you are advised to add ppa:ondrej/apache2
+2. If you are using nginx, you are advised to add ppa:ondrej/nginx
+
+DONATION: If you like my work and you want to show appreciation, please consider donating regularly: https://donate.sury.org/
+
+COMMERCIAL SUPPORT: Support for PHP packages for older Debian and Ubuntu release can be bought from https://www.freexian.com/lts/php/
+More info: https://launchpad.net/~ondrej/+archive/ubuntu/php
+Adding repository.
+Found existing deb entry in /etc/apt/sources.list.d/ondrej-ubuntu-php-noble.sources
+Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease
+Err:1 http://archive.ubuntu.com/ubuntu noble InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Get:2 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+Hit:3 https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble InRelease
+Get:4 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+Err:2 http://security.ubuntu.com/ubuntu noble-security InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Err:4 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Get:5 http://archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+Err:5 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Fetched 378 kB in 2s (201 kB/s)
+Reading package lists... Done
+[31_PHP84_INTELLIGENT] Ubuntu PPA added successfully
+[31_PHP84_INTELLIGENT] Updating package index with new repository...
+Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease
+Get:2 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+Err:1 http://archive.ubuntu.com/ubuntu noble InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Hit:3 https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble InRelease
+Err:2 http://security.ubuntu.com/ubuntu noble-security InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Get:4 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+Err:4 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Get:5 http://archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+Err:5 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+  The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+Fetched 378 kB in 3s (140 kB/s)
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+30 packages can be upgraded. Run 'apt list --upgradable' to see them.
+[31_PHP84_INTELLIGENT] Verifying PHP 8.4 availability...
+[31_PHP84_INTELLIGENT] PHP 8.4 is available
+[31_PHP84_INTELLIGENT] [INSTALL] Installing PHP 8.4 core packages...
+[31_PHP84_INTELLIGENT] Step 1: Installing php8.4...
+[31_PHP84_INTELLIGENT] php8.4 already installed
+[31_PHP84_INTELLIGENT] Step 2: Installing Laravel-required PHP 8.4 extensions...
+[31_PHP84_INTELLIGENT] Preventing Apache2 installation...
+apache2 set on hold.
+apache2-bin set on hold.
+apache2-data set on hold.
+apache2-utils set on hold.
+libapache2-mod-php set on hold.
+libapache2-mod-php8.3 set on hold.
+libapache2-mod-php7.4 set on hold.
+libapache2-mod-php8.4 set on hold.
+libapache2-mod-php5.6 set on hold.
+libapache2-mod-php7.0 set on hold.
+libapache2-mod-php7.1 set on hold.
+libapache2-mod-php7.2 set on hold.
+libapache2-mod-php7.3 set on hold.
+libapache2-mod-php8.0 set on hold.
+libapache2-mod-php8.1 set on hold.
+libapache2-mod-php8.2 set on hold.
+libapache2-mod-php8.5 set on hold.
+[31_PHP84_INTELLIGENT] Total extensions to check: 12
+[31_PHP84_INTELLIGENT] php8.4-cli: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-fpm: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-common: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-opcache: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-mysql: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-xml: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-curl: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-zip: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-mbstring: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-gd: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-intl: already installed ✓
+[31_PHP84_INTELLIGENT] php8.4-bcmath: already installed ✓
+========================================
+[31_PHP84_INTELLIGENT] Extension Installation Summary:
+[31_PHP84_INTELLIGENT] Already installed: 12
+[31_PHP84_INTELLIGENT] Newly installed: 0
+[31_PHP84_INTELLIGENT] All extensions installed successfully ✓
+========================================
+[31_PHP84_INTELLIGENT] Disabling Apache2 if present...
+Canceled hold on apache2.
+Canceled hold on apache2-bin.
+Canceled hold on apache2-data.
+Canceled hold on apache2-utils.
+Canceled hold on libapache2-mod-php.
+Canceled hold on libapache2-mod-php8.3.
+Canceled hold on libapache2-mod-php7.4.
+Canceled hold on libapache2-mod-php8.4.
+Canceled hold on libapache2-mod-php5.6.
+Canceled hold on libapache2-mod-php7.0.
+Canceled hold on libapache2-mod-php7.1.
+Canceled hold on libapache2-mod-php7.2.
+Canceled hold on libapache2-mod-php7.3.
+Canceled hold on libapache2-mod-php8.0.
+Canceled hold on libapache2-mod-php8.1.
+Canceled hold on libapache2-mod-php8.2.
+Canceled hold on libapache2-mod-php8.5.
+[31_PHP84_INTELLIGENT] Step 3: Verifying PHP installation...
+[31_PHP84_INTELLIGENT] PHP 8.4 verification: PHP 8.4.13 (cli) (built: Oct  1 2025 20:34:15) (NTS)
+[31_PHP84_INTELLIGENT] Step 4: Verifying critical extensions...
+[31_PHP84_INTELLIGENT]   curl: loaded ✓
+[31_PHP84_INTELLIGENT]   mbstring: loaded ✓
+[31_PHP84_INTELLIGENT]   xml: loaded ✓
+[31_PHP84_INTELLIGENT]   dom: loaded ✓
+[31_PHP84_INTELLIGENT] PHP 8.4 core installation completed
+[31_PHP84_INTELLIGENT] [INSTALL] Installing PHP 8.4 FPM...
+[31_PHP84_INTELLIGENT] Preventing Apache2 during FPM installation...
+apache2 set on hold.
+apache2-bin set on hold.
+apache2-data set on hold.
+apache2-utils set on hold.
+libapache2-mod-php set on hold.
+libapache2-mod-php8.3 set on hold.
+libapache2-mod-php7.4 set on hold.
+libapache2-mod-php8.4 set on hold.
+libapache2-mod-php5.6 set on hold.
+libapache2-mod-php7.0 set on hold.
+libapache2-mod-php7.1 set on hold.
+libapache2-mod-php7.2 set on hold.
+libapache2-mod-php7.3 set on hold.
+libapache2-mod-php8.0 set on hold.
+libapache2-mod-php8.1 set on hold.
+libapache2-mod-php8.2 set on hold.
+libapache2-mod-php8.5 set on hold.
+[31_PHP84_INTELLIGENT] Step 1: Installing php8.4-fpm...
+[31_PHP84_INTELLIGENT] php8.4-fpm already installed
+Canceled hold on apache2.
+Canceled hold on apache2-bin.
+Canceled hold on apache2-data.
+Canceled hold on apache2-utils.
+Canceled hold on libapache2-mod-php.
+Canceled hold on libapache2-mod-php8.3.
+Canceled hold on libapache2-mod-php7.4.
+Canceled hold on libapache2-mod-php8.4.
+Canceled hold on libapache2-mod-php5.6.
+Canceled hold on libapache2-mod-php7.0.
+Canceled hold on libapache2-mod-php7.1.
+Canceled hold on libapache2-mod-php7.2.
+Canceled hold on libapache2-mod-php7.3.
+Canceled hold on libapache2-mod-php8.0.
+Canceled hold on libapache2-mod-php8.1.
+Canceled hold on libapache2-mod-php8.2.
+Canceled hold on libapache2-mod-php8.5.
+[31_PHP84_INTELLIGENT] Step 2: Starting php8.4-fpm service...
+[31_PHP84_INTELLIGENT] php8.4-fpm service started successfully
+[31_PHP84_INTELLIGENT] Step 3: Enabling php8.4-fpm service for auto-start...
+Synchronizing state of php8.4-fpm.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install enable php8.4-fpm
+[31_PHP84_INTELLIGENT] php8.4-fpm service enabled for auto-start
+[31_PHP84_INTELLIGENT] Step 4: Checking php8.4-fpm service status...
+[31_PHP84_INTELLIGENT] php8.4-fpm service is active and running
+● php8.4-fpm.service - The PHP 8.4 FastCGI Process Manager
+     Loaded: loaded (/usr/lib/systemd/system/php8.4-fpm.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2025-10-24 05:35:51 +07; 7min ago
+       Docs: man:php-fpm8.4(8)
+   Main PID: 18174 (php-fpm8.4)
+     Status: "Processes active: 0, idle: 2, Requests: 0, slow: 0, Traffic: 0.00req/sec"
+      Tasks: 3 (limit: 9012)
+     Memory: 11.7M (peak: 13.5M)
+        CPU: 79ms
+     CGroup: /system.slice/php8.4-fpm.service
+[31_PHP84_INTELLIGENT] PHP 8.4 FPM installation and setup completed successfully
+[31_PHP84_INTELLIGENT] [FIX] Fixing PHP symbolic link and cleaning up old versions...
+[31_PHP84_INTELLIGENT] Testing PHP 8.4 binary functionality...
+[31_PHP84_INTELLIGENT] Cleaning up PHP alternatives...
+[31_PHP84_INTELLIGENT] Removing existing PHP alternatives...
+[31_PHP84_INTELLIGENT] Cleaning up old PHP links in /usr/local/bin...
+[31_PHP84_INTELLIGENT] Removing existing PHP link: /usr/local/bin/php
+[31_PHP84_INTELLIGENT] Creating new symbolic link: /usr/local/bin/php -> /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] Successfully created symbolic link: /usr/local/bin/php -> /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] Verification: /usr/local/bin/php -> /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] Link test successful: PHP 8.4.13 (cli) (built: Oct  1 2025 20:34:15) (NTS)
+[31_PHP84_INTELLIGENT] [VERIFY] Verifying PHP symbolic link fix...
+[31_PHP84_INTELLIGENT] �?Symbolic link correct: /usr/local/bin/php -> /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] �?PHP command version correct: 8.4
+[31_PHP84_INTELLIGENT] �?'which php' returns correct path: /usr/local/bin/php
+[31_PHP84_INTELLIGENT] �?No old PHP versions found in /usr/local/bin
+[31_PHP84_INTELLIGENT] �?PHP functionality test passed
+[31_PHP84_INTELLIGENT] All symbolic link verification tests passed
+[31_PHP84_INTELLIGENT] PHP configuration delegated to 32_configure_php84.sh
+[31_PHP84_INTELLIGENT] Next step will configure PHP settings and Composer
+[31_PHP84_INTELLIGENT] PHP 8.4 installation execution completed successfully
+[31_PHP84_INTELLIGENT] [VERIFICATION] Running post-installation verification...
+[31_PHP84_INTELLIGENT] [ANALYSIS] Performing comprehensive PHP state analysis...
+[31_PHP84_INTELLIGENT] PHP 8.4 binary found: /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] [DETECTION] Analyzing PHP binary state...
+[31_PHP84_INTELLIGENT] PHP command found: /usr/local/bin/php
+[31_PHP84_INTELLIGENT] PHP version: 8.4
+[31_PHP84_INTELLIGENT]
+[31_PHP84_INTELLIGENT] [DETECTION] Checking PHP version...
+[31_PHP84_INTELLIGENT] Current PHP version: 8.4
+[31_PHP84_INTELLIGENT] PHP version is compatible
+>>> [31_PHP84_INTELLIGENT] Checking PHP-FPM service status...
+[OK] [31_PHP84_INTELLIGENT] PHP-FPM service is running: php8.4-fpm
+[OK] [31_PHP84_INTELLIGENT] PHP-FPM socket exists: /run/php/php8.4-fpm.sock
+[INFO] [31_PHP84_INTELLIGENT] Socket permissions: 660
+[31_PHP84_INTELLIGENT] [DETECTION] Checking required PHP extensions...
+[31_PHP84_INTELLIGENT] Extension curl (curl): OK
+[31_PHP84_INTELLIGENT] Extension mbstring (mbstring): OK
+[31_PHP84_INTELLIGENT] Extension xml (xml): OK
+[31_PHP84_INTELLIGENT] Extension zip (zip): OK
+[31_PHP84_INTELLIGENT] Extension gd (gd): OK
+[31_PHP84_INTELLIGENT] Extension mysql (mysqli): OK
+[31_PHP84_INTELLIGENT] Extension opcache (Zend OPcache): OK
+[31_PHP84_INTELLIGENT] Extension intl (intl): OK
+[31_PHP84_INTELLIGENT] Extension bcmath (bcmath): OK
+[31_PHP84_INTELLIGENT] All required extensions are available
+>>> [31_PHP84_INTELLIGENT] Checking symbolic link: /usr/local/bin/php
+[INFO] [31_PHP84_INTELLIGENT] Current symlink target: /usr/bin/php8.4
+[OK] [31_PHP84_INTELLIGENT] Symlink is correct: /usr/local/bin/php -> /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] State: Fully configured and operational
+[31_PHP84_INTELLIGENT] [OK] Post-installation verification PASSED
+[31_PHP84_INTELLIGENT] PHP 8.4 is fully configured and ready for use
+========================================================================
+[31_PHP84_INTELLIGENT] PHP 8.4 Installation Summary (per test_phpdoc.txt)
+========================================================================
+[31_PHP84_INTELLIGENT] Verifying PHP installation (php -v):
+PHP 8.4.13 (cli) (built: Oct  1 2025 20:34:15) (NTS)
+Copyright (c) The PHP Group
+Built by Debian
+[31_PHP84_INTELLIGENT] PHP-FPM Service Status:
+[31_PHP84_INTELLIGENT] php8.4-fpm service: [RUNNING]
+● php8.4-fpm.service - The PHP 8.4 FastCGI Process Manager
+     Loaded: loaded (/usr/lib/systemd/system/php8.4-fpm.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2025-10-24 05:35:51 +07; 7min ago
+       Docs: man:php-fpm8.4(8)
+   Main PID: 18174 (php-fpm8.4)
+[31_PHP84_INTELLIGENT] PHP-FPM Socket: /run/php/php8.4-fpm.sock [OK]
+[31_PHP84_INTELLIGENT] Socket Permissions: 660
+[31_PHP84_INTELLIGENT] Active PHP Modules (php -m):
+[31_PHP84_INTELLIGENT] Total modules loaded: 55
+[31_PHP84_INTELLIGENT] Key modules from documentation:
+[31_PHP84_INTELLIGENT]   Core: [LOADED]
+[31_PHP84_INTELLIGENT]   curl: [LOADED]
+[31_PHP84_INTELLIGENT]   mbstring: [LOADED]
+[31_PHP84_INTELLIGENT]   xml: [LOADED]
+[31_PHP84_INTELLIGENT]   zip: [LOADED]
+[31_PHP84_INTELLIGENT]   gd: [LOADED]
+[31_PHP84_INTELLIGENT]   mysqli: [LOADED]
+[31_PHP84_INTELLIGENT]   Zend OPcache: [LOADED]
+[31_PHP84_INTELLIGENT]   intl: [LOADED]
+[31_PHP84_INTELLIGENT]   bcmath: [LOADED]
+[31_PHP84_INTELLIGENT] PHP Alternatives Status:
+[31_PHP84_INTELLIGENT] PHP alternatives not configured
+[31_PHP84_INTELLIGENT] Configuration Files:
+[31_PHP84_INTELLIGENT]   /etc/php/8.4/fpm/pool.d/www.conf [OK]
+[31_PHP84_INTELLIGENT]   /etc/php/8.4/cli/php.ini [OK]
+[31_PHP84_INTELLIGENT]   /etc/php/8.4/fpm/php.ini [OK]
+========================================================================
+[31_PHP84_INTELLIGENT] [SUCCESS] PHP 8.4 installation completed as per test_phpdoc.txt!
+[31_PHP84_INTELLIGENT] [INFO] PHP 8.4 is ready for web development
+[31_PHP84_INTELLIGENT] [INFO] PHP-FPM is configured and running
+========================================================================
+============================================================================
+[31_PHP84_INTELLIGENT] [SUCCESS] PHP 8.4 installation/configuration completed successfully!
+[31_PHP84_INTELLIGENT] [INFO] PHP 8.4 is now available via 'php' command
+[31_PHP84_INTELLIGENT] [INFO] Symbolic link: /usr/local/bin/php -> /usr/bin/php8.4
+[31_PHP84_INTELLIGENT] [INFO] Old PHP versions have been cleaned up
+============================================================================
+
+Script execution completed with exit code: 0
+Press any key to return to test scripts menu...
+
+
+
+
+
