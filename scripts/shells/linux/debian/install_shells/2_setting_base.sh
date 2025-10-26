@@ -385,7 +385,7 @@ handle_ntfs_disk() {
 
     # Try to mount immediately if not already mounted
     if [ "$is_mounted" = false ]; then
-        if $USE_SUDO mount "$mount_point" 2>/dev/null; then
+        if $USE_SUDO mount -t "$fstype" -o "$mount_options" "$device" "$mount_point" 2>/dev/null; then
             log "Successfully mounted $device to $mount_point"
             $USE_SUDO chmod 755 "$mount_point"
             return 0
@@ -486,7 +486,7 @@ handle_data_disk() {
     fi
 
     # Try to mount immediately
-    if $USE_SUDO mount "$mount_point" 2>/dev/null; then
+    if $USE_SUDO mount -t "$fstype" -o "$mount_options" "$device" "$mount_point" 2>/dev/null; then
         log "Data disk successfully mounted"
         $USE_SUDO chmod 755 "$mount_point"
         return 0
