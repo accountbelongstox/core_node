@@ -41,12 +41,78 @@ Examples:
                             help="Validate trained model")
     mode_group.add_argument("--export", action="store_true",
                             help="Export trained model")
+    mode_group.add_argument("--bridge", action="store_true",
+                            help="Run HTTP bridge mode (for web GUI)")
+
+    # Bridge mode options
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="HTTP bridge host address (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8765,
+                        help="HTTP bridge port number (default: 8765)")
 
     # Parse only known args to avoid conflicts with training args
     args, unknown = parser.parse_known_args()
 
     # Route to appropriate mode
-    if args.train or args.validate or args.export:
+    if args.bridge:
+        # HTTP Bridge mode - for web-based GUI
+        from controller.http_bridge_controller import HTTPBridgeController
+        from d3utils.system_initializer import get_system_initializer
+        from d3utils.shutdown_manager import is_shutdown_requested, execute_shutdown
+        from providor.common_imports import ColorPrint
+
+        ColorPrint.blue("\n" + "=" * 80)
+        ColorPrint.blue("D3Check - HTTP Bridge Mode (Web GUI)")
+        ColorPrint.blue("=" * 80)
+
+        try:
+            # Get system initializer
+            sys_init = get_system_initializer()
+
+            # Initialize the system
+            if not sys_init.initialize_system():
+                ColorPrint.red("[MAIN] System initialization failed, exiting...")
+                return 1
+
+            # Create HTTP bridge controller
+            bridge_controller = HTTPBridgeController(host=args.host, port=args.port)
+
+            # Start bridge server
+            ColorPrint.green(f"[MAIN] Starting HTTP bridge on http://{args.host}:{args.port}")
+            bridge_controller.start()
+
+            ColorPrint.green("[MAIN] HTTP bridge started. Press Ctrl+C to stop.")
+
+            # Keep running until interrupted
+            import signal
+            import time
+
+            def signal_handler(sig, frame):
+                ColorPrint.yellow("\n[MAIN] Shutdown signal received...")
+                bridge_controller.stop()
+                sys.exit(0)
+
+            signal.signal(signal.SIGINT, signal_handler)
+
+            # Keep main thread alive
+            while bridge_controller.is_running():
+                time.sleep(1)
+
+            return 0
+
+        except KeyboardInterrupt:
+            ColorPrint.yellow("\n[MAIN] Keyboard interrupt received, shutting down...")
+            if 'bridge_controller' in locals():
+                bridge_controller.stop()
+            return 0
+
+        except Exception as e:
+            ColorPrint.red(f"[ERROR] Fatal error in HTTP bridge mode: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
+
+    elif args.train or args.validate or args.export:
         # Training/validation/export mode - delegate to train module
         from train import main as train_main
         # Reconstruct argv for train module
@@ -59,14 +125,14 @@ Examples:
             sys.argv.insert(1, "--action=train")
         return train_main()
     else:
-        # Default: UI mode
-        from controller.d3_macro_controller import D3MacroController
+        # Default: Universal GUI mode (Tray + HTTP Bridge + optional web frontend)
+        from controller.http_bridge_controller import HTTPBridgeController
         from d3utils.system_initializer import get_system_initializer
-        from d3utils.shutdown_manager import is_shutdown_requested, execute_shutdown
-        from providor.common_imports import ColorPrint
+        from d3utils.i18n_manager import i18n_manager
+        from providor.common_imports import ColorPrint, UniversalGUILauncher, set_menu_labels
 
         ColorPrint.blue("\n" + "=" * 80)
-        ColorPrint.blue("D3Check - UI Mode")
+        ColorPrint.blue("D3Check - Universal GUI Mode")
         ColorPrint.blue("=" * 80)
 
         try:
@@ -78,25 +144,67 @@ Examples:
                 ColorPrint.red("[MAIN] System initialization failed, exiting...")
                 return 1
 
-            # Create controller
-            controller = D3MacroController()
+            # Load i18n settings
+            i18n_manager.load_language_from_config()
 
-            # Run controller (this will create UI and store in ENCYCLOPEDIA, then run UI mainloop - BLOCKING)
-            ColorPrint.green("[MAIN] Starting application...")
-            controller.run()
+            # Set menu labels for i18n support
+            menu_labels = {
+                'open_web': i18n_manager.get_ui_text("gui_menu.open_web", "Open Web UI"),
+                'restart': i18n_manager.get_ui_text("gui_menu.restart", "Restart"),
+                'exit': i18n_manager.get_ui_text("gui_menu.exit", "Exit")
+            }
+            set_menu_labels(menu_labels)
 
-            # When UI mainloop exits, check if shutdown was requested
-            if is_shutdown_requested():
-                ColorPrint.yellow("[MAIN] Shutdown requested, executing shutdown sequence...")
-                execute_shutdown()
-            else:
-                ColorPrint.blue("[MAIN] UI closed normally, exiting...")
+            # Create HTTP bridge controller
+            bridge_controller = HTTPBridgeController(host='127.0.0.1', port=8765)
+
+            # Create custom menu items with callbacks
+            menu_items = [
+                {
+                    'key': 'open_web',
+                    'label': menu_labels['open_web'],
+                    'callback': lambda: None  # Will use default _open_web_ui
+                },
+                {
+                    'key': 'restart',
+                    'label': menu_labels['restart'],
+                    'callback': lambda: None  # Will use default _restart_application
+                },
+                {
+                    'key': 'exit',
+                    'label': menu_labels['exit'],
+                    'callback': lambda: None  # Will use default _exit_application
+                }
+            ]
+
+            # Create universal GUI launcher
+            gui_launcher = UniversalGUILauncher(
+                app_name='D3Check',
+                bridge_host='127.0.0.1',
+                bridge_port=8765,
+                menu_items=menu_items
+            )
+
+            # Register bridge handlers via bridge controller
+            # Bridge controller already registers handlers in __init__
+
+            # Start GUI launcher (tray + bridge)
+            ColorPrint.green("[MAIN] Starting universal GUI launcher...")
+            gui_launcher.start()
+
+            ColorPrint.green("[MAIN] D3Check started successfully")
+            ColorPrint.green("[MAIN] Access web UI at: http://127.0.0.1:8765")
+            ColorPrint.green("[MAIN] Press Ctrl+C to stop")
+
+            # Run forever (blocks until interrupted)
+            gui_launcher.run_forever()
 
             return 0
 
         except KeyboardInterrupt:
-            ColorPrint.yellow("\n[MAIN] Keyboard interrupt received, executing shutdown...")
-            execute_shutdown()
+            ColorPrint.yellow("\n[MAIN] Keyboard interrupt received, shutting down...")
+            if 'gui_launcher' in locals():
+                gui_launcher.stop()
             return 0
 
         except Exception as e:

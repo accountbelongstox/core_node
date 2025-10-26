@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommanFunc.ps1"
+. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 
 $STEP_NUMBER = 81
 
