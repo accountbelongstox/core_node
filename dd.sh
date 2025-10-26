@@ -439,7 +439,7 @@ download_file() {
     local file_path="$1"
     local relative_path="$2"
     local selected_region=$(get_global_var "SELECTED_REGION" "Global")
-    
+
     # Determine base URL based on region
     local base_url=""
     case "$selected_region" in
@@ -450,59 +450,149 @@ download_file() {
             base_url="$GITEE_BASE_URL"
             ;;
         *)
-            base_url="$GITHUB_BASE_URL"  # Default to GitHub
+            base_url="$GITHUB_BASE_URL"
             ;;
     esac
-    
+
     local download_url="$base_url/$relative_path"
-    
-    # Create temp file path that matches the target structure
-    local temp_base="/tmp"
-    if [[ "$file_path" == /usr/tmp/* ]]; then
-        temp_base="/usr/tmp"
-    fi
-    local temp_file="$temp_base/$(basename "$file_path")"
-    
-    echo "Downloading $relative_path from $base_url..."
+
+    # Improved temp file path logic - always use /tmp for downloads
+    local temp_file="/tmp/core_node_download_$(basename "$file_path").$$"
+
+    echo "Downloading $relative_path..."
+    echo "Source URL: $download_url"
     echo "Target file: $file_path"
     echo "Temp file: $temp_file"
-    
-    # Try to download using curl or wget
-    if command -v curl >/dev/null 2>&1; then
-        if curl -s -L -o "$temp_file" "$download_url"; then
-            echo "Download successful using curl"
+
+    # Download flags
+    local download_success=false
+    local download_method=""
+
+    # Try wget first (more reliable than snap curl)
+    if command -v wget >/dev/null 2>&1; then
+        echo "Attempting download with wget..."
+        if wget -q -O "$temp_file" "$download_url" 2>&1; then
+            if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                echo "Download successful using wget"
+                download_success=true
+                download_method="wget"
+            else
+                echo "wget completed but file is missing or empty"
+                rm -f "$temp_file" 2>/dev/null
+            fi
         else
-            echo "Download failed using curl"
-            return 1
-        fi
-    elif command -v wget >/dev/null 2>&1; then
-        if wget -q -O "$temp_file" "$download_url"; then
-            echo "Download successful using wget"
-        else
-            echo "Download failed using wget"
-            return 1
+            echo "wget download failed"
+            rm -f "$temp_file" 2>/dev/null
         fi
     else
-        echo "Error: Neither curl nor wget is available for downloading"
+        echo "wget not found, will try curl..."
+    fi
+
+    # If wget failed or not available, try curl
+    if [ "$download_success" = false ] && command -v curl >/dev/null 2>&1; then
+        echo "Attempting download with curl..."
+        if curl -f -s -L -o "$temp_file" "$download_url" 2>&1; then
+            if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                echo "Download successful using curl"
+                download_success=true
+                download_method="curl"
+            else
+                echo "curl completed but file is missing or empty"
+                rm -f "$temp_file" 2>/dev/null
+            fi
+        else
+            local curl_error=$?
+            echo "curl download failed with exit code: $curl_error"
+            echo "Note: If using snap curl, it may have sandbox restrictions"
+            rm -f "$temp_file" 2>/dev/null
+        fi
+    fi
+
+    # If both failed, try installing wget first (preferred)
+    if [ "$download_success" = false ]; then
+        echo "Primary download methods failed. Installing wget..."
+        if command -v apt-get >/dev/null 2>&1; then
+            if $sudo apt-get update -qq && $sudo apt-get install -y wget 2>&1 | grep -q "Setting up"; then
+                echo "wget installed successfully, retrying download..."
+                if wget -q -O "$temp_file" "$download_url" 2>&1; then
+                    if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                        echo "Download successful using newly installed wget"
+                        download_success=true
+                        download_method="wget (newly installed)"
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    # Last resort: try installing native curl (non-snap)
+    if [ "$download_success" = false ]; then
+        echo "wget installation failed. Attempting to install native curl..."
+        if command -v apt-get >/dev/null 2>&1; then
+            if $sudo apt-get install -y curl 2>&1 | grep -q "Setting up"; then
+                echo "Native curl installed, retrying download..."
+                if curl -f -s -L -o "$temp_file" "$download_url" 2>&1; then
+                    if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                        echo "Download successful using native curl"
+                        download_success=true
+                        download_method="curl (native)"
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    # Check if download was successful
+    if [ "$download_success" = false ]; then
+        echo "[ERROR] All download methods failed"
+        echo "  URL: $download_url"
+        echo "  Target: $file_path"
+        echo "  Temp file: $temp_file"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  1. Check internet connectivity"
+        echo "  2. Verify the URL is accessible"
+        echo "  3. Ensure wget or curl is properly installed"
+        echo "  4. If using snap curl, consider installing native version:"
+        echo "     sudo apt update && sudo apt install -y wget curl"
+        rm -f "$temp_file" 2>/dev/null
         return 1
     fi
-    
-    # Create directory if it doesn't exist
+
+    # Verify downloaded file
+    if [ ! -f "$temp_file" ] || [ ! -s "$temp_file" ]; then
+        echo "[ERROR] Downloaded file verification failed"
+        echo "  File exists: $([ -f "$temp_file" ] && echo "yes" || echo "no")"
+        echo "  File size: $(stat -c%s "$temp_file" 2>/dev/null || echo "0") bytes"
+        rm -f "$temp_file" 2>/dev/null
+        return 1
+    fi
+
+    local file_size=$(stat -c%s "$temp_file" 2>/dev/null)
+    echo "Downloaded successfully using $download_method ($file_size bytes)"
+
+    # Create target directory if needed
     local file_dir=$(dirname "$file_path")
     if [ ! -d "$file_dir" ]; then
         echo "Creating directory: $file_dir"
-        $sudo mkdir -p "$file_dir"
+        if ! $sudo mkdir -p "$file_dir"; then
+            echo "[ERROR] Failed to create directory: $file_dir"
+            rm -f "$temp_file" 2>/dev/null
+            return 1
+        fi
     fi
-    
-    # Move downloaded file to target location
-    echo "Moving $temp_file to $file_path"
+
+    # Move file to target location
+    echo "Moving file to: $file_path"
     if $sudo mv "$temp_file" "$file_path"; then
-        echo "File saved to: $file_path"
         $sudo chmod +x "$file_path"
+        echo "[SUCCESS] File installed: $file_path"
         return 0
     else
-        echo "Error: Failed to move downloaded file to $file_path"
-        echo "Temp file exists: $([ -f "$temp_file" ] && echo "yes" || echo "no")"
+        echo "[ERROR] Failed to move file to target location"
+        echo "  Source: $temp_file"
+        echo "  Target: $file_path"
+        rm -f "$temp_file" 2>/dev/null
         return 1
     fi
 }
