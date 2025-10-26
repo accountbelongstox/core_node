@@ -66,24 +66,28 @@ detect_system_version() {
         echo "Running inside Docker container"
         SYSTEM_VERSION="Docker"
         SYSTEM_NAME="Docker"
+        set_global_var "CURRENT_SYSTEM" "DOCKER"
         return
     fi
-    
+
     if [ ! -f /etc/os-release ]; then
         echo "Error: Cannot detect operating system (missing /etc/os-release)"
         exit 1
     fi
-    
+
     . /etc/os-release
     case "$ID" in
         ubuntu)
-            SYSTEM_VERSION="debian_$(echo $VERSION_ID | cut -d. -f1)"  # Using debian version
-            SYSTEM_NAME="debian"  # Using debian as system name
-            echo -e "\033[33mWarning: Ubuntu detected - using Debian scripts for compatibility\033[0m"
+            SYSTEM_VERSION="ubuntu_$(echo $VERSION_ID | cut -d. -f1)"
+            SYSTEM_NAME="debian"
+            echo -e "\033[32mUbuntu $(echo $VERSION_ID) detected - using Debian-compatible scripts\033[0m"
+            set_global_var "CURRENT_SYSTEM" "UBUNTU_$(echo $VERSION_ID | cut -d. -f1)"
             ;;
         debian)
             SYSTEM_VERSION="debian_$(echo $VERSION_ID | cut -d. -f1)"
             SYSTEM_NAME="debian"
+            echo -e "\033[32mDebian $(echo $VERSION_ID) detected\033[0m"
+            set_global_var "CURRENT_SYSTEM" "DEBIAN_$(echo $VERSION_ID | cut -d. -f1)"
             ;;
         *)
             echo "Error: This script only supports Debian and Ubuntu systems"
@@ -611,23 +615,14 @@ initialize_menu_items() {
     menu_items["Install and Test Environment"]="text=Install and Test Environment;values=default;current=0;key=INSTALL_TEST_MENU;action=show_install_test_menu"
     menu_order+=("Install and Test Environment")
 
-    menu_items["Select Region"]="text=Select Region;values=China,Global;current=0;key=SELECTED_REGION;action=set_region"
-    menu_order+=("Select Region")
-
-    menu_items["Cloud Provider"]="text=Cloud Provider;values=null,Tencent,Alibaba,Huawei,Other;current=0;key=CLOUD_PROVIDER;action=set_cloud_provider"
-    menu_order+=("Cloud Provider")
+    menu_items["Enable Router Forwarding"]="text=Enable Router Forwarding;values=default;current=0;key=ROUTER_FORWARD_MENU;action=enable_router_forwarding"
+    menu_order+=("Enable Router Forwarding")
 
     menu_items["Get the latest git version"]="text=Get the latest git version;values=default;current=0;key=GIT_UPDATE_TYPE;action=get_git"
     menu_order+=("Get the latest git version")
 
-    menu_items["Display global variables"]="text=Display global variables;values=default;current=0;key=DISPLAY_VARS_TYPE;action=show_global_vars"
-    menu_order+=("Display global variables")
-
-    menu_items["Display system information"]="text=Display system information;values=basic,detailed,network;current=0;key=SYSINFO_TYPE;action=show_system_info"
-    menu_order+=("Display system information")
-
-    menu_items["Run Ncore"]="text=Run Ncore;values=default;current=0;key=RUN_NCORE_TYPE;action=run_ncore"
-    menu_order+=("Run Ncore")
+    menu_items["System Information & Variables"]="text=System Information & Variables;values=default;current=0;key=SYSTEM_INFO_MENU;action=show_system_info_menu"
+    menu_order+=("System Information & Variables")
 
     menu_items["Unified App Manager"]="text=Unified App Manager;values=default;current=0;key=UNIFIED_MANAGER_TYPE;action=unified_manager"
     menu_order+=("Unified App Manager")
@@ -635,9 +630,7 @@ initialize_menu_items() {
     menu_items["Set Special Software Environment Variables (like AI)"]="text=Set Special Software Environment Variables (like AI);values=default;current=0;key=SPECIAL_ENV_MENU;action=show_special_software_env_menu"
     menu_order+=("Set Special Software Environment Variables (like AI)")
 
-    menu_items["Push to git"]="text=Push to git;values=gitee,github,local,all;current=3;key=GIT_PUSH_TARGET;action=push_git"
     menu_items["Push to git"]="text=Push to git;values=all,gitee,github,local;current=0;key=GIT_PUSH_TARGET;action=push_git"
-
     menu_order+=("Push to git")
 
     menu_items["Exit"]="text=Exit;values=default;current=0;key=EXIT_TYPE;action=exit_script"
@@ -671,11 +664,15 @@ handle_menu_action() {
     set_global_var "$key" "$value"
 
     case "$action" in
-        "set_region")
-            echo "Region set to: $value"
-            ;;
-        "set_cloud_provider")
-            echo "Cloud Provider set to: $value"
+        "enable_router_forwarding")
+            echo "Enabling router forwarding mode..."
+            local router_script="$SHELLS_DIR/linux/debian/install_shells/101_lnxrouter.sh"
+            if [ -f "$router_script" ]; then
+                bash "$router_script"
+            else
+                echo "Error: Router forwarding script not found at $router_script"
+                echo "Please ensure the script exists and try again."
+            fi
             ;;
         "show_install_test_menu")
             echo "Opening Install and Test Environment menu..."
@@ -687,58 +684,21 @@ handle_menu_action() {
                 echo "Please ensure the script exists and try again."
             fi
             ;;
-        "install_server")
-        run_install_script "install.sh"
-        ;;
         "get_git")
-        get_git
-        ;;
-        "show_global_vars")
-        echo "Global Variables in $GLOBAL_VAR_DIR:"
-        if [ -d "$GLOBAL_VAR_DIR" ] && [ "$(ls -A $GLOBAL_VAR_DIR)" ]; then
-            for file in "$GLOBAL_VAR_DIR"/*; do
-                if [ -f "$file" ]; then
-                    filename=$(basename "$file")
-                        value=$(cat "$file")
-                    echo "$filename = $value"
-                fi
-            done
-        else
-            echo "No global variables found."
-        fi
-        echo "Press Enter to continue..."
-        read
-        ;;
-        "show_system_info")
-            case "$value" in
-                "basic")
-                    uname -a
-                    ;;
-                "detailed")
-                    cat /etc/os-release
-                    ;;
-                "network")
-                    ip addr show
-                    ;;
-            esac
+            get_git
+            ;;
+        "show_system_info_menu")
+            echo "Opening System Information & Variables menu..."
+            local system_info_script="$SHELLS_DIR/linux/menu_itemshells/system_info_display.sh"
+            if [ -f "$system_info_script" ]; then
+                bash "$system_info_script"
+            else
+                echo "Error: system_info_display.sh script not found at $system_info_script"
+                echo "Please ensure the script exists and try again."
+            fi
             ;;
         "show_special_software_env_menu")
             show_special_software_env_menu
-            ;;
-        "run_ncore")
-            local main_entry="$CORE_NODE_ROOT_DIR/main.js"
-            if [ -f "$main_entry" ]; then
-                echo "Starting ncore using $main_entry"
-                (
-                    cd "$CORE_NODE_ROOT_DIR"
-                    node "./main.js"
-                )
-            else
-                echo "Error: main.js not found at $main_entry"
-            fi
-            echo ""
-            echo "Press Enter to continue..."
-            read
             ;;
         "unified_manager")
             local unified_manager_script="$SCRIPT_DIR/unified_manager/unified_manager.sh"
@@ -756,35 +716,6 @@ handle_menu_action() {
             echo "Starting Git Push Operations..."
             echo "Target: $value"
 
-            # Use the unified git script
-            local unified_git_script="$SCRIPT_DIR/git/gitput_unified.sh"
-            if [ -f "$unified_git_script" ]; then
-                echo "Running unified git push script..."
-
-                # Determine the argument to pass to the script
-                local git_arg=""
-                case "$value" in
-                    "gitee"|"github"|"local")
-                        git_arg="$value"
-                        ;;
-                    "all")
-                        git_arg=""  # Empty means push to all remotes
-                        ;;
-                    *)
-                        echo "Unknown git target: $value"
-                        echo "Press Enter to continue..."
-                        read
-                        return
-                        ;;
-                esac
-
-                # Execute the git push script
-                if [ -n "$git_arg" ]; then
-                    bash "$unified_git_script" "$git_arg"
-                else
-                    bash "$unified_git_script"
-                fi
-
             local git_script="$SCRIPT_DIR/git/gitput_unified.sh"
             if [ -f "$git_script" ]; then
                 echo "Using unified git push script: $git_script"
@@ -794,17 +725,13 @@ handle_menu_action() {
                 else
                     bash "$git_script" "$value"
                 fi
-                
+
                 if [ $? -eq 0 ]; then
                     echo "Git push operations completed successfully"
                 else
                     echo "Git push operations failed"
                 fi
             else
-                echo "Error: Unified git script not found: $unified_git_script"
-                echo "Please ensure the git scripts are properly installed"
-            fi
-
                 echo "Error: Unified git script not found: $git_script"
                 echo "Please ensure the git scripts are properly installed"
             fi
@@ -834,7 +761,8 @@ show_interactive_menu() {
     while true; do
         # Clear screen and show header
         printf "\033c"  # Clear screen more reliably
-        printf "Current system: %s\n" "$SYSTEM_VERSION"
+        local current_sys=$(get_global_var "CURRENT_SYSTEM" "$SYSTEM_VERSION")
+        printf "Current system: %s\n" "$current_sys"
         printf "Select an option (Up/Down to move, Left/Right to change value, Enter to select):\n"
         printf "Press Ctrl+C to exit\n\n"
 
@@ -921,25 +849,20 @@ show_interactive_menu() {
                 local current=$(echo "$item" | grep -o 'current=[0-9]*' | cut -d= -f2)
                 local action=$(echo "$item" | grep -o 'action=[^;]*' | cut -d= -f2)
                 local var_key=$(echo "$item" | grep -o 'key=[^;]*' | cut -d= -f2)
-                
+
                 # Restore terminal settings before executing action
                 stty "$old_settings"
                 printf "\033c"
-                
+
                 handle_menu_action "$action" "${values[$current]}" "$var_key"
-                local cloud_item="${menu_items[\"Cloud Provider\"]}"
-                local cloud_values=($(echo "$cloud_item" | grep -o 'values=[^;]*' | cut -d= -f2 | tr ',' ' '))
-                local cloud_current=$(echo "$cloud_item" | grep -o 'current=[0-9]*' | cut -d= -f2)
-                if [ "${cloud_values[$cloud_current]}" = "null" ]; then
-                    print_color yellow "[Warning] Cloud Provider is not selected, please select Cloud Provider first!"
-                fi
+
                 echo
                 echo "Press 'q' to quit, any other key to continue..."
                 read -n 1 key
                 if [ "$key" = "q" ]; then
                     exit 0
                 fi
-                
+
                 # Restore terminal settings for menu navigation
                 stty -icanon -echo
                 ;;
