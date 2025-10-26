@@ -176,6 +176,9 @@ app.*.symbols
 **/*.iso
 **/*.seed
 
+# Malformed directory names from scripts
+**/Creating directory*
+
 # Development tool specific files
 **/*.suo
 **/*.ntvs*
