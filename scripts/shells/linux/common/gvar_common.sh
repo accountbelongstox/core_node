@@ -753,17 +753,20 @@ map_web_path() {
             ;;
         "compile_dir")
             # Compile directory for development languages
-            # When base_path="/www" (production) -> /usr/system_version
-            # Otherwise (development) -> base_path/system_version
-            # Format: ubuntu_24, debian_12, centos_8, etc.
+            # Development (WSL/Desktop/NTFS): base_dir/_system_version (with underscore prefix)
+            # Production server: /usr/system_version
+            # Format: _ubuntu_24, _debian_12, _centos_8 (development) or ubuntu_24, debian_12 (production)
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local compile_sys_dir="${sys_name}_${sys_version}"
 
-            if [ "$base_path" = "/www" ]; then
-                mapped_path="/usr/${compile_sys_dir}"
+            # Check if this is development environment (same logic as get_core_node_project_root)
+            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
+                # Development: base_dir/_system_version (with underscore prefix)
+                local data_base=$(get_base_data_directory)
+                mapped_path="${data_base}/_${sys_name}_${sys_version}"
             else
-                mapped_path="${base_path}/${compile_sys_dir}"
+                # Production server without desktop/NTFS: /usr/system_version
+                mapped_path="/usr/${sys_name}_${sys_version}"
             fi
             ;;
         "nginx")

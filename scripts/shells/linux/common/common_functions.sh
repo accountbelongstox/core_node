@@ -6,8 +6,49 @@
 COMMON_FUNCS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHELLS_DIR="$(dirname "$COMMON_FUNCS_DIR")"
 
-source "$COMMON_DIR/gvar_common.sh"
+# Source gvar_common.sh from the same directory
 source "$COMMON_FUNCS_DIR/gvar_common.sh"
+
+
+# Helper function: Ensure service name has mcp prefix
+ensure_mcp_prefix() {
+    local service_name="$1"
+    if [[ "$service_name" != mcp-* ]] && [[ "$service_name" != mcp_* ]]; then
+        echo "mcp-$service_name"
+    else
+        echo "$service_name"
+    fi
+}
+
+# Helper function: Check if binary name is protected
+is_protected_binary() {
+    local bin_name="$1"
+    local protected_binaries=(
+        "sudo" "su" "passwd" "chown" "chmod" "chroot" "mount" "umount"
+        "init" "systemctl" "service" "systemd" "dbus" "udev" "cron"
+        "ssh" "sshd" "login" "getty" "bash" "sh" "dash" "zsh"
+        "iptables" "firewall" "ufw" "selinux" "apparmor" "polkit"
+        "pkexec" "gksu" "kdesu" "visudo" "newgrp" "sg" "gpasswd"
+    )
+
+    for protected in "${protected_binaries[@]}"; do
+        if [[ "$bin_name" == "$protected" ]]; then
+            return 0  # Is protected
+        fi
+    done
+    return 1  # Not protected
+}
+
+# Helper function: Add directory to PATH in /etc/environment
+add_to_path_environment() {
+    local dir_path="$1"
+
+    if ! grep -q "PATH.*$dir_path" /etc/environment 2>/dev/null; then
+        print_step_from_common_functions "Adding $dir_path to /etc/environment"
+        $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
+        echo "PATH=\"$dir_path:/usr/local/bin:/usr/bin:/bin\"" | $USE_SUDO tee -a /etc/environment > /dev/null
+    fi
+}
 
 
 # Print a section header (from common_functions.sh)
@@ -316,9 +357,7 @@ add_to_systemd_startup() {
     local service_name="$2"
 
     # Ensure service name has mcp prefix for identification
-    if [[ "$service_name" != mcp-* ]] && [[ "$service_name" != mcp_* ]]; then
-        service_name="mcp-$service_name"
-    fi
+    service_name=$(ensure_mcp_prefix "$service_name")
 
     local service_file="/etc/systemd/system/${service_name}.service"
 
@@ -356,9 +395,7 @@ add_to_initd_startup() {
     local service_name="$2"
 
     # Ensure service name has mcp prefix for identification
-    if [[ "$service_name" != mcp-* ]] && [[ "$service_name" != mcp_* ]]; then
-        service_name="mcp-$service_name"
-    fi
+    service_name=$(ensure_mcp_prefix "$service_name")
 
     local init_script="/etc/init.d/$service_name"
 
@@ -409,9 +446,7 @@ add_to_wsl_startup() {
     local service_name="$2"
 
     # Ensure service name has mcp prefix for identification
-    if [[ "$service_name" != mcp-* ]] && [[ "$service_name" != mcp_* ]]; then
-        service_name="mcp-$service_name"
-    fi
+    service_name=$(ensure_mcp_prefix "$service_name")
 
     print_step_from_common_functions "Setting up WSL startup for: $service_name"
 
@@ -470,49 +505,31 @@ add_to_global_path_from_common_functions() {
         print_step_from_common_functions "Processing binary: $bin_name"
 
         # Enhanced protection: Skip creating symlinks for system critical files
-        local protected_binaries=(
-            "sudo" "su" "passwd" "chown" "chmod" "chroot" "mount" "umount"
-            "init" "systemctl" "service" "systemd" "dbus" "udev" "cron"
-            "ssh" "sshd" "login" "getty" "bash" "sh" "dash" "zsh"
-            "iptables" "firewall" "ufw" "selinux" "apparmor" "polkit"
-            "pkexec" "gksu" "kdesu" "visudo" "newgrp" "sg" "gpasswd"
-        )
-
-        for protected in "${protected_binaries[@]}"; do
-            if [[ "$bin_name" == "$protected" ]]; then
-                print_error_from_common_functions "SECURITY: Skipping protected system binary: $bin_name"
-                return 1
-            fi
-        done
+        if is_protected_binary "$bin_name"; then
+            print_error_from_common_functions "SECURITY: Skipping protected system binary: $bin_name"
+            return 1
+        fi
 
         # Additional check: prevent symlinks to system directories
         if [[ "$bin_path" == /usr/bin/* ]] || [[ "$bin_path" == /bin/* ]] || [[ "$bin_path" == /sbin/* ]] || [[ "$bin_path" == /usr/sbin/* ]]; then
-            for protected in "${protected_binaries[@]}"; do
-                if [[ "$bin_name" == "$protected" ]]; then
-                    print_error_from_common_functions "SECURITY: Refusing to create symlink to system binary: $bin_path"
-                    return 1
-                fi
-            done
+            if is_protected_binary "$bin_name"; then
+                print_error_from_common_functions "SECURITY: Refusing to create symlink to system binary: $bin_path"
+                return 1
+            fi
         fi
 
         # Add binary directory to global PATH in /etc/environment
-        if ! grep -q "PATH.*$bin_dir" /etc/environment 2>/dev/null; then
-            print_step_from_common_functions "Adding $bin_dir to /etc/environment"
-            sudo sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
-            echo "PATH=\"$bin_dir:/usr/local/bin:/usr/bin:/bin\"" | sudo tee -a /etc/environment > /dev/null
-        fi
+        add_to_path_environment "$bin_dir"
 
         # Final safety check before creating symlink
         if [ -L "$link_path" ]; then
             local existing_target=$(readlink -f "$link_path" 2>/dev/null)
             if [[ "$existing_target" == /usr/bin/* ]] || [[ "$existing_target" == /bin/* ]] || [[ "$existing_target" == /sbin/* ]] || [[ "$existing_target" == /usr/sbin/* ]]; then
                 local existing_name=$(basename "$existing_target")
-                for protected in "${protected_binaries[@]}"; do
-                    if [[ "$existing_name" == "$protected" ]]; then
-                        print_error_from_common_functions "SECURITY: Existing symlink points to protected binary: $link_path -> $existing_target"
-                        return 1
-                    fi
-                done
+                if is_protected_binary "$existing_name"; then
+                    print_error_from_common_functions "SECURITY: Existing symlink points to protected binary: $link_path -> $existing_target"
+                    return 1
+                fi
             fi
         fi
 
@@ -536,19 +553,15 @@ add_to_global_path_from_common_functions() {
         local dir_name=$(basename "$target_dir")
         
         print_step_from_common_functions "Processing directory: $dir_name"
-        
+
         # Add directory to global PATH in /etc/environment
-        if ! grep -q "PATH.*$target_dir" /etc/environment 2>/dev/null; then
-            print_step_from_common_functions "Adding $target_dir to /etc/environment"
-            sudo sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
-            echo "PATH=\"$target_dir:/usr/local/bin:/usr/bin:/bin\"" | sudo tee -a /etc/environment > /dev/null
-        fi
-        
+        add_to_path_environment "$target_dir"
+
         # Also add bin subdirectory if it exists
         if [ -d "$target_dir/bin" ]; then
             if ! grep -q "PATH.*$target_dir/bin" /etc/environment 2>/dev/null; then
-                sudo sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
-                echo "PATH=\"$target_dir/bin:$target_dir:/usr/local/bin:/usr/bin:/bin\"" | sudo tee -a /etc/environment > /dev/null
+                $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
+                echo "PATH=\"$target_dir/bin:$target_dir:/usr/local/bin:/usr/bin:/bin\"" | $USE_SUDO tee -a /etc/environment > /dev/null
             fi
         fi
         
