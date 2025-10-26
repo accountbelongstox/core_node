@@ -71,5 +71,10 @@
         "right": "Right"
       }
     }
+  },
+  "gui_menu": {
+    "open_web": "Open Web UI",
+    "restart": "Restart",
+    "exit": "Exit"
   }
 }
