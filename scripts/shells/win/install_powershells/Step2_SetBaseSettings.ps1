@@ -13,7 +13,7 @@
 # Import variable management functions and global variables
 $WinCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) "win_common"
 . (Join-Path $WinCommonDir "GlobalVars.ps1")
-. (Join-Path $WinCommonDir "CommanFunc.ps1")
+. (Join-Path $WinCommonDir "CommonFunc.ps1")
 
 $STEP_NUMBER = 2
 

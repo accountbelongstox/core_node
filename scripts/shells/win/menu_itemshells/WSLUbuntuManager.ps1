@@ -24,7 +24,7 @@ $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
-. (Join-Path $script:WIN_COMMON_DIR "CommanFunc.ps1")
+. (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
 
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"

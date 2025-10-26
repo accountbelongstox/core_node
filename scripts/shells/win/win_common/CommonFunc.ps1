@@ -26,6 +26,9 @@ $script:COLOR_WARNING = "Yellow"
 $script:COLOR_ERROR = "Red"
 $script:COLOR_INFO = "White"
 
+# Desktop icon processing debug control
+$script:DEBUG_DESKTOP_ICONS = $false
+
 # Unified Debug Print Function
 # AI_DEBUG_FUNCTION: Use this function for all debug output in PowerShell scripts
 function Write-DebugLog {
@@ -62,6 +65,125 @@ function Write-DebugLog {
     $timestamp = Get-Date -Format "HH:mm:ss.fff"
     $debugMessage = "$($Global:DEBUG_PREFIX) [$Category] $Message"
     Write-Host $debugMessage -ForegroundColor $Color
+}
+
+# Helper function to find uninstall processes
+function Get-UninstallProcesses {
+    try {
+        $processes = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { 
+                $_.ProcessName -like "*uninstall*" -or 
+                $_.MainWindowTitle -like "*uninstall*" -or
+                $_.ProcessName -like "*uninst*"
+            })
+        return $processes
+    }
+    catch {
+        # If Get-Process fails, return empty array
+        return @()
+    }
+}
+
+# Helper function for consistent logging with category prefix
+function Write-CategoryLog {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+        [Parameter(Mandatory = $true)]
+        [string]$Category,
+        [Parameter(Mandatory = $false)]
+        [string]$Color = "White"
+    )
+    Write-Host "       [$Category] $Message" -ForegroundColor $Color
+}
+
+# Helper function for path validation
+function Test-PathExists {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $false)]
+        [string]$PathType = "Any"
+    )
+    return Test-Path -Path $Path -PathType $PathType
+}
+
+# Helper function for safe directory creation
+function New-DirectoryIfNotExists {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $false)]
+        [string]$Category = "GENERAL"
+    )
+    if (-not (Test-PathExists -Path $Path -PathType "Container")) {
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
+        Write-CategoryLog -Message "Created directory: $Path" -Category $Category -Color "Green"
+        return $true
+    }
+    return $false
+}
+
+# Function to wait for uninstall processes to complete
+function Wait-ForUninstallProcesses {
+    param(
+        [int]$MaxWaitSeconds = 30
+    )
+    
+    Write-CategoryLog -Message "Checking for hanging uninstall processes..." -Category "UNINSTALL_WAIT" -Color "Yellow"
+    
+    # Find all processes with "uninstall" in their name
+    $uninstallProcesses = Get-UninstallProcesses
+    
+    # Ensure we have an array and safe count access
+    if (-not $uninstallProcesses -or $uninstallProcesses.Count -eq 0) {
+        Write-CategoryLog -Message "No uninstall processes found, proceeding..." -Category "UNINSTALL_WAIT" -Color "Green"
+        return
+    }
+    
+    Write-CategoryLog -Message "Found $($uninstallProcesses.Count) uninstall processes, waiting up to $MaxWaitSeconds seconds..." -Category "UNINSTALL_WAIT" -Color "Yellow"
+    foreach ($proc in $uninstallProcesses) {
+        Write-CategoryLog -Message "Process: $($proc.ProcessName) (PID: $($proc.Id))" -Category "UNINSTALL_WAIT" -Color "Gray"
+    }
+    
+    $initialCount = $uninstallProcesses.Count
+    $waitTime = 0
+    $checkInterval = 2
+    
+    while ($waitTime -lt $MaxWaitSeconds) {
+        Start-Sleep -Seconds $checkInterval
+        $waitTime += $checkInterval
+        
+        # Check current uninstall processes
+        $currentProcesses = Get-UninstallProcesses
+        
+        # Safe count access
+        $currentCount = if ($currentProcesses) { $currentProcesses.Count } else { 0 }
+        
+        if ($currentCount -lt $initialCount) {
+            Write-CategoryLog -Message "Process count reduced from $initialCount to $currentCount, UI may have closed, proceeding..." -Category "UNINSTALL_WAIT" -Color "Green"
+            return
+        }
+        
+        Write-CategoryLog -Message "Still waiting... ($waitTime/$MaxWaitSeconds seconds) - $currentCount processes remaining" -Category "UNINSTALL_WAIT" -Color "Yellow"
+    }
+    
+    # If we reach here, processes are still hanging
+    Write-CategoryLog -Message "Timeout reached, attempting to kill hanging uninstall processes..." -Category "UNINSTALL_WAIT" -Color "Red"
+    
+    $remainingProcesses = Get-UninstallProcesses
+    
+    foreach ($proc in $remainingProcesses) {
+        try {
+            Write-CategoryLog -Message "Killing process: $($proc.ProcessName) (PID: $($proc.Id))" -Category "UNINSTALL_WAIT" -Color "Red"
+            $proc.Kill()
+            $proc.WaitForExit(5000) # Wait up to 5 seconds for graceful termination
+        }
+        catch {
+            Write-CategoryLog -Message "Failed to kill process $($proc.ProcessName): $($_.Exception.Message)" -Category "UNINSTALL_WAIT" -Color "Yellow"
+        }
+    }
+    
+    Write-CategoryLog -Message "Uninstall process handling completed, proceeding with installation..." -Category "UNINSTALL_WAIT" -Color "Green"
 }
 
 # Function to handle Chinese character encoding issues
@@ -190,6 +312,12 @@ function Write-ColorMessage {
         [ValidateSet("Success", "Warning", "Error", "Info")]
         [string]$Type = "Info"
     )
+    
+    # Handle empty or whitespace messages - convert to newline + spaces
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        Write-Host "`n    " -NoNewline
+        return
+    }
     
     $color = switch ($Type) {
         "Success" { $script:COLOR_SUCCESS }
@@ -389,8 +517,10 @@ function Find-ExecutableByKeyword {
     # Ensure Keywords is always an array for compatibility
     if ($Keywords -is [string]) {
         $Keywords = @($Keywords)
-    } elseif ($Keywords -is [array]) {
-    } else {
+    }
+    elseif ($Keywords -is [array]) {
+    }
+    else {
         $Keywords = @()
     }
     
@@ -459,6 +589,7 @@ function Find-ExecutableByKeyword {
     Write-DebugLog -Message "Performing deep search in system directories..." -Category "EXEC" -Color "Cyan"
     $systemPaths = @(
         ${env:LOCALAPPDATA},
+        ${env:APPDATA},
         "C:\Program Files",
         "C:\Program Files (x86)"
     )
@@ -474,9 +605,17 @@ function Find-ExecutableByKeyword {
     # Remove duplicate keywords, prioritizing those with extensions
     $allKeywords = Remove-DuplicateKeywords -Keywords $allKeywords -RemoveExtensionForComparison $true
     
+    # Track searched paths to avoid duplicate output
+    $searchedPaths = @()
+    
     # Search in specified paths first
     foreach ($searchPath in $searchPaths) {
         if (Test-Path $searchPath) {
+            # Add to searched paths list if not already present
+            if ($searchPath -notin $searchedPaths) {
+                $searchedPaths += $searchPath
+            }
+            
             Write-DebugLog -Message "Searching in: $searchPath" -Category "EXEC" -Color "Cyan"
             
             try {
@@ -499,7 +638,19 @@ function Find-ExecutableByKeyword {
             }
         }
     }
-    Write-DebugLog -Message "No executable found matching keyword: $Keywords" -Category "EXEC" -Color "Yellow"
+    
+    # If no executable found and debug is enabled, print all searched paths
+    Write-DebugLog -Message "No executable found matching keyword: $Keywords,IncludeSystemPaths: $IncludeSystemPaths" -Category "EXEC" -Color "Yellow"
+    if ($searchedPaths.Count -gt 0) {
+        Write-DebugLog -Message "Searched paths summary (total: $($searchedPaths.Count)):" -Category "EXEC" -Color "Yellow"
+        foreach ($path in $searchedPaths) {
+            Write-DebugLog -Message "  - $path" -Category "EXEC" -Color "Gray"
+        }
+    }
+    else {
+        Write-DebugLog -Message "No searched paths found" -Category "EXEC" -Color "Yellow"
+    }
+    
     return $null
 }
 
@@ -609,13 +760,16 @@ function Set-MultipleEnvironmentVariablesForPackage {
     $exeDir = Split-Path -Parent $ExecutablePath
     $pathEnvironmentVariablesList = @($exeDir)
     $addExecBinaryAbsolutePathsList = @()
-    
+
+    # Cache for keyword searches to avoid duplicates
+    $keywordSearchCache = @{}
+
     try {
         Write-DebugLog -Message "Processing $($EnvVars.Count) environment variables" -Category "ENV" -Color "Magenta"
-        
+
         foreach ($envVar in $EnvVars) {
             Write-DebugLog -Message "Processing envVar: $($envVar | ConvertTo-Json)" -Category "ENV" -Color "Cyan"
-            
+
             $types = $envVar.Type
             Write-DebugLog -Message "Types: $($types -join ', ')" -Category "ENV" -Color "Cyan"
             
@@ -703,9 +857,84 @@ function Set-MultipleEnvironmentVariablesForPackage {
                             & $script:WindowsPathFunctionPath "addexec" $binaryPath
                         }
                     }
+                    "Var" {
+                        # Handle Var type environment variables with proper keyword search and SubPath
+                        $varName = $envVar.Name
+                        $subPath = if ($envVar.ContainsKey("SubPath")) { $envVar.SubPath } else { "" }
+
+                        Write-DebugLog -Message "Processing Var type: $varName with SubPath: '$subPath'" -Category "ENV" -Color "Cyan"
+
+                        # Determine the base directory for this variable
+                        $varBaseDir = $exeDir
+
+                        # If there's a keyword, search for the specific executable
+                        if ($envVar.ContainsKey("Keyword")) {
+                            $keyword = $envVar.Keyword
+                            if ($keyword -is [string]) {
+                                $keyword = @($keyword)
+                            }
+
+                            # Use the first keyword to find the executable
+                            $firstKeyword = $keyword[0]
+
+                            # Check cache first
+                            if ($keywordSearchCache.ContainsKey($firstKeyword)) {
+                                $foundPath = $keywordSearchCache[$firstKeyword]
+                                Write-DebugLog -Message "Using cached path for keyword '$firstKeyword': $foundPath" -Category "ENV" -Color "Yellow"
+                            } else {
+                                Write-DebugLog -Message "Searching for executable with keyword: '$firstKeyword'" -Category "ENV" -Color "Cyan"
+                                $foundPaths = Find-ExecutableByKeyword -Keywords $firstKeyword -AdditionalScanPaths $exeDir -OnlyScanDirs @($exeDir) -Recursive $true
+
+                                # Handle both single result and array results
+                                if ($foundPaths) {
+                                    if ($foundPaths -is [array] -and $foundPaths.Count -gt 0) {
+                                        $foundPath = $foundPaths[0]
+                                    } elseif ($foundPaths -is [string]) {
+                                        $foundPath = $foundPaths
+                                    } else {
+                                        $foundPath = $foundPaths
+                                    }
+                                    $keywordSearchCache[$firstKeyword] = $foundPath
+                                    Write-DebugLog -Message "Found and cached path for keyword '$firstKeyword': $foundPath" -Category "ENV" -Color "Green"
+                                } else {
+                                    $foundPath = $null
+                                    Write-DebugLog -Message "Could not find executable for keyword '$firstKeyword', using default base directory" -Category "ENV" -Color "Yellow"
+                                }
+                            }
+
+                            if ($foundPath) {
+                                $varBaseDir = Split-Path -Parent $foundPath
+                            }
+                        }
+
+                        # Apply SubPath if specified
+                        if (-not [string]::IsNullOrEmpty($subPath)) {
+                            if ($subPath -eq "..") {
+                                $varValue = Split-Path -Parent $varBaseDir
+                            } elseif ($subPath.StartsWith("..")) {
+                                # Handle relative paths like "../.."
+                                $varValue = $varBaseDir
+                                $pathParts = $subPath -split "/"
+                                foreach ($part in $pathParts) {
+                                    if ($part -eq "..") {
+                                        $varValue = Split-Path -Parent $varValue
+                                    } elseif (-not [string]::IsNullOrEmpty($part)) {
+                                        $varValue = Join-Path $varValue $part
+                                    }
+                                }
+                            } else {
+                                $varValue = Join-Path $varBaseDir $subPath
+                            }
+                        } else {
+                            $varValue = $varBaseDir
+                        }
+
+                        Write-DebugLog -Message "Setting $varName = $varValue" -Category "ENV" -Color "Green"
+                        & $script:WindowsPathFunctionPath "setvar" $varName $varValue
+                    }
                     default {
-                        # Custom environment variable
-                        Write-DebugLog -Message "Setting $type = $exeDir" -Category "ENV" -Color "Green"
+                        # Handle other custom environment variable types (legacy support)
+                        Write-DebugLog -Message "Setting $type = $exeDir (legacy mode)" -Category "ENV" -Color "Green"
                         & $script:WindowsPathFunctionPath "setvar" $type $exeDir
                     }
                 }
@@ -741,7 +970,7 @@ function Repair-WingetInstallation {
     # Use provided path or find executable
     if (-not $FoundExecutablePath) {
         Write-Host "       [REPAIR] No executable path provided, searching in expected directory: $ExpectedInstallDir" -ForegroundColor Yellow
-                    $foundExecutablePath = Find-ExecutableByKeyword -Keywords $Keyword -AdditionalScanPaths $ExpectedInstallDir -Recursive $true -AdditionalKeywords $AdditionalKeywords
+        $foundExecutablePath = Find-ExecutableByKeyword -Keywords $Keyword -AdditionalScanPaths $ExpectedInstallDir -Recursive $true -AdditionalKeywords $AdditionalKeywords
         if (-not $foundExecutablePath) {
             Write-Host "       [REPAIR] No executable found in expected directory, searching system directories" -ForegroundColor Yellow
             $foundExecutablePath = Find-ExecutableByKeyword -Keywords $Keyword -Recursive $true -AdditionalKeywords $AdditionalKeywords
@@ -768,10 +997,7 @@ function Repair-WingetInstallation {
     
     try {
         # Create expected directory if it doesn't exist
-        if (-not (Test-Path $ExpectedInstallDir)) {
-            New-Item -ItemType Directory -Path $ExpectedInstallDir -Force | Out-Null
-            Write-Host "       [REPAIR] Created expected directory: $ExpectedInstallDir" -ForegroundColor Green
-        }
+        New-DirectoryIfNotExists -Path $ExpectedInstallDir -Category "REPAIR"
         
         # Copy the entire installation directory
         Write-Host "       [REPAIR] Copying from $foundInstallDir to $ExpectedInstallDir..." -ForegroundColor Cyan
@@ -795,7 +1021,8 @@ function Repair-WingetInstallation {
                 }
                 Move-Item -Path $copiedDir -Destination $ExpectedInstallDir -Force
             }
-        } else {
+        }
+        else {
             # Standard copy for other applications
             Copy-Item -Path "$foundInstallDir\*" -Destination $ExpectedInstallDir -Recurse -Force
         }
@@ -820,19 +1047,6 @@ function Repair-WingetInstallation {
         if (Test-Path $expectedExecutable) {
             Write-Host "       [REPAIR] Successfully copied installation to expected location" -ForegroundColor Green
             Write-Host "       [REPAIR] New executable path: $expectedExecutable" -ForegroundColor Green
-
-            # Test the copied executable
-            try {
-                $version = & $expectedExecutable --version 2>&1 | Select-Object -First 1
-                if (-not $version) {
-                    $version = & $expectedExecutable -v 2>&1 | Select-Object -First 1
-                }
-                Write-Host "       [REPAIR] Verified copied executable version: $version" -ForegroundColor Green
-            }
-            catch {
-                Write-Host "       [REPAIR] Warning: Could not verify copied executable version" -ForegroundColor Yellow
-            }
-
             return $expectedExecutable
         }
         else {
@@ -984,6 +1198,10 @@ function Invoke-WingetCommand {
         
         $firstCleanOldInstallCommand = "winget uninstall $Id"
         Write-Host "       Running: $firstCleanOldInstallCommand" -ForegroundColor Cyan
+        
+        # Start timing the uninstall process
+        $uninstallStartTime = Get-Date
+        
         $firstCleanOldInstallProcess = Start-Process -FilePath "winget" -ArgumentList "uninstall $Id" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "winget_uninstall_output.log" -RedirectStandardError "winget_uninstall_error.log"
         if ($firstCleanOldInstallProcess.ExitCode -eq 0) {
             Write-Host "       Successfully cleaned old installation of $Id" -ForegroundColor Green
@@ -995,14 +1213,16 @@ function Invoke-WingetCommand {
             if (-not [string]::IsNullOrEmpty($RegistrySearchKeyword)) {
                 $keywordArray = if ($RegistrySearchKeyword.Contains(";")) {
                     $RegistrySearchKeyword -split ";" | Where-Object { $_ -and $_.Trim() } | ForEach-Object { $_.Trim() }
-                } else {
+                }
+                else {
                     @($RegistrySearchKeyword)
                 }
 
                 $cleanupResult = Remove-PreciseRegistryEntries -SearchKeywords $keywordArray
                 if ($cleanupResult.EntriesRemoved -gt 0) {
                     Write-Host "       Precise registry cleanup completed - Removed $($cleanupResult.EntriesRemoved) entries" -ForegroundColor Green
-                } else {
+                }
+                else {
                     Write-Host "       No matching registry entries found for cleanup" -ForegroundColor Yellow
                 }
             }
@@ -1092,6 +1312,17 @@ function Invoke-WingetCommand {
             Write-Host "       Proceeding with installation despite uninstall failure" -ForegroundColor Yellow
         }
     
+        # Check if uninstall took less than 4 seconds and call helper function if needed
+        $uninstallDuration = (Get-Date) - $uninstallStartTime
+        if ($uninstallDuration.TotalSeconds -lt 4) {
+            Wait-ForUninstallProcesses
+        }
+        
+        # Display timing information between uninstall and install
+        $uninstallEndTime = Get-Date
+        $timeBetweenCommands = $uninstallEndTime - $uninstallStartTime
+        Write-Host "       Uninstall completed in $([math]::Round($timeBetweenCommands.TotalSeconds, 2)) seconds" -ForegroundColor Gray
+    
         Write-Host "       Running: $fullCommand" -ForegroundColor Cyan
         $process = Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru
         if ($process.ExitCode -eq 0) {
@@ -1132,7 +1363,7 @@ function Invoke-WingetCommand {
 
     }
     $isRepair = $false
-    if ($installationResult -and -not [string]::IsNullOrEmpty($Keyword) -and -not $isInExpectedDir -and $ForceToInstallDir) {
+    if ($installationResult -eq $true -and -not [string]::IsNullOrEmpty($Keyword) -and -not $isInExpectedDir -eq $true -and $ForceToInstallDir -eq $true) {
         $isRepair = $true
         Write-Host "       Performing final repair check..." -ForegroundColor Cyan
         $repairedExePath = Repair-WingetInstallation -Id $Id -ExpectedInstallDir $InstallDir -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -FoundExecutablePath $exePath
@@ -1144,6 +1375,9 @@ function Invoke-WingetCommand {
         else {
             Write-Host "       Repair failed" -ForegroundColor Red
         }
+    }
+    else {
+        Write-Host "       [Repair condition not met - Values: installationResult=$installationResult, Keyword='$Keyword', isInExpectedDir=$isInExpectedDir, ForceToInstallDir=$ForceToInstallDir, IncludeSystemPaths=$IncludeSystemPaths]" -ForegroundColor Cyan
     }
     if (-not $isRepair -and $ForceToInstallDir) {
         Write-Host "       [WARNING] Package requires forced installation to install directory, but repair command cannot be executed due to insufficient parameters:" -ForegroundColor Yellow
@@ -1167,6 +1401,16 @@ function Invoke-WingetCommand {
         }
     }
     
+    # Ensure we return a single string, not an array
+    if ($finalExePath -is [array]) {
+        # Find the first valid string path (non-boolean)
+        foreach ($item in $finalExePath) {
+            if ($item -and $item -is [string] -and -not ($item -is [bool])) {
+                return $item
+            }
+        }
+        return $null
+    }
     return $finalExePath
 }
 
@@ -1355,9 +1599,7 @@ function Test-AndRecreateHardLink {
     }
     
     $parentDir = Split-Path $LinkPath -Parent
-    if (-not (Test-Path $parentDir)) {
-        New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
-    }
+    New-DirectoryIfNotExists -Path $parentDir -Category "SYMLINK"
     
     try {
         Write-Host "       Creating hard link from $LinkPath to $TargetPath" -ForegroundColor Yellow
@@ -1757,8 +1999,8 @@ function Create-DesktopShortcutsForPackage {
     
     # Ensure the base desktop icons directory exists
     $baseDesktopIconsDir = Join-Path $Global:LANG_COMPILER_DIR ".desktopIcons"
-    Write-DebugLog -Message "LANG_COMPILER_DIR = '$Global:LANG_COMPILER_DIR'" -Category "DESKTOP" -Color "Magenta"
-    Write-DebugLog -Message "baseDesktopIconsDir = '$baseDesktopIconsDir'" -Category "DESKTOP" -Color "Magenta"
+    Write-DebugLog -Message "LANG_COMPILER_DIR = '$Global:LANG_COMPILER_DIR'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
+    Write-DebugLog -Message "baseDesktopIconsDir = '$baseDesktopIconsDir'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
     if (-not (Test-Path $baseDesktopIconsDir)) {
         New-Item -ItemType Directory -Path $baseDesktopIconsDir -Force | Out-Null
         Write-Host "       [DESKTOP] Created base desktop icons directory: $baseDesktopIconsDir" -ForegroundColor Green
@@ -1770,12 +2012,12 @@ function Create-DesktopShortcutsForPackage {
     $isRootCategory = ($CategoryName -eq "")
     $isRealCategory = ($CategoryName -ne "" -and $CategoryName -ne $null)
 
-    Write-DebugLog -Message "isRootCategory = $isRootCategory, isRealCategory = $isRealCategory" -Category "DESKTOP" -Color "Magenta"
+    Write-DebugLog -Message "isRootCategory = $isRootCategory, isRealCategory = $isRealCategory" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
 
     # Handle CategoryName parameter - create category directory and link to desktop
     if ($isRealCategory) {
         $categoryDir = Join-Path $baseDesktopIconsDir $CategoryName
-        Write-DebugLog -Message "categoryDir = '$categoryDir'" -Category "DESKTOP" -Color "Magenta"
+        Write-DebugLog -Message "categoryDir = '$categoryDir'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
         if (-not (Test-Path $categoryDir)) {
             New-Item -ItemType Directory -Path $categoryDir -Force | Out-Null
             Write-Host "       [DESKTOP] Created category directory: $categoryDir" -ForegroundColor Green
@@ -1800,7 +2042,7 @@ function Create-DesktopShortcutsForPackage {
     else {
         $baseDesktopIconsDir
     }
-    Write-DebugLog -Message "targetDir = '$targetDir'" -Category "DESKTOP" -Color "Magenta"
+    Write-DebugLog -Message "targetDir = '$targetDir'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
     
     # Scan for existing shortcuts on desktop if keywords provided
     $foundShortcut = $null
@@ -1810,22 +2052,22 @@ function Create-DesktopShortcutsForPackage {
         $publicDesktopPath = "C:\Users\Public\Desktop"
         $desktopPaths = @($userDesktopPath, $publicDesktopPath)
         
-        Write-DebugLog -Message "User desktop path: '$userDesktopPath'" -Category "DESKTOP" -Color "Magenta"
-        Write-DebugLog -Message "Public desktop path: '$publicDesktopPath'" -Category "DESKTOP" -Color "Magenta"
+        Write-DebugLog -Message "User desktop path: '$userDesktopPath'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
+        Write-DebugLog -Message "Public desktop path: '$publicDesktopPath'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
         # Use keywords directly without conversion since we're using Unicode variables
         Write-Host "       [DESKTOP] Scanning both desktops for existing shortcuts with keywords: $($ScanKeywords -join ', ')" -ForegroundColor Yellow
         
         foreach ($keyword in $ScanKeywords) {
-            Write-DebugLog -Message "Processing keyword = '$keyword' (Length: $($keyword.Length))" -Category "DESKTOP" -Color "Magenta"
+            Write-DebugLog -Message "Processing keyword = '$keyword' (Length: $($keyword.Length))" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
             
             # Scan each desktop path
             foreach ($desktopPath in $desktopPaths) {
                 if (-not (Test-Path $desktopPath)) {
-                    Write-DebugLog -Message "Desktop path does not exist: '$desktopPath'" -Category "DESKTOP" -Color "DarkGray"
+                    Write-DebugLog -Message "Desktop path does not exist: '$desktopPath'" -Category "DESKTOP" -Color "DarkGray" -LocalDebug $script:DEBUG_DESKTOP_ICONS
                     continue
                 }
             
-                Write-DebugLog -Message "Scanning desktop path: '$desktopPath'" -Category "DESKTOP" -Color "Magenta"
+                Write-DebugLog -Message "Scanning desktop path: '$desktopPath'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
                 
                 # Use .NET method to get files for better Chinese character handling
                 try {
@@ -1840,17 +2082,17 @@ function Create-DesktopShortcutsForPackage {
                     $desktopShortcuts = Get-ChildItem -Path $desktopPath -Filter "*.lnk" -ErrorAction SilentlyContinue
                 }
                 
-                Write-DebugLog -Message "Found $($desktopShortcuts.Count) shortcuts in '$desktopPath'" -Category "DESKTOP" -Color "Magenta"
+                Write-DebugLog -Message "Found $($desktopShortcuts.Count) shortcuts in '$desktopPath'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
                 
                 foreach ($shortcut in $desktopShortcuts) {
-                    Write-DebugLog -Message "Original name: '$($shortcut.Name)'" -Category "DESKTOP" -Color "Magenta"
+                    Write-DebugLog -Message "Original name: '$($shortcut.Name)'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
                     $shell = New-Object -ComObject WScript.Shell
                     $targetPath = $shell.CreateShortcut($shortcut.FullName).TargetPath
-                    Write-DebugLog -Message "Shortcut target path: '$targetPath'" -Category "DESKTOP" -Color "Magenta"
+                    Write-DebugLog -Message "Shortcut target path: '$targetPath'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
                     
                     # Check if targetPath is empty or null
                     if (-not $targetPath -or $targetPath -eq "") {
-                        Write-DebugLog -Message "Skipping shortcut with empty target path: $($shortcut.Name)" -Category "DESKTOP" -Color "DarkGray"
+                        Write-DebugLog -Message "Skipping shortcut with empty target path: $($shortcut.Name)" -Category "DESKTOP" -Color "DarkGray" -LocalDebug $script:DEBUG_DESKTOP_ICONS
                         continue
                     }
                     
@@ -1881,12 +2123,12 @@ function Create-DesktopShortcutsForPackage {
                     }
                 }
                 if ($foundShortcut) { 
-                    Write-DebugLog -Message "Found matching shortcut, breaking desktop path loop" -Category "DESKTOP" -Color "Magenta"
+                    Write-DebugLog -Message "Found matching shortcut, breaking desktop path loop" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
                     break 
                 }
             }
             if ($foundShortcut) { 
-                Write-DebugLog -Message "Found matching shortcut, breaking keyword loop" -Category "DESKTOP" -Color "Magenta"
+                Write-DebugLog -Message "Found matching shortcut, breaking keyword loop" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
                 break 
             }
         }
@@ -1896,9 +2138,9 @@ function Create-DesktopShortcutsForPackage {
     
     # Create or move shortcut
     try {
-        Write-DebugLog -Message "About to create shortcutPath with targetDir='$targetDir' and ShortcutName='$ShortcutName'" -Category "DESKTOP" -Color "Magenta"
+        Write-DebugLog -Message "About to create shortcutPath with targetDir='$targetDir' and ShortcutName='$ShortcutName'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
         $shortcutPath = Join-Path $targetDir "$ShortcutName.lnk"
-        Write-DebugLog -Message "shortcutPath = '$shortcutPath'" -Category "DESKTOP" -Color "Magenta"
+        Write-DebugLog -Message "shortcutPath = '$shortcutPath'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
         
         # Remove existing target shortcut if it exists
         if (Test-Path $shortcutPath) {
@@ -1941,16 +2183,16 @@ function Create-DesktopShortcutsForPackage {
             $publicDesktopPath = "C:\Users\Public\Desktop"
             $desktopPaths = @($userDesktopPath, $publicDesktopPath)
 
-            Write-DebugLog -Message "Root category - copying shortcut directly to desktop" -Category "DESKTOP" -Color "Magenta"
+            Write-DebugLog -Message "Root category - copying shortcut directly to desktop" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
             $desktopIndex = 0
             foreach ($desktopPath in $desktopPaths) {
                 if (-not (Test-Path $desktopPath)) {
-                    Write-DebugLog -Message "Desktop path does not exist, skipping: '$desktopPath'" -Category "DESKTOP" -Color "DarkGray"
+                    Write-DebugLog -Message "Desktop path does not exist, skipping: '$desktopPath'" -Category "DESKTOP" -Color "DarkGray" -LocalDebug $script:DEBUG_DESKTOP_ICONS
                     continue
                 }
 
                 $desktopShortcutPath = Join-Path $desktopPath "$ShortcutName.lnk"
-                Write-DebugLog -Message "Creating shortcut in: '$desktopPath'" -Category "DESKTOP" -Color "Magenta"
+                Write-DebugLog -Message "Creating shortcut in: '$desktopPath'" -Category "DESKTOP" -Color "Magenta" -LocalDebug $script:DEBUG_DESKTOP_ICONS
 
                 # Remove existing shortcut on desktop if it exists
                 if (Test-Path $desktopShortcutPath) {
@@ -2259,7 +2501,8 @@ function Invoke-SmartLoadScript {
         $selectedRegion = Get-GlobalVar -key "SELECTED_REGION" -defaultValue "China"
         if ($selectedRegion -eq "Global") { 
             "https://raw.githubusercontent.com/accountbelongstox/core_node/main" 
-        } else { 
+        }
+        else { 
             "https://gitee.com/accountbelongstox/core_node/raw/main" 
         }
     }
@@ -2356,7 +2599,8 @@ function Invoke-SmartScriptDownload {
     # Convert path result to boolean for backward compatibility
     if ($result) {
         return $true
-    } else {
+    }
+    else {
         return $false
     }
 }
@@ -2386,10 +2630,10 @@ function Remove-PreciseRegistryEntries {
 
     # Variables declaration
     $cleanupResults = @{
-        EntriesFound = 0
-        EntriesRemoved = 0
+        EntriesFound     = 0
+        EntriesRemoved   = 0
         LocationsCleaned = @()
-        Errors = @()
+        Errors           = @()
     }
 
     # Registry paths to scan
@@ -2463,21 +2707,24 @@ function Remove-PreciseRegistryEntries {
                             Write-Host "       [PRECISE_CLEANUP] Successfully removed registry entry: $displayName" -ForegroundColor Green
                             $cleanupResults.EntriesRemoved++
                             $cleanupResults.LocationsCleaned += $subKey.PSPath
-                        } catch {
+                        }
+                        catch {
                             $errorMsg = "Failed to remove registry entry: $($subKey.PSPath) - $($_.Exception.Message)"
                             Write-Host "       [PRECISE_CLEANUP] $errorMsg" -ForegroundColor Red
                             $cleanupResults.Errors += $errorMsg
                         }
                     }
 
-                } catch {
+                }
+                catch {
                     # Skip entries that can't be read
                     Write-Host "       [PRECISE_CLEANUP] Error reading registry entry: $($subKey.PSPath) - $($_.Exception.Message)" -ForegroundColor DarkGray
                     continue
                 }
             }
 
-        } catch {
+        }
+        catch {
             $errorMsg = "Error scanning registry path: $registryPath - $($_.Exception.Message)"
             Write-Host "       [PRECISE_CLEANUP] $errorMsg" -ForegroundColor Red
             $cleanupResults.Errors += $errorMsg

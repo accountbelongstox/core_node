@@ -47,7 +47,7 @@ param(
 # Load global variables and common functions
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
 . "$PSScriptRoot\..\win_common\ApplicationsList.ps1"
-. "$PSScriptRoot\..\win_common\CommanFunc.ps1"
+. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 . "$PSScriptRoot\..\win_common\WindowsPathFunction.ps1"
 . "$PSScriptRoot\..\win_common\PackageManagerInvokes.ps1"
 . "$PSScriptRoot\..\win_common\PostInstallCallbackProcessor.ps1"

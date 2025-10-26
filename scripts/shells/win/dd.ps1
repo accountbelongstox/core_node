@@ -1398,7 +1398,7 @@ Initialize-Environment
 Check-AdminPrivileges
 
 # Load common functions
-$commonFuncPath = Join-Path $script:PS_CURENT_DIR "win_common\CommanFunc.ps1"
+$commonFuncPath = Join-Path $script:PS_CURENT_DIR "win_common\CommonFunc.ps1"
 if (Test-Path $commonFuncPath) {
     try {
         . $commonFuncPath
