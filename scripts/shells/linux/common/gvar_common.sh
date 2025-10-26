@@ -40,7 +40,7 @@ elif [ -d "/usr/wwwroot" ]; then
 fi
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d ï¿?NTFS mount ï¿?Data disk mount ï¿?/www
+# Priority: WSL /mnt/d ï¿½?NTFS mount ï¿½?Data disk mount ï¿½?/www
 get_base_data_directory() {
     local base_dir=""
 
@@ -101,11 +101,8 @@ get_base_data_directory() {
 has_ntfs_disk() {
     local ntfs_devices=$($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"")
     if [ -n "$ntfs_devices" ]; then
-        echo "[NTFS Detection] Found NTFS disk(s):" >&2
-        echo "$ntfs_devices" >&2
         return 0
     else
-        echo "[NTFS Detection] No NTFS disks found" >&2
         return 1
     fi
 }
@@ -754,6 +751,21 @@ map_web_path() {
         "www")
             mapped_path="$base_path"
             ;;
+        "compile_dir")
+            # Compile directory for development languages
+            # When base_path="/www" (production) -> /usr/system_version
+            # Otherwise (development) -> base_path/system_version
+            # Format: ubuntu_24, debian_12, centos_8, etc.
+            local sys_name="${SYSTEM_NAME}"
+            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
+            local compile_sys_dir="${sys_name}_${sys_version}"
+
+            if [ "$base_path" = "/www" ]; then
+                mapped_path="/usr/${compile_sys_dir}"
+            else
+                mapped_path="${base_path}/${compile_sys_dir}"
+            fi
+            ;;
         "nginx")
             # Keep /etc/nginx in Linux filesystem
             mapped_path="/etc/nginx"
@@ -781,7 +793,7 @@ map_web_path() {
 
     # Create directory if it doesn't exist (only for web-related paths, not system paths)
     case "$path_key" in
-        "wwwroot"|"nginxconfig"|"shared-data"|"backup"|"www")
+        "wwwroot"|"nginxconfig"|"shared-data"|"backup"|"www"|"compile_dir")
             if [ ! -d "$mapped_path" ]; then
                 echo "Creating directory: $mapped_path"
                 $USE_SUDO mkdir -p "$mapped_path"
@@ -822,61 +834,6 @@ ensure_web_directory() {
     fi
 
     echo "$actual_path"
-    return 0
-}
-
-# Function to determine and create COMPILE_DIR based on OS and version
-determine_compile_dir() {
-    local os_id=""
-    local version_id=""
-    
-    # Try to get OS information from /etc/os-release
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        os_id=$(echo "$ID" | tr '[:upper:]' '[:lower:]')
-        version_id=$(echo "$VERSION_ID" | cut -d. -f1)
-    fi
-    
-    # Fallback detection methods
-    if [ -z "$os_id" ]; then
-        if command -v lsb_release >/dev/null 2>&1; then
-            os_id=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
-            version_id=$(lsb_release -sr | cut -d. -f1)
-        elif [ -f /etc/debian_version ]; then
-            os_id="debian"
-            version_id=$(cat /etc/debian_version | cut -d. -f1)
-        elif [ -f /etc/ubuntu_version ]; then
-            os_id="ubuntu"
-            version_id=$(cat /etc/ubuntu_version | cut -d. -f1)
-        else
-            os_id="linux"
-            version_id="unknown"
-        fi
-    fi
-    
-    # Clean up os_id and version_id
-    os_id=$(echo "$os_id" | sed 's/[^a-z0-9]//g')
-    version_id=$(echo "$version_id" | sed 's/[^0-9]//g')
-    
-    # Create compile directory path using www key
-    local www_base_path=$(map_web_path "www")
-    local compile_dir="$www_base_path/www_${os_id}${version_id}"
-
-    echo "$compile_dir"
-    return 0
-}
-
-# Function to ensure COMPILE_DIR exists
-ensure_compile_dir() {
-    local compile_dir="$1"
-
-    if [ ! -d "$compile_dir" ]; then
-        echo "Creating COMPILE_DIR: $compile_dir"
-        $USE_SUDO mkdir -p "$compile_dir"
-        $USE_SUDO chmod 755 "$compile_dir"
-    fi
-
-    echo "COMPILE_DIR: $compile_dir"
     return 0
 }
 
@@ -1374,7 +1331,7 @@ set_is_global
 # Directory variables (set after all functions are defined)
 BASE_DIR=$(map_web_path "www")
 WIS_PROGRAMING_DIR="$BASE_DIR/programing"
-COMPILE_DIR="${BASE_DIR}/${SYS_DIR}"
+COMPILE_DIR=$(map_web_path "compile_dir")
 
 # Installation directories (set after all functions are defined)
 POETRY_HOME="$COMPILE_DIR/poetry"
@@ -1399,11 +1356,6 @@ UPSMON_CONF="/etc/nut/upsmon.conf"
 MCP_SOURCE_DIR="$CORE_SCRIPTS_DIR/mcp"
 MCP_SERVER_DIR="$COMPILE_DIR/mcp_server"
 MCP_LOCAL_DIR="scripts/mcp"
-
-# Create compile directory if it doesn't exist
-if [ ! -d "$COMPILE_DIR" ]; then
-    $USE_SUDO mkdir -p "$COMPILE_DIR"
-fi
 
 # Export the additional variables
 export BASE_DIR
