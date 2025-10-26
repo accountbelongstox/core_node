@@ -193,6 +193,7 @@ get_smart_input_for_variable() {
 declare -A ENVIRONMENT_CONFIGS
 ENVIRONMENT_CONFIGS["Claude AI"]="title=Claude AI Environment Variables;description=Set up Claude AI environment variables for API access;common=claude;command_prefix=claude;vars=ANTHROPIC_BASE_URL,ANTHROPIC_AUTH_TOKEN;secrets=ANTHROPIC_AUTH_TOKEN;smart_recognition=true"
 ENVIRONMENT_CONFIGS["Alibaba Cloud"]="title=Alibaba Cloud Environment Variables;description=Set up Alibaba Cloud environment variables for API access;common=alibaba;command_prefix=aliyun;vars=ALIBABA_CLOUD_ACCESS_KEY_ID,ALIBABA_CLOUD_ACCESS_KEY_SECRET;secrets=ALIBABA_CLOUD_ACCESS_KEY_SECRET;smart_recognition=false"
+ENVIRONMENT_CONFIGS["Factory AI Droid"]="title=Factory AI Droid Environment Variables;description=Set up Factory AI Droid environment variables for API access;common=droid;command_prefix=droid;vars=FACTORY_API_KEY;secrets=FACTORY_API_KEY;smart_recognition=true"
 # Example: Add new service configuration
 # ENVIRONMENT_CONFIGS["OpenAI"]="title=OpenAI Environment Variables;description=Set up OpenAI environment variables for API access;common=openai;command_prefix=openai;vars=OPENAI_API_KEY,OPENAI_BASE_URL;secrets=OPENAI_API_KEY"
 
@@ -1538,16 +1539,31 @@ show_config_submenu() {
     done
 }
 
-# Main Menu for this script (Updated to match Windows structure 1:1)
+# Helper function to check if menu item is a config name
+is_config_item() {
+    local item="$1"
+    [[ -n "${ENVIRONMENT_CONFIGS[$item]}" ]]
+}
+
+# Main Menu for this script (Generic - dynamically generated from ENVIRONMENT_CONFIGS)
 main_special_env_menu() {
-    local menu_options=(
-        "Claude AI"
-        "Alibaba Cloud"
-        "View All Environment Variables"
-        "Refresh Current Terminal Environment"
-        "Back to Main Menu"
-        "Exit"
-    )
+    # Build menu options dynamically from ENVIRONMENT_CONFIGS
+    local menu_options=()
+    
+    # Add all configured services from ENVIRONMENT_CONFIGS
+    for config_name in "${!ENVIRONMENT_CONFIGS[@]}"; do
+        menu_options+=("$config_name")
+    done
+    
+    # Sort config names alphabetically for consistent display
+    IFS=$'\n' menu_options=($(sort <<<"${menu_options[*]}"))
+    unset IFS
+    
+    # Add fixed menu options
+    menu_options+=("View All Environment Variables")
+    menu_options+=("Refresh Current Terminal Environment")
+    menu_options+=("Back to Main Menu")
+    menu_options+=("Exit")
     
     local selected_index=0
     local num_options=${#menu_options[@]}
@@ -1565,23 +1581,23 @@ main_special_env_menu() {
 
         for i in "${!menu_options[@]}"; do
             local menu_item="${menu_options[$i]}"
-            # Add submenu indicator for services (1:1 match with Windows behavior)
-            case "$menu_item" in
-                "Claude AI"|"Alibaba Cloud")
-                    if [[ "$i" -eq "$selected_index" ]]; then
-                        print_color yellow "> $menu_item >"
-                    else
-                        print_color green "  $menu_item >"
-                    fi
-                    ;;
-                *)
-                    if [[ "$i" -eq "$selected_index" ]]; then
-                        print_color yellow "> $menu_item"
-                    else
-                        print_color green "  $menu_item"
-                    fi
-                    ;;
-            esac
+            
+            # Check if this is a configuration item (dynamic check)
+            if is_config_item "$menu_item"; then
+                # Add submenu indicator for service configs
+                if [[ "$i" -eq "$selected_index" ]]; then
+                    print_color yellow "> $menu_item >"
+                else
+                    print_color green "  $menu_item >"
+                fi
+            else
+                # Regular menu item
+                if [[ "$i" -eq "$selected_index" ]]; then
+                    print_color yellow "> $menu_item"
+                else
+                    print_color green "  $menu_item"
+                fi
+            fi
         done
         
         local key
@@ -1619,30 +1635,31 @@ main_special_env_menu() {
                 local selected_option="${menu_options[$selected_index]}"
                 # Restore terminal settings before executing action
                 stty "$old_settings"
-                case "$selected_option" in
-                    "Claude AI")
-                        # Show submenu for Claude AI (1:1 match with Windows behavior)
-                        show_config_submenu "Claude AI"
-                        ;;
-                    "Alibaba Cloud")
-                        # Show submenu for Alibaba Cloud (1:1 match with Windows behavior)
-                        show_config_submenu "Alibaba Cloud"
-                        ;;
-                    "View All Environment Variables")
-                        show_all_environment_variables
-                        ;;
-                    "Refresh Current Terminal Environment")
-                        refresh_current_terminal_environment
-                        ;;
-                    "Back to Main Menu")
-                        trap - EXIT
-                        return
-                        ;;
-                    "Exit")
-                        trap - EXIT
-                        exit 0
-                        ;;
-                esac
+                
+                # Check if selected option is a config item (generic handling)
+                if is_config_item "$selected_option"; then
+                    # Show submenu for any configured service
+                    show_config_submenu "$selected_option"
+                else
+                    # Handle fixed menu options
+                    case "$selected_option" in
+                        "View All Environment Variables")
+                            show_all_environment_variables
+                            ;;
+                        "Refresh Current Terminal Environment")
+                            refresh_current_terminal_environment
+                            ;;
+                        "Back to Main Menu")
+                            trap - EXIT
+                            return
+                            ;;
+                        "Exit")
+                            trap - EXIT
+                            exit 0
+                            ;;
+                    esac
+                fi
+                
                 stty -icanon -echo
                 trap 'stty "$old_settings"' EXIT
                 ;;

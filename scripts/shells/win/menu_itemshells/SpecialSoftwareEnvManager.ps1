@@ -20,7 +20,7 @@
 #region Variable Declarations
 $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
-$script:COMMON_FUNC_PATH = Join-Path $script:WIN_COMMON_DIR "CommanFunc.ps1"
+$script:COMMON_FUNC_PATH = Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1"
 $script:WINDOWS_PATH_FUNCTION_PATH = Join-Path $script:WIN_COMMON_DIR "WindowsPathFunction.ps1"
 
 # Global variables for file management
@@ -397,6 +397,7 @@ function Get-ValueForNextVariable {
 $script:ActionToConfigMapping = @{
     'claude' = 'Claude AI'
     'alibaba' = 'Alibaba Cloud'
+    'droid' = 'Factory AI Droid'
 }
 
 function Get-FullConfigName {
@@ -458,6 +459,26 @@ $script:EnvironmentConfigs = @{
                 Name = "ALIBABA_CLOUD_ACCESS_KEY_SECRET"
                 DisplayName = "ALIBABA_CLOUD_ACCESS_KEY_SECRET"
                 Description = "Alibaba Cloud access key secret"
+                IsSecret = $true
+                InputType = "Token"
+            }
+        )
+    }
+    "Factory AI Droid" = @{
+        Title = "Factory AI Droid Environment Variables"
+        Description = "Set up Factory AI Droid environment variables for API access"
+        Common = "droid"
+        CommandPrefix = "droid"
+        DisplayName = "Factory AI Droid"
+        SmartRecognition = @{
+            Enabled = $true
+            AllowedTypes = @("token", "url")
+        }
+        Variables = @(
+            @{
+                Name = "FACTORY_API_KEY"
+                DisplayName = "FACTORY_API_KEY"
+                Description = "Factory AI API key (starts with fk-)"
                 IsSecret = $true
                 InputType = "Token"
             }
@@ -1251,97 +1272,39 @@ function Generate-GlobalCommand {
         Write-ColorMessage -Message "DEBUG: Generated new file: $script:CurrentFileName (number: $script:CurrentFileNumber)" -Type "Info"
     }
     
-    # Create batch script content
-    $psEnvVarsString = $psEnvVars -join "; "
-
-    # Check if this is a Claude command and add upgrade prompt + MCP sync
-    $upgradeSection = ""
-    if ($script:CurrentPsCommand -eq "claude") {
-        $upgradeSection = @"
-
-REM Prompt for upgrade and sync MCP configuration
-echo.
-echo ============================================================
-echo Claude Code - Pre-Launch Tasks
-echo ============================================================
-echo.
-echo Available tasks:
-echo   [1] Upgrade Claude Code to latest version (runs in separate window)
-echo   [2] Sync MCP server configurations (runs now)
-echo.
-
-REM Ask user if they want to upgrade
-set /p UPGRADE_CHOICE="Do you want to upgrade Claude Code? (y/N): "
-if /i "%UPGRADE_CHOICE%"=="y" (
-    echo.
-    echo [INFO] Launching upgrade in separate window...
-    start "Claude Code Upgrade" "D:\programing\core_node\scripts\pytools\claude_tools\upgrade_claude_code.bat"
-    echo [SUCCESS] Upgrade window opened
-) else (
-    echo [INFO] Skipping upgrade
-)
-
-echo.
-echo ============================================================
-echo Syncing MCP Server Configurations...
-echo ============================================================
-echo.
-
-REM Run MCP sync in main thread with unbuffered output for real-time display
-python -u "D:\programing\core_node\scripts\pytools\claude_tools\sync_mcp_servers.py"
-
-set MCP_EXIT_CODE=%ERRORLEVEL%
-
-if %MCP_EXIT_CODE% EQU 0 (
-    echo [SUCCESS] MCP configuration sync completed
-) else (
-    echo [WARNING] MCP sync exited with code: %MCP_EXIT_CODE%
-)
-
-echo.
-echo ============================================================
-echo Press Enter to start Claude Code...
-echo ============================================================
-set /p CONTINUE="Press Enter to continue..."
-
-"@
-    }
-
-    $script:CurrentBatchContent = @"
-@echo off
-REM $($script:CurrentConfig.Title) Global File #$script:CurrentFileNumber
-REM Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-
-REM Set environment variables
-$($envCommands -join "`n")
-$upgradeSection
-REM Execute PowerShell command with environment variables
-echo Executing: $script:CurrentPsCommand
-echo.
-echo PowerShell Command: powershell -NoProfile -ExecutionPolicy Bypass -Command "$psEnvVarsString; $script:CurrentPsCommand"
-echo.
-echo Press any key to continue...
-pause >nul
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$psEnvVarsString; $script:CurrentPsCommand"
-
-echo.
-pause
-"@
-    
-    # Preview the generated content
-    Write-ColorMessage -Message "`nPreview of generated batch file:" -Type "Info"
-    Write-ColorMessage -Message "File: $TargetCommandPath" -Type "Info"
-    Write-ColorMessage -Message ("=" * 50) -Type "Info"
-    Write-Host $script:CurrentBatchContent -ForegroundColor Cyan
-    Write-ColorMessage -Message ("=" * 50) -Type "Info"
-    
-    # Ask for confirmation
-    Write-ColorMessage -Message "Press Enter to generate, any other key to cancel" -Type "Info"
-    $confirm = Read-Host "Confirm"
-    if ($confirm -ne '') {
-        Write-ColorMessage -Message "Command generation cancelled." -Type "Warning"
+    # Import command content generator module
+    $commandGeneratorPath = Join-Path $PSScriptRoot "..\tools\CommandContentGenerator.ps1"
+    if (Test-Path $commandGeneratorPath) {
+        . $commandGeneratorPath
+    } else {
+        Write-ColorMessage -Message "Error: CommandContentGenerator.ps1 not found at: $commandGeneratorPath" -Type "Error"
         return $false
     }
+
+    # Prepare user inputs for command generation
+    $userInputs = @{}
+    foreach ($var in $script:CurrentConfig.Variables) {
+        # Extract user input from environment commands
+        $userInput = ""
+        foreach ($cmd in $envCommands) {
+            if ($cmd -match "set $($var.Name)=(.*)") {
+                $userInput = $matches[1]
+                break
+            }
+        }
+        $userInputs[$var.Name] = $userInput
+    }
+
+    # Generate complete command content using the new module
+    $result = New-CompleteCommandContent -Config $script:CurrentConfig -CommandPrefix $script:CurrentCommandPrefix -PsCommand $script:CurrentPsCommand -FileNumber $script:CurrentFileNumber -UserInputs $userInputs -ShowPreview $true -RequireConfirmation $true
+
+    if (-not $result.Success) {
+        Write-ColorMessage -Message "Failed to generate command content: $($result.Message)" -Type "Error"
+        return $false
+    }
+
+    # Store the generated content
+    $script:CurrentBatchContent = $result.Content
     
     # Ensure directory exists
     $commandDir = Split-Path $TargetCommandPath -Parent
@@ -1809,14 +1772,25 @@ function Show-EmptyVariablesMenu {
 
 #region Main Menu Functions
 function Show-SpecialSoftwareEnvMenu {
-    $menuItems = @(
-        @{ Text = "Claude AI"; Action = "claude"; HasSubMenu = $true },
-        @{ Text = "Alibaba Cloud"; Action = "alibaba"; HasSubMenu = $true },
-        @{ Text = "View All Environment Variables"; Action = "viewall"; HasSubMenu = $false },
-        @{ Text = "Refresh Current Terminal Environment"; Action = "refresh"; HasSubMenu = $false },
-        @{ Text = "Back to Main Menu"; Action = "back"; HasSubMenu = $false },
-        @{ Text = "Exit"; Action = "exit"; HasSubMenu = $false }
-    )
+    # Dynamically generate menu items from EnvironmentConfigs
+    $menuItems = @()
+    
+    # Add configuration-based menu items
+    foreach ($configName in $script:EnvironmentConfigs.Keys) {
+        $config = $script:EnvironmentConfigs[$configName]
+        $action = $config.Common
+        $menuItems += @{ 
+            Text = $config.DisplayName; 
+            Action = $action; 
+            HasSubMenu = $true 
+        }
+    }
+    
+    # Add utility menu items
+    $menuItems += @{ Text = "View All Environment Variables"; Action = "viewall"; HasSubMenu = $false }
+    $menuItems += @{ Text = "Refresh Current Terminal Environment"; Action = "refresh"; HasSubMenu = $false }
+    $menuItems += @{ Text = "Back to Main Menu"; Action = "back"; HasSubMenu = $false }
+    $menuItems += @{ Text = "Exit"; Action = "exit"; HasSubMenu = $false }
     
     $selectedIndex = 0
     

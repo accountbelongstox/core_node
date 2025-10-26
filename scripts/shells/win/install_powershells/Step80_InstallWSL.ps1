@@ -29,7 +29,7 @@ $script:UpgradeScriptPath = $null
 
 # Import common functions
 . "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommanFunc.ps1"
+. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
 
 function Get-WindowsVersion {
     try {

@@ -23,39 +23,10 @@ echo "[$SCRIPT_INDEX] Domain Setup Script - Adding domains to nginx and certbot"
 
 check_and_install_sudo
 
-# Function to get core_node directory using gvar_common.sh logic
-get_core_node_dir() {
-    # Find CORE_NODE_DIR by walking up from current script directory
-    local script_dir="$(dirname "$(readlink -f "$0")")"
-    local core_node_dir=""
-
-    # Try to find core_node directory
-    local current_dir="$script_dir"
-    while [ "$current_dir" != "/" ] && [ "$current_dir" != "." ]; do
-        if [ -d "$current_dir/.secret_keys" ] || [ -f "$current_dir/package.json" ]; then
-            core_node_dir="$current_dir"
-            break
-        fi
-        current_dir="$(dirname "$current_dir")"
-    done
-
-    # Fallback to environment variable or default
-    if [ -z "$core_node_dir" ]; then
-        if [ -n "$CORE_NODE_DIR" ]; then
-            core_node_dir="$CORE_NODE_DIR"
-        else
-            # Default fallback
-            core_node_dir="/opt/core_node"
-        fi
-    fi
-
-    echo "$core_node_dir"
-}
-
-# Function to get Laravel directory path
+# Function to get Laravel directory path using centralized CORE_NODE_DIR
 get_laravel_dir() {
-    local core_node_dir=$(get_core_node_dir)
-    local laravel_dir="$core_node_dir/poly_apps/laravel_main"
+    # Use CORE_NODE_DIR from gvar_common.sh
+    local laravel_dir="$CORE_NODE_DIR/poly_apps/laravel_main"
     echo "$laravel_dir"
 }
 
@@ -162,22 +133,28 @@ setup_domain() {
 
     # Domain validation will be handled by Laravel commands directly
 
-    # Ensure /www/wwwroot directory exists
-    echo "[$SCRIPT_INDEX] Ensuring /www/wwwroot directory exists..."
-    if [ ! -d "/www/wwwroot" ]; then
-        echo "[$SCRIPT_INDEX] Creating /www/wwwroot directory..."
-        sudo mkdir -p /www/wwwroot
-        sudo chown -R www-data:www-data /www/wwwroot
-        sudo chmod -R 755 /www/wwwroot
+    # Ensure /www/wwwroot directory exists using path mapping
+    local www_root=$(map_web_path "/www/wwwroot")
+    echo "[$SCRIPT_INDEX] Ensuring $www_root directory exists..."
+    if [ ! -d "$www_root" ]; then
+        echo "[$SCRIPT_INDEX] Creating $www_root directory..."
+        sudo mkdir -p "$www_root"
+        # Skip chown in WSL as Windows filesystem doesn't support it
+        if [ "$IS_WSL" = false ]; then
+            sudo chown -R www-data:www-data "$www_root"
+        fi
+        sudo chmod -R 755 "$www_root" 2>/dev/null || true
     fi
 
     # Create domain-specific directory
-    local domain_dir="/www/wwwroot/$domain"
+    local domain_dir="$www_root/$domain"
     if [ ! -d "$domain_dir" ]; then
         echo "[$SCRIPT_INDEX] Creating domain directory: $domain_dir"
         sudo mkdir -p "$domain_dir"
-        sudo chown -R www-data:www-data "$domain_dir"
-        sudo chmod -R 755 "$domain_dir"
+        if [ "$IS_WSL" = false ]; then
+            sudo chown -R www-data:www-data "$domain_dir"
+        fi
+        sudo chmod -R 755 "$domain_dir" 2>/dev/null || true
     fi
 
     # Use new Laravel commands instead of deploy

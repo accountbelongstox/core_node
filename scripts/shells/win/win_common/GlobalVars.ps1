@@ -68,6 +68,10 @@ $Global:BASE_DIR = "D:\programing\core_node"
 $Global:CORE_NODE_DIR = $Global:BASE_DIR
 $Global:CORE_NODE_SCRIPTS_DIR = Join-Path $BASE_DIR "scripts"
 
+# Backup configuration
+$Global:BACKUP_PARENT_DIR = Split-Path $Global:BASE_DIR -Parent
+$Global:BACKUP_NAME_PREFIX = "core_node"
+
 # Check if current script is running from BASE_DIR or its subdirectories
 $Global:IS_RUNNING_FROM_BASE_DIR = $PSScriptRoot -like "$Global:BASE_DIR*"
 $Global:IS_RUNNING_FROM_BASE_DIR_SUBDIR = $PSScriptRoot -like "$Global:BASE_DIR\*"  

@@ -99,11 +99,14 @@ install_certbot() {
 create_laravel_ssl_config() {
     echo "[$SCRIPT_INDEX] Creating Laravel ServerManager compatible SSL configuration..."
 
-    local ssl_config_dir="/www/shared-data/ssl"
+    # Use path mapping from gvar_common.sh to support WSL Windows directories
+    local ssl_config_dir=$(map_web_path "/www/shared-data/ssl")
     local ssl_config_file="$ssl_config_dir/ssl_config.json"
 
     # Also create the legacy location for backward compatibility
-    local legacy_ssl_config_dir="/www/wwwroot/core_node/.secret_keys/.secret_ignore"
+    local www_root=$(map_web_path "/www/wwwroot")
+    # Use CORE_NODE_DIR from gvar_common.sh for dynamic path resolution
+    local legacy_ssl_config_dir="$CORE_NODE_DIR/.secret_keys/.secret_ignore"
     local legacy_ssl_config_file="$legacy_ssl_config_dir/SSL_CONFIG_JSON"
 
     # Create directory if it doesn't exist
@@ -112,8 +115,14 @@ create_laravel_ssl_config() {
         $USE_SUDO chmod 700 "$ssl_config_dir"
     fi
 
-    # Create SSL configuration for Laravel ServerManager
-    $USE_SUDO tee "$ssl_config_file" > /dev/null << 'EOF'
+    # Get mapped paths for JSON configuration
+    local json_www_root=$(map_web_path "/www/wwwroot")
+    local json_nginx_config=$(map_web_path "/www/nginxconfig/sites-available")
+    local json_nginx_enabled=$(map_web_path "/www/nginxconfig/sites-enabled")
+    local json_backup_path=$(map_web_path "/www/backup/nginx-configs")
+
+    # Create SSL configuration for Laravel ServerManager with dynamic paths
+    $USE_SUDO tee "$ssl_config_file" > /dev/null << EOF
 {
     "ssl_config": {
         "default_provider": "letsencrypt",
@@ -146,13 +155,13 @@ create_laravel_ssl_config() {
         }
     },
     "deployment_config": {
-        "default_php_version": "8.2",
-        "default_web_root": "/www/wwwroot",
+        "default_php_version": "8.4",
+        "default_web_root": "$json_www_root",
         "auto_ssl": true,
         "auto_backup": true,
-        "nginx_config_path": "/www/nginxconfig/sites-available",
-        "nginx_enabled_path": "/www/nginxconfig/sites-enabled",
-        "backup_path": "/www/backup/nginx-configs"
+        "nginx_config_path": "$json_nginx_config",
+        "nginx_enabled_path": "$json_nginx_enabled",
+        "backup_path": "$json_backup_path"
     },
     "security_config": {
         "max_deployments_per_hour": 10,
@@ -185,30 +194,33 @@ EOF
 setup_nginx_directories() {
     echo "[$SCRIPT_INDEX] Setting up Nginx directories for Laravel ServerManager..."
 
-    # Create necessary directories
-    local nginx_dirs=(
-        "/www/nginxconfig/sites-available"
-        "/www/nginxconfig/sites-enabled"
-        "/www/nginxconfig/ssl"
-        "/www/backup/nginx-configs"
+    # Use path mapping from gvar_common.sh to support WSL Windows directories
+    local mapped_dirs=(
+        "$(map_web_path '/www/nginxconfig/sites-available')"
+        "$(map_web_path '/www/nginxconfig/sites-enabled')"
+        "$(map_web_path '/www/nginxconfig/ssl')"
+        "$(map_web_path '/www/backup/nginx-configs')"
         "/var/log/nginx"
-        "/www/wwwroot"
-        "/www/shared-data/ssl"
-        "/www/shared-data/domains"
-        "/www/shared-data/dns-providers"
-        "/www/shared-data/certificates"
+        "$(map_web_path '/www/wwwroot')"
+        "$(map_web_path '/www/shared-data/ssl')"
+        "$(map_web_path '/www/shared-data/domains')"
+        "$(map_web_path '/www/shared-data/dns-providers')"
+        "$(map_web_path '/www/shared-data/certificates')"
     )
 
-    for dir in "${nginx_dirs[@]}"; do
+    for dir in "${mapped_dirs[@]}"; do
         if [ ! -d "$dir" ]; then
             $USE_SUDO mkdir -p "$dir"
             echo "[$SCRIPT_INDEX] Created directory: $dir"
         fi
     done
 
-    # Set proper permissions
-    $USE_SUDO chown -R www-data:www-data /www/wwwroot
-    $USE_SUDO chmod 755 /www/wwwroot
+    # Set proper permissions (skip chown in WSL as Windows filesystem doesn't support it)
+    local www_root=$(map_web_path "/www/wwwroot")
+    if [ "$IS_WSL" = false ]; then
+        $USE_SUDO chown -R www-data:www-data "$www_root"
+    fi
+    $USE_SUDO chmod 755 "$www_root" 2>/dev/null || true
 
     # Check if nginx script has already created a comprehensive default page
     local nginx_default_site=$(get_global_var "NGINX_DEFAULT_SITE" "$DEFAULT_SITE_DIR")
@@ -216,14 +228,15 @@ setup_nginx_directories() {
     if [ -f "$nginx_default_site/index.html" ]; then
         echo "[$SCRIPT_INDEX] Using existing comprehensive nginx default page from nginx installation"
         # Create symlink to use nginx's comprehensive page as the main default
-        if [ ! -f "/www/wwwroot/index.html" ]; then
-            $USE_SUDO ln -sf "$nginx_default_site/index.html" "/www/wwwroot/index.html"
+        local www_root_index="$www_root/index.html"
+        if [ ! -f "$www_root_index" ]; then
+            $USE_SUDO ln -sf "$nginx_default_site/index.html" "$www_root_index"
             echo "[$SCRIPT_INDEX] Created symlink to nginx default page"
         fi
     else
         # Create enhanced default index.html for Let's Encrypt challenges with nginx info
         echo "[$SCRIPT_INDEX] Creating enhanced default page with certbot and nginx information"
-        $USE_SUDO tee "/www/wwwroot/index.html" > /dev/null << EOF
+        $USE_SUDO tee "$www_root/index.html" > /dev/null << EOF
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -353,7 +366,7 @@ show_certificate_config() {
     echo "[$SCRIPT_INDEX]   sudo chmod 600 /www/nginxconfig/ssl/credentials/dnspod.ini"
     echo "[$SCRIPT_INDEX]"
     echo "[$SCRIPT_INDEX]   # Generate certificate with Laravel:"
-    echo "[$SCRIPT_INDEX]   cd /mnt/d/programing/core_node/poly_apps/laravel_main"
+    echo "[$SCRIPT_INDEX]   cd $CORE_NODE_DIR/poly_apps/laravel_main"
     echo "[$SCRIPT_INDEX]   php artisan servermanager:certificate add example.com --provider=dnspod"
     echo "[$SCRIPT_INDEX]"
     echo "[$SCRIPT_INDEX]   # Deploy website with SSL:"
@@ -658,7 +671,7 @@ if verify_certbot_installation; then
     echo "[$SCRIPT_INDEX] 1. Setup Laravel ServerManager for SSL and domain management"
     echo "[$SCRIPT_INDEX] 2. Configure DNS provider credentials in Laravel application"
     echo "[$SCRIPT_INDEX] 3. Use Laravel commands for certificate and website management:"
-    echo "[$SCRIPT_INDEX]    cd /path/to/laravel_main/"
+    echo "[$SCRIPT_INDEX]    cd $CORE_NODE_DIR/poly_apps/laravel_main"
     echo "[$SCRIPT_INDEX]    php artisan servermanager:certificate add example.com --provider=dnspod"
     echo "[$SCRIPT_INDEX]    php artisan servermanager:website add example.com --type=html --ssl=auto"
 else

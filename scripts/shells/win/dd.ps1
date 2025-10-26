@@ -309,6 +309,7 @@ $script:MenuItems = @(
         Text              = "Unified App Manager"
         Values            = @("default")
         CurrentValueIndex = 0
+        Key               = $null
         Action            = {
             $unifiedManagerScript = Join-Path $script:SCRIPT_DIR "unified_manager\unified_manager.ps1"
             if (Test-Path $unifiedManagerScript) {
@@ -377,8 +378,25 @@ $script:MenuItems = @(
         Values            = @("default")
         CurrentValueIndex = 0
         Key               = $null
-        Action            = { 
+        Action            = {
             Show-SpecialSoftwareEnvMenu
+        }
+    },
+    @{
+        Text              = "Backup Management"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
+            if (Test-Path $backupMenuScript) {
+                Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
+            } else {
+                Write-ColorMessage -Message "Error: BackupManager.ps1 script not found at: $backupMenuScript" -Type "Error"
+                Write-ColorMessage -Message "Please check if the backup manager is properly installed" -Type "Info"
+                Read-Host "Press Enter to continue"
+            }
         }
     },
     @{
@@ -1380,7 +1398,7 @@ Initialize-Environment
 Check-AdminPrivileges
 
 # Load common functions
-$commonFuncPath = Join-Path $script:PS_CURENT_DIR "win_common\CommanFunc.ps1"
+$commonFuncPath = Join-Path $script:PS_CURENT_DIR "win_common\CommonFunc.ps1"
 if (Test-Path $commonFuncPath) {
     try {
         . $commonFuncPath

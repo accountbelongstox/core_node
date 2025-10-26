@@ -4,7 +4,7 @@
 
 ```
 laravel_main/
-├── Apps/
+├── Apps.deprecated/
 │   ├── AChatV1/
 │   │   ├── AChatV1Controllers/
 │   │   │   └── AChatV1ApiInfoCtl.php
@@ -421,55 +421,44 @@ laravel_main/
 │   │   │   │   └── ItToolsV1WebCtl.php
 │   │   │   ├── ApiInfo.php
 │   │   │   └── ItToolsV1_tree_code.txt
-│   │   ├── ServerManagerV1/
-│   │   │   ├── ServerManagerV1CLI/
-│   │   │   │   ├── Commands/
-│   │   │   │   │   ├── ServerManagerV1BaseCommand.php
-│   │   │   │   │   ├── ServerManagerV1CertificateCommand.php
-│   │   │   │   │   ├── ServerManagerV1DeployCommand.php
-│   │   │   │   │   ├── ServerManagerV1SSLCommand.php
-│   │   │   │   │   ├── ServerManagerV1SyncCommand.php
-│   │   │   │   │   └── ServerManagerV1WebsiteCommand.php
-│   │   │   │   └── Templates/
-│   │   │   │       ├── laravel.nginx
-│   │   │   │       ├── proxy.nginx
-│   │   │   │       └── static.nginx
-│   │   │   ├── ServerManagerV1Config/
-│   │   │   │   └── ServerManagerV1PathConfig.php
-│   │   │   ├── ServerManagerV1Controllers/
-│   │   │   │   ├── ServerManagerV1ApiInfoCtl.php
-│   │   │   │   ├── ServerManagerV1BaseCtl.php
-│   │   │   │   ├── ServerManagerV1CertificateManagerCtl.php
-│   │   │   │   ├── ServerManagerV1CodeExecutorCtl.php
-│   │   │   │   ├── ServerManagerV1FileManagerCtl.php
-│   │   │   │   ├── ServerManagerV1NginxManagerCtl.php
-│   │   │   │   ├── ServerManagerV1SystemInfoCtl.php
-│   │   │   │   └── ServerManagerV1UnifiedManagerCtl.php
-│   │   │   ├── ServerManagerV1Gvar/
-│   │   │   │   └── ServerManagerV1Constants.php
-│   │   │   ├── ServerManagerV1TablesMaps/
-│   │   │   │   └── ServerManagerV1TablesMaps.php
-│   │   │   ├── ServerManagerV1Utils/
-│   │   │   │   ├── ServerManagerV1CertificateManager.php
-│   │   │   │   ├── ServerManagerV1DomainManager.php
-│   │   │   │   ├── ServerManagerV1SSLConfigReader.php
-│   │   │   │   ├── ServerManagerV1SecretReader.php
-│   │   │   │   └── ServerManagerV1Utils.php
-│   │   │   ├── ServerManagerV1ApiInfo.php
-│   │   │   ├── ServerManagerV1_tree_code.txt
-│   │   │   └── TODO_API_WEB_DOMAIN_MANAGEMENT.md
-│   │   └── poly_apps/
-│   │       ├── laravel_main/
-│   │       │   ├── app/
-│   │       │   │   └── Apps/
-│   │       │   │       └── AChatV1/
-│   │       │   │           ├── AChatV1Controllers/
-│   │       │   │           ├── AChatV1Gvar/
-│   │       │   │           ├── AChatV1TablesMaps/
-│   │       │   │           └── AChatV1Utils/
-│   │       │   └── routes/
-│   │       │       └── achat_v1/
-│   │       └── poly_apps_tree_code.txt
+│   │   └── ServerManagerV1/
+│   │       ├── ServerManagerV1CLI/
+│   │       │   ├── Commands/
+│   │       │   │   ├── ServerManagerV1BaseCommand.php
+│   │       │   │   ├── ServerManagerV1CertificateCommand.php
+│   │       │   │   ├── ServerManagerV1DeployCommand.php
+│   │       │   │   ├── ServerManagerV1SSLCommand.php
+│   │       │   │   ├── ServerManagerV1SyncCommand.php
+│   │       │   │   └── ServerManagerV1WebsiteCommand.php
+│   │       │   └── Templates/
+│   │       │       ├── laravel.nginx
+│   │       │       ├── proxy.nginx
+│   │       │       └── static.nginx
+│   │       ├── ServerManagerV1Config/
+│   │       │   └── ServerManagerV1PathConfig.php
+│   │       ├── ServerManagerV1Controllers/
+│   │       │   ├── ServerManagerV1ApiInfoCtl.php
+│   │       │   ├── ServerManagerV1BaseCtl.php
+│   │       │   ├── ServerManagerV1CertificateManagerCtl.php
+│   │       │   ├── ServerManagerV1CodeExecutorCtl.php
+│   │       │   ├── ServerManagerV1FileManagerCtl.php
+│   │       │   ├── ServerManagerV1NginxManagerCtl.php
+│   │       │   ├── ServerManagerV1SystemInfoCtl.php
+│   │       │   └── ServerManagerV1UnifiedManagerCtl.php
+│   │       ├── ServerManagerV1Gvar/
+│   │       │   └── ServerManagerV1Constants.php
+│   │       ├── ServerManagerV1TablesMaps/
+│   │       │   └── ServerManagerV1TablesMaps.php
+│   │       ├── ServerManagerV1Utils/
+│   │       │   ├── ServerManagerV1CertificateManager.php
+│   │       │   ├── ServerManagerV1DomainManager.php
+│   │       │   ├── ServerManagerV1PathResolver.php
+│   │       │   ├── ServerManagerV1SSLConfigReader.php
+│   │       │   ├── ServerManagerV1SecretReader.php
+│   │       │   └── ServerManagerV1Utils.php
+│   │       ├── ServerManagerV1ApiInfo.php
+│   │       ├── ServerManagerV1_tree_code.txt
+│   │       └── TODO_API_WEB_DOMAIN_MANAGEMENT.md
 │   ├── Console/
 │   │   └── Commands/
 │   │       ├── CheckCertbotCommand.php
@@ -485,6 +474,7 @@ laravel_main/
 │   │   ├── ExternalStorageHelper.php
 │   │   ├── GlobalSecretReader.php
 │   │   ├── HtmlContentCleaner.php
+│   │   ├── MbstringPolyfill.php
 │   │   └── ProxyNameProcessor.php
 │   ├── Http/
 │   │   ├── Api/
@@ -776,7 +766,9 @@ laravel_main/
 │   ├── deploy_tools/
 │   │   ├── COMPATIBILITY_CHECK_GUIDE.txt
 │   │   ├── DEPLOYMENT_ANALYSIS.txt
+│   │   ├── LARAVEL_ENHANCEMENT_SUMMARY.txt
 │   │   ├── NGINX_INTEGRATION_GUIDE.txt
+│   │   ├── QUICK_REFERENCE_PHASE4.txt
 │   │   ├── README.txt
 │   │   ├── compatibility_checker.sh
 │   │   ├── config.example.sh
@@ -787,13 +779,14 @@ laravel_main/
 │   │   ├── nginx_integrator.sh
 │   │   ├── permission_manager.sh
 │   │   ├── safety_checker.sh
+│   │   ├── smart_environment_setup.sh
 │   │   └── system_dependencies.sh
-│   ├── check-compatibility.sh
 │   ├── deploy.sh
+│   ├── deploy_error.txt
+│   ├── php_install_log.txt
 │   ├── quick-deploy.sh
 │   ├── start.ps1
-│   ├── start.sh
-│   └── verify-deployment.sh
+│   └── start.sh
 ├── storage/
 │   ├── app/
 │   │   ├── private/
@@ -818,26 +811,33 @@ laravel_main/
 │   ├── Unit/
 │   │   └── ExampleTest.php
 │   ├── Pest.php
-│   └── TestCase.php
+│   ├── TestCase.php
+│   └── test_mb_polyfill.php
 ├── .env
 ├── .gitignore
+├── analyze_apps_structure.py
+├── apps_structure_analysis_report.json
 ├── artisan
+├── cleanup_duplicate_apps.sh
+├── compare_apps.sh
 ├── components.json
+├── composer
 ├── composer.json
+├── composer.lock.backup
 ├── controller_rename_plan.md
 ├── env-vars.txt
 ├── fix_class_names.sh
 ├── fix_psr4.sh
 ├── initDeploy.sh
 ├── laravel_main_tree.md
-├── laravel_tree_code.txt
 ├── liunxServerRefresh.sh
 ├── package.json
 ├── phpunit.xml
 ├── startDevUnix.sh
 ├── startDevWindows.ps1
+├── task.txt
+├── task2.txt
 ├── tsconfig.json
-├── update_class_names.php
 └── vite.config.ts
 ```
 

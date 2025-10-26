@@ -17,7 +17,7 @@ param(
 #region Variable Declarations
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
-. (Join-Path $script:WIN_COMMON_DIR "CommanFunc.ps1")
+. (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
 
 $script:STEP_NUMBER = 80
 $script:UBUNTU_VERSION = $Global:UBUNTU_VERSION

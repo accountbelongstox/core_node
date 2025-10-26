@@ -9,17 +9,22 @@
                 "@promptx/mcp-server"
             ]
         },
-        "github.com/upstash/context7-mcp": {
-            "command": "cmd",
+        "AutoContext7MCP": {
+            "command": "powershell",
             "args": [
-                "/c",
-                "npx",
-                "-y",
-                "@upstash/context7-mcp"
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "D:/programing/core_node/ncore/mcp_server/auto-context7-mcp/auto_fix_context7.ps1"
             ],
+            "env": {
+                "MAX_RETRIES": "3",
+                "RETRY_DELAY": "2",
+                "FORCE_REINSTALL": "false"
+            },
             "disabled": false,
             "autoApprove": [],
-            "timeout": 60000
+            "timeout": 120000
         },
         "McpAlchemy": {
             "command": "cmd",
