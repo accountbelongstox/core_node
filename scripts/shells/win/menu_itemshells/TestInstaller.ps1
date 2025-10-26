@@ -13,7 +13,7 @@
 # Load common/global modules
 $winCommonPath = Split-Path -Parent $PSScriptRoot | Join-Path -ChildPath "win_common"
 . (Join-Path $winCommonPath "GlobalVars.ps1")
-. (Join-Path $winCommonPath "CommanFunc.ps1")
+. (Join-Path $winCommonPath "CommonFunc.ps1")
 
 # Region-specific URL functions are now defined in GlobalVars.ps1
 

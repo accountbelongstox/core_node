@@ -37,7 +37,7 @@ $installPowershellsPath = Split-Path $scriptPath -Parent
 $winShellsPath = Split-Path $installPowershellsPath -Parent
 $winCommonPath = Join-Path $winShellsPath "win_common"
 . (Join-Path $winCommonPath "GlobalVars.ps1")
-. (Join-Path $winCommonPath "CommanFunc.ps1")
+. (Join-Path $winCommonPath "CommonFunc.ps1")
 
 function Get-UpgradeStage {
     $upgradeStateFile = Join-Path $env:TEMP "wsl_upgrade_state.json"
