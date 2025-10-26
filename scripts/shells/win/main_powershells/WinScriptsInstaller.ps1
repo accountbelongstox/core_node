@@ -14,7 +14,7 @@
 $FILES = @(
     'scripts/shells/win/dd.ps1',
     'scripts/shells/win/main_powershells/EnvironmentDetection.ps1',
-    'scripts/shells/win/win_common/CommanFunc.ps1',
+    'scripts/shells/win/win_common/CommonFunc.ps1',
     'scripts/shells/win/win_common/ApplicationsList.ps1',
     'scripts/shells/win/win_common/GlobalVars.ps1',
     'scripts/shells/win/win_common/IconExtractor.ps1',

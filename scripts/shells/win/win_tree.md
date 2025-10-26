@@ -57,7 +57,7 @@ win/
 │   └── bat_to_exe_ps.ps1
 ├── win_common/
 │   ├── ApplicationsList.ps1
-│   ├── CommanFunc.ps1
+│   ├── CommonFunc.ps1
 │   ├── DesktopIconManager.ps1
 │   ├── GlobalVars.ps1
 │   ├── IconExtractor.ps1

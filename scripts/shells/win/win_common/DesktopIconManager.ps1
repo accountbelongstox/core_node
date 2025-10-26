@@ -31,7 +31,7 @@ $script:DesktopIconManagerDebugMode = $false  # Set to $true to enable debug out
 
 # Import required modules
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-$COMMON_FUNC_PATH = Join-Path $SCRIPT_DIR "CommanFunc.ps1"
+$COMMON_FUNC_PATH = Join-Path $SCRIPT_DIR "CommonFunc.ps1"
  . $COMMON_FUNC_PATH
 
 # Debug output function for DesktopIconManager
@@ -412,7 +412,7 @@ function Invoke-DesktopCleanupForPackage {
             # Determine category based on package type or provided category
             $finalCategory = if ($CategoryName) { $CategoryName } else { Get-PackageCategory -PackageName $PackageName -ExecutablePath $ExecutablePath }
             
-            # Create desktop shortcut using CommanFunc.ps1
+            # Create desktop shortcut using CommonFunc.ps1
             $shortcutCreated = Create-DesktopShortcutsForPackage -ShortcutName $PackageName -ExePath $ExecutablePath -CategoryName $finalCategory -ScanKeywords $ScanKeywords
             
             if ($shortcutCreated) {

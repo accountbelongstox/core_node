@@ -20,7 +20,7 @@
 #region Variable Declarations
 $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
-$script:COMMON_FUNC_PATH = Join-Path $script:WIN_COMMON_DIR "CommanFunc.ps1"
+$script:COMMON_FUNC_PATH = Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1"
 $script:WINDOWS_PATH_FUNCTION_PATH = Join-Path $script:WIN_COMMON_DIR "WindowsPathFunction.ps1"
 
 # Global variables for file management

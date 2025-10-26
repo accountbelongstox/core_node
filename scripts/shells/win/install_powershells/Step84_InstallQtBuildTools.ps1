@@ -18,12 +18,12 @@ $scriptRoot = $PSScriptRoot
 $parentPath = Split-Path -Parent $scriptRoot
 $winCommonPath = Join-Path $parentPath "win_common"
 $globalVarsPath = Join-Path $winCommonPath "GlobalVars.ps1"
-$commanFuncPath = Join-Path $winCommonPath "CommanFunc.ps1"
+$CommonFuncPath = Join-Path $winCommonPath "CommonFunc.ps1"
 $windowsPathFuncPath = Join-Path $winCommonPath "WindowsPathFunction.ps1"
 
 # Import required modules
 . $globalVarsPath
-. $commanFuncPath
+. $CommonFuncPath
 . $windowsPathFuncPath
 
 # All variable declarations
