@@ -21,7 +21,6 @@ CURRENT_USER=""
 DESKTOP_WINDOWS_MOUNT_PATH=""
 DESKTOP_WINDOWS_DRIVES=""
 WSL_USERS_PATH="/mnt/c/Users"
-WSL_D_DRIVE="/mnt/d/www/programing/core_node"
 
 # Check and set sudo
 if command -v sudo >/dev/null 2>&1; then
@@ -34,43 +33,52 @@ fi
 CORE_NODE_PROJECT_ROOT=""
 
 # Check if running in WSL
-if [ -d "$WSL_USERS_PATH" ] || [ -d "$WSL_D_DRIVE" ]; then
+if [ -d "$WSL_USERS_PATH" ]; then
     IS_WSL=true
 elif [ -d "/usr/wwwroot" ]; then
     IS_PRODUCTION=true
 fi
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d â†?NTFS mount â†?Data disk mount â†?/www
+# Priority: WSL /mnt/d ï¿?NTFS mount ï¿?Data disk mount ï¿?/www
 get_base_data_directory() {
     local base_dir=""
 
-    # Priority 1: WSL /mnt/d (if exists and writable)
-    if [ "$IS_WSL" = true ] && [ -d "/mnt/d" ] && [ -w "/mnt/d" ]; then
+    # Priority 1: WSL /mnt/d
+    if [ "$IS_WSL" = true ]; then
         base_dir="/mnt/d"
         echo "$base_dir"
         return 0
     fi
 
-    # Priority 2: NTFS mount point (from global var set by 2_setting_base.sh)
-    local ntfs_mount=""
-    if [ -f "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" ]; then
-        ntfs_mount=$(cat "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" 2>/dev/null | tr -d '\0')
-        if [ -d "$ntfs_mount" ] && [ -w "$ntfs_mount" ]; then
-            base_dir="$ntfs_mount"
-            echo "$base_dir"
-            return 0
+    # Priority 2: NTFS mount point (derived from device detection)
+    if has_ntfs_disk; then
+        # Get first NTFS device
+        local ntfs_device=$($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"" | head -n 1 | cut -d: -f1)
+        if [ -n "$ntfs_device" ]; then
+            # Derive standard mount point from device name
+            local ntfs_mount=$(device_to_mount_point "$ntfs_device")
+            if [ -d "$ntfs_mount" ] && [ -w "$ntfs_mount" ]; then
+                base_dir="$ntfs_mount"
+                echo "$base_dir"
+                return 0
+            fi
         fi
     fi
 
-    # Priority 3: Data disk mount point (from global var set by 2_setting_base.sh)
-    local data_mount=""
-    if [ -f "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" ]; then
-        data_mount=$(cat "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" 2>/dev/null | tr -d '\0')
-        if [ -d "$data_mount" ] && [ -w "$data_mount" ]; then
-            base_dir="$data_mount"
-            echo "$base_dir"
-            return 0
+    # Priority 3: Data disk mount point (derived from device detection)
+    local data_device=$($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | head -n 1 | cut -d: -f1)
+    if [ -n "$data_device" ]; then
+        # Check if it's not root or boot partition
+        local mount_point=$(findmnt -n -o TARGET "$data_device" 2>/dev/null || echo "")
+        if [ "$mount_point" != "/" ] && [ "$mount_point" != "/boot" ]; then
+            # Derive standard mount point from device name
+            local data_mount=$(device_to_mount_point "$data_device")
+            if [ -d "$data_mount" ] && [ -w "$data_mount" ]; then
+                base_dir="$data_mount"
+                echo "$base_dir"
+                return 0
+            fi
         fi
     fi
 
@@ -91,11 +99,40 @@ get_base_data_directory() {
 
 # Function to detect if system has NTFS disks
 has_ntfs_disk() {
-    if $USE_SUDO blkid | grep -qi "TYPE=\"ntfs\""; then
+    local ntfs_devices=$($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"")
+    if [ -n "$ntfs_devices" ]; then
+        echo "[NTFS Detection] Found NTFS disk(s):" >&2
+        echo "$ntfs_devices" >&2
         return 0
     else
+        echo "[NTFS Detection] No NTFS disks found" >&2
         return 1
     fi
+}
+
+# Function to convert device name to standardized mount point
+# Example: /dev/sdb3 -> /mnt/dev_sdb3
+device_to_mount_point() {
+    local device="$1"
+    local mount_base="${2:-/mnt}"
+    # Convert /dev/sdb3 to dev_sdb3
+    local mount_name=$(echo "$device" | sed 's|/dev/|dev_|g')
+    echo "$mount_base/$mount_name"
+}
+
+# Function to get mount point from device (check actual mount or derive standardized path)
+get_device_mount_point() {
+    local device="$1"
+
+    # First check if device is currently mounted
+    if mount | grep -q "^$device "; then
+        mount | grep "^$device " | awk '{print $3}'
+        return 0
+    fi
+
+    # If not mounted, return standardized mount point
+    device_to_mount_point "$device"
+    return 0
 }
 
 # Function to detect if system has unmounted data disks
@@ -112,63 +149,6 @@ has_unmounted_data_disk() {
     done < <($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | cut -d: -f1)
 
     return 1
-}
-
-# Function to detect core node project root directory
-detect_core_node_project_root() {
-    local potential_roots=()
-    local found_root=""
-
-    # Get optimal base directory
-    local base_dir=$(get_base_data_directory)
-
-    # Priority 1: Check base_dir/programing/core_node
-    if [ -n "$base_dir" ]; then
-        potential_roots+=("$base_dir/programing/core_node")
-    fi
-
-    # Priority 2: Check WSL specific paths
-    if [ "$IS_WSL" = true ]; then
-        potential_roots+=("/mnt/d/programing/core_node")
-        potential_roots+=("/mnt/c/programing/core_node")
-    fi
-
-    # Priority 3: Check production paths
-    if [ "$IS_PRODUCTION" = true ]; then
-        potential_roots+=("/usr/wwwroot/core_node")
-    fi
-
-    # Priority 4: Check common installation paths
-    potential_roots+=("/www/programing/core_node")
-    potential_roots+=("/usr/wwwroot/core_node")
-    potential_roots+=("/opt/core_node")
-    potential_roots+=("/var/www/core_node")
-
-    # Find the first existing path with valid project structure
-    for root_path in "${potential_roots[@]}"; do
-        if [ -d "$root_path" ]; then
-            # Verify it's actually a core_node project by checking for key markers
-            if [ -f "$root_path/package.json" ] || [ -d "$root_path/scripts" ] || [ -d "$root_path/.secret_keys" ]; then
-                found_root="$root_path"
-                break
-            fi
-        fi
-    done
-
-    # Set CORE_NODE_PROJECT_ROOT
-    if [ -n "$found_root" ]; then
-        CORE_NODE_PROJECT_ROOT="$found_root"
-    else
-        # Fallback: use base_dir/programing/core_node
-        if [ -n "$base_dir" ]; then
-            CORE_NODE_PROJECT_ROOT="$base_dir/programing/core_node"
-        else
-            CORE_NODE_PROJECT_ROOT="/usr/wwwroot/core_node"
-        fi
-    fi
-
-    # Export for use in other scripts
-    export CORE_NODE_PROJECT_ROOT
 }
 # Function to detect desktop system with Windows drives
 detect_desktop_windows_drives() {
@@ -311,8 +291,22 @@ detect_desktop_environment
 # Detect desktop system with Windows drives
 detect_desktop_windows_drives
 
-# Detect core node project root directory
-detect_core_node_project_root
+# Set core node project root directory (derived from base data directory)
+# WSL/NTFS/Desktop environment: base_dir/programing/core_node
+# Production server (no desktop, no data disk): base_dir/wwwroot/core_node
+get_core_node_project_root() {
+    local base_dir=$(get_base_data_directory)
+
+    # Check if this is WSL, has NTFS disk, or has desktop environment
+    if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
+        echo "$base_dir/programing/core_node"
+    else
+        # Production server without desktop/NTFS
+        echo "$base_dir/wwwroot/core_node"
+    fi
+}
+
+CORE_NODE_PROJECT_ROOT="$(get_core_node_project_root)"
 
 # Export desktop Windows drive variables
 export IS_DESKTOP_WITH_WINDOWS
@@ -321,7 +315,6 @@ export DESKTOP_WINDOWS_MOUNT_PATH
 export DESKTOP_WINDOWS_DRIVES
 export DESKTOP_LARGEST_WINDOWS_DRIVE
 export DESKTOP_LARGEST_WINDOWS_PATH
-export CORE_NODE_PROJECT_ROOT
 
 # Function to get comprehensive environment information
 get_environment_info() {
@@ -462,10 +455,6 @@ suggest_disk_usage_strategy() {
 
 # Execute multi-disk detection
 detect_multiple_disks
-
-# Execute environment detection functions
-detect_core_node_project_root
-detect_desktop_windows_drives
 
 # Export key variables for use by other scripts
 export USE_SUDO
@@ -880,19 +869,16 @@ determine_compile_dir() {
 # Function to ensure COMPILE_DIR exists
 ensure_compile_dir() {
     local compile_dir="$1"
-    
+
     if [ ! -d "$compile_dir" ]; then
         echo "Creating COMPILE_DIR: $compile_dir"
-        sudo mkdir -p "$compile_dir"
-        sudo chmod 755 "$compile_dir"
+        $USE_SUDO mkdir -p "$compile_dir"
+        $USE_SUDO chmod 755 "$compile_dir"
     fi
-    
+
     echo "COMPILE_DIR: $compile_dir"
     return 0
 }
-
-COMPILE_DIR=$(determine_compile_dir)
-ensure_compile_dir "$COMPILE_DIR"
 
 # Initialize global temporary directory
 GLOBAL_TEMP_DIR="/var/tmp/core_node"
