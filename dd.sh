@@ -1379,6 +1379,40 @@ main() {
         echo -e "\033[31m[PROJECT VALIDATION] 8_project_validator.sh not found at: $PROJECT_VALIDATOR_FILE\033[0m"
     fi
 
+    # After successful project validation, check if we need to switch to cloned version
+    # This happens during initial deployment when dd.sh is running from /tmp or /usr/tmp
+    if [[ "$CORE_NODE_ROOT_DIR" == /tmp* ]] || [[ "$CORE_NODE_ROOT_DIR" == /usr/tmp* ]]; then
+        echo -e "\033[36m[INITIAL DEPLOYMENT] Running from temporary location: $CORE_NODE_ROOT_DIR\033[0m"
+
+        # Source gvar_common.sh to get CORE_NODE_PROJECT_ROOT
+        if [ -f "$GVAR_COMMON_FILE" ]; then
+            source "$GVAR_COMMON_FILE"
+
+            # Check if project was successfully cloned to CORE_NODE_PROJECT_ROOT
+            if [ -d "$CORE_NODE_PROJECT_ROOT" ] && [ -f "$CORE_NODE_PROJECT_ROOT/dd.sh" ]; then
+                echo -e "\033[32m[INITIAL DEPLOYMENT] Project successfully cloned to: $CORE_NODE_PROJECT_ROOT\033[0m"
+                echo -e "\033[36m[INITIAL DEPLOYMENT] Switching to cloned version...\033[0m"
+
+                # Set execute permission on the cloned dd.sh
+                chmod +x "$CORE_NODE_PROJECT_ROOT/dd.sh"
+                echo -e "\033[32m[INITIAL DEPLOYMENT] Set execute permission on $CORE_NODE_PROJECT_ROOT/dd.sh\033[0m"
+
+                # Navigate to project directory and execute the new dd.sh
+                cd "$CORE_NODE_PROJECT_ROOT"
+                echo -e "\033[32m[INITIAL DEPLOYMENT] Switched to directory: $CORE_NODE_PROJECT_ROOT\033[0m"
+                echo -e "\033[36m[INITIAL DEPLOYMENT] Executing cloned dd.sh...\033[0m"
+                echo ""
+
+                # Replace current process with the new dd.sh
+                exec bash "$CORE_NODE_PROJECT_ROOT/dd.sh"
+            else
+                echo -e "\033[33m[INITIAL DEPLOYMENT] Project not yet cloned to $CORE_NODE_PROJECT_ROOT, continuing with tmp version\033[0m"
+            fi
+        else
+            echo -e "\033[33m[INITIAL DEPLOYMENT] gvar_common.sh not found, continuing with tmp version\033[0m"
+        fi
+    fi
+
     # Update CORE_NODE_ROOT_DIR if running from symlink
     if [ -L "$0" ] && [ "$0" -ef "$script_symlink_path" ]; then
         original_source="$(readlink -f "$script_path")"
