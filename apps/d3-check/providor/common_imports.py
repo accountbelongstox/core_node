@@ -75,7 +75,15 @@ UltralyticsClassificationTrainer = None  # Will be loaded on demand
 
 from pycore.pyutils.window_activator import WindowActivator  # noqa: E402
 from pycore.pyutils.dataset_generator import DatasetGenerator  # noqa: E402
-# Note: PNGMatcher has been replaced by ImageMatcher, no need to import separately
+
+# PyWeb - HTTP Bridge for web GUI communication (from pycore)
+from pycore.pyweb.http_bridge import HTTPBridgeServer, get_http_bridge, create_http_bridge  # noqa: E402
+from pycore.pyweb.universal_gui_launcher import (  # noqa: E402
+    UniversalGUILauncher,
+    SystemTrayManager,
+    get_universal_gui_launcher,
+    set_menu_labels
+)
 
 __all__ = [
     'ColorPrint',
@@ -102,4 +110,11 @@ __all__ = [
     'UltralyticsClassificationTrainer',
     'WindowActivator',
     'DatasetGenerator',
+    'HTTPBridgeServer',
+    'get_http_bridge',
+    'create_http_bridge',
+    'UniversalGUILauncher',
+    'SystemTrayManager',
+    'get_universal_gui_launcher',
+    'set_menu_labels',
 ]
