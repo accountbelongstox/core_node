@@ -39,11 +39,11 @@ dd.cmd
 Linux one-click deployment:
 
 ```bash
-sudo mkdir -p /usr/tmp && wget -O /usr/tmp/dd.sh https://gitee.com/accountbelongstox/core_node/raw/main/dd.sh && chmod +x /usr/tmp/dd.sh && sudo bash /usr/tmp/dd.sh
+sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://gitee.com/accountbelongstox/core_node/raw/main/dd.sh && sudo chmod +x /usr/tmp/dd.sh && sudo bash /usr/tmp/dd.sh
 ```
 
 ```bash
-sudo mkdir -p /usr/tmp && wget -O /usr/tmp/dd.sh https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.sh && chmod +x /usr/tmp/dd.sh && sudo bash /usr/tmp/dd.sh
+sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.sh && sudo chmod +x /usr/tmp/dd.sh && sudo bash /usr/tmp/dd.sh
 ```
 
 update
