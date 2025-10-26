@@ -148,7 +148,7 @@ sanitize_mount_name() {
 # =============================================================================
 
 detect_ntfs_disks() {
-    log "Detecting NTFS disks..."
+    log "Detecting NTFS disks..." >&2
 
     local ntfs_disks=()
 
@@ -159,17 +159,17 @@ detect_ntfs_disks() {
     done < <($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"" | cut -d: -f1)
 
     if [ ${#ntfs_disks[@]} -eq 0 ]; then
-        info "No NTFS disks detected"
+        info "No NTFS disks detected" >&2
         return 1
     fi
 
-    log "Found ${#ntfs_disks[@]} NTFS partition(s)"
+    log "Found ${#ntfs_disks[@]} NTFS partition(s)" >&2
     echo "${ntfs_disks[@]}"
     return 0
 }
 
 detect_data_disks() {
-    log "Detecting data disks (ext4, xfs, etc.)..."
+    log "Detecting data disks (ext4, xfs, etc.)..." >&2
 
     local data_disks=()
 
@@ -185,11 +185,11 @@ detect_data_disks() {
     done < <($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | cut -d: -f1)
 
     if [ ${#data_disks[@]} -eq 0 ]; then
-        info "No additional data disks detected"
+        info "No additional data disks detected" >&2
         return 1
     fi
 
-    log "Found ${#data_disks[@]} data disk(s)"
+    log "Found ${#data_disks[@]} data disk(s)" >&2
     echo "${data_disks[@]}"
     return 0
 }
