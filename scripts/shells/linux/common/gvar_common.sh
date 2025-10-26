@@ -41,7 +41,7 @@ elif [ -d "/usr/wwwroot" ]; then
 fi
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d â†’ NTFS mount â†’ Data disk mount â†’ /www
+# Priority: WSL /mnt/d â†?NTFS mount â†?Data disk mount â†?/www
 get_base_data_directory() {
     local base_dir=""
 

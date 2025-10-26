@@ -217,6 +217,12 @@ function Get-SmartInputForVariable {
         $prompt += "`nDescription: $($Variable.Description)"
     }
     
+    # Add default value information if available
+    $defaultValue = Get-DefaultValueForVariable -Variable $Variable
+    if ($defaultValue) {
+        $prompt += "`nDefault value: $defaultValue (from $($Variable.DefaultValue))"
+    }
+    
     # Add smart recognition hint if enabled
     try {
         if ($smartRecognitionEnabled) {
@@ -242,6 +248,16 @@ function Get-SmartInputForVariable {
     
     # Check if input is empty
     if ([string]::IsNullOrWhiteSpace($userInput)) {
+        # If there's a default value, use it
+        $defaultValue = Get-DefaultValueForVariable -Variable $Variable
+        if ($defaultValue) {
+            return @{
+                Value = $defaultValue
+                ExtractedData = $null
+                ShouldSkipNext = $false
+            }
+        }
+        
         return @{
             Value = $null
             ExtractedData = $null
@@ -367,6 +383,22 @@ function Get-SmartInputForVariable {
     }
 }
 
+function Get-DefaultValueForVariable {
+    param(
+        [Parameter(Mandatory=$true)] [hashtable]$Variable
+    )
+    
+    if ($Variable -and $Variable.ContainsKey("DefaultValue") -and $Variable.DefaultValue) {
+        $defaultVarName = $Variable.DefaultValue
+        $defaultValue = [Environment]::GetEnvironmentVariable($defaultVarName)
+        if ($defaultValue) {
+            return $defaultValue
+        }
+    }
+    
+    return $null
+}
+
 function Get-ValueForNextVariable {
     param(
         [Parameter(Mandatory=$true)] [hashtable]$Variable,
@@ -374,6 +406,12 @@ function Get-ValueForNextVariable {
     )
     
     try {
+        # Check for DefaultValue first
+        $defaultValue = Get-DefaultValueForVariable -Variable $Variable
+        if ($defaultValue) {
+            return $defaultValue
+        }
+        
         $inputType = ""
         if ($Variable -and $Variable.ContainsKey("InputType") -and $Variable.InputType) {
             $inputType = $Variable.InputType
@@ -398,6 +436,7 @@ $script:ActionToConfigMapping = @{
     'claude' = 'Claude AI'
     'alibaba' = 'Alibaba Cloud'
     'droid' = 'Factory AI Droid'
+    'openai' = 'OpenAI'
 }
 
 function Get-FullConfigName {
@@ -438,6 +477,14 @@ $script:EnvironmentConfigs = @{
                 Description = "Claude AI authentication token"
                 IsSecret = $true
                 InputType = "Token"
+            },
+            @{
+                Name = "ANTHROPIC_API_KEY"
+                DisplayName = "ANTHROPIC_API_KEY"
+                Description = "Claude AI API key (alternative to ANTHROPIC_AUTH_TOKEN)"
+                IsSecret = $true
+                InputType = "Token"
+                DefaultValue = "ANTHROPIC_AUTH_TOKEN"
             }
         )
     }
@@ -484,25 +531,41 @@ $script:EnvironmentConfigs = @{
             }
         )
     }
-    # Example: Add new service configuration
-    # "OpenAI" = @{
-    #     Title = "OpenAI Environment Variables"
-    #     Description = "Set up OpenAI environment variables for API access"
-    #     Variables = @(
-    #         @{
-    #             Name = "OPENAI_API_KEY"
-    #             DisplayName = "OPENAI_API_KEY"
-    #             Description = "OpenAI API key"
-    #             IsSecret = $true
-    #         },
-    #         @{
-    #             Name = "OPENAI_BASE_URL"
-    #             DisplayName = "OPENAI_BASE_URL"
-    #             Description = "OpenAI API base URL (optional)"
-    #             IsSecret = $false
-    #         }
-    #     )
-    # }
+    "OpenAI" = @{
+        Title = "OpenAI Environment Variables"
+        Description = "Set up OpenAI environment variables for API access"
+        Common = "openai"
+        CommandPrefix = "openai"
+        DisplayName = "OpenAI"
+        SmartRecognition = @{
+            Enabled = $true
+            AllowedTypes = @("token", "url")
+        }
+        Variables = @(
+            @{
+                Name = "OPENAI_API_KEY"
+                DisplayName = "OPENAI_API_KEY"
+                Description = "OpenAI API key"
+                IsSecret = $true
+                InputType = "Token"
+            },
+            @{
+                Name = "OPENAI_BASE_URL"
+                DisplayName = "OPENAI_BASE_URL"
+                Description = "OpenAI API base URL (optional)"
+                IsSecret = $false
+                InputType = "Url"
+            },
+            @{
+                Name = "OPENAI_ORG_ID"
+                DisplayName = "OPENAI_ORG_ID"
+                Description = "OpenAI Organization ID (optional)"
+                IsSecret = $false
+                InputType = "Token"
+                DefaultValue = "OPENAI_API_KEY"
+            }
+        )
+    }
 }
 #endregion
 
@@ -1054,6 +1117,13 @@ for %%f in ("%~dp0${commandPrefix}*.bat") do (
 
 echo.
 echo Total: $fileCount files available
+echo.
+echo =====================================
+echo Environment Variables Status:
+echo =====================================
+$($config.Variables | ForEach-Object { 
+    "echo   $($_.DisplayName): Checking..."
+})
 echo.
 echo =====================================
 echo File Management Options:
