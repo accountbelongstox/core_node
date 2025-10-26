@@ -321,7 +321,16 @@ handle_ntfs_disk() {
         fi
 
         info "Unmounting $device..."
-        $USE_SUDO umount "$device"
+        if ! $USE_SUDO umount "$device" 2>/dev/null; then
+            warning "Device is busy, attempting lazy unmount..."
+            if $USE_SUDO umount -l "$device" 2>/dev/null; then
+                info "Lazy unmount successful"
+                sleep 2
+            else
+                error "Failed to unmount device. Please close any programs using the device and try again."
+                return 1
+            fi
+        fi
     fi
 
     local suggested_mount=""
@@ -508,6 +517,12 @@ main() {
     stop_mail_services
 
     log "Base system setup completed!"
+
+    # Mark disk setup as completed
+    if [ -n "$GLOBAL_VAR_DIR" ]; then
+        echo "$(date +%Y%m%d_%H%M%S)" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED" >/dev/null
+        log "Disk setup completion flag saved"
+    fi
 }
 
 main

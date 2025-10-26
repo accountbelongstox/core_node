@@ -583,27 +583,89 @@ download_file() {
         fi
     fi
 
-    # Move file to target location
-    echo "Moving file to: $file_path"
+    # Move file to target location with safe replacement
+    echo "Installing file to: $file_path"
+
+    # If target file already exists, backup first
+    local backup_file=""
+    if [ -f "$file_path" ]; then
+        backup_file="${file_path}.backup.$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up existing file to: $backup_file"
+        if ! $sudo cp "$file_path" "$backup_file"; then
+            echo "[WARNING] Failed to create backup, proceeding anyway"
+        fi
+    fi
+
+    # Move new file to target location
     if $sudo mv "$temp_file" "$file_path"; then
         $sudo chmod +x "$file_path"
         echo "[SUCCESS] File installed: $file_path"
+
+        # Remove old backup if installation succeeded
+        if [ -n "$backup_file" ] && [ -f "$backup_file" ]; then
+            $sudo rm -f "$backup_file"
+            echo "Removed backup file"
+        fi
         return 0
     else
         echo "[ERROR] Failed to move file to target location"
         echo "  Source: $temp_file"
         echo "  Target: $file_path"
+
+        # Restore backup if move failed
+        if [ -n "$backup_file" ] && [ -f "$backup_file" ]; then
+            echo "Restoring backup file"
+            $sudo mv "$backup_file" "$file_path"
+        fi
+
         rm -f "$temp_file" 2>/dev/null
         return 1
     fi
 }
 
+is_file_valid() {
+    local file_path="$1"
+
+    if [ ! -f "$file_path" ]; then
+        return 1
+    fi
+
+    if [ ! -r "$file_path" ]; then
+        echo "[WARNING] File exists but is not readable: $file_path"
+        return 1
+    fi
+
+    if [ ! -s "$file_path" ]; then
+        echo "[WARNING] File exists but is empty: $file_path"
+        return 1
+    fi
+
+    local first_line=$(head -n 1 "$file_path" 2>/dev/null)
+    if [[ ! "$first_line" =~ ^#! ]]; then
+        echo "[WARNING] File does not start with shebang: $file_path"
+        return 1
+    fi
+
+    return 0
+}
+
 check_and_download_files() {
     echo "Checking for required files..."
 
+    # Determine if we're in installation mode (running from temporary location)
+    local force_update=false
+    if [[ "$CORE_NODE_ROOT_DIR" == /usr/tmp* ]] || [[ "$CORE_NODE_ROOT_DIR" == /tmp* ]]; then
+        force_update=true
+        echo -e "\033[33m[INFO] Installation mode detected - will update all temporary scripts\033[0m"
+    fi
+
     # Check gvar_common.sh
-    if [ ! -f "$GVAR_COMMON_FILE" ]; then
-        echo "gvar_common.sh not found, downloading..."
+    if [ "$force_update" = true ] || ! is_file_valid "$GVAR_COMMON_FILE"; then
+        if [ "$force_update" = true ]; then
+            echo "Updating gvar_common.sh to latest version..."
+        else
+            echo "gvar_common.sh not found or invalid, downloading..."
+        fi
         if download_file "$GVAR_COMMON_FILE" "scripts/shells/linux/common/gvar_common.sh"; then
             echo "gvar_common.sh downloaded successfully"
         else
@@ -611,12 +673,16 @@ check_and_download_files() {
             return 1
         fi
     else
-        echo "gvar_common.sh already exists"
+        echo "gvar_common.sh already exists and is valid"
     fi
 
     # Check 2_setting_base.sh
-    if [ ! -f "$SETTING_BASE_FILE" ]; then
-        echo "2_setting_base.sh not found, downloading..."
+    if [ "$force_update" = true ] || ! is_file_valid "$SETTING_BASE_FILE"; then
+        if [ "$force_update" = true ]; then
+            echo "Updating 2_setting_base.sh to latest version..."
+        else
+            echo "2_setting_base.sh not found or invalid, downloading..."
+        fi
         if download_file "$SETTING_BASE_FILE" "scripts/shells/linux/debian/install_shells/2_setting_base.sh"; then
             echo "2_setting_base.sh downloaded successfully"
         else
@@ -624,12 +690,16 @@ check_and_download_files() {
             return 1
         fi
     else
-        echo "2_setting_base.sh already exists"
+        echo "2_setting_base.sh already exists and is valid"
     fi
 
     # Check 8_project_validator.sh
-    if [ ! -f "$PROJECT_VALIDATOR_FILE" ]; then
-        echo "8_project_validator.sh not found, downloading..."
+    if [ "$force_update" = true ] || ! is_file_valid "$PROJECT_VALIDATOR_FILE"; then
+        if [ "$force_update" = true ]; then
+            echo "Updating 8_project_validator.sh to latest version..."
+        else
+            echo "8_project_validator.sh not found or invalid, downloading..."
+        fi
         if download_file "$PROJECT_VALIDATOR_FILE" "scripts/shells/linux/debian/install_shells/8_project_validator.sh"; then
             echo "8_project_validator.sh downloaded successfully"
         else
@@ -637,10 +707,14 @@ check_and_download_files() {
             return 1
         fi
     else
-        echo "8_project_validator.sh already exists"
+        echo "8_project_validator.sh already exists and is valid"
     fi
 
-    echo "All required files are available"
+    if [ "$force_update" = true ]; then
+        echo -e "\033[32mAll required files updated to latest version\033[0m"
+    else
+        echo "All required files are available and valid"
+    fi
     return 0
 }
 
@@ -1259,15 +1333,36 @@ main() {
     make_sh_executable
 
     # Run base system setup first (disk detection and mount management)
-    echo -e "\033[36m[BASE SETUP] Running base system setup...\033[0m"
-    if [ -f "$SETTING_BASE_FILE" ]; then
+    echo -e "\033[36m[BASE SETUP] Checking if base system setup is needed...\033[0m"
+
+    local disk_setup_flag="$GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED"
+    local skip_disk_setup=false
+
+    if [ -f "$disk_setup_flag" ]; then
+        local setup_time=$(cat "$disk_setup_flag" 2>/dev/null)
+        echo -e "\033[33m[BASE SETUP] Disk setup already completed at: $setup_time\033[0m"
+        echo -e "\033[33m[BASE SETUP] Skipping disk detection to avoid redundant operations\033[0m"
+        skip_disk_setup=true
+    fi
+
+    if [ "$skip_disk_setup" = false ] && [ -f "$SETTING_BASE_FILE" ]; then
+        echo -e "\033[36m[BASE SETUP] Running base system setup...\033[0m"
         bash "$SETTING_BASE_FILE"
-        if [ $? -eq 0 ]; then
+        local base_setup_exit_code=$?
+
+        if [ $base_setup_exit_code -eq 0 ]; then
             echo -e "\033[32m[BASE SETUP] Base system setup completed successfully\033[0m"
         else
             echo -e "\033[33m[BASE SETUP] Base system setup completed with warnings\033[0m"
         fi
-    else
+
+        # Re-source gvar_common.sh to refresh CORE_NODE_PROJECT_ROOT after disk setup
+        if [ -f "$GVAR_COMMON_FILE" ]; then
+            echo -e "\033[36m[BASE SETUP] Refreshing environment variables after disk setup...\033[0m"
+            source "$GVAR_COMMON_FILE"
+            echo -e "\033[32m[BASE SETUP] Updated CORE_NODE_PROJECT_ROOT: $CORE_NODE_PROJECT_ROOT\033[0m"
+        fi
+    elif [ "$skip_disk_setup" = false ]; then
         echo -e "\033[31m[BASE SETUP] 2_setting_base.sh not found at: $SETTING_BASE_FILE\033[0m"
     fi
 
