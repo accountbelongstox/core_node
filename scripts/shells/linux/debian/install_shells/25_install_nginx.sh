@@ -180,10 +180,38 @@ disable_conflicting_web_servers() {
         fi
     done
 
-    # Remove Apache2 packages if installed (they cause PHP conflicts)
+    # Remove Apache2 packages if installed (they cause conflicts)
     if dpkg -l | grep -q "^ii.*apache2"; then
-        echo "[$SCRIPT_INDEX] Apache2 packages detected, removing to prevent PHP conflicts..."
-        $USE_SUDO apt remove --purge apache2* libapache2-mod-* -y 2>/dev/null || true
+        echo "[$SCRIPT_INDEX] Apache2 packages detected, removing..."
+
+        # Wait for apt lock to be released
+        local wait_count=0
+        while $USE_SUDO fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+            if [ $wait_count -ge 30 ]; then
+                echo "[$SCRIPT_INDEX] [WARNING] Timeout waiting for apt lock, forcing removal..."
+                $USE_SUDO killall apt apt-get 2>/dev/null || true
+                sleep 2
+                break
+            fi
+            echo "[$SCRIPT_INDEX] Waiting for apt lock... ($wait_count/30)"
+            sleep 2
+            wait_count=$((wait_count + 1))
+        done
+
+        # Stop all Apache2 services first
+        $USE_SUDO systemctl stop apache2 2>/dev/null || true
+        $USE_SUDO systemctl disable apache2 2>/dev/null || true
+        $USE_SUDO systemctl mask apache2 2>/dev/null || true
+
+        # Remove Apache2 packages
+        if $USE_SUDO apt remove --purge apache2* -y 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] Apache2 packages removed successfully"
+        else
+            echo "[$SCRIPT_INDEX] [WARNING] Failed to remove some Apache2 packages, trying dpkg..."
+            $USE_SUDO dpkg --remove --force-remove-reinstreq apache2* 2>/dev/null || true
+        fi
+
+        sleep 2  # Wait for apt to release lock
         $USE_SUDO apt autoremove -y 2>/dev/null || true
         disabled_services+=("apache2 (removed)")
     fi
@@ -306,9 +334,6 @@ check_nginx() {
 # Function to install Nginx
 install_nginx() {
     echo "[$SCRIPT_INDEX] Installing Nginx..."
-
-    # Disable conflicting web servers first
-    disable_conflicting_web_servers
 
     # Force stop any remaining services using port 80
     force_stop_port_80_services
@@ -1332,8 +1357,14 @@ echo "[$SCRIPT_INDEX] NGINX INSTALLATION & REPAIR PROCESS"
 # Step 0: Disable conflicting web servers before any installation
 disable_conflicting_web_servers
 
+# Wait for apt to fully release lock
+sleep 3
+
 # Step 1: Remove Caddy if exists (only on first run)
 remove_caddy_if_exists
+
+# Wait for apt to fully release lock
+sleep 2
 
 # Step 2: Ensure Nginx is installed
 echo "[$SCRIPT_INDEX] Checking Nginx installation..."
