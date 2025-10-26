@@ -24,17 +24,23 @@ SCRIPT_INDEX="8"
 GITHUB_REPO_URL="https://github.com/accountbelongstox/core_node.git"
 GITEE_REPO_URL="https://gitee.com/accountbelongstox/core_node.git"
 
+# Color codes
+YELLOW='\033[33m'
+RED='\033[31m'
+GREEN='\033[32m'
+NC='\033[0m'
+
 # Simple output functions
 log() {
-    echo "[$SCRIPT_INDEX] $1"
+    echo -e "${GREEN}[$SCRIPT_INDEX] $1${NC}"
 }
 
 warning() {
-    echo "[$SCRIPT_INDEX] WARNING: $1"
+    echo -e "${YELLOW}[$SCRIPT_INDEX] WARNING: $1${NC}"
 }
 
 error() {
-    echo "[$SCRIPT_INDEX] ERROR: $1"
+    echo -e "${RED}[$SCRIPT_INDEX] ERROR: $1${NC}"
 }
 
 # Get script directory and calculate paths
@@ -45,19 +51,15 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # Source gvar_common.sh to get CORE_NODE_PROJECT_ROOT
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
-# Calculate relative position of gvar_common.sh to D:\programing\core_node
-GVAR_COMMON_PATH="$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-EXPECTED_PROJECT_ROOT="/mnt/d/programing/core_node"
-
 # Function to install git if not available
 install_git() {
     if command -v git >/dev/null 2>&1; then
         log "Git is already installed"
         return 0
     fi
-    
+
     log "Git is not installed. Installing git..."
-    
+
     # Detect package manager and install git
     if command -v apt-get >/dev/null 2>&1; then
         $USE_SUDO apt-get update
@@ -74,7 +76,7 @@ install_git() {
         error "Cannot install git: no supported package manager found"
         return 1
     fi
-    
+
     if command -v git >/dev/null 2>&1; then
         log "Git installed successfully"
         return 0
@@ -90,7 +92,7 @@ is_directory_empty() {
     if [ ! -d "$dir_path" ]; then
         return 0  # Directory doesn't exist, consider it empty
     fi
-    
+
     # Check if directory has any files or subdirectories (excluding hidden files)
     if [ -z "$(ls -A "$dir_path" 2>/dev/null)" ]; then
         return 0  # Directory is empty
@@ -99,32 +101,73 @@ is_directory_empty() {
     fi
 }
 
+# Function to clean directory
+clean_directory() {
+    local dir_path="$1"
+
+    if [ -d "$dir_path" ]; then
+        log "Cleaning directory: $dir_path"
+        $USE_SUDO rm -rf "$dir_path"
+    fi
+
+    # Create parent directory if needed
+    local parent_dir="$(dirname "$dir_path")"
+    if [ ! -d "$parent_dir" ]; then
+        log "Creating parent directory: $parent_dir"
+        $USE_SUDO mkdir -p "$parent_dir"
+    fi
+}
+
+# Function to clone project from repository
+clone_project() {
+    local project_root="$1"
+    local repo_url="$2"
+
+    log "Cloning project from: $repo_url"
+    log "Target directory: $project_root"
+
+    # Ensure parent directory exists
+    local parent_dir="$(dirname "$project_root")"
+    if [ ! -d "$parent_dir" ]; then
+        $USE_SUDO mkdir -p "$parent_dir"
+    fi
+
+    # Clone the repository
+    if $USE_SUDO git clone "$repo_url" "$project_root" 2>&1; then
+        log "Successfully cloned from $repo_url"
+        return 0
+    else
+        error "Failed to clone from $repo_url"
+        return 1
+    fi
+}
+
 # Function to restore project
 restore_project() {
     local project_root="$1"
-    
+
     log "Starting project restoration process..."
-    
+
     # Check if git is available
     if ! install_git; then
         error "Cannot proceed without git"
         return 1
     fi
-    
+
     # Check if project directory exists and is empty
     if is_directory_empty "$project_root"; then
         warning "Project directory is empty or doesn't exist: $project_root"
-        
+
         # Ask user for confirmation
         echo -e "${YELLOW}Do you want to restore the project from the repository? (y/n): ${NC}"
         read -r response
-        
+
         if [[ "$response" =~ ^[Yy]$ ]]; then
             log "User confirmed project restoration"
-            
+
             # Clean the directory if it exists
             clean_directory "$project_root"
-            
+
             # Try GitHub first, then Gitee as fallback
             if clone_project "$project_root" "$GITHUB_REPO_URL"; then
                 log "Project restored from GitHub successfully"
@@ -134,11 +177,11 @@ restore_project() {
                 error "Failed to restore project from both repositories"
                 return 1
             fi
-            
+
             # Set proper permissions
             $USE_SUDO chown -R $(whoami):$(whoami) "$project_root" 2>/dev/null || true
             $USE_SUDO chmod -R 755 "$project_root" 2>/dev/null || true
-            
+
             log "Project restoration completed successfully"
             return 0
         else
@@ -154,56 +197,10 @@ restore_project() {
 # Main execution
 # Check if project root exists and has content
 if [ -d "$CORE_NODE_PROJECT_ROOT" ] && [ -f "$CORE_NODE_PROJECT_ROOT/package.json" ] && [ -f "$CORE_NODE_PROJECT_ROOT/main.js" ]; then
-    # Project is correctly positioned
     log "Project correctly positioned at: $CORE_NODE_PROJECT_ROOT"
     exit 0
 fi
 
 # Project needs to be restored
-warning "Project directory is empty or missing: $CORE_NODE_PROJECT_ROOT"
-echo "Do you want to restore the project from repository? (y/n):"
-read -r response
-
-if [[ "$response" =~ ^[Yy]$ ]]; then
-    # Install git if needed
-    if ! command -v git >/dev/null 2>&1; then
-        log "Installing git..."
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y git
-        elif command -v yum >/dev/null 2>&1; then
-            sudo yum install -y git
-        else
-            error "Cannot install git automatically"
-            exit 1
-        fi
-    fi
-    
-    # Clean directory if it exists
-    if [ -d "$CORE_NODE_PROJECT_ROOT" ]; then
-        sudo rm -rf "$CORE_NODE_PROJECT_ROOT"
-    fi
-    
-    # Try GitHub first, then Gitee as fallback
-    log "Cloning project from repository..."
-    echo "Executing: git clone $GITHUB_REPO_URL $CORE_NODE_PROJECT_ROOT"
-    if sudo git clone "$GITHUB_REPO_URL" "$CORE_NODE_PROJECT_ROOT" 2>/dev/null; then
-        log "Project restored from GitHub successfully"
-    else
-        echo "Executing: git clone $GITEE_REPO_URL $CORE_NODE_PROJECT_ROOT"
-        if sudo git clone "$GITEE_REPO_URL" "$CORE_NODE_PROJECT_ROOT" 2>/dev/null; then
-            log "Project restored from Gitee successfully"
-        else
-            error "Failed to restore project from both repositories"
-            exit 1
-        fi
-    fi
-    
-    # Set proper permissions
-    sudo chown -R $(whoami):$(whoami) "$CORE_NODE_PROJECT_ROOT" 2>/dev/null || true
-    sudo chmod -R 755 "$CORE_NODE_PROJECT_ROOT" 2>/dev/null || true
-    
-    log "Project restoration completed successfully"
-else
-    warning "User declined project restoration"
-    exit 1
-fi
+restore_project "$CORE_NODE_PROJECT_ROOT"
+exit $?

@@ -42,21 +42,87 @@ fi
 
 # Function to detect core node project root directory
 detect_core_node_project_root() {
+    local potential_roots=()
+    local found_root=""
+
+    # Priority 1: Check WSL specific paths
     if [ "$IS_WSL" = true ]; then
-        CORE_NODE_PROJECT_ROOT="/mnt/d/programing/core_node"
-    elif [ "$IS_DESKTOP_WITH_WINDOWS" = true ]; then
-        CORE_NODE_PROJECT_ROOT="$DESKTOP_LARGEST_WINDOWS_PATH/programing/core_node"
-    elif [ "$IS_PRODUCTION" = true ]; then
-        CORE_NODE_PROJECT_ROOT="/usr/wwwroot/core_node"
-    else
-        CORE_NODE_PROJECT_ROOT="/usr/wwwroot/core_node"
+        potential_roots+=("/mnt/d/programing/core_node")
+        potential_roots+=("/mnt/c/programing/core_node")
     fi
-    if [ -d "$CORE_NODE_PROJECT_ROOT" ]; then
-        # Core Node project root verified
-        true
+
+    # Priority 2: Check /media mounts (common for Ubuntu Desktop with external drives)
+    local current_user=$(whoami)
+    if [ -d "/media/$current_user" ]; then
+        # Check all mounted drives under /media/username
+        for mount_point in "/media/$current_user"/*; do
+            if [ -d "$mount_point" ]; then
+                local test_path="$mount_point/programing/core_node"
+                if [ -d "$test_path" ]; then
+                    potential_roots+=("$test_path")
+                fi
+            fi
+        done
+    fi
+    # Also check root user media mounts
+    if [ -d "/media/root" ]; then
+        for mount_point in "/media/root"/*; do
+            if [ -d "$mount_point" ]; then
+                local test_path="$mount_point/programing/core_node"
+                if [ -d "$test_path" ]; then
+                    potential_roots+=("$test_path")
+                fi
+            fi
+        done
+    fi
+
+    # Priority 3: Check desktop with Windows drives
+    if [ "$IS_DESKTOP_WITH_WINDOWS" = true ] && [ -n "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
+        potential_roots+=("$DESKTOP_LARGEST_WINDOWS_PATH/programing/core_node")
+        # Also check all detected Windows drives
+        if [ -n "$DESKTOP_WINDOWS_DRIVES" ]; then
+            for drive in $DESKTOP_WINDOWS_DRIVES; do
+                local test_path="$DESKTOP_WINDOWS_MOUNT_PATH/$drive/programing/core_node"
+                if [ -d "$test_path" ]; then
+                    potential_roots+=("$test_path")
+                fi
+            done
+        fi
+    fi
+
+    # Priority 4: Check production paths
+    if [ "$IS_PRODUCTION" = true ]; then
+        potential_roots+=("/usr/wwwroot/core_node")
+    fi
+
+    # Priority 5: Check common installation paths
+    potential_roots+=("/usr/wwwroot/core_node")
+    potential_roots+=("/opt/core_node")
+    potential_roots+=("/var/www/core_node")
+
+    # Find the first existing path with valid project structure
+    for root_path in "${potential_roots[@]}"; do
+        if [ -d "$root_path" ]; then
+            # Verify it's actually a core_node project by checking for key markers
+            if [ -f "$root_path/package.json" ] || [ -d "$root_path/scripts" ] || [ -d "$root_path/.secret_keys" ]; then
+                found_root="$root_path"
+                break
+            fi
+        fi
+    done
+
+    # Set CORE_NODE_PROJECT_ROOT
+    if [ -n "$found_root" ]; then
+        CORE_NODE_PROJECT_ROOT="$found_root"
     else
-        # Warning: Core Node project root directory does not exist
-        true
+        # Fallback to default based on environment
+        if [ "$IS_WSL" = true ]; then
+            CORE_NODE_PROJECT_ROOT="/mnt/d/programing/core_node"
+        elif [ "$IS_DESKTOP_WITH_WINDOWS" = true ] && [ -n "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
+            CORE_NODE_PROJECT_ROOT="$DESKTOP_LARGEST_WINDOWS_PATH/programing/core_node"
+        else
+            CORE_NODE_PROJECT_ROOT="/usr/wwwroot/core_node"
+        fi
     fi
 }
 # Function to detect desktop system with Windows drives
