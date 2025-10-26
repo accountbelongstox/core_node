@@ -16,7 +16,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
@@ -26,7 +26,7 @@ INSTALL_MODE=$(get_var "INSTALL_MODE")
 SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
 NODE_VERSION="v22.19.0"
 NODE_SHORT_VERSION="22"
-NODE_INSTALL_DIR="$COMPILE_DIR/nodejs"
+NODE_INSTALL_DIR="$(map_web_path "www" "node")js"
 if [ "$SELECTED_REGION" = "China" ]; then
     NODE_DOWNLOAD_URLS=(
         "https://repo.huaweicloud.com/nodejs/v22.19.0/node-v22.19.0-linux-x64.tar.xz"
@@ -104,7 +104,7 @@ detect_and_fix_previous_issues() {
         "/usr/local/node"
         "/opt/node"
         "/var/node"
-        "$COMPILE_DIR/node"
+        "$(map_web_path "www" "node")"
     )
     
     for wrong_location in "${wrong_locations[@]}"; do

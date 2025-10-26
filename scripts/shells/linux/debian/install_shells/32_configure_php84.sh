@@ -32,7 +32,7 @@ SCRIPT_INDEX="[32_PHP84_CONFIG]"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
@@ -95,7 +95,7 @@ configure_php_fpm() {
 # Set directory permissions for Laravel - now using PHP common function
 set_directory_permissions() {
     # Use path mapping from gvar_common.sh to support WSL Windows directories
-    local www_root=$(map_web_path "/www/wwwroot")
+    local www_root=$(map_web_path "wwwroot")
     set_directory_permissions_from_php_common "$www_root" "$SCRIPT_INDEX"
 }
 

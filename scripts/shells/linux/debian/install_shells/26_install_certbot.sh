@@ -15,7 +15,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 SCRIPT_INDEX="26"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
@@ -100,11 +100,11 @@ create_laravel_ssl_config() {
     echo "[$SCRIPT_INDEX] Creating Laravel ServerManager compatible SSL configuration..."
 
     # Use path mapping from gvar_common.sh to support WSL Windows directories
-    local ssl_config_dir=$(map_web_path "/www/shared-data/ssl")
+    local ssl_config_dir=$(map_web_path "shared-data" "ssl")
     local ssl_config_file="$ssl_config_dir/ssl_config.json"
 
     # Also create the legacy location for backward compatibility
-    local www_root=$(map_web_path "/www/wwwroot")
+    local www_root=$(map_web_path "wwwroot")
     # Use CORE_NODE_DIR from gvar_common.sh for dynamic path resolution
     local legacy_ssl_config_dir="$CORE_NODE_DIR/.secret_keys/.secret_ignore"
     local legacy_ssl_config_file="$legacy_ssl_config_dir/SSL_CONFIG_JSON"
@@ -116,10 +116,10 @@ create_laravel_ssl_config() {
     fi
 
     # Get mapped paths for JSON configuration
-    local json_www_root=$(map_web_path "/www/wwwroot")
-    local json_nginx_config=$(map_web_path "/www/nginxconfig/sites-available")
-    local json_nginx_enabled=$(map_web_path "/www/nginxconfig/sites-enabled")
-    local json_backup_path=$(map_web_path "/www/backup/nginx-configs")
+    local json_www_root=$(map_web_path "wwwroot")
+    local json_nginx_config=$(map_web_path "nginxconfig" "sites-available")
+    local json_nginx_enabled=$(map_web_path "nginxconfig" "sites-enabled")
+    local json_backup_path=$(map_web_path "backup" "nginx-configs")
 
     # Create SSL configuration for Laravel ServerManager with dynamic paths
     $USE_SUDO tee "$ssl_config_file" > /dev/null << EOF
@@ -196,16 +196,16 @@ setup_nginx_directories() {
 
     # Use path mapping from gvar_common.sh to support WSL Windows directories
     local mapped_dirs=(
-        "$(map_web_path '/www/nginxconfig/sites-available')"
-        "$(map_web_path '/www/nginxconfig/sites-enabled')"
-        "$(map_web_path '/www/nginxconfig/ssl')"
-        "$(map_web_path '/www/backup/nginx-configs')"
+        "$(map_web_path 'nginxconfig' 'sites-available')"
+        "$(map_web_path 'nginxconfig' 'sites-enabled')"
+        "$(map_web_path 'nginxconfig' 'ssl')"
+        "$(map_web_path 'backup' 'nginx-configs')"
         "/var/log/nginx"
-        "$(map_web_path '/www/wwwroot')"
-        "$(map_web_path '/www/shared-data/ssl')"
-        "$(map_web_path '/www/shared-data/domains')"
-        "$(map_web_path '/www/shared-data/dns-providers')"
-        "$(map_web_path '/www/shared-data/certificates')"
+        "$(map_web_path 'wwwroot')"
+        "$(map_web_path 'shared-data' 'ssl')"
+        "$(map_web_path 'shared-data' 'domains')"
+        "$(map_web_path 'shared-data' 'dns-providers')"
+        "$(map_web_path 'shared-data' 'certificates')"
     )
 
     for dir in "${mapped_dirs[@]}"; do
@@ -216,7 +216,7 @@ setup_nginx_directories() {
     done
 
     # Set proper permissions (skip chown in WSL as Windows filesystem doesn't support it)
-    local www_root=$(map_web_path "/www/wwwroot")
+    local www_root=$(map_web_path "wwwroot")
     if [ "$IS_WSL" = false ]; then
         $USE_SUDO chown -R www-data:www-data "$www_root"
     fi
@@ -269,7 +269,7 @@ setup_nginx_directories() {
             <tr><th>Component</th><th>Status</th><th>Details</th></tr>
             <tr><td>Web Server</td><td>[OK] Active</td><td>Nginx (Port 80)</td></tr>
             <tr><td>SSL Support</td><td>[OK] Available</td><td>Certbot installed for Let's Encrypt</td></tr>
-            <tr><td>WWW Root</td><td>[Ready] Ready</td><td>/www/wwwroot</td></tr>
+            <tr><td>WWW Root</td><td>[Ready] Ready</td><td>/usr/wwwroot</td></tr>
             <tr><td>Config Directory</td><td>[Ready] Ready</td><td>/www/nginxconfig</td></tr>
             <tr><td>PHP Support</td><td>[Check] Check required</td><td>Run PHP installation if needed</td></tr>
         </table>
@@ -291,7 +291,7 @@ setup_nginx_directories() {
 
         <h2>[Next] Next Steps</h2>
         <ul>
-            <li>Upload your website files to <code>/www/wwwroot</code></li>
+            <li>Upload your website files to <code>/usr/wwwroot</code></li>
             <li>Configure your domain's DNS to point to this server</li>
             <li>Set up SSL certificates using Certbot</li>
             <li>Configure additional sites in <code>/www/nginxconfig/sites-available</code></li>
@@ -300,13 +300,13 @@ setup_nginx_directories() {
         <div class="footer">
             <p><strong>Page generated:</strong> $(date)</p>
             <p><strong>Let's Encrypt Challenge Ready:</strong> This page supports SSL certificate verification</p>
-            <p><em>Replace this file at /www/wwwroot/index.html with your own content</em></p>
+            <p><em>Replace this file at /usr/wwwroot/index.html with your own content</em></p>
         </div>
     </div>
 </body>
 </html>
 EOF
-        $USE_SUDO chown www-data:www-data /www/wwwroot/index.html
+        $USE_SUDO chown www-data:www-data /usr/wwwroot/index.html
         echo "[$SCRIPT_INDEX] Enhanced default page created with nginx and certbot information"
     fi
 

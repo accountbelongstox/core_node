@@ -21,7 +21,7 @@ echo "[$SCRIPT_INDEX] UV Package Manager Installation Script v$SCRIPT_VERSION"
 echo "[$SCRIPT_INDEX] Features: Fast Python package management, Cross-platform compatibility"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 

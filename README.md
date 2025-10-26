@@ -31,5 +31,20 @@ curl -L https://gitee.com/accountbelongstox/core_node/raw/main/dd.cmd -o dd.cmd
 dd.cmd
 ```
 
+```cmd
+curl -L https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.cmd -o dd.cmd
+dd.cmd
+```
+
+Linux one-click deployment:
+
+```bash
+curl -L https://gitee.com/accountbelongstox/core_node/raw/main/dd.sh -o dd.sh && sudo bash dd.sh
+```
+
+```bash
+curl -L https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.sh -o dd.sh && sudo bash dd.sh
+```
+
 update
 

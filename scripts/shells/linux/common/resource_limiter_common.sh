@@ -22,7 +22,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_1/LGar.sh"
+source "$COMMON_DIR/gvar_common.sh"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 
 DEFAULT_CPU_LIMIT="20"
