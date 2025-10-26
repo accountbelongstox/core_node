@@ -60,6 +60,27 @@ error() {
 }
 
 # =============================================================================
+# NTFS Support Functions
+# =============================================================================
+
+ensure_ntfs_support() {
+    if ! command -v ntfs-3g >/dev/null 2>&1; then
+        warning "ntfs-3g not installed, installing..."
+        $USE_SUDO apt-get update -qq
+        if $USE_SUDO apt-get install -y ntfs-3g; then
+            log "ntfs-3g installed successfully"
+            return 0
+        else
+            error "Failed to install ntfs-3g"
+            return 1
+        fi
+    else
+        info "ntfs-3g is already installed"
+        return 0
+    fi
+}
+
+# =============================================================================
 # Original Mail Service Control Functions (Encapsulated)
 # =============================================================================
 
@@ -117,6 +138,13 @@ stop_mail_services() {
 # =============================================================================
 # Disk Label and Mount Point Functions
 # =============================================================================
+
+device_to_mount_point() {
+    local device="$1"
+    # Convert /dev/sdb3 to dev_sdb3
+    local mount_name=$(echo "$device" | sed 's|/dev/|dev_|g')
+    echo "$DEFAULT_MOUNT_BASE/$mount_name"
+}
 
 is_label_english() {
     local label="$1"
@@ -288,6 +316,12 @@ handle_ntfs_disk() {
 
     info "Processing NTFS disk: $device"
 
+    # Ensure ntfs-3g is installed
+    if ! ensure_ntfs_support; then
+        error "Cannot mount NTFS without ntfs-3g support"
+        return 1
+    fi
+
     local disk_info=$(get_disk_info "$device")
     local uuid=$(echo "$disk_info" | cut -d'|' -f1 | cut -d'=' -f2)
     local label=$(echo "$disk_info" | cut -d'|' -f2 | cut -d'=' -f2)
@@ -302,70 +336,23 @@ handle_ntfs_disk() {
     echo "UUID: $uuid"
     echo "=========================================="
 
+    # Generate mount point from device name
+    local mount_point=$(device_to_mount_point "$device")
+    info "Standardized mount point: $mount_point"
+
+    # Check if device is already mounted
+    local is_mounted=false
+    local current_mount=""
     if is_device_mounted "$device"; then
-        local current_mount=$(get_mount_point "$device")
+        current_mount=$(get_mount_point "$device")
+        is_mounted=true
         warning "Device is already mounted at: $current_mount"
-        echo ""
-        echo -n "Do you want to change the mount point? (y/N): "
-        read -r change_mount
-
-        if [[ ! "$change_mount" =~ ^[Yy]$ ]]; then
-            info "Keeping current mount point: $current_mount"
-
-            if [ -n "$GLOBAL_VAR_DIR" ]; then
-                echo "$current_mount" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
-                echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
-            fi
-
-            return 0
-        fi
-
-        info "Unmounting $device..."
-        if ! $USE_SUDO umount "$device" 2>/dev/null; then
-            warning "Device is busy, attempting lazy unmount..."
-            if $USE_SUDO umount -l "$device" 2>/dev/null; then
-                info "Lazy unmount successful"
-                sleep 2
-            else
-                error "Failed to unmount device. Please close any programs using the device and try again."
-                return 1
-            fi
-        fi
-    fi
-
-    local suggested_mount=""
-    if [ -n "$label" ] && is_label_english "$label"; then
-        suggested_mount="$DEFAULT_MOUNT_BASE/$(sanitize_mount_name "$label")"
-    else
-        if [ -n "$label" ]; then
-            warning "Label contains non-English characters: $label"
-            local english_label=$(generate_english_label "$label" "$device")
-            info "Generated English label: $english_label"
-            suggested_mount="$DEFAULT_MOUNT_BASE/$english_label"
-        else
-            local auto_label=$(generate_english_label "ntfs" "$device")
-            suggested_mount="$DEFAULT_MOUNT_BASE/$auto_label"
-        fi
     fi
 
     echo ""
-    echo "Suggested mount point: $suggested_mount"
-    echo -n "Press Enter to accept, or type a custom mount point: "
-    read -r custom_mount
-
-    local final_mount=""
-    if [ -n "$custom_mount" ]; then
-        if [[ "$custom_mount" != /* ]]; then
-            custom_mount="/$custom_mount"
-        fi
-        final_mount="$custom_mount"
-    else
-        final_mount="$suggested_mount"
-    fi
-
-    echo ""
-    echo "Will mount $device to $final_mount"
-    echo -n "Proceed? (Y/n): "
+    echo "Target mount point: $mount_point"
+    echo "Device will be mounted at: $mount_point"
+    echo -n "Proceed to configure fstab? (Y/n): "
     read -r confirm
 
     if [[ "$confirm" =~ ^[Nn]$ ]]; then
@@ -373,18 +360,46 @@ handle_ntfs_disk() {
         return 0
     fi
 
-    if mount_disk "$device" "$final_mount" "$fstype"; then
-        log "NTFS disk successfully mounted"
+    # Create mount point directory
+    if [ ! -d "$mount_point" ]; then
+        $USE_SUDO mkdir -p "$mount_point"
+        log "Created mount point: $mount_point"
+    fi
 
-        if [ -n "$GLOBAL_VAR_DIR" ]; then
-            echo "$final_mount" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
-            echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
+    # Update fstab
+    local mount_options="defaults,nofail,x-systemd.device-timeout=10,uid=1000,gid=1000,umask=0022"
+
+    $USE_SUDO cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)
+    $USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab
+
+    local fstab_entry="UUID=$uuid $mount_point $fstype $mount_options 0 2"
+    echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
+
+    log "Added fstab entry: $fstab_entry"
+
+    # Save to global variables
+    if [ -n "$GLOBAL_VAR_DIR" ]; then
+        echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
+        echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
+    fi
+
+    # Try to mount immediately if not already mounted
+    if [ "$is_mounted" = false ]; then
+        if $USE_SUDO mount "$mount_point" 2>/dev/null; then
+            log "Successfully mounted $device to $mount_point"
+            $USE_SUDO chmod 755 "$mount_point"
+            return 0
+        else
+            error "Failed to mount $device to $mount_point"
+            warning "The fstab has been updated. Please reboot to apply changes."
+            return 1
         fi
-
-        return 0
     else
-        error "Failed to mount NTFS disk"
-        return 1
+        warning "Device is currently mounted at: $current_mount"
+        warning "The fstab has been updated to mount at: $mount_point"
+        warning "Please reboot the system to apply the new mount point"
+        log "After reboot, the device will be mounted at: $mount_point"
+        return 0
     fi
 }
 
@@ -408,8 +423,12 @@ handle_data_disk() {
     echo "UUID: $uuid"
     echo "=========================================="
 
+    # Check if device is already mounted
+    local is_mounted=false
+    local current_mount=""
     if is_device_mounted "$device"; then
-        local current_mount=$(get_mount_point "$device")
+        current_mount=$(get_mount_point "$device")
+        is_mounted=true
         info "Device is already mounted at: $current_mount"
 
         if [ -n "$GLOBAL_VAR_DIR" ]; then
@@ -429,39 +448,51 @@ handle_data_disk() {
         return 0
     fi
 
-    local suggested_mount=""
-    if [ -n "$label" ]; then
-        suggested_mount="$DEFAULT_MOUNT_BASE/$(sanitize_mount_name "$label")"
-    else
-        suggested_mount="$DEFAULT_MOUNT_BASE/data_disk"
-    fi
+    # Generate mount point from device name
+    local mount_point=$(device_to_mount_point "$device")
+    info "Standardized mount point: $mount_point"
 
     echo ""
-    echo "Suggested mount point: $suggested_mount"
-    echo -n "Press Enter to accept, or type a custom mount point: "
-    read -r custom_mount
+    echo "Target mount point: $mount_point"
+    echo -n "Proceed to configure fstab? (Y/n): "
+    read -r confirm
 
-    local final_mount=""
-    if [ -n "$custom_mount" ]; then
-        if [[ "$custom_mount" != /* ]]; then
-            custom_mount="/$custom_mount"
-        fi
-        final_mount="$custom_mount"
-    else
-        final_mount="$suggested_mount"
+    if [[ "$confirm" =~ ^[Nn]$ ]]; then
+        info "Skipped mounting $device"
+        return 0
     fi
 
-    if mount_disk "$device" "$final_mount" "$fstype"; then
+    # Create mount point directory
+    if [ ! -d "$mount_point" ]; then
+        $USE_SUDO mkdir -p "$mount_point"
+        log "Created mount point: $mount_point"
+    fi
+
+    # Update fstab
+    local mount_options="defaults,nofail,x-systemd.device-timeout=10"
+
+    $USE_SUDO cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)
+    $USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab
+
+    local fstab_entry="UUID=$uuid $mount_point $fstype $mount_options 0 2"
+    echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
+
+    log "Added fstab entry: $fstab_entry"
+
+    # Save to global variables
+    if [ -n "$GLOBAL_VAR_DIR" ]; then
+        echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" >/dev/null
+        echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_DEVICE" >/dev/null
+    fi
+
+    # Try to mount immediately
+    if $USE_SUDO mount "$mount_point" 2>/dev/null; then
         log "Data disk successfully mounted"
-
-        if [ -n "$GLOBAL_VAR_DIR" ]; then
-            echo "$final_mount" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" >/dev/null
-            echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_DEVICE" >/dev/null
-        fi
-
+        $USE_SUDO chmod 755 "$mount_point"
         return 0
     else
         error "Failed to mount data disk"
+        warning "The fstab has been updated. Please reboot to apply changes."
         return 1
     fi
 }

@@ -51,6 +51,48 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # Source gvar_common.sh to get necessary variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
+# Print comprehensive environment information
+log "=========================================="
+log "Environment Detection Summary"
+log "=========================================="
+log "System Environment:"
+log "  - IS_WSL: $IS_WSL"
+log "  - IS_PRODUCTION: $IS_PRODUCTION"
+log "  - IS_DESKTOP_WITH_WINDOWS: $IS_DESKTOP_WITH_WINDOWS"
+log "  - HAS_DESKTOP_ENVIRONMENT: $HAS_DESKTOP_ENVIRONMENT"
+
+if [ "$HAS_DESKTOP_ENVIRONMENT" = true ]; then
+    log "  - DESKTOP_ENVIRONMENT: $DESKTOP_ENVIRONMENT"
+fi
+
+log ""
+log "Storage Detection:"
+base_dir=$(get_base_data_directory)
+log "  - Base Data Directory: $base_dir"
+
+# Show NTFS detection
+if has_ntfs_disk 2>&1 | grep -q "Found NTFS"; then
+    log "  - NTFS Disk: Detected"
+else
+    log "  - NTFS Disk: Not found"
+fi
+
+# Show data disk detection
+data_device=$($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | head -n 1 | cut -d: -f1)
+if [ -n "$data_device" ]; then
+    mount_point=$(findmnt -n -o TARGET "$data_device" 2>/dev/null || echo "")
+    if [ "$mount_point" != "/" ] && [ "$mount_point" != "/boot" ]; then
+        log "  - Data Disk: $data_device"
+    fi
+fi
+
+log ""
+log "Project Configuration:"
+log "  - CORE_NODE_PROJECT_ROOT: $CORE_NODE_PROJECT_ROOT"
+log "  - Project Type: $(if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then echo "Development (programing)"; else echo "Production (wwwroot)"; fi)"
+log "=========================================="
+log ""
+
 # Function to install git if not available
 install_git() {
     if command -v git >/dev/null 2>&1; then
