@@ -45,6 +45,7 @@ GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
 
 # File Download Variables
 GVAR_COMMON_FILE="$COMMON_SHELLS_DIR/gvar_common.sh"
+SETTING_BASE_FILE="$SHELLS_DIR/linux/debian/install_shells/2_setting_base.sh"
 PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/8_project_validator.sh"
 
 
@@ -599,7 +600,7 @@ download_file() {
 
 check_and_download_files() {
     echo "Checking for required files..."
-    
+
     # Check gvar_common.sh
     if [ ! -f "$GVAR_COMMON_FILE" ]; then
         echo "gvar_common.sh not found, downloading..."
@@ -612,7 +613,20 @@ check_and_download_files() {
     else
         echo "gvar_common.sh already exists"
     fi
-    
+
+    # Check 2_setting_base.sh
+    if [ ! -f "$SETTING_BASE_FILE" ]; then
+        echo "2_setting_base.sh not found, downloading..."
+        if download_file "$SETTING_BASE_FILE" "scripts/shells/linux/debian/install_shells/2_setting_base.sh"; then
+            echo "2_setting_base.sh downloaded successfully"
+        else
+            echo "Failed to download 2_setting_base.sh"
+            return 1
+        fi
+    else
+        echo "2_setting_base.sh already exists"
+    fi
+
     # Check 8_project_validator.sh
     if [ ! -f "$PROJECT_VALIDATOR_FILE" ]; then
         echo "8_project_validator.sh not found, downloading..."
@@ -625,7 +639,7 @@ check_and_download_files() {
     else
         echo "8_project_validator.sh already exists"
     fi
-    
+
     echo "All required files are available"
     return 0
 }
@@ -1142,12 +1156,12 @@ main() {
 
     # Check and download required files
     echo -e "\033[36m[FILE CHECK] Checking for required files...\033[0m"
-    
+
     # Check if required files exist, if not show region selection menu
-    if [ ! -f "$GVAR_COMMON_FILE" ] || [ ! -f "$PROJECT_VALIDATOR_FILE" ]; then
+    if [ ! -f "$GVAR_COMMON_FILE" ] || [ ! -f "$SETTING_BASE_FILE" ] || [ ! -f "$PROJECT_VALIDATOR_FILE" ]; then
         show_region_selection_menu
     fi
-    
+
     # Download missing files
     if ! check_and_download_files; then
         echo -e "\033[31m[ERROR] Failed to download required files. Exiting.\033[0m"
@@ -1243,6 +1257,19 @@ main() {
     # Make shell files executable
     echo "Script is executed from: $CORE_NODE_ROOT_DIR"
     make_sh_executable
+
+    # Run base system setup first (disk detection and mount management)
+    echo -e "\033[36m[BASE SETUP] Running base system setup...\033[0m"
+    if [ -f "$SETTING_BASE_FILE" ]; then
+        bash "$SETTING_BASE_FILE"
+        if [ $? -eq 0 ]; then
+            echo -e "\033[32m[BASE SETUP] Base system setup completed successfully\033[0m"
+        else
+            echo -e "\033[33m[BASE SETUP] Base system setup completed with warnings\033[0m"
+        fi
+    else
+        echo -e "\033[31m[BASE SETUP] 2_setting_base.sh not found at: $SETTING_BASE_FILE\033[0m"
+    fi
 
     # Validate project location using 8_project_validator.sh
     echo -e "\033[36m[PROJECT VALIDATION] Running project validation...\033[0m"
