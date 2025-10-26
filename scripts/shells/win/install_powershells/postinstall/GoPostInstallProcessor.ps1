@@ -113,7 +113,7 @@ function Install-GoTools {
                 }
             }
             catch {
-                Write-Host "$LogPrefix Error installing $tool: $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-Host "$LogPrefix Error installing $tool : $($_.Exception.Message)" -ForegroundColor Yellow
             }
         }
         
