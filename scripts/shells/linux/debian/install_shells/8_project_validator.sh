@@ -48,8 +48,32 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
-# Source gvar_common.sh to get CORE_NODE_PROJECT_ROOT
+# Source gvar_common.sh first to get GLOBAL_VAR_DIR
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+
+# Check if 2_setting_base.sh has been run (disk setup)
+SETTING_BASE_SCRIPT="$SCRIPT_DIR/2_setting_base.sh"
+DISK_SETUP_FLAG="$GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED"
+
+# Run 2_setting_base.sh if not already done
+if [ -f "$SETTING_BASE_SCRIPT" ] && [ ! -f "$DISK_SETUP_FLAG" ]; then
+    log "Running base system setup (disk detection and mount management)..."
+    bash "$SETTING_BASE_SCRIPT"
+
+    # Mark as completed
+    if [ -n "$GLOBAL_VAR_DIR" ]; then
+        echo "$(date +%Y%m%d_%H%M%S)" | $USE_SUDO tee "$DISK_SETUP_FLAG" >/dev/null
+    fi
+
+    # Re-source gvar_common.sh to refresh CORE_NODE_PROJECT_ROOT after disk setup
+    source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+else
+    if [ -f "$DISK_SETUP_FLAG" ]; then
+        info "Base system setup already completed (disk management done)"
+    else
+        warning "2_setting_base.sh not found at: $SETTING_BASE_SCRIPT"
+    fi
+fi
 
 # Function to install git if not available
 install_git() {
