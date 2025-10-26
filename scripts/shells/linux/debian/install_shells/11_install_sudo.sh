@@ -11,18 +11,13 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Include common functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
-source "$COMMON_DIR/common_functions.sh"
-
-# Source global variables
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
+# Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Declare variables
 CURRENT_USER=${USER:-$(whoami)}
@@ -37,12 +32,12 @@ log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
 }
 
-echo "Installing sudo for $DISTRO..."
+print_step_from_common_functions "Installing sudo for $DISTRO..."
 log_message "Starting sudo installation for $DISTRO..."
 
 # Check if running as root
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Error: This script must be run as root to install sudo!"
+    print_error_from_common_functions "This script must be run as root to install sudo!"
     echo "Please run: su - root"
     echo "Then execute this script again."
     exit 1
@@ -50,40 +45,40 @@ fi
 
 # Check if sudo is already installed
 if command -v sudo >/dev/null 2>&1; then
-    echo "sudo is already installed."
+    print_success_from_common_functions "sudo is already installed."
 else
-    echo "Installing sudo package..."
-    apt update
-    if apt install -y sudo; then
-        echo "sudo installed successfully."
+    print_step_from_common_functions "Installing sudo package..."
+    apt-get update
+    if apt-get install -y sudo; then
+        print_success_from_common_functions "sudo installed successfully."
     else
-        echo "Error: Failed to install sudo package."
+        print_error_from_common_functions "Failed to install sudo package."
         exit 1
     fi
 fi
 
 # Ensure sudo group exists
 if ! getent group sudo >/dev/null 2>&1; then
-    echo "Creating sudo group..."
+    print_step_from_common_functions "Creating sudo group..."
     groupadd sudo
 fi
 
 # Add user to sudo group if not already a member
 if [ -n "$CURRENT_USER" ] && [ "$CURRENT_USER" != "root" ]; then
     if id -nG "$CURRENT_USER" | grep -qw "sudo"; then
-        echo "User $CURRENT_USER is already in the sudo group."
+        print_success_from_common_functions "User $CURRENT_USER is already in the sudo group."
     else
-        echo "Adding user $CURRENT_USER to sudo group..."
+        print_step_from_common_functions "Adding user $CURRENT_USER to sudo group..."
         if usermod -aG sudo "$CURRENT_USER"; then
-            echo "User $CURRENT_USER added to sudo group successfully."
-            echo "Please log out and log back in for changes to take effect."
+            print_success_from_common_functions "User $CURRENT_USER added to sudo group successfully."
+            print_info_from_common_functions "Please log out and log back in for changes to take effect."
         else
-            echo "Error: Failed to add user $CURRENT_USER to sudo group."
+            print_error_from_common_functions "Failed to add user $CURRENT_USER to sudo group."
             exit 1
         fi
     fi
 else
-    echo "Running as root user, no need to add to sudo group."
+    print_info_from_common_functions "Running as root user, no need to add to sudo group."
 fi
 
 # Create backup before modifications
@@ -234,52 +229,52 @@ repair_sudo_permissions() {
 
 # Function to repair /usr/local/bin permissions
 repair_usr_local_bin_permissions() {
-    echo "Repairing /usr/local/bin permissions..."
-    
+    print_step_from_common_functions "Repairing /usr/local/bin permissions..."
+
     if [ ! -d "/usr/local/bin" ]; then
-        echo "/usr/local/bin directory does not exist, creating it..."
+        print_warning_from_common_functions "/usr/local/bin directory does not exist, creating it..."
         mkdir -p /usr/local/bin
         chmod 755 /usr/local/bin
         return 0
     fi
-    
-    echo "Scanning /usr/local/bin for permission issues..."
+
+    print_step_from_common_functions "Scanning /usr/local/bin for permission issues..."
     local fixed_count=0
     local total_count=0
-    
+
     # Process all files in /usr/local/bin
     for file in /usr/local/bin/*; do
         if [ -f "$file" ] || [ -L "$file" ]; then
             total_count=$((total_count + 1))
             local filename=$(basename "$file")
             local current_perms=$(stat -c "%a" "$file" 2>/dev/null)
-            
+
             # Skip system critical files that should have special permissions
             if [[ "$filename" == "sudo" || "$filename" == "su" || "$filename" == "passwd" ]]; then
-                echo "Skipping system critical file: $filename"
+                print_info_from_common_functions "Skipping system critical file: $filename"
                 continue
             fi
-            
+
             # Check if permissions are not 755
             if [ "$current_perms" != "755" ]; then
-                echo "Fixing permissions for $filename (was $current_perms, setting to 755)"
+                print_step_from_common_functions "Fixing permissions for $filename (was $current_perms, setting to 755)"
                 chmod 755 "$file"
-                
+
                 # Verify the change
                 local new_perms=$(stat -c "%a" "$file" 2>/dev/null)
                 if [ "$new_perms" = "755" ]; then
                     fixed_count=$((fixed_count + 1))
-                    echo "  [OK] Fixed: $filename"
+                    log_message "  [OK] Fixed: $filename"
                 else
-                    echo "  [FAIL] Failed to fix: $filename"
+                    log_message "  [FAIL] Failed to fix: $filename"
                 fi
             else
-                echo "  [OK] Already correct: $filename ($current_perms)"
+                log_message "  [OK] Already correct: $filename ($current_perms)"
             fi
         fi
     done
-    
-    echo "Permission repair completed: $fixed_count/$total_count files fixed"
+
+    print_success_from_common_functions "Permission repair completed: $fixed_count/$total_count files fixed"
 }
 
 # Test sudo functionality with comprehensive checks
@@ -440,9 +435,10 @@ perform_system_repair() {
     log_message "Log file: $LOG_FILE"
     log_message "Backup directory: $BACKUP_DIR"
     log_message "=========================================="
-    
+
     echo ""
-    echo "NEXT STEPS:"
+    print_success_from_common_functions "System repair completed successfully!"
+    print_info_from_common_functions "NEXT STEPS:"
     echo "1. Test sudo with a non-root user: su - username"
     echo "2. Then try: sudo whoami"
     echo "3. If still having issues, check the log: cat $LOG_FILE"
@@ -456,9 +452,9 @@ if [ "$1" = "repair" ] || [ "$1" = "--repair" ]; then
 fi
 
 log_message "Sudo installation and configuration completed."
-echo "Sudo installation and configuration completed."
+print_success_from_common_functions "Sudo installation and configuration completed."
 echo ""
-echo "Available options:"
+print_info_from_common_functions "Available options:"
 echo "  $0         - Install sudo and configure user permissions"
 echo "  $0 repair  - Run comprehensive system repair (includes dangerous symlink removal)"
 echo ""
