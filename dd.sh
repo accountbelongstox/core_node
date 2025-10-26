@@ -39,6 +39,14 @@ sudo=""
 SYSTEM_VERSION=""
 SYSTEM_NAME=""
 
+# URL Constants
+GITHUB_BASE_URL="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
+GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
+
+# File Download Variables
+GVAR_COMMON_FILE="$COMMON_SHELLS_DIR/gvar_common.sh"
+PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/8_project_validator.sh"
+
 
 # Menu Configuration Variables
 declare -A menu_items
@@ -424,6 +432,128 @@ make_sh_executable() {
     else
         echo "Directory $SCRIPT_DIR does not exist."
     fi
+}
+
+# File Download Functions
+download_file() {
+    local file_path="$1"
+    local relative_path="$2"
+    local selected_region=$(get_global_var "SELECTED_REGION" "Global")
+    
+    # Determine base URL based on region
+    local base_url=""
+    case "$selected_region" in
+        "Global")
+            base_url="$GITHUB_BASE_URL"
+            ;;
+        "China")
+            base_url="$GITEE_BASE_URL"
+            ;;
+        *)
+            base_url="$GITHUB_BASE_URL"  # Default to GitHub
+            ;;
+    esac
+    
+    local download_url="$base_url/$relative_path"
+    local temp_file="/tmp/$(basename "$file_path")"
+    
+    echo "Downloading $relative_path from $base_url..."
+    
+    # Try to download using curl or wget
+    if command -v curl >/dev/null 2>&1; then
+        if curl -s -L -o "$temp_file" "$download_url"; then
+            echo "Download successful using curl"
+        else
+            echo "Download failed using curl"
+            return 1
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if wget -q -O "$temp_file" "$download_url"; then
+            echo "Download successful using wget"
+        else
+            echo "Download failed using wget"
+            return 1
+        fi
+    else
+        echo "Error: Neither curl nor wget is available for downloading"
+        return 1
+    fi
+    
+    # Create directory if it doesn't exist
+    local file_dir=$(dirname "$file_path")
+    if [ ! -d "$file_dir" ]; then
+        $sudo mkdir -p "$file_dir"
+    fi
+    
+    # Move downloaded file to target location
+    if $sudo mv "$temp_file" "$file_path"; then
+        echo "File saved to: $file_path"
+        chmod +x "$file_path"
+        return 0
+    else
+        echo "Error: Failed to move downloaded file to $file_path"
+        return 1
+    fi
+}
+
+check_and_download_files() {
+    echo "Checking for required files..."
+    
+    # Check gvar_common.sh
+    if [ ! -f "$GVAR_COMMON_FILE" ]; then
+        echo "gvar_common.sh not found, downloading..."
+        if download_file "$GVAR_COMMON_FILE" "scripts/shells/linux/common/gvar_common.sh"; then
+            echo "gvar_common.sh downloaded successfully"
+        else
+            echo "Failed to download gvar_common.sh"
+            return 1
+        fi
+    else
+        echo "gvar_common.sh already exists"
+    fi
+    
+    # Check 8_project_validator.sh
+    if [ ! -f "$PROJECT_VALIDATOR_FILE" ]; then
+        echo "8_project_validator.sh not found, downloading..."
+        if download_file "$PROJECT_VALIDATOR_FILE" "scripts/shells/linux/debian/install_shells/8_project_validator.sh"; then
+            echo "8_project_validator.sh downloaded successfully"
+        else
+            echo "Failed to download 8_project_validator.sh"
+            return 1
+        fi
+    else
+        echo "8_project_validator.sh already exists"
+    fi
+    
+    echo "All required files are available"
+    return 0
+}
+
+show_region_selection_menu() {
+    echo ""
+    echo "=========================================="
+    echo "Select Download Region:"
+    echo "=========================================="
+    echo "1) Global (GitHub)"
+    echo "2) China (Gitee)"
+    echo "=========================================="
+    echo -n "Enter your choice (1-2): "
+    
+    read -r choice
+    case "$choice" in
+        1)
+            set_global_var "SELECTED_REGION" "Global"
+            echo "Selected region: Global (GitHub)"
+            ;;
+        2)
+            set_global_var "SELECTED_REGION" "China"
+            echo "Selected region: China (Gitee)"
+            ;;
+        *)
+            echo "Invalid choice, defaulting to Global"
+            set_global_var "SELECTED_REGION" "Global"
+            ;;
+    esac
 }
 
 # Git and PM2 Functions
@@ -909,6 +1039,20 @@ main() {
     check_and_install_sudo
     ensure_dos2unix
 
+    # Check and download required files
+    echo -e "\033[36m[FILE CHECK] Checking for required files...\033[0m"
+    
+    # Check if required files exist, if not show region selection menu
+    if [ ! -f "$GVAR_COMMON_FILE" ] || [ ! -f "$PROJECT_VALIDATOR_FILE" ]; then
+        show_region_selection_menu
+    fi
+    
+    # Download missing files
+    if ! check_and_download_files; then
+        echo -e "\033[31m[ERROR] Failed to download required files. Exiting.\033[0m"
+        exit 1
+    fi
+
     # Clean up expired behavior cache
     cleanup_behavior_cache
     # Clean up orphaned file cache entries
@@ -986,6 +1130,19 @@ main() {
     # Make shell files executable
     echo "Script is executed from: $CORE_NODE_ROOT_DIR"
     make_sh_executable
+
+    # Validate project location using 8_project_validator.sh
+    echo -e "\033[36m[PROJECT VALIDATION] Running project validation...\033[0m"
+    if [ -f "$PROJECT_VALIDATOR_FILE" ]; then
+        bash "$PROJECT_VALIDATOR_FILE"
+        if [ $? -eq 0 ]; then
+            echo -e "\033[32m[PROJECT VALIDATION] Project validation completed successfully\033[0m"
+        else
+            echo -e "\033[33m[PROJECT VALIDATION] Project validation completed with warnings\033[0m"
+        fi
+    else
+        echo -e "\033[31m[PROJECT VALIDATION] 8_project_validator.sh not found at: $PROJECT_VALIDATOR_FILE\033[0m"
+    fi
 
     # Update CORE_NODE_ROOT_DIR if running from symlink
     if [ -L "$0" ] && [ "$0" -ef "$script_symlink_path" ]; then

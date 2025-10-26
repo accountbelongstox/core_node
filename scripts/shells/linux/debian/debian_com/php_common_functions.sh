@@ -136,7 +136,7 @@ prevent_apache2_conflicts_from_php_common() {
 
 # Set directory permissions for web applications
 set_directory_permissions_from_php_common() {
-    local target_dir="${1:-/www/wwwroot}"
+    local target_dir="${1:-$(map_web_path "wwwroot")}"
     local script_index="${2:-[PERMISSIONS]}"
     
     print_step_from_common_functions "$script_index Setting directory permissions for: $target_dir"
@@ -281,7 +281,8 @@ update_nginx_config_from_php_common() {
 update_caddy_config_from_php_common() {
     local socket_path="${1:-/run/php/php8.4-fpm.sock}"
     local script_index="${2:-[CADDY_CONFIG]}"
-    local shells_root="${3:-/mnt/d/programing/core_node/scripts/shells}"
+    local core_node_dir=$(get_core_node_dir)
+    local shells_root="${3:-$core_node_dir/scripts/shells}"
     
     print_step_from_common_functions "$script_index Updating Caddy configuration for PHP"
     

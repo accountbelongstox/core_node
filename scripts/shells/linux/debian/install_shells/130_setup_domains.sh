@@ -15,7 +15,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 SCRIPT_INDEX="130"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
@@ -133,8 +133,8 @@ setup_domain() {
 
     # Domain validation will be handled by Laravel commands directly
 
-    # Ensure /www/wwwroot directory exists using path mapping
-    local www_root=$(map_web_path "/www/wwwroot")
+    # Ensure /usr/wwwroot directory exists using path mapping
+    local www_root=$(map_web_path "wwwroot")
     echo "[$SCRIPT_INDEX] Ensuring $www_root directory exists..."
     if [ ! -d "$www_root" ]; then
         echo "[$SCRIPT_INDEX] Creating $www_root directory..."

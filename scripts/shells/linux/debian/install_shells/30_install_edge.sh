@@ -17,7 +17,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 SCRIPT_INDEX="30"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 

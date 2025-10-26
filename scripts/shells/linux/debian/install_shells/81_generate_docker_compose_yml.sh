@@ -21,7 +21,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 INSTALL_DOCKER=$(get_var "INSTALL_DOCKER")
 INSTALL_MODE=$(get_var "INSTALL_MODE")

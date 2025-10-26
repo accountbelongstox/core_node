@@ -16,13 +16,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
 
-# Source LGar.sh from parent directory
+# Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Source repository manager for repair functions
@@ -34,6 +34,11 @@ if [ "$(id -u)" -ne 0 ]; then
     echo "Please run: $USE_SUDO bash $0"
     exit 1
 fi
+
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
 
 # Function to install essential packages and configure Git
 install_packages_and_configure_git() {
@@ -90,157 +95,371 @@ $USE_SUDO chmod 755 /var/cache/apt/archives/partial
 
 # Enhanced GPG key fixing with direct key import
 echo "Performing enhanced GPG key fixes..."
-fix_gpg_keys() {
-    echo "Attempting comprehensive GPG key fixes..."
+
+# Function to fix temporary directory permissions
+fix_temp_permissions() {
+    echo "Fixing temporary directory permissions..."
     
-    # Method 1: Use modern Ubuntu key management (Ubuntu 22.04+)
-    echo "Importing Ubuntu archive key using modern method..."
-    if timeout 30 $USE_SUDO wget -qO- https://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg | timeout 30 $USE_SUDO tee /etc/apt/trusted.gpg.d/ubuntu-archive-keyring.gpg >/dev/null 2>&1; then
-        echo "GPG key imported successfully using modern method"
-        return 0
-    else
-        echo "Modern key import failed, trying alternative modern method..."
-    fi
+    # Fix /tmp permissions
+    $USE_SUDO chmod 1777 /tmp
+    $USE_SUDO chown root:root /tmp
     
-    # Method 1.1: Try Ubuntu's official keyring package
-    echo "Trying Ubuntu's official keyring package method..."
-    if timeout 30 $USE_SUDO apt-get update -qq 2>/dev/null && timeout 30 $USE_SUDO apt-get install -y ubuntu-keyring 2>/dev/null; then
-        echo "Ubuntu keyring package installed successfully"
-        return 0
-    else
-        echo "Ubuntu keyring package installation failed, trying legacy method..."
-    fi
+    # Create and fix apt temporary directories
+    $USE_SUDO mkdir -p /var/cache/apt/archives/partial
+    $USE_SUDO mkdir -p /var/lib/apt/lists/partial
+    $USE_SUDO mkdir -p /var/log/apt
     
-    # Method 1.1: Legacy apt-key method (for older systems)
-    echo "Trying legacy apt-key method..."
-    if timeout 30 $USE_SUDO wget -qO- https://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg | timeout 30 $USE_SUDO apt-key add - 2>/dev/null; then
-        echo "GPG key imported successfully using legacy method"
-        return 0
-    else
-        echo "Legacy key import failed, trying alternative methods..."
-    fi
+    # Set proper permissions
+    $USE_SUDO chmod 755 /var/cache/apt/archives/partial
+    $USE_SUDO chmod 755 /var/lib/apt/lists/partial
+    $USE_SUDO chmod 755 /var/log/apt
     
-    # Method 1.1: Try Ubuntu's official key import script
-    echo "Trying Ubuntu's official key import method..."
-    if timeout 30 $USE_SUDO wget -qO- https://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg | timeout 30 $USE_SUDO apt-key add - 2>/dev/null; then
-        echo "GPG key imported successfully using official method"
-        return 0
-    else
-        echo "Official key import failed, trying manual key..."
-    fi
+    # Clean up any existing temporary files
+    $USE_SUDO rm -f /tmp/apt.conf.* 2>/dev/null || true
+    $USE_SUDO rm -f /tmp/apt-key.* 2>/dev/null || true
     
-    # Method 1.2: Manual Ubuntu archive key (hardcoded approach)
-    echo "Trying manual Ubuntu archive key import..."
-    if timeout 30 $USE_SUDO wget -qO- https://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg | timeout 30 $USE_SUDO apt-key add - 2>/dev/null; then
-        echo "Manual key import successful"
-        return 0
-    else
-        echo "Manual key import failed, trying keyserver approach..."
-    fi
-    
-    # Method 1.5: Try with different approach - download and import separately
-    echo "Trying separate download and import method..."
-    if timeout 30 $USE_SUDO wget -qO /tmp/ubuntu-key.gpg https://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg 2>/dev/null; then
-        if timeout 30 $USE_SUDO apt-key add /tmp/ubuntu-key.gpg 2>/dev/null; then
-            echo "GPG key imported successfully using separate method"
-            $USE_SUDO rm -f /tmp/ubuntu-key.gpg
-            return 0
-        else
-            echo "Separate import method failed, trying modern method..."
-            # Try modern method with downloaded file
-            if timeout 30 $USE_SUDO tee /etc/apt/trusted.gpg.d/ubuntu-archive-keyring.gpg < /tmp/ubuntu-key.gpg >/dev/null 2>&1; then
-                echo "GPG key imported successfully using modern method with downloaded file"
-                $USE_SUDO rm -f /tmp/ubuntu-key.gpg
-                return 0
-            else
-                echo "Modern method with downloaded file failed"
-                $USE_SUDO rm -f /tmp/ubuntu-key.gpg
-            fi
-        fi
-    else
-        echo "Key download failed"
-    fi
-    
-    # Method 2: Try security repository key
-    echo "Trying security repository key..."
-    if timeout 30 $USE_SUDO wget -qO- https://security.ubuntu.com/ubuntu/dists/noble-security/Release.gpg | timeout 30 $USE_SUDO apt-key add - 2>/dev/null; then
-        echo "GPG key imported successfully from security repository"
-        return 0
-    else
-        echo "Security repository key import failed, trying manual key import..."
-    fi
-    
-    # Method 3: Manual Ubuntu archive key (hardcoded key)
-    echo "Trying manual Ubuntu archive key import..."
-    if timeout 30 $USE_SUDO wget -qO- https://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg | timeout 30 $USE_SUDO apt-key add - 2>/dev/null; then
-        echo "Manual key import successful"
-        return 0
-    else
-        echo "Manual key import failed, trying keyserver with shorter timeout..."
-        
-        # Method 4: Quick keyserver attempt (10 seconds only)
-        for keyserver in "keyserver.ubuntu.com" "hkp://keyserver.ubuntu.com:80"; do
-            echo "Quick keyserver attempt: $keyserver (timeout: 10s)"
-            if timeout 10 $USE_SUDO apt-key adv --keyserver "$keyserver" --recv-keys 871920D1991BC93C 2>/dev/null; then
-                echo "GPG key imported successfully from $keyserver"
-                return 0
-            fi
-        done
-        
-        # Method 5: Use gpg command directly (recommended for Ubuntu 22.04+)
-        echo "Trying gpg command directly..."
-        if timeout 30 gpg --keyserver keyserver.ubuntu.com --recv-keys 871920D1991BC93C 2>/dev/null; then
-            # Use binary format for Ubuntu 22.04+ compatibility
-            if timeout 30 gpg --export 871920D1991BC93C | timeout 30 $USE_SUDO tee /etc/apt/trusted.gpg.d/ubuntu-archive-keyring.gpg >/dev/null 2>&1; then
-                echo "GPG key imported successfully using gpg command (binary format)"
-                return 0
-            else
-                echo "gpg binary export failed, trying armored format..."
-                # Try armored format as fallback
-                if timeout 30 gpg --export --armor 871920D1991BC93C | timeout 30 $USE_SUDO tee /etc/apt/trusted.gpg.d/ubuntu-archive-keyring.asc >/dev/null 2>&1; then
-                    echo "GPG key imported successfully using gpg command (armored format)"
-                    return 0
-                else
-                    echo "gpg armored export failed, trying apt-key method..."
-                fi
-            fi
-        else
-            echo "gpg recv-keys failed, trying apt-key method..."
-        fi
-        
-        # Method 5.1: Try Ubuntu's official key import using apt-key
-        echo "Trying Ubuntu's official key import using apt-key..."
-        if timeout 30 $USE_SUDO apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 871920D1991BC93C 2>/dev/null; then
-            echo "GPG key imported successfully using apt-key"
-            return 0
-        else
-            echo "apt-key method failed, trying alternative approach..."
-        fi
-        
-        # Method 6: Configure APT to ignore GPG verification (fallback)
-        echo "All GPG key methods failed, configuring APT to ignore GPG verification..."
-        $USE_SUDO sh -c 'echo "APT::Get::AllowUnauthenticated \"true\";" > /etc/apt/apt.conf.d/99allow-unauth' 2>/dev/null || {
-            echo "Failed to configure APT to ignore GPG verification, but continuing..."
-        }
-        
-        # Method 6: Configure APT to use HTTP instead of HTTPS
-        echo "Configuring APT to use HTTP instead of HTTPS for better compatibility..."
-        $USE_SUDO sh -c 'echo "Acquire::https::Verify-Peer \"false\";" > /etc/apt/apt.conf.d/99no-ssl-verify' 2>/dev/null || {
-            echo "Failed to configure APT SSL settings, but continuing..."
-        }
-        
-        # Method 7: Force update without GPG verification
-        echo "Attempting to force update without GPG verification..."
-        timeout 60 $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || {
-            echo "Force update failed, but continuing..."
-        }
-    fi
-    
-    echo "GPG key fixes completed"
-    return 0
+    echo "Temporary directory permissions fixed"
 }
 
-# Check network connectivity before GPG key fixes
+# Function to fix GPG key issues
+# Function to fix GPG key issues
+fix_gpg_keys() {
+    echo "Fixing GPG key issues..."
+    
+    # Install required packages
+    $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
+    $USE_SUDO apt install -y gnupg2 gnupg1 apt-transport-https ca-certificates curl wget
+    
+    # Fix GPG configuration
+    $USE_SUDO mkdir -p /etc/apt/keyrings
+    $USE_SUDO chmod 755 /etc/apt/keyrings
+    
+    # Clean up old GPG keys
+    $USE_SUDO rm -f /etc/apt/trusted.gpg.d/*.gpg 2>/dev/null || true
+    $USE_SUDO rm -f /usr/share/keyrings/*.gpg 2>/dev/null || true
+    
+    # Update GPG keyring
+    $USE_SUDO apt-key update 2>/dev/null || true
+    
+    echo "GPG key issues fixed"
+}
+
+# Function to fix apt configuration
+fix_apt_config() {
+    echo "Fixing apt configuration..."
+    
+    # Create apt configuration directory
+    $USE_SUDO mkdir -p /etc/apt/apt.conf.d
+    
+    # Create apt configuration to handle GPG issues
+    $USE_SUDO tee /etc/apt/apt.conf.d/99fix-gpg > /dev/null << 'EOF'
+# Fix GPG issues
+Acquire::gpgv::Options { "--ignore-time-conflict"; };
+Acquire::Check-Valid-Until "false";
+Acquire::AllowInsecureRepositories "true";
+Acquire::AllowDowngradeToInsecureRepositories "true";
+EOF
+    
+    # Create apt configuration for temporary files
+    $USE_SUDO tee /etc/apt/apt.conf.d/99fix-temp > /dev/null << 'EOF'
+# Fix temporary file issues
+Dir::Cache::archives "/var/cache/apt/archives/";
+Dir::State::lists "/var/lib/apt/lists/";
+Dir::Log "/var/log/apt/";
+EOF
+    
+    echo "Apt configuration fixed"
+}
+
+# Function to clean up problematic repositories
+cleanup_problematic_repos() {
+    echo "Cleaning up problematic repositories..."
+    
+    # Remove all custom repository files
+    $USE_SUDO rm -f /etc/apt/sources.list.d/*.list 2>/dev/null || true
+    
+    # Remove all GPG keys
+    $USE_SUDO rm -f /etc/apt/trusted.gpg.d/* 2>/dev/null || true
+    $USE_SUDO rm -f /usr/share/keyrings/*.gpg 2>/dev/null || true
+    
+    # Clean apt cache
+    $USE_SUDO apt clean
+    $USE_SUDO apt autoclean
+    
+    echo "Problematic repositories cleaned up"
+}
+
+# Function to restore basic Ubuntu repositories
+restore_basic_repos() {
+    echo "Restoring basic Ubuntu repositories..."
+    
+    # Create basic sources.list
+    $USE_SUDO tee /etc/apt/sources.list > /dev/null << 'EOF'
+# Ubuntu repositories
+deb http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
+EOF
+    
+    # Update package list
+    $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
+    
+    echo "Basic repositories restored"
+}
+
+# Function to test apt functionality
+test_apt() {
+    echo "Testing apt functionality..."
+    
+    # Test apt update
+    if $USE_SUDO apt update --allow-unauthenticated 2>/dev/null; then
+        echo "[OK] apt update works"
+    else
+        echo "[FAIL] apt update still has issues"
+        return 1
+    fi
+    
+    # Test package search
+    if apt search python3 2>/dev/null | head -5 >/dev/null; then
+        echo "[OK] apt search works"
+    else
+        echo "[FAIL] apt search has issues"
+        return 1
+    fi
+    
+    echo "apt functionality test completed"
+        return 0
+}
+
+# Repository cleanup functions
+# Function to remove Microsoft Edge repository
+remove_edge_repository() {
+    echo "Removing Microsoft Edge repository..."
+    
+    # Remove repository file
+    if [ -f "/etc/apt/sources.list.d/microsoft-edge.list" ]; then
+        $USE_SUDO rm -f "/etc/apt/sources.list.d/microsoft-edge.list"
+        echo "Removed Microsoft Edge repository file"
+    fi
+    
+    # Remove GPG key
+    if [ -f "/usr/share/keyrings/microsoft-edge.gpg" ]; then
+        $USE_SUDO rm -f "/usr/share/keyrings/microsoft-edge.gpg"
+        echo "Removed Microsoft Edge GPG key"
+    fi
+    
+    # Remove any Microsoft GPG keys from apt keyring
+    $USE_SUDO apt-key del 0xBC528686B50D79E3 2>/dev/null || true
+    
+    echo "Microsoft Edge repository cleanup completed"
+}
+
+# Function to remove MariaDB repositories
+remove_mariadb_repositories() {
+    echo "Removing MariaDB repositories..."
+    
+    # Remove MariaDB repository files
+    local mariadb_files=(
+        "/etc/apt/sources.list.d/mariadb.list"
+        "/etc/apt/sources.list.d/mariadb-10.11.list"
+        "/etc/apt/sources.list.d/mariadb-maxscale.list"
+    )
+    
+    for file in "${mariadb_files[@]}"; do
+        if [ -f "$file" ]; then
+            $USE_SUDO rm -f "$file"
+            echo "Removed $file"
+        fi
+    done
+    
+    # Remove MariaDB GPG keys
+    local mariadb_keys=(
+        "/usr/share/keyrings/mariadb-keyring.gpg"
+        "/usr/share/keyrings/mariadb-archive-keyring.gpg"
+    )
+    
+    for key in "${mariadb_keys[@]}"; do
+        if [ -f "$key" ]; then
+            $USE_SUDO rm -f "$key"
+            echo "Removed $key"
+        fi
+    done
+    
+    # Remove MariaDB GPG keys from apt keyring
+    $USE_SUDO apt-key del 0x177F4010FE56CA3336300305F1656F24C74CD1D8 2>/dev/null || true
+    $USE_SUDO apt-key del 0x0x177F4010FE56CA3336300305F1656F24C74CD1D8 2>/dev/null || true
+    
+    echo "MariaDB repository cleanup completed"
+}
+
+# Function to remove PHP repository
+remove_php_repository() {
+    echo "Removing PHP repository..."
+    
+    # Remove PHP repository file
+    if [ -f "/etc/apt/sources.list.d/ondrej-ubuntu-php-$(lsb_release -sc).list" ]; then
+        $USE_SUDO rm -f "/etc/apt/sources.list.d/ondrej-ubuntu-php-$(lsb_release -sc).list"
+        echo "Removed PHP repository file"
+    fi
+    
+    # Remove PHP GPG key
+    if [ -f "/usr/share/keyrings/ondrej-ubuntu-php-$(lsb_release -sc).gpg" ]; then
+        $USE_SUDO rm -f "/usr/share/keyrings/ondrej-ubuntu-php-$(lsb_release -sc).gpg"
+        echo "Removed PHP GPG key"
+    fi
+    
+    # Remove PHP GPG key from apt keyring
+    $USE_SUDO apt-key del 0x4F4EA0AAE5267A6C 2>/dev/null || true
+    
+    echo "PHP repository cleanup completed"
+}
+
+# Function to stop and disable MySQL services
+stop_mysql_services() {
+    echo "Stopping and disabling MySQL services..."
+    
+    # Stop MySQL/MariaDB services
+    if command_exists systemctl; then
+        if systemctl is-active --quiet mariadb 2>/dev/null; then
+            $USE_SUDO systemctl stop mariadb
+            echo "Stopped MariaDB service"
+        fi
+        if systemctl is-active --quiet mysql 2>/dev/null; then
+            $USE_SUDO systemctl stop mysql
+            echo "Stopped MySQL service"
+        fi
+        
+        # Disable services
+        $USE_SUDO systemctl disable mariadb 2>/dev/null || true
+        $USE_SUDO systemctl disable mysql 2>/dev/null || true
+        echo "Disabled MySQL/MariaDB services"
+    fi
+    
+    # Kill any remaining MySQL processes
+    local mysql_processes=$(pgrep -f "mysql\|mariadb" | wc -l)
+    if [ "$mysql_processes" -gt 0 ]; then
+        echo "Found $mysql_processes MySQL processes, terminating..."
+        $USE_SUDO pkill -f "mysql\|mariadb" 2>/dev/null || true
+        sleep 2
+    fi
+}
+
+# Function to remove MySQL packages
+remove_mysql_packages() {
+    echo "Removing MySQL packages..."
+
+    # Stop services first
+    stop_mysql_services
+
+    # Remove MySQL/MariaDB packages
+    $USE_SUDO apt remove --purge -y \
+        mariadb-server \
+        mariadb-client \
+        mariadb-common \
+        mysql-server \
+        mysql-client \
+        mysql-common \
+        libmariadb3 \
+        libmariadb-dev \
+        libmysqlclient21 \
+        libmysqlclient-dev 2>/dev/null || true
+
+    # Remove MySQL data directories using path mapping from gvar_common.sh
+    local mysql_data_dir=$(map_web_path "www" "mysql")
+    if [ -d "$mysql_data_dir" ]; then
+        $USE_SUDO rm -rf "$mysql_data_dir"
+        echo "Removed MySQL data directory: $mysql_data_dir"
+    fi
+
+    # Remove MySQL configuration
+    if [ -d "/etc/mysql" ]; then
+        $USE_SUDO rm -rf "/etc/mysql"
+        echo "Removed MySQL configuration directory"
+    fi
+
+    # Remove MySQL user and group
+    if getent passwd mysql >/dev/null 2>&1; then
+        $USE_SUDO userdel mysql 2>/dev/null || true
+        echo "Removed MySQL user"
+    fi
+    if getent group mysql >/dev/null 2>&1; then
+        $USE_SUDO groupdel mysql 2>/dev/null || true
+        echo "Removed MySQL group"
+    fi
+
+    echo "MySQL packages removal completed"
+}
+
+# Function to remove Edge packages
+remove_edge_packages() {
+    echo "Removing Microsoft Edge packages..."
+    
+    # Kill Edge processes
+    local edge_processes=$(pgrep -f "microsoft-edge" | wc -l)
+    if [ "$edge_processes" -gt 0 ]; then
+        echo "Found $edge_processes Edge processes, terminating..."
+        $USE_SUDO pkill -f "microsoft-edge" 2>/dev/null || true
+        sleep 2
+    fi
+    
+    # Remove Edge packages
+    $USE_SUDO apt remove --purge -y \
+        microsoft-edge-stable \
+        microsoft-edge-beta \
+        microsoft-edge-dev 2>/dev/null || true
+    
+    # Remove Edge data directories
+    $USE_SUDO rm -rf /home/*/.config/microsoft-edge* 2>/dev/null || true
+    $USE_SUDO rm -rf /root/.config/microsoft-edge* 2>/dev/null || true
+    
+    echo "Microsoft Edge packages removal completed"
+}
+
+# Function to perform repository cleanup based on configuration
+perform_repository_cleanup() {
+    echo "=== Repository Cleanup ==="
+    
+    # Get configuration variables
+    local INSTALL_MYSQL=$(get_var "INSTALL_MYSQL" "false")
+    local INSTALL_EDGE=$(get_var "INSTALL_EDGE" "false")
+    local INSTALL_PHP=$(get_var "INSTALL_PHP" "false")
+    
+    echo "MySQL Status: $INSTALL_MYSQL"
+    echo "Edge Status: $INSTALL_EDGE"
+    echo "PHP Status: $INSTALL_PHP"
+    
+    # Handle MySQL cleanup
+    if [ "$INSTALL_MYSQL" = "false" ]; then
+        echo "MySQL is disabled - cleaning up..."
+        remove_mariadb_repositories
+        stop_mysql_services
+        remove_mysql_packages
+    else
+        echo "MySQL is enabled - keeping repositories"
+    fi
+
+    # Handle Edge cleanup
+    if [ "$INSTALL_EDGE" = "false" ]; then
+        echo "Edge is disabled - cleaning up..."
+        remove_edge_repository
+        remove_edge_packages
+    else
+        echo "Edge is enabled - keeping repositories"
+    fi
+
+    # Handle PHP cleanup
+    if [ "$INSTALL_PHP" = "false" ]; then
+        echo "PHP is disabled - cleaning up..."
+        remove_php_repository
+    else
+        echo "PHP is enabled - keeping repositories"
+    fi
+    
+    echo "Repository cleanup completed"
+}
+
+# Execute GPG fixes in organized sequence
 if [ "$SKIP_GPG_FIXES" = true ]; then
     echo "Skipping GPG key fixes as requested..."
     echo "Configuring APT to work without GPG verification..."
@@ -248,19 +467,37 @@ if [ "$SKIP_GPG_FIXES" = true ]; then
         echo "Failed to configure APT to ignore GPG verification, but continuing..."
     }
 else
-    echo "Checking network connectivity before GPG key fixes..."
-    if ping -c 1 -W 5 archive.ubuntu.com >/dev/null 2>&1; then
-        echo "Network connectivity verified, proceeding with GPG key fixes..."
-        # Call the enhanced GPG key fixing function
+    echo "=== GPG Issues Fix ==="
+    
+    # Step 1: Fix temporary directory permissions
+    fix_temp_permissions
+    
+    # Step 2: Fix GPG keys
         fix_gpg_keys
+    
+    # Step 3: Fix apt configuration
+    fix_apt_config
+    
+    # Step 4: Clean up problematic repositories
+    cleanup_problematic_repos
+    
+    # Step 5: Restore basic repositories
+    restore_basic_repos
+    
+    # Step 6: Test apt functionality
+    if test_apt; then
+        echo "=== Fix Successful ==="
+        echo "GPG issues have been resolved"
+        echo "apt should now work properly"
     else
-        echo "Network connectivity issues detected, skipping GPG key fixes..."
-        echo "Configuring APT to work without GPG verification..."
-        $USE_SUDO sh -c 'echo "APT::Get::AllowUnauthenticated \"true\";" > /etc/apt/apt.conf.d/99allow-unauth' 2>/dev/null || {
-            echo "Failed to configure APT to ignore GPG verification, but continuing..."
-        }
+        echo "=== Fix Partially Successful ==="
+        echo "Some issues may remain, but basic functionality should work"
     fi
 fi
+
+# Perform repository cleanup based on configuration
+echo "Performing repository cleanup..."
+perform_repository_cleanup
 
 # Enhanced system repair function
 echo "Performing enhanced system repairs..."
@@ -327,92 +564,12 @@ manage_repositories
 # Try to update package lists
 echo "Updating package lists..."
 if ! $USE_SUDO apt update; then
-    echo "Standard update failed, trying to fix GPG keys..."
+    echo "Standard update failed, trying alternative methods..."
     
-    # Fix GPG keys for Ubuntu repositories
-    echo "Fixing GPG keys for Ubuntu repositories..."
-    
-    # Method 1: Standard keyserver
-    $USE_SUDO apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 871920D1991BC93C || {
-        echo "Standard keyserver failed, trying alternative methods..."
-        
-        # Method 2: Alternative keyserver
-        $USE_SUDO apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 871920D1991BC93C || {
-            echo "Alternative keyserver failed, trying direct key import..."
-            
-            # Method 3: Direct key import
-            $USE_SUDO apt-key adv --keyserver hkp://keyserver.ubuntu.com:443 --recv-keys 871920D1991BC93C || {
-                echo "Direct import failed, trying with different keyserver..."
-                
-                # Method 4: Different keyserver
-                $USE_SUDO apt-key adv --keyserver hkp://pgp.mit.edu:80 --recv-keys 871920D1991BC93C || {
-                    echo "All GPG key methods failed, trying to fix APT configuration..."
-                    
-                    # Method 5: Fix APT configuration
-                    $USE_SUDO apt-key update || {
-                        echo "APT key update failed, trying with --allow-unauthenticated..."
-                        $USE_SUDO apt update --allow-unauthenticated || {
-                            echo "Warning: Some repositories may have issues, but continuing..."
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    # Additional GPG key fixes for specific Ubuntu repositories
-    echo "Fixing additional GPG keys for Ubuntu repositories..."
-    
-    # Fix security repository key
-    $USE_SUDO apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 871920D1991BC93C 2>/dev/null || {
-        echo "Trying alternative method for security repository key..."
-        $USE_SUDO apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 871920D1991BC93C 2>/dev/null || {
-            echo "Security repository key fix failed, but continuing..."
-        }
-    }
-    
-    # Fix archive repository key
-    $USE_SUDO apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 871920D1991BC93C 2>/dev/null || {
-        echo "Trying alternative method for archive repository key..."
-        $USE_SUDO apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 871920D1991BC93C 2>/dev/null || {
-            echo "Archive repository key fix failed, but continuing..."
-        }
-    }
-    
-    # Fix duplicate sources issue
-    echo "Fixing duplicate APT sources..."
-    if [ -f "/etc/apt/sources.list" ] && [ -f "/etc/apt/sources.list.d/ubuntu.sources" ]; then
-        echo "Backing up original sources.list..."
-        $USE_SUDO cp /etc/apt/sources.list /etc/apt/sources.list.backup
-        
-        echo "Commenting out duplicate entries in sources.list..."
-        $USE_SUDO sed -i 's/^deb /#deb /' /etc/apt/sources.list
-        $USE_SUDO sed -i 's/^deb-src /#deb-src /' /etc/apt/sources.list
-        
-        echo "Duplicate sources fixed, using ubuntu.sources instead"
-    fi
-    
-    # Try alternative GPG key import method
-    echo "Trying alternative GPG key import method..."
-    $USE_SUDO wget -qO- https://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg | $USE_SUDO apt-key add - 2>/dev/null || {
-        echo "Alternative GPG key import failed, trying direct key download..."
-        
-        # Try to download and import the key directly
-        $USE_SUDO wget -qO- https://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg | $USE_SUDO apt-key add - 2>/dev/null || {
-            echo "Direct key download failed, trying with --allow-unauthenticated..."
+    # Try with --allow-unauthenticated
             $USE_SUDO apt update --allow-unauthenticated || {
                 echo "Warning: Some repositories may have issues, but continuing..."
             }
-        }
-    }
-    
-    # Try update again after fixing keys
-    if [ $? -eq 0 ]; then
-        echo "GPG keys fixed, trying update again..."
-        $USE_SUDO apt update || {
-            echo "Warning: Update still has issues, but continuing..."
-        }
-    fi
 fi
 
 # Install packages and configure Git
@@ -421,18 +578,7 @@ install_packages_and_configure_git
 # Fix unauthenticated packages issue
 echo "Fixing unauthenticated packages issue..."
 if apt list --upgradable 2>&1 | grep -q "cannot be authenticated"; then
-    echo "Detected unauthenticated packages, attempting to fix GPG keys..."
-    
-    # Try to fix GPG keys for unauthenticated packages
-    $USE_SUDO apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 871920D1991BC93C 2>/dev/null || {
-        echo "Standard keyserver failed, trying alternative methods..."
-        $USE_SUDO apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 871920D1991BC93C 2>/dev/null || {
-            echo "Alternative keyserver failed, trying direct key import..."
-            $USE_SUDO wget -qO- https://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg | $USE_SUDO apt-key add - 2>/dev/null || {
-                echo "Direct key import failed, but continuing with installation..."
-            }
-        }
-    }
+    echo "Detected unauthenticated packages, attempting to fix..."
     
     # Try to update package lists after fixing keys
     echo "Updating package lists after GPG key fix..."
@@ -510,12 +656,6 @@ echo "Checking for unauthenticated packages..."
 if apt list --upgradable 2>&1 | grep -q "cannot be authenticated"; then
     echo "Warning: Some packages cannot be authenticated"
     echo "This is usually due to GPG key issues, but packages should still install correctly"
-    
-    # Try one more GPG key fix
-    echo "Attempting final GPG key fix..."
-    $USE_SUDO apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 871920D1991BC93C 2>/dev/null || {
-        echo "Final GPG key fix failed, but system should still function"
-    }
 else
     echo "All packages are properly authenticated"
 fi

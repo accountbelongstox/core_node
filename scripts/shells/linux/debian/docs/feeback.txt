@@ -12,8 +12,8 @@
 [130]   - 12gm.com
 [130] Processing domain: gm15.com
 [130] Setting up domain: gm15.com
-[130] Ensuring /www/wwwroot directory exists...
-[130] Creating domain directory: /www/wwwroot/gm15.com
+[130] Ensuring /usr/wwwroot directory exists...
+[130] Creating domain directory: /usr/wwwroot/gm15.com
 [130] Setting up SSL certificate and website for: gm15.com
 [130] Adding SSL certificate...
 [130] Executing: php artisan servermanager:certificate add "gm15.com" --prefixes=si,sz,local,api --provider=dnspod
@@ -155,13 +155,13 @@
 [130]   WWW domain: www.local.gm15.com
 [130]   Found certificate: cert_gm15_com
 [130]   Certificate covers: gm15.com, *.gm15.com, *.si.gm15.com, *.sz.gm15.com, *.local.gm15.com, *.api.gm15.com
-[130]   Domain directory: /www/wwwroot/gm15.com
-[130]   Document root: /www/wwwroot/gm15.com
+[130]   Domain directory: /usr/wwwroot/gm15.com
+[130]   Document root: /usr/wwwroot/gm15.com
 [130]   Website type: html
-[130]   Created index.html file: /www/wwwroot/gm15.com/index.html
+[130]   Created index.html file: /usr/wwwroot/gm15.com/index.html
 [130]   Website added successfully!
 [130]   SSL enabled: yes
-[130]   Website directory: /www/wwwroot/gm15.com
+[130]   Website directory: /usr/wwwroot/gm15.com
 [130]   Certificate ID: cert_gm15_com
 [130] Adding API website...
 [130] Executing: php artisan servermanager:website add "api.gm15.com" --type=poly --ssl=auto
@@ -316,13 +316,13 @@
 [130]   WWW domain: www.local.gm15.com
 [130]   Found certificate: cert_gm15_com
 [130]   Certificate covers: gm15.com, *.gm15.com, *.si.gm15.com, *.sz.gm15.com, *.local.gm15.com, *.api.gm15.com
-[130]   Domain directory: /www/wwwroot/gm15.com
-[130]   Document root: /www/wwwroot/gm15.com
+[130]   Domain directory: /usr/wwwroot/gm15.com
+[130]   Document root: /usr/wwwroot/gm15.com
 [130]   Website type: html
-[130]   Created index.html file: /www/wwwroot/gm15.com/index.html
+[130]   Created index.html file: /usr/wwwroot/gm15.com/index.html
 [130]   Website added successfully!
 [130]   SSL enabled: yes
-[130]   Website directory: /www/wwwroot/gm15.com
+[130]   Website directory: /usr/wwwroot/gm15.com
 [130]   Certificate ID: cert_gm15_com\n\nAPI Website:\nAdding website: api.gm15.com
 [130]   Type: poly
 [130]   SSL mode: auto
@@ -346,7 +346,7 @@
 [130] ---
 [130] Processing domain: 12gm.com
 [130] Setting up domain: 12gm.com
-[130] Ensuring /www/wwwroot directory exists...
+[130] Ensuring /usr/wwwroot directory exists...
 [130] Setting up SSL certificate and website for: 12gm.com
 [130] Adding SSL certificate...
 [130] Executing: php artisan servermanager:certificate add "12gm.com" --prefixes=si,sz,local,api --provider=dnspod
@@ -488,12 +488,12 @@
 [130]   WWW domain: www.local.12gm.com
 [130]   Found certificate: cert_12gm_com
 [130]   Certificate covers: 12gm.com, *.12gm.com, *.si.12gm.com, *.sz.12gm.com, *.local.12gm.com, *.api.12gm.com
-[130]   Domain directory: /www/wwwroot/12gm.com
-[130]   Document root: /www/wwwroot/12gm.com
+[130]   Domain directory: /usr/wwwroot/12gm.com
+[130]   Document root: /usr/wwwroot/12gm.com
 [130]   Website type: html
 [130]   Website added successfully!
 [130]   SSL enabled: yes
-[130]   Website directory: /www/wwwroot/12gm.com
+[130]   Website directory: /usr/wwwroot/12gm.com
 [130]   Certificate ID: cert_12gm_com
 [130] Adding API website...
 [130] Executing: php artisan servermanager:website add "api.12gm.com" --type=poly --ssl=auto
@@ -648,12 +648,12 @@
 [130]   WWW domain: www.local.12gm.com
 [130]   Found certificate: cert_12gm_com
 [130]   Certificate covers: 12gm.com, *.12gm.com, *.si.12gm.com, *.sz.12gm.com, *.local.12gm.com, *.api.12gm.com
-[130]   Domain directory: /www/wwwroot/12gm.com
-[130]   Document root: /www/wwwroot/12gm.com
+[130]   Domain directory: /usr/wwwroot/12gm.com
+[130]   Document root: /usr/wwwroot/12gm.com
 [130]   Website type: html
 [130]   Website added successfully!
 [130]   SSL enabled: yes
-[130]   Website directory: /www/wwwroot/12gm.com
+[130]   Website directory: /usr/wwwroot/12gm.com
 [130]   Certificate ID: cert_12gm_com\n\nAPI Website:\nAdding website: api.12gm.com
 [130]   Type: poly
 [130]   SSL mode: auto

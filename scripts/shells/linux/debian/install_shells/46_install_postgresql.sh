@@ -30,13 +30,13 @@ POSTGRESQL_LOG_DIR=""
 POSTGRESQL_USER="postgres"
 POSTGRESQL_SERVICE_NAME="postgresql"
 
-# Source LGar.sh from parent directory
+# Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Initialize variables
@@ -45,9 +45,9 @@ INSTALL_POSTGRESQL=$(get_var "INSTALL_POSTGRESQL")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 POSTGRESQL_VERSION="15"
 # Use path mapping from gvar_common.sh to support WSL Windows directories
-POSTGRESQL_DATA_DIR=$(map_web_path "/www/wwwroot/postgresql/data")
+POSTGRESQL_DATA_DIR=$(map_web_path "wwwroot" "postgresql/data")
 POSTGRESQL_CONFIG_DIR=""
-POSTGRESQL_LOG_DIR=$(map_web_path "/www/wwwroot/postgresql/logs")
+POSTGRESQL_LOG_DIR=$(map_web_path "wwwroot" "postgresql/logs")
 
 echo "[$SCRIPT_INDEX] PostgreSQL Database Management Script"
 echo "[$SCRIPT_INDEX] INSTALL_POSTGRESQL: $INSTALL_POSTGRESQL"
@@ -101,7 +101,7 @@ create_postgresql_directories() {
     echo "[$SCRIPT_INDEX] Ensuring PostgreSQL directories..."
 
     # Use path mapping from gvar_common.sh to support WSL Windows directories
-    local postgresql_parent=$(map_web_path "/www/wwwroot/postgresql")
+    local postgresql_parent=$(map_web_path "wwwroot" "postgresql")
 
     # Parent and logs
     $USE_SUDO mkdir -p "$postgresql_parent"
@@ -340,7 +340,7 @@ remove_postgresql() {
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
         # Use path mapping from gvar_common.sh to support WSL Windows directories
-        local postgresql_parent=$(map_web_path "/www/wwwroot/postgresql")
+        local postgresql_parent=$(map_web_path "wwwroot" "postgresql")
         $USE_SUDO rm -rf "$postgresql_parent"
         echo "[$SCRIPT_INDEX] PostgreSQL data directories removed"
     fi

@@ -2,6 +2,12 @@
 # PHP Common Variables for Debian/Ubuntu PHP Installation Scripts
 # This file contains shared variables used across PHP-related installation scripts
 
+# Source gvar_common.sh to get map_web_path function
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+
 # PHP Version Configuration
 PHP_VERSION="8.4"
 PHP_BINARY_NAME="php"
@@ -86,10 +92,10 @@ PHP_INI_FILES=(
     "/etc/php/8.4/fpm/php.ini"
 )
 
-# Web Server Configuration
-NGINX_CONFIG_DIR="/www/nginxconfig/sites-available"
-NGINX_ENABLED_DIR="/www/nginxconfig/sites-enabled"
-WWW_ROOT="/www/wwwroot"
+# Web Server Configuration - Use map_web_path for proper path mapping
+NGINX_CONFIG_DIR=$(map_web_path "nginxconfig" "sites-available")
+NGINX_ENABLED_DIR=$(map_web_path "nginxconfig" "sites-enabled")
+WWW_ROOT=$(map_web_path "wwwroot")
 
 # Function to get open_basedir setting - disabled by default
 get_open_basedir_setting() {

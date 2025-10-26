@@ -30,13 +30,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 source "$COMMON_DIR/common_functions.sh"
 
-# Source LGar.sh from parent directory
+# Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Get Python version

@@ -24,7 +24,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 CORE_NODE_GIT_URL="https://github.com/your-username/core_node.git"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Function to check package manager availability

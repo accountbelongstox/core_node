@@ -15,11 +15,11 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_CURRENT_DIR")"
 SHELLS_DIR="$PARENT_DIR"
 
-# Source LGar.sh from parent directory
-if [ -f "${PARENT_DIR}/LGar.sh" ]; then
-    source "${PARENT_DIR}/LGar.sh"
+# Source gvar_common.sh from parent directory
+if [ -f "${PARENT_DIR}/gvar_common.sh" ]; then
+    source "$COMMON_DIR/gvar_common.sh"
 else
-    echo "Error: LGar.sh not found in ${PARENT_DIR}"
+    echo "Error: gvar_common.sh not found in ${PARENT_DIR}"
     exit 1
 fi
 

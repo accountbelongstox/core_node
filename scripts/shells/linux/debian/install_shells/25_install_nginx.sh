@@ -15,7 +15,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 SCRIPT_INDEX="25"
 
 # Source global variables
-source "$PARENT_DIR_LEVEL_2/LGar.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
@@ -25,9 +25,9 @@ INSTALL_MODE=$(get_global_var "INSTALL_MODE" "base")
 NGINX_PORT="80"
 
 # Use path mapping from gvar_common.sh to support WSL Windows directories
-WWW_ROOT=$(map_web_path "/www/wwwroot")
+WWW_ROOT=$(map_web_path "wwwroot")
 DEFAULT_SITE_DIR="$WWW_ROOT/default"
-NGINX_CONFIG_DIR=$(map_web_path "/www/nginxconfig")
+NGINX_CONFIG_DIR=$(map_web_path "nginxconfig")
 
 echo "[$SCRIPT_INDEX] Nginx Installation Script"
 echo "[$SCRIPT_INDEX] INSTALL_NGINX: $INSTALL_NGINX"
@@ -115,7 +115,7 @@ remove_caddy_if_exists() {
             $USE_SUDO rm -f /usr/share/keyrings/caddy-stable-archive-keyring.gpg
         fi
         
-        # Clean up Caddy configuration files (optional, keep /www/wwwroot)
+        # Clean up Caddy configuration files (optional, keep /usr/wwwroot)
         if [ -d "/etc/caddy" ]; then
             echo "[$SCRIPT_INDEX] Removing Caddy configuration directory..."
             $USE_SUDO rm -rf /etc/caddy
@@ -1067,9 +1067,9 @@ setup_laravel_compatibility() {
     echo "[$SCRIPT_INDEX] Setting up Laravel ServerManager compatibility..."
 
     # Map paths using gvar_common.sh function for WSL support
-    local www_root=$(map_web_path "/www/wwwroot")
-    local nginx_config_dir=$(map_web_path "/www/nginxconfig")
-    local backup_dir=$(map_web_path "/www/backup/nginx-configs")
+    local www_root=$(map_web_path "wwwroot")
+    local nginx_config_dir=$(map_web_path "nginxconfig")
+    local backup_dir=$(map_web_path "backup" "nginx-configs")
 
     # Create necessary directories for Laravel ServerManager
     local laravel_dirs=(
@@ -1144,7 +1144,7 @@ update_nginx_conf() {
     local nginx_conf="/etc/nginx/nginx.conf"
 
     # Get mapped path for WSL support
-    local nginx_config_sites=$(map_web_path "/www/nginxconfig/sites-enabled")
+    local nginx_config_sites=$(map_web_path "nginxconfig" "sites-enabled")
 
     if [ ! -f "$nginx_conf" ]; then
         echo "[$SCRIPT_INDEX] [FAIL] nginx.conf not found at $nginx_conf"

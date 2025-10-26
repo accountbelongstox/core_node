@@ -6,7 +6,7 @@
 COMMON_FUNCS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHELLS_DIR="$(dirname "$COMMON_FUNCS_DIR")"
 
-source "$SHELLS_DIR/LGar.sh"
+source "$COMMON_DIR/gvar_common.sh"
 source "$COMMON_FUNCS_DIR/gvar_common.sh"
 
 
@@ -337,7 +337,7 @@ Restart=always
 RestartSec=10
 User=$USER
 Environment=HOME=$HOME
-Environment=MCP_DIR=$COMPILE_DIR/mcp_server
+Environment=MCP_DIR=$(map_web_path "www" "mcp_server")
 
 [Install]
 WantedBy=multi-user.target
