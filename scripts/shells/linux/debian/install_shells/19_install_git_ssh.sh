@@ -126,7 +126,7 @@ test_ssh_key_pair_exists() {
         return 0
     else
         # Remove invalid flag if no valid pair found
-        rm -f "$SSH_INSTALLED_FLAG" 2>/dev/null
+        $USE_SUDO rm -f "$SSH_INSTALLED_FLAG" 2>/dev/null
         return 1
     fi
 }
@@ -411,7 +411,7 @@ step19_install_git_ssh() {
     update_authorized_keys
 
     # Create installation flag file
-    if ! touch "$SSH_INSTALLED_FLAG"; then
+    if ! $USE_SUDO touch "$SSH_INSTALLED_FLAG"; then
         print_error_from_common_functions "Failed to create installation flag file"
         return 1
     fi
