@@ -398,6 +398,13 @@ function Get-DefaultValueForVariable {
     
     if ($Variable -and $Variable.ContainsKey("DefaultValue") -and $Variable.DefaultValue) {
         $defaultVarName = $Variable.DefaultValue
+        
+        # First check user input values (for current session)
+        if ($script:UserInputValues -and $script:UserInputValues.ContainsKey($defaultVarName)) {
+            return $script:UserInputValues[$defaultVarName]
+        }
+        
+        # Then check environment variables
         $defaultValue = [Environment]::GetEnvironmentVariable($defaultVarName)
         if ($defaultValue) {
             return $defaultValue
@@ -644,54 +651,6 @@ $script:EnvironmentConfigs = @{
             }
         )
     }
-    "Test Multi-Token Service" = @{
-        Title = "Test Multi-Token Service Environment Variables"
-        Description = "Test service with multiple tokens to verify index tracking"
-        Common = "test"
-        CommandPrefix = "test"
-        DisplayName = "Test Multi-Token Service"
-        SmartRecognition = @{
-            Enabled = $true
-            AllowedTypes = @("token", "url", "accesskeyid")
-        }
-        Variables = @(
-            @{
-                Name = "TEST_API_URL"
-                DisplayName = "TEST_API_URL"
-                Description = "Test API URL"
-                IsSecret = $false
-                InputType = "Url"
-            },
-            @{
-                Name = "TEST_TOKEN_1"
-                DisplayName = "TEST_TOKEN_1"
-                Description = "First test token"
-                IsSecret = $true
-                InputType = "Token"
-            },
-            @{
-                Name = "TEST_TOKEN_2"
-                DisplayName = "TEST_TOKEN_2"
-                Description = "Second test token"
-                IsSecret = $true
-                InputType = "Token"
-            },
-            @{
-                Name = "TEST_ACCESS_KEY_ID"
-                DisplayName = "TEST_ACCESS_KEY_ID"
-                Description = "Test access key ID"
-                IsSecret = $false
-                InputType = "AccessKeyId"
-            },
-            @{
-                Name = "TEST_TOKEN_3"
-                DisplayName = "TEST_TOKEN_3"
-                Description = "Third test token (should use last available token)"
-                IsSecret = $true
-                InputType = "Token"
-            }
-        )
-    }
 }
 #endregion
 
@@ -858,6 +817,8 @@ function Generate-EnvironmentScript {
             if ($autoValue) {
                 $envCommands += "`$env:$($var.Name) = `"$autoValue`"  # Auto-filled"
                 Write-ColorMessage -Message "Auto-filled $($var.DisplayName): $autoValue" -Type "Success"
+                # Record auto-filled value for default value propagation
+                $script:UserInputValues[$var.Name] = $autoValue
                 continue
             }
         }
@@ -1412,6 +1373,8 @@ function Generate-GlobalCommand {
                 # Add to PowerShell environment variables
                 $psEnvVars += "`$env:$($var.Name)='$autoValue'"
                 Write-ColorMessage -Message "Auto-filled $($var.DisplayName): $autoValue" -Type "Success"
+                # Record auto-filled value for default value propagation
+                $script:UserInputValues[$var.Name] = $autoValue
                 continue
             }
         }
@@ -1633,6 +1596,8 @@ function Set-EnvironmentVariables {
             if ($autoValue) {
                 $newValues[$var.Name] = $autoValue
                 Write-ColorMessage -Message "Auto-filled $($var.DisplayName): $autoValue" -Type "Success"
+                # Record auto-filled value for default value propagation
+                $script:UserInputValues[$var.Name] = $autoValue
                 continue
             }
         }
