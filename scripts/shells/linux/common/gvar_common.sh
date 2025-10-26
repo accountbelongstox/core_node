@@ -87,7 +87,7 @@ elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
 fi
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d ï¿?NTFS mount ï¿?Data disk mount ï¿?/www
+# Priority: WSL /mnt/d ï¿½?NTFS mount ï¿½?Data disk mount ï¿½?/www
 get_base_data_directory() {
     local base_dir=""
 
@@ -896,7 +896,6 @@ if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
     $USE_SUDO mkdir -p "$GLOBAL_TEMP_DIR"
     $USE_SUDO chmod 755 "$GLOBAL_TEMP_DIR"
 fi
-echo "Global temporary directory: $GLOBAL_TEMP_DIR"
 
 # Function to create script-specific temporary directory
 create_script_temp_dir() {

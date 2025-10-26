@@ -48,8 +48,8 @@ if command -v sudo >/dev/null 2>&1; then
     print_success_from_common_functions "sudo is already installed."
 else
     print_step_from_common_functions "Installing sudo package..."
-    apt-get update
-    if apt-get install -y sudo; then
+    $USE_SUDO apt-get update
+    if $USE_SUDO apt-get install -y sudo; then
         print_success_from_common_functions "sudo installed successfully."
     else
         print_error_from_common_functions "Failed to install sudo package."
@@ -60,7 +60,7 @@ fi
 # Ensure sudo group exists
 if ! getent group sudo >/dev/null 2>&1; then
     print_step_from_common_functions "Creating sudo group..."
-    groupadd sudo
+    $USE_SUDO groupadd sudo
 fi
 
 # Add user to sudo group if not already a member
@@ -69,7 +69,7 @@ if [ -n "$CURRENT_USER" ] && [ "$CURRENT_USER" != "root" ]; then
         print_success_from_common_functions "User $CURRENT_USER is already in the sudo group."
     else
         print_step_from_common_functions "Adding user $CURRENT_USER to sudo group..."
-        if usermod -aG sudo "$CURRENT_USER"; then
+        if $USE_SUDO usermod -aG sudo "$CURRENT_USER"; then
             print_success_from_common_functions "User $CURRENT_USER added to sudo group successfully."
             print_info_from_common_functions "Please log out and log back in for changes to take effect."
         else
@@ -84,17 +84,17 @@ fi
 # Create backup before modifications
 create_backup() {
     log_message "Creating backup directory: $BACKUP_DIR"
-    mkdir -p "$BACKUP_DIR"
-    
+    $USE_SUDO mkdir -p "$BACKUP_DIR"
+
     # Backup current sudo binary permissions
     if [ -f "/usr/bin/sudo" ]; then
-        ls -la /usr/bin/sudo > "$BACKUP_DIR/sudo_permissions_before.txt"
+        $USE_SUDO ls -la /usr/bin/sudo > "$BACKUP_DIR/sudo_permissions_before.txt"
         log_message "Backed up sudo permissions to $BACKUP_DIR/sudo_permissions_before.txt"
     fi
-    
+
     # Backup /usr/local/bin contents
     if [ -d "/usr/local/bin" ]; then
-        ls -la /usr/local/bin > "$BACKUP_DIR/usr_local_bin_before.txt"
+        $USE_SUDO ls -la /usr/local/bin > "$BACKUP_DIR/usr_local_bin_before.txt"
         log_message "Backed up /usr/local/bin contents to $BACKUP_DIR/usr_local_bin_before.txt"
     fi
 }
@@ -136,9 +136,9 @@ fix_dangerous_symlinks() {
                 if [ "$link_name" = "$protected" ]; then
                     log_message "DANGEROUS: Found protected binary symlink: $file -> $target"
                     dangerous_count=$((dangerous_count + 1))
-                    
+
                     # Remove the dangerous symlink
-                    if rm -f "$file"; then
+                    if $USE_SUDO rm -f "$file"; then
                         log_message "  [REMOVED] Dangerous symlink removed: $file"
                         fixed_count=$((fixed_count + 1))
                     else
@@ -155,9 +155,9 @@ fix_dangerous_symlinks() {
                     if [ "$target_name" = "$protected" ]; then
                         log_message "DANGEROUS: Found symlink to protected system binary: $file -> $target"
                         dangerous_count=$((dangerous_count + 1))
-                        
+
                         # Remove the dangerous symlink
-                        if rm -f "$file"; then
+                        if $USE_SUDO rm -f "$file"; then
                             log_message "  [REMOVED] Dangerous symlink removed: $file"
                             fixed_count=$((fixed_count + 1))
                         else
@@ -196,17 +196,17 @@ repair_sudo_permissions() {
             
             log_message "  Current permissions: $current_perms"
             log_message "  Current owner: $current_owner"
-            
+
             # Fix ownership
-            if chown root:root "$sudo_path"; then
+            if $USE_SUDO chown root:root "$sudo_path"; then
                 log_message "  [OK] Fixed ownership to root:root"
             else
                 log_message "  [FAIL] Failed to fix ownership"
                 continue
             fi
-            
+
             # Fix permissions (4755 = setuid + rwxr-xr-x)
-            if chmod 4755 "$sudo_path"; then
+            if $USE_SUDO chmod 4755 "$sudo_path"; then
                 log_message "  [OK] Fixed permissions to 4755 (setuid enabled)"
                 fixed_count=$((fixed_count + 1))
             else
@@ -233,8 +233,8 @@ repair_usr_local_bin_permissions() {
 
     if [ ! -d "/usr/local/bin" ]; then
         print_warning_from_common_functions "/usr/local/bin directory does not exist, creating it..."
-        mkdir -p /usr/local/bin
-        chmod 755 /usr/local/bin
+        $USE_SUDO mkdir -p /usr/local/bin
+        $USE_SUDO chmod 755 /usr/local/bin
         return 0
     fi
 
@@ -258,7 +258,7 @@ repair_usr_local_bin_permissions() {
             # Check if permissions are not 755
             if [ "$current_perms" != "755" ]; then
                 print_step_from_common_functions "Fixing permissions for $filename (was $current_perms, setting to 755)"
-                chmod 755 "$file"
+                $USE_SUDO chmod 755 "$file"
 
                 # Verify the change
                 local new_perms=$(stat -c "%a" "$file" 2>/dev/null)
