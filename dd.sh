@@ -455,9 +455,17 @@ download_file() {
     esac
     
     local download_url="$base_url/$relative_path"
-    local temp_file="/tmp/$(basename "$file_path")"
+    
+    # Create temp file path that matches the target structure
+    local temp_base="/tmp"
+    if [[ "$file_path" == /usr/tmp/* ]]; then
+        temp_base="/usr/tmp"
+    fi
+    local temp_file="$temp_base/$(basename "$file_path")"
     
     echo "Downloading $relative_path from $base_url..."
+    echo "Target file: $file_path"
+    echo "Temp file: $temp_file"
     
     # Try to download using curl or wget
     if command -v curl >/dev/null 2>&1; then
@@ -482,16 +490,19 @@ download_file() {
     # Create directory if it doesn't exist
     local file_dir=$(dirname "$file_path")
     if [ ! -d "$file_dir" ]; then
+        echo "Creating directory: $file_dir"
         $sudo mkdir -p "$file_dir"
     fi
     
     # Move downloaded file to target location
+    echo "Moving $temp_file to $file_path"
     if $sudo mv "$temp_file" "$file_path"; then
         echo "File saved to: $file_path"
-        chmod +x "$file_path"
+        $sudo chmod +x "$file_path"
         return 0
     else
         echo "Error: Failed to move downloaded file to $file_path"
+        echo "Temp file exists: $([ -f "$temp_file" ] && echo "yes" || echo "no")"
         return 1
     fi
 }
