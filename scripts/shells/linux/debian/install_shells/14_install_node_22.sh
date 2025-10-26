@@ -24,20 +24,10 @@ INSTALL_NODE=$(get_var "INSTALL_NODE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
 # NODE_VERSION, NODE_SHORT_VERSION, NODE_INSTALL_DIR are already defined in gvar_common.sh
-# Use them directly instead of redefining
-if [ "$SELECTED_REGION" = "China" ]; then
-    NODE_DOWNLOAD_URLS=(
-        "https://repo.huaweicloud.com/nodejs/v22.19.0/node-v22.19.0-linux-x64.tar.xz"
-        "https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v22.19.0/node-v22.19.0-linux-x64.tar.xz"
-        "https://mirrors.aliyun.com/nodejs-release/v22.19.0/node-v22.19.0-linux-x64.tar.xz"
-        "https://nodejs.org/dist/v22.19.0/node-v22.19.0-linux-x64.tar.xz"
-    )
-else
-    NODE_DOWNLOAD_URLS=(
-        "https://nodejs.org/dist/v22.19.0/node-v22.19.0-linux-x64.tar.xz"
-        "https://repo.huaweicloud.com/nodejs/v22.19.0/node-v22.19.0-linux-x64.tar.xz"
-    )
-fi
+# Use official Node.js download URL only
+NODE_DOWNLOAD_URLS=(
+    "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-x64.tar.xz"
+)
 # Use global temporary directory structure
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "14_install_node_22")
 TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-linux-x64.tar.xz"
@@ -64,25 +54,25 @@ detect_and_fix_previous_issues() {
         # Remove invalid NODE-V* entries
         if grep -q "NODE-V.*_HOME=" /etc/environment; then
             echo "Found broken NODE-V*_HOME entries, removing..."
-            sudo sed -i '/NODE-V.*_HOME=/d' /etc/environment
+            $USE_SUDO sed -i '/NODE-V.*_HOME=/d' /etc/environment
         fi
-        
+
         # Remove invalid entries that don't follow KEY="VALUE" format
         if grep -q "^[^=]*=[^\"]*$" /etc/environment | grep -v "^PATH="; then
             echo "Found entries without proper quoting, fixing..."
-            sudo sed -i 's/^\([^=]*\)=\([^"]*\)$/\1="\2"/' /etc/environment
+            $USE_SUDO sed -i 's/^\([^=]*\)=\([^"]*\)$/\1="\2"/' /etc/environment
         fi
-        
+
         # Remove duplicate NODE_HOME entries
         if [ $(grep -c "^NODE_HOME=" /etc/environment) -gt 1 ]; then
             echo "Found duplicate NODE_HOME entries, removing duplicates..."
-            sudo sed -i '/^NODE_HOME=/d' /etc/environment
+            $USE_SUDO sed -i '/^NODE_HOME=/d' /etc/environment
         fi
-        
+
         # Remove duplicate NODE_PATH entries
         if [ $(grep -c "^NODE_PATH=" /etc/environment) -gt 1 ]; then
             echo "Found duplicate NODE_PATH entries, removing duplicates..."
-            sudo sed -i '/^NODE_PATH=/d' /etc/environment
+            $USE_SUDO sed -i '/^NODE_PATH=/d' /etc/environment
         fi
     fi
     
@@ -92,10 +82,10 @@ detect_and_fix_previous_issues() {
         local link_path="/usr/local/bin/$binary"
         if [ -L "$link_path" ] && [ ! -e "$link_path" ]; then
             echo "Found broken symlink: $link_path, removing..."
-            sudo rm -f "$link_path"
+            $USE_SUDO rm -f "$link_path"
         fi
     done
-    
+
     # 3. Clean up old Node.js installations in wrong locations
     echo "Checking for Node.js installations in wrong locations..."
     local wrong_locations=(
@@ -104,24 +94,24 @@ detect_and_fix_previous_issues() {
         "/var/node"
         "$(map_web_path "www" "node")"
     )
-    
+
     for wrong_location in "${wrong_locations[@]}"; do
         if [ -d "$wrong_location" ] && [ "$wrong_location" != "$NODE_INSTALL_DIR" ]; then
             echo "Found old Node.js installation in wrong location: $wrong_location"
             read -p "Remove old installation at $wrong_location? (y/N): " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
-                sudo rm -rf "$wrong_location"
+                $USE_SUDO rm -rf "$wrong_location"
                 echo "Removed: $wrong_location"
             fi
         fi
     done
-    
+
     # 4. Fix npm global directory permissions
     if [ -d "$COMPILE_DIR/npm-global" ]; then
         echo "Fixing npm global directory permissions..."
-        sudo chown -R $(whoami):$(whoami) "$COMPILE_DIR/npm-global" 2>/dev/null || true
-        sudo chmod -R 755 "$COMPILE_DIR/npm-global"
+        $USE_SUDO chown -R $(whoami):$(whoami) "$COMPILE_DIR/npm-global" 2>/dev/null || true
+        $USE_SUDO chmod -R 755 "$COMPILE_DIR/npm-global"
     fi
     
     echo "Previous issues detection and fixing completed."
@@ -131,22 +121,22 @@ detect_and_fix_previous_issues() {
 # Function to configure npm mirror and global settings
 configure_npm_settings() {
     local npm_bin="$NODE_BIN_DIR/npm"
-    
+
     if [ "$SELECTED_REGION" = "China" ]; then
         echo "Region is set to China, configuring npm to use China mirror..."
-        sudo "$npm_bin" config set registry https://repo.huaweicloud.com/repository/npm/
+        $USE_SUDO "$npm_bin" config set registry https://repo.huaweicloud.com/repository/npm/
     else
         echo "Region is Global, resetting npm to default registry..."
-        sudo "$npm_bin" config set registry https://registry.npmjs.org/
+        $USE_SUDO "$npm_bin" config set registry https://registry.npmjs.org/
     fi
-    
+
     # Use Node.js installation directory for npm globals (standard practice)
     local npm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION"
     echo "Setting npm global directory to: $npm_global_dir"
     "$npm_bin" config set prefix "$npm_global_dir"
-    
+
     echo "npm configuration completed:"
-    sudo "$npm_bin" config list
+    $USE_SUDO "$npm_bin" config list
 }
 
 check_node_installation() {
@@ -201,140 +191,59 @@ check_node_installation() {
     fi
 }
 
-check_existing_download() {
-    if [ -f "$TAR_FILE" ]; then
-        echo "Found existing download file: $TAR_FILE"
-        # Check if file size is reasonable (> 20MB)
-        local file_size=$(stat -c%s "$TAR_FILE" 2>/dev/null || echo "0")
-        if [ "$file_size" -gt 20971520 ]; then
-            echo "Existing file size looks good ($file_size bytes), skipping download"
-            return 0
-        else
-            echo "Existing file size too small ($file_size bytes), will re-download"
-            sudo rm -f "$TAR_FILE"
-            return 1
-        fi
-    fi
-    return 1
-}
-
-cleanup_previous() {
-    echo "Cleaning up previous installation attempts..."
-    sudo rm -rf "$EXTRACT_DIR" 2>/dev/null
-}
-
-download_with_fallback() {
-    local downloaded=false
-    
-    for url in "${NODE_DOWNLOAD_URLS[@]}"; do
-        echo "Attempting to download from: $url"
-        
-        # Try with different wget options
-        local wget_options=(
-            "--timeout=30 --tries=3 --show-progress"
-            "--timeout=60 --tries=2 --no-check-certificate"
-            "--timeout=120 --tries=1 --no-dns-cache"
-        )
-        
-        for options in "${wget_options[@]}"; do
-            echo "Using wget options: $options"
-            if eval "wget $options -O \"$TAR_FILE\" \"$url\""; then
-                echo "Successfully downloaded from: $url"
-                downloaded=true
-                break 2
-            else
-                echo "Failed with options: $options"
-                sudo rm -f "$TAR_FILE" 2>/dev/null
-            fi
-        done
-        
-        echo "All wget attempts failed for: $url"
-    done
-    
-    if [ "$downloaded" = "false" ]; then
-        echo "All download sources failed. Checking if curl is available..."
-        if command -v curl >/dev/null 2>&1; then
-            echo "Trying with curl as fallback..."
-            for url in "${NODE_DOWNLOAD_URLS[@]}"; do
-                echo "Attempting curl download from: $url"
-                if curl -L --connect-timeout 30 --max-time 300 -o "$TAR_FILE" "$url"; then
-                    echo "Successfully downloaded with curl from: $url"
-                    downloaded=true
-                    break
-                else
-                    echo "Curl failed for: $url"
-                    sudo rm -f "$TAR_FILE" 2>/dev/null
-                fi
-            done
-        fi
-    fi
-    
-    if [ "$downloaded" = "false" ]; then
-        echo "ERROR: All download methods failed"
-        echo "Please check your network connectivity or try manually downloading:"
-        for url in "${NODE_DOWNLOAD_URLS[@]}"; do
-            echo "  $url"
-        done
-        return 1
-    fi
-    
-    return 0
-}
 
 install_node() {
     echo "Installing Node.js $NODE_VERSION..."
-    echo "Available download URLs:"
-    for url in "${NODE_DOWNLOAD_URLS[@]}"; do
-        echo "  - $url"
-    done
-    
-    cleanup_previous
-    
-    # Check if download already exists
-    if ! check_existing_download; then
+    echo "Download URL: ${NODE_DOWNLOAD_URLS[0]}"
+
+    cleanup_temp_files_from_common_functions "$EXTRACT_DIR"
+
+    # Check if download already exists using common function
+    if ! check_existing_download_from_common_functions "$TAR_FILE" 20971520; then
         echo "Downloading Node.js $NODE_VERSION..."
-        if ! download_with_fallback; then
+        # Use common download function with fallback support
+        if ! download_with_fallback_from_common_functions "${NODE_DOWNLOAD_URLS[@]}" "$TAR_FILE"; then
             echo "Failed to download Node.js from any source"
             return 1
         fi
     fi
-    
+
     echo "Extracting Node.js..."
-    if ! sudo mkdir -p "$EXTRACT_DIR" || ! sudo tar -xf "$TAR_FILE" -C "$EXTRACT_DIR" --strip-components=1; then
+    if ! extract_archive_from_common_functions "$TAR_FILE" "$EXTRACT_DIR" 1; then
         echo "Failed to extract Node.js"
         return 1
     fi
-    
+
     echo "Installing Node.js to $NODE_INSTALL_DIR..."
-    sudo mkdir -p "$NODE_INSTALL_DIR"
-    if ! sudo mv "$EXTRACT_DIR" "$NODE_INSTALL_DIR/node-$NODE_VERSION"; then
+    $USE_SUDO mkdir -p "$NODE_INSTALL_DIR"
+    if ! $USE_SUDO mv "$EXTRACT_DIR" "$NODE_INSTALL_DIR/node-$NODE_VERSION"; then
         echo "Failed to install Node.js"
         return 1
     fi
-    
+
     # Set proper permissions
-    sudo chown -R root:root "$NODE_INSTALL_DIR/node-$NODE_VERSION"
-    sudo chmod -R 755 "$NODE_INSTALL_DIR/node-$NODE_VERSION"
-    
-    cleanup_previous
+    $USE_SUDO chown -R root:root "$NODE_INSTALL_DIR/node-$NODE_VERSION"
+    $USE_SUDO chmod -R 755 "$NODE_INSTALL_DIR/node-$NODE_VERSION"
+
+    cleanup_temp_files_from_common_functions "$EXTRACT_DIR"
     return 0
 }
 
 create_symlinks() {
     echo "Creating and verifying symlinks..."
-    
+
     local node_path="$NODE_BIN_DIR/node"
     local npm_path="$NODE_BIN_DIR/npm"
     local npx_path="$NODE_BIN_DIR/npx"
-    
+
     # Check if binaries exist
     if [ ! -f "$node_path" ] || [ ! -f "$npm_path" ]; then
         echo "Error: Node.js binaries not found in $NODE_BIN_DIR"
-        
+
         # Try to find system installation and use it
         local system_node=$(which node 2>/dev/null)
         local system_npm=$(which npm 2>/dev/null)
-        
+
         if [ -n "$system_node" ] && [ -n "$system_npm" ]; then
             echo "Using system Node.js installation for symlinks..."
             node_path="$system_node"
@@ -344,39 +253,39 @@ create_symlinks() {
             return 1
         fi
     fi
-    
+
     # Remove any existing broken symlinks first
     for binary in node npm npx; do
         local link_path="/usr/local/bin/$binary"
         if [ -L "$link_path" ] && [ ! -e "$link_path" ]; then
             echo "Removing broken symlink: $link_path"
-            sudo rm -f "$link_path"
+            $USE_SUDO rm -f "$link_path"
         fi
     done
-    
+
     # Create symlinks for node binaries to /usr/local/bin
-    if sudo ln -sf "$node_path" /usr/local/bin/node; then
+    if $USE_SUDO ln -sf "$node_path" /usr/local/bin/node; then
         echo "Created symlink: /usr/local/bin/node -> $node_path"
     else
         echo "Failed to create symlink for node"
         return 1
     fi
-    
-    if sudo ln -sf "$npm_path" /usr/local/bin/npm; then
+
+    if $USE_SUDO ln -sf "$npm_path" /usr/local/bin/npm; then
         echo "Created symlink: /usr/local/bin/npm -> $npm_path"
     else
         echo "Failed to create symlink for npm"
         return 1
     fi
-    
+
     if [ -n "$npx_path" ] && [ -f "$npx_path" ]; then
-        if sudo ln -sf "$npx_path" /usr/local/bin/npx; then
+        if $USE_SUDO ln -sf "$npx_path" /usr/local/bin/npx; then
             echo "Created symlink: /usr/local/bin/npx -> $npx_path"
         else
             echo "Failed to create symlink for npx"
         fi
     fi
-    
+
     # Verify symlinks work
     echo "Verifying symlinks..."
     if /usr/local/bin/node --version >/dev/null 2>&1; then
@@ -390,7 +299,7 @@ create_symlinks() {
     else
         echo "[ERROR] npm symlink not working"
     fi
-    
+
     echo "Symlinks created successfully:"
     ls -l /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx 2>/dev/null
     return 0
@@ -398,14 +307,14 @@ create_symlinks() {
 
 setup_environment() {
     echo "Setting up Node.js environment variables..."
-    
+
     # Clean up any previous broken environment variables first
     if [ -f /etc/environment ]; then
         echo "Cleaning up previous broken environment variables..."
-        sudo sed -i '/NODE-V.*_HOME=/d' /etc/environment
-        sudo sed -i '/^NODE_HOME=/d' /etc/environment
-        sudo sed -i '/^NODE_PATH=/d' /etc/environment
-        sudo sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
+        $USE_SUDO sed -i '/NODE-V.*_HOME=/d' /etc/environment
+        $USE_SUDO sed -i '/^NODE_HOME=/d' /etc/environment
+        $USE_SUDO sed -i '/^NODE_PATH=/d' /etc/environment
+        $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
     fi
     
     # Determine the actual Node.js installation path

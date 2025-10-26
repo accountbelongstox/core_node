@@ -16,20 +16,59 @@
 # =============================================================================
 # All variables are declared at the beginning of the file for clarity
 
+# Environment Detection Variables (aligned with gvar_common.sh logic)
+IS_WSL=false
+IS_PRODUCTION=false
+HAS_DESKTOP_ENVIRONMENT=false
+WSL_USERS_PATH="/mnt/c/Users"
+
+# Check for desktop environment first
+if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || [ -n "$XDG_CURRENT_DESKTOP" ] || [ -n "$DESKTOP_SESSION" ]; then
+    HAS_DESKTOP_ENVIRONMENT=true
+fi
+
+# Detect environment type
+if [ -d "$WSL_USERS_PATH" ]; then
+    IS_WSL=true
+elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
+    # Not WSL and no desktop environment = production server
+    IS_PRODUCTION=true
+fi
+
+# Function to check if system has NTFS disks
+has_ntfs_disk() {
+    local ntfs_devices=$(blkid 2>/dev/null | grep -i 'TYPE="ntfs"')
+    [ -n "$ntfs_devices" ] && return 0 || return 1
+}
+
+# Get actual script path and directory
+SCRIPT_ACTUAL_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_ACTUAL_DIR="$(dirname "$SCRIPT_ACTUAL_PATH")"
+
+# Determine if running in installation mode (from /usr/tmp or /tmp)
+IS_INSTALLATION_MODE=false
+if [[ "$SCRIPT_ACTUAL_DIR" == /usr/tmp* ]] || [[ "$SCRIPT_ACTUAL_DIR" == /tmp* ]]; then
+    IS_INSTALLATION_MODE=true
+fi
+
+# Set CORE_NODE_ROOT_DIR based on mode
+if [ "$IS_INSTALLATION_MODE" = true ]; then
+    # Installation mode - running from temporary location
+    CORE_NODE_ROOT_DIR="$SCRIPT_ACTUAL_DIR"
+else
+    # Normal mode - dd.sh is in actual project directory
+    CORE_NODE_ROOT_DIR="$SCRIPT_ACTUAL_DIR"
+fi
+
 # Directory Path Variables
-CORE_NODE_ROOT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 SCRIPT_DIR="$CORE_NODE_ROOT_DIR/scripts"
 SHELLS_DIR="$SCRIPT_DIR/shells"
 INSTALL_DIR="$CORE_NODE_ROOT_DIR/install"
-COMMON_SHELLS_DIR="$SHELLS_DIR/linux/common" 
+COMMON_SHELLS_DIR="$SHELLS_DIR/linux/common"
 COMMON_SCRIPTS_DIR="$SHELLS_DIR/scripts"
 
 # Global Variable Directory (will be set after function definition)
 GLOBAL_VAR_DIR=""
-
-# Script Path Variables
-script_symlink_path="/usr/local/bin/dd.sh"
-script_path="$(readlink -f "$0")"
 
 # Array Variables
 target_dirs=("apps" "ncore" "scripts")
@@ -652,9 +691,9 @@ is_file_valid() {
 check_and_download_files() {
     echo "Checking for required files..."
 
-    # Determine if we're in installation mode (running from temporary location)
+    # Use the IS_INSTALLATION_MODE variable set at script start
     local force_update=false
-    if [[ "$CORE_NODE_ROOT_DIR" == /usr/tmp* ]] || [[ "$CORE_NODE_ROOT_DIR" == /tmp* ]]; then
+    if [ "$IS_INSTALLATION_MODE" = true ]; then
         force_update=true
         echo -e "\033[33m[INFO] Installation mode detected - will update all temporary scripts\033[0m"
     fi
@@ -748,24 +787,24 @@ show_region_selection_menu() {
 # Git and PM2 Functions
 get_git() {
     echo "Starting SAFE git pull operation..."
-    local unified_git_script="$SCRIPT_DIR/git/gitput_unified.sh"
-    
+    local unified_git_script="$CORE_NODE_ROOT_DIR/scripts/git/gitput_unified.sh"
+
     if [ -f "$unified_git_script" ]; then
         echo "Using unified git script for safe pull: $unified_git_script"
-        
+
         # Determine target remote based on region setting
         local selected_region=$(get_global_var "SELECTED_REGION")
         local target_remote="gitee"  # default
         if [ "$selected_region" = "Global" ]; then
             target_remote="github"
         fi
-        
+
         echo "Target remote: $target_remote (based on region: $selected_region)"
-        
+
         # Execute safe pull using unified script
         cd "$CORE_NODE_ROOT_DIR"
         bash "$unified_git_script" --pull "$target_remote"
-        
+
         if [ $? -eq 0 ]; then
             echo "Safe git pull operation completed successfully!"
             make_sh_executable
@@ -1020,7 +1059,7 @@ handle_menu_action() {
             show_special_software_env_menu
             ;;
         "unified_manager")
-            local unified_manager_script="$SCRIPT_DIR/unified_manager/unified_manager.sh"
+            local unified_manager_script="$CORE_NODE_ROOT_DIR/scripts/unified_manager/unified_manager.sh"
             if [ -x "$unified_manager_script" ]; then
                 bash "$unified_manager_script"
             else
@@ -1035,7 +1074,7 @@ handle_menu_action() {
             echo "Starting Git Push Operations..."
             echo "Target: $value"
 
-            local git_script="$SCRIPT_DIR/git/gitput_unified.sh"
+            local git_script="$CORE_NODE_ROOT_DIR/scripts/git/gitput_unified.sh"
             if [ -f "$git_script" ]; then
                 echo "Using unified git push script: $git_script"
                 cd "$CORE_NODE_ROOT_DIR"
@@ -1250,15 +1289,12 @@ main() {
     # Process shell files
     echo -e "\033[36m[FILE PROCESSING] Starting scan and conversion of .sh files\033[0m"
 
-    # Check if running in installation mode (from /usr/tmp)
-    local is_installation_mode=false
-    if [[ "$CORE_NODE_ROOT_DIR" == /usr/tmp* ]] || [[ "$CORE_NODE_ROOT_DIR" == /tmp* ]]; then
-        is_installation_mode=true
+    # Use IS_INSTALLATION_MODE variable instead of checking path again
+    if [ "$IS_INSTALLATION_MODE" = true ]; then
         echo -e "\033[33m[INFO] Installation mode detected (running from: $CORE_NODE_ROOT_DIR)\033[0m"
         echo -e "\033[33m[INFO] Skipping project directories scan (apps/ncore/scripts not yet installed)\033[0m"
-    fi
-
-    if [ "$is_installation_mode" = false ]; then
+        echo -e "\033[32m[SKIPPED] Directory scanning skipped in installation mode\033[0m"
+    else
         local total_dirs=0
         local processed_dirs=0
         local overall_start_time=$(date +%s.%N)
@@ -1300,8 +1336,6 @@ main() {
         echo -e "\033[32m[COMPLETE] All .sh files processed!\033[0m"
         echo -e "\033[32m  - Directories processed: $processed_dirs/$total_dirs\033[0m"
         echo -e "\033[32m  - Total processing time: ${overall_duration}s\033[0m"
-    else
-        echo -e "\033[32m[SKIPPED] Directory scanning skipped in installation mode\033[0m"
     fi
 
     # Create and initialize global variable directory
@@ -1380,8 +1414,8 @@ main() {
     fi
 
     # After successful project validation, check if we need to switch to cloned version
-    # This happens during initial deployment when dd.sh is running from /tmp or /usr/tmp
-    if [[ "$CORE_NODE_ROOT_DIR" == /tmp* ]] || [[ "$CORE_NODE_ROOT_DIR" == /usr/tmp* ]]; then
+    # This happens during initial deployment when dd.sh is running from /usr/tmp or /tmp
+    if [ "$IS_INSTALLATION_MODE" = true ]; then
         echo -e "\033[36m[INITIAL DEPLOYMENT] Running from temporary location: $CORE_NODE_ROOT_DIR\033[0m"
 
         # Source gvar_common.sh to get CORE_NODE_PROJECT_ROOT
@@ -1413,34 +1447,45 @@ main() {
         fi
     fi
 
-    # Update CORE_NODE_ROOT_DIR if running from symlink
-    if [ -L "$0" ] && [ "$0" -ef "$script_symlink_path" ]; then
-        original_source="$(readlink -f "$script_path")"
-        CORE_NODE_ROOT_DIR="$(dirname "$original_source")"
-        echo "Updating CORE_NODE_ROOT_DIR to: $CORE_NODE_ROOT_DIR"
-    fi
-
     # Ensure dos2unix is installed
     if ! command -v dos2unix &>/dev/null; then
         check_and_install_dos2unix
     fi
 
-    # Create symlink if needed (skip if running from /usr/tmp)
-    if [[ "$script_path" != "/usr/tmp/dd.sh" ]]; then
-        if [ -e "$script_symlink_path" ]; then
-            if [ ! -L "$script_symlink_path" ] || [ "$(readlink -f "$script_symlink_path")" != "$script_path" ]; then
-                echo "Removing existing $script_symlink_path as it is not a symlink to the current script."
-                $sudo rm -f "$script_symlink_path"
+    # Create symlink to /usr/local/bin/dd.sh if not in installation mode
+    if [ "$IS_INSTALLATION_MODE" = false ]; then
+        local symlink_target="/usr/local/bin/dd.sh"
+
+        # Check if symlink exists and points to correct location
+        if [ -L "$symlink_target" ]; then
+            local current_target=$(readlink -f "$symlink_target")
+            if [ "$current_target" != "$SCRIPT_ACTUAL_PATH" ]; then
+                echo "Updating symlink: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+                $sudo rm -f "$symlink_target"
+                $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+                echo "Symlink updated successfully"
+            else
+                echo "Symlink already correct: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+            fi
+        elif [ -e "$symlink_target" ]; then
+            # File exists but is not a symlink
+            echo "Warning: $symlink_target exists but is not a symlink"
+            echo "Removing and creating symlink..."
+            $sudo rm -f "$symlink_target"
+            $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+            echo "Symlink created: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+        else
+            # Symlink doesn't exist, create it
+            echo "Creating symlink: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+            $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+            if [ $? -eq 0 ]; then
+                echo "Symlink created successfully"
+            else
+                echo "Warning: Failed to create symlink (may need sudo privileges)"
             fi
         fi
-
-        if [ ! -e "$script_symlink_path" ]; then
-            $sudo ln -s "$script_path" "$script_symlink_path"
-            echo "Symbolic link created: $script_symlink_path -> $script_path"
-            chmod +x "$script_symlink_path"
-        fi
     else
-        echo "Skipping symlink creation - running from temporary location: $script_path"
+        echo "[INSTALLATION MODE] Skipping symlink creation - running from temporary location"
     fi
 
     # Initialize and show menu
@@ -1465,7 +1510,7 @@ print_color() {
 
 # Function to handle command line arguments
 handle_arguments() {
-    local resource_limiter="$SCRIPT_DIR/unified_manager/common/resource_limiter.sh"
+    local resource_limiter="$CORE_NODE_ROOT_DIR/scripts/unified_manager/common/resource_limiter.sh"
 
     if [ $# -eq 0 ]; then
         # No arguments, run interactive menu
