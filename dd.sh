@@ -1161,48 +1161,60 @@ main() {
 
     # Process shell files
     echo -e "\033[36m[FILE PROCESSING] Starting scan and conversion of .sh files\033[0m"
-    
-    local total_dirs=0
-    local processed_dirs=0
-    local overall_start_time=$(date +%s.%N)
-    
-    # Count total directories to process
-    for dir in "${target_dirs[@]}"; do
-        local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
-        if [ -d "$absolute_dir" ]; then
-            ((total_dirs++))
-        fi
-    done
-    
-    echo -e "\033[33m[INFO] Found $total_dirs directories to scan: ${target_dirs[*]}\033[0m"
-    echo
-    
-    for dir in "${target_dirs[@]}"; do
-        # Convert to absolute path by joining with CORE_NODE_ROOT_DIR
-        local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
-        if [ -d "$absolute_dir" ]; then
-            ((processed_dirs++))
-            echo -e "\033[36m[DIR $processed_dirs/$total_dirs] Processing directory: $dir\033[0m"
-            process_sh_files "$absolute_dir"
-            echo
-        else
-            echo -e "\033[31m[WARNING] Directory '$absolute_dir' not found. Skipping.\033[0m"
-        fi
-    done
-    
-    # Calculate overall timing
-    local overall_end_time=$(date +%s.%N)
-    local overall_duration
-    if command -v bc >/dev/null 2>&1; then
-        overall_duration=$(echo "$overall_end_time - $overall_start_time" | bc -l)
-    else
-        # Fallback calculation without bc
-        overall_duration=$(awk "BEGIN {printf \"%.2f\", $overall_end_time - $overall_start_time}")
+
+    # Check if running in installation mode (from /usr/tmp)
+    local is_installation_mode=false
+    if [[ "$CORE_NODE_ROOT_DIR" == /usr/tmp* ]] || [[ "$CORE_NODE_ROOT_DIR" == /tmp* ]]; then
+        is_installation_mode=true
+        echo -e "\033[33m[INFO] Installation mode detected (running from: $CORE_NODE_ROOT_DIR)\033[0m"
+        echo -e "\033[33m[INFO] Skipping project directories scan (apps/ncore/scripts not yet installed)\033[0m"
     fi
-    
-    echo -e "\033[32m[COMPLETE] All .sh files processed!\033[0m"
-    echo -e "\033[32m  - Directories processed: $processed_dirs/$total_dirs\033[0m"
-    echo -e "\033[32m  - Total processing time: ${overall_duration}s\033[0m"
+
+    if [ "$is_installation_mode" = false ]; then
+        local total_dirs=0
+        local processed_dirs=0
+        local overall_start_time=$(date +%s.%N)
+
+        # Count total directories to process
+        for dir in "${target_dirs[@]}"; do
+            local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
+            if [ -d "$absolute_dir" ]; then
+                ((total_dirs++))
+            fi
+        done
+
+        echo -e "\033[33m[INFO] Found $total_dirs directories to scan: ${target_dirs[*]}\033[0m"
+        echo
+
+        for dir in "${target_dirs[@]}"; do
+            # Convert to absolute path by joining with CORE_NODE_ROOT_DIR
+            local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
+            if [ -d "$absolute_dir" ]; then
+                ((processed_dirs++))
+                echo -e "\033[36m[DIR $processed_dirs/$total_dirs] Processing directory: $dir\033[0m"
+                process_sh_files "$absolute_dir"
+                echo
+            else
+                echo -e "\033[31m[WARNING] Directory '$absolute_dir' not found. Skipping.\033[0m"
+            fi
+        done
+
+        # Calculate overall timing
+        local overall_end_time=$(date +%s.%N)
+        local overall_duration
+        if command -v bc >/dev/null 2>&1; then
+            overall_duration=$(echo "$overall_end_time - $overall_start_time" | bc -l)
+        else
+            # Fallback calculation without bc
+            overall_duration=$(awk "BEGIN {printf \"%.2f\", $overall_end_time - $overall_start_time}")
+        fi
+
+        echo -e "\033[32m[COMPLETE] All .sh files processed!\033[0m"
+        echo -e "\033[32m  - Directories processed: $processed_dirs/$total_dirs\033[0m"
+        echo -e "\033[32m  - Total processing time: ${overall_duration}s\033[0m"
+    else
+        echo -e "\033[32m[SKIPPED] Directory scanning skipped in installation mode\033[0m"
+    fi
 
     # Create and initialize global variable directory
     if [ ! -d "$GLOBAL_VAR_DIR" ]; then
