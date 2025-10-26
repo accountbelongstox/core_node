@@ -1156,18 +1156,22 @@ main() {
         check_and_install_dos2unix
     fi
 
-    # Create symlink if needed
-    if [ -e "$script_symlink_path" ]; then
-        if [ ! -L "$script_symlink_path" ] || [ "$(readlink -f "$script_symlink_path")" != "$script_path" ]; then
-            echo "Removing existing $script_symlink_path as it is not a symlink to the current script."
-            $sudo rm -f "$script_symlink_path"
+    # Create symlink if needed (skip if running from /usr/tmp)
+    if [[ "$script_path" != "/usr/tmp/dd.sh" ]]; then
+        if [ -e "$script_symlink_path" ]; then
+            if [ ! -L "$script_symlink_path" ] || [ "$(readlink -f "$script_symlink_path")" != "$script_path" ]; then
+                echo "Removing existing $script_symlink_path as it is not a symlink to the current script."
+                $sudo rm -f "$script_symlink_path"
+            fi
         fi
-    fi
 
-    if [ ! -e "$script_symlink_path" ]; then
-        $sudo ln -s "$script_path" "$script_symlink_path"
-        echo "Symbolic link created: $script_symlink_path -> $script_path"
-        chmod +x "$script_symlink_path"
+        if [ ! -e "$script_symlink_path" ]; then
+            $sudo ln -s "$script_path" "$script_symlink_path"
+            echo "Symbolic link created: $script_symlink_path -> $script_path"
+            chmod +x "$script_symlink_path"
+        fi
+    else
+        echo "Skipping symlink creation - running from temporary location: $script_path"
     fi
 
     # Initialize and show menu
