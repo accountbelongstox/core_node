@@ -39,6 +39,8 @@ $script:CurrentWinEnvsDir = $null           # Current .winenvs directory path
 $script:CurrentFileName = $null             # Current file name being generated
 $script:CurrentBatchContent = $null         # Current batch file content
 $script:CurrentPsCommand = $null            # Current PowerShell command to execute
+$script:InputTypeIndexTracker = @{}         # Track used indices for each InputType
+$script:UserInputValues = @{}               # Track user input values for default value propagation
 
 # Load common functions
 . $script:COMMON_FUNC_PATH
@@ -164,14 +166,19 @@ function Extract-ApiUrlAndToken {
         ForEach-Object { $_.Trim() } |
         Where-Object { $_ -ne '' }
     
-    # Extract API URLs and Tokens
+    # Extract API URLs, Tokens, and Access Key IDs
     $apiUrls = @()
     $foundTokens = @()
+    $accessKeyIds = @()
     
     foreach ($token in $tokens) {
         if ($token -match '^https?://') {
             $apiUrls += $token
+        } elseif ($token -match '^[A-Z0-9]{16,}$') {
+            # Access Key ID pattern: 16+ alphanumeric characters, all uppercase
+            $accessKeyIds += $token
         } elseif ($token.Length -gt 37) {
+            # Long tokens (API keys, secrets, etc.)
             $foundTokens += $token
         }
     }
@@ -179,6 +186,7 @@ function Extract-ApiUrlAndToken {
     return @{
         ApiUrls = $apiUrls
         Tokens = $foundTokens
+        AccessKeyIds = $accessKeyIds
         CleanedText = $cleanedText
         TotalSegments = $tokens.Count
     }
@@ -399,6 +407,14 @@ function Get-DefaultValueForVariable {
     return $null
 }
 
+function Reset-InputTypeIndexTracker {
+    $script:InputTypeIndexTracker = @{}
+}
+
+function Reset-UserInputValues {
+    $script:UserInputValues = @{}
+}
+
 function Get-ValueForNextVariable {
     param(
         [Parameter(Mandatory=$true)] [hashtable]$Variable,
@@ -417,10 +433,72 @@ function Get-ValueForNextVariable {
             $inputType = $Variable.InputType
         }
         
-        if ($inputType -eq "Url" -and $ExtractedData -and $ExtractedData.ContainsKey("ApiUrls") -and $ExtractedData.ApiUrls -and $ExtractedData.ApiUrls.Count -gt 0) {
-            return $ExtractedData.ApiUrls[0]
-        } elseif ($inputType -eq "Token" -and $ExtractedData -and $ExtractedData.ContainsKey("Tokens") -and $ExtractedData.Tokens -and $ExtractedData.Tokens.Count -gt 0) {
-            return $ExtractedData.Tokens[0]
+        if (-not $inputType) {
+            return $null
+        }
+        
+        # Check if there's a user input value for the same InputType
+        if ($script:UserInputValues -and $script:UserInputValues.Count -gt 0) {
+            foreach ($key in $script:UserInputValues.Keys) {
+                $existingVar = $null
+                # Find the variable configuration for this key
+                if ($script:CurrentConfig -and $script:CurrentConfig.ContainsKey("Variables")) {
+                    $existingVar = $script:CurrentConfig.Variables | Where-Object { $_.Name -eq $key }
+                }
+                
+                if ($existingVar -and $existingVar.ContainsKey("InputType") -and $existingVar.InputType -eq $inputType) {
+                    # Found a variable with the same InputType that has a user input value
+                    return $script:UserInputValues[$key]
+                }
+            }
+        }
+        
+        # Initialize tracker for this InputType if not exists
+        if (-not $script:InputTypeIndexTracker.ContainsKey($inputType)) {
+            $script:InputTypeIndexTracker[$inputType] = 0
+        }
+        
+        # Get current index for this InputType
+        $currentIndex = $script:InputTypeIndexTracker[$inputType]
+        
+        # Get the appropriate array based on InputType
+        $valueArray = $null
+        switch ($inputType) {
+            "Url" {
+                if ($ExtractedData -and $ExtractedData.ContainsKey("ApiUrls") -and $ExtractedData.ApiUrls) {
+                    $valueArray = $ExtractedData.ApiUrls
+                }
+            }
+            "Token" {
+                if ($ExtractedData -and $ExtractedData.ContainsKey("Tokens") -and $ExtractedData.Tokens) {
+                    $valueArray = $ExtractedData.Tokens
+                }
+            }
+            "AccessKeyId" {
+                if ($ExtractedData -and $ExtractedData.ContainsKey("AccessKeyIds") -and $ExtractedData.AccessKeyIds) {
+                    $valueArray = $ExtractedData.AccessKeyIds
+                } elseif ($ExtractedData -and $ExtractedData.ContainsKey("Tokens") -and $ExtractedData.Tokens) {
+                    # Fallback to Tokens if AccessKeyIds not available
+                    $valueArray = $ExtractedData.Tokens
+                }
+            }
+            default {
+                # For unknown types, try Tokens as fallback
+                if ($ExtractedData -and $ExtractedData.ContainsKey("Tokens") -and $ExtractedData.Tokens) {
+                    $valueArray = $ExtractedData.Tokens
+                }
+            }
+        }
+        
+        if ($valueArray -and $valueArray.Count -gt 0) {
+            # Use current index, or last index if current index is out of bounds
+            $targetIndex = if ($currentIndex -lt $valueArray.Count) { $currentIndex } else { $valueArray.Count - 1 }
+            $selectedValue = $valueArray[$targetIndex]
+            
+            # Increment index for next variable of same type
+            $script:InputTypeIndexTracker[$inputType] = $currentIndex + 1
+            
+            return $selectedValue
         }
     } catch {
         # Return null if any error occurs
@@ -563,6 +641,54 @@ $script:EnvironmentConfigs = @{
                 IsSecret = $false
                 InputType = "Token"
                 DefaultValue = "OPENAI_API_KEY"
+            }
+        )
+    }
+    "Test Multi-Token Service" = @{
+        Title = "Test Multi-Token Service Environment Variables"
+        Description = "Test service with multiple tokens to verify index tracking"
+        Common = "test"
+        CommandPrefix = "test"
+        DisplayName = "Test Multi-Token Service"
+        SmartRecognition = @{
+            Enabled = $true
+            AllowedTypes = @("token", "url", "accesskeyid")
+        }
+        Variables = @(
+            @{
+                Name = "TEST_API_URL"
+                DisplayName = "TEST_API_URL"
+                Description = "Test API URL"
+                IsSecret = $false
+                InputType = "Url"
+            },
+            @{
+                Name = "TEST_TOKEN_1"
+                DisplayName = "TEST_TOKEN_1"
+                Description = "First test token"
+                IsSecret = $true
+                InputType = "Token"
+            },
+            @{
+                Name = "TEST_TOKEN_2"
+                DisplayName = "TEST_TOKEN_2"
+                Description = "Second test token"
+                IsSecret = $true
+                InputType = "Token"
+            },
+            @{
+                Name = "TEST_ACCESS_KEY_ID"
+                DisplayName = "TEST_ACCESS_KEY_ID"
+                Description = "Test access key ID"
+                IsSecret = $false
+                InputType = "AccessKeyId"
+            },
+            @{
+                Name = "TEST_TOKEN_3"
+                DisplayName = "TEST_TOKEN_3"
+                Description = "Third test token (should use last available token)"
+                IsSecret = $true
+                InputType = "Token"
             }
         )
     }
@@ -716,6 +842,12 @@ function Generate-EnvironmentScript {
     $extractedData = $null     # Store extracted data for auto-filling next variables
     $skipNext = $false         # Flag to skip next variable input
     
+    # Reset InputType index tracker for this session
+    Reset-InputTypeIndexTracker
+    
+    # Reset user input values tracker for this session
+    Reset-UserInputValues
+    
     for ($i = 0; $i -lt $config.Variables.Count; $i++) {
         $var = $config.Variables[$i]
         
@@ -736,8 +868,19 @@ function Generate-EnvironmentScript {
         $extractedData = $inputResult.ExtractedData
         $skipNext = $inputResult.ShouldSkipNext
         
+        # Check for default value if user input is empty
+        if ([string]::IsNullOrWhiteSpace($userInput)) {
+            $defaultValue = Get-DefaultValueForVariable -Variable $var
+            if ($defaultValue) {
+                $userInput = $defaultValue
+                Write-ColorMessage -Message "Using default value for $($var.DisplayName): $defaultValue" -Type "Success"
+            }
+        }
+        
         if (-not [string]::IsNullOrWhiteSpace($userInput)) {
             $envCommands += "`$env:$($var.Name) = `"$userInput`""
+            # Record user input for default value propagation
+            $script:UserInputValues[$var.Name] = $userInput
         } else {
             $envCommands += "# `$env:$($var.Name) = `"`"  # Not set"
         }
@@ -1249,6 +1392,12 @@ function Generate-GlobalCommand {
     $extractedData = $null     # Store extracted data for auto-filling next variables
     $skipNext = $false         # Flag to skip next variable input
     
+    # Reset InputType index tracker for this session
+    Reset-InputTypeIndexTracker
+    
+    # Reset user input values tracker for this session
+    Reset-UserInputValues
+    
     for ($i = 0; $i -lt $script:CurrentConfig.Variables.Count; $i++) {
         $var = $script:CurrentConfig.Variables[$i]
         
@@ -1273,12 +1422,23 @@ function Generate-GlobalCommand {
         $extractedData = $inputResult.ExtractedData
         $skipNext = $inputResult.ShouldSkipNext
         
+        # Check for default value if user input is empty
+        if ([string]::IsNullOrWhiteSpace($userInput)) {
+            $defaultValue = Get-DefaultValueForVariable -Variable $var
+            if ($defaultValue) {
+                $userInput = $defaultValue
+                Write-ColorMessage -Message "Using default value for $($var.DisplayName): $defaultValue" -Type "Success"
+            }
+        }
+        
         if (-not [string]::IsNullOrWhiteSpace($userInput)) {
             # Add to batch file for display
             $envCommands += "echo Setting $($var.Name)=$userInput"
             $envCommands += "set $($var.Name)=$userInput"
             # Add to PowerShell environment variables
             $psEnvVars += "`$env:$($var.Name)='$userInput'"
+            # Record user input for default value propagation
+            $script:UserInputValues[$var.Name] = $userInput
         } else {
             $envCommands += "echo Skipping $($var.Name) (not set)"
             $envCommands += "REM set $($var.Name)=  # Not set"
@@ -1456,6 +1616,12 @@ function Set-EnvironmentVariables {
     $extractedData = $null     # Store extracted data for auto-filling next variables
     $skipNext = $false         # Flag to skip next variable input
     
+    # Reset InputType index tracker for this session
+    Reset-InputTypeIndexTracker
+    
+    # Reset user input values tracker for this session
+    Reset-UserInputValues
+    
     for ($i = 0; $i -lt $config.Variables.Count; $i++) {
         $var = $config.Variables[$i]
         $hasCurrentValue = [bool]$currentValues[$var.Name]
@@ -1516,13 +1682,22 @@ function Set-EnvironmentVariables {
                     }
                 }
             } else {
-                Write-ColorMessage -Message "Skipping $($var.DisplayName) - no value entered" -Type "Warning"
-                $emptyVariables += $var
-                # Don't add to newValues, effectively skipping this variable
+                # Check for default value if no current value and no user input
+                $defaultValue = Get-DefaultValueForVariable -Variable $var
+                if ($defaultValue) {
+                    $newValues[$var.Name] = $defaultValue
+                    Write-ColorMessage -Message "Using default value for $($var.DisplayName): $defaultValue" -Type "Success"
+                } else {
+                    Write-ColorMessage -Message "Skipping $($var.DisplayName) - no value entered" -Type "Warning"
+                    $emptyVariables += $var
+                    # Don't add to newValues, effectively skipping this variable
+                }
             }
         } else {
             $newValues[$var.Name] = $userInput
             Write-ColorMessage -Message "New value set: $userInput" -Type "Success"
+            # Record user input for default value propagation
+            $script:UserInputValues[$var.Name] = $userInput
         }
     }
     
