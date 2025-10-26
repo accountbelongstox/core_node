@@ -6,7 +6,7 @@
 # 3. Never create or update documentation (*.md).
 # 4. Never write summaries during development or thinking process.
 # 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
 # 7. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
@@ -19,7 +19,6 @@ PYTHON_VERSION=""
 SELECTED_REGION=""
 PYTHON_INSTALLED=false
 PIP_INSTALLED=false
-UV_INSTALLED=false
 
 # Source global variables
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,33 +75,13 @@ check_pip_installed() {
     fi
 }
 
-# Function to check if uv is installed
-check_uv_installed() {
-    if command -v uv >/dev/null 2>&1 && command -v uvx >/dev/null 2>&1; then
-        print_success_from_common_functions "uv $(uv --version 2>&1) is installed"
-        UV_INSTALLED=true
-        return 0
-    else
-        print_warning_from_common_functions "uv/uvx is not installed"
-        UV_INSTALLED=false
-        return 1
-    fi
-}
-
 # Function to install Python essentials
 install_python_essentials() {
     print_step_from_common_functions "Installing Python and essential packages..."
 
-    # Check if running as root
-    if [ "$(id -u)" -ne 0 ]; then
-        print_error_from_common_functions "This script requires root privileges for package installation"
-        print_error_from_common_functions "Please run with sudo or as root user"
-        return 1
-    fi
-
     # Clean up broken package lists
     print_step_from_common_functions "Cleaning up package lists..."
-    rm -rf /var/lib/apt/lists/* 2>/dev/null || true
+    $USE_SUDO rm -rf /var/lib/apt/lists/* 2>/dev/null || true
 
     # Update package list
     print_step_from_common_functions "Updating package list..."
@@ -164,27 +143,6 @@ EOF
     fi
 }
 
-# Function to install uv
-install_uv() {
-    print_step_from_common_functions "Installing uv (fast Python package installer)..."
-
-    # Install uv using the official installer
-    if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-        print_success_from_common_functions "uv installed successfully"
-        UV_INSTALLED=true
-
-        # Verify installation
-        if command -v uv >/dev/null 2>&1; then
-            print_success_from_common_functions "uv version: $(uv --version 2>&1)"
-        fi
-
-        return 0
-    else
-        print_error_from_common_functions "Failed to install uv"
-        return 1
-    fi
-}
-
 # Function to fix Python symlinks
 fix_python_links() {
     print_step_from_common_functions "Fixing Python symlinks in /usr/local/bin..."
@@ -235,159 +193,65 @@ fix_python_links() {
     return 0
 }
 
-# Function to fix uv/uvx symlinks
-fix_uv_links() {
-    print_step_from_common_functions "Checking uv/uvx symlinks in /usr/local/bin..."
-
-    # uv is typically installed to ~/.cargo/bin or ~/.local/bin
-    local uv_search_paths=(
-        "$HOME/.cargo/bin/uv"
-        "$HOME/.local/bin/uv"
-        "/usr/local/bin/uv"
-    )
-
-    local uv_path=""
-    for path in "${uv_search_paths[@]}"; do
-        if [ -f "$path" ]; then
-            uv_path="$path"
-            break
-        fi
-    done
-
-    if [ -z "$uv_path" ]; then
-        # Try to find uv using which
-        uv_path=$(command -v uv 2>/dev/null)
-    fi
-
-    if [ -z "$uv_path" ]; then
-        print_warning_from_common_functions "uv binary not found, cannot create links"
-        return 1
-    fi
-
-    print_step_from_common_functions "Found uv at: $uv_path"
-
-    # Create uv symlink in /usr/local/bin if not already there
-    if [ "$uv_path" != "/usr/local/bin/uv" ]; then
-        if [ ! -e /usr/local/bin/uv ]; then
-            print_step_from_common_functions "Creating symlink: /usr/local/bin/uv -> $uv_path"
-            $USE_SUDO ln -sf "$uv_path" /usr/local/bin/uv
-            print_success_from_common_functions "Created uv symlink"
-        elif [ -L /usr/local/bin/uv ]; then
-            local current_target=$(readlink -f /usr/local/bin/uv)
-            if [ "$current_target" != "$uv_path" ]; then
-                print_step_from_common_functions "Updating uv symlink to point to $uv_path"
-                $USE_SUDO ln -sf "$uv_path" /usr/local/bin/uv
-                print_success_from_common_functions "Updated uv symlink"
-            else
-                print_success_from_common_functions "uv symlink already correct"
-            fi
-        fi
-    fi
-
-    # Find uvx
-    local uvx_search_paths=(
-        "$HOME/.cargo/bin/uvx"
-        "$HOME/.local/bin/uvx"
-        "/usr/local/bin/uvx"
-    )
-
-    local uvx_path=""
-    for path in "${uvx_search_paths[@]}"; do
-        if [ -f "$path" ]; then
-            uvx_path="$path"
-            break
-        fi
-    done
-
-    if [ -z "$uvx_path" ]; then
-        uvx_path=$(command -v uvx 2>/dev/null)
-    fi
-
-    if [ -n "$uvx_path" ]; then
-        print_step_from_common_functions "Found uvx at: $uvx_path"
-
-        # Create uvx symlink in /usr/local/bin if not already there
-        if [ "$uvx_path" != "/usr/local/bin/uvx" ]; then
-            if [ ! -e /usr/local/bin/uvx ]; then
-                print_step_from_common_functions "Creating symlink: /usr/local/bin/uvx -> $uvx_path"
-                $USE_SUDO ln -sf "$uvx_path" /usr/local/bin/uvx
-                print_success_from_common_functions "Created uvx symlink"
-            elif [ -L /usr/local/bin/uvx ]; then
-                local current_target=$(readlink -f /usr/local/bin/uvx)
-                if [ "$current_target" != "$uvx_path" ]; then
-                    print_step_from_common_functions "Updating uvx symlink to point to $uvx_path"
-                    $USE_SUDO ln -sf "$uvx_path" /usr/local/bin/uvx
-                    print_success_from_common_functions "Updated uvx symlink"
-                else
-                    print_success_from_common_functions "uvx symlink already correct"
-                fi
-            fi
-        fi
-    else
-        print_warning_from_common_functions "uvx binary not found"
-    fi
-
-    return 0
-}
-
-# Function to verify installation
+# Function to verify Python installation
 verify_installation() {
-    print_step_from_common_functions "Verifying Python environment..."
+    print_step_from_common_functions "Verifying Python installation..."
 
     local verification_failed=false
 
-    # Check Python
+    # Check Python3
     if command -v python3 >/dev/null 2>&1; then
-        print_success_from_common_functions "python3: $(python3 -V 2>&1)"
+        print_success_from_common_functions "Python3: $(python3 -V 2>&1)"
     else
-        print_error_from_common_functions "python3 is not available"
+        print_error_from_common_functions "Python3 not found"
         verification_failed=true
     fi
 
+    # Check python symlink
     if command -v python >/dev/null 2>&1; then
         print_success_from_common_functions "python: $(python -V 2>&1)"
     else
-        print_warning_from_common_functions "python symlink not available"
+        print_warning_from_common_functions "python symlink not found (optional)"
     fi
 
-    # Check pip
+    # Check pip3
     if command -v pip3 >/dev/null 2>&1; then
         print_success_from_common_functions "pip3: $(pip3 -V 2>&1 | cut -d' ' -f1-2)"
     else
-        print_error_from_common_functions "pip3 is not available"
+        print_error_from_common_functions "pip3 not found"
         verification_failed=true
     fi
 
+    # Check pip symlink
     if command -v pip >/dev/null 2>&1; then
         print_success_from_common_functions "pip: $(pip -V 2>&1 | cut -d' ' -f1-2)"
     else
-        print_warning_from_common_functions "pip symlink not available"
+        print_warning_from_common_functions "pip symlink not found (optional)"
     fi
 
-    # Check uv/uvx
-    if command -v uv >/dev/null 2>&1; then
-        print_success_from_common_functions "uv: $(uv --version 2>&1)"
+    # Check essential modules
+    if python3 -c "import setuptools" 2>/dev/null; then
+        print_success_from_common_functions "setuptools module available"
     else
-        print_warning_from_common_functions "uv is not available"
+        print_warning_from_common_functions "setuptools module not available"
     fi
 
-    if command -v uvx >/dev/null 2>&1; then
-        print_success_from_common_functions "uvx: available"
+    if python3 -c "import wheel" 2>/dev/null; then
+        print_success_from_common_functions "wheel module available"
     else
-        print_warning_from_common_functions "uvx is not available"
+        print_warning_from_common_functions "wheel module not available"
     fi
 
     if [ "$verification_failed" = true ]; then
         return 1
+    else
+        return 0
     fi
-
-    return 0
 }
 
 # Main function
 main() {
     local needs_install=false
-    local needs_uv_install=false
 
     print_step_from_common_functions "Checking Python environment status..."
 
@@ -403,12 +267,6 @@ main() {
         needs_install=true
     fi
 
-    # Check uv installation
-    if ! check_uv_installed; then
-        print_warning_from_common_functions "uv/uvx needs to be installed"
-        needs_uv_install=true
-    fi
-
     # Install Python essentials if needed
     if [ "$needs_install" = true ]; then
         if ! install_python_essentials; then
@@ -418,24 +276,15 @@ main() {
 
         # Set pip mirror after installation
         set_pip_mirror
-    fi
-
-    # Install uv if needed
-    if [ "$needs_uv_install" = true ]; then
-        if ! install_uv; then
-            print_error_from_common_functions "Failed to install uv"
-            return 1
-        fi
+    else
+        print_info_from_common_functions "Python and pip are already installed"
+        # Still set pip mirror for existing installations
+        set_pip_mirror
     fi
 
     # Fix Python symlinks (always run to ensure correctness)
     if ! fix_python_links; then
         print_warning_from_common_functions "Failed to fix some Python symlinks"
-    fi
-
-    # Fix uv/uvx symlinks (always run to ensure correctness)
-    if ! fix_uv_links; then
-        print_warning_from_common_functions "Failed to fix some uv/uvx symlinks"
     fi
 
     # Verify installation
@@ -447,10 +296,11 @@ main() {
 
     print_success_from_common_functions "Python environment setup complete!"
     print_info_from_common_functions "System Python is used directly (no virtual environments)"
-    print_info_from_common_functions "Tools available: python3, pip3, uv, uvx"
+    print_info_from_common_functions "Tools available: python3, pip3"
 
     return 0
 }
 
 # Execute main function
 main
+exit $?

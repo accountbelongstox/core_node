@@ -32,15 +32,62 @@ fi
 # Core Node project root directory
 CORE_NODE_PROJECT_ROOT=""
 
+# Function to detect desktop environment
+detect_desktop_environment() {
+    # Check for X11 session
+    if [ -n "$DISPLAY" ] && [ "$DISPLAY" != ":0" ]; then
+        HAS_DESKTOP_ENVIRONMENT=true
+    fi
+
+    # Check for Wayland session
+    if [ -n "$WAYLAND_DISPLAY" ]; then
+        HAS_DESKTOP_ENVIRONMENT=true
+    fi
+
+    # Check for common desktop environment variables
+    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
+        HAS_DESKTOP_ENVIRONMENT=true
+        DESKTOP_ENVIRONMENT="$XDG_CURRENT_DESKTOP"
+    elif [ -n "$DESKTOP_SESSION" ]; then
+        HAS_DESKTOP_ENVIRONMENT=true
+        DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
+    fi
+
+    # Check for running desktop processes
+    if pgrep -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session\|lxde-session\|lxqt-session\|openbox\|fluxbox\|i3\|awesome\|dwm" >/dev/null 2>&1; then
+        HAS_DESKTOP_ENVIRONMENT=true
+    fi
+
+    # Check for desktop environment directories
+    if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
+        # Additional check: see if we're in a graphical session
+        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+            HAS_DESKTOP_ENVIRONMENT=true
+        fi
+    fi
+
+    # Check for WSL with desktop environment
+    if [ "$IS_WSL" = true ]; then
+        # In WSL, check if X11 forwarding is available or if WSLg is running
+        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || pgrep -x "wslg" >/dev/null 2>&1; then
+            HAS_DESKTOP_ENVIRONMENT=true
+        fi
+    fi
+}
+
+# Detect desktop environment first
+detect_desktop_environment
+
 # Check if running in WSL
 if [ -d "$WSL_USERS_PATH" ]; then
     IS_WSL=true
-elif [ -d "/usr/wwwroot" ]; then
+elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
+    # Not WSL and no desktop environment = production server
     IS_PRODUCTION=true
 fi
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d ï¿½?NTFS mount ï¿½?Data disk mount ï¿½?/www
+# Priority: WSL /mnt/d ï¿?NTFS mount ï¿?Data disk mount ï¿?/www
 get_base_data_directory() {
     local base_dir=""
 
@@ -841,7 +888,7 @@ ensure_web_directory() {
 }
 
 # Initialize global temporary directory
-GLOBAL_TEMP_DIR="/var/tmp/core_node"
+GLOBAL_TEMP_DIR="/usr/tmp"
 
 # Ensure global temporary directory exists
 if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
@@ -855,12 +902,16 @@ echo "Global temporary directory: $GLOBAL_TEMP_DIR"
 create_script_temp_dir() {
     local script_name="$1"
     local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
-    
+
     if [ ! -d "$script_temp_dir" ]; then
         $USE_SUDO mkdir -p "$script_temp_dir"
-        $USE_SUDO chmod 755 "$script_temp_dir"
+        $USE_SUDO chmod 777 "$script_temp_dir"
+        # Ensure current user can write to this directory
+        if [ -n "$USER" ] && [ "$USER" != "root" ]; then
+            $USE_SUDO chown -R "$USER:$USER" "$script_temp_dir" 2>/dev/null || true
+        fi
     fi
-    
+
     echo "$script_temp_dir"
     return 0
 }
@@ -1341,7 +1392,7 @@ POETRY_HOME="$COMPILE_DIR/poetry"
 POETRY_LINK="$COMPILE_DIR/bin/poetry"
 NODE_INSTALL_DIR="$COMPILE_DIR/node"
 NODE_SHORT_VERSION="22"
-NODE_VERSION="v22.19.0"
+NODE_VERSION="v22.21.0"
 NODE_DOWNLOAD_URL="https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-x64.tar.xz"
 NODE_BIN="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/node"
 
