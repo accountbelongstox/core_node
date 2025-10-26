@@ -346,13 +346,81 @@ handle_ntfs_disk() {
     if is_device_mounted "$device"; then
         current_mount=$(get_mount_point "$device")
         is_mounted=true
-        warning "Device is already mounted at: $current_mount"
+        info "Device is already mounted at: $current_mount"
     fi
 
+    # Check fstab configuration
+    local fstab_correct=false
+    local fstab_mount_point=""
+    if grep -q "UUID=$uuid" /etc/fstab; then
+        fstab_mount_point=$(grep "UUID=$uuid" /etc/fstab | awk '{print $2}')
+        if [ "$fstab_mount_point" = "$mount_point" ]; then
+            fstab_correct=true
+        fi
+    fi
+
+    # Smart detection: check if configuration is already correct
+    if [ "$is_mounted" = true ] && [ "$current_mount" = "$mount_point" ] && [ "$fstab_correct" = true ]; then
+        log "Device is already correctly mounted at: $mount_point"
+        log "fstab configuration is correct"
+        log "No action needed, skipping..."
+
+        # Save to global variables
+        if [ -n "$GLOBAL_VAR_DIR" ]; then
+            echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
+            echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
+        fi
+
+        return 0
+    fi
+
+    # Show current status and expected configuration
     echo ""
-    echo "Target mount point: $mount_point"
-    echo "Device will be mounted at: $mount_point"
-    echo -n "Proceed to configure fstab? (Y/n): "
+    echo "=========================================="
+    echo "Current Status:"
+    if [ "$is_mounted" = true ]; then
+        echo "  Mounted at: $current_mount"
+    else
+        echo "  Mounted: No"
+    fi
+    if [ -n "$fstab_mount_point" ]; then
+        echo "  fstab mount point: $fstab_mount_point"
+    else
+        echo "  fstab entry: Not found"
+    fi
+    echo ""
+    echo "Expected Configuration:"
+    echo "  Target mount point: $mount_point"
+    echo "=========================================="
+
+    # Determine what needs to be fixed
+    local needs_fix=false
+    local fix_message=""
+
+    if [ "$is_mounted" = true ] && [ "$current_mount" != "$mount_point" ]; then
+        needs_fix=true
+        fix_message="${fix_message}  - Current mount point ($current_mount) differs from standard ($mount_point)\n"
+    fi
+
+    if [ "$fstab_correct" = false ]; then
+        needs_fix=true
+        if [ -n "$fstab_mount_point" ]; then
+            fix_message="${fix_message}  - fstab mount point ($fstab_mount_point) differs from standard ($mount_point)\n"
+        else
+            fix_message="${fix_message}  - fstab entry missing\n"
+        fi
+    fi
+
+    if [ "$needs_fix" = true ]; then
+        echo ""
+        echo -e "${YELLOW}Configuration issues detected:${NC}"
+        echo -e "$fix_message"
+        echo -n "Do you want to fix the configuration? (Y/n): "
+    else
+        echo ""
+        echo -n "Proceed to configure fstab? (Y/n): "
+    fi
+
     read -r confirm
 
     if [[ "$confirm" =~ ^[Nn]$ ]]; then
