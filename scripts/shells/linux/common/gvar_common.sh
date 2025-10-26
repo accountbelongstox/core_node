@@ -40,62 +40,106 @@ elif [ -d "/usr/wwwroot" ]; then
     IS_PRODUCTION=true
 fi
 
+# Function to get optimal base directory for data storage
+# Priority: WSL /mnt/d → NTFS mount → Data disk mount → /www
+get_base_data_directory() {
+    local base_dir=""
+
+    # Priority 1: WSL /mnt/d (if exists and writable)
+    if [ "$IS_WSL" = true ] && [ -d "/mnt/d" ] && [ -w "/mnt/d" ]; then
+        base_dir="/mnt/d"
+        echo "$base_dir"
+        return 0
+    fi
+
+    # Priority 2: NTFS mount point (from global var set by 2_setting_base.sh)
+    local ntfs_mount=""
+    if [ -f "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" ]; then
+        ntfs_mount=$(cat "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" 2>/dev/null | tr -d '\0')
+        if [ -d "$ntfs_mount" ] && [ -w "$ntfs_mount" ]; then
+            base_dir="$ntfs_mount"
+            echo "$base_dir"
+            return 0
+        fi
+    fi
+
+    # Priority 3: Data disk mount point (from global var set by 2_setting_base.sh)
+    local data_mount=""
+    if [ -f "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" ]; then
+        data_mount=$(cat "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" 2>/dev/null | tr -d '\0')
+        if [ -d "$data_mount" ] && [ -w "$data_mount" ]; then
+            base_dir="$data_mount"
+            echo "$base_dir"
+            return 0
+        fi
+    fi
+
+    # Priority 4: Desktop with Windows drives
+    if [ "$IS_DESKTOP_WITH_WINDOWS" = true ] && [ -n "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
+        if [ -d "$DESKTOP_LARGEST_WINDOWS_PATH" ] && [ -w "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
+            base_dir="$DESKTOP_LARGEST_WINDOWS_PATH"
+            echo "$base_dir"
+            return 0
+        fi
+    fi
+
+    # Fallback: /www
+    base_dir="/www"
+    echo "$base_dir"
+    return 0
+}
+
+# Function to detect if system has NTFS disks
+has_ntfs_disk() {
+    if $USE_SUDO blkid | grep -qi "TYPE=\"ntfs\""; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to detect if system has unmounted data disks
+has_unmounted_data_disk() {
+    # Check for ext4, xfs, btrfs partitions that are not root or boot
+    while IFS= read -r device; do
+        if [ -n "$device" ]; then
+            local mount_point=$(findmnt -n -o TARGET "$device" 2>/dev/null || echo "")
+            if [ -z "$mount_point" ]; then
+                # Found unmounted data disk
+                return 0
+            fi
+        fi
+    done < <($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | cut -d: -f1)
+
+    return 1
+}
+
 # Function to detect core node project root directory
 detect_core_node_project_root() {
     local potential_roots=()
     local found_root=""
 
-    # Priority 1: Check WSL specific paths
+    # Get optimal base directory
+    local base_dir=$(get_base_data_directory)
+
+    # Priority 1: Check base_dir/programing/core_node
+    if [ -n "$base_dir" ]; then
+        potential_roots+=("$base_dir/programing/core_node")
+    fi
+
+    # Priority 2: Check WSL specific paths
     if [ "$IS_WSL" = true ]; then
         potential_roots+=("/mnt/d/programing/core_node")
         potential_roots+=("/mnt/c/programing/core_node")
     fi
 
-    # Priority 2: Check /media mounts (common for Ubuntu Desktop with external drives)
-    local current_user=$(whoami)
-    if [ -d "/media/$current_user" ]; then
-        # Check all mounted drives under /media/username
-        for mount_point in "/media/$current_user"/*; do
-            if [ -d "$mount_point" ]; then
-                local test_path="$mount_point/programing/core_node"
-                if [ -d "$test_path" ]; then
-                    potential_roots+=("$test_path")
-                fi
-            fi
-        done
-    fi
-    # Also check root user media mounts
-    if [ -d "/media/root" ]; then
-        for mount_point in "/media/root"/*; do
-            if [ -d "$mount_point" ]; then
-                local test_path="$mount_point/programing/core_node"
-                if [ -d "$test_path" ]; then
-                    potential_roots+=("$test_path")
-                fi
-            fi
-        done
-    fi
-
-    # Priority 3: Check desktop with Windows drives
-    if [ "$IS_DESKTOP_WITH_WINDOWS" = true ] && [ -n "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
-        potential_roots+=("$DESKTOP_LARGEST_WINDOWS_PATH/programing/core_node")
-        # Also check all detected Windows drives
-        if [ -n "$DESKTOP_WINDOWS_DRIVES" ]; then
-            for drive in $DESKTOP_WINDOWS_DRIVES; do
-                local test_path="$DESKTOP_WINDOWS_MOUNT_PATH/$drive/programing/core_node"
-                if [ -d "$test_path" ]; then
-                    potential_roots+=("$test_path")
-                fi
-            done
-        fi
-    fi
-
-    # Priority 4: Check production paths
+    # Priority 3: Check production paths
     if [ "$IS_PRODUCTION" = true ]; then
         potential_roots+=("/usr/wwwroot/core_node")
     fi
 
-    # Priority 5: Check common installation paths
+    # Priority 4: Check common installation paths
+    potential_roots+=("/www/programing/core_node")
     potential_roots+=("/usr/wwwroot/core_node")
     potential_roots+=("/opt/core_node")
     potential_roots+=("/var/www/core_node")
@@ -115,15 +159,16 @@ detect_core_node_project_root() {
     if [ -n "$found_root" ]; then
         CORE_NODE_PROJECT_ROOT="$found_root"
     else
-        # Fallback to default based on environment
-        if [ "$IS_WSL" = true ]; then
-            CORE_NODE_PROJECT_ROOT="/mnt/d/programing/core_node"
-        elif [ "$IS_DESKTOP_WITH_WINDOWS" = true ] && [ -n "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
-            CORE_NODE_PROJECT_ROOT="$DESKTOP_LARGEST_WINDOWS_PATH/programing/core_node"
+        # Fallback: use base_dir/programing/core_node
+        if [ -n "$base_dir" ]; then
+            CORE_NODE_PROJECT_ROOT="$base_dir/programing/core_node"
         else
             CORE_NODE_PROJECT_ROOT="/usr/wwwroot/core_node"
         fi
     fi
+
+    # Export for use in other scripts
+    export CORE_NODE_PROJECT_ROOT
 }
 # Function to detect desktop system with Windows drives
 detect_desktop_windows_drives() {
@@ -683,22 +728,24 @@ fi
 
 GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
 
-# Function to map paths based on environment (WSL, Production, Desktop with Windows)
+# Function to map paths based on environment (using get_base_data_directory)
 map_web_path() {
     local path_key="$1"
     local sub_path="$2"
     local mapped_path=""
     local base_path=""
 
-    # Determine base path based on environment
+    # Get optimal base directory
+    local data_base=$(get_base_data_directory)
+
+    # Determine base path for www based on environment
     if [ "$IS_WSL" = true ]; then
-        base_path="/mnt/d/www"
-    elif [ "$IS_DESKTOP_WITH_WINDOWS" = true ]; then
-        base_path="$DESKTOP_LARGEST_WINDOWS_PATH/www"
+        base_path="$data_base/www"
     elif [ "$IS_PRODUCTION" = true ]; then
         base_path="/www"
     else
-        base_path="/www"
+        # Use data base directory + www
+        base_path="$data_base/www"
     fi
 
     # Map paths using common base path
