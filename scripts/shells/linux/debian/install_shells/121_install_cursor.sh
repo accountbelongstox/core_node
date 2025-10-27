@@ -432,7 +432,24 @@ install_cursor() {
 
 # Interactive cleanup prompt using centralized logic
 prompt_cleanup_reinstall() {
-    prompt_cleanup_reinstall "Cursor" "cursor" "$CURSOR_INSTALLED_FLAG" "cleanup_cursor"
+    if is_cursor_installed; then
+        print_warning_from_common_functions "Cursor is already installed"
+        print_info_from_common_functions "Current installation: $CURSOR_INSTALL_DIR"
+        echo -n "Do you want to clean up and reinstall? (y/N): "
+        read -r response
+        case "$response" in
+            [yY]|[yY][eE][sS])
+                print_info_from_common_functions "Cleaning up existing installation..."
+                cleanup_cursor
+                return 0  # Proceed with installation
+                ;;
+            *)
+                print_info_from_common_functions "Keeping existing installation"
+                return 1  # Skip installation
+                ;;
+        esac
+    fi
+    return 0  # No existing installation, proceed
 }
 
 # Main script execution
