@@ -42,7 +42,6 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/linux_applications_list.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
 

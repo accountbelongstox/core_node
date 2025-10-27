@@ -31,7 +31,6 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Source PHP common variables and functions
@@ -75,7 +74,6 @@ echo -e "${CYAN}$SCRIPT_INDEX INSTALL_NGINX: $INSTALL_NGINX${NC}"
 # All PHP configuration arrays are now sourced from php_common_vars.sh
 
 # All state definitions are now sourced from php_common_vars.sh
-# USE_SUDO is now sourced from gvar_common.sh
 
 # PHASE 1: Multi-dimensional State Detection
 

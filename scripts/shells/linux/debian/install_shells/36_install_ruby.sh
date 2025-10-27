@@ -24,7 +24,6 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
@@ -144,40 +143,41 @@ install_rbenv() {
 # Function to setup Ruby environment
 setup_ruby_environment() {
     log_message "Setting up Ruby environment..."
-    
-    # Configure gem installation directory for user
-    local gem_home="$HOME/.gem"
-    local gem_bin="$gem_home/bin"
-    
-    # Create gem directories
-    mkdir -p "$gem_home" "$gem_bin"
-    
+
+    # Create gem directories in COMPILE_DIR for consistency
+    log_message "Creating gem directories at: $RUBY_GEM_HOME"
+    mkdir -p "$RUBY_GEM_HOME" "$RUBY_GEM_BIN_DIR"
+
+    # Set environment for current session
+    export GEM_HOME="$RUBY_GEM_HOME"
+    export PATH="$RUBY_GEM_BIN_DIR:$PATH"
+
     # Add gem paths to shell profiles
     local shell_profiles=(
         "$HOME/.bashrc"
         "$HOME/.zshrc"
         "$HOME/.profile"
     )
-    
+
     local gem_config_lines=(
-        'export GEM_HOME="$HOME/.gem"'
-        'export PATH="$HOME/.gem/bin:$PATH"'
+        "export GEM_HOME=\"$RUBY_GEM_HOME\""
+        "export PATH=\"$RUBY_GEM_BIN_DIR:\$PATH\""
     )
-    
+
     for profile in "${shell_profiles[@]}"; do
         if [ -f "$profile" ]; then
             local needs_update=false
             for line in "${gem_config_lines[@]}"; do
-                if ! grep -q "$(echo "$line" | cut -d'=' -f1)" "$profile"; then
+                if ! grep -q "GEM_HOME" "$profile" || ! grep -q "$RUBY_GEM_HOME" "$profile"; then
                     needs_update=true
                     break
                 fi
             done
-            
+
             if [ "$needs_update" = true ]; then
                 log_message "Adding Ruby gem configuration to $profile"
                 echo "" >> "$profile"
-                echo "# Ruby gem configuration" >> "$profile"
+                echo "# Ruby gem configuration (using COMPILE_DIR)" >> "$profile"
                 for line in "${gem_config_lines[@]}"; do
                     echo "$line" >> "$profile"
                 done
@@ -186,25 +186,21 @@ setup_ruby_environment() {
             fi
         fi
     done
-    
-    # Set environment for current session
-    export GEM_HOME="$HOME/.gem"
-    export PATH="$HOME/.gem/bin:$PATH"
-    
+
     # Install common Ruby gems
-    log_message "Installing common Ruby gems..."
-    
+    log_message "Installing common Ruby gems to $RUBY_GEM_HOME..."
+
     local common_gems=(
         "bundler"         # Dependency manager
         "rake"            # Build tool
         "rubocop"         # Code linter
         "pry"             # Enhanced REPL
     )
-    
+
     for gem_name in "${common_gems[@]}"; do
         log_message "Installing gem: $gem_name"
         if gem install "$gem_name" --user-install; then
-            log_message "Successfully installed $gem_name"
+            log_message "Successfully installed $gem_name to $RUBY_GEM_BIN_DIR"
         else
             log_message "Failed to install $gem_name"
         fi
@@ -216,24 +212,31 @@ main() {
     log_message "=========================================="
     log_message "Starting Ruby Programming Language Installation"
     log_message "Install Mode: $INSTALL_MODE"
+    log_message "Ruby Install Directory: $RUBY_INSTALL_DIR"
+    log_message "Gem Directory: $RUBY_GEM_HOME"
+    log_message "Gem Bin Directory: $RUBY_GEM_BIN_DIR"
     log_message "=========================================="
-    
+
     # Install Ruby via apt
     if install_ruby_apt; then
         log_message "Ruby installation successful"
-        
+
         # Setup environment and common gems
         setup_ruby_environment
-        
+
         # Optionally install rbenv for version management
         log_message "Installing rbenv for Ruby version management..."
         install_rbenv
-        
+
         log_message "=========================================="
         log_message "Ruby Installation Complete"
         log_message "Log file: $LOG_FILE"
+        log_message "Ruby Install Directory: $RUBY_INSTALL_DIR"
+        log_message "Gem Home: $RUBY_GEM_HOME"
+        log_message "Gem Bin: $RUBY_GEM_BIN_DIR"
         log_message "=========================================="
         log_message "Note: You may need to restart your shell to use Ruby gems"
+        log_message "To use gems immediately, run: export GEM_HOME=$RUBY_GEM_HOME && export PATH=$RUBY_GEM_BIN_DIR:\$PATH"
     else
         log_message "=========================================="
         log_message "Ruby Installation Failed"

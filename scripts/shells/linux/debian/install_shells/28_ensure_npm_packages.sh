@@ -18,7 +18,6 @@ SCRIPT_INDEX="28"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 # Get region information
 SELECTED_REGION=$(get_var "SELECTED_REGION")
@@ -74,12 +73,11 @@ ensure_package() {
     
     # Special handling for puppeteer
     if [ "$package" = "puppeteer" ]; then
-        # Install chromium first
-        $USE_SUDO apt-get install chromium -y
-        
-        # Install puppeteer with skip download
+        # Install puppeteer with PUPPETEER_SKIP_DOWNLOAD to avoid chromium installation
+        # This is safer and faster than trying to install system chromium
         if PUPPETEER_SKIP_DOWNLOAD=true npm install -g "$package"; then
             echo "[$SCRIPT_INDEX] $package installed successfully"
+            echo "[$SCRIPT_INDEX] Note: Puppeteer installed in skip-download mode. Chromium binary will be downloaded on first use."
             return 0
         else
             echo "[$SCRIPT_INDEX] Failed to install $package"

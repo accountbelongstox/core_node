@@ -16,7 +16,6 @@ SCRIPT_INDEX="45"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 echo "[$SCRIPT_INDEX] Redis Installation Script"

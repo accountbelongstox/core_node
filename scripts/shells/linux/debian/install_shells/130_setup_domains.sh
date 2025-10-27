@@ -16,7 +16,6 @@ SCRIPT_INDEX="130"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 echo "[$SCRIPT_INDEX] Domain Setup Script - Adding domains to nginx and certbot"
