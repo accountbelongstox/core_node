@@ -254,9 +254,10 @@ install_via_apt() {
 install_via_snap() {
     local package_id="$1"
     local app_name="$2"
-    
+    local snap_confinement="$3"  # Optional: strict or classic
+
     log_install "Installing $app_name via SNAP: $package_id"
-    
+
     # Check if snapd is installed
     if ! command_exists snap; then
         log_install "Installing snapd first..."
@@ -271,12 +272,30 @@ install_via_snap() {
             return 1
         fi
     fi
-    
+
+    # Build snap install command with confinement if needed
+    local snap_install_cmd="$USE_SUDO snap install \"$package_id\""
+
+    # Add confinement flag if specified
+    if [ -n "$snap_confinement" ] && [ "$snap_confinement" != "strict" ]; then
+        snap_install_cmd="$snap_install_cmd --$snap_confinement"
+        log_install "Installing with $snap_confinement confinement mode"
+    fi
+
     # Install snap package
-    if $USE_SUDO snap install "$package_id"; then
+    if eval "$snap_install_cmd"; then
         log_success "Successfully installed $app_name via SNAP"
         return 0
     else
+        # Check if error is due to confinement requirement and fallback is enabled
+        local snap_error_output=$(eval "$snap_install_cmd" 2>&1 || true)
+        if [[ "$snap_error_output" == *"classic"* ]] && [[ "$snap_error_output" == *"confinement"* ]]; then
+            log_warning "Snap package requires classic confinement, retrying with --classic flag"
+            if $USE_SUDO snap install "$package_id" --classic; then
+                log_success "Successfully installed $app_name via SNAP with classic confinement"
+                return 0
+            fi
+        fi
         log_error "Failed to install $app_name via SNAP"
         return 1
     fi
@@ -594,25 +613,40 @@ install_via_microsoft_apt() {
     # Install required dependencies
     log_install "Installing required dependencies..."
     $USE_SUDO apt update
-    $USE_SUDO apt install -y software-properties-common apt-transport-https wget
+    $USE_SUDO apt install -y software-properties-common apt-transport-https wget curl gnupg
 
-    # Add Microsoft GPG key
+    # Add Microsoft GPG key with fallback options
     log_install "Adding Microsoft GPG key..."
-    if ! wget -qO- https://packages.microsoft.com/keys/microsoft.asc | $USE_SUDO apt-key add -; then
-        log_error "Failed to add Microsoft GPG key"
-        return 1
-    fi
+    local gpg_key_url="https://packages.microsoft.com/keys/microsoft.asc"
+    local gpg_key_file="/etc/apt/keyrings/packages.microsoft.gpg"
 
-    # Add Microsoft repository
-    log_install "Adding Microsoft repository..."
-    if ! echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | $USE_SUDO tee /etc/apt/sources.list.d/vscode.list; then
-        log_error "Failed to add Microsoft repository"
-        return 1
+    # Try method 1: Using apt-key add (older systems)
+    if wget -qO- "$gpg_key_url" | $USE_SUDO apt-key add -; then
+        log_success "Microsoft GPG key added successfully"
+    else
+        log_warning "apt-key method failed, trying keyring method..."
+
+        # Try method 2: Using gpg with keyrings directory
+        if wget -qO- "$gpg_key_url" | $USE_SUDO gpg --dearmor | $USE_SUDO tee "$gpg_key_file" > /dev/null; then
+            log_success "Microsoft GPG key installed to keyring"
+
+            # Create sources list entry with keyring reference
+            log_install "Adding Microsoft repository with keyring..."
+            if ! echo "deb [arch=amd64,arm64,armhf signed-by=$gpg_key_file] https://packages.microsoft.com/repos/code stable main" | $USE_SUDO tee /etc/apt/sources.list.d/vscode.list > /dev/null; then
+                log_error "Failed to add Microsoft repository"
+                return 1
+            fi
+        else
+            log_error "Failed to install Microsoft GPG key using both methods"
+            return 1
+        fi
     fi
 
     # Update package list
     log_install "Updating package list..."
-    $USE_SUDO apt update
+    if ! $USE_SUDO apt update 2>&1; then
+        log_warning "apt update had issues, but continuing with installation attempt"
+    fi
 
     # Install the package
     log_install "Installing $package_id..."

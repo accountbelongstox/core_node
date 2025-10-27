@@ -41,6 +41,14 @@ readonly METHOD_UV_TOOL="uv_tool"
 readonly METHOD_CURL="curl"
 readonly METHOD_MICROSOFT_APT="microsoft_apt"
 
+# Snap confinement modes
+readonly SNAP_CONFINEMENT_STRICT="strict"
+readonly SNAP_CONFINEMENT_CLASSIC="classic"
+
+# Repository type for special repositories
+readonly REPO_TYPE_MICROSOFT="microsoft"
+readonly REPO_TYPE_UBUNTU_PPA="ubuntu_ppa"
+
 # Installation groups - controls which applications are installed based on use case
 readonly GROUP_ESSENTIAL="essential"        # Essential desktop applications
 readonly GROUP_DEVELOPMENT="development"   # Development tools and IDEs
@@ -121,6 +129,9 @@ declare -gA DEV_PACKAGES=(
     ["vscode_verify_command"]="--version"
     ["vscode_launch_command"]="which code && $USE_SUDO code --no-sandbox --user-data-dir"
     ["vscode_super"]="code --no-sandbox --user-data-dir"
+    ["vscode_repo_type"]="$REPO_TYPE_MICROSOFT"
+    ["vscode_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
+    ["vscode_snap_fallback"]="true"
 
     # Cursor AI Editor
     ["cursor_name"]="Cursor AI Editor"
@@ -133,6 +144,7 @@ declare -gA DEV_PACKAGES=(
     ["cursor_verify_command"]="--version"
     ["cursor_launch_command"]="which cursor && $USE_SUDO cursor --no-sandbox"
     ["cursor_super"]="cursor --no-sandbox"
+    ["cursor_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
 
     # Postman API Testing
     ["postman_name"]="Postman"
@@ -709,8 +721,43 @@ EOF
     echo "Created launch script: $script_path"
 }
 
+# Function to get snap confinement mode for an application
+get_snap_confinement() {
+    local app_name="$1"
+    get_app_property "$app_name" "snap_confinement"
+}
+
+# Function to check if snap fallback is enabled for an application
+is_snap_fallback_enabled() {
+    local app_name="$1"
+    local fallback=$(get_app_property "$app_name" "snap_fallback")
+    if [ "$fallback" = "true" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to get repository type for an application (microsoft, ubuntu_ppa, etc.)
+get_repo_type() {
+    local app_name="$1"
+    get_app_property "$app_name" "repo_type"
+}
+
+# Function to check if application has special repository requirements
+has_special_repo() {
+    local app_name="$1"
+    local repo_type=$(get_repo_type "$app_name")
+    if [ -n "$repo_type" ] && [ "$repo_type" != "" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Export functions for use by installer scripts
 export -f get_package_property get_app_property get_mcp_property
 export -f app_in_group mcp_in_group get_apps_by_package_group
 export -f get_apps_by_group get_install_method get_package_id
 export -f get_launch_command create_launch_script
+export -f get_snap_confinement is_snap_fallback_enabled get_repo_type has_special_repo

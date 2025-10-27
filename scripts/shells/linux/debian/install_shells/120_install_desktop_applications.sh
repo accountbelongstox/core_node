@@ -457,6 +457,7 @@ install_application() {
     local verify_command=""
     local launch_command=""
     local super_command=""
+    local snap_confinement=""
 
     # Handle MCP apps (remove mcp_ prefix for property lookup)
     local lookup_app="$app_name"
@@ -472,6 +473,7 @@ install_application() {
     verify_command=$(get_app_property "$lookup_app" "verify_command")
     launch_command=$(get_launch_command "$lookup_app")
     super_command=$(get_app_property "$lookup_app" "super")
+    snap_confinement=$(get_snap_confinement "$lookup_app")
 
     # Skip if no package ID or install method
     if [ -z "$package_id" ] || [ -z "$install_method" ]; then
@@ -516,10 +518,20 @@ install_application() {
         return 0
     fi
 
-    # Use universal install function from installation library
-    universal_install "$install_method" "$package_id" "$display_name" "$exec_name"
-
-    local install_result=$?
+    # Handle snap packages with special confinement requirements
+    if [ "$install_method" = "snap" ] && [ -n "$snap_confinement" ]; then
+        log_message "  Snap Confinement: $snap_confinement"
+        # Pass snap_confinement to snap installer via direct call
+        if install_via_snap "$package_id" "$display_name" "$snap_confinement"; then
+            local install_result=0
+        else
+            local install_result=$?
+        fi
+    else
+        # Use universal install function from installation library
+        universal_install "$install_method" "$package_id" "$display_name" "$exec_name"
+        local install_result=$?
+    fi
 
     # Handle return codes:
     # 0 = success
