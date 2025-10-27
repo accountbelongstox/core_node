@@ -17,6 +17,7 @@ const urlModule = require('url');
 const uuidv4 = require('uuid').v4;
 const gconfig = require('#@gconfig');
 const { urltool, jsontool, strtool, file } = require('#@ncore/foundation/utilities/index.js')
+const FileMonitor = require('./file_monitor.js');
 // const Practical = require('../../../../node_provider/practicals');
 
 class Download {
@@ -48,6 +49,7 @@ class Download {
 
     constructor() {
         this.option.save_path = gconfig.DOWNLOAD_DIR;
+        this.fileMonitor = new FileMonitor();
     }
 
     async init(browser, page) {
@@ -286,6 +288,105 @@ class Download {
         const savePath = path.join(this.defaultDownloadPath, fileName);
         fs.writeFileSync(savePath, content.data);
         this.downloadPath = savePath;
+    }
+
+    // Find files by pattern in download directories
+    findFilesByPattern(pattern, options = {}) {
+        return this.fileMonitor.findFilesByPattern(pattern, options);
+    }
+
+    // Find the latest file matching pattern
+    findLatestFile(pattern, options = {}) {
+        return this.fileMonitor.findLatestFile(pattern, options);
+    }
+
+    // Wait for file to appear with pattern matching
+    async waitForFileByPattern(pattern, options = {}) {
+        const defaultOptions = {
+            timeout: 300000, // 5 minutes
+            pollInterval: 2000, // 2 seconds
+            stableTime: 3000, // 3 seconds
+            onProgress: (elapsed, total) => {
+                if (elapsed % 30000 === 0) { // Log every 30 seconds
+                    console.log(`Waiting for download... ${Math.round(elapsed/1000)}s / ${Math.round(total/1000)}s`);
+                }
+            }
+        };
+
+        const mergedOptions = { ...defaultOptions, ...options };
+        return await this.fileMonitor.waitForFile(pattern, mergedOptions);
+    }
+
+    // Click download link and wait for file
+    async clickDownloadAndWait(selector, filePattern, options = {}, page = null) {
+        const currentPage = await this.getCurrentPage(page);
+
+        try {
+            // Click the download link
+            await currentPage.click(selector);
+            console.log(`Clicked download link: ${selector}`);
+
+            // Wait for file to appear
+            const downloadedFile = await this.waitForFileByPattern(filePattern, options);
+
+            return {
+                success: true,
+                file: downloadedFile,
+                message: 'Download completed successfully'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                message: 'Download failed'
+            };
+        }
+    }
+
+    // Find and click download link by keywords
+    async findAndClickDownloadLink(keywords, filePattern, options = {}, page = null) {
+        const currentPage = await this.getCurrentPage(page);
+
+        try {
+            // Find download links containing the keywords
+            const downloadLinks = await currentPage.$$eval('a', (links, keywords) => {
+                return links
+                    .filter(link => {
+                        const text = link.textContent.toLowerCase();
+                        const href = link.href.toLowerCase();
+                        return keywords.some(keyword =>
+                            text.includes(keyword.toLowerCase()) ||
+                            href.includes(keyword.toLowerCase())
+                        );
+                    })
+                    .map(link => ({
+                        href: link.href,
+                        text: link.textContent.trim(),
+                        id: link.id,
+                        className: link.className
+                    }));
+            }, keywords);
+
+            if (downloadLinks.length === 0) {
+                throw new Error(`No download links found with keywords: ${keywords.join(', ')}`);
+            }
+
+            console.log(`Found ${downloadLinks.length} potential download links`);
+
+            // Try to click the first matching link
+            const targetLink = downloadLinks[0];
+            console.log(`Clicking download link: ${targetLink.text}`);
+
+            // Click the download link and wait for file
+            return await this.clickDownloadAndWait(`a[href="${targetLink.href}"]`, filePattern, options, page);
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                message: 'Failed to find or click download link'
+            };
+        }
     }
 
     async saveImageFromSelector(selector, page = null) {

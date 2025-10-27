@@ -15,6 +15,7 @@ const path = require('path');
 const { install } = require('@puppeteer/browsers');
 const logger = require('#@logger');
 const gconfig = require('#@gconfig');
+const { getCompatibleChromeVersion } = require('../chrome_version.js');
 
 const defaultChromeDir = path.join(gconfig.APP_INSTALL_DIR, 'Google');
 const baseDirsWindows = [
@@ -24,6 +25,18 @@ const baseDirsWindows = [
     path.join(gconfig.APP_INSTALL_DIR, 'Chrome'),
     gconfig.APP_INSTALL_DIR
 ];
+
+const baseDirsLinux = [
+    '/usr/bin',
+    '/usr/local/bin',
+    '/opt/google/chrome',
+    '/snap/bin',
+    defaultChromeDir,
+    path.join(gconfig.APP_INSTALL_DIR, 'chrome'),
+    gconfig.APP_INSTALL_DIR
+];
+
+const baseDirectories = process.platform === 'win32' ? baseDirsWindows : baseDirsLinux;
 
 function findChromeExecutable(dirs) {
     const globalChromePath = checkGlobalChromePath();
@@ -81,8 +94,8 @@ function checkGlobalChromePath() {
 }
 
 async function ensureChrome() {
-    let existingChromePath = findChromeExecutable(baseDirsWindows);
-    
+    let existingChromePath = findChromeExecutable(baseDirectories);
+
     if (existingChromePath) {
         logger.info(`Chrome already exists at: ${existingChromePath}`);
         return existingChromePath;
@@ -90,29 +103,59 @@ async function ensureChrome() {
     logger.warn('Chrome not found. Attempting to install...');
 
     try {
+        const versionInfo = getCompatibleChromeVersion();
+        logger.info(`Installing Chrome version ${versionInfo.chromeVersion} for Puppeteer ${versionInfo.puppeteerVersion}`);
+
         await install({
             browser: 'chrome',
-            buildId: 'latest',
+            buildId: versionInfo.buildId,
             cacheDir: defaultChromeDir,
         });
 
         logger.info('Chrome installation completed.');
-        existingChromePath = findChromeExecutable(baseDirsWindows);
+        existingChromePath = findChromeExecutable([defaultChromeDir]);
         if (existingChromePath) {
             logger.info(`Installed Chrome found at: ${existingChromePath}`);
             return existingChromePath;
         } else {
             logger.error('Chrome was installed, but executable not found.');
+            // Try to find in the cache directory structure
+            const chromeInstallPath = path.join(defaultChromeDir, 'chrome');
+            if (fs.existsSync(chromeInstallPath)) {
+                const chromeSubPath = findChromeExecutable([chromeInstallPath]);
+                if (chromeSubPath) {
+                    logger.info(`Found Chrome in cache directory: ${chromeSubPath}`);
+                    return chromeSubPath;
+                }
+            }
             return null;
         }
     } catch (error) {
-        logger.error(`Failed to install Chrome: ${error}`);
+        logger.error(`Failed to install Chrome: ${error.message}`);
+        logger.info('Attempting fallback installation with latest version...');
+
+        try {
+            await install({
+                browser: 'chrome',
+                buildId: 'latest',
+                cacheDir: defaultChromeDir,
+            });
+
+            existingChromePath = findChromeExecutable([defaultChromeDir]);
+            if (existingChromePath) {
+                logger.info(`Fallback Chrome installation successful: ${existingChromePath}`);
+                return existingChromePath;
+            }
+        } catch (fallbackError) {
+            logger.error(`Fallback Chrome installation also failed: ${fallbackError.message}`);
+        }
+
         return null;
     }
 }
 
 async function findChromePath() {
-    let chromePath = findChromeExecutable(baseDirsWindows);
+    let chromePath = findChromeExecutable(baseDirectories);
 
     if (chromePath) {
         logger.info(`Chrome found at: ${chromePath}`);
@@ -120,9 +163,12 @@ async function findChromePath() {
     }
 
     logger.warn('Chrome not found, attempting to install...');
-    await ensureChrome();
+    chromePath = await ensureChrome();
 
-    chromePath = findChromeExecutable(baseDirsWindows);
+    if (!chromePath) {
+        chromePath = findChromeExecutable(baseDirectories);
+    }
+
     if (chromePath) {
         logger.info(`After installation, Chrome found at: ${chromePath}`);
     } else {

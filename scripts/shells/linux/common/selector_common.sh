@@ -30,12 +30,6 @@ declare -a MENU_CONFIG=(
     "[N] Install Node.js|INSTALL_NODE|false true|true|true|true|true"
     "[P] Install PHP|INSTALL_PHP|false true|true|true|true|true"
     "[^] Install Docker|INSTALL_DOCKER|false true|true|true|true|false"
-    "[~] Install AI Assistant Tools|INSTALL_AI_TOOLS|false true|true|false|true|true"
-    "[M] Install MCP Services|INSTALL_MCP_SERVICES|false true|false|true|true|true"
-    "[B] Install Base Packages|INSTALL_BASE_PACKAGES|false true|true|true|true|true"
-    "[V] Install Development Tools|INSTALL_DEV_PACKAGES|false true|false|false|true|true"
-    "[A] Install Application Packages|INSTALL_APP_PACKAGES|false true|false|false|false|true"
-    "[I] Install AI Development Tools|INSTALL_AI_PACKAGES|false true|true|true|true|true"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
 )

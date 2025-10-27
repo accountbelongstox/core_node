@@ -25,10 +25,12 @@ DISTRO=$(lsb_release -is 2>/dev/null || echo "Unknown")
 
 print_step_from_common_functions "Installing sudo for $DISTRO..."
 
-# Check if running as root
-if [ "$(id -u)" -ne 0 ]; then
-    print_error_from_common_functions "This script must be run as root to install sudo!"
-    echo "Please run: su - root"
+# Check if running as root or with sudo
+if [ "$(id -u)" -ne 0 ] && [ -z "$USE_SUDO" ]; then
+    print_error_from_common_functions "This script must be run as root or with sudo to install sudo!"
+    echo "Please run one of the following:"
+    echo "  su - root"
+    echo "  sudo bash $0"
     echo "Then execute this script again."
     exit 1
 fi
@@ -38,19 +40,34 @@ if command -v sudo >/dev/null 2>&1; then
     print_success_from_common_functions "sudo is already installed."
 else
     print_step_from_common_functions "Installing sudo package..."
-    $USE_SUDO apt-get update
-    if $USE_SUDO apt-get install -y sudo; then
-        print_success_from_common_functions "sudo installed successfully."
+    # When running as root, don't use $USE_SUDO prefix
+    if [ "$(id -u)" -eq 0 ]; then
+        apt-get update
+        if apt-get install -y sudo; then
+            print_success_from_common_functions "sudo installed successfully."
+        else
+            print_error_from_common_functions "Failed to install sudo package."
+            exit 1
+        fi
     else
-        print_error_from_common_functions "Failed to install sudo package."
-        exit 1
+        $USE_SUDO apt-get update
+        if $USE_SUDO apt-get install -y sudo; then
+            print_success_from_common_functions "sudo installed successfully."
+        else
+            print_error_from_common_functions "Failed to install sudo package."
+            exit 1
+        fi
     fi
 fi
 
 # Ensure sudo group exists
 if ! getent group sudo >/dev/null 2>&1; then
     print_step_from_common_functions "Creating sudo group..."
-    $USE_SUDO groupadd sudo
+    if [ "$(id -u)" -eq 0 ]; then
+        groupadd sudo
+    else
+        $USE_SUDO groupadd sudo
+    fi
 fi
 
 # Add user to sudo group if not already a member
@@ -59,12 +76,22 @@ if [ -n "$CURRENT_USER" ] && [ "$CURRENT_USER" != "root" ]; then
         print_success_from_common_functions "User $CURRENT_USER is already in the sudo group."
     else
         print_step_from_common_functions "Adding user $CURRENT_USER to sudo group..."
-        if $USE_SUDO usermod -aG sudo "$CURRENT_USER"; then
-            print_success_from_common_functions "User $CURRENT_USER added to sudo group successfully."
-            print_info_from_common_functions "Please log out and log back in for changes to take effect."
+        if [ "$(id -u)" -eq 0 ]; then
+            if usermod -aG sudo "$CURRENT_USER"; then
+                print_success_from_common_functions "User $CURRENT_USER added to sudo group successfully."
+                print_info_from_common_functions "Please log out and log back in for changes to take effect."
+            else
+                print_error_from_common_functions "Failed to add user $CURRENT_USER to sudo group."
+                exit 1
+            fi
         else
-            print_error_from_common_functions "Failed to add user $CURRENT_USER to sudo group."
-            exit 1
+            if $USE_SUDO usermod -aG sudo "$CURRENT_USER"; then
+                print_success_from_common_functions "User $CURRENT_USER added to sudo group successfully."
+                print_info_from_common_functions "Please log out and log back in for changes to take effect."
+            else
+                print_error_from_common_functions "Failed to add user $CURRENT_USER to sudo group."
+                exit 1
+            fi
         fi
     fi
 else

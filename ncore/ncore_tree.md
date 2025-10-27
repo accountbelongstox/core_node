@@ -1,6 +1,6 @@
 # Directory Tree: ncore
 
-**Path:** `D:\programing\core_node\ncore`
+**Path:** `/mnt/dev_sdb3/programing/core_node/ncore`
 
 ```
 ncore/
@@ -168,8 +168,11 @@ ncore/
 │   │   └── gconfig.js
 │   └── index.js
 ├── mcp_server/
+│   ├── auto-context7-mcp/
+│   │   ├── README.md
+│   │   ├── auto_fix_context7.ps1
+│   │   └── auto_fix_context7.sh
 │   ├── codebase-scanner/
-│   │   ├── tmp_sessions/
 │   │   ├── constants.py
 │   │   ├── main.py
 │   │   ├── start_server.bat
@@ -197,7 +200,8 @@ ncore/
 │   │   ├── constants.py
 │   │   ├── main.py
 │   │   ├── pyproject.toml
-│   │   └── requirements.txt
+│   │   ├── requirements.txt
+│   │   └── requirements_core.txt
 │   ├── placeholder_image_generator/
 │   │   ├── constants.py
 │   │   └── main.py
@@ -402,11 +406,6 @@ ncore/
 │       ├── uno.config.ts
 │       ├── version.json
 │       └── vite.config.js
-├── pytools/
-│   ├── pyfoundations/
-│   ├── pygvar/
-│   └── pyutils/
-│       └── common/
 ├── utils/
 │   ├── ai_translator/
 │   │   ├── config/
@@ -578,6 +577,7 @@ ncore/
 │   │   │   │   ├── content.api.md
 │   │   │   │   ├── content.js
 │   │   │   │   ├── download.js
+│   │   │   │   ├── file_monitor.js
 │   │   │   │   ├── handle.js
 │   │   │   │   ├── page.js
 │   │   │   │   ├── screen.js
@@ -849,7 +849,6 @@ ncore/
 │   ├── encodingtool.js
 │   ├── http.js
 │   ├── porttool.js
-│   ├── queue-example.js
 │   ├── schedule.js
 │   ├── serve.js
 │   ├── shoticon.js
@@ -857,7 +856,8 @@ ncore/
 │   ├── urltool.js
 │   └── watchf.js
 ├── db.js
-└── ncore_tree.md
+├── ncore_tree.md
+└── prompt.txt
 ```
 
 ---

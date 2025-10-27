@@ -43,7 +43,7 @@ try {
     const { decode } = require('he');
     heDecode = decode;
 } catch (error) {
-    log.error('Error decoding:', error);
+    console.error('Error decoding:', error);
 }
 let CACHE_EXPIRE = 1000 * 60 * 60 * 24;
 let ROOT_APP_CACHE_DIR ;

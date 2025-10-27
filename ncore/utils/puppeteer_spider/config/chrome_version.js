@@ -10,6 +10,10 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+const fs = require('fs');
+const path = require('path');
+const logger = require('#@logger');
+
 function getPuppeteerVersion() {
     try {
         const packageJsonPath = path.join(process.cwd(), 'package.json');
@@ -36,6 +40,26 @@ function getChromeVersion(puppeteerVersion) {
         '23.3.0': '128.0.6613.119',
         '23.2.2': '128.0.6613.119',
         '23.2.1': '128.0.6613.86',
+        '23.1.1': '127.0.6533.119',
+        '23.1.0': '127.0.6533.88',
+        '23.0.2': '126.0.6478.182',
+        '23.0.1': '126.0.6478.126',
+        '23.0.0': '126.0.6478.61',
+        '22.15.0': '125.0.6422.141',
+        '22.14.0': '125.0.6422.78',
+        '22.13.1': '124.0.6367.207',
+        '22.13.0': '124.0.6367.155',
+        '22.12.1': '124.0.6367.91',
+        '22.12.0': '124.0.6367.78',
+        '22.11.2': '123.0.6312.122',
+        '22.11.1': '123.0.6312.105',
+        '22.11.0': '123.0.6312.86',
+        '22.10.1': '122.0.6261.128',
+        '22.10.0': '122.0.6261.94',
+        '22.9.0': '121.0.6167.184',
+        '22.8.2': '121.0.6167.139',
+        '22.8.1': '121.0.6167.85',
+        '22.8.0': '121.0.6167.57'
     };
 
     const majorMinorVersion = puppeteerVersion.split('.').slice(0, 2).join('.');
@@ -46,9 +70,28 @@ function getChromeVersion(puppeteerVersion) {
         }
     }
 
-    logger.warn('No matching Chrome version found, using latest');
+    logger.warn(`No matching Chrome version found for Puppeteer ${puppeteerVersion}, using latest`);
     return 'latest';
 }
+
+function getCompatibleChromeVersion() {
+    const puppeteerVersion = getPuppeteerVersion();
+    const chromeVersion = getChromeVersion(puppeteerVersion);
+
+    logger.info(`Puppeteer version: ${puppeteerVersion}, Compatible Chrome version: ${chromeVersion}`);
+
+    return {
+        puppeteerVersion,
+        chromeVersion,
+        buildId: chromeVersion === 'latest' ? 'latest' : chromeVersion
+    };
+}
+
+module.exports = {
+    getPuppeteerVersion,
+    getChromeVersion,
+    getCompatibleChromeVersion
+};
 
 
 
