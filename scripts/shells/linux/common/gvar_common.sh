@@ -87,7 +87,7 @@ elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
 fi
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d ï¿½?NTFS mount ï¿½?Data disk mount ï¿½?/www
+# Priority: WSL /mnt/d ï¿?NTFS mount ï¿?Data disk mount ï¿?/www
 get_base_data_directory() {
     local base_dir=""
 
@@ -842,9 +842,28 @@ map_web_path() {
     fi
 
     # Create directory if it doesn't exist (only for web-related paths, not system paths)
+    # IMPORTANT RULE:
+    # - Never auto-create directories when sub_path is provided
+    # - Only auto-create the main path_key directories when explicitly needed
+    # - Scripts should use ensure_web_directory() for intentional directory creation
     case "$path_key" in
-        "wwwroot"|"nginxconfig"|"shared-data"|"backup"|"www"|"compile_dir")
-            if [ ! -d "$mapped_path" ]; then
+        "wwwroot"|"nginxconfig"|"shared-data"|"backup"|"compile_dir")
+            # Only auto-create if no sub_path is provided (these are the target installation paths)
+            if [ -z "$sub_path" ] && [ ! -d "$mapped_path" ]; then
+                echo "Creating directory: $mapped_path"
+                $USE_SUDO mkdir -p "$mapped_path"
+                # Set proper permissions (skip chown in desktop Windows as it may not support it)
+                if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
+                    $USE_SUDO chown www-data:www-data "$mapped_path" 2>/dev/null || true
+                fi
+                $USE_SUDO chmod 755 "$mapped_path" 2>/dev/null || true
+            fi
+            ;;
+        "www")
+            # For "www" path, NEVER auto-create when sub_path is provided
+            # Callers should use ensure_web_directory() for sub-paths like "mysql", "code-server", etc.
+            # Only create the base www directory itself if no sub_path
+            if [ -z "$sub_path" ] && [ ! -d "$mapped_path" ]; then
                 echo "Creating directory: $mapped_path"
                 $USE_SUDO mkdir -p "$mapped_path"
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)

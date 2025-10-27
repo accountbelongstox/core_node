@@ -62,16 +62,18 @@ uninstall_upsc() {
 
     # Check for and uninstall apache2
     if dpkg -l | grep -q "apache2"; then
-        echo "Uninstalling apache2 as it is a dependency..."
+        echo "Uninstalling apache2..."
         if systemctl list-units --type=service --all | grep -q "apache2.service"; then
             $USE_SUDO systemctl stop apache2.service
             $USE_SUDO systemctl disable apache2.service
+            $USE_SUDO systemctl mask apache2.service
         else
             echo -e "\033[1;33mWarning: Service apache2.service not found, skipping stop/disable.\033[0m"
         fi
-        $USE_SUDO apt-get purge -y apache2
+        $USE_SUDO apt-get purge -y apache2* 2>/dev/null || true
+        $USE_SUDO apt-get autoremove -y 2>/dev/null || true
     fi
-    
+
     echo "UPSC uninstallation complete."
 }
 
