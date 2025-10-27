@@ -106,11 +106,25 @@ detect_and_fix_previous_issues() {
         fi
     done
 
-    # 4. Fix npm global directory permissions
+    # 4. Fix npm global directory permissions and clean up conflicting npmrc files
     if [ -d "$COMPILE_DIR/npm-global" ]; then
         echo "Fixing npm global directory permissions..."
-        $USE_SUDO chown -R $(whoami):$(whoami) "$COMPILE_DIR/npm-global" 2>/dev/null || true
-        $USE_SUDO chmod -R 755 "$COMPILE_DIR/npm-global"
+        if [ "$(id -u)" -eq 0 ]; then
+            chown -R root:root "$COMPILE_DIR/npm-global" 2>/dev/null || true
+            chmod -R 755 "$COMPILE_DIR/npm-global"
+        else
+            $USE_SUDO chown -R $(whoami):$(whoami) "$COMPILE_DIR/npm-global" 2>/dev/null || true
+            $USE_SUDO chmod -R 755 "$COMPILE_DIR/npm-global"
+        fi
+    fi
+
+    # 5. Clean up conflicting npmrc files when running as root
+    if [ "$(id -u)" -eq 0 ]; then
+        echo "Cleaning up conflicting npmrc files..."
+        # Remove user-specific npmrc files that might conflict with root configuration
+        find /home -name ".npmrc" -type f -exec rm -f {} \; 2>/dev/null || true
+        # Clean up any project-specific npmrc that might conflict
+        find /tmp -name ".npmrc" -type f -exec rm -f {} \; 2>/dev/null || true
     fi
     
     echo "Previous issues detection and fixing completed."
@@ -121,21 +135,49 @@ detect_and_fix_previous_issues() {
 configure_npm_settings() {
     local npm_bin="$NODE_BIN_DIR/npm"
 
+    # Check if npm binary exists
+    if [ ! -f "$npm_bin" ]; then
+        echo "Warning: npm binary not found at $npm_bin, trying system npm..."
+        npm_bin=$(which npm 2>/dev/null)
+        if [ -z "$npm_bin" ]; then
+            echo "Error: npm not found in system PATH"
+            return 1
+        fi
+    fi
+
+    # Configure registry based on region
     if [ "$SELECTED_REGION" = "China" ]; then
         echo "Region is set to China, configuring npm to use China mirror..."
-        $USE_SUDO "$npm_bin" config set registry https://repo.huaweicloud.com/repository/npm/
+        if [ "$(id -u)" -eq 0 ]; then
+            "$npm_bin" config set registry https://repo.huaweicloud.com/repository/npm/
+        else
+            $USE_SUDO "$npm_bin" config set registry https://repo.huaweicloud.com/repository/npm/
+        fi
     else
         echo "Region is Global, resetting npm to default registry..."
-        $USE_SUDO "$npm_bin" config set registry https://registry.npmjs.org/
+        if [ "$(id -u)" -eq 0 ]; then
+            "$npm_bin" config set registry https://registry.npmjs.org/
+        else
+            $USE_SUDO "$npm_bin" config set registry https://registry.npmjs.org/
+        fi
     fi
 
     # Use Node.js installation directory for npm globals (standard practice)
     local npm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION"
     echo "Setting npm global directory to: $npm_global_dir"
-    "$npm_bin" config set prefix "$npm_global_dir"
+
+    # Clear any existing prefix configuration that might conflict
+    if [ "$(id -u)" -eq 0 ]; then
+        # When running as root, remove user-specific npmrc that might conflict
+        rm -f /home/*/.npmrc 2>/dev/null || true
+        rm -f /root/.npmrc 2>/dev/null || true
+        "$npm_bin" config set prefix "$npm_global_dir"
+    else
+        "$npm_bin" config set prefix "$npm_global_dir"
+    fi
 
     echo "npm configuration completed:"
-    $USE_SUDO "$npm_bin" config list
+    "$npm_bin" config list
 }
 
 check_node_installation() {

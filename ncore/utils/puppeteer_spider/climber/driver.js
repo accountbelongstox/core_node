@@ -18,6 +18,7 @@ const Handle = require('./modus/handle');
 const Download = require('./modus/download');
 const Screen = require('./modus/screen');
 const Content = require('./modus/content');
+const FileMonitor = require('./modus/file_monitor');
 const Options = require('../config/option.js');
 const { jsontool } = require('#@ncore/foundation/utilities/index.js');
 const logger = require('#@logger');
@@ -91,6 +92,9 @@ class PuppeteerDriver {
         const encapsulatedScreenFuncs = new Screen();
         await encapsulatedScreenFuncs.init(puppeteerBrowser, encapsulatedPageFuncs);  // Updated here as well
 
+        // File monitor functionality
+        const fileMonitor = new FileMonitor();
+
         const driverObject = {
             identifier,
             driverId,
@@ -100,6 +104,7 @@ class PuppeteerDriver {
             encapsulatedHandleFuncs,
             encapsulatedDownloadFuncs,
             encapsulatedScreenFuncs,
+            fileMonitor,
             extendedCloseMethod: encapsulatedPageFuncs.closeWindow,
         };
 

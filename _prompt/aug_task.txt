@@ -1,0 +1,27 @@
+21_install_cursor.sh...
+
+=== Cursor IDE Installation Script ===
+==================================================
+
+[INFO] Installation Directory: /mnt/dev_sdb3/_ubuntu_24/cursor
+/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/testselector.sh: line 77: 510615 Segmentation fault      (core dumped) "$script_path"
+
+Script execution completed with exit code: 139
+Press any key to return to test scripts menu...
+
+
+122_install_vscode.sh...
+
+=== Visual Studio Code Installation Script ===
+==================================================
+
+[INFO] Installation Directory: /mnt/dev_sdb3/_ubuntu_24/vscode
+/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/testselector.sh: line 77: 512128 Segmentation fault      (core dumped) "$script_path"
+
+Script execution completed with exit code: 139
+Press any key to return to test scripts menu...
+
+
+
+
+

@@ -235,9 +235,24 @@ function setConfig(key, value) {
 function getConfig(key) {
     try {
         const upperKey = key.toUpperCase();
+
+        // Hardcoded default values for common configurations
+        const defaultConfigs = {
+            'FILE_CACHE': path.join(os.homedir(), '.core_node', 'cache', 'files'),
+            'BEHAVIOR_CACHE': path.join(os.homedir(), '.core_node', 'cache', 'behavior'),
+            'APP_CACHE_DIR': path.join(os.homedir(), '.core_node', 'cache'),
+            'APP_TEMP_DIR': path.join(os.homedir(), '.core_node', 'temp'),
+            'APP_LOG_DIR': path.join(os.homedir(), '.core_node', 'logs')
+        };
+
         const filePath = path.join(configDir, upperKey);
 
         if (!fs.existsSync(filePath)) {
+            // Return hardcoded default if available
+            if (defaultConfigs[upperKey]) {
+                log.debug(`Config not found: ${upperKey}, using default: ${defaultConfigs[upperKey]}`);
+                return defaultConfigs[upperKey];
+            }
             log.debug(`Config not found: ${upperKey}`);
             return '';
         }

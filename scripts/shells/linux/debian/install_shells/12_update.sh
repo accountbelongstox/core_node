@@ -27,10 +27,12 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 # Source repository manager for repair functions
 source "$PARENT_DIR_LEVEL_1/debian_com/repository_manager.sh"
 
-# Check if running as root
-if [ "$(id -u)" -ne 0 ]; then
-    echo "Error: This script must be run as root!"
-    echo "Please run: $USE_SUDO bash $0"
+# Check if running as root or with sudo
+if [ "$(id -u)" -ne 0 ] && [ -z "$USE_SUDO" ]; then
+    echo "Error: This script must be run as root or with sudo!"
+    echo "Please run one of the following:"
+    echo "  sudo bash $0"
+    echo "  su - root"
     exit 1
 fi
 
