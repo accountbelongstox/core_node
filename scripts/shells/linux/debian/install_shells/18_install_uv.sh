@@ -22,7 +22,6 @@ echo "[$SCRIPT_INDEX] Features: Fast Python package management, Cross-platform c
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Source shared Python setup function

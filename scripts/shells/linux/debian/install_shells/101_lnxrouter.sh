@@ -30,7 +30,6 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Source common functions
 COMMON_DIR="$PARENT_DIR_LEVEL_2/common"
-source "${COMMON_DIR}/gvar_common.sh"
 
 # Configuration files
 CONFIG_DIR="/usr/.core_node/lnxrouter"

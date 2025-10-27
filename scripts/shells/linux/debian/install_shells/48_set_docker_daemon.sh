@@ -24,7 +24,6 @@ SHELLS_SCRIPTS_DIR="$(dirname "$PARENT_DIR_LEVEL_2")/scripts"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 INSTALL_DOCKER=$(get_var "INSTALL_DOCKER")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 

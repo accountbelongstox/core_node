@@ -33,14 +33,12 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Source PHP common variables and functions
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
-# USE_SUDO is now sourced from gvar_common.sh
 
 # Check for force refresh flag
 FORCE_REFRESH=false

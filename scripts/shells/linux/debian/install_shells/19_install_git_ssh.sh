@@ -30,7 +30,6 @@ SSH_INSTALLED_FLAG="$SCRIPT_TEMP_DIR/ssh_keys_installed_step19.flag"
 
 # Source common functions and variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Check if Node.js installation is enabled (Git SSH is often used with Node.js development)

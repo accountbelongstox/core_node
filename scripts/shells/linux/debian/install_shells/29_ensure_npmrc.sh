@@ -18,7 +18,6 @@ COMMON_DIR="${PARENT_DIR_LEVEL_2}/common"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$COMMON_DIR/common_functions.sh"
 
 # Check if Node.js installation is enabled

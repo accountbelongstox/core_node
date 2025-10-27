@@ -87,7 +87,7 @@ elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
 fi
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d ï¿?NTFS mount ï¿?Data disk mount ï¿?/www
+# Priority: WSL /mnt/d ï¿½?NTFS mount ï¿½?Data disk mount ï¿½?/www
 get_base_data_directory() {
     local base_dir=""
 
@@ -626,6 +626,9 @@ export GO_DIR
 export GO_BIN
 export GO_VERSION_AMD64_FILE
 export GO_TAR_URL
+export RUBY_INSTALL_DIR
+export RUBY_GEM_HOME
+export RUBY_GEM_BIN_DIR
 export UPS_CONF
 export UPSD_CONF
 export UPSD_USERS_CONF
@@ -1418,6 +1421,11 @@ GO_DIR="$COMPILE_DIR/go"
 GO_BIN="$GO_DIR/bin/go"
 GO_VERSION_AMD64_FILE="go1.22.5.linux-amd64"
 GO_TAR_URL="https://dl.google.com/go/$GO_VERSION_AMD64_FILE.tar.gz"
+
+# Ruby installation directories
+RUBY_INSTALL_DIR="$COMPILE_DIR/ruby"
+RUBY_GEM_HOME="$RUBY_INSTALL_DIR/gems"
+RUBY_GEM_BIN_DIR="$RUBY_GEM_HOME/bin"
 
 UPS_CONF="/etc/nut/ups.conf"
 UPSD_CONF="/etc/nut/upsd.conf"

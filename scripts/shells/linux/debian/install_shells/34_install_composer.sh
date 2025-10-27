@@ -19,7 +19,6 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Source PHP common variables and functions
@@ -29,7 +28,6 @@ source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 # Configuration - using variables from php_common_vars.sh
 PHP_BINARY="/usr/local/bin/php"
 
-# USE_SUDO is now sourced from gvar_common.sh
 # Set Composer environment based on user privileges
 if [ "$EUID" -eq 0 ]; then
     # Auto-allow Composer to run as root without interactive prompt
@@ -177,7 +175,7 @@ main() {
 
     # Install with open_basedir disabled and environment variables set
     echo -e "${CYAN}$SCRIPT_INDEX Installing Composer...${NC}"
-    if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d "open_basedir=none" composer-setup.php --install-dir=/usr/local/bin --filename=composer; then
+    if $USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d "open_basedir=none" composer-setup.php --install-dir=/usr/local/bin --filename=composer; then
             echo -e "${GREEN}$SCRIPT_INDEX Composer installed successfully${NC}"
         else
             echo -e "${RED}$SCRIPT_INDEX Composer installation failed${NC}"
