@@ -335,7 +335,23 @@ install_vscode() {
 
 # Interactive cleanup prompt using centralized logic
 prompt_cleanup_reinstall() {
-    prompt_cleanup_reinstall "VS Code" "code" "$VSCODE_INSTALLED_FLAG" "cleanup_vscode"
+    if is_vscode_installed; then
+        print_warning_from_common_functions "VS Code is already installed"
+        echo -n "Do you want to clean up and reinstall? (y/N): "
+        read -r response
+        case "$response" in
+            [yY]|[yY][eE][sS])
+                print_info_from_common_functions "Cleaning up existing installation..."
+                cleanup_vscode
+                return 0  # Proceed with installation
+                ;;
+            *)
+                print_info_from_common_functions "Keeping existing installation"
+                return 1  # Skip installation
+                ;;
+        esac
+    fi
+    return 0  # No existing installation, proceed
 }
 
 # Main script execution
