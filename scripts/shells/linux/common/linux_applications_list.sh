@@ -463,38 +463,6 @@ declare -gA AI_PACKAGES=(
 
 # MCP Services - Model Context Protocol services and tools
 declare -gA MCP_PACKAGES=(
-    # Cunzhi MCP Service
-    ["cunzhi_name"]="Cunzhi MCP Service"
-    ["cunzhi_exec"]="cunzhi"
-    ["cunzhi_package_id"]="cunzhi-mcp"
-    ["cunzhi_install_method"]="$METHOD_NPM"
-    ["cunzhi_category"]="$CATEGORY_MCP_SERVICES"
-    ["cunzhi_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["cunzhi_description"]="Cunzhi MCP service for AI model context protocol"
-    ["cunzhi_verify_command"]="--version"
-    ["cunzhi_launch_command"]="which cunzhi && $USE_SUDO cunzhi"
-
-    # Alibaba DataWorks MCP Service
-    ["alibaba_dataworks_name"]="Alibaba DataWorks MCP Service"
-    ["alibaba_dataworks_exec"]="alibaba-dataworks"
-    ["alibaba_dataworks_package_id"]="alibaba-dataworks-mcp"
-    ["alibaba_dataworks_install_method"]="$METHOD_NPM"
-    ["alibaba_dataworks_category"]="$CATEGORY_MCP_SERVICES"
-    ["alibaba_dataworks_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["alibaba_dataworks_description"]="Alibaba DataWorks MCP service for data processing"
-    ["alibaba_dataworks_verify_command"]="--version"
-    ["alibaba_dataworks_launch_command"]="which alibaba-dataworks && $USE_SUDO alibaba-dataworks"
-
-    # Feedback Enhanced MCP Service
-    ["feedback_enhanced_name"]="Feedback Enhanced MCP Service"
-    ["feedback_enhanced_exec"]="feedback-enhanced"
-    ["feedback_enhanced_package_id"]="feedback-enhanced-mcp"
-    ["feedback_enhanced_install_method"]="$METHOD_NPM"
-    ["feedback_enhanced_category"]="$CATEGORY_MCP_SERVICES"
-    ["feedback_enhanced_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["feedback_enhanced_description"]="Feedback Enhanced MCP service for user interaction"
-    ["feedback_enhanced_verify_command"]="--version"
-    ["feedback_enhanced_launch_command"]="which feedback-enhanced && $USE_SUDO feedback-enhanced"
 )
 
 # Package group lists for iteration
@@ -518,7 +486,6 @@ AI_PACKAGE_LIST=(
 )
 
 MCP_PACKAGE_LIST=(
-    "cunzhi" "alibaba_dataworks" "feedback_enhanced"
 )
 
 

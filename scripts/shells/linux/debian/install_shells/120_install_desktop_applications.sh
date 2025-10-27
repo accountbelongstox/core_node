@@ -51,6 +51,12 @@ INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "120_install_desktop_applications")
 LOG_FILE="$SCRIPT_TEMP_DIR/desktop_apps_install_$(date +%Y%m%d_%H%M%S).log"
 
+# Track installation results globally
+declare -A INSTALLATION_RESULTS  # app_name -> status (success/failed/skipped/unavailable)
+SKIPPED_APPS=()                   # Apps not installed due to missing packages
+FAILED_APPS=()                    # Apps that failed installation
+UNAVAILABLE_APPS=()               # Apps with package_id not found in registry
+
 # Determine environment type and get packages to install
 if [ "$HAS_DESKTOP_ENVIRONMENT" = true ]; then
     ENVIRONMENT_TYPE="desktop"
@@ -515,6 +521,15 @@ install_application() {
 
     local install_result=$?
 
+    # Handle return codes:
+    # 0 = success
+    # 1 = installation failed (transient error)
+    # 2 = package not found (skip permanently)
+    if [ $install_result -eq 2 ]; then
+        log_message "Skipping $display_name - package not found in registry"
+        return 0
+    fi
+
     # Create launch script if installation was successful and launch command exists
     if [ $install_result -eq 0 ] && [ -n "$launch_command" ]; then
         log_message "Creating launch script for $display_name"
@@ -561,16 +576,34 @@ install_applications_by_package_group() {
 
     local installed_count=0
     local failed_count=0
+    local skipped_count=0
 
     for app in "${apps_to_install[@]}"; do
+        local lookup_app="$app"
+        if [[ "$app" == mcp_* ]]; then
+            lookup_app="${app#mcp_}"
+        fi
+        local display_name=$(get_app_property "$lookup_app" "name")
+
         if install_application "$app" "$package_group"; then
             ((installed_count++))
+            INSTALLATION_RESULTS["$display_name"]="success"
         else
-            ((failed_count++))
+            # Check if it was skipped (package not found) or failed
+            if command -v "$lookup_app" >/dev/null 2>&1; then
+                ((failed_count++))
+                INSTALLATION_RESULTS["$display_name"]="failed"
+                FAILED_APPS+=("$display_name")
+            else
+                # If command doesn't exist and install returned false, it was likely a unavailable package
+                ((skipped_count++))
+                INSTALLATION_RESULTS["$display_name"]="skipped"
+                SKIPPED_APPS+=("$display_name")
+            fi
         fi
     done
 
-    log_message "Package group $package_group installation complete: $installed_count successful, $failed_count failed"
+    log_message "Package group $package_group installation complete: $installed_count successful, $failed_count failed, $skipped_count skipped"
 }
 
 # Function to install applications by group (legacy compatibility)
@@ -674,12 +707,30 @@ print_installation_report() {
         done
     fi
 
+    # Print failed applications (attempted but installation failed)
+    if [ ${#FAILED_APPS[@]} -gt 0 ]; then
+        log_message ""
+        log_message "Failed Installations (Error Occurred):"
+        for app in "${FAILED_APPS[@]}"; do
+            log_message "  - $app"
+        done
+    fi
+
+    # Print unavailable packages (not found in registry)
+    if [ ${#SKIPPED_APPS[@]} -gt 0 ]; then
+        log_message ""
+        log_message "Unavailable Packages (Not Found in Registry):"
+        for app in "${SKIPPED_APPS[@]}"; do
+            log_message "  - $app"
+        done
+    fi
+
     # Print DEV applications with super launch enabled
     log_message ""
     log_message "DEV Applications with Super Launch Support:"
     log_message "  Total with super: ${#super_enabled_apps[@]}"
     for app in "${super_enabled_apps[@]}"; do
-        log_message "  âœ?$app"
+        log_message "  - $app"
     done
 
     # Print actual super launch implementations

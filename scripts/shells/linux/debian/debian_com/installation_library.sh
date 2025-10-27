@@ -50,6 +50,54 @@ log_warning() {
     echo -e "${YELLOW}$SCRIPT_INDEX $message${NC}"
 }
 
+# Validate package existence before installation
+validate_package_exists() {
+    local method="$1"
+    local package_id="$2"
+    local app_name="$3"
+
+    case "$method" in
+        "npm")
+            # Check if npm package exists in registry
+            log_install "Validating NPM package: $package_id"
+            if npm info "$package_id" >/dev/null 2>&1; then
+                log_success "NPM package $package_id exists"
+                return 0
+            else
+                log_error "NPM package $package_id not found in registry"
+                return 1
+            fi
+            ;;
+        "apt")
+            # Check if apt package exists
+            log_install "Validating APT package: $package_id"
+            if apt-cache search "^$package_id\$" | grep -q "$package_id"; then
+                log_success "APT package $package_id exists"
+                return 0
+            else
+                log_error "APT package $package_id not found"
+                return 1
+            fi
+            ;;
+        "snap")
+            # Check if snap package exists
+            log_install "Validating Snap package: $package_id"
+            if snap info "$package_id" >/dev/null 2>&1; then
+                log_success "Snap package $package_id exists"
+                return 0
+            else
+                log_error "Snap package $package_id not found in snap store"
+                return 1
+            fi
+            ;;
+        *)
+            # For other methods, we can't easily validate before installation
+            log_warning "Skipping validation for method: $method"
+            return 0
+            ;;
+    esac
+}
+
 # Check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -330,9 +378,9 @@ install_via_web() {
 install_via_npm() {
     local package_id="$1"
     local app_name="$2"
-    
+
     log_install "Installing $app_name via NPM: $package_id"
-    
+
     # Check if npm is installed
     if ! command_exists npm; then
         log_install "Installing Node.js and npm first..."
@@ -344,15 +392,32 @@ install_via_npm() {
             return 1
         fi
     fi
-    
-    # Install npm package globally
-    if $USE_SUDO npm install -g "$package_id"; then
-        log_success "Successfully installed $app_name via NPM"
-        return 0
-    else
-        log_error "Failed to install $app_name via NPM"
-        return 1
+
+    # Validate package exists before attempting installation
+    if ! validate_package_exists "npm" "$package_id" "$app_name"; then
+        log_error "Skipping $app_name - package not found in NPM registry"
+        return 2
     fi
+
+    # Install npm package globally with timeout and retry logic
+    local max_retries=2
+    local retry_count=0
+
+    while [ $retry_count -lt $max_retries ]; do
+        if timeout 300 $USE_SUDO npm install -g "$package_id"; then
+            log_success "Successfully installed $app_name via NPM"
+            return 0
+        else
+            ((retry_count++))
+            if [ $retry_count -lt $max_retries ]; then
+                log_warning "NPM installation failed, retry $retry_count/$max_retries..."
+                sleep 2
+            fi
+        fi
+    done
+
+    log_error "Failed to install $app_name via NPM after $max_retries retries"
+    return 1
 }
 
 # Install via PIPX
@@ -623,5 +688,5 @@ universal_install() {
 export -f install_via_apt install_via_snap install_via_flatpak install_via_web
 export -f install_via_npm install_via_pipx install_via_uv install_via_uv_tool
 export -f install_via_uvx install_via_curl install_via_microsoft_apt universal_install
-export -f log_install log_success log_error log_warning command_exists
+export -f log_install log_success log_error log_warning command_exists validate_package_exists
 export -f is_snap_package is_command_from_snap force_cleanup_package needs_cleanup_before_install
