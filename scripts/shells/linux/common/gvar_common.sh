@@ -87,7 +87,7 @@ elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
 fi
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d ï¿½?NTFS mount ï¿½?Data disk mount ï¿½?/www
+# Priority: WSL /mnt/d ï¿?NTFS mount ï¿?Data disk mount ï¿?/www
 get_base_data_directory() {
     local base_dir=""
 
