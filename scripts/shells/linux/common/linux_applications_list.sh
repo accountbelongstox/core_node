@@ -120,6 +120,7 @@ declare -gA DEV_PACKAGES=(
     ["vscode_description"]="Popular code editor by Microsoft"
     ["vscode_verify_command"]="--version"
     ["vscode_launch_command"]="which code && $USE_SUDO code --no-sandbox --user-data-dir"
+    ["vscode_super"]="code --no-sandbox --user-data-dir"
 
     # Cursor AI Editor
     ["cursor_name"]="Cursor AI Editor"
@@ -131,6 +132,7 @@ declare -gA DEV_PACKAGES=(
     ["cursor_description"]="AI-powered code editor"
     ["cursor_verify_command"]="--version"
     ["cursor_launch_command"]="which cursor && $USE_SUDO cursor --no-sandbox"
+    ["cursor_super"]="cursor --no-sandbox"
 
     # Postman API Testing
     ["postman_name"]="Postman"
@@ -142,6 +144,7 @@ declare -gA DEV_PACKAGES=(
     ["postman_description"]="API development and testing tool"
     ["postman_verify_command"]=""
     ["postman_launch_command"]="which postman && $USE_SUDO postman"
+    ["postman_super"]="true"
     
     # Termius SSH Client
     ["termius_name"]="Termius"
@@ -153,6 +156,7 @@ declare -gA DEV_PACKAGES=(
     ["termius_description"]="SSH client and terminal"
     ["termius_verify_command"]=""
     ["termius_launch_command"]="which termius-app && $USE_SUDO termius-app"
+    ["termius_super"]="true"
 
     # Android Studio
     ["android_studio_name"]="Android Studio"
@@ -164,6 +168,7 @@ declare -gA DEV_PACKAGES=(
     ["android_studio_description"]="Android development IDE"
     ["android_studio_verify_command"]=""
     ["android_studio_launch_command"]="which android-studio && $USE_SUDO android-studio"
+    ["android_studio_super"]="true"
 
     # IntelliJ IDEA Community
     ["intellij_name"]="IntelliJ IDEA Community"
@@ -175,6 +180,7 @@ declare -gA DEV_PACKAGES=(
     ["intellij_description"]="Java IDE by JetBrains"
     ["intellij_verify_command"]=""
     ["intellij_launch_command"]="which intellij-idea-community && $USE_SUDO intellij-idea-community"
+    ["intellij_super"]="true"
     
     # PyCharm Community
     ["pycharm_name"]="PyCharm Community"
@@ -186,6 +192,7 @@ declare -gA DEV_PACKAGES=(
     ["pycharm_description"]="Python IDE by JetBrains"
     ["pycharm_verify_command"]=""
     ["pycharm_launch_command"]="which pycharm-community && $USE_SUDO pycharm-community"
+    ["pycharm_super"]="true"
 
     # CLion C++ IDE
     ["clion_name"]="CLion"
@@ -197,6 +204,7 @@ declare -gA DEV_PACKAGES=(
     ["clion_description"]="C/C++ IDE by JetBrains"
     ["clion_verify_command"]=""
     ["clion_launch_command"]="which clion && $USE_SUDO clion"
+    ["clion_super"]="true"
 
     # Sublime Text
     ["sublime_name"]="Sublime Text"
@@ -208,6 +216,7 @@ declare -gA DEV_PACKAGES=(
     ["sublime_description"]="Sophisticated text editor"
     ["sublime_verify_command"]="--version"
     ["sublime_launch_command"]="which subl && $USE_SUDO subl"
+    ["sublime_super"]="true"
     
     # Insomnia API Client
     ["insomnia_name"]="Insomnia"
@@ -219,6 +228,7 @@ declare -gA DEV_PACKAGES=(
     ["insomnia_description"]="REST API testing tool"
     ["insomnia_verify_command"]=""
     ["insomnia_launch_command"]="which insomnia && $USE_SUDO insomnia"
+    ["insomnia_super"]="true"
 
     # Beekeeper Studio Database Manager
     ["beekeeper_name"]="Beekeeper Studio"
@@ -230,6 +240,7 @@ declare -gA DEV_PACKAGES=(
     ["beekeeper_description"]="SQL editor and database manager"
     ["beekeeper_verify_command"]=""
     ["beekeeper_launch_command"]="which beekeeper-studio && $USE_SUDO beekeeper-studio"
+    ["beekeeper_super"]="true"
 
 
     # VSCode Insiders
@@ -242,6 +253,7 @@ declare -gA DEV_PACKAGES=(
     ["code_insiders_description"]="VSCode Insiders preview version"
     ["code_insiders_verify_command"]="--version"
     ["code_insiders_launch_command"]="which code-insiders && $USE_SUDO code-insiders --no-sandbox --user-data-dir"
+    ["code_insiders_super"]="code-insiders --no-sandbox --user-data-dir"
 
     # Text Editor (generic)
     ["text_editor_name"]="Text Editor"
@@ -253,6 +265,7 @@ declare -gA DEV_PACKAGES=(
     ["text_editor_description"]="Simple text editor"
     ["text_editor_verify_command"]="--version"
     ["text_editor_launch_command"]="which gedit && $USE_SUDO gedit"
+    ["text_editor_super"]="true"
 )
 
 # Application Software - End-user applications (can be skipped via variable)

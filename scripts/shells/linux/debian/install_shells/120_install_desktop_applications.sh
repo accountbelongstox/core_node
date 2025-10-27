@@ -44,42 +44,22 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/linux_applications_list.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
+source "$PARENT_DIR_LEVEL_1/debian_com/super_launch_helper.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "120_install_desktop_applications")
 LOG_FILE="$SCRIPT_TEMP_DIR/desktop_apps_install_$(date +%Y%m%d_%H%M%S).log"
 
-# Package group installation flags - set defaults based on environment
-# Base packages: always true for essential tools
-INSTALL_BASE_PACKAGES=$(get_var "INSTALL_BASE_PACKAGES" "true")
-
-# Development packages: true if desktop environment or WSL
-if [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || [ "$IS_WSL" = true ]; then
-    INSTALL_DEV_PACKAGES=$(get_var "INSTALL_DEV_PACKAGES" "true")
-else
-    INSTALL_DEV_PACKAGES=$(get_var "INSTALL_DEV_PACKAGES" "false")
-fi
-
-# Application packages: true only if desktop environment (not server)
+# Determine environment type and get packages to install
 if [ "$HAS_DESKTOP_ENVIRONMENT" = true ]; then
-    INSTALL_APP_PACKAGES=$(get_var "INSTALL_APP_PACKAGES" "true")
+    ENVIRONMENT_TYPE="desktop"
+elif [ "$IS_WSL" = true ]; then
+    ENVIRONMENT_TYPE="wsl"
+elif [ "$IS_PRODUCTION" = true ]; then
+    ENVIRONMENT_TYPE="server"
 else
-    INSTALL_APP_PACKAGES=$(get_var "INSTALL_APP_PACKAGES" "false")
-fi
-
-# AI packages: true if desktop environment or WSL
-if [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || [ "$IS_WSL" = true ]; then
-    INSTALL_AI_PACKAGES=$(get_var "INSTALL_AI_PACKAGES" "true")
-else
-    INSTALL_AI_PACKAGES=$(get_var "INSTALL_AI_PACKAGES" "false")
-fi
-
-# MCP packages: true if desktop environment or WSL
-if [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || [ "$IS_WSL" = true ]; then
-    INSTALL_MCP_PACKAGES=$(get_var "INSTALL_MCP_PACKAGES" "true")
-else
-    INSTALL_MCP_PACKAGES=$(get_var "INSTALL_MCP_PACKAGES" "false")
+    ENVIRONMENT_TYPE="desktop"
 fi
 
 # Logging function
@@ -90,14 +70,6 @@ log_message() {
 
 # Get AI tools installation flag
 INSTALL_AI_TOOLS=$(get_var "INSTALL_AI_TOOLS" "false")
-
-log_message "Starting desktop applications installation for Linux..."
-log_message "Install mode: $INSTALL_MODE"
-log_message "Environment detection:"
-log_message "  IS_WSL: $IS_WSL"
-log_message "  IS_PRODUCTION: $IS_PRODUCTION"
-log_message "  HAS_DESKTOP_ENVIRONMENT: $HAS_DESKTOP_ENVIRONMENT"
-log_message "  DESKTOP_ENVIRONMENT: $DESKTOP_ENVIRONMENT"
 
 # Function to check if command exists
 command_exists() {
@@ -468,54 +440,17 @@ verify_installation() {
     fi
 }
 
-# Function to prompt user for package group installation confirmation
-prompt_package_group_installation() {
-    local group_name="$1"
-    local group_description="$2"
-    local install_flag="$3"
-
-    log_message "=========================================="
-    log_message "Package Group Installation: $group_name"
-    log_message "=========================================="
-    log_message "Description: $group_description"
-    log_message "Install Flag: $install_flag"
-    log_message ""
-
-    if [ "$install_flag" = "false" ]; then
-        log_message "$group_name installation is disabled by configuration"
-        log_message "Skipping $group_name installation..."
-        return 1
-    fi
-
-    log_message "Do you want to proceed with $group_name installation? (Y/n)"
-    log_message "You have 60 seconds to decide (default: Yes)..."
-
-    local response=""
-    if read -t 60 -r response; then
-        if [[ "$response" =~ ^[Nn]$ ]]; then
-            log_message "$group_name installation cancelled by user"
-            return 1
-        else
-            log_message "Proceeding with $group_name installation..."
-            return 0
-        fi
-    else
-        echo ""
-        log_message "Timeout reached, defaulting to: Yes"
-        log_message "Proceeding with $group_name installation..."
-        return 0
-    fi
-}
-
 # Function to install single application
 install_application() {
     local app_name="$1"
+    local package_group="$2"
     local display_name=""
     local exec_name=""
     local install_method=""
     local package_id=""
     local verify_command=""
     local launch_command=""
+    local super_command=""
 
     # Handle MCP apps (remove mcp_ prefix for property lookup)
     local lookup_app="$app_name"
@@ -530,7 +465,8 @@ install_application() {
     package_id=$(get_package_id "$lookup_app")
     verify_command=$(get_app_property "$lookup_app" "verify_command")
     launch_command=$(get_launch_command "$lookup_app")
-    
+    super_command=$(get_app_property "$lookup_app" "super")
+
     # Skip if no package ID or install method
     if [ -z "$package_id" ] || [ -z "$install_method" ]; then
         log_message "Skipping $app_name - no package ID or install method"
@@ -542,15 +478,41 @@ install_application() {
     log_message "  Package ID: $package_id"
     log_message "  Executable: $exec_name"
 
+    # Determine if super launch should be used
+    local should_use_super=false
+    if [ "$package_group" = "DEV" ]; then
+        # DEV_PACKAGES with _super="true" use auto-generated command
+        if [ "$super_command" = "true" ]; then
+            # Auto-generate: sudo $exec_name
+            super_command="sudo $exec_name"
+            should_use_super=true
+        elif [ -n "$super_command" ] && [ "$super_command" != "" ]; then
+            # If super_command has a specific value, use it
+            should_use_super=true
+        fi
+    else
+        # Other groups only use super if explicitly set (non-empty, non-null)
+        if [ -n "$super_command" ] && [ "$super_command" != "" ] && [ "$super_command" != "null" ]; then
+            should_use_super=true
+        fi
+    fi
+
     # Check if already installed
     if verify_installation "$exec_name" "$display_name" "$verify_command"; then
         log_message "$display_name is already installed, skipping"
+
+        # Setup super launch if applicable
+        if [ "$should_use_super" = true ]; then
+            log_message "Setting up super launch for $exec_name"
+            setup_super_launch "$exec_name" "$super_command" "log_message"
+        fi
+
         return 0
     fi
 
     # Use universal install function from installation library
     universal_install "$install_method" "$package_id" "$display_name" "$exec_name"
-    
+
     local install_result=$?
 
     # Create launch script if installation was successful and launch command exists
@@ -558,7 +520,13 @@ install_application() {
         log_message "Creating launch script for $display_name"
         create_launch_script "$lookup_app"
     fi
-    
+
+    # Setup super launch if applicable
+    if [ $install_result -eq 0 ] && [ "$should_use_super" = true ]; then
+        log_message "Setting up super launch for $exec_name"
+        setup_super_launch "$exec_name" "$super_command" "log_message"
+    fi
+
     # Verify installation
     if [ $install_result -eq 0 ]; then
         if verify_installation "$exec_name" "$display_name" "$verify_command"; then
@@ -595,7 +563,7 @@ install_applications_by_package_group() {
     local failed_count=0
 
     for app in "${apps_to_install[@]}"; do
-        if install_application "$app"; then
+        if install_application "$app" "$package_group"; then
             ((installed_count++))
         else
             ((failed_count++))
@@ -648,6 +616,108 @@ install_all_applications() {
 
 
 
+
+# Function to print installation statistics and super launch report
+print_installation_report() {
+    local total_apps=0
+    local installed_apps=0
+    local skipped_apps=()
+    local super_enabled_apps=()
+
+    log_message ""
+    log_message "=========================================="
+    log_message "INSTALLATION SUMMARY REPORT"
+    log_message "=========================================="
+
+    # Iterate through all package groups to collect statistics
+    for group in "BASE" "DEV" "APP" "AI" "MCP"; do
+        local apps_in_group
+        mapfile -t apps_in_group < <(get_apps_by_package_group "$group")
+
+        for app in "${apps_in_group[@]}"; do
+            local lookup_app="$app"
+            if [[ "$app" == mcp_* ]]; then
+                lookup_app="${app#mcp_}"
+            fi
+
+            local exec_name=$(get_app_property "$lookup_app" "exec")
+            local app_name=$(get_app_property "$lookup_app" "name")
+            local super_cmd=$(get_app_property "$lookup_app" "super")
+
+            ((total_apps++))
+
+            # Check if app is installed
+            if command -v "$exec_name" >/dev/null 2>&1; then
+                ((installed_apps++))
+            else
+                skipped_apps+=("$app_name ($exec_name)")
+            fi
+
+            # Check if super is enabled for DEV group
+            if [ "$group" = "DEV" ] && [ -n "$super_cmd" ] && [ "$super_cmd" != "" ]; then
+                super_enabled_apps+=("$app_name ($exec_name)")
+            fi
+        done
+    done
+
+    # Print statistics
+    log_message "Total Applications: $total_apps"
+    log_message "Installed: $installed_apps"
+    log_message "Skipped/Not Installed: $((total_apps - installed_apps))"
+
+    # Print skipped applications
+    if [ ${#skipped_apps[@]} -gt 0 ]; then
+        log_message ""
+        log_message "Skipped Applications (Not Installed):"
+        for app in "${skipped_apps[@]}"; do
+            log_message "  - $app"
+        done
+    fi
+
+    # Print DEV applications with super launch enabled
+    log_message ""
+    log_message "DEV Applications with Super Launch Support:"
+    log_message "  Total with super: ${#super_enabled_apps[@]}"
+    for app in "${super_enabled_apps[@]}"; do
+        log_message "  âœ?$app"
+    done
+
+    # Print actual super launch implementations
+    log_message ""
+    log_message "Actual Super Launch Implementations:"
+
+    if [ -d "/usr/local/super_bin" ]; then
+        local super_bin_files=($(ls -1 /usr/local/super_bin 2>/dev/null || echo ""))
+        if [ ${#super_bin_files[@]} -gt 0 ]; then
+            log_message "  Files in /usr/local/super_bin (${#super_bin_files[@]}):"
+            for file in "${super_bin_files[@]}"; do
+                log_message "    - $file"
+            done
+        else
+            log_message "  /usr/local/super_bin is empty"
+        fi
+    else
+        log_message "  /usr/local/super_bin does not exist"
+    fi
+
+    log_message ""
+    if [ -d "/usr/local/super_scripts" ]; then
+        local super_script_files=($(ls -1 /usr/local/super_scripts 2>/dev/null || echo ""))
+        if [ ${#super_script_files[@]} -gt 0 ]; then
+            log_message "  Scripts in /usr/local/super_scripts (${#super_script_files[@]}):"
+            for file in "${super_script_files[@]}"; do
+                log_message "    - $file"
+            done
+        else
+            log_message "  /usr/local/super_scripts is empty"
+        fi
+    else
+        log_message "  /usr/local/super_scripts does not exist"
+    fi
+
+    log_message ""
+    log_message "=========================================="
+}
 
 # Function to test specific package group
 test_package_group() {
@@ -770,8 +840,22 @@ test_applications_by_name() {
     local installed_count=0
     local failed_count=0
 
+    # Need to track which app belongs to which group for proper super launch handling
     for app in "${found_apps[@]}"; do
-        if install_application "$app"; then
+        local app_group=""
+        # Find which group this app belongs to
+        for group in "${search_groups[@]}"; do
+            local group_apps
+            mapfile -t group_apps < <(get_apps_by_package_group "$group")
+            for g_app in "${group_apps[@]}"; do
+                if [ "$g_app" = "$app" ]; then
+                    app_group="$group"
+                    break 2
+                fi
+            done
+        done
+
+        if install_application "$app" "$app_group"; then
             ((installed_count++))
         else
             ((failed_count++))
@@ -904,48 +988,75 @@ main() {
 
     # Check if we're in test mode (any parameters provided)
     if [ -n "$param1" ]; then
-        # Show parameter rules and wait for confirmation
-        if ! show_parameter_rules_and_confirm "$param1" "$param2"; then
-            log_message "Installation cancelled by user"
-            return 1
-        fi
-
-        log_message "Test Mode Parameters: '$param1' '$param2'"
-        log_message "Ignoring installation flag files"
+        # Test mode: use parameters to control flow
+        log_message "Test Mode: Using parameters to control installation"
+        log_message "Parameter: $param1 $param2"
         log_message "=========================================="
 
-        # Handle two parameters: group + app name
-        if [ -n "$param2" ]; then
-            log_message "Two parameter mode: Group='$param1', App='$param2'"
-            if test_applications_by_name "$param2" "$param1"; then
-                return 0
-            fi
-            log_message "No matches found for app '$param2' in group '$param1'"
-            return 1
+        # Determine which package group to install based on param1
+        local target_group=""
+        local param_upper=$(echo "$param1" | tr '[:lower:]' '[:upper:]')
+
+        case "$param_upper" in
+            *BASE*)
+                target_group="BASE"
+                ;;
+            *DEV*)
+                target_group="DEV"
+                ;;
+            *APP*)
+                target_group="APP"
+                ;;
+            *AI*)
+                target_group="AI"
+                ;;
+            *MCP*)
+                target_group="MCP"
+                ;;
+            *)
+                log_message "Error: Unknown package group parameter: $param1"
+                log_message "Valid parameters: BASE, DEV, APP, AI, MCP"
+                return 1
+                ;;
+        esac
+
+        log_message "Matched package group: $target_group"
+        log_message "=========================================="
+
+        # Ensure system is up to date
+        log_message "Updating package lists with timeout..."
+        if timeout 300 $USE_SUDO apt update; then
+            log_message "Package lists updated successfully"
+        else
+            log_message "Warning: Package update timed out or failed, continuing anyway"
         fi
 
-        # Handle single parameter: determine if it's group or app based on case
-        if [[ "$param1" =~ ^[A-Z]+$ ]]; then
-            # All uppercase - treat as package group
-            log_message "Single parameter (UPPERCASE): treating '$param1' as package group"
-            if test_package_group "$param1"; then
-                return 0
-            fi
-            log_message "No package group found matching: $param1"
-            return 1
+        # Install essential packages first
+        log_message "Installing essential system packages with timeout..."
+        if timeout 600 $USE_SUDO apt install -y curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
+            log_message "Essential packages installed successfully"
         else
-            # Contains lowercase - treat as application name
-            log_message "Single parameter (contains lowercase): treating '$param1' as application name"
-            if test_applications_by_name "$param1"; then
-                return 0
-            fi
-            log_message "No applications found matching: $param1"
-            return 1
+            log_message "Warning: Some essential packages failed to install, continuing anyway"
         fi
+
+        log_message ""
+        log_message "Installing $target_group package group..."
+        log_message "=========================================="
+        install_applications_by_package_group "$target_group"
+
+        log_message ""
+        log_message "=========================================="
+        log_message "$target_group Package Group Installation Complete"
+        log_message "Log file: $LOG_FILE"
+        log_message "=========================================="
+
+        # Print detailed installation report
+        print_installation_report
+        return 0
     fi
 
     log_message "=========================================="
-    
+
     # Ensure system is up to date
     log_message "Updating package lists with timeout..."
     if timeout 300 $USE_SUDO apt update; then
@@ -953,7 +1064,7 @@ main() {
     else
         log_message "Warning: Package update timed out or failed, continuing anyway"
     fi
-    
+
     # Install essential packages first
     log_message "Installing essential system packages with timeout..."
     if timeout 600 $USE_SUDO apt install -y curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
@@ -961,45 +1072,63 @@ main() {
     else
         log_message "Warning: Some essential packages failed to install, continuing anyway"
     fi
-    
-    # Install package groups based on configuration flags
-    log_message "Package group installation flags:"
-    log_message "  BASE_PACKAGES: $INSTALL_BASE_PACKAGES"
-    log_message "  DEV_PACKAGES: $INSTALL_DEV_PACKAGES"
-    log_message "  APP_PACKAGES: $INSTALL_APP_PACKAGES"
-    log_message "  AI_PACKAGES: $INSTALL_AI_PACKAGES"
-    log_message "  MCP_PACKAGES: $INSTALL_MCP_PACKAGES"
+
+    # Determine which package groups to install based on environment type
+    log_message "=========================================="
+    log_message "Environment Detection Results:"
+    log_message "  Environment Type: $ENVIRONMENT_TYPE"
+    log_message "  IS_WSL: $IS_WSL"
+    log_message "  IS_PRODUCTION: $IS_PRODUCTION"
+    log_message "  HAS_DESKTOP_ENVIRONMENT: $HAS_DESKTOP_ENVIRONMENT"
+    log_message "=========================================="
     log_message ""
 
-    # Install Base Packages
-    if prompt_package_group_installation "BASE_PACKAGES" "Essential base applications" "$INSTALL_BASE_PACKAGES"; then
-        install_applications_by_package_group "BASE"
-    fi
+    # Determine which package groups to install
+    local packages_to_install=()
+    case "$ENVIRONMENT_TYPE" in
+        desktop)
+            log_message "Detected: Desktop Environment"
+            log_message "Will install: BASE, DEV, APP, AI, and MCP packages"
+            packages_to_install=("BASE" "DEV" "APP" "AI" "MCP")
+            ;;
+        wsl)
+            log_message "Detected: WSL Environment"
+            log_message "Will install: BASE, DEV, AI, and MCP packages (skipping APP)"
+            packages_to_install=("BASE" "DEV" "AI" "MCP")
+            ;;
+        server)
+            log_message "Detected: Server Environment"
+            log_message "Will install: BASE packages only"
+            packages_to_install=("BASE")
+            ;;
+    esac
 
-    # Install Development Packages
-    if prompt_package_group_installation "DEV_PACKAGES" "Development tools and IDEs" "$INSTALL_DEV_PACKAGES"; then
-        install_applications_by_package_group "DEV"
-    fi
+    log_message ""
+    log_message "Installation Plan:"
+    printf '  - %s\n' "${packages_to_install[@]}"
+    log_message ""
+    log_message "Press Enter to continue with installation..."
+    read -r
+    log_message "Starting package installation..."
+    log_message "=========================================="
+    log_message ""
 
-    # Install Application Packages
-    if prompt_package_group_installation "APP_PACKAGES" "Desktop applications and productivity tools" "$INSTALL_APP_PACKAGES"; then
-        install_applications_by_package_group "APP"
-    fi
+    # Install each package group
+    for package_group in "${packages_to_install[@]}"; do
+        log_message ""
+        log_message "=========================================="
+        log_message "Installing $package_group packages..."
+        log_message "=========================================="
+        install_applications_by_package_group "$package_group"
+    done
 
-    # Install AI Packages
-    if prompt_package_group_installation "AI_PACKAGES" "AI development tools and assistants" "$INSTALL_AI_PACKAGES"; then
-        install_applications_by_package_group "AI"
-    fi
-
-    # Install MCP Packages
-    if prompt_package_group_installation "MCP_PACKAGES" "MCP service packages" "$INSTALL_MCP_PACKAGES"; then
-        install_applications_by_package_group "MCP"
-    fi
-    
     log_message "=========================================="
     log_message "Desktop Applications Installation Complete"
     log_message "Log file: $LOG_FILE"
     log_message "=========================================="
+
+    # Print detailed installation report
+    print_installation_report
 }
 
 # Check if running as root (not recommended for desktop applications)
