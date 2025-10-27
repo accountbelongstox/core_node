@@ -23,10 +23,10 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 INSTALL_NODE=$(get_var "INSTALL_NODE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
-# NODE_VERSION, NODE_SHORT_VERSION, NODE_INSTALL_DIR are already defined in gvar_common.sh
+# NODE_VERSION, NODE_SHORT_VERSION, NODE_INSTALL_DIR, NODE_DOWNLOAD_URL are already defined in gvar_common.sh
 # Use official Node.js download URL only
 NODE_DOWNLOAD_URLS=(
-    "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-x64.tar.xz"
+    "$NODE_DOWNLOAD_URL"
 )
 # Use global temporary directory structure
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "14_install_node_22")
@@ -92,7 +92,6 @@ detect_and_fix_previous_issues() {
         "/usr/local/node"
         "/opt/node"
         "/var/node"
-        "$(map_web_path "www" "node")"
     )
 
     for wrong_location in "${wrong_locations[@]}"; do
