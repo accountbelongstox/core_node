@@ -19,25 +19,8 @@
 # =============================================================================
 
 #region Import Dependencies
-# Import color message module (if exists)
-if (Test-Path "$PSScriptRoot\..\win_common\ColorMessage.ps1") {
-    . "$PSScriptRoot\..\win_common\ColorMessage.ps1"
-} else {
-    # Define basic color message functions as fallback
-    function Write-ColorMessage {
-        param(
-            [string]$Message,
-            [string]$Type = "Info"
-        )
-        switch ($Type) {
-            "Success" { Write-Host $Message -ForegroundColor Green }
-            "Error" { Write-Host $Message -ForegroundColor Red }
-            "Warning" { Write-Host $Message -ForegroundColor Yellow }
-            "Info" { Write-Host $Message -ForegroundColor Cyan }
-            default { Write-Host $Message }
-        }
-    }
-}
+# Import common functions module
+. (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\CommonFunc.ps1")
 #endregion
 
 #region Core Command Content Generation Functions

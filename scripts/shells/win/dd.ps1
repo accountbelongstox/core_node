@@ -45,73 +45,41 @@ catch{
 }
 # PowerShell Script for Core Node Management
 
+# =============================================================================
+# FILE IMPORTS AND VARIABLE DECLARATIONS
+# =============================================================================
+
+# Import GlobalVars.ps1 first to get all global variables
+$globalVarsPath = Join-Path $PSScriptRoot "win_common\GlobalVars.ps1"
+. $globalVarsPath
+
+# Import CommonFunc.ps1 to get common functions
+$commonFuncPath = Join-Path $PSScriptRoot "win_common\CommonFunc.ps1"
+. $commonFuncPath
+
+# Import InitializationManager.ps1
+$initializationManagerPath = Join-Path $PSScriptRoot "menu_itemshells\InitializationManager.ps1"
+. $initializationManagerPath
+
+# Import ScriptProcessor.ps1 for file scanning functions
+$scriptProcessorPath = Join-Path $PSScriptRoot "tools\ScriptProcessor.ps1"
+. $scriptProcessorPath
+
 #region Variable Declarations 
 # =============================================================================
-# CORE SYSTEM VARIABLES
+# SCRIPT-SPECIFIC VARIABLES (not defined in GlobalVars.ps1)
 # =============================================================================
-$script:SYSTEM_VERSION = ""
-$script:SYSTEM_NAME = ""
 $script:PS_CURENT_DIR = $PSScriptRoot
-# =============================================================================
-# DIRECTORY STRUCTURE VARIABLES
-# =============================================================================
-# Derive core_node root by walking up from this script's directory (scripts/shells/win)
-# This script is located at: scripts/shells/win/dd.ps1
-# So we need to go up 3 levels to reach the root directory
-try {
-    $candidateCore = (Get-Item $script:PS_CURENT_DIR).Parent.Parent.Parent.FullName
-    if ($candidateCore -and (Test-Path (Join-Path $candidateCore 'scripts'))) {
-        $script:CORE_NODE_DIR = $candidateCore
-    } else {
-        # Fallback: try to find the root by looking for package.json or main.js
-        $currentDir = $script:PS_CURENT_DIR
-        while ($currentDir -and $currentDir -ne (Split-Path $currentDir -Parent)) {
-            if ((Test-Path (Join-Path $currentDir 'package.json')) -or (Test-Path (Join-Path $currentDir 'main.js'))) {
-                $script:CORE_NODE_DIR = $currentDir
-                break
-            }
-            $currentDir = Split-Path $currentDir -Parent
-        }
-        if (-not $script:CORE_NODE_DIR) {
-            throw "Cannot determine core node root directory"
-        }
-    }
-} catch {
-    Write-Error "Failed to determine core node root directory: $($_.Exception.Message)"
-    exit 1
-}
-
-# Core directory structure
 $script:SHELLS_DIR = (Get-Item $script:PS_CURENT_DIR).Parent.FullName
-$script:SCRIPT_DIR = Join-Path $script:CORE_NODE_DIR "scripts"
 $script:MAIN_POWERSHELLS_DIR = Join-Path $script:SHELLS_DIR "win\main_powershells"
 $script:COMMON_SHELLS_DIR = Join-Path $script:SHELLS_DIR "common"
 $script:COMMON_SCRIPTS_DIR = Join-Path $script:SHELLS_DIR "scripts"
-
-# =============================================================================
-# USER PROFILE AND CACHE VARIABLES
-# =============================================================================
-$script:userProfile = [Environment]::GetFolderPath("UserProfile")
-$script:GLOBAL_VAR_DIR = Join-Path $script:userProfile ".core_node\.global_vars"
-$script:CACHE_DIR = Join-Path $script:userProfile ".core_node\cache"
-$script:INSTALLER_SCRIPTS_DIR = Join-Path $script:userProfile ".core_node\installer_scripts"
-$script:userCacheDir = Join-Path $script:userProfile ".core_node\.cache"
-$script:wslInstalledFlag = Join-Path $script:userCacheDir "WSL_Installed_flag"
 
 # =============================================================================
 # SCRIPT EXECUTION VARIABLES
 # =============================================================================
 $script:script_symlink_path = "$env:ProgramFiles\dd.ps1"
 $script:script_path = $MyInvocation.MyCommand.Path
-$script:target_dirs = @("apps", "ncore", "scripts")
-
-# =============================================================================
-# COLOR CONSTANTS
-# =============================================================================
-$script:COLOR_SUCCESS = "Green"
-$script:COLOR_WARNING = "Yellow"
-$script:COLOR_ERROR = "Red"
-$script:COLOR_INFO = "White"
 
 # =============================================================================
 # PATH MANAGEMENT VARIABLES
@@ -123,9 +91,9 @@ $script:WINDOWS_PATH_FUNCTION_LOADED = $false
 # =============================================================================
 # CACHE AND SYSTEM CHECK VARIABLES
 # =============================================================================
-$script:SYSTEM_CHECK_CACHE_FILE = Join-Path $script:CACHE_DIR "system_check.json"
+$script:SYSTEM_CHECK_CACHE_FILE = Join-Path $Global:USER_CACHE_DIR "system_check.json"
 $script:SYSTEM_CHECK_CACHE_DURATION = 3 # hours
-$script:SOFTWARE_CHECK_CACHE_FILE = Join-Path $script:CACHE_DIR "software_check.json"
+$script:SOFTWARE_CHECK_CACHE_FILE = Join-Path $Global:USER_CACHE_DIR "software_check.json"
 $script:SOFTWARE_CHECK_CACHE_DURATION = 3 # hours
 $script:SYSTEM_CHECK_RESULTS = $null
 $script:SOFTWARE_STATUS_RESULTS = $null
@@ -135,7 +103,6 @@ $script:LAST_CHECK_TIME = $null
 # URL AND REPOSITORY VARIABLES
 # =============================================================================
 # These variables will be initialized after functions are defined
-$script:GITEE_BASE_URL = "https://gitee.com/accountbelongstox/core_node/raw/main"  # Keep for compatibility
 $script:SCRIPT_REPO_PATH = "scripts/shells/win"
 $script:INSTALLER_SCRIPT_NAME = "DevInstaller.ps1"
 $script:TEST_INSTALLER_SCRIPT_NAME = "TestInstaller.ps1"
@@ -147,8 +114,6 @@ $script:LOCAL_INSTALLER_SCRIPT = ""
 $script:LOCAL_TEST_INSTALLER_SCRIPT = ""
 $script:DOWNLOADED_INSTALLER_SCRIPT = ""
 $script:DOWNLOADED_TEST_INSTALLER_SCRIPT = ""
-$script:GITHUB_REPO_URL = "https://github.com/accountbelongstox/core_node.git"
-$script:GITEE_REPO_URL = "https://gitee.com/accountbelongstox/core_node.git"
 
 # =============================================================================
 # MENU CONFIGURATION VARIABLES
@@ -159,142 +124,9 @@ $script:GITEE_REPO_URL = "https://gitee.com/accountbelongstox/core_node.git"
 # =============================================================================
 # INITIALIZATION CHECK
 # =============================================================================
-# Check if initialization is required and call InitializationManager.ps1
-$initializationManagerPath = Join-Path $script:PS_CURENT_DIR "menu_itemshells\InitializationManager.ps1"
-if (Test-Path $initializationManagerPath) {
-    . $initializationManagerPath
-}
+# InitializationManager.ps1 is already imported above and will handle initialization
 
-if ($script:ENV_DETECTION_AVAILABLE) {
-    try {
-        # Use EnvironmentDetection.ps1 to add directories to PATH
-        Write-Host -ForegroundColor Cyan "[*] Adding CORE_NODE_DIR to PATH using EnvironmentDetection.ps1: $script:CORE_NODE_DIR"
-        & $envDetectionPath "add" $script:CORE_NODE_DIR
-        
-        Write-Host -ForegroundColor Cyan "[*] Adding SCRIPT_DIR to PATH using EnvironmentDetection.ps1: $script:SCRIPT_DIR"
-        & $envDetectionPath "add" $script:SCRIPT_DIR
-        
-        # Refresh environment variables
-        Write-Host -ForegroundColor Cyan "[*] Refreshing environment variables"
-        & $envDetectionPath "refresh"
-        
-        $script:PATH_MANAGEMENT_METHOD = "EnvironmentDetection"
-        Write-Host -ForegroundColor Green "[OK] Successfully managed PATH using EnvironmentDetection.ps1"
-    }
-    catch {
-        Write-Host -ForegroundColor Yellow "[!] Failed to use EnvironmentDetection.ps1: $_"
-    }
-}
-
-# Fallback to WindowsPathFunction.ps1
-if (-not $script:ENV_DETECTION_AVAILABLE) {
-    $script:WINDOWS_PATH_FUNCTION_LOADED = $false
-    $windowsPathFunctionPath = Join-Path $script:PS_CURENT_DIR "win_common\WindowsPathFunction.ps1"
-    if (Test-Path $windowsPathFunctionPath -PathType Leaf) {
-        try {
-            # Test if the script can be executed by checking its parameters
-            $testResult = & $windowsPathFunctionPath "show" 2>$null
-            if ($LASTEXITCODE -eq 0 -or $testResult) {
-                $script:WINDOWS_PATH_FUNCTION_LOADED = $true
-                Write-Host -ForegroundColor Green "[OK] WindowsPathFunction.ps1 is available: $windowsPathFunctionPath"
-                
-                # Add CORE_NODE_DIR and SCRIPT_DIR to PATH using WindowsPathFunction.ps1
-                Write-Host -ForegroundColor Cyan "[*] Adding CORE_NODE_DIR to PATH: $script:CORE_NODE_DIR"
-                & $windowsPathFunctionPath "add" $script:CORE_NODE_DIR
-                
-                Write-Host -ForegroundColor Cyan "[*] Adding SCRIPT_DIR to PATH: $script:SCRIPT_DIR"
-                & $windowsPathFunctionPath "add" $script:SCRIPT_DIR
-                
-                $script:PATH_MANAGEMENT_METHOD = "WindowsPathFunction"
-                Write-Host -ForegroundColor Green "[OK] Successfully added directories to PATH using WindowsPathFunction.ps1"
-            } else {
-                Write-Host -ForegroundColor Yellow "[!] WindowsPathFunction.ps1 exists but may have issues: $windowsPathFunctionPath"
-                $script:WINDOWS_PATH_FUNCTION_LOADED = $false
-            }
-        }
-        catch {
-            Write-Host -ForegroundColor Yellow "[!] Failed to test WindowsPathFunction.ps1: $_"
-            $script:WINDOWS_PATH_FUNCTION_LOADED = $false
-        }
-    } else {
-        Write-Host -ForegroundColor Yellow "[!] WindowsPathFunction.ps1 not found: $windowsPathFunctionPath"
-    }
-}
-
-# Final fallback to PowerShell system settings if no PATH management tool is available
-if ($script:PATH_MANAGEMENT_METHOD -eq "none") {
-    Write-Host -ForegroundColor Yellow "[!] Using PowerShell system settings to add directories to PATH"
-    
-    # Check if directories are already in PATH before adding
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    $paths = $currentPath -split ';'
-    
-    # Check and add CORE_NODE_DIR
-    if (-not ($paths -contains $script:CORE_NODE_DIR)) {
-        Write-Host -ForegroundColor Cyan "[*] Adding CORE_NODE_DIR to system PATH: $script:CORE_NODE_DIR"
-        $newPath = $currentPath + ";" + $script:CORE_NODE_DIR
-        [Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
-        Write-Host -ForegroundColor Green "[OK] Added CORE_NODE_DIR to system PATH"
-    } else {
-        Write-Host -ForegroundColor Yellow "[!] CORE_NODE_DIR already exists in PATH: $script:CORE_NODE_DIR"
-    }
-    
-    # Check and add SCRIPT_DIR
-    if (-not ($paths -contains $script:SCRIPT_DIR)) {
-        Write-Host -ForegroundColor Cyan "[*] Adding SCRIPT_DIR to system PATH: $script:SCRIPT_DIR"
-        $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-        $newPath = $currentPath + ";" + $script:SCRIPT_DIR
-        [Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
-        Write-Host -ForegroundColor Green "[OK] Added SCRIPT_DIR to system PATH"
-    } else {
-        Write-Host -ForegroundColor Yellow "[!] SCRIPT_DIR already exists in PATH: $script:SCRIPT_DIR"
-    }
-    
-    $script:PATH_MANAGEMENT_METHOD = "PowerShell"
-}
-
-Write-Host -ForegroundColor Green "[OK] PATH management completed using: $($script:PATH_MANAGEMENT_METHOD)"
-
-# Global variable management functions - needed early for URL switching
-function Get-GlobalVar {
-    param (
-        [string]$Key
-    )
-    $filePath = Join-Path $script:GLOBAL_VAR_DIR $Key
-    if (Test-Path $filePath) {
-        # Read file with UTF-8 encoding without BOM
-        $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
-        # Remove any null bytes and return
-        return $content -replace "`0", ""
-    }
-    return $null
-}
-
-function Set-GlobalVar {
-    param (
-        [string]$Key,
-        [string]$Value
-    )
-    if (-not (Test-Path $script:GLOBAL_VAR_DIR)) {
-        New-Item -ItemType Directory -Path $script:GLOBAL_VAR_DIR -Force | Out-Null
-    }
-    # Create UTF-8 encoding without BOM
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    # Remove any null bytes from the value
-    $cleanValue = $Value -replace "`0", ""
-    # Write content with UTF-8 encoding without BOM
-    [System.IO.File]::WriteAllText((Join-Path $script:GLOBAL_VAR_DIR $Key), $cleanValue, $utf8NoBom)
-}
-
-# Function to get appropriate download base URL based on region
-function Get-RegionDownloadBaseURL {
-    $selectedRegion = Get-GlobalVar -Key "SELECTED_REGION"
-    if ($selectedRegion -eq "Global") {
-        return "https://raw.githubusercontent.com/accountbelongstox/core_node/main"
-    } else {
-        return "https://gitee.com/accountbelongstox/core_node/raw/main"
-    }
-}
+# Common functions are now imported from CommonFunc.ps1 and GlobalVars.ps1
 
 # =============================================================================
 # INITIALIZE DEPENDENT VARIABLES
@@ -305,9 +137,8 @@ $script:INSTALLER_SCRIPT_URL = "$($script:CURRENT_DOWNLOAD_BASE_URL)/$($script:S
 $script:TEST_INSTALLER_SCRIPT_URL = "$($script:CURRENT_DOWNLOAD_BASE_URL)/$($script:SCRIPT_REPO_PATH)/$($script:TEST_INSTALLER_SCRIPT_NAME)"
 $script:LOCAL_INSTALLER_SCRIPT = Join-Path $script:SHELLS_DIR "win\menu_itemshells\$($script:INSTALLER_SCRIPT_NAME)"
 $script:LOCAL_TEST_INSTALLER_SCRIPT = Join-Path $script:SHELLS_DIR "win\menu_itemshells\$($script:TEST_INSTALLER_SCRIPT_NAME)"
-$script:DOWNLOADED_INSTALLER_SCRIPT = Join-Path $script:INSTALLER_SCRIPTS_DIR $script:INSTALLER_SCRIPT_NAME
-$script:DOWNLOADED_TEST_INSTALLER_SCRIPT = Join-Path $script:INSTALLER_SCRIPTS_DIR $script:TEST_INSTALLER_SCRIPT_NAME
-
+$script:DOWNLOADED_INSTALLER_SCRIPT = Join-Path $Global:USER_CACHE_DIR $script:INSTALLER_SCRIPT_NAME
+$script:DOWNLOADED_TEST_INSTALLER_SCRIPT = Join-Path $Global:USER_CACHE_DIR $script:TEST_INSTALLER_SCRIPT_NAME
 
 # Menu configuration
 $script:MenuItems = @(
@@ -318,25 +149,6 @@ $script:MenuItems = @(
         Key               = $null
         Action            = { 
             Show-InstallerSubMenu
-        }
-    },
-    @{
-        Text              = "Select Region"
-        Values            = @("China", "Global")
-        CurrentValueIndex = 0
-        Key               = "SELECTED_REGION"
-        Action            = { 
-            $selectedValue = $script:MenuItems[1].Values[$script:MenuItems[1].CurrentValueIndex]
-            Set-GlobalVar -Key "SELECTED_REGION" -Value $selectedValue
-            Write-ColorMessage -Message "Region set to: $selectedValue" -Type "Success"
-            
-            $installConfirm = Read-Host "Do you want to proceed with installation? (y/n)"
-            if ($installConfirm -eq "y") {
-                $script:MenuItems[0].Action.Invoke()
-            }
-            else {
-                Write-ColorMessage -Message "Installation cancelled. Returning to menu." -Type "Info"
-            }
         }
     },
 
@@ -357,35 +169,29 @@ $script:MenuItems = @(
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $unifiedManagerScript = Join-Path $script:SCRIPT_DIR "unified_manager\unified_manager.ps1"
-            if (Test-Path $unifiedManagerScript) {
-                $shellCandidates = @('pwsh', 'powershell')
-                $shellExecutable = $null
+            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "unified_manager\unified_manager.ps1"
+            $shellCandidates = @('pwsh', 'powershell')
+            $shellExecutable = $null
 
-                foreach ($candidateShell in $shellCandidates) {
-                    if (Get-Command $candidateShell -ErrorAction SilentlyContinue) {
-                        $shellExecutable = $candidateShell
-                        break
-                    }
+            foreach ($candidateShell in $shellCandidates) {
+                if (Get-Command $candidateShell -ErrorAction SilentlyContinue) {
+                    $shellExecutable = $candidateShell
+                    break
                 }
+            }
 
-                if ($null -eq $shellExecutable) {
-                    Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager.ps1" -Type "Error"
-                    Write-ColorMessage -Message "Please ensure PowerShell (pwsh or powershell) is installed and available in PATH" -Type "Info"
-                    Read-Host "Press Enter to continue"
-                    return
-                }
-
-                try {
-                    & $shellExecutable -NoLogo -NoProfile -ExecutionPolicy Bypass -File $unifiedManagerScript
-                } finally {
-                    # Return to dd.ps1 with SkipInitialization to avoid redundant processing
-                    & $PSCommandPath -SkipInitialization
-                }
-            } else {
-                Write-ColorMessage -Message "Error: unified_manager.ps1 script not found at: $unifiedManagerScript" -Type "Error"
-                Write-ColorMessage -Message "Please check if the unified manager is properly installed" -Type "Info"
+            if ($null -eq $shellExecutable) {
+                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager.ps1" -Type "Error"
+                Write-ColorMessage -Message "Please ensure PowerShell (pwsh or powershell) is installed and available in PATH" -Type "Info"
                 Read-Host "Press Enter to continue"
+                return
+            }
+
+            try {
+                & $shellExecutable -NoLogo -NoProfile -ExecutionPolicy Bypass -File $unifiedManagerScript
+            } finally {
+                # Return to dd.ps1 with SkipInitialization to avoid redundant processing
+                & $PSCommandPath -SkipInitialization
             }
         }
     },
@@ -435,14 +241,8 @@ $script:MenuItems = @(
         Key               = $null
         Action            = {
             $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
-            if (Test-Path $backupMenuScript) {
-                Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
-            } else {
-                Write-ColorMessage -Message "Error: BackupManager.ps1 script not found at: $backupMenuScript" -Type "Error"
-                Write-ColorMessage -Message "Please check if the backup manager is properly installed" -Type "Info"
-                Read-Host "Press Enter to continue"
-            }
+            Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
         }
     },
     @{
@@ -459,46 +259,6 @@ $script:MenuItems = @(
 #endregion
 
 #region Functions
-function Write-ColorMessage {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$Message,
-        
-        [Parameter(Mandatory = $false)]
-        [ValidateSet("Success", "Warning", "Error", "Info")]
-        [string]$Type = "Info"
-    )
-    
-    if ($Type -eq "Success") {
-        $color = $script:COLOR_SUCCESS
-    } elseif ($Type -eq "Warning") {
-        $color = $script:COLOR_WARNING
-    } elseif ($Type -eq "Error") {
-        $color = $script:COLOR_ERROR
-    } elseif ($Type -eq "Info") {
-        $color = $script:COLOR_INFO
-    } else {
-        $color = $script:COLOR_INFO
-    }
-    
-    if (-not $color) {
-        $color = "White"
-    }
-    
-    if ($Type -eq "Success") {
-        $prefix = "[OK] "
-    } elseif ($Type -eq "Warning") {
-        $prefix = "[!] "
-    } elseif ($Type -eq "Error") {
-        $prefix = "[X] "
-    } elseif ($Type -eq "Info") {
-        $prefix = "[*] "
-    } else {
-        $prefix = "[*] "
-    }
-    
-    Write-Host -ForegroundColor $color "$prefix$Message"
-}
 
 function Test-ConsoleCapabilities {
     $capabilities = @{
@@ -681,69 +441,19 @@ function Invoke-InteractiveMenu {
 
 function Initialize-Environment {
     Write-ColorMessage -Message "CORE_NODE_DIR: $CORE_NODE_DIR" -Type "Info"
-    Write-ColorMessage -Message "SCRIPT_DIR:         $SCRIPT_DIR" -Type "Info"
-    Write-ColorMessage -Message "SHELLS_DIR:         $SHELLS_DIR" -Type "Info"
-    Write-ColorMessage -Message "PROJECT_DIR:        $PROJECT_DIR" -Type "Info"
+    Write-ColorMessage -Message "PS_CURRENT_DIR: $($script:PS_CURENT_DIR)" -Type "Info"
+    Write-ColorMessage -Message "SHELLS_DIR: $($script:SHELLS_DIR)" -Type "Info"
+    Write-ColorMessage -Message "PROJECT_DIR: $PROJECT_DIR" -Type "Info"
     Write-ColorMessage -Message "PROJECT_SCRIPTS_DIR: $PROJECT_SCRIPTS_DIR" -Type "Info"
     Write-ColorMessage -Message "PROJECT_WIN_SCRIPTS_DIR: $PROJECT_WIN_SCRIPTS_DIR" -Type "Info"
     
     # Ensure cache directory exists
-    if (-not (Test-Path $script:CACHE_DIR)) {
-        New-Item -ItemType Directory -Path $script:CACHE_DIR -Force | Out-Null
-    }
-    
-    # Ensure installer scripts directory exists
-    if (-not (Test-Path $script:INSTALLER_SCRIPTS_DIR)) {
-        New-Item -ItemType Directory -Path $script:INSTALLER_SCRIPTS_DIR -Force | Out-Null
+    if (-not (Test-Path $Global:USER_CACHE_DIR)) {
+        New-Item -ItemType Directory -Path $Global:USER_CACHE_DIR -Force | Out-Null
     }
 }
 
-function Process-PsFiles {
-    param (
-        [string]$dir
-    )
 
-    try{
-        Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-    }
-    catch{
-        Write-ColorMessage -Message "Error setting execution policy: $_" -Type "Warning"
-    }
-
-    Get-ChildItem -Path $dir -Recurse -Filter "*.ps1" | Where-Object {
-        return -not (Test-ShouldSkipFile -FilePath $_.FullName)
-    } | ForEach-Object {
-        $file = $_.FullName
-        try{
-            Unblock-File -Path $file
-        }
-        catch{
-            Write-ColorMessage -Message "Error unblocking file: $_" -Type "Warning"
-        }   
-    }
-}
-
-function Ensure-LineEndings {
-    foreach ($dir in $script:target_dirs) {
-        $fullPath = Join-Path $script:CORE_NODE_DIR $dir
-        if (Test-Path $fullPath) {
-            try{
-                Get-ChildItem -Path $fullPath -Recurse -Include "*.ps1", "*.sh" -ErrorAction SilentlyContinue | Where-Object {
-                    return -not (Test-ShouldSkipFile -FilePath $_.FullName)
-                } | ForEach-Object {
-                    $content = Get-Content $_.FullName -Raw
-                    $content -replace "`r`n", "`n" | Set-Content $_.FullName -NoNewline
-                }
-            }
-            catch{
-                Write-ColorMessage -Message "Error ensuring line endings: $_" -Type "Error"
-            }
-        }
-        else {
-            Write-ColorMessage -Message "Directory '$fullPath' not found. Skipping." -Type "Warning"
-        }
-    }
-}
 
 function Check-AdminPrivileges {
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -753,81 +463,22 @@ function Check-AdminPrivileges {
     }
 }
 
-function Process-Directories {
-    foreach ($dir in $script:target_dirs) {
-        $fullPath = Join-Path $script:CORE_NODE_DIR $dir
-        if (Test-Path $fullPath -PathType Container) {
-            Process-PsFiles $fullPath
-        }
-        else {
-            Write-ColorMessage -Message "Directory '$fullPath' not found. Skipping." -Type "Warning"
-        }
-    }
-    Write-ColorMessage -Message "All .ps1 files processed!" -Type "Success"
-}
 
 function Initialize-GlobalVarDir {
-    if (-not (Test-Path $script:GLOBAL_VAR_DIR)) {
-        New-Item -ItemType Directory -Path $script:GLOBAL_VAR_DIR -Force | Out-Null
-        Write-ColorMessage -Message "Created global variable directory: $($script:GLOBAL_VAR_DIR)" -Type "Success"
+    if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
+        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
+        Write-ColorMessage -Message "Created global variable directory: $($Global:GLOBAL_VAR_DIR)" -Type "Success"
     }
 }
 
-function Ensure-GlobalVarsEncoding {
-    if (Test-Path $script:GLOBAL_VAR_DIR) {
-        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-        Get-ChildItem -Path $script:GLOBAL_VAR_DIR -File | ForEach-Object {
-            # Read content with current encoding
-            $content = Get-Content -Path $_.FullName -Raw
-            if ($content) {
-                # Remove any null bytes and write back with UTF-8 encoding
-                $cleanContent = $content -replace "`0", ""
-                [System.IO.File]::WriteAllText($_.FullName, $cleanContent, $utf8NoBom)
-            }
-        }
-    }
-}
 
-function Get-SkipDirectories {
-    # Define directories to skip when processing PowerShell scripts
-    return @("node_modules", ".git", ".vscode", "bin", "obj", "packages", "dist", "build", ".nuxt", ".next", "__pycache__", ".pytest_cache", "coverage", ".nyc_output", "tmp", "temp")
-}
-
-function Test-ShouldSkipFile {
-    param(
-        [string]$FilePath
-    )
-    
-    $skipDirs = Get-SkipDirectories
-    foreach ($skipDir in $skipDirs) {
-        if ($FilePath -like "*\$skipDir\*") {
-            return $true
-        }
-    }
-    return $false
-}
 
 function Store-GlobalPaths {
     # Store script directory path using UTF-8
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText("$($script:GLOBAL_VAR_DIR)\SCRIPT_ROOT_DIR", $script:CORE_NODE_DIR, $utf8NoBom)
+    [System.IO.File]::WriteAllText("$($Global:GLOBAL_VAR_DIR)\SCRIPT_ROOT_DIR", $Global:CORE_NODE_DIR, $utf8NoBom)
 }
 
-function Make-PsExecutable {
-    Get-ChildItem -Path $script:CORE_NODE_DIR -Filter "*.ps1" | ForEach-Object {
-        Unblock-File -Path $_.FullName
-    }
-    if (Test-Path $script:SCRIPT_DIR -PathType Container) {
-        Get-ChildItem -Path $script:SCRIPT_DIR -Recurse -Filter "*.ps1" | Where-Object {
-            return -not (Test-ShouldSkipFile -FilePath $_.FullName)
-        } | ForEach-Object {
-            Unblock-File -Path $_.FullName
-        }
-    }
-    else {
-        Write-ColorMessage -Message "Directory $($script:SCRIPT_DIR) does not exist." -Type "Warning"
-    }
-}
 
 function Create-Symlink {
     if (Test-Path $script:script_symlink_path) {
@@ -884,25 +535,20 @@ function Get-LatestGitVersion {
     }
     
     Write-ColorMessage -Message "Starting SAFE git pull operation..." -Type "Info"
-    $UnifiedGitScript = Join-Path $script:SCRIPT_DIR "git\gitput_unified.ps1"
+    $UnifiedGitScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\gitput_unified.ps1"
     
-    if (Test-Path $UnifiedGitScript) {
-        Write-ColorMessage -Message "Using unified git script for safe pull: $UnifiedGitScript" -Type "Info"
-        Write-ColorMessage -Message "Script will automatically select the appropriate remote source" -Type "Info"
-        
-        # Execute safe pull using unified script with auto remote detection
-        Set-Location $CORE_NODE_DIR
-        & powershell -ExecutionPolicy Bypass -File $UnifiedGitScript -Pull
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorMessage -Message "Safe git pull operation completed successfully!" -Type "Success"
-            Make-PsExecutable
-        } else {
-            Write-ColorMessage -Message "Safe git pull operation failed. Please check the output above for resolution options." -Type "Error"
-        }
+    Write-ColorMessage -Message "Using unified git script for safe pull: $UnifiedGitScript" -Type "Info"
+    Write-ColorMessage -Message "Script will automatically select the appropriate remote source" -Type "Info"
+    
+    # Execute safe pull using unified script with auto remote detection
+    Set-Location $CORE_NODE_DIR
+    & powershell -ExecutionPolicy Bypass -File $UnifiedGitScript -Pull
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-ColorMessage -Message "Safe git pull operation completed successfully!" -Type "Success"
+        Make-PsExecutable
     } else {
-        Write-ColorMessage -Message "Error: Unified git script not found: $UnifiedGitScript" -Type "Error"
-        Write-ColorMessage -Message "Please ensure the git scripts are properly installed in: $UnifiedGitScript" -Type "Info"
+        Write-ColorMessage -Message "Safe git pull operation failed. Please check the output above for resolution options." -Type "Error"
     }
 }
 
@@ -920,20 +566,23 @@ function Show-DynamicTestInstaller {
     }
     
     # Scan for PowerShell scripts in the directory and sort by step number
-    $availableScripts = Get-ChildItem -Path $installPowershellsDir -Filter "*.ps1" -File | 
-        Where-Object { $_.Name -match "^Step\d+_" } | 
-        ForEach-Object {
-            # Extract step number for sorting
-            if ($_.Name -match "^Step(\d+)_") {
-                [PSCustomObject]@{
-                    Name = $_.Name
-                    StepNumber = [int]$matches[1]
-                    FullPath = $_.FullName
+    # Force the result to always be an array to safely use .Count and indexing
+    $availableScripts = @(
+        Get-ChildItem -Path $installPowershellsDir -Filter "*.ps1" -File |
+            Where-Object { $_.Name -match "^Step\d+_" } |
+            ForEach-Object {
+                # Extract step number for sorting
+                if ($_.Name -match "^Step(\d+)_") {
+                    [PSCustomObject]@{
+                        Name = $_.Name
+                        StepNumber = [int]$matches[1]
+                        FullPath = $_.FullName
+                    }
                 }
-            }
-        } |
-        Sort-Object StepNumber |
-        Select-Object -ExpandProperty Name
+            } |
+            Sort-Object StepNumber |
+            Select-Object -ExpandProperty Name
+    )
     
     if ($availableScripts.Count -eq 0) {
         Write-ColorMessage -Message "No Step scripts found in: $installPowershellsDir" -Type "Warning"
@@ -1058,6 +707,25 @@ function Show-InstallerSubMenu {
                 Show-DynamicTestInstaller
             }
         },
+        @{
+            Text              = "Select Region"
+            Values            = @("China", "Global")
+            CurrentValueIndex = 0
+            Key               = "SELECTED_REGION"
+            Action            = { 
+                $selectedValue = $subItems[2].Values[$subItems[2].CurrentValueIndex]
+                Set-GlobalVar -Key "SELECTED_REGION" -Value $selectedValue
+                Write-ColorMessage -Message "Region set to: $selectedValue" -Type "Success"
+                
+                $installConfirm = Read-Host "Do you want to proceed with installation? (y/n)"
+                if ($installConfirm -eq "y") {
+                    $subItems[0].Action.Invoke()
+                }
+                else {
+                    Write-ColorMessage -Message "Installation cancelled. Returning to menu." -Type "Info"
+                }
+            }
+        },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
         @{ Text = "Quit"; Values = @("default"); Key = $null; Action = { exit } }
     )
@@ -1149,19 +817,14 @@ function Push-Git {
         Set-Location $CORE_NODE_DIR
 
         # Use the unified git script which handles encryption automatically
-        $UnifiedGitScript = Join-Path $script:SCRIPT_DIR "git\gitput_unified.ps1"
-        if (Test-Path $UnifiedGitScript) {
-            Write-ColorMessage -Message "Running unified git push script..." -Type "Info"
-            & powershell -ExecutionPolicy Bypass -File $UnifiedGitScript
+        $UnifiedGitScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\gitput_unified.ps1"
+        Write-ColorMessage -Message "Running unified git push script..." -Type "Info"
+        & powershell -ExecutionPolicy Bypass -File $UnifiedGitScript
 
-            if ($LASTEXITCODE -eq 0) {
-                Write-ColorMessage -Message "Git push operations completed successfully" -Type "Success"
-            } else {
-                Write-ColorMessage -Message "Git push operations failed" -Type "Error"
-            }
+        if ($LASTEXITCODE -eq 0) {
+            Write-ColorMessage -Message "Git push operations completed successfully" -Type "Success"
         } else {
-            Write-ColorMessage -Message "Error: Unified git script not found: $UnifiedGitScript" -Type "Error"
-            Write-ColorMessage -Message "Please ensure the git scripts are properly installed" -Type "Info"
+            Write-ColorMessage -Message "Git push operations failed" -Type "Error"
         }
 
     } finally {
@@ -1264,16 +927,16 @@ function Run-ByStart {
 }
 
 function Get-GlobalVariables {
-    if (-not (Test-Path $script:GLOBAL_VAR_DIR)) {
-        New-Item -ItemType Directory -Path $script:GLOBAL_VAR_DIR -Force | Out-Null
-        Write-ColorMessage -Message "Created global variable directory: $($script:GLOBAL_VAR_DIR)" -Type "Success"
+    if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
+        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
+        Write-ColorMessage -Message "Created global variable directory: $($Global:GLOBAL_VAR_DIR)" -Type "Success"
         return
     }
 
-    $files = Get-ChildItem -Path $script:GLOBAL_VAR_DIR -File
+    $files = Get-ChildItem -Path $Global:GLOBAL_VAR_DIR -File
 
     if ($files.Count -eq 0) {
-        Write-ColorMessage -Message "No global variables found in $($script:GLOBAL_VAR_DIR)" -Type "Warning"
+        Write-ColorMessage -Message "No global variables found in $($Global:GLOBAL_VAR_DIR)" -Type "Warning"
         return
     }
 
@@ -1413,29 +1076,15 @@ function Start-MainLoop {
 
 function Show-WSLUbuntuSubMenu {
     $wslMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\WSLUbuntuManager.ps1"
-
-    if (Test-Path $wslMenuScript) {
-        Write-ColorMessage -Message "Launching WSL Ubuntu Management..." -Type "Info"
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $wslMenuScript
-    } else {
-        Write-ColorMessage -Message "Error: WSLUbuntuManager.ps1 script not found at: $wslMenuScript" -Type "Error"
-        Write-ColorMessage -Message "Please check if the WSL Ubuntu manager is properly installed" -Type "Info"
-        Read-Host "Press Enter to continue"
-    }
+    Write-ColorMessage -Message "Launching WSL Ubuntu Management..." -Type "Info"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $wslMenuScript
 }
 
 function Show-SpecialSoftwareEnvMenu {
     $specialEnvManagerScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\SpecialSoftwareEnvManager.ps1"
-
-    if (Test-Path $specialEnvManagerScript) {
-        Write-ColorMessage -Message "Launching Special Software Environment Variables Manager..." -Type "Info"
-        # Use dot-sourcing to execute in the same process
-        . $specialEnvManagerScript
-    } else {
-        Write-ColorMessage -Message "Error: SpecialSoftwareEnvManager.ps1 script not found at: $specialEnvManagerScript" -Type "Error"
-        Write-ColorMessage -Message "Please check if the special software environment manager is properly installed" -Type "Info"
-        Read-Host "Press Enter to continue"
-    }
+    Write-ColorMessage -Message "Launching Special Software Environment Variables Manager..." -Type "Info"
+    # Use dot-sourcing to execute in the same process
+    . $specialEnvManagerScript
 }
 
 
@@ -1445,16 +1094,7 @@ Check-AdminPrivileges
 
 # Load common functions
 $commonFuncPath = Join-Path $script:PS_CURENT_DIR "win_common\CommonFunc.ps1"
-if (Test-Path $commonFuncPath) {
-    try {
-        . $commonFuncPath
-        Write-ColorMessage -Message "Loaded common functions from: $commonFuncPath" -Type "Success"
-    } catch {
-        Write-ColorMessage -Message "Failed to load common functions: $_" -Type "Warning"
-    }
-} else {
-    Write-ColorMessage -Message "Common functions file not found: $commonFuncPath" -Type "Warning"
-}
+. $commonFuncPath
 
 # Skip initialization operations if SkipInitialization parameter is provided
 # This is used when returning from other scripts to avoid redundant processing

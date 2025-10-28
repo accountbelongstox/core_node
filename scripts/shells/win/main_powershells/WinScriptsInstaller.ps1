@@ -27,9 +27,11 @@ $FILES = @(
     'scripts/shells/win/win_common/StartupManager.ps1',
     'scripts/shells/win/install_powershells/InstallerScriptsList.ps1',
     'scripts/shells/win/menu_itemshells/DevInstaller.ps1',
+    'scripts/shells/win/menu_itemshells/InitializationManager.ps1',
     'scripts/shells/win/menu_itemshells/ScriptScanner.ps1',
     'scripts/shells/win/menu_itemshells/TestInstaller.ps1',
-    'scripts/shells/win/menu_itemshells/WSLUbuntuManager.ps1'
+    'scripts/shells/win/menu_itemshells/WSLUbuntuManager.ps1',
+    'scripts/shells/win/tools/ScriptProcessor.ps1'
 )
 
 ## Dynamic configuration based on region to reduce complexity

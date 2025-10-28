@@ -1641,6 +1641,22 @@ function Test-DirectoryExistsAndNotEmpty {
     return ($items.Count -gt 0)
 }
 
+# Function to ensure global variables are properly encoded
+function Ensure-GlobalVarsEncoding {
+    if (Test-Path $Global:GLOBAL_VAR_DIR) {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        Get-ChildItem -Path $Global:GLOBAL_VAR_DIR -File | ForEach-Object {
+            # Read content with current encoding
+            $content = Get-Content -Path $_.FullName -Raw
+            if ($content) {
+                # Remove any null bytes and write back with UTF-8 encoding
+                $cleanContent = $content -replace "`0", ""
+                [System.IO.File]::WriteAllText($_.FullName, $cleanContent, $utf8NoBom)
+            }
+        }
+    }
+}
+
 # Function to read a global variable value
 function Get-GlobalVar {
     param (
@@ -1654,7 +1670,10 @@ function Get-GlobalVar {
     
     $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
     if (Test-Path $filePath) {
-        return Get-Content $filePath -Raw
+        # Read file with UTF-8 encoding without BOM
+        $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
+        # Remove any null bytes and return
+        return $content -replace "`0", ""
     }
     return $null
 }
@@ -1672,7 +1691,12 @@ function Set-GlobalVar {
     }
     
     $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
-    Set-Content -Path $filePath -Value $value -Force
+    # Create UTF-8 encoding without BOM
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    # Remove any null bytes from the value
+    $cleanValue = $value -replace "`0", ""
+    # Write content with UTF-8 encoding without BOM
+    [System.IO.File]::WriteAllText($filePath, $cleanValue, $utf8NoBom)
 }
 
 # Function to list all global variables
