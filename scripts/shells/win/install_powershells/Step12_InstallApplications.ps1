@@ -616,7 +616,8 @@ function Install-BasePackage {
             $executable = Invoke-WingetCommand -IncludeSystemPaths $INCLUDE_SYSTEM_PATHS -Id $PACKAGE_ID -InstallDir $InstallDir -OnlyCheckFlag $false -Keyword $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -ForceToInstallDir $FORCE_TO_INSTALL_DIR -RegistrySearchKeyword $REGISTRY_SEARCH_KEYWORD
         }
         "powershell" {
-            $executable = Invoke-PowerShellCommand -PackageName $PackageName -Keyword $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -ForceInstall $false
+            $PowerShellCommand = if ($PackageMeta.ContainsKey("PowerShellCommand")) { $PackageMeta.PowerShellCommand } else { "" }
+            $executable = Invoke-PowerShellCommand -PackageName $PackageName -Keyword $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -ForceInstall $false -PowerShellCommand $PowerShellCommand
             $installed = $null -ne $executable
         }
         { $_ -in @("npm", "pip", "pipx", "uv", "uvx", "poetry", "choco", "scoop", "cargo", "go", "gem", "brew") } {

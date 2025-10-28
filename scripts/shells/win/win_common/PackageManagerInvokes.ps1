@@ -321,9 +321,16 @@ function Invoke-PipCommand {
     
     # Get Python Scripts directory
     try {
-        $pythonScriptsDir = & $pipExe show pip | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
-        $pythonScriptsDir = Join-Path $pythonScriptsDir "Scripts"
-        Write-DebugLog -Message "Python Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
+        $pipShowOutput = & $pipExe show pip
+        $locationLine = $pipShowOutput | Select-String "Location:"
+        if ($locationLine) {
+            # Extract path after "Location: " (note the space after colon)
+            $pythonScriptsDir = $locationLine.ToString() -replace "^Location:\s*", ""
+            $pythonScriptsDir = Join-Path $pythonScriptsDir "Scripts"
+            Write-DebugLog -Message "Python Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
+        } else {
+            throw "Location not found in pip show output"
+        }
     }
     catch {
         Write-DebugLog -Message "Failed to get Python Scripts directory: $($_.Exception.Message)" -Category "PIP" -Color "Red"
@@ -337,8 +344,10 @@ function Invoke-PipCommand {
         Write-DebugLog -Message "Added Python Scripts path: $pythonScriptsDir" -Category "PIP" -Color "Magenta"
         
         # Add user-specific pip paths if available
-        $userPipDir = & $pipExe show pip --user 2>$null | Select-String "Location:" | ForEach-Object { $_.ToString().Split(":")[1].Trim() }
-        if ($userPipDir) {
+        $userPipShowOutput = & $pipExe show pip --user 2>$null
+        $userLocationLine = $userPipShowOutput | Select-String "Location:"
+        if ($userLocationLine) {
+            $userPipDir = $userLocationLine.ToString() -replace "^Location:\s*", ""
             $userScriptsDir = Join-Path $userPipDir "Scripts"
             $searchPaths += $userScriptsDir
             Write-DebugLog -Message "Added user pip Scripts path: $userScriptsDir" -Category "PIP" -Color "Magenta"
@@ -2600,6 +2609,192 @@ function Invoke-WebDownloadCommand {
     catch {
         $errorMsg = $_.Exception.Message
         Write-Host "       [WEB] Error downloading $PackageName - $errorMsg" -ForegroundColor Red
+        return $null
+    }
+}
+
+<#
+.SYNOPSIS
+    Installs PowerShell modules using Install-Module cmdlet
+
+.DESCRIPTION
+    This function handles PowerShell module installation using the built-in Install-Module cmdlet.
+    It supports checking for existing installations and force installation.
+
+.PARAMETER PackageName
+    Name of the PowerShell module to install
+
+.PARAMETER InstallDir
+    Ignored for PowerShell modules (API consistency)
+
+.PARAMETER Keyword
+    Keyword for executable search (usually the module name)
+
+.PARAMETER AdditionalKeywords
+    Additional keywords for search
+
+.PARAMETER OnlyCheckFlag
+    If true, only checks if module is installed without installing
+
+.PARAMETER ForceInstall
+    If true, forces installation even if module appears to be installed
+
+.RETURNS
+    Returns the module name if successfully installed/verified, or $null if not found/installed
+
+.EXAMPLE
+    $moduleName = Invoke-PowerShellCommand -PackageName "PSScriptAnalyzer" -Keyword "Invoke-ScriptAnalyzer"
+
+.NOTES
+    - Uses Install-Module cmdlet for installation
+    - Supports both user and system-wide installation
+    - Returns module name for environment variable configuration
+    - Recommended for PowerShell modules and cmdlets
+#>
+function Invoke-PowerShellCommand {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [string]$InstallDir = "", # Ignored for PowerShell modules (API consistency)
+        [string]$Keyword = "",
+        [array]$AdditionalKeywords = @(),
+        [bool]$OnlyCheckFlag = $false,
+        [bool]$ForceInstall = $true,
+        [string]$PowerShellCommand = ""
+    )
+    
+    $Recurse = $false
+    $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1", ".psm1", ".psd1")
+    
+    Write-DebugLog -Message "Processing PowerShell package: $PackageName" -Category "POWERSHELL" -Color "Cyan"
+    
+    # Build search paths for PowerShell packages
+    $searchPaths = @()
+    try {
+        # System PATH directories
+        $systemPaths = @(
+            ${env:LOCALAPPDATA},
+            ${env:APPDATA},
+            "C:\Program Files",
+            "C:\Program Files (x86)",
+            $env:USERPROFILE
+        )
+        $searchPaths += $systemPaths
+        
+        # PowerShell module paths
+        $psModulePaths = $env:PSModulePath -split ';'
+        foreach ($path in $psModulePaths) {
+            if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path $path)) {
+                $searchPaths += $path
+                Write-DebugLog -Message "Added PowerShell module path: $path" -Category "POWERSHELL" -Color "Magenta"
+            }
+        }
+        
+        # Add user-specific module path
+        $userModulePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
+        if (Test-Path $userModulePath) {
+            $searchPaths += $userModulePath
+            Write-DebugLog -Message "Added user PowerShell module path: $userModulePath" -Category "POWERSHELL" -Color "Magenta"
+        }
+    }
+    catch {
+        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "POWERSHELL" -Color "Red"
+        throw
+    }
+    
+    # Build search keywords
+    $searchKeywords = @($Keyword)
+    if ($AdditionalKeywords) {
+        $searchKeywords += $AdditionalKeywords
+    }
+    if (-not $searchKeywords -or $searchKeywords -eq "") {
+        $searchKeywords = @($PackageName)
+    }
+    
+    # Check if already installed - search for executable files
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+    
+    if ($executable -and -not $ForceInstall) {
+        Write-DebugLog -Message "PowerShell package already installed: $executable" -Category "POWERSHELL" -Color "Green"
+        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "POWERSHELL" -Color "Cyan"
+        return $executable
+    }
+    
+    if ($OnlyCheckFlag) {
+        return $executable
+    }
+    
+    # Install the package
+    Write-DebugLog -Message "Installing PowerShell package: $PackageName" -Category "POWERSHELL" -Color "Yellow"
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($PowerShellCommand)) {
+            # Execute PowerShell script command
+            Write-Host "       [POWERSHELL] Executing PowerShell command: $PowerShellCommand" -ForegroundColor Cyan
+            Invoke-Expression $PowerShellCommand
+            
+            if ($LASTEXITCODE -eq 0 -or $?) {
+                Write-DebugLog -Message "PowerShell command execution successful" -Category "POWERSHELL" -Color "Green"
+            } else {
+                Write-DebugLog -Message "PowerShell command execution failed with exit code: $LASTEXITCODE" -Category "POWERSHELL" -Color "Red"
+                return $null
+            }
+        } else {
+            # Fallback to Install-Module for PowerShell modules
+            Write-Host "       [POWERSHELL] No PowerShellCommand specified, attempting module installation" -ForegroundColor Yellow
+            
+            # Try to install with -Force if ForceInstall is true
+            if ($ForceInstall) {
+                Install-Module -Name $PackageName -Force -AllowClobber -Scope CurrentUser -ErrorAction Stop
+            } else {
+                Install-Module -Name $PackageName -AllowClobber -Scope CurrentUser -ErrorAction Stop
+            }
+            
+            Write-DebugLog -Message "Module installation successful" -Category "POWERSHELL" -Color "Green"
+        }
+        
+        # Refresh search paths after installation
+        Write-DebugLog -Message "Refreshing search paths..." -Category "POWERSHELL" -Color "Magenta"
+        $searchPaths = @()
+        try {
+            $systemPaths = @(
+                ${env:LOCALAPPDATA},
+                ${env:APPDATA},
+                "C:\Program Files",
+                "C:\Program Files (x86)",
+                $env:USERPROFILE
+            )
+            $searchPaths += $systemPaths
+            
+            $psModulePaths = $env:PSModulePath -split ';'
+            foreach ($path in $psModulePaths) {
+                if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path $path)) {
+                    $searchPaths += $path
+                }
+            }
+            $userModulePath = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell\Modules"
+            if (Test-Path $userModulePath) {
+                $searchPaths += $userModulePath
+            }
+        }
+        catch {
+            Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "POWERSHELL" -Color "Red"
+            throw
+        }
+        
+        # Search for installed executable
+        $installedExecutable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $true -Recursive $Recurse
+        
+        if ($installedExecutable) {
+            Write-DebugLog -Message "PowerShell package installation verified: $installedExecutable" -Category "POWERSHELL" -Color "Green"
+            return $installedExecutable
+        } else {
+            Write-DebugLog -Message "PowerShell package installation verification failed" -Category "POWERSHELL" -Color "Yellow"
+            return $null
+        }
+    }
+    catch {
+        $errorMsg = $_.Exception.Message
+        Write-DebugLog -Message "Error installing PowerShell package $PackageName - $errorMsg" -Category "POWERSHELL" -Color "Red"
         return $null
     }
 }
