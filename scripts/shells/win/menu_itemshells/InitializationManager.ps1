@@ -27,8 +27,27 @@ if (Test-Path $installerScriptsListPath) {
 }
 
 # =============================================================================
-# INITIALIZATION DETECTION AND AUTO-SETUP
+# MODE DETECTION AND INITIALIZATION
 # =============================================================================
+function Get-ExecutionMode {
+    # Detect if running in project mode or installation mode
+    $currentDir = (Get-Location).Path
+    $userProfileDir = [Environment]::GetFolderPath("UserProfile")
+    
+    # Check if running from project directory (contains core_node_a)
+    if ($currentDir -like "*core_node_a*") {
+        return "PROJECT"
+    }
+    # Check if running from user profile directory (installation mode)
+    elseif ($currentDir -like "$userProfileDir*") {
+        return "INSTALLATION"
+    }
+    # Default to project mode for other cases
+    else {
+        return "PROJECT"
+    }
+}
+
 function Test-InitializationRequired {
     # Check if script is running from user profile directory (not initialized)
     $currentDir = Get-Location
@@ -245,6 +264,9 @@ function Add-ProjectDirToPath {
 }
 
 # Main execution
+# Detect and store execution mode
+$Global:EXECUTION_MODE = Get-ExecutionMode
+
 if (Test-InitializationRequired) {
     $initChoice = Show-InitializationMenu
     switch ($initChoice) {
@@ -268,4 +290,5 @@ if (Test-InitializationRequired) {
 } else {
     # Not in user directory - add PROJECT_DIR to PATH
     Add-ProjectDirToPath
+    # Mode is already set above, no need to set again
 }
