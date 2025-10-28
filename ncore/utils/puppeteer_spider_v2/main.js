@@ -38,6 +38,32 @@ const DownloadPlugin = require('./src/plugins/core/DownloadPlugin');
 const ContentPlugin = require('./src/plugins/core/ContentPlugin');
 const AutomationPlugin = require('./src/plugins/core/AutomationPlugin');
 
+// Extension plugins
+const ScreenshotPlugin = require('./src/plugins/extensions/ScreenshotPlugin');
+const FormPlugin = require('./src/plugins/extensions/FormPlugin');
+
+// Browser implementations
+const ChromeFinder = require('./src/implementations/browsers/ChromeFinder');
+const ChromeInstaller = require('./src/implementations/browsers/ChromeInstaller');
+const EdgeFinder = require('./src/implementations/browsers/EdgeFinder');
+const EdgeInstaller = require('./src/implementations/browsers/EdgeInstaller');
+
+// Utils
+const { Logger, Validator, RetryHandler, PerformanceMonitor } = require('./src/utils/Logger');
+const CacheManager = require('./src/utils/CacheManager');
+
+// New categorized utils
+const BaseUtils = require('./src/utils/base/BaseUtils');
+const PageOperationUtils = require('./src/utils/operations/PageOperationUtils');
+const ElementFinderUtils = require('./src/utils/finder/ElementFinderUtils');
+const NavigationUtils = require('./src/utils/navigation/NavigationUtils');
+const DataExtractionUtils = require('./src/utils/extraction/DataExtractionUtils');
+const BrowserControlUtils = require('./src/utils/control/BrowserControlUtils');
+const EventUtils = require('./src/utils/events/EventUtils');
+
+// Compatibility
+const { LegacyAdapter, MigrationTool } = require('./src/compat/LegacyAdapter');
+
 // Create default engine instance
 let defaultEngine = null;
 
@@ -110,6 +136,36 @@ module.exports = {
     DownloadPlugin,
     ContentPlugin,
     AutomationPlugin,
+    
+    // Extension plugins
+    ScreenshotPlugin,
+    FormPlugin,
+    
+    // Browser implementations
+    ChromeFinder,
+    ChromeInstaller,
+    EdgeFinder,
+    EdgeInstaller,
+    
+    // Utils
+    Logger,
+    Validator,
+    RetryHandler,
+    PerformanceMonitor,
+    CacheManager,
+    
+    // New categorized utils
+    BaseUtils,
+    PageOperationUtils,
+    ElementFinderUtils,
+    NavigationUtils,
+    DataExtractionUtils,
+    BrowserControlUtils,
+    EventUtils,
+    
+    // Compatibility
+    LegacyAdapter,
+    MigrationTool,
     
     // Convenience functions
     createSpiderEngine,

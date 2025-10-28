@@ -13,7 +13,7 @@
 'use strict';
 
 const logger = require('#@logger');
-const IPlugin = require('../interfaces/IPlugin');
+const IPlugin = require('../../interfaces/IPlugin');
 
 class ContentPlugin extends IPlugin {
     constructor() {

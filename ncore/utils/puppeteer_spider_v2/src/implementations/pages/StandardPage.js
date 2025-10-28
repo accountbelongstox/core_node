@@ -13,7 +13,7 @@
 'use strict';
 
 const logger = require('#@logger');
-const IPage = require('../interfaces/IPage');
+const IPage = require('../../interfaces/IPage');
 
 class StandardPage extends IPage {
     constructor(page, options = {}) {
@@ -320,6 +320,84 @@ class StandardPage extends IPage {
         } catch (error) {
             this.metrics.errors++;
             logger.error('Failed to clear cookies:', error);
+            throw error;
+        }
+    }
+
+    async waitForSelector(selector, options = {}) {
+        try {
+            const element = await this.page.waitForSelector(selector, options);
+            return element;
+        } catch (error) {
+            logger.error(`Failed to wait for selector ${selector}:`, error);
+            throw error;
+        }
+    }
+
+    async waitForFunction(pageFunction, options = {}, ...args) {
+        try {
+            const result = await this.page.waitForFunction(pageFunction, options, ...args);
+            return result;
+        } catch (error) {
+            logger.error('Failed to wait for function:', error);
+            throw error;
+        }
+    }
+
+    async waitForNavigation(options = {}) {
+        try {
+            const response = await this.page.waitForNavigation(options);
+            return response;
+        } catch (error) {
+            logger.error('Failed to wait for navigation:', error);
+            throw error;
+        }
+    }
+
+    async reload(options = {}) {
+        try {
+            const response = await this.page.reload(options);
+            this.metrics.navigations++;
+            logger.debug('Page reloaded');
+            return response;
+        } catch (error) {
+            this.metrics.errors++;
+            logger.error('Failed to reload page:', error);
+            throw error;
+        }
+    }
+
+    async goBack(options = {}) {
+        try {
+            const response = await this.page.goBack(options);
+            this.metrics.navigations++;
+            logger.debug('Navigated back');
+            return response;
+        } catch (error) {
+            this.metrics.errors++;
+            logger.error('Failed to go back:', error);
+            throw error;
+        }
+    }
+
+    async goForward(options = {}) {
+        try {
+            const response = await this.page.goForward(options);
+            this.metrics.navigations++;
+            logger.debug('Navigated forward');
+            return response;
+        } catch (error) {
+            this.metrics.errors++;
+            logger.error('Failed to go forward:', error);
+            throw error;
+        }
+    }
+
+    async waitForTimeout(ms) {
+        try {
+            await this.page.waitForTimeout(ms);
+        } catch (error) {
+            logger.error('Failed to wait for timeout:', error);
             throw error;
         }
     }

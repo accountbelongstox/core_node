@@ -16,19 +16,27 @@ const logger = require('#@logger');
 
 class IPlugin {
     constructor() {
-        this.name = null;
-        this.version = null;
+        this._name = null;
+        this._version = null;
         this.isInitialized = false;
         this.spider = null;
         this.hooks = new Map();
     }
 
     get name() {
-        throw new Error('IPlugin.name must be implemented by subclass');
+        return this._name || (() => { throw new Error('IPlugin.name must be implemented by subclass'); })();
+    }
+
+    set name(value) {
+        this._name = value;
     }
 
     get version() {
-        throw new Error('IPlugin.version must be implemented by subclass');
+        return this._version || (() => { throw new Error('IPlugin.version must be implemented by subclass'); })();
+    }
+
+    set version(value) {
+        this._version = value;
     }
 
     async initialize(spider) {

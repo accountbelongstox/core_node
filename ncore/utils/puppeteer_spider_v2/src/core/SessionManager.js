@@ -55,16 +55,16 @@ class Session {
 
     async newPage(options = {}) {
         try {
-            const page = await this.browser.newPage(options);
+            const wrappedPage = await this.browser.newPage(options);
             const pageId = uuidv4();
             
-            this.pages.set(pageId, page);
-            this.activePage = page;
+            this.pages.set(pageId, wrappedPage);
+            this.activePage = wrappedPage;
             this.metrics.pagesCreated++;
             this.lastActivity = new Date().toISOString();
             
             logger.info(`Page created in session ${this.id}: ${pageId}`);
-            return page;
+            return wrappedPage;
         } catch (error) {
             this.metrics.errors++;
             logger.error(`Failed to create page in session ${this.id}:`, error);

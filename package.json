@@ -24,6 +24,7 @@
     "#@inspect": "./ncore/foundation/utilities/inspect.js",
     "#@web_offline": "./ncore/utils/web_offline/index.js",
     "#@puppeteer": "./ncore/utils/puppeteer_spider/main.js",
+    "#@puppeteer-v2": "./ncore/utils/puppeteer_spider_v2/main.js",
     "#@puppeteer-api": "./ncore/utils/puppeteer-browser/puppeteer-api/api.js"
   },
   "private": true,
