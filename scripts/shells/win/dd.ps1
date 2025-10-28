@@ -331,6 +331,15 @@ function Invoke-InteractiveMenu {
     function Draw-MenuInternal {
         Clear-Host
         Write-ColorMessage -Message $Title -Type "Info"
+        
+        # Display execution mode
+        if ($Global:EXECUTION_MODE) {
+            $modeText = if ($Global:EXECUTION_MODE -eq "PROJECT") { "Project Mode" } else { "Installation Mode" }
+            Write-ColorMessage -Message "Execution mode: $modeText" -Type "Info"
+        } else {
+            Write-ColorMessage -Message "Execution mode: Mode not detected" -Type "Warning"
+        }
+        
         for ($i = 0; $i -lt $Items.Count; $i++) {
             $item = $Items[$i]
             if (-not $item.ContainsKey('CurrentValueIndex')) { $item | Add-Member -NotePropertyName CurrentValueIndex -NotePropertyValue 0 }
@@ -1042,7 +1051,28 @@ function Show-InteractiveMenu {
 
 function Start-MainLoop {
     Write-ColorMessage -Message "Initialization complete!" -Type "Success"
-    Start-Sleep -Seconds 1
+    
+    # Pause before showing menu
+    Write-Host ""
+    Write-Host "Press Enter to continue, or any other key to pause (auto-continue in 5 seconds)..." -ForegroundColor Yellow
+    
+    # Simple timeout-based pause
+    $timeout = 5
+    
+    # Use a simple approach with Read-Host timeout
+    try {
+        # Try to read input with a timeout
+        $input = Read-Host -TimeoutSeconds $timeout
+        if ($input -eq "") {
+            # Enter pressed - continue immediately
+        } else {
+            # Any other input pauses
+            Write-Host "Paused. Press Enter to continue..." -ForegroundColor Cyan
+            Read-Host
+        }
+    } catch {
+        # Timeout reached - continue automatically
+    }
 
     while ($true) {
         Clear-Host
