@@ -343,7 +343,12 @@ get_core_node_project_root() {
 
     # Check if this is WSL, has NTFS disk, or has desktop environment
     if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-        echo "$base_dir/programing/core_node"
+        # For WSL: use Linux path structure
+        if [ "$IS_WSL" = true ]; then
+            echo "$base_dir/programing/core_node"
+        else
+            echo "$base_dir/programing/core_node"
+        fi
     else
         # Production server without desktop/NTFS
         echo "$base_dir/wwwroot/core_node"
@@ -1273,8 +1278,8 @@ get_core_node_dir() {
             core_node_dir="$CORE_NODE_DIR"
         else
             # Fallback: check common paths based on environment
-            if [ "$IS_WSL" = true ] && [ -d "/mnt/d/www/programing/core_node" ]; then
-                core_node_dir="/mnt/d/www/programing/core_node"
+            if [ "$IS_WSL" = true ] && [ -d "/mnt/d/programing/core_node" ]; then
+                core_node_dir="/mnt/d/programing/core_node"
             elif [ -d "/usr/wwwroot/core_node" ]; then
                 core_node_dir="/usr/wwwroot/core_node"
             elif [ -d "/opt/core_node" ]; then
@@ -1291,6 +1296,28 @@ get_core_node_dir() {
 
 # Export CORE_NODE_DIR for use in other scripts
 export CORE_NODE_DIR=$(get_core_node_dir)
+
+# Debug function to analyze path issues
+debug_path_analysis() {
+    echo "=== PATH ANALYSIS DEBUG ==="
+    echo "Current script location: ${BASH_SOURCE[0]}"
+    echo "Script directory: $(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    echo "IS_WSL: $IS_WSL"
+    echo "IS_PRODUCTION: $IS_PRODUCTION"
+    echo "HAS_DESKTOP_ENVIRONMENT: $HAS_DESKTOP_ENVIRONMENT"
+    echo ""
+    echo "Base data directory: $(get_base_data_directory)"
+    echo "Core node project root: $(get_core_node_project_root)"
+    echo "Core node dir: $(get_core_node_dir)"
+    echo ""
+    echo "Expected path structure:"
+    echo "  Windows: D:\\programing\\core_node\\scripts\\shells\\linux"
+    echo "  WSL: /mnt/d/programing/core_node/scripts/shells/linux"
+    echo "=== END DEBUG ==="
+}
+
+# Export debug function
+export -f debug_path_analysis
 
 # Function to get encrypted content by key name (equivalent to Invoke-DisguiseDecryption)
 get_secret_content() {
