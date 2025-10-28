@@ -1,0 +1,1706 @@
+{
+  "ApplicationsList": {
+    "Windows10EssentialPatches": {
+      "WindowsTerminal": {
+        "PackageId": "Microsoft.WindowsTerminal",
+        "Exec": "wt.exe",
+        "Name": "Windows Terminal",
+        "Description": "Modern terminal application for Windows - Essential system component",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "IncludeSystemPaths": true,
+        "AdditionalKeywords": {
+          "Keyword": "wt"
+        },
+        "EnvVars": "",
+        "DesktopShortcuts": "",
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "registry_template",
+            "TemplateFile": "registry_templates\\WindowsTerminal_ContextMenu.reg",
+            "Replacements": {
+              "Replacement": [
+                {
+                  "Key": "{{WT_EXECUTABLE_PATH}}",
+                  "Value": "EXECUTABLE_PATH"
+                },
+                {
+                  "Key": "{{WT_ICON_PATH}}",
+                  "Value": "ICON_PATH"
+                }
+              ]
+            },
+            "Description": "Add Windows Terminal to right-click context menu",
+            "RequiresAdmin": true
+          }
+        }
+      }
+    },
+    "BasePackages": {
+      "Rust": {
+        "PackageId": "Rustlang.Rust.MSVC",
+        "Exec": "rustc.exe",
+        "Name": "Rust",
+        "Description": "Rust Programming Language - MSVC toolchain",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["rustdoc", "cargo"]
+        },
+        "EnvVars": {
+          "EnvVar": [
+            {
+              "Type": "Path",
+              "Keyword": "rustc.exe",
+              "SubPath": "bin"
+            },
+            {
+              "Type": "Var",
+              "Name": "RUST_HOME",
+              "Keyword": "rustc.exe",
+              "SubPath": ""
+            },
+            {
+              "Type": "Var",
+              "Name": "CARGO_HOME",
+              "Keyword": "rustc.exe",
+              "SubPath": ".cargo"
+            }
+          ]
+        },
+        "DesktopShortcuts": "",
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "rust",
+            "Operation": "full_setup",
+            "GlobalParameters": "",
+            "NonGlobalParameters": {
+              "Parameter": ["--registry", "https://mirrors.ustc.edu.cn/crates.io-index"]
+            },
+            "ConfigNote": "Rust/Cargo registry configuration for China region"
+          }
+        }
+      },
+      "NodeJS": {
+        "PackageId": "OpenJS.NodeJS.LTS",
+        "Exec": "node.exe",
+        "Name": "node",
+        "Description": "NodeJS - JavaScript Runtime",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "--version",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path",
+            "Keyword": "node.exe"
+          }
+        },
+        "DesktopShortcuts": "",
+        "AdditionalInstallationPackages": {
+          "Package": {
+            "installType": "npm",
+            "installPackage": ["yarn", "pnpm", "pm2"]
+          }
+        },
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "configurator",
+            "Executable": "npm.cmd",
+            "GlobalParameters": "",
+            "NonGlobalParameters": [
+              {
+                "Parameter": ["config", "set", "registry", "https://registry.npmmirror.com"]
+              },
+              {
+                "Parameter": ["config", "set", "disturl", "https://npmmirror.com/dist"]
+              },
+              {
+                "Parameter": ["config", "set", "electron_mirror", "https://npmmirror.com/mirrors/electron/"]
+              },
+              {
+                "Parameter": ["config", "set", "sass_binary_site", "https://npmmirror.com/mirrors/node-sass"]
+              },
+              {
+                "Parameter": ["config", "set", "phantomjs_cdnurl", "https://npmmirror.com/mirrors/phantomjs"]
+              }
+            ]
+          }
+        }
+      },
+      "Python313": {
+        "Version": "3.13",
+        "PackageId": "Python.Python.3.13",
+        "Exec": "python.exe",
+        "Name": "python313",
+        "Description": "Python 3.13 - Programming Language",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "--version",
+        "IncludeSystemPaths": false,
+        "IsDefault": true,
+        "EnvVars": {
+          "EnvVar": [
+            {
+              "Type": "Path",
+              "Keyword": "python.exe"
+            },
+            {
+              "Type": "Path",
+              "Keyword": "pip.exe"
+            },
+            {
+              "Type": "Path",
+              "Keyword": "uv.exe"
+            },
+            {
+              "Type": "Path",
+              "Keyword": "pipx.exe"
+            },
+            {
+              "Type": "Path",
+              "Keyword": "poetry.exe"
+            },
+            {
+              "Type": "Path",
+              "Keyword": "uvx.exe"
+            }
+          ]
+        },
+        "AdditionalInstallationPackages": {
+          "Package": {
+            "installType": "pip",
+            "installPackage": [
+              "pipx",
+              "uv",
+              "poetry",
+              "flake8",
+              {
+                "packageName": "numpy",
+                "validationType": "import",
+                "importName": "numpy"
+              },
+              {
+                "packageName": "pandas",
+                "validationType": "import",
+                "importName": "pandas"
+              },
+              {
+                "packageName": "matplotlib",
+                "validationType": "import",
+                "importName": "matplotlib"
+              },
+              {
+                "packageName": "pillow",
+                "validationType": "import",
+                "importName": "PIL"
+              },
+              {
+                "packageName": "requests",
+                "validationType": "import",
+                "importName": "requests"
+              },
+              "flask",
+              "django",
+              "jupyter",
+              {
+                "packageName": "scipy",
+                "validationType": "import",
+                "importName": "scipy"
+              },
+              {
+                "packageName": "scikit-learn",
+                "validationType": "import",
+                "importName": "sklearn"
+              }
+            ]
+          }
+        },
+        "PostInstallCallbacks": {
+          "Callback": [
+            {
+              "Type": "copy",
+              "SourceFile": "python.exe",
+              "TargetFile": "python3.exe"
+            },
+            {
+              "Type": "copy",
+              "SourceFile": "Scripts\\pip.exe",
+              "TargetFile": "Scripts\\pip3.exe"
+            },
+            {
+              "Type": "configurator",
+              "Executable": "Scripts\\pip.exe",
+              "GlobalParameters": "",
+              "NonGlobalParameters": [
+                {
+                  "Parameter": ["config", "set", "global.index-url", "https://mirrors.huaweicloud.com/repository/pypi/simple"]
+                },
+                {
+                  "Parameter": ["config", "set", "global.trusted-host", "mirrors.huaweicloud.com"]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "PHP84": {
+        "Exec": "php.exe",
+        "Name": "php84",
+        "Description": "PHP 8.4 - Server-side scripting language",
+        "InstallType": "combo",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["php-cli", "php8"]
+        },
+        "ComboMethods": {
+          "Method": [
+            {
+              "InstallType": "winget",
+              "PackageId": "PHP.PHP.8.4"
+            },
+            {
+              "InstallType": "choco",
+              "PackageId": "php",
+              "ChocoOptions": "--version=8.4"
+            },
+            {
+              "InstallType": "scoop",
+              "PackageId": "php84"
+            },
+            {
+              "InstallType": "web",
+              "PackageId": "php-8.4.12-Win32-vs17-x64.zip",
+              "DownloadUrl": "https://downloads.php.net/~windows/releases/php-8.4.12-Win32-vs17-x64.zip",
+              "ExecutableName": "php.exe",
+              "IsArchive": true,
+              "ArchiveType": "zip"
+            }
+          ]
+        },
+        "EnvVars": {
+          "EnvVar": [
+            {
+              "Type": "Path",
+              "Keyword": "php.exe"
+            },
+            {
+              "Type": "Path",
+              "Keyword": "composer.exe"
+            },
+            {
+              "Type": "Path",
+              "Keyword": "composer.bat"
+            }
+          ]
+        },
+        "DesktopShortcuts": "",
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "php",
+            "Operation": "full_setup"
+          }
+        }
+      },
+      "Pandoc": {
+        "PackageId": "JohnMacFarlane.Pandoc",
+        "Exec": "pandoc.exe",
+        "Name": "Pandoc",
+        "DesktopCategory": "DocumentTools",
+        "Description": "Universal document converter",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "AdditionalKeywords": "",
+        "VerifySuffix": "--version",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        },
+        "DesktopShortcuts": ""
+      },
+      "Fnm": {
+        "PackageId": "Schniz.fnm",
+        "Exec": "fnm.exe",
+        "Name": "Fnm",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Fast Node Manager",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "",
+        "AppCustomInstallDir": "",
+        "DesktopShortcuts": "",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "GNUWget": {
+        "PackageId": "JernejSimoncic.Wget",
+        "Exec": "wget.exe",
+        "Name": "GNUWget",
+        "DesktopCategory": "NetworkTools",
+        "Description": "GNU Wget - Network downloader",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "",
+        "DesktopShortcuts": "",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "DartSDK": {
+        "PackageId": "Google.DartSDK",
+        "Exec": "dart.exe",
+        "Name": "dart_sdk",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Dart SDK for building fast apps on any platform",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "--version",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path"
+          }
+        }
+      },
+      "MermaidCLI": {
+        "NpmPackageName": "@mermaid-js/mermaid-cli",
+        "Exec": "mmdc",
+        "Name": "MermaidCLI",
+        "DesktopCategory": "DocumentTools",
+        "Description": "Mermaid CLI - Command line interface for Mermaid diagrams",
+        "InstallType": "npm",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["mermaid", "mermaid-cli"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        },
+        "DesktopShortcuts": ""
+      },
+      "Java": {
+        "PackageId": "Oracle.JDK.17",
+        "Exec": "java.exe",
+        "Name": "Java",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Java Development Kit - Programming language and runtime",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["openjdk", "java-jdk"]
+        },
+        "EnvVars": {
+          "EnvVar": [
+            {
+              "Type": "Path",
+              "Keyword": "java.exe",
+              "SubPath": "bin"
+            },
+            {
+              "Type": "Path",
+              "Keyword": "javac.exe",
+              "SubPath": "bin"
+            },
+            {
+              "Type": "Var",
+              "Name": "JAVA_HOME",
+              "Keyword": "java.exe",
+              "SubPath": ""
+            },
+            {
+              "Type": "Var",
+              "Name": "JDK_HOME",
+              "Keyword": "java.exe",
+              "SubPath": ""
+            }
+          ]
+        },
+        "DesktopShortcuts": "",
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "java",
+            "Operation": "full_setup",
+            "GlobalParameters": "",
+            "NonGlobalParameters": {
+              "Parameter": [
+                "-Dmaven.repo.remote=https://maven.aliyun.com/repository/public",
+                "-Dmaven.wagon.http.ssl.insecure=true"
+              ]
+            },
+            "ConfigNote": "Java/Maven mirror configuration for China region"
+          }
+        }
+      },
+      "Go": {
+        "PackageId": "GoLang.Go",
+        "Exec": "go.exe",
+        "Name": "Go",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Go Programming Language - Fast, reliable, and efficient software",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "version",
+        "AdditionalKeywords": {
+          "Keyword": ["golang", "go-lang"]
+        },
+        "EnvVars": {
+          "EnvVar": [
+            {
+              "Type": "Path",
+              "Keyword": "go.exe",
+              "SubPath": "bin"
+            },
+            {
+              "Type": "Var",
+              "Name": "GOROOT",
+              "Keyword": "go.exe",
+              "SubPath": ""
+            },
+            {
+              "Type": "Var",
+              "Name": "GOPATH",
+              "Keyword": "go.exe",
+              "SubPath": "go"
+            }
+          ]
+        },
+        "DesktopShortcuts": "",
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "go",
+            "Operation": "full_setup",
+            "GlobalParameters": "",
+            "NonGlobalParameters": {
+              "Parameter": [
+                "GOPROXY=https://goproxy.cn,direct",
+                "GOSUMDB=sum.golang.google.cn"
+              ]
+            },
+            "ConfigNote": "Go proxy configuration for China region"
+          }
+        }
+      },
+      "Ruby": {
+        "PackageId": "RubyInstallerTeam.RubyWithDevKit.3.4",
+        "Exec": "ruby.exe",
+        "Name": "Ruby",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Ruby Programming Language - Dynamic, open source programming language",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["ruby-lang", "gem", "bundler"]
+        },
+        "EnvVars": {
+          "EnvVar": [
+            {
+              "Type": "Path",
+              "Keyword": "ruby.exe",
+              "SubPath": "bin"
+            },
+            {
+              "Type": "Var",
+              "Name": "RUBY_HOME",
+              "Keyword": "ruby.exe",
+              "SubPath": ""
+            }
+          ]
+        },
+        "DesktopShortcuts": "",
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "ruby",
+            "Operation": "full_setup",
+            "GlobalParameters": "",
+            "NonGlobalParameters": {
+              "Parameter": ["--source", "https://gems.ruby-china.com/"]
+            },
+            "ConfigNote": "Ruby gem source configuration for China region"
+          }
+        }
+      }
+    },
+    "ApplicationsPackages": {
+      "VSCode": {
+        "PackageId": "Microsoft.VisualStudioCode",
+        "Exec": "Code.exe",
+        "Name": "VSCode",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Visual Studio Code - Code editor",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "Open with VSCode",
+        "AppCustomInstallDir": "C:\\Users\\$env:USERNAME\\AppData\\Local\\Programs\\Microsoft VS Code",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "Name": "VSCode"
+          }
+        }
+      },
+      "RustDesk": {
+        "PackageId": "RustDesk.RustDesk",
+        "Exec": "RustDesk.exe",
+        "Name": "RustDesk",
+        "DesktopCategory": "NetworkTools",
+        "Description": "RustDesk - Open source remote desktop software",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["rustdesk", "remote-desktop", "remote-access"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "Name": "RustDesk"
+          }
+        }
+      },
+      "ACLI": {
+        "Exec": "acli.exe",
+        "Name": "ACLI",
+        "DesktopCategory": "AICLITools",
+        "Description": "Atlassian CLI - Command line interface for Atlassian products",
+        "InstallType": "web",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "--help",
+        "PackageId": "https://acli.atlassian.com/windows/latest/acli_windows_amd64/acli.exe",
+        "ExecutableName": "acli.exe",
+        "MenuName": "Atlassian CLI",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "Windsurf": {
+        "PackageId": "Codeium.Windsurf",
+        "Exec": "Windsurf.exe",
+        "Name": "Windsurf",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Windsurf - AI-powered code editor by Codeium",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "Open with Windsurf",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "VSCodium": {
+        "PackageId": "VSCodium.VSCodium",
+        "Exec": "VSCodium.exe",
+        "Name": "VSCodium",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "VSCodium - Open source binary distribution of VS Code",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "Open with VSCodium",
+        "AppCustomInstallDir": "C:\\Users\\$env:USERNAME\\AppData\\Local\\Programs\\VSCodium",
+        "RegistrySearchKeyword": "VSCodium",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Neovim": {
+        "PackageId": "Neovim.Neovim",
+        "Exec": "nvim.exe",
+        "Name": "Neovim",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Neovim - Hyperextensible Vim-based text editor",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "MenuName": "Open with Neovim",
+        "AppCustomInstallDir": "C:\\Program Files\\Neovim",
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "Vim": {
+        "PackageId": "vim.vim",
+        "Exec": "vim.exe",
+        "Name": "Vim",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Vim - Highly configurable text editor",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "MenuName": "Open with Vim",
+        "AppCustomInstallDir": "",
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": false
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "NotepadPlusPlus": {
+        "PackageId": "Notepad++.Notepad++",
+        "Exec": "notepad++.exe",
+        "Name": "notepad++",
+        "DesktopCategory": "TextEditors",
+        "Description": "Notepad++ - Text editor",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "Edit with Notepad++",
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "Cursor": {
+        "PackageId": "Anysphere.Cursor",
+        "Exec": "Cursor.exe",
+        "Name": "Cursor",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Cursor - AI-powered code editor",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "Open with Cursor",
+        "AppCustomInstallDir": "C:\\Users\\$env:USERNAME\\AppData\\Local\\Programs\\cursor",
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "Bandizip": {
+        "PackageId": "Bandisoft.Bandizip",
+        "Exec": "Bandizip.exe",
+        "Name": "Bandizip",
+        "DesktopCategory": "CompressionTools",
+        "Description": "Bandizip - Archive manager",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "Extract with Bandizip",
+        "AppCustomInstallDir": "",
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "PowerToys": {
+        "PackageId": "Microsoft.PowerToys",
+        "Exec": "PowerToys.exe",
+        "Name": "PowerToys",
+        "DesktopCategory": "SystemTools",
+        "Description": "Microsoft PowerToys - Windows system utilities",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["PowerToys", "microsoft-powertoys"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "Name": "PowerToys",
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": ""
+      },
+      "Kiro": {
+        "PackageId": "Amazon.Kiro",
+        "Exec": "Kiro.exe",
+        "Name": "Kiro",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Kiro - AI-powered development environment",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "Open with Kiro",
+        "AppCustomInstallDir": "",
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      }
+    },
+    "DevSoftwarePackages": {
+      "Termius": {
+        "PackageId": "Termius.Termius",
+        "Exec": "Termius.exe",
+        "Name": "Termius",
+        "DesktopCategory": "NetworkTools",
+        "Description": "Cross-platform SSH client with modern interface",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Termius", "ssh-client"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Captura": {
+        "PackageId": "Captura.Captura",
+        "Exec": "Captura.exe",
+        "Name": "Captura",
+        "DesktopCategory": "MediaTools",
+        "Description": "Captura - Screen recorder",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Captura", "screen-recorder"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Postman": {
+        "PackageId": "Postman.Postman",
+        "Exec": "Postman.exe",
+        "Name": "Postman",
+        "DesktopCategory": "APITools",
+        "Description": "API development and testing platform",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Postman", "api-testing"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "HeidiSQL": {
+        "PackageId": "HeidiSQL.HeidiSQL",
+        "Exec": "heidisql.exe",
+        "Name": "HeidiSQL",
+        "DesktopCategory": "DatabaseTools",
+        "Description": "Lightweight MySQL/MariaDB database client",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["HeidiSQL", "mysql-client"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "DBeaver": {
+        "PackageId": "DBeaver.DBeaver.Community",
+        "Exec": "dbeaver.exe",
+        "Name": "DBeaver",
+        "DesktopCategory": "DatabaseTools",
+        "Description": "Universal database tool for developers",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["TablePlus", "database-gui"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "WinSCP": {
+        "PackageId": "WinSCP.WinSCP.RC",
+        "Exec": "WinSCP.exe",
+        "Name": "WinSCP",
+        "DesktopCategory": "NetworkTools",
+        "Description": "SFTP/FTP client with dual-pane interface",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["WinSCP", "sftp-client"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Rclone": {
+        "PackageId": "Rclone.Rclone",
+        "Exec": "rclone.exe",
+        "Name": "Rclone",
+        "DesktopCategory": "NetworkTools",
+        "Description": "Command-line cloud storage synchronization tool",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["CloudMounter", "cloud-storage"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Insomnia": {
+        "PackageId": "Insomnia.Insomnia",
+        "Exec": "Insomnia.exe",
+        "Name": "Insomnia",
+        "DesktopCategory": "APITools",
+        "Description": "REST API client with GraphQL support",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Insomnia", "rest-client"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "DrawIO": {
+        "PackageId": "JGraph.Draw",
+        "Exec": "draw.io.exe",
+        "Name": "DrawIO",
+        "DesktopCategory": "DesignTools",
+        "Description": "Free online diagram software for flowcharts",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["draw.io", "diagram-editor"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "WinSocat": {
+        "PackageId": "Firejox.WinSocat",
+        "Exec": "socat.exe",
+        "Name": "WinSocat",
+        "DesktopCategory": "NetworkTools",
+        "Description": "Windows port of socat network utility",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Nmap", "network-scanner"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Nmap": {
+        "PackageId": "Insecure.Nmap",
+        "Exec": "nmap.exe",
+        "Name": "Nmap",
+        "DesktopCategory": "NetworkTools",
+        "Description": "Network discovery and security auditing tool",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Nessus", "vulnerability-scanner"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "FiddlerClassic": {
+        "PackageId": "Telerik.Fiddler.Classic",
+        "Exec": "Fiddler.exe",
+        "Name": "FiddlerClassic",
+        "DesktopCategory": "NetworkTools",
+        "Description": "Web debugging proxy for HTTP/HTTPS traffic",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Fiddler", "http-proxy"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "iPerf3": {
+        "PackageId": "ar51an.iPerf3",
+        "Exec": "iperf3.exe",
+        "Name": "iPerf3",
+        "DesktopCategory": "NetworkTools",
+        "Description": "Network bandwidth measurement tool",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["NetLimiter", "bandwidth-monitor"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Wireshark": {
+        "PackageId": "WiresharkFoundation.Wireshark",
+        "Exec": "Wireshark.exe",
+        "Name": "Wireshark",
+        "DesktopCategory": "NetworkTools",
+        "Description": "Network protocol analyzer and packet capture tool",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Wireshark", "packet-analyzer"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "HTTPie": {
+        "PackageId": "HTTPie.HTTPie",
+        "Exec": "http.exe",
+        "Name": "HTTPie",
+        "DesktopCategory": "APITools",
+        "Description": "Command-line HTTP client with JSON support",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["HTTPie", "http-client"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Droid": {
+        "PackageId": "",
+        "Exec": "droid.exe",
+        "Name": "Droid",
+        "DesktopCategory": "AICLITools",
+        "Description": "AI-powered development assistant from Factory.ai",
+        "InstallType": "powershell",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Droid", "factory-ai", "ai-assistant"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        },
+        "PowerShellCommand": "irm https://app.factory.ai/cli/windows | iex"
+      },
+      "ClaudeCodeRouter": {
+        "PackageId": "",
+        "Exec": "claude-code-router.exe",
+        "Name": "ClaudeCodeRouter",
+        "DesktopCategory": "AICLITools",
+        "Description": "Claude Code Router for AI-powered code analysis and routing",
+        "InstallType": "powershell",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["ClaudeCodeRouter", "claude-router", "code-analysis"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        },
+        "PowerShellCommand": "irm https://app.factory.ai/cli/windows | iex"
+      },
+      "AlibabaQoder": {
+        "PackageId": "Alibaba.Qoder",
+        "Exec": "Qoder.exe",
+        "Name": "AlibabaQoder",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Alibaba Qoder - AI-powered code editor and development tool",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Qoder", "AlibabaQoder"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "ChromeRemoteDesktopHost": {
+        "PackageId": "Google.ChromeRemoteDesktopHost",
+        "Exec": "remoting_host.exe",
+        "Name": "ChromeRemoteDesktopHost",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Chrome Remote Desktop Host - Remote access solution",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["remoting_host", "chrome-remote"]
+        },
+        "EnvVars": "",
+        "DesktopShortcuts": ""
+      },
+      "GeminiCli": {
+        "PackageId": "@google/gemini-cli",
+        "Exec": "gemini",
+        "Name": "GeminiCli",
+        "DesktopCategory": "AICLITools",
+        "Description": "Google Gemini CLI - AI assistant with MCP server integration support",
+        "InstallType": "npm",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["gemini-cli", "gemini.cmd", "gemini.bat"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path",
+            "Keyword": "gemini"
+          }
+        },
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "mcp",
+            "Operation": "copy_config",
+            "TargetDirectory": "$env:USERPROFILE\\.gemini"
+          }
+        }
+      },
+      "ClaudeCode": {
+        "PackageId": "@anthropic-ai/claude-code",
+        "Exec": "claude.exe",
+        "Name": "ClaudeCode",
+        "DesktopCategory": "AICLITools",
+        "Description": "Anthropic Claude Code - AI-powered development assistant",
+        "InstallType": "npm",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["claude", "claude-code"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path"
+          }
+        },
+        "PostInstallCallbacks": {
+          "Callback": [
+            {
+              "Type": "mcp",
+              "Operation": "copy_config",
+              "TargetDirectory": "$env:USERPROFILE\\.claude"
+            },
+            {
+              "Type": "mcp",
+              "Operation": "exec_command",
+              "Command": "npx claude mcp add context7 -- cmd /c \"npx -y @upstash/context7-mcp\"",
+              "Description": "Add context7 MCP service to Claude"
+            }
+          ]
+        }
+      },
+      "Tabby": {
+        "PackageId": "Eugeny.Tabby",
+        "Exec": "Tabby.exe",
+        "Name": "Tabby",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Modern terminal with tabs, SSH and telnet support",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["Tabby", "terminal", "ssh-client"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "MobaXterm": {
+        "PackageId": "Mobatek.MobaXterm",
+        "Exec": "MobaXterm.exe",
+        "Name": "MobaXterm",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Enhanced terminal with SSH, X11, RDP and network tools",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["MobaXterm", "terminal", "ssh-client", "rdp"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        }
+      },
+      "OpenAICodex": {
+        "PackageId": "@openai/codex",
+        "Exec": "codex.exe",
+        "Name": "OpenAICodex",
+        "DesktopCategory": "AICLITools",
+        "Description": "OpenAI Codex - AI code generation and completion tool",
+        "InstallType": "npm",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["codex", "openai-codex"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path"
+          }
+        }
+      },
+      "CursorAgent": {
+        "Exec": "cursor-agent.exe",
+        "Name": "CursorAgent",
+        "DesktopCategory": "AICLITools",
+        "Description": "Cursor Agent - AI-powered coding assistant",
+        "InstallType": "web",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "--version",
+        "PackageId": "https://cursor.com/install",
+        "AdditionalKeywords": {
+          "Keyword": ["cursor", "cursor-agent"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path"
+          }
+        }
+      },
+      "LangChainCli": {
+        "PackageId": "langchain-cli",
+        "Exec": "langchain",
+        "Name": "LangChainCli",
+        "DesktopCategory": "AICLITools",
+        "Description": "LangChain CLI - Framework for building AI applications",
+        "InstallType": "pipx",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["langchain-cli", "langchain.exe", "langchain.bat"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path",
+            "Keyword": "langchain"
+          }
+        }
+      },
+      "FFmpeg": {
+        "PackageId": "Gyan.FFmpeg",
+        "Exec": "ffmpeg.exe",
+        "Name": "FFmpeg",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "FFmpeg - Complete, cross-platform solution for recording, converting and streaming audio and video",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "-version",
+        "AdditionalKeywords": {
+          "Keyword": ["ffmpeg", "ffprobe", "ffplay"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path",
+            "Keyword": "ffmpeg.exe",
+            "SubPath": ""
+          }
+        }
+      },
+      "SuperClaude": {
+        "UvId": "SuperClaude",
+        "Exec": "superclaude.exe",
+        "Name": "SuperClaude",
+        "DesktopCategory": "AICLITools",
+        "Description": "SuperClaude - Enhanced Claude AI interface and tools",
+        "InstallType": "uv",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "--version",
+        "AdditionalKeywords": {
+          "Keyword": ["superclaude", "super-claude"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path"
+          }
+        }
+      },
+      "OpenCode": {
+        "Exec": "opencode.exe",
+        "Name": "OpenCode",
+        "DesktopCategory": "AICLITools",
+        "Description": "OpenCode - AI-powered development platform",
+        "InstallType": "web",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "--version",
+        "PackageId": "https://opencode.ai/install",
+        "AdditionalKeywords": {
+          "Keyword": ["opencode", "open-code"]
+        },
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "Path"
+          }
+        }
+      }
+    },
+    "McpServicesPackages": {
+      "AlibabaDataworksMCP": {
+        "Name": "AlibabaDataworksMCP",
+        "DesktopCategory": "AICLITools",
+        "Description": "Alibaba Cloud DataWorks MCP Server - Cloud data processing and management (npm global install)",
+        "InstallType": "npm",
+        "PackageId": "alibabacloud-dataworks-mcp-server",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "mcp",
+            "Operation": "npm_global_install",
+            "PackageName": "alibabacloud-dataworks-mcp-server",
+            "ServiceName": "alibaba_dataworks_mcp"
+          }
+        }
+      },
+      "FeedbackEnhancedMCP": {
+        "Name": "FeedbackEnhancedMCP",
+        "DesktopCategory": "AICLITools",
+        "Description": "MCP Feedback Enhanced Server - Interactive feedback collection with web interface (uvx install)",
+        "InstallType": "uvx",
+        "PackageId": "mcp-feedback-enhanced@latest",
+        "UvxId": "mcp-feedback-enhanced@latest",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "PostInstallCallbacks": {
+          "Callback": {
+            "Type": "mcp",
+            "Operation": "uvx_install",
+            "PackageName": "mcp-feedback-enhanced@latest",
+            "ServiceName": "feedback_enhanced_mcp"
+          }
+        }
+      }
+    },
+    "CommonSoftwarePackages": {
+      "IntelliJIDEA": {
+        "PackageId": "JetBrains.IntelliJIDEA.Community",
+        "Exec": "idea64.exe",
+        "Name": "IntelliJIDEA",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "IntelliJ IDEA Community Edition - Java IDE",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "MenuName": "Open with IntelliJ IDEA",
+        "RegistrySearchKeyword": "IntelliJ IDEA Community",
+        "EnvVars": {
+          "EnvVar": {
+            "Type": "AddExec"
+          }
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "CodeBuddy": {
+        "PackageId": "Tencent.CodeBuddy",
+        "Exec": "CodeBuddy.exe",
+        "Name": "CodeBuddy",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "Tencent CodeBuddy - AI-powered code editor",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "VSCodiumInsiders": {
+        "PackageId": "VSCodium.VSCodium.Insiders",
+        "Exec": "VSCodium - Insiders",
+        "Name": "VSCodiumInsiders",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "VSCodium Insiders - Open source binary distribution of VS Code",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Trae": {
+        "PackageId": "ByteDance.Trae",
+        "Exec": "Trae.exe",
+        "Name": "Trae",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "AI-powered code editor by ByteDance",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Trae", "ByteDanceTrae"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "AdsPowerGlobal": {
+        "PackageId": "AdsPower.AdsPower",
+        "Exec": "AdsPower Global.exe",
+        "Name": "AdsPowerGlobal",
+        "DesktopCategory": "DevelopmentTools",
+        "Description": "AdsPower Global - Browser automation and management tool",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["AdsPower", "AdsPower Global"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "WeChat": {
+        "PackageId": "Tencent.WeChat",
+        "Exec": "WeChat.exe",
+        "Name": "WeChat",
+        "DesktopCategory": "SocialMedia",
+        "Description": "Popular instant messaging and social media app",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["WeChat", "Weixin"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "OneTwoThreePan": {
+        "PackageId": "123.123pan",
+        "Exec": "123pan.exe",
+        "Name": "123pan",
+        "DesktopCategory": "NetworkTools",
+        "Description": "123pan is a cloud storage and file sharing service",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": "123pan"
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "QQNT": {
+        "PackageId": "Tencent.QQ.NT",
+        "Exec": "QQ.exe",
+        "Name": "QQ",
+        "DesktopCategory": "SocialMedia",
+        "Description": "Next-generation QQ instant messaging client",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["QQ", "QQNT"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "WPSOffice": {
+        "PackageId": "Kingsoft.WPSOffice.CN",
+        "Exec": "WPS.exe",
+        "Name": "WPSOffice",
+        "DesktopCategory": "OfficeTools",
+        "Description": "Free office suite with word processor, spreadsheet and presentation",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["WPS", "Kingsoft"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "LibreOffice": {
+        "PackageId": "TheDocumentFoundation.LibreOffice",
+        "Exec": "soffice.exe",
+        "Name": "LibreOffice",
+        "DesktopCategory": "OfficeTools",
+        "Description": "Free and open-source office suite",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["LibreOffice", "Office", "Libre"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "CapCut": {
+        "PackageId": "ByteDance.CapCut",
+        "Exec": "CapCut.exe",
+        "Name": "CapCut",
+        "DesktopCategory": "MediaTools",
+        "Description": "Free video editing software",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": "CapCut"
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "ThunderSpeed": {
+        "PackageId": "Thunder.Thunder",
+        "Exec": "Thunder.exe",
+        "Name": "Xunlei",
+        "DesktopCategory": "NetworkTools",
+        "Description": "High-speed download manager",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": "Thunder"
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "BaiduNetDisk": {
+        "PackageId": "Baidu.BaiduNetdisk",
+        "Exec": "BaiduNetdisk.exe",
+        "Name": "BaiduNetDisk",
+        "DesktopCategory": "NetworkTools",
+        "Description": "Cloud storage and file sharing service",
+        "InstallType": "winget",
+        "ForceToInstallDir": true,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": "BaiduNetDisk"
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "WeChatInput": {
+        "PackageId": "Tencent.WeType",
+        "Exec": "wetype_service.exe",
+        "Name": "WeChatInput",
+        "Description": "Intelligent input method by WeChat",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AppCustomInstallDir": "C:\\Program Files\\Tencent\\WeType\\",
+        "AdditionalKeywords": {
+          "Keyword": "wetype"
+        },
+        "DesktopShortcuts": ""
+      },
+      "Chrome": {
+        "PackageId": "Google.Chrome",
+        "Exec": "chrome.exe",
+        "Name": "Chrome",
+        "DesktopCategory": "Browsers",
+        "Description": "Google Chrome web browser",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Chrome", "Google Chrome"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Edge": {
+        "PackageId": "Microsoft.Edge",
+        "Exec": "msedge.exe",
+        "Name": "Edge",
+        "DesktopCategory": "Browsers",
+        "Description": "Microsoft Edge web browser",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AppCustomInstallDir": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application",
+        "AdditionalKeywords": {
+          "Keyword": ["Edge", "Microsoft Edge"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      },
+      "Firefox": {
+        "PackageId": "Mozilla.Firefox",
+        "Exec": "firefox.exe",
+        "Name": "Firefox",
+        "DesktopCategory": "Browsers",
+        "Description": "Mozilla Firefox web browser",
+        "InstallType": "winget",
+        "ForceToInstallDir": false,
+        "VerifySuffix": "",
+        "AdditionalKeywords": {
+          "Keyword": ["Firefox", "Mozilla Firefox"]
+        },
+        "DesktopShortcuts": {
+          "Shortcut": {
+            "CreateDesktopShortcut": true
+          }
+        }
+      }
+    }
+  }
+}
