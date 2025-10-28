@@ -48,7 +48,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
 PROJECT_NAME="$(basename "$CORE_NODE_DIR")"
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
-COMMIT_MESSAGE=""
+export COMMIT_MESSAGE=""
 
 # Global variable management function
 get_global_var() {
