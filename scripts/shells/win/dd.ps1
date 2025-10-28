@@ -340,12 +340,8 @@ function Invoke-InteractiveMenu {
             Write-ColorMessage -Message "Execution mode: Mode not detected" -Type "Warning"
         }
         
-        # Display dd.ps1 parent directory (../../)
-        $ddScriptPath = $script:PS_CURENT_DIR + "\dd.ps1"
-        if (Test-Path $ddScriptPath) {
-            $parentDir = Split-Path (Split-Path (Split-Path $ddScriptPath -Parent) -Parent) -Parent
-            Write-ColorMessage -Message "dd.ps1 parent directory: $parentDir" -Type "Info"
-        }
+        # Display PS_CURENT_DIR
+        Write-ColorMessage -Message "PS_CURENT_DIR: $($script:PS_CURENT_DIR)" -Type "Info"
         
         for ($i = 0; $i -lt $Items.Count; $i++) {
             $item = $Items[$i]
