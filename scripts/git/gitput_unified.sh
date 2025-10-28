@@ -118,15 +118,21 @@ ensure_git_identity() {
 
 # Function to get commit message (session-scoped only)
 get_commit_message() {
+    local commit_file="/tmp/git_commit_message_$$"
+    
     # Debug: Show current COMMIT_MESSAGE value and all environment variables
     write_color_text "DEBUG: COMMIT_MESSAGE='$COMMIT_MESSAGE'" "DarkGray" >&2
     write_color_text "DEBUG: All COMMIT_MESSAGE env vars: $(env | grep COMMIT_MESSAGE)" "DarkGray" >&2
+    write_color_text "DEBUG: Commit file exists: $(test -f "$commit_file" && echo 'yes' || echo 'no')" "DarkGray" >&2
     
-    # If we already have a commit message in this session, use it
-    if [ -n "$COMMIT_MESSAGE" ]; then
-        write_color_text "Reusing commit message from this session: $COMMIT_MESSAGE" "Cyan" >&2
-        echo "$COMMIT_MESSAGE"
-        return
+    # Check if we have a stored commit message
+    if [ -f "$commit_file" ]; then
+        local stored_message=$(cat "$commit_file")
+        if [ -n "$stored_message" ]; then
+            write_color_text "Reusing commit message from this session: $stored_message" "Cyan" >&2
+            echo "$stored_message"
+            return
+        fi
     fi
     
     # Ask user for input (first time only)
@@ -143,8 +149,12 @@ get_commit_message() {
         write_color_text "Using custom commit message: $user_input" "Green" >&2
     fi
     
+    # Store the commit message in a file
+    echo "$COMMIT_MESSAGE" > "$commit_file"
+    
     write_color_text "DEBUG: Set COMMIT_MESSAGE='$COMMIT_MESSAGE'" "DarkGray" >&2
     write_color_text "DEBUG: After set, env vars: $(env | grep COMMIT_MESSAGE)" "DarkGray" >&2
+    write_color_text "DEBUG: Stored in file: $commit_file" "DarkGray" >&2
     echo "$COMMIT_MESSAGE"
 }
 
