@@ -12,6 +12,7 @@
 
 # Variable Declarations
 $PSScriptRoot = Split-Path -Parent $PSCommandPath
+$script:PS_CURENT_DIR = Split-Path -Parent $PSScriptRoot
 $SHELLS_WIN_PATH = "shells/win"
 $WIN_COMMON_DIR_NAME = "win_common"
 $INSTALL_POWERSHELLS_DIR_NAME = "install_powershells"
@@ -22,27 +23,22 @@ $INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $INSTALL
 
 # Load InstallerScriptsList.ps1 for script management
 $installerScriptsListPath = Join-Path $INSTALL_POWERSHELLS_DIR "InstallerScriptsList.ps1"
-if (Test-Path $installerScriptsListPath) {
-    . $installerScriptsListPath
-}
+. $installerScriptsListPath
 
 # =============================================================================
 # MODE DETECTION AND INITIALIZATION
 # =============================================================================
 function Get-ExecutionMode {
     # Detect if running in project mode or installation mode
-    $currentDir = (Get-Location).Path
+    # Use script's own path to determine mode instead of hardcoding paths
+    $scriptPath = $MyInvocation.PSCommandPath
     $userProfileDir = [Environment]::GetFolderPath("UserProfile")
     
-    # Check if running from project directory (contains core_node_a)
-    if ($currentDir -like "*core_node_a*") {
-        return "PROJECT"
-    }
-    # Check if running from user profile directory (installation mode)
-    elseif ($currentDir -like "$userProfileDir*") {
+    # Check if script is running from user profile directory (installation mode)
+    if ($scriptPath -like "$userProfileDir*") {
         return "INSTALLATION"
     }
-    # Default to project mode for other cases
+    # Otherwise, it's project mode (running from development directory)
     else {
         return "PROJECT"
     }
