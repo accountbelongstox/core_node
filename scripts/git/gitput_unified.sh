@@ -768,7 +768,8 @@ main() {
                 break
             else
                 write_color_text "\n=== Pushing to $target ($target_url) ===" "Magenta"
-                if invoke_git_operations "$target_url"; then
+                invoke_git_operations "$target_url"
+                if [ $? -eq 0 ]; then
                     write_color_text "Successfully pushed to $target" "Green"
                 else
                     all_success=false
