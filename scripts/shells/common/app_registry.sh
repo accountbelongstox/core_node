@@ -40,6 +40,8 @@ CURSOR_CONFIG[launcher_script]="$INSTALL_BASE_DIR/cursor/cursor"
 CURSOR_CONFIG[symlink_path]="/usr/local/bin/cursor"
 CURSOR_CONFIG[super_script]="$SUPER_SCRIPTS_DIR/cursor"
 CURSOR_CONFIG[process_names]="cursor"
+CURSOR_CONFIG[process_paths]="/usr/share/cursor/cursor,$INSTALL_BASE_DIR/cursor/extracted/squashfs-root/usr/share/cursor/cursor"
+CURSOR_CONFIG[exclude_patterns]="vscode,code"
 
 declare -A VSCODE_CONFIG
 VSCODE_CONFIG[name]="Visual Studio Code"
@@ -55,6 +57,8 @@ VSCODE_CONFIG[launcher_script]="$INSTALL_BASE_DIR/vscode/vscode"
 VSCODE_CONFIG[symlink_path]="/usr/local/bin/vscode"
 VSCODE_CONFIG[super_script]="$SUPER_SCRIPTS_DIR/vscode"
 VSCODE_CONFIG[process_names]="code"
+VSCODE_CONFIG[process_paths]="/usr/share/code/code,/opt/visual-studio-code/code,/usr/bin/code"
+VSCODE_CONFIG[exclude_patterns]="cursor"
 
 # Application registry
 declare -A APP_REGISTRY

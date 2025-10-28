@@ -1,0 +1,14 @@
+   Errors: 0
+[2025-10-27T15:19:04.478Z] WARNING: Chrome not found, attempting to install...
+[2025-10-27T15:19:04.500Z] WARNING: Chrome not found. Attempting to install...
+[2025-10-27T15:19:04.502Z] INFO: Puppeteer version: 22.13.1, Compatible Chrome version: 124.0.6367.207
+[2025-10-27T15:19:04.502Z] INFO: Installing Chrome version 124.0.6367.207 for Puppeteer 22.13.1
+[2025-10-27T15:19:04.548Z] WARNING: Chrome not found, attempting to install...
+[2025-10-27T15:19:04.580Z] WARNING: Chrome not found. Attempting to install...
+[2025-10-27T15:19:04.583Z] INFO: Puppeteer version: 22.13.1, Compatible Chrome version: 124.0.6367.207
+[2025-10-27T15:19:04.583Z] INFO: Installing Chrome version 124.0.6367.207 for Puppeteer 22.13.1
+(node:587040) Warning: Accessing non-existent property 'APP_INSTALL_DIR' of module exports inside circular dependency
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+

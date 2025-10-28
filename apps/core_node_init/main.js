@@ -15,11 +15,13 @@
 const logger = require('#@logger');
 const gconfig = require('#@gconfig');
 const { fdir } = require('#@ftools');
-const DownloadController = require('./controller/download_controller.js');
+const { Spider, DownloadManager } = require('#@puppeteer');
 
 // Declare variables
-let downloadController = null;
-const supportedCommands = ['download', 'list', 'status', 'help'];
+let spider = null;
+let driver = null;
+let downloadManager = null;
+const supportedCommands = ['download', 'list', 'status', 'help', 'image', 'audio', 'url'];
 
 // Parse command line arguments
 function parseArguments() {
@@ -76,6 +78,9 @@ Usage:
 
 Commands:
   download <target>    Download specified application
+  image <selector>     Download image from CSS selector
+  audio <selector>     Download audio from CSS selector
+  url <url>            Download file from direct URL
   list                 List available download targets
   status              Show download status
   help                Show this help message
@@ -94,6 +99,9 @@ Options:
 Examples:
   node main.js app=core_node_init download cursor
   node main.js app=core_node_init download vscode --force
+  node main.js app=core_node_init image "img.download-image"
+  node main.js app=core_node_init audio "audio.download-audio"
+  node main.js app=core_node_init url "https://example.com/file.zip"
   node main.js app=core_node_init list
   node main.js app=core_node_init status
 `);
@@ -103,10 +111,14 @@ Examples:
 function listTargets() {
     logger.info('Available download targets:');
 
-    const config = require('./config/index.js');
-    const configs = config.downloadConfigs;
-    for (const [key, downloadConfig] of Object.entries(configs)) {
-        logger.info(`  ${key.padEnd(10)} - ${downloadConfig.name}: ${downloadConfig.description}`);
+    if (!downloadManager) {
+        logger.error('Download manager not initialized');
+        return;
+    }
+
+    const targets = downloadManager.listTargets();
+    for (const target of targets) {
+        logger.info(`  ${target.key.padEnd(10)} - ${target.name}: ${target.description}`);
     }
 }
 
@@ -114,12 +126,13 @@ function listTargets() {
 async function showStatus() {
     logger.info('Download status check...');
     
-    if (!downloadController) {
-        downloadController = new DownloadController();
+    if (!downloadManager) {
+        logger.error('Download manager not initialized');
+        return;
     }
     
     try {
-        const status = await downloadController.getDownloadStatus();
+        const status = await downloadManager.getDownloadStatus();
         
         logger.info('Download Status:');
         for (const [target, info] of Object.entries(status)) {
@@ -132,7 +145,7 @@ async function showStatus() {
     }
 }
 
-// Execute download command
+// Execute download command using DownloadManager
 async function executeDownload(target, options) {
     if (!target) {
         logger.error('Download target is required');
@@ -140,44 +153,98 @@ async function executeDownload(target, options) {
         return false;
     }
     
-    const configs = gconfig.downloadConfigs;
-    if (!configs[target]) {
-        logger.error(`Unknown download target: ${target}`);
-        logger.info('Available targets:');
-        listTargets();
+    if (!downloadManager) {
+        logger.error('Download manager not initialized');
         return false;
     }
     
-    if (!downloadController) {
-        downloadController = new DownloadController();
-    }
-    
     try {
-        logger.info(`Starting download for: ${target}`);
-        const result = await downloadController.downloadTarget(target, options);
-        
-        if (result.success) {
-            logger.info(`Download completed successfully: ${result.filePath}`);
-            return true;
-        } else {
-            logger.error(`Download failed: ${result.error}`);
-            return false;
-        }
+        const result = await downloadManager.downloadApplication(target, options);
+        return result.success;
     } catch (error) {
         logger.error('Download error:', error.message);
         return false;
     }
 }
 
-// Initialize application
+// Execute image download command using DownloadManager
+async function executeImageDownload(selector, options) {
+    if (!selector) {
+        logger.error('Image selector is required');
+        displayHelp();
+        return false;
+    }
+    
+    if (!downloadManager) {
+        logger.error('Download manager not initialized');
+        return false;
+    }
+    
+    try {
+        const result = await downloadManager.downloadImage(selector, options);
+        return result.success;
+    } catch (error) {
+        logger.error('Image download error:', error.message);
+        return false;
+    }
+}
+
+// Execute audio download command using DownloadManager
+async function executeAudioDownload(selector, options) {
+    if (!selector) {
+        logger.error('Audio selector is required');
+        displayHelp();
+        return false;
+    }
+    
+    if (!downloadManager) {
+        logger.error('Download manager not initialized');
+        return false;
+    }
+    
+    try {
+        const result = await downloadManager.downloadAudio(selector, options);
+        return result.success;
+    } catch (error) {
+        logger.error('Audio download error:', error.message);
+        return false;
+    }
+}
+
+// Execute URL download command using DownloadManager
+async function executeUrlDownload(url, options) {
+    if (!url) {
+        logger.error('URL is required');
+        displayHelp();
+        return false;
+    }
+    
+    if (!downloadManager) {
+        logger.error('Download manager not initialized');
+        return false;
+    }
+    
+    try {
+        const result = await downloadManager.downloadFromUrl(url, options);
+        return result.success;
+    } catch (error) {
+        logger.error('URL download error:', error.message);
+        return false;
+    }
+}
+
+// Initialize application using Spider
 async function initialize() {
     logger.info('Initializing Core Node Init application...');
     
     // Ensure required directories exist
     try {
-        fdir.mkdirSync(gconfig.DOWNLOADDIRCONFIG.cacheDir);
-        fdir.mkdirSync(gconfig.DOWNLOADDIRCONFIG.tempDir);
-        fdir.mkdirSync(gconfig.LOGGINGCONFIG.logDir);
+        const downloadDirConfig = gconfig.downloadDirConfig || gconfig.DOWNLOADDIRCONFIG;
+        const loggingConfig = gconfig.loggingConfig || gconfig.LOGGINGCONFIG;
+
+        fdir.mkdirSync(downloadDirConfig.cacheDir);
+        fdir.mkdirSync(downloadDirConfig.tempDir);
+        fdir.mkdirSync(loggingConfig.logDir);
 
         logger.info('Required directories ensured');
     } catch (error) {
@@ -185,9 +252,13 @@ async function initialize() {
         throw error;
     }
     
-    // Initialize download controller
-    downloadController = new DownloadController();
-    await downloadController.initialize();
+    // Initialize Spider and get driver - Spider handles all Chrome detection and configuration
+    const puppeteerConfig = gconfig.puppeteerConfig || gconfig.PUPPETEERCONFIG;
+    spider = new Spider(puppeteerConfig);
+    driver = await spider.getBrowser();
+    
+    // Initialize DownloadManager with driver
+    downloadManager = new DownloadManager(driver);
     
     logger.info('Core Node Init application initialized successfully');
 }
@@ -199,8 +270,6 @@ async function start() {
 
         // Parse command line arguments first to check if it's help command
         const args = parseArguments();
-
-
 
         // Skip initialization for help and list commands
         if (args.command === 'help') {
@@ -228,8 +297,16 @@ async function start() {
                 success = await executeDownload(args.target, args.options);
                 break;
 
-            case 'list':
-                listTargets();
+            case 'image':
+                success = await executeImageDownload(args.target, args.options);
+                break;
+
+            case 'audio':
+                success = await executeAudioDownload(args.target, args.options);
+                break;
+
+            case 'url':
+                success = await executeUrlDownload(args.target, args.options);
                 break;
 
             case 'status':
@@ -243,8 +320,8 @@ async function start() {
         }
         
         // Cleanup
-        if (downloadController) {
-            await downloadController.cleanup();
+        if (driver && driver.puppeteerBrowser) {
+            await driver.puppeteerBrowser.close();
         }
         
         if (success) {
@@ -259,9 +336,9 @@ async function start() {
         logger.error('Fatal error in Core Node Init application:', error.message);
         
         // Cleanup on error
-        if (downloadController) {
+        if (driver && driver.puppeteerBrowser) {
             try {
-                await downloadController.cleanup();
+                await driver.puppeteerBrowser.close();
             } catch (cleanupError) {
                 logger.error('Cleanup error:', cleanupError.message);
             }

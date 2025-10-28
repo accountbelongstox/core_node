@@ -46,35 +46,11 @@ source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 FORCE_INSTALL=false
 CLEANUP_MODE=false
-CURSOR_INSTALL_DIR="$(map_web_path "compile_dir")/cursor"
-CURSOR_APPIMAGE_DIR="$CURSOR_INSTALL_DIR/appimage"
-CURSOR_EXTRACTED_DIR="$CURSOR_INSTALL_DIR/extracted"
-CURSOR_BIN_DIR="$CURSOR_INSTALL_DIR/bin"
-CURSOR_DESKTOP_FILE="/usr/share/applications/cursor.desktop"
-CURSOR_LAUNCHER_SCRIPT="$CURSOR_BIN_DIR/cursor"
-CURSOR_INSTALLED_FLAG="$GLOBAL_VAR_DIR/cursor_installed.flag"
-# Function to find all Downloads directories
-find_all_downloads_dirs() {
-    local downloads_dirs=()
 
-    # Add common user Downloads directories
-    for home_dir in /home/*; do
-        if [[ -d "$home_dir/Downloads" ]]; then
-            downloads_dirs+=("$home_dir/Downloads")
-        fi
-    done
-
-    # Add root Downloads if exists
-    if [[ -d "/root/Downloads" ]]; then
-        downloads_dirs+=("/root/Downloads")
-    fi
-
-    printf '%s\n' "${downloads_dirs[@]}"
-}
-
-# Get all Downloads directories
-DOWNLOADS_DIRS=($(find_all_downloads_dirs))
-CURSOR_DOWNLOAD_URL="https://cursor.com/download"
+# Note: CURSOR_* variables are now exported by export_legacy_config "cursor"
+# from the centralized app_registry.sh configuration
+# Note: find_all_downloads_dirs function is now available from install_config.sh
+# Note: CURSOR_DOWNLOAD_URL is now available from export_legacy_config "cursor"
 
 # Colors for output
 RED='\033[0;31m'
@@ -143,8 +119,12 @@ cursor_automated_download() {
 cursor_manual_download() {
     print_step_from_common_functions "Falling back to manual download..."
 
-    local downloaded_file=$(manual_download_fallback "cursor" "${APP_CONFIGS[cursor_name]}" "${APP_CONFIGS[cursor_url]}" "${APP_CONFIGS[cursor_pattern]}")
-    if [[ $? -eq 0 ]] && [[ -n "$downloaded_file" ]]; then
+    # Capture only the file path, not the log output
+    local downloaded_file
+    downloaded_file=$(manual_download_fallback "cursor" "${APP_CONFIGS[cursor_name]}" "${APP_CONFIGS[cursor_url]}" "${APP_CONFIGS[cursor_pattern]}" 2>/dev/null)
+    local result=$?
+
+    if [[ $result -eq 0 ]] && [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
         print_success_from_common_functions "Manual download completed: $(basename "$downloaded_file")"
         echo "$downloaded_file"
         return 0
@@ -340,9 +320,9 @@ install_dependencies() {
 cleanup_cursor() {
     print_header_from_common_functions "Cleaning up Cursor installation"
 
-    # Terminate Cursor processes
+    # Terminate Cursor processes using safe method
     print_step_from_common_functions "Terminating Cursor processes..."
-    kill_processes_by_name "cursor" true
+    safe_kill_processes "cursor" true
 
     # Remove installation directory using robust removal
     if [[ -d "$CURSOR_INSTALL_DIR" ]]; then
@@ -386,11 +366,21 @@ install_cursor() {
 
     # Use centralized download and install workflow
     print_step_from_common_functions "Starting Cursor download workflow..."
-    local appimage_file=$(download_and_install_app "cursor" "$FORCE_INSTALL")
-    if [[ $? -ne 0 ]] || [[ -z "$appimage_file" ]]; then
+
+    # Capture only the file path, not the log output
+    local appimage_file
+    appimage_file=$(download_and_install_app "cursor" "$FORCE_INSTALL" 2>/dev/null)
+    local download_result=$?
+
+    # Validate the result
+    if [[ $download_result -ne 0 ]] || [[ -z "$appimage_file" ]] || [[ ! -f "$appimage_file" ]]; then
+        print_warning_from_common_functions "Centralized download failed, trying manual download..."
+
         # Try manual download as final fallback
         appimage_file=$(cursor_manual_download)
-        if [[ $? -ne 0 ]] || [[ -z "$appimage_file" ]]; then
+        local manual_result=$?
+
+        if [[ $manual_result -ne 0 ]] || [[ -z "$appimage_file" ]] || [[ ! -f "$appimage_file" ]]; then
             print_error_from_common_functions "Failed to find or download Cursor AppImage"
             return 1
         fi

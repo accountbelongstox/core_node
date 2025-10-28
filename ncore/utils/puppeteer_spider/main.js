@@ -13,8 +13,10 @@
 'use strict';
 const Spider = require('./climber/driver.js');
 const Fetcher = require('./fetcher.js');
+const DownloadManager = require('./climber/modus/download_manager.js');
 
 module.exports = {
     Spider,
-    Fetcher
+    Fetcher,
+    DownloadManager
 };

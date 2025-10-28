@@ -1,27 +1,46 @@
-21_install_cursor.sh...
+2025-10-27T13:50:37.439Z] INFO: Puppeteer version: 22.13.1, Compatible Chrome version: 124.0.6367.207
+[2025-10-27T13:50:37.439Z] INFO: Installing Chrome version 124.0.6367.207 for Puppeteer 22.13.1
+[2025-10-27T13:50:37.457Z] WARNING: Chrome not found, attempting to install...
+[2025-10-27T13:50:37.465Z] WARNING: Chrome not found. Attempting to install...
+[2025-10-27T13:50:37.465Z] INFO: Puppeteer version: 22.13.1, Compatible Chrome version: 124.0.6367.207
+[2025-10-27T13:50:37.465Z] INFO: Installing Chrome version 124.0.6367.207 for Puppeteer 22.13.1
+[2025-10-27T13:50:38.231Z] ERROR: Failed to install Chrome: EACCES: permission denied, open '/www/applications_linux/Google/chrome/124.0.6367.207-chrome-linux64.zip'
+[2025-10-27T13:50:38.231Z] INFO: Attempting fallback installation with latest version...
+[2025-10-27T13:50:38.238Z] ERROR: Failed to install Chrome: EACCES: permission denied, open '/www/applications_linux/Google/chrome/124.0.6367.207-chrome-linux64.zip'
+[2025-10-27T13:50:38.238Z] INFO: Attempting fallback installation with latest version...
+[2025-10-27T13:50:38.778Z] ERROR: Fallback Chrome installation also failed: Got status code 404
+[2025-10-27T13:50:38.798Z] ERROR: Chrome could not be found after installation.
+[2025-10-27T13:50:38.799Z] ERROR: Not found chrome executable path from null
+[2025-10-27T13:50:38.809Z] ERROR: Fallback Chrome installation also failed: Got status code 404
+[2025-10-27T13:50:38.820Z] ERROR: Chrome could not be found after installation.
+[2025-10-27T13:50:38.820Z] ERROR: Not found chrome executable path from null
+Screen Resolution: 1920x1080
+New Resolution: 1152x648
+[2025-10-27T13:50:38.893Z] INFO: 
+Screen Resolution: 1920x1080
+New Resolution: 1152x648
+[2025-10-27T13:50:39.119Z] ERROR: Failed to initialize Download Controller: Could not find Chrome (ver. 127.0.6533.88). This can occur if either
+ 1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+ 2. your cache path is incorrectly configured (which is: /home/ubuntu/.cache/puppeteer).
+For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+[2025-10-27T13:50:39.119Z] ERROR: Fatal error in Core Node Init application: Could not find Chrome (ver. 127.0.6533.88). This can occur if either
+ 1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+ 2. your cache path is incorrectly configured (which is: /home/ubuntu/.cache/puppeteer).
+For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+[2025-10-27T13:50:39.119Z] INFO: Download Controller cleanup completed
+[2025-10-27T13:50:39.119Z] INFO: [ExitOn] Process exited RunTime: 2s
+[INSTALL_LIB] Automated download failed with exit code: 1
+[INSTALL_LIB] Automated download failed
+[INFO] Step 4: Falling back to manual download...
 
-=== Cursor IDE Installation Script ===
-==================================================
 
-[INFO] Installation Directory: /mnt/dev_sdb3/_ubuntu_24/cursor
-/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/testselector.sh: line 77: 510615 Segmentation fault      (core dumped) "$script_path"
-
-Script execution completed with exit code: 139
-Press any key to return to test scripts menu...
-
-
-122_install_vscode.sh...
-
-=== Visual Studio Code Installation Script ===
-==================================================
-
-[INFO] Installation Directory: /mnt/dev_sdb3/_ubuntu_24/vscode
-/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/testselector.sh: line 77: 512128 Segmentation fault      (core dumped) "$script_path"
-
-Script execution completed with exit code: 139
-Press any key to return to test scripts menu...
-
-
-
+目前卡在这里。
+Total Screen of methods: 9
+[2025-10-27T14:02:16.991Z] INFO: Download Controller initialized successfully
+[2025-10-27T14:02:16.991Z] INFO: Core Node Init application initialized successfully
+[2025-10-27T14:02:16.991Z] INFO: Command: download, Target: vscode
+[2025-10-27T14:02:16.991Z] INFO: Starting download for: vscode
+[2025-10-27T14:02:17.002Z] INFO: Starting download for Visual Studio Code...
+[2025-10-27T14:02:17.004Z] INFO: Navigating to https://code.visualstudio.com/...
 
 

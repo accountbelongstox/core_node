@@ -14,10 +14,51 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LINUX_COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
 SHELLS_COMMON_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")/common"
 source "$LINUX_COMMON_DIR/common_functions.sh"
-source "$SHELLS_COMMON_DIR/app_registry.sh"
 source "$SHELLS_COMMON_DIR/install_logic.sh"
 
+# VSCode app configuration (inline to avoid separate app_registry.sh file)
+declare -gA VSCODE_CONFIG=(
+    ["name"]="Visual Studio Code"
+    ["exec"]="code"
+    ["package_id"]="code"
+    ["install_method"]="automated_download"
+    ["category"]="development"
+    ["groups"]="essential development all"
+    ["description"]="Microsoft Visual Studio Code editor"
+    ["verify_command"]="--version"
+    ["launch_command"]="code"
+    ["download_url"]="https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64"
+    ["file_extension"]="deb"
+    ["pattern"]="*code*.deb"
+)
+
 # Export legacy configuration for backward compatibility
+export_legacy_config() {
+    local app_name="$1"
+    case "$app_name" in
+        "vscode")
+            export VSCODE_NAME="${VSCODE_CONFIG[name]}"
+            export VSCODE_EXEC="${VSCODE_CONFIG[exec]}"
+            export VSCODE_PACKAGE_ID="${VSCODE_CONFIG[package_id]}"
+            export VSCODE_INSTALL_METHOD="${VSCODE_CONFIG[install_method]}"
+            export VSCODE_CATEGORY="${VSCODE_CONFIG[category]}"
+            export VSCODE_GROUPS="${VSCODE_CONFIG[groups]}"
+            export VSCODE_DESCRIPTION="${VSCODE_CONFIG[description]}"
+            export VSCODE_VERIFY_COMMAND="${VSCODE_CONFIG[verify_command]}"
+            export VSCODE_LAUNCH_COMMAND="${VSCODE_CONFIG[launch_command]}"
+            export VSCODE_DOWNLOAD_URL="${VSCODE_CONFIG[download_url]}"
+            export VSCODE_FILE_EXTENSION="${VSCODE_CONFIG[file_extension]}"
+            export VSCODE_PATTERN="${VSCODE_CONFIG[pattern]}"
+
+            # Set up APP_CONFIGS array for compatibility
+            declare -gA APP_CONFIGS
+            APP_CONFIGS[vscode_name]="${VSCODE_CONFIG[name]}"
+            APP_CONFIGS[vscode_url]="${VSCODE_CONFIG[download_url]}"
+            APP_CONFIGS[vscode_pattern]="${VSCODE_CONFIG[pattern]}"
+            ;;
+    esac
+}
+
 export_legacy_config "vscode"
 
 # ### AI SPECIAL ATTENTION RULES START ###
@@ -42,36 +83,28 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
 
+# Initialize global variables
+init_global_vars
+
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 FORCE_INSTALL=false
 CLEANUP_MODE=false
-VSCODE_INSTALL_DIR="$(map_web_path "compile_dir")/vscode"
+
+# Set up VSCode directories using new applications_dir mapping
+APPLICATIONS_DIR=$(map_web_path "applications_dir")
+VSCODE_INSTALL_DIR="$APPLICATIONS_DIR/vscode"
 VSCODE_DEB_DIR="$VSCODE_INSTALL_DIR/deb"
-VSCODE_INSTALLED_FLAG="$GLOBAL_VAR_DIR/vscode_installed.flag"
+VSCODE_INSTALLED_FLAG="$VSCODE_INSTALL_DIR/.installed"
 
-# Function to find all Downloads directories
-find_all_downloads_dirs() {
-    local downloads_dirs=()
+# Ensure sudo is available and set USE_SUDO
+if command -v sudo >/dev/null 2>&1; then
+    USE_SUDO="sudo"
+else
+    USE_SUDO=""
+fi
 
-    # Add common user Downloads directories
-    for home_dir in /home/*; do
-        if [[ -d "$home_dir/Downloads" ]]; then
-            downloads_dirs+=("$home_dir/Downloads")
-        fi
-    done
-
-    # Add root Downloads if exists
-    if [[ -d "/root/Downloads" ]]; then
-        downloads_dirs+=("/root/Downloads")
-    fi
-
-    printf '%s\n' "${downloads_dirs[@]}"
-}
-
-# Get all Downloads directories
-DOWNLOADS_DIRS=($(find_all_downloads_dirs))
-VSCODE_DOWNLOAD_URL="https://code.visualstudio.com/"
+# Note: VSCODE_* variables are now exported by export_legacy_config "vscode"
 
 # Colors for output
 RED='\033[0;31m'
@@ -138,8 +171,12 @@ vscode_automated_download() {
 vscode_manual_download() {
     print_step_from_common_functions "Falling back to manual download..."
 
-    local downloaded_file=$(manual_download_fallback "vscode" "${APP_CONFIGS[vscode_name]}" "${APP_CONFIGS[vscode_url]}" "${APP_CONFIGS[vscode_pattern]}")
-    if [[ $? -eq 0 ]] && [[ -n "$downloaded_file" ]]; then
+    # Capture only the file path, not the log output
+    local downloaded_file
+    downloaded_file=$(manual_download_fallback "vscode" "${APP_CONFIGS[vscode_name]}" "${APP_CONFIGS[vscode_url]}" "${APP_CONFIGS[vscode_pattern]}" 2>/dev/null)
+    local result=$?
+
+    if [[ $result -eq 0 ]] && [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
         print_success_from_common_functions "Manual download completed: $(basename "$downloaded_file")"
         echo "$downloaded_file"
         return 0
@@ -248,9 +285,9 @@ install_dependencies() {
 cleanup_vscode() {
     print_header_from_common_functions "Cleaning up VS Code installation"
 
-    # Terminate VS Code processes
+    # Terminate VS Code processes using safe method
     print_step_from_common_functions "Terminating VS Code processes..."
-    kill_processes_by_name "code" true
+    safe_kill_processes "vscode" true
 
     # Remove VS Code package
     if dpkg -l | grep -q "code"; then
@@ -295,11 +332,26 @@ install_vscode() {
 
     # Use centralized download and install workflow
     print_step_from_common_functions "Starting VS Code download workflow..."
-    local deb_file=$(download_and_install_app "vscode" "$FORCE_INSTALL")
-    if [[ $? -ne 0 ]] || [[ -z "$deb_file" ]]; then
+
+    # Enable debug mode and show all output
+    print_info_from_common_functions "DEBUG: Calling download_and_install_app with vscode, force=$FORCE_INSTALL"
+
+    # Capture the file path while showing all log output
+    local deb_file
+    deb_file=$(download_and_install_app "vscode" "$FORCE_INSTALL")
+    local download_result=$?
+
+    print_info_from_common_functions "DEBUG: download_and_install_app returned: exit_code=$download_result, file='$deb_file'"
+
+    # Validate the result
+    if [[ $download_result -ne 0 ]] || [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
+        print_warning_from_common_functions "Centralized download failed, trying manual download..."
+
         # Try manual download as final fallback
         deb_file=$(vscode_manual_download)
-        if [[ $? -ne 0 ]] || [[ -z "$deb_file" ]]; then
+        local manual_result=$?
+
+        if [[ $manual_result -ne 0 ]] || [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
             print_error_from_common_functions "Failed to find or download VS Code .deb"
             return 1
         fi
