@@ -577,6 +577,7 @@ ncore/
 │   │   │   │   ├── content.api.md
 │   │   │   │   ├── content.js
 │   │   │   │   ├── download.js
+│   │   │   │   ├── download_manager.js
 │   │   │   │   ├── file_monitor.js
 │   │   │   │   ├── handle.js
 │   │   │   │   ├── page.js
@@ -789,7 +790,8 @@ ncore/
 │   │   │   ├── watchf.js
 │   │   │   └── zip.js
 │   │   ├── fetcher.js
-│   │   └── main.js
+│   │   ├── main.js
+│   │   └── puppeteer_spider_tree.md
 │   ├── shortcuttool/
 │   │   └── index.js
 │   ├── smart_compression/

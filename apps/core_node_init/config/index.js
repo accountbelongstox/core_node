@@ -26,7 +26,7 @@ const safeAppLargeFilesCacheDir = globalDir?.APP_LARGE_FILES_CACHE_DIR || path.j
 const safeAppRuntimeCacheDir = globalDir?.APP_RUNTIME_CACHE_DIR || path.join(homeDir, '.core_node', 'cache', 'runtime');
 
 // Use ncore existing functionality
-const { Spider } = require('#@puppeteer');
+// Spider is imported in main.js, no need to duplicate here
 
 // Download configurations for different applications
 const downloadConfigs = {
@@ -56,7 +56,7 @@ const downloadConfigs = {
 
 // Puppeteer configuration
 const puppeteerConfig = {
-    headless: true,
+    headless: false,
     devtools: false,
     timeout: 120000,
     waitForComplete: true,

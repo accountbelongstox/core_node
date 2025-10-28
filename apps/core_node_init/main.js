@@ -15,7 +15,7 @@
 const logger = require('#@logger');
 const gconfig = require('#@gconfig');
 const { fdir } = require('#@ftools');
-const { Spider, DownloadManager } = require('#@puppeteer');
+const { GlobalDownloadManager } = require('#@puppeteer');
 
 // Declare variables
 let spider = null;
@@ -233,18 +233,22 @@ async function executeUrlDownload(url, options) {
     }
 }
 
-// Initialize application using Spider
+// Initialize application using PuppeteerSpider
 async function initialize() {
     logger.info('Initializing Core Node Init application...');
     
-    // Ensure required directories exist
+    // Ensure required directories exist using ncore foundation
     try {
         const downloadDirConfig = gconfig.downloadDirConfig || gconfig.DOWNLOADDIRCONFIG;
         const loggingConfig = gconfig.loggingConfig || gconfig.LOGGINGCONFIG;
 
-        fdir.mkdirSync(downloadDirConfig.cacheDir);
-        fdir.mkdirSync(downloadDirConfig.tempDir);
-        fdir.mkdirSync(loggingConfig.logDir);
+        if (downloadDirConfig) {
+            fdir.mkdirSync(downloadDirConfig.cacheDir);
+            fdir.mkdirSync(downloadDirConfig.tempDir);
+        }
+        if (loggingConfig) {
+            fdir.mkdirSync(loggingConfig.logDir);
+        }
 
         logger.info('Required directories ensured');
     } catch (error) {
@@ -252,13 +256,9 @@ async function initialize() {
         throw error;
     }
     
-    // Initialize Spider and get driver - Spider handles all Chrome detection and configuration
+    // Initialize GlobalDownloadManager (uses first instance by default)
     const puppeteerConfig = gconfig.puppeteerConfig || gconfig.PUPPETEERCONFIG;
-    spider = new Spider(puppeteerConfig);
-    driver = await spider.getBrowser();
-    
-    // Initialize DownloadManager with driver
-    downloadManager = new DownloadManager(driver);
+    downloadManager = new GlobalDownloadManager();
     
     logger.info('Core Node Init application initialized successfully');
 }
@@ -279,6 +279,7 @@ async function start() {
         }
 
         if (args.command === 'list') {
+            await initialize();
             listTargets();
             logger.info('Core Node Init application completed successfully');
             process.exit(0);
@@ -320,8 +321,8 @@ async function start() {
         }
         
         // Cleanup
-        if (driver && driver.puppeteerBrowser) {
-            await driver.puppeteerBrowser.close();
+        if (downloadManager) {
+            await downloadManager.close();
         }
         
         if (success) {
@@ -336,11 +337,11 @@ async function start() {
         logger.error('Fatal error in Core Node Init application:', error.message);
         
         // Cleanup on error
-        if (driver && driver.puppeteerBrowser) {
+        if (downloadManager) {
             try {
-                await driver.puppeteerBrowser.close();
+                await downloadManager.close();
             } catch (cleanupError) {
-                logger.error('Cleanup error:', cleanupError.message);
+                logger.error('DownloadManager cleanup error:', cleanupError.message);
             }
         }
         

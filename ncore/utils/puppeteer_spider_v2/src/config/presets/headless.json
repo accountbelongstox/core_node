@@ -1,0 +1,31 @@
+{
+  "browser": "edge",
+  "headless": true,
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "timeout": 30000,
+  "browserOptions": {
+    "args": [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-web-security",
+      "--disable-features=VizDisplayCompositor",
+      "--headless",
+      "--disable-gpu",
+      "--no-first-run",
+      "--disable-default-apps",
+      "--disable-extensions"
+    ],
+    "ignoreDefaultArgs": false,
+    "ignoreHTTPSErrors": true,
+    "slowMo": 0
+  },
+  "sessionOptions": {
+    "maxPages": 5,
+    "maxConcurrentRequests": 3,
+    "requestTimeout": 30000
+  }
+}

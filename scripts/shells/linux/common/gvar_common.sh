@@ -500,6 +500,16 @@ suggest_disk_usage_strategy() {
 # Execute multi-disk detection
 detect_multiple_disks
 
+# Initialize global variables function (compatibility placeholder)
+init_global_vars() {
+    # Global variables are already initialized above
+    # This function exists for compatibility with existing scripts
+    return 0
+}
+
+# Export the function
+export -f init_global_vars
+
 # Export key variables for use by other scripts
 export USE_SUDO
 export CORE_NODE_PROJECT_ROOT

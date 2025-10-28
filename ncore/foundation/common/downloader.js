@@ -43,7 +43,7 @@ let DATA_DRIVER;
 if (os.platform() === 'win32') {
     DATA_DRIVER = fs.existsSync('D:\\') ? 'D:\\' : 'C:\\';
 } else {
-    DATA_DRIVER = fs.existsSync('/mnt/d') ? '/mnt/d' : '/usr/';
+    DATA_DRIVER = fs.existsSync('/mnt/d') ? '/mnt/d' : os.homedir();
 }
 
 const USE_DRIVER = DATA_DRIVER

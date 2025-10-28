@@ -1,14 +1,11 @@
-   Errors: 0
-[2025-10-27T15:19:04.478Z] WARNING: Chrome not found, attempting to install...
-[2025-10-27T15:19:04.500Z] WARNING: Chrome not found. Attempting to install...
-[2025-10-27T15:19:04.502Z] INFO: Puppeteer version: 22.13.1, Compatible Chrome version: 124.0.6367.207
-[2025-10-27T15:19:04.502Z] INFO: Installing Chrome version 124.0.6367.207 for Puppeteer 22.13.1
-[2025-10-27T15:19:04.548Z] WARNING: Chrome not found, attempting to install...
-[2025-10-27T15:19:04.580Z] WARNING: Chrome not found. Attempting to install...
-[2025-10-27T15:19:04.583Z] INFO: Puppeteer version: 22.13.1, Compatible Chrome version: 124.0.6367.207
-[2025-10-27T15:19:04.583Z] INFO: Installing Chrome version 124.0.6367.207 for Puppeteer 22.13.1
-(node:587040) Warning: Accessing non-existent property 'APP_INSTALL_DIR' of module exports inside circular dependency
-(Use `node --trace-warnings ...` to show where the warning was created)
-
-
-
+node main.js app=core_node_init download vscode --force
+[GLOBAL_DIR] Cannot create /usr/.core_node, using fallback: /home/ubuntu/.core_node
+[2025-10-28T11:45:05.719Z] INFO: Searching for executable files in app directory: /mnt/dev_sdb3/programing/core_node/apps/core_node_init
+[2025-10-28T11:45:05.720Z] INFO: Skipping launcher discovery: automatic explorer start is only available on Windows environments.
+[WARN] Cannot create /usr/core_node/global_var, using fallback: /home/ubuntu/.core_node/global_var
+[DEBUG] Config updated: PUPPETEERCONFIG = {"headless":false,"devtools":false,"timeout":120000,"waitForComplete":true,"showImages":false,"showStyle":true,"disableGpu":true,"mute":true,"random_user_agent":true,"args":["--no-sandbox","--disable-setuid-sandbox","--disable-dev-shm-usage","--disable-accelerated-2d-canvas","--no-first-run","--no-zygote","--disable-gpu","--disable-web-security","--disable-features=VizDisplayCompositor","--user-data-dir=/mnt/dev_sdb3/programing/core_node/public/core_node_init/.runtime_cache/chrome-user-data-1761651905786"]}
+[2025-10-28T11:45:06.970Z] INFO: Starting Core Node Init application...
+[2025-10-28T11:45:06.970Z] INFO: Initializing Core Node Init application...
+[2025-10-28T11:45:06.970Z] INFO: Required directories ensured
+[2025-10-28T11:45:06.971Z] ERROR: Fatal error in Core Node Init application: Spider is not a constructor
+[2025-10-28T11:45:06.971Z] INFO: [ExitOn] Process exited RunTime: 1s
