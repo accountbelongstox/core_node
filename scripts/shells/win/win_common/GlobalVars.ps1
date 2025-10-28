@@ -112,6 +112,9 @@ $Global:STEP_COUNT = 1
 $Global:DEBUG_MODE = $true  # Set to $false to disable debug output
 $Global:DEBUG_PREFIX = "[DEBUG]"
 
+# Execution Mode Configuration
+$Global:EXECUTION_MODE = "PROJECT"  # Default to PROJECT mode, will be set by InitializationManager.ps1
+
 # Desktop Cleanup Configuration
 $Global:AGGRESSIVE_CLEANUP_ENABLED = $false  # Set to $true to enable aggressive desktop cleanup
 
