@@ -250,9 +250,10 @@ function Get-ValidatedPackageId {
     }
     
     # Check if PackageId is required for this install type
-    $RequiredTypes = @("winget", "choco", "scoop", "web", "uvx", "pipx", "npm", "pip", "uv", "poetry", "cargo", "go", "gem", "brew")
+    $RequiredTypes = @("winget", "choco", "scoop", "web", "uvx", "pipx", "uv", "poetry", "cargo", "go", "gem", "brew")
     $IsRequired = $InstallType -in $RequiredTypes
     
+    # For npm and pip, PackageId is not required as package name is used directly
     if ([string]::IsNullOrEmpty($PackageId) -and $IsRequired) {
         Write-Host "$SCRIPT_INDEX Error: Package requires PackageId for $InstallType installation type" -ForegroundColor Red -BackgroundColor White
         return $null
@@ -900,9 +901,14 @@ function Install-BasePackage {
     # Handle PostInstallCallbacks if defined and executable is available
     if ($executable) {
         # Determine install directory for callbacks
-        $callbackInstallDir = if ($InstallType -eq "web" -and $IsArchive) {
-            # For web archives, use the install directory
-            $InstallDir
+        $callbackInstallDir = if ($InstallType -eq "web") {
+            # For web installations, check if it's an archive
+            $isWebArchive = if ($PackageMeta.ContainsKey("IsArchive")) { $PackageMeta.IsArchive } else { $false }
+            if ($isWebArchive) {
+                $InstallDir
+            } else {
+                Split-Path $executable -Parent
+            }
         }
         else {
             # For other types, use the executable's parent directory

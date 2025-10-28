@@ -36,6 +36,18 @@ curl -L https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.cm
 dd.cmd
 ```
 
+PowerShell version (run in Administrator PowerShell):
+
+```powershell
+Invoke-WebRequest -Uri "https://gitee.com/accountbelongstox/core_node/raw/main/dd.cmd" -OutFile "dd.cmd"
+.\dd.cmd
+```
+
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.cmd" -OutFile "dd.cmd"
+.\dd.cmd
+```
+
 Linux one-click deployment:
 
 ```bash

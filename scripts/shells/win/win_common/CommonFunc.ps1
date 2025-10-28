@@ -967,6 +967,9 @@ function Repair-WingetInstallation {
     Write-Host "       [REPAIR] Checking for installation mismatch for $Id" -ForegroundColor Yellow
     Write-Host "       [REPAIR] Expected location: $ExpectedInstallDir" -ForegroundColor Yellow
     
+    Write-Host "       [REPAIR] DEBUG: FoundExecutablePath parameter: $FoundExecutablePath" -ForegroundColor Magenta
+    Write-Host "       [REPAIR] DEBUG: Keyword parameter: $Keyword" -ForegroundColor Magenta
+    
     # Use provided path or find executable
     if (-not $FoundExecutablePath) {
         Write-Host "       [REPAIR] No executable path provided, searching in expected directory: $ExpectedInstallDir" -ForegroundColor Yellow
@@ -1024,7 +1027,8 @@ function Repair-WingetInstallation {
         }
         else {
             # Standard copy for other applications
-            Copy-Item -Path "$foundInstallDir\*" -Destination $ExpectedInstallDir -Recurse -Force
+            # Use -ErrorAction SilentlyContinue to handle broken symlinks gracefully
+            Copy-Item -Path "$foundInstallDir\*" -Destination $ExpectedInstallDir -Recurse -Force -ErrorAction SilentlyContinue
         }
         
         # Verify the copy was successful - search for executable in the copied directory
@@ -1324,13 +1328,64 @@ function Invoke-WingetCommand {
         Write-Host "       Uninstall completed in $([math]::Round($timeBetweenCommands.TotalSeconds, 2)) seconds" -ForegroundColor Gray
     
         Write-Host "       Running: $fullCommand" -ForegroundColor Cyan
-        $process = Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru
-        if ($process.ExitCode -eq 0) {
-            Write-Host "       Successfully installed $Id" -ForegroundColor Green
-            $installationResult = $true
-            New-Item -ItemType File -Path $installSuccessFlag -Force | Out-Null
+        
+        # Enhanced installation with retry mechanism for network issues
+        $maxRetries = 3
+        $retryDelay = 2
+        $installationSuccess = $false
+        
+        for ($retryAttempt = 1; $retryAttempt -le $maxRetries; $retryAttempt++) {
+            if ($retryAttempt -gt 1) {
+                Write-Host "       Retry attempt $retryAttempt of $maxRetries for $Id..." -ForegroundColor Yellow
+                Write-Host "       Retrying in " -NoNewline -ForegroundColor Cyan
+                
+                # Countdown display
+                for ($i = $retryDelay; $i -gt 0; $i--) {
+                    Write-Host "$i " -NoNewline -ForegroundColor Cyan
+                    Start-Sleep -Seconds 1
+                }
+                Write-Host "" # New line after countdown
+            }
+            
+            $process = Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "winget_install_output.log" -RedirectStandardError "winget_install_error.log"
+            
+            if ($process.ExitCode -eq 0) {
+                Write-Host "       Successfully installed $Id" -ForegroundColor Green
+                $installationResult = $true
+                $installationSuccess = $true
+                New-Item -ItemType File -Path $installSuccessFlag -Force | Out-Null
+                break
+            }
+            else {
+                # Check for specific network-related error codes
+                $errorOutput = if (Test-Path "winget_install_error.log") { Get-Content "winget_install_error.log" -Raw } else { "" }
+                $isNetworkError = $errorOutput -match "0x80072ee2|InternetOpenUrl|network|connection|timeout|download"
+                
+                if ($isNetworkError) {
+                    Write-Host "       Network error detected (attempt $retryAttempt): $($process.ExitCode)" -ForegroundColor Yellow
+                    if ($retryAttempt -lt $maxRetries) {
+                        Write-Host "       Will retry installation due to network issue..." -ForegroundColor Cyan
+                        continue
+                    }
+                    else {
+                        Write-Host "       Max retries reached for network issues. Installation failed." -ForegroundColor Red
+                    }
+                }
+                else {
+                    Write-Host "       Installation failed with exit code: $($process.ExitCode)" -ForegroundColor Red
+                    if ($retryAttempt -lt $maxRetries) {
+                        Write-Host "       Will retry installation..." -ForegroundColor Cyan
+                        continue
+                    }
+                }
+            }
         }
-        else {
+        
+        # Clean up log files
+        if (Test-Path "winget_install_output.log") { Remove-Item "winget_install_output.log" -Force -ErrorAction SilentlyContinue }
+        if (Test-Path "winget_install_error.log") { Remove-Item "winget_install_error.log" -Force -ErrorAction SilentlyContinue }
+        
+        if (-not $installationSuccess) {
             # Handle retry logic only if AllowTryInstall is true
             if ($AllowTryInstall) {
                 if (-not (Test-Path $tryInstallFlag)) {
@@ -1356,7 +1411,7 @@ function Invoke-WingetCommand {
                 }
             }
             else {
-                Write-Host "       Failed to install $Id" -ForegroundColor Red
+                Write-Host "       Failed to install $Id after $maxRetries attempts" -ForegroundColor Red
                 $installationResult = $false
             }
         }
@@ -1366,6 +1421,7 @@ function Invoke-WingetCommand {
     if ($installationResult -eq $true -and -not [string]::IsNullOrEmpty($Keyword) -and -not $isInExpectedDir -eq $true -and $ForceToInstallDir -eq $true) {
         $isRepair = $true
         Write-Host "       Performing final repair check..." -ForegroundColor Cyan
+        Write-Host "       [DEBUG] About to call Repair-WingetInstallation with exePath: $exePath" -ForegroundColor Magenta
         $repairedExePath = Repair-WingetInstallation -Id $Id -ExpectedInstallDir $InstallDir -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -FoundExecutablePath $exePath
         if ($repairedExePath -ne $null) {
             Write-Host "       Repair completed successfully" -ForegroundColor Green
@@ -1641,6 +1697,22 @@ function Test-DirectoryExistsAndNotEmpty {
     return ($items.Count -gt 0)
 }
 
+# Function to ensure global variables are properly encoded
+function Ensure-GlobalVarsEncoding {
+    if (Test-Path $Global:GLOBAL_VAR_DIR) {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        Get-ChildItem -Path $Global:GLOBAL_VAR_DIR -File | ForEach-Object {
+            # Read content with current encoding
+            $content = Get-Content -Path $_.FullName -Raw
+            if ($content) {
+                # Remove any null bytes and write back with UTF-8 encoding
+                $cleanContent = $content -replace "`0", ""
+                [System.IO.File]::WriteAllText($_.FullName, $cleanContent, $utf8NoBom)
+            }
+        }
+    }
+}
+
 # Function to read a global variable value
 function Get-GlobalVar {
     param (
@@ -1654,7 +1726,10 @@ function Get-GlobalVar {
     
     $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
     if (Test-Path $filePath) {
-        return Get-Content $filePath -Raw
+        # Read file with UTF-8 encoding without BOM
+        $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
+        # Remove any null bytes and return
+        return $content -replace "`0", ""
     }
     return $null
 }
@@ -1672,7 +1747,12 @@ function Set-GlobalVar {
     }
     
     $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
-    Set-Content -Path $filePath -Value $value -Force
+    # Create UTF-8 encoding without BOM
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    # Remove any null bytes from the value
+    $cleanValue = $value -replace "`0", ""
+    # Write content with UTF-8 encoding without BOM
+    [System.IO.File]::WriteAllText($filePath, $cleanValue, $utf8NoBom)
 }
 
 # Function to list all global variables

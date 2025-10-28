@@ -26,16 +26,72 @@ param(
 $ErrorActionPreference = "Stop"
 $script:EncryptionCheckCompleted = $false
 $script:PullCompleted = $false
+$script:FileValidationCompleted = $false
 $originalWorkingDir = Get-Location
 $originalRemoteUrl = ""
 $scriptPath = $PSScriptRoot
 $coreNodeDir = Split-Path (Split-Path $scriptPath -Parent) -Parent
-$projectName = (Get-Item $coreNodeDir).Name
+$projectName = "core_node"  # Hardcoded project name
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 $preCommitScript = Join-Path $scriptPath "pre_commit_encrypt.ps1"
 $BACKUP_ENABLED = if ($Backup) { "true" } else { "false" }
 $currentBranch = ""
 $script:CommitMessage = $null
+$winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
+
+# File validation function for win_common directory
+function Test-WinCommonFiles {
+    Write-Host "=== Validating win_common directory files ===" -ForegroundColor Yellow
+    
+    # Hardcoded list of files in win_common directory
+    $requiredFiles = @(
+        "ApplicationsList.ps1",
+        "CommonFunc.ps1",
+        "DesktopIconManager.ps1",
+        "GlobalVars.ps1",
+        "IconExtractor.ps1",
+        "PackageManagerInvokes.ps1",
+        "PostInstallCallbackProcessor.ps1",
+        "SimpleIconExtractor.ps1",
+        "StartupManager.ps1",
+        "WindowsPathFunction.ps1",
+        "WindowsServiceManager.ps1",
+        "CommonFunc.7z.gz.js",
+        "applicationsXml\ApplicationsList.xml"
+    )
+    
+    $missingFiles = @()
+    $existingFiles = @()
+    
+    foreach ($file in $requiredFiles) {
+        $filePath = Join-Path $winCommonDir $file
+        if (Test-Path $filePath) {
+            $existingFiles += $file
+            Write-Host "[OK] Found: $file" -ForegroundColor Green
+        } else {
+            $missingFiles += $file
+            Write-Host "[MISSING] Missing: $file" -ForegroundColor Red
+        }
+    }
+    
+    Write-Host ""
+    Write-Host "Validation Summary:" -ForegroundColor Cyan
+    Write-Host "  Existing files: $($existingFiles.Count)" -ForegroundColor Green
+    Write-Host "  Missing files: $($missingFiles.Count)" -ForegroundColor Red
+    
+    if ($missingFiles.Count -gt 0) {
+        Write-Host ""
+        Write-Host "WARNING: The following files are missing from win_common directory:" -ForegroundColor Red
+        foreach ($missingFile in $missingFiles) {
+            Write-Host "  - $missingFile" -ForegroundColor Red
+        }
+        Write-Host ""
+        Write-Host "Continuing with commit process despite missing files..." -ForegroundColor Yellow
+    }
+    
+    Write-Host ""
+    return $missingFiles.Count -eq 0
+}
 
 # Global variable management function
 function Get-GlobalVar {
@@ -652,6 +708,14 @@ function Invoke-GitOperations {
         Write-ColorText "Staging all changes..." -ForegroundColor Cyan
         Write-ColorText "Executing: git add ." -ForegroundColor DarkGray
         git add .
+        
+        # Validate win_common files before commit (only once per session)
+        if (-not $script:FileValidationCompleted) {
+            Test-WinCommonFiles
+            $script:FileValidationCompleted = $true
+        } else {
+            Write-Host "INFO: File validation already completed in this session." -ForegroundColor Gray
+        }
         
         # Commit changes BEFORE pulling
         $commitMessage = Get-CommitMessage
