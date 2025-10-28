@@ -56,6 +56,61 @@ CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
 PROJECT_NAME="$(basename "$CORE_NODE_DIR")"
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
 export COMMIT_MESSAGE=""
+WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
+
+# File validation function for win_common directory
+test_win_common_files() {
+    write_color_text "=== Validating win_common directory files ===" "Yellow"
+    
+    # Hardcoded list of files in win_common directory
+    local required_files=(
+        "ApplicationsList.ps1"
+        "CommonFunc.ps1"
+        "DesktopIconManager.ps1"
+        "GlobalVars.ps1"
+        "IconExtractor.ps1"
+        "PackageManagerInvokes.ps1"
+        "PostInstallCallbackProcessor.ps1"
+        "SimpleIconExtractor.ps1"
+        "StartupManager.ps1"
+        "WindowsPathFunction.ps1"
+        "WindowsServiceManager.ps1"
+        "CommonFunc.7z.gz.js"
+        "applicationsXml/ApplicationsList.xml"
+    )
+    
+    local missing_files=()
+    local existing_files=()
+    
+    for file in "${required_files[@]}"; do
+        local file_path="$WIN_COMMON_DIR/$file"
+        if [ -f "$file_path" ]; then
+            existing_files+=("$file")
+            write_color_text "[OK] Found: $file" "Green"
+        else
+            missing_files+=("$file")
+            write_color_text "[MISSING] Missing: $file" "Red"
+        fi
+    done
+    
+    echo ""
+    write_color_text "Validation Summary:" "Cyan"
+    write_color_text "  Existing files: ${#existing_files[@]}" "Green"
+    write_color_text "  Missing files: ${#missing_files[@]}" "Red"
+    
+    if [ ${#missing_files[@]} -gt 0 ]; then
+        echo ""
+        write_color_text "WARNING: The following files are missing from win_common directory:" "Red"
+        for missing_file in "${missing_files[@]}"; do
+            write_color_text "  - $missing_file" "Red"
+        done
+        echo ""
+        write_color_text "Continuing with commit process despite missing files..." "Yellow"
+    fi
+    
+    echo ""
+    return $([ ${#missing_files[@]} -eq 0 ])
+}
 
 # Global variable management function
 get_global_var() {
@@ -802,6 +857,9 @@ invoke_git_operations() {
     write_color_text "Staging all changes..." "Cyan"
     write_color_text "Executing: git add ." "DarkGray"
     git add .
+    
+    # Validate win_common files before commit
+    test_win_common_files
     
     # Commit changes BEFORE pulling
     local commit_message=$(get_commit_message)
