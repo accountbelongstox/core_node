@@ -47,6 +47,7 @@ done
 # Declare all variables at the beginning
 ENCRYPTION_CHECK_COMPLETED=false
 PULL_COMPLETED=false
+FILE_VALIDATION_COMPLETED=false
 ORIGINAL_WORKING_DIR=$(pwd)
 ORIGINAL_REMOTE_URL=""
 ORIGINAL_BRANCH=""
@@ -858,8 +859,13 @@ invoke_git_operations() {
     write_color_text "Executing: git add ." "DarkGray"
     git add .
     
-    # Validate win_common files before commit
-    test_win_common_files
+    # Validate win_common files before commit (only once per session)
+    if [ "$FILE_VALIDATION_COMPLETED" = false ]; then
+        test_win_common_files
+        FILE_VALIDATION_COMPLETED=true
+    else
+        write_color_text "INFO: File validation already completed in this session." "DarkGray"
+    fi
     
     # Commit changes BEFORE pulling
     local commit_message=$(get_commit_message)

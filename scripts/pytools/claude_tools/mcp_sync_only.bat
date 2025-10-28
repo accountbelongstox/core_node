@@ -29,7 +29,7 @@ echo.
 echo This window is syncing MCP server configurations from the
 echo project template to your Claude Code user configuration.
 echo.
-echo Template: D:\programing\core_node\.prompt\mcpWindowsTemplate.json
+echo Template: D:\programing\core_node_a\.prompt\mcpWindowsTemplate.json
 echo Target:   C:\Users\%USERNAME%\.claude.json
 echo.
 echo ============================================================
