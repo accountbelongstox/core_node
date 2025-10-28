@@ -26,6 +26,7 @@ param(
 $ErrorActionPreference = "Stop"
 $script:EncryptionCheckCompleted = $false
 $script:PullCompleted = $false
+$script:FileValidationCompleted = $false
 $originalWorkingDir = Get-Location
 $originalRemoteUrl = ""
 $scriptPath = $PSScriptRoot
@@ -708,8 +709,13 @@ function Invoke-GitOperations {
         Write-ColorText "Executing: git add ." -ForegroundColor DarkGray
         git add .
         
-        # Validate win_common files before commit
-        Test-WinCommonFiles
+        # Validate win_common files before commit (only once per session)
+        if (-not $script:FileValidationCompleted) {
+            Test-WinCommonFiles
+            $script:FileValidationCompleted = $true
+        } else {
+            Write-Host "INFO: File validation already completed in this session." -ForegroundColor Gray
+        }
         
         # Commit changes BEFORE pulling
         $commitMessage = Get-CommitMessage

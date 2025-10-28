@@ -49,19 +49,30 @@ catch{
 $script:SYSTEM_VERSION = ""
 $script:SYSTEM_NAME = ""
 $script:PS_CURENT_DIR = $PSScriptRoot
-$script:DEFAULT_CORE_NODE_DIR = 'D:\programing\core_node'
-
 # Derive core_node root by walking up from this script's directory (scripts/shells/win)
+# This script is located at: scripts/shells/win/dd.ps1
+# So we need to go up 3 levels to reach the root directory
 try {
     $candidateCore = (Get-Item $script:PS_CURENT_DIR).Parent.Parent.Parent.FullName
+    if ($candidateCore -and (Test-Path (Join-Path $candidateCore 'scripts'))) {
+        $script:CORE_NODE_DIR = $candidateCore
+    } else {
+        # Fallback: try to find the root by looking for package.json or main.js
+        $currentDir = $script:PS_CURENT_DIR
+        while ($currentDir -and $currentDir -ne (Split-Path $currentDir -Parent)) {
+            if ((Test-Path (Join-Path $currentDir 'package.json')) -or (Test-Path (Join-Path $currentDir 'main.js'))) {
+                $script:CORE_NODE_DIR = $currentDir
+                break
+            }
+            $currentDir = Split-Path $currentDir -Parent
+        }
+        if (-not $script:CORE_NODE_DIR) {
+            throw "Cannot determine core node root directory"
+        }
+    }
 } catch {
-    $candidateCore = $null
-}
-
-if ($candidateCore -and (Test-Path (Join-Path $candidateCore 'scripts'))) {
-    $script:CORE_NODE_DIR = $candidateCore
-} else {
-    $script:CORE_NODE_DIR = $script:DEFAULT_CORE_NODE_DIR
+    Write-Error "Failed to determine core node root directory: $($_.Exception.Message)"
+    exit 1
 }
 
 

@@ -64,7 +64,33 @@ else {
 }
 $Global:supportedWin = $Global:isWin11 -or $Global:isWin10
 
-$Global:BASE_DIR = "D:\programing\core_node"
+# Dynamically determine the core node root directory
+# This script is located at: scripts/shells/win/win_common/GlobalVars.ps1
+# So we need to go up 4 levels to reach the root directory
+try {
+    $scriptDir = $PSScriptRoot
+    $candidateCore = (Get-Item $scriptDir).Parent.Parent.Parent.Parent.FullName
+    if ($candidateCore -and (Test-Path (Join-Path $candidateCore 'scripts'))) {
+        $Global:BASE_DIR = $candidateCore
+    } else {
+        # Fallback: try to find the root by looking for package.json or main.js
+        $currentDir = $scriptDir
+        while ($currentDir -and $currentDir -ne (Split-Path $currentDir -Parent)) {
+            if ((Test-Path (Join-Path $currentDir 'package.json')) -or (Test-Path (Join-Path $currentDir 'main.js'))) {
+                $Global:BASE_DIR = $currentDir
+                break
+            }
+            $currentDir = Split-Path $currentDir -Parent
+        }
+        if (-not $Global:BASE_DIR) {
+            throw "Cannot determine core node root directory"
+        }
+    }
+} catch {
+    Write-Error "Failed to determine core node root directory: $($_.Exception.Message)"
+    exit 1
+}
+
 $Global:CORE_NODE_DIR = $Global:BASE_DIR
 $Global:CORE_NODE_SCRIPTS_DIR = Join-Path $BASE_DIR "scripts"
 
