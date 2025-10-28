@@ -11,6 +11,13 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Source common variables and functions
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+if command -v sudo >/dev/null 2>&1; then
+    USE_SUDO="sudo"
+else
+    USE_SUDO=""
+fi
 # Parameter validation
 TARGET_REMOTE=""
 PULL_MODE=false
@@ -77,6 +84,61 @@ get_global_var() {
         local value=$(iconv -f utf-8 -t utf-8 -c "$file_path" 2>/dev/null | tr -d '\0' | head -n 1)
         if [ -n "$value" ]; then
             echo "$value"
+        fi
+    fi
+}
+
+# Function to ensure SSH key permissions are correct
+ensure_ssh_permissions() {
+    local ssh_dir="$HOME/.ssh"
+    local ssh_key="$ssh_dir/id_ed25519"
+    
+    # Check if SSH directory exists
+    if [ ! -d "$ssh_dir" ]; then
+        write_color_text "SSH directory does not exist: $ssh_dir" "Yellow" >&2
+        return 0
+    fi
+    
+    # Check if SSH key exists
+    if [ ! -f "$ssh_key" ]; then
+        write_color_text "SSH key does not exist: $ssh_key" "Yellow" >&2
+        return 0
+    fi
+    
+    # Check current ownership and permissions
+    local current_owner=$(stat -c '%U' "$ssh_key" 2>/dev/null)
+    local current_perms=$(stat -c '%a' "$ssh_key" 2>/dev/null)
+    
+    write_color_text "SSH key current owner: $current_owner, permissions: $current_perms" "DarkGray" >&2
+    
+    # Fix ownership if needed
+    if [ "$current_owner" != "$USER" ]; then
+        write_color_text "Fixing SSH key ownership..." "Yellow" >&2
+        if $USE_SUDO chown "$USER:$USER" "$ssh_key" 2>/dev/null; then
+            write_color_text "SSH key ownership fixed" "Green" >&2
+        else
+            write_color_text "Failed to fix SSH key ownership" "Red" >&2
+        fi
+    fi
+    
+    # Fix permissions if needed (should be 600)
+    if [ "$current_perms" != "600" ]; then
+        write_color_text "Fixing SSH key permissions..." "Yellow" >&2
+        if chmod 600 "$ssh_key" 2>/dev/null; then
+            write_color_text "SSH key permissions fixed to 600" "Green" >&2
+        else
+            write_color_text "Failed to fix SSH key permissions" "Red" >&2
+        fi
+    fi
+    
+    # Also fix SSH directory permissions (should be 700)
+    local ssh_dir_perms=$(stat -c '%a' "$ssh_dir" 2>/dev/null)
+    if [ "$ssh_dir_perms" != "700" ]; then
+        write_color_text "Fixing SSH directory permissions..." "Yellow" >&2
+        if chmod 700 "$ssh_dir" 2>/dev/null; then
+            write_color_text "SSH directory permissions fixed to 700" "Green" >&2
+        else
+            write_color_text "Failed to fix SSH directory permissions" "Red" >&2
         fi
     fi
 }
@@ -529,6 +591,9 @@ invoke_git_operations() {
     # Change to project directory
     cd "$CORE_NODE_DIR"
     write_color_text "Changed to: $CORE_NODE_DIR" "DarkCyan"
+    
+    # Ensure SSH permissions are correct
+    ensure_ssh_permissions
     
     # Ensure git identity is configured
     ensure_git_identity
