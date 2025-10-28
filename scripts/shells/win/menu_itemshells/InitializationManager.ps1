@@ -214,6 +214,36 @@ function Initialize-DevelopmentEnvironment {
     }
 }
 
+# =============================================================================
+# PATH MANAGEMENT FOR INITIALIZED ENVIRONMENT
+# =============================================================================
+function Add-ProjectDirToPath {
+    try {
+        # Load GlobalVars.ps1 to get PROJECT_DIR
+        $globalVarsPath = Join-Path $WIN_COMMON_DIR "GlobalVars.ps1"
+        if (Test-Path $globalVarsPath) {
+            . $globalVarsPath
+            
+            # Add PROJECT_DIR to PATH if not already present
+            $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            $paths = $currentPath -split ';'
+            
+            if (-not ($paths -contains $Global:PROJECT_DIR)) {
+                Write-Host "[*] Adding PROJECT_DIR to system PATH: $($Global:PROJECT_DIR)" -ForegroundColor Cyan
+                $newPath = $currentPath + ";" + $Global:PROJECT_DIR
+                [Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
+                Write-Host "[OK] Added PROJECT_DIR to system PATH" -ForegroundColor Green
+            } else {
+                Write-Host "[INFO] PROJECT_DIR already exists in PATH: $($Global:PROJECT_DIR)" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "[WARNING] GlobalVars.ps1 not found: $globalVarsPath" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "[ERROR] Failed to add PROJECT_DIR to PATH: $_" -ForegroundColor Red
+    }
+}
+
 # Main execution
 if (Test-InitializationRequired) {
     $initChoice = Show-InitializationMenu
@@ -235,4 +265,7 @@ if (Test-InitializationRequired) {
             exit 0
         }
     }
+} else {
+    # Not in user directory - add PROJECT_DIR to PATH
+    Add-ProjectDirToPath
 }
