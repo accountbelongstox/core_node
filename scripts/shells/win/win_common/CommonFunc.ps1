@@ -29,6 +29,12 @@ $script:COLOR_INFO = "White"
 # Desktop icon processing debug control
 $script:DEBUG_DESKTOP_ICONS = $false
 
+# Winget log file paths
+$script:WINGET_OUTPUT_LOG = "winget_install_output.log"
+$script:WINGET_ERROR_LOG = "winget_install_error.log"
+$script:WINGET_OUTPUT_LOG_TEMP = Join-Path $Global:TEMP_DIR "winget_install_output.log"
+$script:WINGET_ERROR_LOG_TEMP = Join-Path $Global:TEMP_DIR "winget_install_error.log"
+
 # Unified Debug Print Function
 # AI_DEBUG_FUNCTION: Use this function for all debug output in PowerShell scripts
 function Write-DebugLog {
@@ -1437,9 +1443,9 @@ function Invoke-WingetCommand {
             }
         }
         
-        # Clean up log files
-        if (Test-Path "winget_install_output.log") { Remove-Item "winget_install_output.log" -Force -ErrorAction SilentlyContinue }
-        if (Test-Path "winget_install_error.log") { Remove-Item "winget_install_error.log" -Force -ErrorAction SilentlyContinue }
+        # Move log files to temporary directory
+        Move-Item $script:WINGET_OUTPUT_LOG $script:WINGET_OUTPUT_LOG_TEMP -Force -ErrorAction SilentlyContinue
+        Move-Item $script:WINGET_ERROR_LOG $script:WINGET_ERROR_LOG_TEMP -Force -ErrorAction SilentlyContinue
         
         if (-not $installationSuccess) {
             # Handle retry logic only if AllowTryInstall is true

@@ -242,6 +242,17 @@ function Add-Path {
     param (
         [string]$newPath
     )
+    
+    # Smart detection: if it's a file path, automatically extract parent directory
+    if (-not [string]::IsNullOrWhiteSpace($newPath)) {
+        $normalizedPath = Normalize-WindowsPath $newPath
+        if ($normalizedPath -and (Test-Path $normalizedPath -PathType Leaf)) {
+            $parentDir = Split-Path $normalizedPath -Parent
+            Write-Log "Detected file path, using parent directory: $parentDir" -color "Yellow"
+            $newPath = $parentDir
+        }
+    }
+    
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $paths = $currentPath -split ';'
     $newPath = Normalize-WindowsPath $newPath
@@ -670,7 +681,7 @@ switch ($action) {
     "help" {
         Write-Log "Invalid action. Available actions:" -color "Red"
         Write-Log "  PATH Management:" -color "Yellow"
-        Write-Log "    add <path>                    - Add directory to system PATH" -color "White"
+        Write-Log "    add <path>                    - Add directory to system PATH (auto-detects file paths)" -color "White"
         Write-Log "    remove <path>                 - Remove directory from system PATH" -color "White"
         Write-Log "    is <path>                     - Check if directory exists in PATH" -color "White"
         Write-Log "    show                          - Display current PATH entries" -color "White"
@@ -693,6 +704,7 @@ switch ($action) {
         Write-Log "    addscript <content> <filename> - Write script content to $Global:WINENVS_DIR directory" -color "White"
         Write-Log "  Examples:" -color "Yellow"
         Write-Log "    .\WindowsPathFunction.ps1 add 'C:\Program Files\Git\bin'" -color "Cyan"
+        Write-Log "    .\WindowsPathFunction.ps1 add 'C:\Program Files\Git\cmd\git.exe'  # Auto-detects file" -color "Cyan"
         Write-Log "    .\WindowsPathFunction.ps1 setvar 'JAVA_HOME' 'C:\Program Files\Java\jdk-11'" -color "Cyan"
         Write-Log "    .\WindowsPathFunction.ps1 addexec 'C:\Program Files\Git\bin'" -color "Cyan"
         Write-Log "    .\WindowsPathFunction.ps1 addscript '@echo off\necho Hello' 'test.bat'" -color "Cyan"
