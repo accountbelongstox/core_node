@@ -10,11 +10,11 @@ core_node_init/
 ├── config/
 │   └── index.js
 ├── controller/
+│   ├── CommandLineParser.js
+│   └── CoreNodeInitPlugin.js
 ├── template/
 │   └── static/
 ├── core_node_init_tree.md
-├── cursor_chrome.md
-├── error.txt
 └── main.js
 ```
 

@@ -17,62 +17,58 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-class ChromeFinder {
+class EdgeFinder {
     constructor() {
         this.platform = process.platform;
-        this.chromePaths = this.getChromePaths();
+        this.edgePaths = this.getEdgePaths();
     }
 
-    getChromePaths() {
+    getEdgePaths() {
         const paths = [];
         
         if (this.platform === 'win32') {
             // Common paths first
             paths.push(
-                'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-                'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-                `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe`
+                'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+                'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+                `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Microsoft\\Edge\\Application\\msedge.exe`
             );
             
             // Custom applications directory
             paths.push(
-                'D:\\applications\\Google\\Chrome\\Application\\chrome.exe',
-                'D:\\applications\\Chrome\\Application\\chrome.exe',
-                'D:\\applications\\chrome.exe'
+                'D:\\applications\\Microsoft\\Edge\\Application\\msedge.exe',
+                'D:\\applications\\Edge\\Application\\msedge.exe',
+                'D:\\applications\\msedge.exe'
             );
             
             // Additional paths
             paths.push(
-                `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google\\Chrome Beta\\Application\\chrome.exe`,
-                `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google\\Chrome Dev\\Application\\chrome.exe`,
-                `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google\\Chrome SxS\\Application\\chrome.exe`
+                `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Microsoft\\Edge Beta\\Application\\msedge.exe`,
+                `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Microsoft\\Edge Dev\\Application\\msedge.exe`
             );
         } else if (this.platform === 'linux') {
             // Common paths first
             paths.push(
-                '/usr/bin/google-chrome',
-                '/usr/bin/google-chrome-stable',
-                '/usr/bin/chromium-browser',
-                '/usr/bin/chromium'
+                '/usr/bin/microsoft-edge',
+                '/usr/bin/microsoft-edge-stable',
+                '/snap/bin/microsoft-edge'
             );
             
             // Additional paths
             paths.push(
-                '/usr/bin/google-chrome-beta',
-                '/usr/bin/google-chrome-dev',
-                '/snap/bin/chromium',
-                '/opt/google/chrome/chrome',
-                '/opt/google/chrome-beta/chrome',
-                '/opt/google/chrome-dev/chrome',
-                '/usr/local/bin/google-chrome',
-                '/usr/local/bin/chromium'
+                '/usr/bin/microsoft-edge-beta',
+                '/usr/bin/microsoft-edge-dev',
+                '/opt/microsoft/msedge/msedge',
+                '/opt/microsoft/msedge-beta/msedge',
+                '/opt/microsoft/msedge-dev/msedge',
+                '/usr/local/bin/microsoft-edge',
+                '/usr/local/bin/microsoft-edge-stable'
             );
         } else if (this.platform === 'darwin') {
             paths.push(
-                '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-                '/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta',
-                '/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev',
-                '/Applications/Chromium.app/Contents/MacOS/Chromium'
+                '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+                '/Applications/Microsoft Edge Beta.app/Contents/MacOS/Microsoft Edge Beta',
+                '/Applications/Microsoft Edge Dev.app/Contents/MacOS/Microsoft Edge Dev'
             );
         }
         
@@ -81,21 +77,21 @@ class ChromeFinder {
 
     async find() {
         try {
-            logger.info('Searching for Google Chrome executable...');
+            logger.info('Searching for Microsoft Edge executable...');
             
             // Step 1: Try which command (Linux/macOS)
             if (this.platform === 'linux' || this.platform === 'darwin') {
-                const whichPath = this.findChromeWithWhich();
+                const whichPath = this.findEdgeWithWhich();
                 if (whichPath) {
                     return whichPath;
                 }
             }
             
             // Step 2: Check common paths
-            for (const chromePath of this.chromePaths) {
-                if (fs.existsSync(chromePath)) {
-                    logger.info(`Found Chrome executable: ${chromePath}`);
-                    return chromePath;
+            for (const edgePath of this.edgePaths) {
+                if (fs.existsSync(edgePath)) {
+                    logger.info(`Found Edge executable: ${edgePath}`);
+                    return edgePath;
                 }
             }
             
@@ -111,23 +107,23 @@ class ChromeFinder {
                 return wideSearchPath;
             }
             
-            logger.warn('Google Chrome executable not found');
+            logger.warn('Microsoft Edge executable not found');
             return null;
         } catch (error) {
-            logger.error('Failed to find Chrome browser:', error);
+            logger.error('Failed to find Edge browser:', error);
             throw error;
         }
     }
 
-    findChromeWithWhich() {
+    findEdgeWithWhich() {
         try {
-            const commands = ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium', 'chrome'];
+            const commands = ['microsoft-edge', 'microsoft-edge-stable', 'msedge', 'edge'];
             for (const cmd of commands) {
                 try {
                     const result = execSync(`which ${cmd}`, { encoding: 'utf8', timeout: 5000 });
                     const path = result.trim();
                     if (path && fs.existsSync(path)) {
-                        logger.info(`Found Chrome via which command: ${path}`);
+                        logger.info(`Found Edge via which command: ${path}`);
                         return path;
                     }
                 } catch (error) {
@@ -145,11 +141,11 @@ class ChromeFinder {
         
         if (this.platform === 'win32') {
             commonDirs.push(
-                'C:\\Program Files\\Google',
-                'C:\\Program Files (x86)\\Google',
+                'C:\\Program Files\\Microsoft',
+                'C:\\Program Files (x86)\\Microsoft',
                 'D:\\applications',
-                'D:\\applications\\Google',
-                `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google`
+                'D:\\applications\\Microsoft',
+                `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Microsoft`
             );
         } else if (this.platform === 'linux') {
             commonDirs.push(
@@ -169,7 +165,7 @@ class ChromeFinder {
         
         for (const dir of commonDirs) {
             if (fs.existsSync(dir)) {
-                const foundPath = this.scanDirectoryForChrome(dir);
+                const foundPath = this.scanDirectoryForEdge(dir);
                 if (foundPath) {
                     return foundPath;
                 }
@@ -179,7 +175,7 @@ class ChromeFinder {
         return null;
     }
 
-    scanDirectoryForChrome(dir) {
+    scanDirectoryForEdge(dir) {
         try {
             const files = fs.readdirSync(dir, { withFileTypes: true });
             
@@ -188,17 +184,17 @@ class ChromeFinder {
                     // Recursively search subdirectories (limited depth)
                     const subDir = path.join(dir, file.name);
                     if (this.shouldSearchSubdirectory(file.name)) {
-                        const foundPath = this.scanDirectoryForChrome(subDir);
+                        const foundPath = this.scanDirectoryForEdge(subDir);
                         if (foundPath) {
                             return foundPath;
                         }
                     }
                 } else if (file.isFile()) {
-                    // Check if file is Chrome executable
-                    if (this.isChromeExecutable(file.name)) {
+                    // Check if file is Edge executable
+                    if (this.isEdgeExecutable(file.name)) {
                         const filePath = path.join(dir, file.name);
                         if (this.isValidPath(filePath)) {
-                            logger.info(`Found Chrome via directory scan: ${filePath}`);
+                            logger.info(`Found Edge via directory scan: ${filePath}`);
                             return filePath;
                         }
                     }
@@ -211,22 +207,22 @@ class ChromeFinder {
     }
 
     shouldSearchSubdirectory(dirName) {
-        const chromeKeywords = ['chrome', 'google', 'chromium'];
-        return chromeKeywords.some(keyword => 
+        const edgeKeywords = ['edge', 'microsoft', 'msedge'];
+        return edgeKeywords.some(keyword => 
             dirName.toLowerCase().includes(keyword)
         );
     }
 
-    isChromeExecutable(fileName) {
-        const chromeNames = ['chrome.exe', 'chrome', 'google-chrome', 'chromium'];
-        return chromeNames.some(name => 
+    isEdgeExecutable(fileName) {
+        const edgeNames = ['msedge.exe', 'microsoft-edge', 'edge'];
+        return edgeNames.some(name => 
             fileName.toLowerCase().includes(name.toLowerCase())
         );
     }
 
     wideRangeSearch() {
         try {
-            logger.info('Performing wide range search for Chrome...');
+            logger.info('Performing wide range search for Edge...');
             
             if (this.platform === 'win32') {
                 return this.wideRangeSearchWindows();
@@ -244,7 +240,7 @@ class ChromeFinder {
     wideRangeSearchWindows() {
         try {
             // Use where command
-            const result = execSync('where chrome', { encoding: 'utf8', timeout: 10000 });
+            const result = execSync('where msedge', { encoding: 'utf8', timeout: 10000 });
             const paths = result.trim().split('\n');
             for (const path of paths) {
                 if (path.trim() && this.isValidPath(path.trim())) {
@@ -261,9 +257,9 @@ class ChromeFinder {
         try {
             // Use find command
             const commands = [
-                'find /usr -name "*chrome*" -type f 2>/dev/null',
-                'find /opt -name "*chrome*" -type f 2>/dev/null',
-                'find /snap -name "*chrome*" -type f 2>/dev/null'
+                'find /usr -name "*edge*" -type f 2>/dev/null',
+                'find /opt -name "*edge*" -type f 2>/dev/null',
+                'find /snap -name "*edge*" -type f 2>/dev/null'
             ];
             
             for (const cmd of commands) {
@@ -289,9 +285,9 @@ class ChromeFinder {
         try {
             // Use find command
             const commands = [
-                'find /Applications -name "*Chrome*" -type f 2>/dev/null',
-                'find /usr/local -name "*chrome*" -type f 2>/dev/null',
-                'find /opt/homebrew -name "*chrome*" -type f 2>/dev/null'
+                'find /Applications -name "*Edge*" -type f 2>/dev/null',
+                'find /usr/local -name "*edge*" -type f 2>/dev/null',
+                'find /opt/homebrew -name "*edge*" -type f 2>/dev/null'
             ];
             
             for (const cmd of commands) {
@@ -313,11 +309,11 @@ class ChromeFinder {
         return null;
     }
 
-    async isValidPath(chromePath) {
+    async isValidPath(edgePath) {
         try {
-            if (fs.existsSync(chromePath)) {
-                const stats = fs.statSync(chromePath);
-                if (stats.isFile() && this.isExecutable(chromePath)) {
+            if (fs.existsSync(edgePath)) {
+                const stats = fs.statSync(edgePath);
+                if (stats.isFile() && this.isExecutable(edgePath)) {
                     return true;
                 }
             }
@@ -340,24 +336,24 @@ class ChromeFinder {
         }
     }
 
-    async getVersion(chromePath) {
+    async getVersion(edgePath) {
         try {
-            if (!chromePath) {
-                chromePath = await this.find();
+            if (!edgePath) {
+                edgePath = await this.find();
             }
             
-            if (!chromePath) {
+            if (!edgePath) {
                 return null;
             }
             
-            const version = execSync(`"${chromePath}" --version`, { 
+            const version = execSync(`"${edgePath}" --version`, { 
                 encoding: 'utf8', 
                 timeout: 10000 
             });
             
             return version.trim();
         } catch (error) {
-            logger.error('Failed to get Chrome version:', error);
+            logger.error('Failed to get Edge version:', error);
             return null;
         }
     }
@@ -365,10 +361,10 @@ class ChromeFinder {
     getInfo() {
         return {
             platform: this.platform,
-            searchPaths: this.chromePaths.length,
-            paths: this.chromePaths
+            searchPaths: this.edgePaths.length,
+            paths: this.edgePaths
         };
     }
 }
 
-module.exports = ChromeFinder;
+module.exports = EdgeFinder;

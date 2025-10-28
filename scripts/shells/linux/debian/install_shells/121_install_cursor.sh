@@ -9,16 +9,11 @@
 # This script installs Cursor IDE from AppImage files found in ~/Downloads
 # If no AppImage is found, it opens the download page and waits for manual download
 #
-# Include common functions and centralized configuration
+# Source simple download manager
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LINUX_COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
-SHELLS_COMMON_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")/common"
-source "$LINUX_COMMON_DIR/common_functions.sh"
-source "$SHELLS_COMMON_DIR/app_registry.sh"
-source "$SHELLS_COMMON_DIR/install_logic.sh"
+DEBIAN_COM_DIR="$(dirname "$SCRIPT_DIR")/debian_com"
+source "$DEBIAN_COM_DIR/simple_download_manager.sh"
 
-# Export legacy configuration for backward compatibility
-export_legacy_config "cursor"
 
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
@@ -47,10 +42,15 @@ INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 FORCE_INSTALL=false
 CLEANUP_MODE=false
 
-# Note: CURSOR_* variables are now exported by export_legacy_config "cursor"
-# from the centralized app_registry.sh configuration
-# Note: find_all_downloads_dirs function is now available from install_config.sh
-# Note: CURSOR_DOWNLOAD_URL is now available from export_legacy_config "cursor"
+# Cursor installation directories using map_web_path
+APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
+CURSOR_INSTALL_DIR="$APPLICATIONS_DIR/cursor"
+CURSOR_APPIMAGE_DIR="$CURSOR_INSTALL_DIR/appimage"
+CURSOR_EXTRACTED_DIR="$CURSOR_INSTALL_DIR/extracted"
+CURSOR_BIN_DIR="$CURSOR_INSTALL_DIR/bin"
+CURSOR_INSTALLED_FLAG="$CURSOR_INSTALL_DIR/.installed"
+CURSOR_LAUNCHER_SCRIPT="/usr/local/super_scripts/cursor.sh"
+CURSOR_DESKTOP_FILE="/usr/share/applications/cursor.desktop"
 
 # Colors for output
 RED='\033[0;31m'
@@ -90,46 +90,61 @@ is_cursor_installed() {
     return 1  # Not installed or not properly configured
 }
 
-# Find Cursor AppImage files using centralized logic
+# Find Cursor files
 find_cursor_appimage() {
-    find_files_by_pattern "${APP_CONFIGS[cursor_pattern]}"
+    find "$HOME/Downloads" -name "cursor*.deb" -type f 2>/dev/null | head -1
 }
 
-# Use centralized automated download
+# Smart automated download - checks if already downloaded, skips if exists
 cursor_automated_download() {
-    print_step_from_common_functions "Attempting automated download via core_node_init..."
-
-    if automated_download "cursor"; then
-        local appimage_file=$(find_cursor_appimage)
-        if [[ $? -eq 0 ]] && [[ -n "$appimage_file" ]]; then
-            print_success_from_common_functions "Found downloaded Cursor AppImage: $(basename "$appimage_file")"
-            echo "$appimage_file"
-            return 0
-        else
-            print_warning_from_common_functions "Download completed but file not found"
-            return 1
-        fi
-    else
-        print_warning_from_common_functions "Automated download failed"
-        return 1
+    print_step_from_common_functions "Checking for existing downloads..."
+    
+    # Check if both files already exist
+    local vscode_file=$(find_vscode_file)
+    local cursor_file=$(find_cursor_file)
+    
+    if [[ -n "$vscode_file" ]] && [[ -f "$vscode_file" ]] && [[ -n "$cursor_file" ]] && [[ -f "$cursor_file" ]]; then
+        print_success_from_common_functions "Both VSCode and Cursor already downloaded, skipping download"
+        print_info_from_common_functions "Using existing Cursor: $(basename "$cursor_file")"
+        echo "$cursor_file"
+        return 0
     fi
+    
+    # If not both exist, download both
+    print_step_from_common_functions "Downloading VSCode and Cursor via core_node_init..."
+    if download_both; then
+        local cursor_file=$(find_cursor_file)
+        if [[ -n "$cursor_file" ]] && [[ -f "$cursor_file" ]]; then
+            print_success_from_common_functions "Found downloaded Cursor: $(basename "$cursor_file")"
+            echo "$cursor_file"
+            return 0
+        fi
+    fi
+    
+    print_warning_from_common_functions "Cursor download failed"
+    return 1
 }
 
-# Manual download fallback using centralized logic
+# Manual download fallback
 cursor_manual_download() {
     print_step_from_common_functions "Falling back to manual download..."
-
-    # Capture only the file path, not the log output
-    local downloaded_file
-    downloaded_file=$(manual_download_fallback "cursor" "${APP_CONFIGS[cursor_name]}" "${APP_CONFIGS[cursor_url]}" "${APP_CONFIGS[cursor_pattern]}" 2>/dev/null)
-    local result=$?
-
-    if [[ $result -eq 0 ]] && [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
-        print_success_from_common_functions "Manual download completed: $(basename "$downloaded_file")"
+    
+    # Open Cursor download page
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "https://cursor.sh/" >/dev/null 2>&1 &
+    fi
+    
+    print_info_from_common_functions "Please download Cursor .deb file to Downloads directory"
+    print_info_from_common_functions "Waiting for download to complete..."
+    
+    # Wait for file to appear
+    local downloaded_file=$(find_cursor_appimage)
+    if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
+        print_success_from_common_functions "Found Cursor file: $(basename "$downloaded_file")"
         echo "$downloaded_file"
         return 0
     else
-        print_error_from_common_functions "Manual download failed"
+        print_error_from_common_functions "Timeout waiting for Cursor file download"
         return 1
     fi
 }

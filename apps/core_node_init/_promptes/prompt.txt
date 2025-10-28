@@ -9,10 +9,9 @@
  全面分析，并修复注意你不能单独修改某个文件，你要全面分析，并使用基本类库，去掉冗余代码。要使用复用逻辑。如果你需要可以调用content7查看文档。
 
 
-/mnt/dev_sdb3/programing/core_node/apps/core_node_init/error.txt  参考错误，
-根据 /mnt/dev_sdb3/programing/core_node/development-guides/NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md ，查看项目结构 ， /mnt/dev_sdb3/programing/core_node/apps/core_node_init/core_node_init_tree.md
- /mnt/dev_sdb3/programing/core_node/ncore/ncore_tree.md
- /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/puppeteer_spider_tree.md
+/mnt/dev_sdb3/programing/core_node/apps/core_node_init/error.txt  参考错误（"headless":false, 没有看到浏览器打开），
+根据 /mnt/dev_sdb3/programing/core_node/development-guides/NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md ，查看项目结构 ， /mnt/dev_sdb3/programing/core_node/apps/core_node_init/core_node_init_tree.md/mnt/dev_sdb3/programing/core_node/ncore/ncore_tree.md
+  /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/puppeteer_spider_v2_tree.md
  全面分析，并修复注意你不能单独修改某个文件，你要全面分析，并使用基本类库，去掉冗余代码。要使用复用逻辑。如果你需要可以调用content7查看文档。
 
  /mnt/dev_sdb3/programing/core_node/scripts/shells/linux/debian
@@ -38,3 +37,15 @@
 
 6：使用本类库时，可以初始化一个，或一组pupptter实例，这样会启动多个浏览器实例，实现多线程。
 6－1：在配置中，默认添加使用edage作为浏览器，同时，在map库中建立edge的版本映射。并扩展出查找类库，在查找chrome的情况下根据特定逻辑能查找edage的位置。同时本类库中有可沿用的通过注册表查找edage的版本号的代码。
+
+/mnt/dev_sdb3/programing/core_node/apps/core_node_init/error.txt
+1：扩展类库，目前浏览器打开以后，第一页是 about:blank ，存在浪费的tab,
+2: 扩展类库，点击下载后，并不是固定＝多少秒，而是智能测试，直到下载完毕，并不是每个文件的下载时间都一样的这点你明白吗。
+3：有时候一个文件下载，再次点击下载的时候它全下载(1),所以当点击下载后，如果下载目录中很快出现一个新文件，那这个文件就是下载中的文件。而不要使用旧文件。
+4： 扩展类库选项，可以在下载前，使用同样的正则，清除旧的下载。这样每次都会下载一个新的。
+同时你要核对之前的是否完成，导致了上面的功能
+｀｀｀
+没有参数的时候全面下载(可以不用传递参数)。同时确保以下完成：
+｀｀｀
+/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/library/wrappers/climber/modus/page.js 参考旧类库的url打开方式，1：当浏览器是空白是，直接在index-0打开url，如果不是空白页，则打开新页，这样是为了节省内存，2：当页面存在时，直接在tab切换到页面，而不是打开一个新窗口。注意页是否否存在的对比逻辑，比如参数只要一致就会认为是同一个网站。3：下载方式，点击某个按钮，然后等待系统的目录中下载，参考 /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/library/wrappers/climber/modus/download.js，以及在浏览器中插入ajax代码get请求二进制等。之后，扩展类库，/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2/puppeteer_spider_v2_tree.md  然后在 /mnt/dev_sdb3/programing/core_node/apps/core_node_init 使用一个浏览器同时打开cursor/vscode的官网，@https://code.visualstudio.com/  是点击id 同时存在 download linux64 deb 关鍵字的按钮下载，a  标签 同时 Linux AppImage x64 关鍵词的下载。 请全面分析关联文件。
+｀｀｀ 
