@@ -27,18 +27,34 @@ class ChromeBrowser extends IBrowser {
     async launch(options = {}) {
         try {
             const ChromeFinder = require('../implementations/browsers/ChromeFinder');
-            const ChromeConfig = require('../config/ChromeConfig');
             
             this.finder = new ChromeFinder();
-            this.config = new ChromeConfig();
             
-            const executablePath = await this.finder.find();
-            const config = this.config.merge(options);
+            let executablePath = await this.finder.find();
+            if (!executablePath) {
+                logger.warn('Chrome browser not found. Attempting to install...');
+                const ChromeInstaller = require('../implementations/browsers/ChromeInstaller');
+                const installer = new ChromeInstaller();
+                await installer.install();
+                executablePath = await this.finder.find();
+                
+                if (!executablePath) {
+                    throw new Error('Failed to install Chrome browser');
+                }
+            }
             
             const puppeteer = require('puppeteer');
             this.browser = await puppeteer.launch({
                 executablePath,
-                ...config
+                headless: options.headless !== false,
+                args: options.args || [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor'
+                ],
+                ...options
             });
             
             this.isLaunched = true;
@@ -134,18 +150,51 @@ class EdgeBrowser extends IBrowser {
     async launch(options = {}) {
         try {
             const EdgeFinder = require('../implementations/browsers/EdgeFinder');
-            const EdgeConfig = require('../config/EdgeConfig');
             
             this.finder = new EdgeFinder();
-            this.config = new EdgeConfig();
             
-            const executablePath = await this.finder.find();
-            const config = this.config.merge(options);
+            let executablePath = await this.finder.find();
+            if (!executablePath) {
+                logger.warn('Edge browser not found. Attempting to install...');
+                const EdgeInstaller = require('../implementations/browsers/EdgeInstaller');
+                const installer = new EdgeInstaller();
+                await installer.install();
+                executablePath = await this.finder.find();
+                
+                if (!executablePath) {
+                    throw new Error('Failed to install Edge browser');
+                }
+            }
             
             const puppeteer = require('puppeteer');
+            
+            // Filter Edge-compatible arguments
+            const edgeArgs = (options.args || []).filter(arg => {
+                // Remove Chrome-specific arguments that Edge doesn't support
+                return !arg.includes('--user-data-dir') && 
+                       !arg.includes('--disable-gpu') &&
+                       !arg.includes('--disable-accelerated-2d-canvas') &&
+                       !arg.includes('--no-first-run') &&
+                       !arg.includes('--no-zygote');
+            });
+            
+            // Add Edge-specific arguments
+            const defaultArgs = [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor',
+                '--disable-extensions',
+                '--disable-plugins',
+                '--disable-images'
+            ];
+            
             this.browser = await puppeteer.launch({
                 executablePath,
-                ...config
+                headless: options.headless !== false,
+                args: [...defaultArgs, ...edgeArgs],
+                ...options
             });
             
             this.isLaunched = true;

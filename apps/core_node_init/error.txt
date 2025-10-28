@@ -1,11 +1,36 @@
-node main.js app=core_node_init download vscode --force
-[GLOBAL_DIR] Cannot create /usr/.core_node, using fallback: /home/ubuntu/.core_node
-[2025-10-28T11:45:05.719Z] INFO: Searching for executable files in app directory: /mnt/dev_sdb3/programing/core_node/apps/core_node_init
-[2025-10-28T11:45:05.720Z] INFO: Skipping launcher discovery: automatic explorer start is only available on Windows environments.
-[WARN] Cannot create /usr/core_node/global_var, using fallback: /home/ubuntu/.core_node/global_var
-[DEBUG] Config updated: PUPPETEERCONFIG = {"headless":false,"devtools":false,"timeout":120000,"waitForComplete":true,"showImages":false,"showStyle":true,"disableGpu":true,"mute":true,"random_user_agent":true,"args":["--no-sandbox","--disable-setuid-sandbox","--disable-dev-shm-usage","--disable-accelerated-2d-canvas","--no-first-run","--no-zygote","--disable-gpu","--disable-web-security","--disable-features=VizDisplayCompositor","--user-data-dir=/mnt/dev_sdb3/programing/core_node/public/core_node_init/.runtime_cache/chrome-user-data-1761651905786"]}
-[2025-10-28T11:45:06.970Z] INFO: Starting Core Node Init application...
-[2025-10-28T11:45:06.970Z] INFO: Initializing Core Node Init application...
-[2025-10-28T11:45:06.970Z] INFO: Required directories ensured
-[2025-10-28T11:45:06.971Z] ERROR: Fatal error in Core Node Init application: Spider is not a constructor
-[2025-10-28T11:45:06.971Z] INFO: [ExitOn] Process exited RunTime: 1s
+[2025-10-28T17:40:14.892Z] INFO: Downloading to: /home/ubuntu/Downloads/core_node_init/vscode-linux-1761673214892.deb
+[2025-10-28T17:40:14.893Z] ERROR: Failed to download VSCode directly: TypeError: downloader.downloadFile is not a function
+    at CoreNodeInitPlugin.downloadVSCodeDirect (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:437:30)
+    at CoreNodeInitPlugin.downloadApplication (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:73:35)
+    at executeDownload (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:131:45)
+    at Object.start (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:235:33)
+    at async Main.start (/mnt/dev_sdb3/programing/core_node/main.js:192:17)
+[2025-10-28T17:40:14.893Z] ERROR: Failed to download vscode: TypeError: downloader.downloadFile is not a function
+    at CoreNodeInitPlugin.downloadVSCodeDirect (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:437:30)
+    at CoreNodeInitPlugin.downloadApplication (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/controller/CoreNodeInitPlugin.js:73:35)
+    at executeDownload (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:131:45)
+    at Object.start (/mnt/dev_sdb3/programing/core_node/apps/core_node_init/main.js:235:33)
+    at async Main.start (/mnt/dev_sdb3/programing/core_node/main.js:192:17)
+[2025-10-28T17:40:14.893Z] INFO: CoreNodeInitPlugin cleaned up
+[2025-10-28T17:40:14.893Z] INFO: Closing session: session_1_1761673213164
+[2025-10-28T17:40:14.893Z] INFO: DownloadPlugin cleaned up
+[2025-10-28T17:40:14.894Z] INFO: ContentPlugin cleaned up
+[2025-10-28T17:40:14.894Z] INFO: AutomationPlugin cleaned up
+[2025-10-28T17:40:15.073Z] INFO: Edge browser closed
+[2025-10-28T17:40:15.073Z] INFO: Session closed: session_1_1761673213164
+[2025-10-28T17:40:15.073Z] INFO: Shutting down SpiderEngine...
+[2025-10-28T17:40:15.073Z] INFO: Closing session: session_1_1761673213164
+[2025-10-28T17:40:15.073Z] INFO: DownloadPlugin cleaned up
+[2025-10-28T17:40:15.073Z] INFO: ContentPlugin cleaned up
+[2025-10-28T17:40:15.073Z] INFO: AutomationPlugin cleaned up
+[2025-10-28T17:40:15.073Z] INFO: Session closed: session_1_1761673213164
+[2025-10-28T17:40:15.073Z] INFO: All sessions closed
+[2025-10-28T17:40:15.073Z] INFO: Cleaning up PluginManager...
+[2025-10-28T17:40:15.073Z] INFO: DownloadPlugin cleaned up
+[2025-10-28T17:40:15.073Z] INFO: ContentPlugin cleaned up
+[2025-10-28T17:40:15.073Z] INFO: AutomationPlugin cleaned up
+[2025-10-28T17:40:15.074Z] INFO: PluginManager cleanup completed
+[2025-10-28T17:40:15.074Z] INFO: Cleaning up ResourcePool...
+[2025-10-28T17:40:15.074Z] INFO: ResourcePool cleanup completed
+[2025-10-28T17:40:15.074Z] INFO: SpiderEngine shutdown completed
+[2025-10-28T17:40:15.074Z] ERROR: Core Node Init application completed with errors
