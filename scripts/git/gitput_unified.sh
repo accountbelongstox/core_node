@@ -118,6 +118,9 @@ ensure_git_identity() {
 
 # Function to get commit message (session-scoped only)
 get_commit_message() {
+    # Debug: Show current COMMIT_MESSAGE value
+    write_color_text "DEBUG: COMMIT_MESSAGE='$COMMIT_MESSAGE'" "DarkGray" >&2
+    
     # If we already have a commit message in this session, use it
     if [ -n "$COMMIT_MESSAGE" ]; then
         write_color_text "Reusing commit message from this session: $COMMIT_MESSAGE" "Cyan" >&2
@@ -139,6 +142,7 @@ get_commit_message() {
         write_color_text "Using custom commit message: $user_input" "Green" >&2
     fi
     
+    write_color_text "DEBUG: Set COMMIT_MESSAGE='$COMMIT_MESSAGE'" "DarkGray" >&2
     echo "$COMMIT_MESSAGE"
 }
 
