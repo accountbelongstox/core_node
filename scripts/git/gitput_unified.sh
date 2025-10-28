@@ -118,8 +118,9 @@ ensure_git_identity() {
 
 # Function to get commit message (session-scoped only)
 get_commit_message() {
-    # Debug: Show current COMMIT_MESSAGE value
+    # Debug: Show current COMMIT_MESSAGE value and all environment variables
     write_color_text "DEBUG: COMMIT_MESSAGE='$COMMIT_MESSAGE'" "DarkGray" >&2
+    write_color_text "DEBUG: All COMMIT_MESSAGE env vars: $(env | grep COMMIT_MESSAGE)" "DarkGray" >&2
     
     # If we already have a commit message in this session, use it
     if [ -n "$COMMIT_MESSAGE" ]; then
@@ -143,6 +144,7 @@ get_commit_message() {
     fi
     
     write_color_text "DEBUG: Set COMMIT_MESSAGE='$COMMIT_MESSAGE'" "DarkGray" >&2
+    write_color_text "DEBUG: After set, env vars: $(env | grep COMMIT_MESSAGE)" "DarkGray" >&2
     echo "$COMMIT_MESSAGE"
 }
 
