@@ -65,6 +65,10 @@ $initializationManagerPath = Join-Path $PSScriptRoot "menu_itemshells\Initializa
 $scriptProcessorPath = Join-Path $PSScriptRoot "tools\ScriptProcessor.ps1"
 . $scriptProcessorPath
 
+# Import WindowsPathFunction.ps1 for environment variable management
+$windowsPathFunctionPath = Join-Path $PSScriptRoot "win_common\WindowsPathFunction.ps1"
+. $windowsPathFunctionPath
+
 #region Variable Declarations 
 # =============================================================================
 # SCRIPT-SPECIFIC VARIABLES (not defined in GlobalVars.ps1)
@@ -452,6 +456,21 @@ function Invoke-InteractiveMenu {
     }
 }
 
+function Set-ProjectEnvironmentVariables {
+    Write-ColorMessage -Message "Setting project environment variables..." -Type "Info"
+    
+    # Use WindowsPathFunction.ps1 with parameters to add PROJECT_DIR
+    & $windowsPathFunctionPath -action "add" -param1 $PROJECT_DIR
+    Write-ColorMessage -Message "Added PROJECT_DIR to PATH: $PROJECT_DIR" -Type "Success"
+    
+    # Use WindowsPathFunction.ps1 with parameters to add PROJECT_SCRIPTS_DIR
+    & $windowsPathFunctionPath -action "add" -param1 $PROJECT_SCRIPTS_DIR
+    Write-ColorMessage -Message "Added PROJECT_SCRIPTS_DIR to PATH: $PROJECT_SCRIPTS_DIR" -Type "Success"
+    
+    # Refresh environment variables using WindowsPathFunction.ps1
+    & $windowsPathFunctionPath -action "refresh-bat"
+}
+
 function Initialize-Environment {
     Write-ColorMessage -Message "CORE_NODE_DIR: $CORE_NODE_DIR" -Type "Info"
     Write-ColorMessage -Message "PS_CURRENT_DIR: $($script:PS_CURENT_DIR)" -Type "Info"
@@ -464,6 +483,9 @@ function Initialize-Environment {
     if (-not (Test-Path $Global:USER_CACHE_DIR)) {
         New-Item -ItemType Directory -Path $Global:USER_CACHE_DIR -Force | Out-Null
     }
+    
+    # Set environment variables for non-installation mode
+    Set-ProjectEnvironmentVariables
 }
 
 
@@ -1060,23 +1082,33 @@ function Start-MainLoop {
     Write-Host ""
     Write-Host "Press Enter to continue, or any other key to pause (auto-continue in 5 seconds)..." -ForegroundColor Yellow
     
-    # Simple timeout-based pause
+    # Improved timeout-based pause with better compatibility
     $timeout = 5
+    Write-Host "Auto-continuing in " -NoNewline -ForegroundColor Cyan
     
-    # Use a simple approach with Read-Host timeout
-    try {
-        # Try to read input with a timeout
-        $input = Read-Host -TimeoutSeconds $timeout
-        if ($input -eq "") {
-            # Enter pressed - continue immediately
-        } else {
-            # Any other input pauses
-            Write-Host "Paused. Press Enter to continue..." -ForegroundColor Cyan
-            Read-Host
+    # Countdown with non-blocking key check
+    for ($i = $timeout; $i -gt 0; $i--) {
+        Write-Host "$i " -NoNewline -ForegroundColor Cyan
+        
+        # Check for key press without blocking
+        if ([Console]::KeyAvailable) {
+            $key = [Console]::ReadKey($true)
+            Write-Host ""
+            if ($key.Key -eq 'Enter') {
+                # Enter pressed - continue immediately
+                break
+            } else {
+                # Any other key pauses
+                Write-Host "Paused. Press Enter to continue..." -ForegroundColor Cyan
+                Read-Host
+                break
+            }
         }
-    } catch {
-        # Timeout reached - continue automatically
+        
+        Start-Sleep -Seconds 1
     }
+    
+    Write-Host ""
 
     while ($true) {
         Clear-Host

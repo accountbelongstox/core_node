@@ -12,10 +12,10 @@
 
 # Package Manager Invocation Functions
 # This script contains all Invoke-*Command functions for various package managers
-# Excluded: Invoke-WingetCommand (remains in CommanFunc.ps1)
+# Excluded: Invoke-WingetCommand (remains in CommonFunc.ps1)
 
 # Import required modules
-. "$PSScriptRoot\CommanFunc.ps1"
+. "$PSScriptRoot\CommonFunc.ps1"
 
 # =============================================================================
 # NPM Package Manager Functions
@@ -318,10 +318,6 @@ function Invoke-PipCommand {
     
     # Get pip executable path
     $pipExe = $Global:PIP_EXE_PATH
-    if (-not (Test-Path $pipExe)) {
-        Write-DebugLog -Message "pip not found at: $pipExe" -Category "PIP" -Color "Red"
-        return $null
-    }
     
     # Get Python Scripts directory
     try {
@@ -2469,7 +2465,9 @@ function Invoke-WebDownloadCommand {
         [string]$Keyword = "",
         [array]$AdditionalKeywords = @(),
         [bool]$OnlyCheckFlag = $false,
-        [bool]$ForceInstall = $true
+        [bool]$ForceInstall = $true,
+        [bool]$IsArchive = $false,
+        [string]$ArchiveType = "zip"
     )
     
     Write-Host "       [WEB] Processing $PackageName" -ForegroundColor Cyan
@@ -2499,23 +2497,104 @@ function Invoke-WebDownloadCommand {
         Write-Host "       [WEB] Force install requested, will re-download $PackageName" -ForegroundColor Yellow
     }
     
-    # Download the executable
+    # Download the file
     try {
         Write-Host "       [WEB] Downloading $PackageName from: $DownloadUrl" -ForegroundColor Cyan
-        Write-Host "       [WEB] Target path: $executablePath" -ForegroundColor Cyan
         
-        Invoke-WebRequest -Uri $DownloadUrl -OutFile $executablePath -UseBasicParsing -ErrorAction Stop
+        # Determine file type from URL or IsArchive parameter
+        $downloadedFile = ""
+        $fileExtension = ""
+        
+        # Auto-detect file type from URL if not specified
+        if (-not $IsArchive) {
+            $urlExtension = [System.IO.Path]::GetExtension($DownloadUrl).ToLower()
+            if ($urlExtension -in @(".zip", ".7z", ".tar.gz", ".tar", ".gz")) {
+                $IsArchive = $true
+                $ArchiveType = $urlExtension.TrimStart('.')
+                Write-Host "       [WEB] Auto-detected archive type from URL: $ArchiveType" -ForegroundColor Yellow
+            }
+        }
+        
+        if ($IsArchive) {
+            # For archives, download to a temporary file first
+            $tempFile = Join-Path $env:TEMP "$PackageName.$ArchiveType"
+            Write-Host "       [WEB] Downloading archive to: $tempFile" -ForegroundColor Cyan
+            
+            Invoke-WebRequest -Uri $DownloadUrl -OutFile $tempFile -UseBasicParsing -ErrorAction Stop
+            $downloadedFile = $tempFile
+            $fileExtension = $ArchiveType
+        } else {
+            # For direct executables, download directly to target
+            Write-Host "       [WEB] Downloading executable to: $executablePath" -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $DownloadUrl -OutFile $executablePath -UseBasicParsing -ErrorAction Stop
+            $downloadedFile = $executablePath
+            $fileExtension = "exe"
+        }
         
         Write-Host "       [WEB] Successfully downloaded $PackageName" -ForegroundColor Green
         
-        # Verify the download
-        if (Test-Path $executablePath) {
-            Write-Host "       [WEB] $PackageName installation verified at: $executablePath" -ForegroundColor Green
-            return $executablePath
-        }
-        else {
-            Write-Host "       [WEB] Error: $PackageName executable not found after download" -ForegroundColor Red
-            return $null
+        # Process the downloaded file based on type
+        if ($IsArchive) {
+            Write-Host "       [WEB] Processing archive file: $downloadedFile" -ForegroundColor Cyan
+            
+            # Extract archive to installation directory
+            switch ($fileExtension.ToLower()) {
+                "zip" {
+                    Expand-Archive -Path $downloadedFile -DestinationPath $InstallDir -Force
+                    Write-Host "       [WEB] Extracted ZIP archive to: $InstallDir" -ForegroundColor Green
+                }
+                "7z" {
+                    # Use 7-Zip if available
+                    $sevenZip = Get-Command "7z.exe" -ErrorAction SilentlyContinue
+                    if ($sevenZip) {
+                        & $sevenZip x $downloadedFile "-o$InstallDir" -y
+                        Write-Host "       [WEB] Extracted 7Z archive to: $InstallDir" -ForegroundColor Green
+                    } else {
+                        Write-Host "       [WEB] Error: 7-Zip not found for extracting 7Z archive" -ForegroundColor Red
+                        return $null
+                    }
+                }
+                "tar.gz" {
+                    # Use tar if available (Windows 10+ has built-in tar)
+                    $tar = Get-Command "tar.exe" -ErrorAction SilentlyContinue
+                    if ($tar) {
+                        & $tar -xzf $downloadedFile -C $InstallDir
+                        Write-Host "       [WEB] Extracted TAR.GZ archive to: $InstallDir" -ForegroundColor Green
+                    } else {
+                        Write-Host "       [WEB] Error: tar not found for extracting TAR.GZ archive" -ForegroundColor Red
+                        return $null
+                    }
+                }
+                default {
+                    Write-Host "       [WEB] Error: Unsupported archive type: $fileExtension" -ForegroundColor Red
+                    return $null
+                }
+            }
+            
+            # Clean up temporary file
+            if (Test-Path $downloadedFile) {
+                Remove-Item $downloadedFile -Force
+                Write-Host "       [WEB] Cleaned up temporary file: $downloadedFile" -ForegroundColor Gray
+            }
+            
+            # Find the executable in the extracted files
+            $foundExecutable = Find-ExecutableByKeyword -Keywords $ExecutableName -AdditionalScanPaths $InstallDir -Recursive $true -AdditionalKeywords $AdditionalKeywords
+            if ($foundExecutable) {
+                Write-Host "       [WEB] Found executable after extraction: $foundExecutable" -ForegroundColor Green
+                return $foundExecutable
+            } else {
+                Write-Host "       [WEB] Error: Executable $ExecutableName not found after archive extraction" -ForegroundColor Red
+                return $null
+            }
+        } else {
+            # For direct executables, verify the download
+            if (Test-Path $executablePath) {
+                Write-Host "       [WEB] $PackageName installation verified at: $executablePath" -ForegroundColor Green
+                return $executablePath
+            } else {
+                Write-Host "       [WEB] Error: $PackageName executable not found after download" -ForegroundColor Red
+                return $null
+            }
         }
     }
     catch {

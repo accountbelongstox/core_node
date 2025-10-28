@@ -128,7 +128,7 @@ function Install-EssentialGems {
                 }
             }
             catch {
-                Write-Host "$LogPrefix Error installing $gem: $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-Host "$LogPrefix Error installing ${gem}: $($_.Exception.Message)" -ForegroundColor Yellow
             }
         }
         
