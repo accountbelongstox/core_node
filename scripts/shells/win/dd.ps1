@@ -46,9 +46,15 @@ catch{
 # PowerShell Script for Core Node Management
 
 #region Variable Declarations 
+# =============================================================================
+# CORE SYSTEM VARIABLES
+# =============================================================================
 $script:SYSTEM_VERSION = ""
 $script:SYSTEM_NAME = ""
 $script:PS_CURENT_DIR = $PSScriptRoot
+# =============================================================================
+# DIRECTORY STRUCTURE VARIABLES
+# =============================================================================
 # Derive core_node root by walking up from this script's directory (scripts/shells/win)
 # This script is located at: scripts/shells/win/dd.ps1
 # So we need to go up 3 levels to reach the root directory
@@ -75,38 +81,89 @@ try {
     exit 1
 }
 
-
+# Core directory structure
 $script:SHELLS_DIR = (Get-Item $script:PS_CURENT_DIR).Parent.FullName
 $script:SCRIPT_DIR = Join-Path $script:CORE_NODE_DIR "scripts"
+$script:MAIN_POWERSHELLS_DIR = Join-Path $script:SHELLS_DIR "win\main_powershells"
+$script:COMMON_SHELLS_DIR = Join-Path $script:SHELLS_DIR "common"
+$script:COMMON_SCRIPTS_DIR = Join-Path $script:SHELLS_DIR "scripts"
+
+# =============================================================================
+# USER PROFILE AND CACHE VARIABLES
+# =============================================================================
+$script:userProfile = [Environment]::GetFolderPath("UserProfile")
+$script:GLOBAL_VAR_DIR = Join-Path $script:userProfile ".core_node\.global_vars"
+$script:CACHE_DIR = Join-Path $script:userProfile ".core_node\cache"
+$script:INSTALLER_SCRIPTS_DIR = Join-Path $script:userProfile ".core_node\installer_scripts"
+$script:userCacheDir = Join-Path $script:userProfile ".core_node\.cache"
+$script:wslInstalledFlag = Join-Path $script:userCacheDir "WSL_Installed_flag"
+
+# =============================================================================
+# SCRIPT EXECUTION VARIABLES
+# =============================================================================
 $script:script_symlink_path = "$env:ProgramFiles\dd.ps1"
 $script:script_path = $MyInvocation.MyCommand.Path
-# NOTE: Changed to match GlobalVars.ps1 path consistency - using .global_vars
-$script:GLOBAL_VAR_DIR = Join-Path $env:USERPROFILE ".core_node\.global_vars"
-$script:CACHE_DIR = Join-Path $env:USERPROFILE ".core_node\cache"
-$script:INSTALLER_SCRIPTS_DIR = Join-Path $env:USERPROFILE ".core_node\installer_scripts"
-$script:COMMON_SHELLS_DIR = Join-Path $SHELLS_DIR "common"
-$script:COMMON_SCRIPTS_DIR = Join-Path $SHELLS_DIR "scripts"
 $script:target_dirs = @("apps", "ncore", "scripts")
-$script:MAIN_POWERSHELLS_DIR = Join-Path $script:SHELLS_DIR "win\main_powershells"
 
-# Add color constants
+# =============================================================================
+# COLOR CONSTANTS
+# =============================================================================
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
 $script:COLOR_ERROR = "Red"
 $script:COLOR_INFO = "White"
 
-# Check for EnvironmentDetection.ps1 for PATH management
+# =============================================================================
+# PATH MANAGEMENT VARIABLES
+# =============================================================================
 $script:ENV_DETECTION_AVAILABLE = $false
-$envDetectionPath = Join-Path $script:MAIN_POWERSHELLS_DIR "EnvironmentDetection.ps1"
-if (Test-Path $envDetectionPath -PathType Leaf) {
-    $script:ENV_DETECTION_AVAILABLE = $true
-    Write-Host -ForegroundColor Green "[OK] Found EnvironmentDetection.ps1 for PATH management: $envDetectionPath"
-} else {
-    Write-Host -ForegroundColor Yellow "[!] EnvironmentDetection.ps1 not found: $envDetectionPath"
-}
-
-# PATH management logic - prioritize EnvironmentDetection.ps1
 $script:PATH_MANAGEMENT_METHOD = "none"
+$script:WINDOWS_PATH_FUNCTION_LOADED = $false
+
+# =============================================================================
+# CACHE AND SYSTEM CHECK VARIABLES
+# =============================================================================
+$script:SYSTEM_CHECK_CACHE_FILE = Join-Path $script:CACHE_DIR "system_check.json"
+$script:SYSTEM_CHECK_CACHE_DURATION = 3 # hours
+$script:SOFTWARE_CHECK_CACHE_FILE = Join-Path $script:CACHE_DIR "software_check.json"
+$script:SOFTWARE_CHECK_CACHE_DURATION = 3 # hours
+$script:SYSTEM_CHECK_RESULTS = $null
+$script:SOFTWARE_STATUS_RESULTS = $null
+$script:LAST_CHECK_TIME = $null
+
+# =============================================================================
+# URL AND REPOSITORY VARIABLES
+# =============================================================================
+# These variables will be initialized after functions are defined
+$script:GITEE_BASE_URL = "https://gitee.com/accountbelongstox/core_node/raw/main"  # Keep for compatibility
+$script:SCRIPT_REPO_PATH = "scripts/shells/win"
+$script:INSTALLER_SCRIPT_NAME = "DevInstaller.ps1"
+$script:TEST_INSTALLER_SCRIPT_NAME = "TestInstaller.ps1"
+# URL variables that depend on functions will be set later
+$script:CURRENT_DOWNLOAD_BASE_URL = ""
+$script:INSTALLER_SCRIPT_URL = ""
+$script:TEST_INSTALLER_SCRIPT_URL = ""
+$script:LOCAL_INSTALLER_SCRIPT = ""
+$script:LOCAL_TEST_INSTALLER_SCRIPT = ""
+$script:DOWNLOADED_INSTALLER_SCRIPT = ""
+$script:DOWNLOADED_TEST_INSTALLER_SCRIPT = ""
+$script:GITHUB_REPO_URL = "https://github.com/accountbelongstox/core_node.git"
+$script:GITEE_REPO_URL = "https://gitee.com/accountbelongstox/core_node.git"
+
+# =============================================================================
+# MENU CONFIGURATION VARIABLES
+# =============================================================================
+# MenuItems will be defined later in the script after functions are available
+#endregion
+
+# =============================================================================
+# INITIALIZATION CHECK
+# =============================================================================
+# Check if initialization is required and call InitializationManager.ps1
+$initializationManagerPath = Join-Path $script:PS_CURENT_DIR "menu_itemshells\InitializationManager.ps1"
+if (Test-Path $initializationManagerPath) {
+    . $initializationManagerPath
+}
 
 if ($script:ENV_DETECTION_AVAILABLE) {
     try {
@@ -126,7 +183,6 @@ if ($script:ENV_DETECTION_AVAILABLE) {
     }
     catch {
         Write-Host -ForegroundColor Yellow "[!] Failed to use EnvironmentDetection.ps1: $_"
-        $script:ENV_DETECTION_AVAILABLE = $false
     }
 }
 
@@ -137,7 +193,7 @@ if (-not $script:ENV_DETECTION_AVAILABLE) {
     if (Test-Path $windowsPathFunctionPath -PathType Leaf) {
         try {
             # Test if the script can be executed by checking its parameters
-            $testResult = & $windowsPathFunctionPath "help" 2>$null
+            $testResult = & $windowsPathFunctionPath "show" 2>$null
             if ($LASTEXITCODE -eq 0 -or $testResult) {
                 $script:WINDOWS_PATH_FUNCTION_LOADED = $true
                 Write-Host -ForegroundColor Green "[OK] WindowsPathFunction.ps1 is available: $windowsPathFunctionPath"
@@ -199,19 +255,6 @@ if ($script:PATH_MANAGEMENT_METHOD -eq "none") {
 
 Write-Host -ForegroundColor Green "[OK] PATH management completed using: $($script:PATH_MANAGEMENT_METHOD)"
 
-# Add system check constants
-$script:SYSTEM_CHECK_CACHE_FILE = Join-Path $script:CACHE_DIR "system_check.json"
-$script:SYSTEM_CHECK_CACHE_DURATION = 3 # hours
-
-# Add new constants for software check
-$script:SOFTWARE_CHECK_CACHE_FILE = Join-Path $script:CACHE_DIR "software_check.json"
-$script:SOFTWARE_CHECK_CACHE_DURATION = 3 # hours
-
-# Add script-level variables for caching
-$script:SYSTEM_CHECK_RESULTS = $null
-$script:SOFTWARE_STATUS_RESULTS = $null
-$script:LAST_CHECK_TIME = $null
-
 # Global variable management functions - needed early for URL switching
 function Get-GlobalVar {
     param (
@@ -253,12 +296,11 @@ function Get-RegionDownloadBaseURL {
     }
 }
 
-# Add script source URLs and paths - Auto-switch based on region
+# =============================================================================
+# INITIALIZE DEPENDENT VARIABLES
+# =============================================================================
+# Initialize variables that depend on functions
 $script:CURRENT_DOWNLOAD_BASE_URL = Get-RegionDownloadBaseURL
-$script:GITEE_BASE_URL = "https://gitee.com/accountbelongstox/core_node/raw/main"  # Keep for compatibility
-$script:SCRIPT_REPO_PATH = "scripts/shells/win"
-$script:INSTALLER_SCRIPT_NAME = "DevInstaller.ps1"
-$script:TEST_INSTALLER_SCRIPT_NAME = "TestInstaller.ps1"
 $script:INSTALLER_SCRIPT_URL = "$($script:CURRENT_DOWNLOAD_BASE_URL)/$($script:SCRIPT_REPO_PATH)/$($script:INSTALLER_SCRIPT_NAME)"
 $script:TEST_INSTALLER_SCRIPT_URL = "$($script:CURRENT_DOWNLOAD_BASE_URL)/$($script:SCRIPT_REPO_PATH)/$($script:TEST_INSTALLER_SCRIPT_NAME)"
 $script:LOCAL_INSTALLER_SCRIPT = Join-Path $script:SHELLS_DIR "win\menu_itemshells\$($script:INSTALLER_SCRIPT_NAME)"
@@ -266,13 +308,6 @@ $script:LOCAL_TEST_INSTALLER_SCRIPT = Join-Path $script:SHELLS_DIR "win\menu_ite
 $script:DOWNLOADED_INSTALLER_SCRIPT = Join-Path $script:INSTALLER_SCRIPTS_DIR $script:INSTALLER_SCRIPT_NAME
 $script:DOWNLOADED_TEST_INSTALLER_SCRIPT = Join-Path $script:INSTALLER_SCRIPTS_DIR $script:TEST_INSTALLER_SCRIPT_NAME
 
-# Git repository URLs
-$script:GITHUB_REPO_URL = "https://github.com/accountbelongstox/core_node.git"
-$script:GITEE_REPO_URL = "https://gitee.com/accountbelongstox/core_node.git"
-
-$script:userProfile = [Environment]::GetFolderPath("UserProfile")
-$script:userCacheDir = Join-Path $script:userProfile ".core_node\.cache"
-$script:wslInstalledFlag = Join-Path $script:userCacheDir "WSL_Installed_flag"
 
 # Menu configuration
 $script:MenuItems = @(
