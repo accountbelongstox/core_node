@@ -81,24 +81,62 @@ get_global_var() {
     fi
 }
 
+# Function to ensure git user identity is configured
+ensure_git_identity() {
+    # Check if git user.name is configured
+    local git_name=$(git config --global user.name 2>/dev/null)
+    local git_email=$(git config --global user.email 2>/dev/null)
+    
+    # If not configured, set default values
+    if [ -z "$git_name" ] || [ -z "$git_email" ]; then
+        write_color_text "Git user identity not configured. Setting default values..." "Yellow" >&2
+        
+        # Generate system-based name
+        local system_name=$(whoami)
+        local hostname=$(hostname)
+        local default_name="${system_name}@${hostname}"
+        
+        # Set default email
+        local default_email="${system_name}@dev.ai"
+        
+        # Configure git
+        if [ -z "$git_name" ]; then
+            git config --global user.name "$default_name"
+            write_color_text "Set git user.name to: $default_name" "Cyan" >&2
+        fi
+        
+        if [ -z "$git_email" ]; then
+            git config --global user.email "$default_email"
+            write_color_text "Set git user.email to: $default_email" "Cyan" >&2
+        fi
+        
+        write_color_text "Git identity configured successfully!" "Green" >&2
+    else
+        write_color_text "Git identity already configured: $git_name <$git_email>" "DarkGray" >&2
+    fi
+}
+
 # Function to get commit message (session-scoped only)
 get_commit_message() {
     # If we already have a commit message in this session, use it
     if [ -n "$COMMIT_MESSAGE" ]; then
+        write_color_text "Reusing commit message from this session: $COMMIT_MESSAGE" "Cyan" >&2
         echo "$COMMIT_MESSAGE"
         return
     fi
     
-    # Ask user for input
-    write_color_text "Enter commit message (press Enter to use timestamp): " "Yellow"
+    # Ask user for input (first time only)
+    write_color_text "Enter commit message (press Enter to use timestamp): " "Yellow" >&2
+    # Ensure the prompt is fully displayed before accepting input
+    sleep 0.1
     read -r user_input
     
     if [ -z "$user_input" ]; then
         COMMIT_MESSAGE="$TIMESTAMP"
-        write_color_text "Using timestamp as commit message: $TIMESTAMP" "Cyan"
+        write_color_text "Using timestamp as commit message: $TIMESTAMP" "Cyan" >&2
     else
         COMMIT_MESSAGE="$user_input"
-        write_color_text "Using custom commit message: $user_input" "Green"
+        write_color_text "Using custom commit message: $user_input" "Green" >&2
     fi
     
     echo "$COMMIT_MESSAGE"
@@ -484,6 +522,9 @@ invoke_git_operations() {
     cd "$CORE_NODE_DIR"
     write_color_text "Changed to: $CORE_NODE_DIR" "DarkCyan"
     
+    # Ensure git identity is configured
+    ensure_git_identity
+    
     # Store original branch and remote for restoration
     ORIGINAL_BRANCH=$(get_current_branch)
     ORIGINAL_REMOTE_URL=$(get_current_remote)
@@ -678,7 +719,6 @@ invoke_git_operations() {
     
     # Push changes to remote
     write_color_text "Pushing changes to remote..." "Cyan"
-    local current_branch=$(get_current_branch)
     write_color_text "Executing: git push --set-upstream origin $current_branch" "DarkGray"
     git push --set-upstream origin "$current_branch"
     write_color_text "----------------------------------------------------------------" "DarkBlue"
