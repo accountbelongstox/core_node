@@ -90,16 +90,22 @@ function Show-RegionSelectionMenu {
     Write-Host "Please select the region for cloning the project:" -ForegroundColor White
     Write-Host ""
     Write-Host "Available regions:" -ForegroundColor Green
-    Write-Host "  1. China (Gitee) - Faster in China" -ForegroundColor White
-    Write-Host "  2. Global (GitHub) - Global access" -ForegroundColor White
+    Write-Host "  1. Global (GitHub) - Global access" -ForegroundColor White
+    Write-Host "  2. China (Gitee) - Faster in China" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Default: Global (GitHub)" -ForegroundColor Yellow
     Write-Host ""
     
     do {
-        $choice = Read-Host "Please select region (1-2)"
+        $choice = Read-Host "Please select region (1-2, Enter for default)"
+        if ($choice -eq "") {
+            Write-Host "Using default: Global (GitHub)" -ForegroundColor Green
+            return "Global"
+        }
         switch ($choice) {
-            "1" { return "China" }
-            "2" { return "Global" }
-            default { Write-Host "Invalid choice. Please enter 1 or 2." -ForegroundColor Red }
+            "1" { return "Global" }
+            "2" { return "China" }
+            default { Write-Host "Invalid choice. Please enter 1, 2, or press Enter for default." -ForegroundColor Red }
         }
     } while ($true)
 }
