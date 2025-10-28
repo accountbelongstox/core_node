@@ -100,8 +100,12 @@ const SCRIPT_NAME = `core_node`
 const USER_DIR = isWinodws
     ? homeDir
     : `/usr/`;
-const LOCAL_DIR = path.join(USER_DIR, `.${SCRIPT_NAME}`);
-const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
+const PRIMARY_LOCAL_DIR = path.join(USER_DIR, `.${SCRIPT_NAME}`);
+const FALLBACK_LOCAL_DIR = path.join(homeDir, `.${SCRIPT_NAME}`);
+
+// Try to use primary directory, fall back to user home if permission denied
+let LOCAL_DIR = PRIMARY_LOCAL_DIR;
+let GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
 
 const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
 
@@ -151,12 +155,28 @@ mkdir(ROOT_APP_STATIC_DIR);
 mkdir(ROOT_APP_CACHE_DIR);
 mkdir(LANG_COMPILER_DIR);
 
-// Directory creation
-function mkdir(path) {
-    if (!path) {
+// Directory creation with permission handling
+function mkdir(dirPath) {
+    if (!dirPath) {
         return null;
     }
-    return fs.mkdirSync(path, { recursive: true });
+    try {
+        return fs.mkdirSync(dirPath, { recursive: true });
+    } catch (error) {
+        if (error.code === 'EACCES' || error.code === 'EPERM') {
+            console.warn(`[GLOBAL_DIR] Permission denied creating directory: ${dirPath}`);
+            return null;
+        }
+        throw error;
+    }
+}
+
+// Try to create primary directory, fall back if permission denied
+if (!mkdir(PRIMARY_LOCAL_DIR)) {
+    console.warn(`[GLOBAL_DIR] Cannot create ${PRIMARY_LOCAL_DIR}, using fallback: ${FALLBACK_LOCAL_DIR}`);
+    LOCAL_DIR = FALLBACK_LOCAL_DIR;
+    GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
+    mkdir(LOCAL_DIR);
 }
 
 

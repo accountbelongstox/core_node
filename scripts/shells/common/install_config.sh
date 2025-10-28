@@ -198,72 +198,121 @@ find_all_downloads_dirs() {
 # Find files matching pattern in Downloads directories
 find_files_by_pattern() {
     local pattern="$1"
-    local downloads_dirs=($(find_all_downloads_dirs))
-    local matched_files=()
 
-    for downloads_dir in "${downloads_dirs[@]}"; do
-        if [[ -d "$downloads_dir" ]]; then
-            while IFS= read -r -d '' file; do
-                # Skip backup files (containing numbers in parentheses like (1), (2), etc.)
-                if [[ ! "$file" =~ \([0-9]+\) ]]; then
-                    matched_files+=("$file")
-                fi
-            done < <(find "$downloads_dir" -maxdepth 1 -iregex ".*$pattern.*" -type f -print0 2>/dev/null)
+    # Redirect all log output to stderr to keep stdout clean
+    {
+        log_info "DEBUG: find_files_by_pattern called with pattern: '$pattern'"
+
+        local downloads_dirs=($(find_all_downloads_dirs))
+        log_info "DEBUG: Downloads directories: ${downloads_dirs[*]}"
+
+        local matched_files=()
+
+        for downloads_dir in "${downloads_dirs[@]}"; do
+            if [[ -d "$downloads_dir" ]]; then
+                log_info "DEBUG: Searching in directory: $downloads_dir"
+
+                # List all files for debugging
+                local all_files=$(find "$downloads_dir" -maxdepth 1 -type f 2>/dev/null | head -5)
+                log_info "DEBUG: Sample files in $downloads_dir: $all_files"
+
+                # Use find with -name pattern matching
+                while IFS= read -r -d '' file; do
+                    local filename=$(basename "$file")
+                    log_info "DEBUG: Checking file: $filename"
+
+                    # Skip backup files (containing numbers in parentheses like (1), (2), etc.)
+                    if [[ ! "$file" =~ \([0-9]+\) ]]; then
+                        # Check if filename matches the pattern using bash regex
+                        if [[ "$filename" =~ $pattern ]]; then
+                            log_info "DEBUG: File matches pattern: $filename"
+                            matched_files+=("$file")
+                        else
+                            log_info "DEBUG: File does not match pattern: $filename"
+                        fi
+                    else
+                        log_info "DEBUG: Skipping backup file: $filename"
+                    fi
+                done < <(find "$downloads_dir" -maxdepth 1 -type f -print0 2>/dev/null)
+            else
+                log_warning "DEBUG: Directory does not exist: $downloads_dir"
+            fi
+        done
+
+        log_info "DEBUG: Total matched files: ${#matched_files[@]}"
+
+        if [[ ${#matched_files[@]} -eq 0 ]]; then
+            log_warning "DEBUG: No files found matching pattern: $pattern"
+            return 1  # No files found
         fi
-    done
 
-    if [[ ${#matched_files[@]} -eq 0 ]]; then
-        return 1  # No files found
-    fi
+        # Return the most recent file
+        local latest_file=""
+        local latest_time=0
 
-    # Return the most recent file
-    local latest_file=""
-    local latest_time=0
+        for file in "${matched_files[@]}"; do
+            local file_time=$(stat -c %Y "$file" 2>/dev/null || echo 0)
+            log_info "DEBUG: File $file has timestamp: $file_time"
+            if [[ $file_time -gt $latest_time ]]; then
+                latest_time=$file_time
+                latest_file="$file"
+            fi
+        done
 
-    for file in "${matched_files[@]}"; do
-        local file_time=$(stat -c %Y "$file" 2>/dev/null || echo 0)
-        if [[ $file_time -gt $latest_time ]]; then
-            latest_time=$file_time
-            latest_file="$file"
-        fi
-    done
+        log_success "DEBUG: Selected latest file: $latest_file"
 
-    echo "$latest_file"
-    return 0
+        # Return only the file path to stdout
+        echo "$latest_file"
+        return 0
+    } >&2
 }
 
 # Automated download using core_node_init
 automated_download() {
     local target="$1"
-    
+
+    log_info "DEBUG: automated_download called with target: '$target'"
     log_info "Attempting automated download for: $target"
-    
+
     # Ensure node modules are installed first
+    log_info "DEBUG: Checking if node modules are installed..."
     if ! ensure_node_modules; then
         log_error "Failed to ensure node modules are installed"
         return 1
     fi
-    
+    log_success "DEBUG: Node modules are ready"
+
     # Check if core_node_init is available
+    log_info "DEBUG: Checking if core_node_init is available..."
     if ! is_core_node_init_available; then
         log_warning "Core node init app not available, cannot perform automated download"
+        log_info "DEBUG: PROJECT_ROOT=$PROJECT_ROOT"
+        log_info "DEBUG: MAIN_JS=$MAIN_JS"
+        log_info "DEBUG: CORE_NODE_INIT_APP=$CORE_NODE_INIT_APP"
         return 1
     fi
-    
+    log_success "DEBUG: core_node_init is available"
+
     log_info "Running automated download: node main.js app=core_node_init download $target"
-    
+    log_info "DEBUG: Current directory: $(pwd)"
+    log_info "DEBUG: Changing to project root: $PROJECT_ROOT"
+
     # Change to project root and run the download
     cd "$PROJECT_ROOT" || {
-        log_error "Failed to change to project root"
+        log_error "Failed to change to project root: $PROJECT_ROOT"
         return 1
     }
-    
-    # Run the automated download
+
+    log_info "DEBUG: Now in directory: $(pwd)"
+    log_info "DEBUG: About to run: node main.js app=core_node_init download $target --timeout $DOWNLOAD_TIMEOUT"
+
+    # Run the automated download with real-time output
     if node main.js app=core_node_init download "$target" --timeout "$DOWNLOAD_TIMEOUT"; then
         log_success "Automated download completed successfully"
         return 0
     else
-        log_warning "Automated download failed"
+        local exit_code=$?
+        log_warning "Automated download failed with exit code: $exit_code"
         return 1
     fi
 }

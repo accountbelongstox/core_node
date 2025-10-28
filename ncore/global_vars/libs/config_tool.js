@@ -62,22 +62,59 @@ const LOCAL_DIR = os.platform() === 'win32'
     : `/usr/${SCRIPT_NAME}`;
 const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
 
-function mkdir(path) {
-    return fs.mkdirSync(path, { recursive: true });
+// Fallback directory for when we don't have permission to write to /usr/
+const FALLBACK_LOCAL_DIR = path.join(homeDir, `.${SCRIPT_NAME}`);
+const FALLBACK_GLOBAL_VAR_DIR = path.join(FALLBACK_LOCAL_DIR, 'global_var');
+
+function mkdir(dirPath) {
+    if (!dirPath) return null;
+    try {
+        return fs.mkdirSync(dirPath, { recursive: true });
+    } catch (error) {
+        if (error.code === 'EACCES' || error.code === 'EPERM') {
+            log.warn(`Permission denied creating directory: ${dirPath}`);
+            return null;
+        }
+        throw error;
+    }
 }
 
-mkdir(GLOBAL_VAR_DIR);
+// Try to create the primary directory, fall back to user home if permission denied
+let actualGlobalVarDir = GLOBAL_VAR_DIR;
+if (!mkdir(GLOBAL_VAR_DIR)) {
+    log.warn(`Cannot create ${GLOBAL_VAR_DIR}, using fallback: ${FALLBACK_GLOBAL_VAR_DIR}`);
+    mkdir(FALLBACK_GLOBAL_VAR_DIR);
+    actualGlobalVarDir = FALLBACK_GLOBAL_VAR_DIR;
+}
 
 // Global configuration settings
-const configDir = GLOBAL_VAR_DIR;
+const configDir = actualGlobalVarDir;
 const encryptionKey = crypto.scryptSync('K8x#mP9$vL2@nQ5^wR7&jD3*fH6', 'core_node_salt', 32);
 const algorithm = 'aes-256-cbc';
 const ivLength = 16;
 const encryptedPrefix = 'ENC:';
 
+// Fallback configuration directory for permission issues
+let fallbackConfigDir = null;
+if (configDir !== FALLBACK_GLOBAL_VAR_DIR) {
+    fallbackConfigDir = FALLBACK_GLOBAL_VAR_DIR;
+    mkdir(fallbackConfigDir);
+}
+
 if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true });
-    log.info(`Created config directory: ${configDir}`);
+    try {
+        fs.mkdirSync(configDir, { recursive: true });
+        log.info(`Created config directory: ${configDir}`);
+    } catch (error) {
+        if (error.code === 'EACCES' || error.code === 'EPERM') {
+            log.warn(`Permission denied creating config directory: ${configDir}`);
+            if (fallbackConfigDir) {
+                log.info(`Using fallback config directory: ${fallbackConfigDir}`);
+            }
+        } else {
+            throw error;
+        }
+    }
 }
 
 function encryptValue(text) {
@@ -174,10 +211,15 @@ function _stringifyValue(value) {
     return String(value);
 }
 
-function _setSingleConfig(key, value) {
+function _setSingleConfigFallback(key, value) {
+    if (!fallbackConfigDir) {
+        log.error(`No fallback config directory available for ${key}`);
+        return false;
+    }
+
     try {
         const upperKey = key.toUpperCase();
-        const filePath = path.join(configDir, upperKey);
+        const filePath = path.join(fallbackConfigDir, upperKey);
 
         // Encrypt if necessary
         if (typeof value === 'string' && needsEncryption(key)) {
@@ -200,12 +242,69 @@ function _setSingleConfig(key, value) {
 
         // Only log if content changed
         if (shouldLog) {
+            log.debug(`Config updated (fallback): ${upperKey} = ${stringValue}`);
+        }
+
+        return true;
+    } catch (error) {
+        log.error(`Error setting fallback config for ${key}:`, error);
+        return false;
+    }
+}
+
+function _setSingleConfig(key, value) {
+    try {
+        const upperKey = key.toUpperCase();
+        const filePath = path.join(configDir, upperKey);
+
+        // Encrypt if necessary
+        if (typeof value === 'string' && needsEncryption(key)) {
+            value = encryptValue(value);
+        }
+
+        // Convert value to string format for storage
+        const stringValue = _stringifyValue(value);
+
+        // Check if file exists and content is different
+        let shouldLog = false;
+        if (fs.existsSync(filePath)) {
+            try {
+                const existingContent = fs.readFileSync(filePath, 'utf8');
+                const isEncryptedValue = isEncrypted(existingContent);
+                shouldLog = (existingContent !== stringValue) && !isEncryptedValue;
+            } catch (readError) {
+                if (readError.code === 'EACCES' || readError.code === 'EPERM') {
+                    log.warn(`Permission denied reading config file: ${filePath}. Using fallback storage.`);
+                    return _setSingleConfigFallback(key, value);
+                }
+                throw readError;
+            }
+        }
+
+        // Write to file, overwriting if exists
+        try {
+            fs.writeFileSync(filePath, stringValue, 'utf8');
+        } catch (writeError) {
+            if (writeError.code === 'EACCES' || writeError.code === 'EPERM') {
+                log.warn(`Permission denied writing config file: ${filePath}. Using fallback storage.`);
+                return _setSingleConfigFallback(key, value);
+            }
+            throw writeError;
+        }
+
+        // Only log if content changed
+        if (shouldLog) {
             log.debug(`Config updated: ${upperKey} = ${stringValue}`);
         }
 
         return true;
     } catch (error) {
         log.error(`Error setting config for ${key}:`, error);
+        // Try fallback as last resort
+        if (fallbackConfigDir && configDir !== fallbackConfigDir) {
+            log.info(`Attempting fallback config storage for ${key}`);
+            return _setSingleConfigFallback(key, value);
+        }
         return false;
     }
 }
@@ -246,25 +345,75 @@ function getConfig(key) {
         };
 
         const filePath = path.join(configDir, upperKey);
+        const fallbackFilePath = fallbackConfigDir ? path.join(fallbackConfigDir, upperKey) : null;
+
+        // Try primary config file first
+        let configFilePath = filePath;
+        let usesFallback = false;
 
         if (!fs.existsSync(filePath)) {
-            // Return hardcoded default if available
-            if (defaultConfigs[upperKey]) {
-                log.debug(`Config not found: ${upperKey}, using default: ${defaultConfigs[upperKey]}`);
-                return defaultConfigs[upperKey];
+            // Try fallback config file
+            if (fallbackFilePath && fs.existsSync(fallbackFilePath)) {
+                configFilePath = fallbackFilePath;
+                usesFallback = true;
+            } else {
+                // Return hardcoded default if available
+                if (defaultConfigs[upperKey]) {
+                    log.debug(`Config not found: ${upperKey}, using default: ${defaultConfigs[upperKey]}`);
+                    return defaultConfigs[upperKey];
+                }
+                log.debug(`Config not found: ${upperKey}`);
+                return '';
             }
-            log.debug(`Config not found: ${upperKey}`);
-            return '';
         }
 
         // Check if it's a directory instead of a file
-        const stats = fs.statSync(filePath);
+        let stats;
+        try {
+            stats = fs.statSync(configFilePath);
+        } catch (statError) {
+            if (statError.code === 'EACCES' || statError.code === 'EPERM') {
+                // Try fallback if permission denied on primary
+                if (!usesFallback && fallbackFilePath && fs.existsSync(fallbackFilePath)) {
+                    configFilePath = fallbackFilePath;
+                    usesFallback = true;
+                    stats = fs.statSync(configFilePath);
+                } else {
+                    log.warn(`Permission denied accessing config file: ${configFilePath}`);
+                    return defaultConfigs[upperKey] || '';
+                }
+            } else {
+                throw statError;
+            }
+        }
+
         if (stats.isDirectory()) {
             log.debug(`Config ${upperKey} is a directory, returning empty string`);
             return '';
         }
 
-        const content = fs.readFileSync(filePath, 'utf8');
+        let content;
+        try {
+            content = fs.readFileSync(configFilePath, 'utf8');
+        } catch (readError) {
+            if (readError.code === 'EACCES' || readError.code === 'EPERM') {
+                // Try fallback if permission denied on primary
+                if (!usesFallback && fallbackFilePath && fs.existsSync(fallbackFilePath)) {
+                    content = fs.readFileSync(fallbackFilePath, 'utf8');
+                    usesFallback = true;
+                } else {
+                    log.warn(`Permission denied reading config file: ${configFilePath}`);
+                    return defaultConfigs[upperKey] || '';
+                }
+            } else {
+                throw readError;
+            }
+        }
+
+        if (usesFallback) {
+            log.debug(`Config ${upperKey} read from fallback location`);
+        }
+
         const convertedValue = _convertValue(content);
 
         // Decrypt if necessary

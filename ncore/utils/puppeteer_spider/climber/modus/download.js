@@ -209,6 +209,25 @@ class Download {
         }
     }
 
+    // Fetch content from URL
+    async fetch(url, options = {}) {
+        try {
+            const result = await this.fetch_(url, options.response_format || 'text', options.callback);
+            
+            return {
+                success: true,
+                content: result,
+                message: 'File downloaded successfully'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                message: 'Failed to download file from URL'
+            };
+        }
+    }
+
     async fetch_(url, response_format = 'text', callback = null) {
         const response = await fetch(url);
         if (!response.ok) {
@@ -390,40 +409,82 @@ class Download {
     }
 
     async saveImageFromSelector(selector, page = null) {
-        const currentPage = await this.getCurrentPage(page);
-        const src = await currentPage.$eval(selector, img => img.src);
-        const content = await axios.get(src, { responseType: 'arraybuffer' });
-        const fileName = this.getDownloadFileName(src);
-        const savePath = path.join(this.defaultDownloadPath, fileName);
-        fs.writeFileSync(savePath, content.data);
+        try {
+            const currentPage = await this.getCurrentPage(page);
+            const src = await currentPage.$eval(selector, img => img.src);
+            const content = await axios.get(src, { responseType: 'arraybuffer' });
+            const fileName = this.getDownloadFileName(src);
+            const savePath = path.join(this.defaultDownloadPath, fileName);
+            fs.writeFileSync(savePath, content.data);
+            
+            return {
+                success: true,
+                file: savePath,
+                message: 'Image downloaded successfully'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                message: 'Failed to download image'
+            };
+        }
     }
 
     async saveAudioFromSelector(selector, page = null) {
-        const currentPage = await this.getCurrentPage(page);
-        const src = await currentPage.$eval(selector, audio => audio.src);
-        const content = await axios.get(src, { responseType: 'arraybuffer' });
-        const fileName = this.getDownloadFileName(src);
-        const savePath = path.join(this.defaultDownloadPath, fileName);
-        fs.writeFileSync(savePath, content.data);
+        try {
+            const currentPage = await this.getCurrentPage(page);
+            const src = await currentPage.$eval(selector, audio => audio.src);
+            const content = await axios.get(src, { responseType: 'arraybuffer' });
+            const fileName = this.getDownloadFileName(src);
+            const savePath = path.join(this.defaultDownloadPath, fileName);
+            fs.writeFileSync(savePath, content.data);
+            
+            return {
+                success: true,
+                file: savePath,
+                message: 'Audio downloaded successfully'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                message: 'Failed to download audio'
+            };
+        }
     }
 
     async createAndClickDownloadLink(selector, page = null) {
-        const currentPage = await this.getCurrentPage(page);
-        const resourceUrl = await currentPage.$eval(selector, elem => elem.src || elem.href);
-        const uniqueID = uuidv4();
-        const downloadLink = `<a href="${resourceUrl}" target="_bank" id="${uniqueID}" download>Download</a>`;
-        await currentPage.evaluate((downloadLinkContent) => {
-            const div = document.createElement('div');
-            div.innerHTML = downloadLinkContent;
-            document.body.appendChild(div);
-        }, downloadLink);
-        await currentPage.click(`#${uniqueID}`);
-        setTimeout(async () => {
-            await currentPage.evaluate((uniqueID) => {
-                const link = document.getElementById(uniqueID);
-                link.parentElement.removeChild(link);
-            }, uniqueID);
-        }, 1000);
+        try {
+            const currentPage = await this.getCurrentPage(page);
+            const resourceUrl = await currentPage.$eval(selector, elem => elem.src || elem.href);
+            const uniqueID = uuidv4();
+            const downloadLink = `<a href="${resourceUrl}" target="_bank" id="${uniqueID}" download>Download</a>`;
+            await currentPage.evaluate((downloadLinkContent) => {
+                const div = document.createElement('div');
+                div.innerHTML = downloadLinkContent;
+                document.body.appendChild(div);
+            }, downloadLink);
+            await currentPage.click(`#${uniqueID}`);
+            setTimeout(async () => {
+                await currentPage.evaluate((uniqueID) => {
+                    const link = document.getElementById(uniqueID);
+                    link.parentElement.removeChild(link);
+                }, uniqueID);
+            }, 1000);
+            
+            return {
+                success: true,
+                file: resourceUrl,
+                message: 'Download link created and clicked successfully'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message,
+                message: 'Failed to create and click download link'
+            };
+        }
     }
 
     async downloadImages(urls) {

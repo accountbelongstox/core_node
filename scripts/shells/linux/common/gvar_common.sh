@@ -87,7 +87,7 @@ elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
 fi
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d ï¿?NTFS mount ï¿?Data disk mount ï¿?/www
+# Priority: WSL /mnt/d ï¿½?NTFS mount ï¿½?Data disk mount ï¿½?/www
 get_base_data_directory() {
     local base_dir=""
 
@@ -817,6 +817,21 @@ map_web_path() {
             else
                 # Production server without desktop/NTFS: /usr/system_version
                 mapped_path="/usr/${sys_name}_${sys_version}"
+            fi
+            ;;
+        "applications_dir")
+            # Applications directory - same location as compile_dir for consistency
+            local sys_name="${SYSTEM_NAME}"
+            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
+
+            # Check if this is development environment (same logic as compile_dir)
+            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
+                # Development: base_dir/_system_version/applications (with underscore prefix)
+                local data_base=$(get_base_data_directory)
+                mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
+            else
+                # Production server without desktop/NTFS: /usr/.core_node/applications
+                mapped_path="/usr/.core_node/applications"
             fi
             ;;
         "nginx")

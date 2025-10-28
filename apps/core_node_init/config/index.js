@@ -16,13 +16,17 @@ const path = require('path');
 const os = require('os');
 const globalDir = require('#@global_dir');
 
-// Extract the required directories
-const APP_LARGE_FILES_CACHE_DIR = globalDir.APP_LARGE_FILES_CACHE_DIR;
-const APP_RUNTIME_CACHE_DIR = globalDir.APP_RUNTIME_CACHE_DIR;
-
 // Declare variables
 const homeDir = os.homedir();
 const downloadsDir = path.join(homeDir, 'Downloads');
+
+// Extract the required directories
+// Safe fallback for globalDir to avoid circular dependency
+const safeAppLargeFilesCacheDir = globalDir?.APP_LARGE_FILES_CACHE_DIR || path.join(homeDir, '.core_node', 'cache', 'large_files');
+const safeAppRuntimeCacheDir = globalDir?.APP_RUNTIME_CACHE_DIR || path.join(homeDir, '.core_node', 'cache', 'runtime');
+
+// Use ncore existing functionality
+const { Spider } = require('#@puppeteer');
 
 // Download configurations for different applications
 const downloadConfigs = {
@@ -31,7 +35,7 @@ const downloadConfigs = {
         url: 'https://cursor.com/download',
         targetSelector: 'a[href*="AppImage"]',
         keywords: ['Linux', 'AppImage', 'x64'],
-        filePattern: /cursor.*\.appimage$/i,
+        filePattern: 'cursor.*\\.appimage',
         downloadDir: downloadsDir,
         timeout: 300000, // 5 minutes
         waitForDownload: true,
@@ -39,10 +43,10 @@ const downloadConfigs = {
     },
     vscode: {
         name: 'Visual Studio Code',
-        url: 'https://code.visualstudio.com/',
-        targetSelector: '#download-linux64',
-        keywords: ['linux64'],
-        filePattern: /code.*\.deb$/i,
+        url: 'https://code.visualstudio.com/download',
+        targetSelector: 'a[href*=".deb"], .download-button, [data-os="linux"], .btn-download',
+        keywords: ['linux', 'deb', 'x64', 'download'],
+        filePattern: 'code.*\\.deb',
         downloadDir: downloadsDir,
         timeout: 300000, // 5 minutes
         waitForDownload: true,
@@ -71,7 +75,7 @@ const puppeteerConfig = {
         '--disable-gpu',
         '--disable-web-security',
         '--disable-features=VizDisplayCompositor',
-        `--user-data-dir=${APP_RUNTIME_CACHE_DIR}/chrome-user-data`
+        `--user-data-dir=${safeAppRuntimeCacheDir}/chrome-user-data-${Date.now()}`
     ]
 };
 
@@ -91,8 +95,8 @@ const downloadDirConfig = {
         path.join(homeDir, 'Desktop'),
         '/tmp/downloads'
     ],
-    cacheDir: APP_LARGE_FILES_CACHE_DIR,
-    tempDir: APP_RUNTIME_CACHE_DIR
+    cacheDir: safeAppLargeFilesCacheDir,
+    tempDir: safeAppRuntimeCacheDir
 };
 
 // Logging configuration
@@ -100,7 +104,7 @@ const loggingConfig = {
     level: 'info',
     enableFileLog: true,
     enableConsoleLog: true,
-    logDir: path.join(APP_RUNTIME_CACHE_DIR, 'logs')
+    logDir: path.join(safeAppRuntimeCacheDir, 'logs')
 };
 
 // Browser automation configuration

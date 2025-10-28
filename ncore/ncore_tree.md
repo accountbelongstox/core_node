@@ -586,6 +586,7 @@ ncore/
 │   │   │   └── driver.js
 │   │   ├── config/
 │   │   │   ├── libs/
+│   │   │   │   ├── chromeWrapper.js
 │   │   │   │   └── ensureAndFinderChrome.js
 │   │   │   ├── chrome_version.js
 │   │   │   └── option.js
@@ -805,6 +806,8 @@ ncore/
 │   │   └── libs/
 │   │       ├── handle.js
 │   │       └── server.js
+│   ├── system/
+│   │   └── fix_symlink_loops.js
 │   ├── systool/
 │   │   ├── libs/
 │   │   │   ├── check.js

@@ -143,12 +143,18 @@ class Options {
             // '--incognito',
             '--lang=zh-CN',
             '--disable-web-security',
-            '--user-data-dir',
+            `--user-data-dir=/tmp/chrome-user-data-${Date.now()}`,
             '--trusted-download-sources',
             '--disable-features=site-per-process',
             // '--disable-blink-features=AutomationControlled', // no supported in puppeteer
             '--disable-web-security',
             `--incognito`,
+            // Handle root execution and symbolic link issues
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-features=VizDisplayCompositor',
+            '--single-process',
         ];
 
         if (disableGpu) {
