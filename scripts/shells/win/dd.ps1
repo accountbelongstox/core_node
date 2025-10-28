@@ -341,8 +341,8 @@ function Invoke-InteractiveMenu {
         }
         
         # Display dd.ps1 parent directory (../../)
-        $ddScriptPath = $MyInvocation.PSCommandPath
-        if ($ddScriptPath) {
+        $ddScriptPath = $script:PS_CURENT_DIR + "\dd.ps1"
+        if (Test-Path $ddScriptPath) {
             $parentDir = Split-Path (Split-Path (Split-Path $ddScriptPath -Parent) -Parent) -Parent
             Write-ColorMessage -Message "dd.ps1 parent directory: $parentDir" -Type "Info"
         }
