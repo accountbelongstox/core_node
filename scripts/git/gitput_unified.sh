@@ -120,11 +120,6 @@ ensure_git_identity() {
 get_commit_message() {
     local commit_file="/tmp/git_commit_message_$$"
     
-    # Debug: Show current COMMIT_MESSAGE value and all environment variables
-    write_color_text "DEBUG: COMMIT_MESSAGE='$COMMIT_MESSAGE'" "DarkGray" >&2
-    write_color_text "DEBUG: All COMMIT_MESSAGE env vars: $(env | grep COMMIT_MESSAGE)" "DarkGray" >&2
-    write_color_text "DEBUG: Commit file exists: $(test -f "$commit_file" && echo 'yes' || echo 'no')" "DarkGray" >&2
-    
     # Check if we have a stored commit message
     if [ -f "$commit_file" ]; then
         local stored_message=$(cat "$commit_file")
@@ -152,9 +147,6 @@ get_commit_message() {
     # Store the commit message in a file
     echo "$COMMIT_MESSAGE" > "$commit_file"
     
-    write_color_text "DEBUG: Set COMMIT_MESSAGE='$COMMIT_MESSAGE'" "DarkGray" >&2
-    write_color_text "DEBUG: After set, env vars: $(env | grep COMMIT_MESSAGE)" "DarkGray" >&2
-    write_color_text "DEBUG: Stored in file: $commit_file" "DarkGray" >&2
     echo "$COMMIT_MESSAGE"
 }
 
