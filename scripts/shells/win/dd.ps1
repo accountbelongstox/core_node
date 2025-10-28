@@ -340,6 +340,13 @@ function Invoke-InteractiveMenu {
             Write-ColorMessage -Message "Execution mode: Mode not detected" -Type "Warning"
         }
         
+        # Display dd.ps1 parent directory (../../)
+        $ddScriptPath = $MyInvocation.PSCommandPath
+        if ($ddScriptPath) {
+            $parentDir = Split-Path (Split-Path (Split-Path $ddScriptPath -Parent) -Parent) -Parent
+            Write-ColorMessage -Message "dd.ps1 parent directory: $parentDir" -Type "Info"
+        }
+        
         for ($i = 0; $i -lt $Items.Count; $i++) {
             $item = $Items[$i]
             if (-not $item.ContainsKey('CurrentValueIndex')) { $item | Add-Member -NotePropertyName CurrentValueIndex -NotePropertyValue 0 }
