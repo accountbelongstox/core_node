@@ -1,0 +1,40 @@
+/mnt/dev_sdb3/programing/core_node/apps/core_node_init/error.txt  参考错误，根据 /mnt/dev_sdb3/programing/core_node/development-guides/NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md ，查看项目结构 ， /mnt/dev_sdb3/programing/core_node/apps/core_node_init/core_node_init_tree.md
+ /mnt/dev_sdb3/programing/core_node/ncore/ncore_tree.md
+ 全面分析，并修复注意你不能单独修改某个文件，你要全面分析，并使用基本类库，去掉冗余代码。要使用复用逻辑。如果你需要可以调用content7查看文档。
+
+ /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/puppeteer_spider_tree.md
+ 重构整个类库不合理的地方，同时 node_provider node_spider 要去掉，其中没有被引用的文件不需要，被引用的文件移到合适的目录
+ 同时其中如果有和 ncore中其他类库重复定义的，引用ncore中的其他文件，
+ Ncore目录  /mnt/dev_sdb3/programing/core_node/ncore/ncore_tree.md
+ 全面分析，并修复注意你不能单独修改某个文件，你要全面分析，并使用基本类库，去掉冗余代码。要使用复用逻辑。如果你需要可以调用content7查看文档。
+
+
+/mnt/dev_sdb3/programing/core_node/apps/core_node_init/error.txt  参考错误，
+根据 /mnt/dev_sdb3/programing/core_node/development-guides/NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md ，查看项目结构 ， /mnt/dev_sdb3/programing/core_node/apps/core_node_init/core_node_init_tree.md
+ /mnt/dev_sdb3/programing/core_node/ncore/ncore_tree.md
+ /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/puppeteer_spider_tree.md
+ 全面分析，并修复注意你不能单独修改某个文件，你要全面分析，并使用基本类库，去掉冗余代码。要使用复用逻辑。如果你需要可以调用content7查看文档。
+
+ /mnt/dev_sdb3/programing/core_node/scripts/shells/linux/debian
+ 全面分析，并在其中  /mnt/dev_sdb3/programing/core_node/scripts/shells/linux/debian/install_shells 完成一个chrome安装方式，注意安装目录要和/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh 和其他安装目录自洽，对对桌面系统要创建快捷方式，兼容wsl/desktop/server，之后，在/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/config/libs/chrome_installers 中扩展中接口，表示与系统安装LIUNX系统的自定义安装一致。
+
+ 继续重构，
+原代码 配置 /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/config/option.js 
+原代码 map库  /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/config/chrome_version.js
+原代码 查找器 /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/config/libs/ensureAndFinderChrome.js
+重构方案
+只保留 /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/main.js 一个入口
+其他全部移入类库，并写入说明 mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/Readme.md
+1:入口中导出 Puppeteer实例 单个／多个，如果是单个可以直接使用，多个则需要按标号使用
+2：每个实现对应一个index和一个id，每个实例和实例组可以按规范传递配置，替换默认配置的item项。
+3:入口中导出一个配置示例方法，调用该方法会打印出配置示例，并提示用户如何使用
+4：实例，或实例组中的的可以直接使用pupptter官方方法
+5： /mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider/climber/climber_tree.md
+中的每个类库是高级封装，全面重构，
+5－1 每个高级封装类库，都附在了实例上面，可以在实例上直接调用。、
+5－2 每个高级封装类库，都可以单独初始化一个，通过传入一个实例，index，id，或实例组，来同时对一组实例操作。
+5－3 实例或实例组，由 puppeteer_spider 中全局管理，可以增加，删除，修改，查询。方便多线程多个实例。
+5－4 主入口中同时导出每个高级封装，并说明用法。同时如果不传参数调用一个高级封装，则默认操作第1个puppeteer实例。
+
+6：使用本类库时，可以初始化一个，或一组pupptter实例，这样会启动多个浏览器实例，实现多线程。
+6－1：在配置中，默认添加使用edage作为浏览器，同时，在map库中建立edge的版本映射。并扩展出查找类库，在查找chrome的情况下根据特定逻辑能查找edage的位置。同时本类库中有可沿用的通过注册表查找edage的版本号的代码。

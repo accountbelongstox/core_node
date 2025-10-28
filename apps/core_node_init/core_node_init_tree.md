@@ -4,12 +4,17 @@
 
 ```
 core_node_init/
+├── _promptes/
+│   ├── prompt.txt
+│   └── rebuild.ini
 ├── config/
 │   └── index.js
 ├── controller/
-│   └── download_controller.js
 ├── template/
 │   └── static/
+├── core_node_init_tree.md
+├── cursor_chrome.md
+├── error.txt
 └── main.js
 ```
 
