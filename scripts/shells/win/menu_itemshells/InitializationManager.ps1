@@ -30,12 +30,12 @@ $installerScriptsListPath = Join-Path $INSTALL_POWERSHELLS_DIR "InstallerScripts
 # =============================================================================
 function Get-ExecutionMode {
     # Detect if running in project mode or installation mode
-    # Use script's own path to determine mode instead of hardcoding paths
-    $scriptPath = $MyInvocation.PSCommandPath
+    # Use PS_CURENT_DIR to determine mode instead of script path
+    $currentDir = $script:PS_CURENT_DIR
     $userProfileDir = [Environment]::GetFolderPath("UserProfile")
     
-    # Check if script is running from user profile directory (installation mode)
-    if ($scriptPath -like "$userProfileDir*") {
+    # Check if running from user profile directory (installation mode)
+    if ($currentDir -like "$userProfileDir*") {
         return "INSTALLATION"
     }
     # Otherwise, it's project mode (running from development directory)
@@ -260,10 +260,11 @@ function Add-ProjectDirToPath {
 }
 
 # Main execution
-# Detect and store execution mode
+# Detect and store execution mode using GlobalVars.ps1 MODE constant
 $Global:EXECUTION_MODE = Get-ExecutionMode
 
-if (Test-InitializationRequired) {
+# If in installation mode, always show the initialization menu
+if ($Global:EXECUTION_MODE -eq "INSTALLATION") {
     $initChoice = Show-InitializationMenu
     switch ($initChoice) {
         "initialize" {
@@ -284,7 +285,6 @@ if (Test-InitializationRequired) {
         }
     }
 } else {
-    # Not in user directory - add PROJECT_DIR to PATH
+    # Project mode - add PROJECT_DIR to PATH
     Add-ProjectDirToPath
-    # Mode is already set above, no need to set again
 }
