@@ -30,6 +30,11 @@ INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "126_install_ruby")
 LOG_FILE="$SCRIPT_TEMP_DIR/ruby_install_$(date +%Y%m%d_%H%M%S).log"
 
+# Ruby installation directories using map_web_path
+RUBY_INSTALL_DIR=$(map_web_path "compile_dir" "applications/ruby")
+RUBY_GEM_HOME=$(map_web_path "compile_dir" "applications/ruby/gems")
+RUBY_GEM_BIN_DIR=$(map_web_path "compile_dir" "applications/ruby/gems/bin")
+
 # Logging function
 log_message() {
     local message="$1"

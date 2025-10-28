@@ -13,8 +13,8 @@
 'use strict';
 
 const logger = require('#@logger');
-const IPlugin = require('../interfaces/IPlugin');
-const IDownloader = require('../interfaces/IDownloader');
+const IPlugin = require('../../interfaces/IPlugin');
+const IDownloader = require('../../interfaces/IDownloader');
 
 class HttpDownloader extends IDownloader {
     constructor() {
@@ -27,7 +27,7 @@ class HttpDownloader extends IDownloader {
 
     async initialize(options = {}) {
         try {
-            this.downloadPath = options.path || path.join(this.os.homedir(), 'Downloads', 'spider_downloads');
+            this.downloadPath = options.path || this.path.join(this.os.homedir(), 'Downloads', 'spider_downloads');
             
             if (!this.fs.existsSync(this.downloadPath)) {
                 this.fs.mkdirSync(this.downloadPath, { recursive: true });

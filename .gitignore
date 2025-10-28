@@ -59,6 +59,7 @@ app.*.symbols
 **/*.logs
 **/logs/
 **/log/
+**/.runtime_cache/
 
 #  Cache 
 **/cache/

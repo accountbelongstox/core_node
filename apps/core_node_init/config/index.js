@@ -21,12 +21,8 @@ const homeDir = os.homedir();
 const downloadsDir = path.join(homeDir, 'Downloads');
 
 // Extract the required directories
-// Safe fallback for globalDir to avoid circular dependency
 const safeAppLargeFilesCacheDir = globalDir?.APP_LARGE_FILES_CACHE_DIR || path.join(homeDir, '.core_node', 'cache', 'large_files');
 const safeAppRuntimeCacheDir = globalDir?.APP_RUNTIME_CACHE_DIR || path.join(homeDir, '.core_node', 'cache', 'runtime');
-
-// Use ncore existing functionality
-// Spider is imported in main.js, no need to duplicate here
 
 // Download configurations for different applications
 const downloadConfigs = {
@@ -34,10 +30,10 @@ const downloadConfigs = {
         name: 'Cursor IDE',
         url: 'https://cursor.com/download',
         targetSelector: 'a[href*="AppImage"]',
-        keywords: ['Linux', 'AppImage', 'x64'],
+        keywords: ['linux', 'appimage', 'x64', 'download'],
         filePattern: 'cursor.*\\.appimage',
         downloadDir: downloadsDir,
-        timeout: 300000, // 5 minutes
+        timeout: 300000,
         waitForDownload: true,
         description: 'AI-powered code editor'
     },
@@ -48,14 +44,15 @@ const downloadConfigs = {
         keywords: ['linux', 'deb', 'x64', 'download'],
         filePattern: 'code.*\\.deb',
         downloadDir: downloadsDir,
-        timeout: 300000, // 5 minutes
+        timeout: 300000,
         waitForDownload: true,
         description: 'Source code editor developed by Microsoft'
     }
 };
 
-// Puppeteer configuration
+// Puppeteer configuration for v2 framework
 const puppeteerConfig = {
+    browser: 'edge',
     headless: false,
     devtools: false,
     timeout: 120000,
@@ -81,10 +78,10 @@ const puppeteerConfig = {
 
 // File monitoring configuration
 const fileMonitorConfig = {
-    pollInterval: 2000, // Check every 2 seconds
-    maxWaitTime: 300000, // Maximum wait time 5 minutes
-    stableTime: 3000, // File must be stable for 3 seconds
-    minFileSize: 1024 * 1024 // Minimum file size 1MB
+    pollInterval: 2000,
+    maxWaitTime: 300000,
+    stableTime: 3000,
+    minFileSize: 1024 * 1024
 };
 
 // Download directories configuration
@@ -118,29 +115,18 @@ const automationConfig = {
 
 // Export configuration
 const config = {
-    // Application configurations
     downloadConfigs,
-    
-    // Browser and automation settings
     puppeteerConfig,
     automationConfig,
-    
-    // File handling settings
     fileMonitorConfig,
     downloadDirConfig,
-    
-    // Logging settings
     loggingConfig,
-    
-    // Default settings
     defaultTimeout: 120000,
     defaultRetries: 3,
     defaultWaitTime: 5000,
-    
-    // Application metadata
     appName: 'core_node_init',
-    appVersion: '1.0.0',
-    appDescription: 'Core Node Initialization and Download Manager'
+    appVersion: '2.0.0',
+    appDescription: 'Core Node Initialization and Download Manager (v2)'
 };
 
 module.exports = config;

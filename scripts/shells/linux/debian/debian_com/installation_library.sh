@@ -283,21 +283,30 @@ install_via_snap() {
     fi
 
     # Install snap package
-    if eval "$snap_install_cmd"; then
+    if eval "$snap_install_cmd" 2>/dev/null; then
         log_success "Successfully installed $app_name via SNAP"
         return 0
     else
-        # Check if error is due to confinement requirement and fallback is enabled
-        local snap_error_output=$(eval "$snap_install_cmd" 2>&1 || true)
+        # Capture error output for analysis
+        local snap_error_output
+        snap_error_output=$(eval "$snap_install_cmd" 2>&1 || true)
+        
+        # Check if error is due to confinement requirement
         if [[ "$snap_error_output" == *"classic"* ]] && [[ "$snap_error_output" == *"confinement"* ]]; then
             log_warning "Snap package requires classic confinement, retrying with --classic flag"
-            if $USE_SUDO snap install "$package_id" --classic; then
+            if $USE_SUDO snap install "$package_id" --classic 2>/dev/null; then
                 log_success "Successfully installed $app_name via SNAP with classic confinement"
                 return 0
+            else
+                log_error "Failed to install $app_name via SNAP even with classic confinement"
+                log_error "Error: $snap_error_output"
+                return 1
             fi
+        else
+            log_error "Failed to install $app_name via SNAP"
+            log_error "Error: $snap_error_output"
+            return 1
         fi
-        log_error "Failed to install $app_name via SNAP"
-        return 1
     fi
 }
 
