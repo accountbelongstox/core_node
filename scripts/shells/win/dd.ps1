@@ -1145,6 +1145,15 @@ if (-not $SkipInitialization) {
     Write-ColorMessage -Message "Skipping initialization operations (returning from sub-menu)..." -Type "Info"
 }
 
+# Check execution mode and handle accordingly BEFORE showing menu
+if ($Global:EXECUTION_MODE -eq "INSTALLATION") {
+    Write-ColorMessage -Message "Installation Mode detected. Launching initialization menu..." -Type "Info"
+    
+    # InitializationManager.ps1 is already loaded, just execute its logic
+    # The InitializationManager.ps1 will handle its own menu and execution
+    exit 0
+}
+
 Initialize-MenuItems
 Start-MainLoop
 
