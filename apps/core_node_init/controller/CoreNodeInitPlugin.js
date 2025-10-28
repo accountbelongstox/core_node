@@ -64,108 +64,15 @@ class CoreNodeInitPlugin extends IPlugin {
             const config = this.downloadConfigs[target];
             logger.info(`Starting download for ${config.name}...`);
 
-            // For VSCode, use direct API approach instead of web scraping
+            // Use enhanced download plugin for VSCode and Cursor
             if (target === 'vscode') {
-                return await this.downloadVSCodeDirect(config, options);
+                return await this.downloadVSCodeEnhanced(config, options);
+            } else if (target === 'cursor') {
+                return await this.downloadCursorEnhanced(config, options);
             }
 
-            // Get or create page from spider
-            let page = this.spider.getPage();
-            if (!page) {
-                page = await this.spider.newPage();
-            }
-
-            // Navigate to download page
-            await page.goto(config.url, { 
-                timeout: config.timeout,
-                waitUntil: 'networkidle2'
-            });
-
-            // Wait for page to load
-            await page.waitForTimeout(3000);
-
-            // Try multiple selectors for VSCode download
-            const downloadSelectors = [
-                config.targetSelector,
-                'a[href*=".deb"]',
-                'a[href*=".rpm"]', 
-                'a[href*=".exe"]',
-                'a[href*=".dmg"]',
-                'a[href*=".pkg"]',
-                '.download-button',
-                '[data-os="linux"]',
-                '.btn-download',
-                'a[href*="code.visualstudio.com"]',
-                'a[href*="vscode"]',
-                'button[data-testid*="download"]',
-                'a[aria-label*="download"]',
-                'a[title*="download"]'
-            ];
-
-            let downloadUrl = null;
-            let foundSelector = null;
-
-            // Try to find download link with multiple selectors
-            for (const selector of downloadSelectors) {
-                try {
-                    const element = await page.waitForSelector(selector, { timeout: 5000 });
-                    if (element) {
-                        downloadUrl = await page.evaluate((sel) => {
-                            const el = document.querySelector(sel);
-                            return el ? el.href : null;
-                        }, selector);
-                        if (downloadUrl) {
-                            foundSelector = selector;
-                            break;
-                        }
-                    }
-                } catch (error) {
-                    logger.debug(`Selector ${selector} not found, trying next...`);
-                    continue;
-                }
-            }
-
-            if (!downloadUrl) {
-                // If no direct link found, try to find any download-related element
-                const allLinks = await page.evaluate(() => {
-                    const links = Array.from(document.querySelectorAll('a'));
-                    return links.map(link => ({
-                        href: link.href,
-                        text: link.textContent.trim()
-                    }));
-                });
-                
-                const downloadLinks = allLinks.filter(link => 
-                    link.href && (
-                        link.href.includes('.deb') || 
-                        link.href.includes('.rpm') || 
-                        link.href.includes('.exe') || 
-                        link.href.includes('.dmg') ||
-                        link.href.includes('vscode') ||
-                        link.text.toLowerCase().includes('download')
-                    )
-                );
-
-                if (downloadLinks.length > 0) {
-                    downloadUrl = downloadLinks[0].href;
-                    foundSelector = 'dynamic-link-search';
-                    logger.info(`Found download link through dynamic search: ${downloadUrl}`);
-                } else {
-                    throw new Error(`No download link found with any selector. Page URL: ${page.url()}`);
-                }
-            }
-            logger.info(`Found download URL: ${downloadUrl}`);
-
-            // Start download
-            const result = await this.startDownload(downloadUrl, config, options);
-            
-            return {
-                success: true,
-                target: target,
-                url: downloadUrl,
-                file: result.file,
-                message: `Successfully downloaded ${config.name}`
-            };
+            // For other targets, use the enhanced page functionality
+            return await this.downloadWithEnhancedPage(target, config, options);
 
         } catch (error) {
             logger.error(`Failed to download ${target}:`, error);
@@ -174,6 +81,264 @@ class CoreNodeInitPlugin extends IPlugin {
                 target: target,
                 error: error.message
             };
+        }
+    }
+
+    async downloadVSCodeEnhanced(config, options = {}) {
+        try {
+            logger.info('Using enhanced VSCode download with button clicking...');
+
+            // Get or create page from spider
+            let page = this.spider.getPage();
+            if (!page) {
+                page = await this.spider.newPage();
+            }
+
+            // Navigate to VSCode download page
+            await page.goto('https://code.visualstudio.com/', {
+                waitUntil: 'networkidle2',
+                timeout: 120000
+            });
+
+            // Wait for page to load
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Try multiple approaches to find VSCode download buttons
+            const puppeteerPage = page.page || page;
+            
+            // Approach 1: Look for download buttons with specific text patterns
+            const downloadButtons = await puppeteerPage.$$eval('a, button', (elements) => {
+                return elements
+                    .filter(el => {
+                        const text = el.textContent.toLowerCase();
+                        const href = el.href ? el.href.toLowerCase() : '';
+                        return (
+                            text.includes('download') && 
+                            (text.includes('linux') || text.includes('ubuntu') || text.includes('deb'))
+                        );
+                    })
+                    .map(el => ({
+                        text: el.textContent.trim(),
+                        href: el.href || '',
+                        tagName: el.tagName.toLowerCase(),
+                        id: el.id,
+                        className: el.className
+                    }));
+            });
+
+            // Also look for any download-related elements
+            const allDownloadElements = await puppeteerPage.$$eval('a, button', (elements) => {
+                return elements
+                    .filter(el => {
+                        const text = el.textContent.toLowerCase();
+                        const href = el.href ? el.href.toLowerCase() : '';
+                        return text.includes('download') || href.includes('download');
+                    })
+                    .map(el => ({
+                        text: el.textContent.trim(),
+                        href: el.href || '',
+                        tagName: el.tagName.toLowerCase(),
+                        id: el.id,
+                        className: el.className
+                    }));
+            });
+
+            logger.info(`Found ${downloadButtons.length} Linux-specific download buttons`);
+            logger.info(`Found ${allDownloadElements.length} total download elements`);
+            
+            // Log all download elements for debugging
+            allDownloadElements.forEach((el, index) => {
+                logger.info(`Download element ${index + 1}: "${el.text}" - ${el.href}`);
+            });
+
+            if (downloadButtons.length > 0) {
+                logger.info(`Found ${downloadButtons.length} VSCode download buttons`);
+                const targetButton = downloadButtons[0];
+                logger.info(`Clicking VSCode download button: ${targetButton.text}`);
+
+                // Try different selector approaches
+                let clicked = false;
+                
+                // Try by href first
+                if (targetButton.href && !clicked) {
+                    try {
+                        await puppeteerPage.click(`a[href="${targetButton.href}"]`);
+                        clicked = true;
+                        logger.info(`Clicked VSCode button by href: ${targetButton.href}`);
+                    } catch (e) {
+                        logger.debug(`Failed to click by href: ${e.message}`);
+                    }
+                }
+                
+                // Try by text content
+                if (!clicked) {
+                    try {
+                        await puppeteerPage.click(`a:has-text("${targetButton.text}")`);
+                        clicked = true;
+                        logger.info(`Clicked VSCode button by text: ${targetButton.text}`);
+                    } catch (e) {
+                        logger.debug(`Failed to click by text: ${e.message}`);
+                    }
+                }
+                
+                // Try by CSS selector
+                if (!clicked) {
+                    try {
+                        const selector = `${targetButton.tagName}${targetButton.id ? '#' + targetButton.id : ''}${targetButton.className ? '.' + targetButton.className.split(' ').join('.') : ''}`;
+                        await puppeteerPage.click(selector);
+                        clicked = true;
+                        logger.info(`Clicked VSCode button by CSS selector: ${selector}`);
+                    } catch (e) {
+                        logger.debug(`Failed to click by CSS selector: ${e.message}`);
+                    }
+                }
+                
+                if (clicked) {
+                    // Wait for download
+                    const fileResult = await this.waitForFileByPattern('code.*\\.(deb|rpm|appimage)', { timeout: 300000 });
+                    
+                    if (fileResult.success) {
+                        logger.info(`VSCode download completed: ${fileResult.file.path}`);
+                        return { success: true, message: 'VSCode download completed', file: fileResult.file };
+                    }
+                }
+            }
+
+            // Approach 2: Use the original keyword-based search
+            const debResult = await this.findAndClickDownloadLink(
+                page,
+                ['linux', 'deb', 'x64', 'download', 'ubuntu'],
+                'code.*\\.(deb|rpm|appimage)',
+                { timeout: 300000 }
+            );
+
+            if (debResult.success) {
+                logger.info(`DEB download completed: ${debResult.file.path}`);
+                return { success: true, message: 'VSCode DEB download completed', file: debResult.file };
+            }
+
+            // Approach 3: Try AppImage download as fallback
+            const appImageResult = await this.findAndClickDownloadLink(
+                page,
+                ['linux', 'appimage', 'x64'],
+                'code.*\\.(appimage|deb|rpm)',
+                { timeout: 300000 }
+            );
+
+            if (appImageResult.success) {
+                logger.info(`AppImage download completed: ${appImageResult.file.path}`);
+                return { success: true, message: 'VSCode AppImage download completed', file: appImageResult.file };
+            }
+
+            return {
+                success: true,
+                target: 'vscode',
+                debFile: debResult.success ? debResult.file : null,
+                appImageFile: appImageResult.success ? appImageResult.file : null,
+                message: 'VSCode downloads completed successfully'
+            };
+
+        } catch (error) {
+            logger.error('Failed to download VSCode with enhanced method:', error);
+            throw error;
+        }
+    }
+
+    async downloadCursorEnhanced(config, options = {}) {
+        try {
+            logger.info('Using enhanced Cursor download with button clicking...');
+            
+            // Get or create page from spider
+            let page = this.spider.getPage();
+            if (!page) {
+                page = await this.spider.newPage();
+            }
+
+            // Navigate to Cursor download page
+            await page.goto('https://cursor.com/download', {
+                waitUntil: 'networkidle2',
+                timeout: 120000
+            });
+
+            // Wait for page to load
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Find and click Linux AppImage download button - prioritize Linux over Mac
+            const appImageResult = await this.findAndClickDownloadLink(
+                page,
+                ['linux', 'appimage', 'x64', 'ubuntu', 'debian'],
+                'cursor.*\\.(appimage|deb|rpm)',
+                { timeout: 300000, prioritizeLinux: true }
+            );
+
+            if (appImageResult.success) {
+                logger.info(`Cursor AppImage download completed: ${appImageResult.file.path}`);
+            }
+
+            return {
+                success: true,
+                target: 'cursor',
+                appImageFile: appImageResult.success ? appImageResult.file : null,
+                message: 'Cursor download completed successfully'
+            };
+
+        } catch (error) {
+            logger.error('Failed to download Cursor with enhanced method:', error);
+            throw error;
+        }
+    }
+
+    async downloadWithEnhancedPage(target, config, options = {}) {
+        try {
+            // Get or create page from spider
+            let page = this.spider.getPage();
+            if (!page) {
+                page = await this.spider.newPage();
+            }
+
+            // Use enhanced page functionality
+            const EnhancedPage = require('../../../ncore/utils/puppeteer_spider_v2/src/implementations/pages/EnhancedPage');
+            const enhancedPage = new EnhancedPage(page, this.spider.getBrowser(), {
+                downloadPath: this.downloadDirConfig.searchDirs[0],
+                urlComparisonStrict: false
+            });
+
+            await enhancedPage.initialize();
+
+            // Navigate to download page using enhanced URL opening
+            const openResult = await enhancedPage.openUrl(config.url, {
+                waitForComplete: true,
+                timeout: config.timeout,
+                showImages: false,
+                showStyle: true
+            });
+
+            logger.info(`Page opened with action: ${openResult.action}`);
+
+            // Wait for page to load
+            await page.waitForTimeout(3000);
+
+            // Try to find and click download link using keywords
+            const downloadResult = await enhancedPage.findAndClickDownloadLink(
+                config.keywords,
+                config.filePattern,
+                { timeout: config.timeout }
+            );
+
+            if (downloadResult.success) {
+                logger.info(`Download completed: ${downloadResult.file.path}`);
+            }
+            
+            return {
+                success: true,
+                target: target,
+                file: downloadResult.success ? downloadResult.file : null,
+                message: `Successfully downloaded ${config.name}`
+            };
+
+        } catch (error) {
+            logger.error(`Failed to download ${target} with enhanced page:`, error);
+            throw error;
         }
     }
 
@@ -373,6 +538,269 @@ class CoreNodeInitPlugin extends IPlugin {
             logger.error('Failed to get download status:', error);
             throw error;
         }
+    }
+
+    async findAndClickDownloadLink(page, keywords, filePattern, options = {}) {
+        try {
+            // Access the underlying Puppeteer page
+            const puppeteerPage = page.page || page;
+            
+            // Find download links containing the keywords
+            const downloadLinks = await puppeteerPage.$$eval('a', (links, keywords, prioritizeLinux) => {
+                const filteredLinks = links
+                    .filter(link => {
+                        const text = link.textContent.toLowerCase();
+                        const href = link.href.toLowerCase();
+                        return keywords.some(keyword =>
+                            text.includes(keyword.toLowerCase()) ||
+                            href.includes(keyword.toLowerCase())
+                        );
+                    })
+                    .map(link => ({
+                        href: link.href,
+                        text: link.textContent.trim(),
+                        id: link.id,
+                        className: link.className,
+                        textLower: link.textContent.toLowerCase()
+                    }));
+
+                // If prioritizeLinux is true, sort Linux links first
+                if (prioritizeLinux) {
+                    return filteredLinks.sort((a, b) => {
+                        const aIsLinux = a.textLower.includes('linux') || a.textLower.includes('ubuntu') || a.textLower.includes('debian');
+                        const bIsLinux = b.textLower.includes('linux') || b.textLower.includes('ubuntu') || b.textLower.includes('debian');
+                        
+                        if (aIsLinux && !bIsLinux) return -1;
+                        if (!aIsLinux && bIsLinux) return 1;
+                        return 0;
+                    });
+                }
+                
+                return filteredLinks;
+            }, keywords, options.prioritizeLinux || false);
+
+            if (downloadLinks.length === 0) {
+                throw new Error(`No download links found with keywords: ${keywords.join(', ')}`);
+            }
+
+            logger.info(`Found ${downloadLinks.length} potential download links`);
+
+            // Try to click the first matching link
+            const targetLink = downloadLinks[0];
+            logger.info(`Clicking download link: ${targetLink.text}`);
+
+            // Click the download link and wait for file
+            return await this.clickDownloadAndWait(puppeteerPage, `a[href="${targetLink.href}"]`, filePattern, options);
+
+        } catch (error) {
+            logger.error('Failed to find or click download link:', error);
+            return {
+                success: false,
+                error: error.message,
+                message: 'Failed to find or click download link'
+            };
+        }
+    }
+
+    async clickDownloadAndWait(page, selector, filePattern, options = {}) {
+        try {
+            // Access the underlying Puppeteer page
+            const puppeteerPage = page.page || page;
+            
+            // Clear old files if requested
+            if (options.clearOldFiles !== false) {
+                await this.clearOldFiles(filePattern);
+            }
+            
+            // Click the download link
+            await puppeteerPage.click(selector);
+            logger.info(`Clicked download link: ${selector}`);
+
+            // Wait for file to appear
+            const downloadedFile = await this.waitForFileByPattern(filePattern, options);
+
+            return {
+                success: true,
+                file: downloadedFile,
+                message: 'Download completed successfully'
+            };
+        } catch (error) {
+            logger.error('Download failed:', error);
+            return {
+                success: false,
+                error: error.message,
+                message: 'Download failed'
+            };
+        }
+    }
+
+    async clearOldFiles(pattern) {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const downloadDir = '/home/ubuntu/Downloads';
+            const files = await fs.promises.readdir(downloadDir);
+            const regex = new RegExp(pattern, 'i');
+            
+            const matchingFiles = files.filter(file => regex.test(file));
+            
+            if (matchingFiles.length > 0) {
+                logger.info(`Clearing ${matchingFiles.length} old files matching pattern: ${pattern}`);
+                
+                for (const file of matchingFiles) {
+                    const filePath = path.join(downloadDir, file);
+                    try {
+                        await fs.promises.unlink(filePath);
+                        logger.info(`Deleted old file: ${file}`);
+                    } catch (error) {
+                        logger.warn(`Failed to delete old file ${file}: ${error.message}`);
+                    }
+                }
+            }
+        } catch (error) {
+            logger.error('Error clearing old files:', error);
+        }
+    }
+
+    async waitForFileByPattern(pattern, options = {}) {
+        const defaultOptions = {
+            timeout: 300000, // 5 minutes
+            pollInterval: 2000, // 2 seconds
+            stableTime: 3000, // 3 seconds
+            onProgress: (elapsed, total) => {
+                if (elapsed % 30000 === 0) { // Log every 30 seconds
+                    logger.info(`Waiting for download... ${Math.round(elapsed/1000)}s / ${Math.round(total/1000)}s`);
+                }
+            }
+        };
+
+        const mergedOptions = { ...defaultOptions, ...options };
+        
+        // Get initial file list to detect new files
+        const initialFiles = await this.getMatchingFiles(pattern);
+        logger.info(`Initial matching files: ${initialFiles.length}`);
+        
+        return await this.fileMonitorWait(pattern, mergedOptions, initialFiles);
+    }
+
+    async getMatchingFiles(pattern) {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const downloadDir = '/home/ubuntu/Downloads';
+            const files = await fs.promises.readdir(downloadDir);
+            const regex = new RegExp(pattern, 'i');
+            
+            return files
+                .filter(file => regex.test(file))
+                .map(file => ({
+                    name: file,
+                    path: path.join(downloadDir, file),
+                    size: fs.statSync(path.join(downloadDir, file)).size,
+                    mtime: fs.statSync(path.join(downloadDir, file)).mtime
+                }))
+                .sort((a, b) => b.mtime - a.mtime); // Sort by modification time, newest first
+        } catch (error) {
+            logger.error('Error reading download directory:', error);
+            return [];
+        }
+    }
+
+    async fileMonitorWait(pattern, options, initialFiles = []) {
+        const fs = require('fs');
+        const path = require('path');
+        const startTime = Date.now();
+        const timeout = options.timeout || 300000;
+        const pollInterval = options.pollInterval || 2000;
+        const stableTime = options.stableTime || 3000;
+        
+        let lastFileSize = 0;
+        let stableStartTime = null;
+        let initialFileNames = initialFiles.map(f => f.name);
+        
+        logger.info(`Monitoring for new files matching pattern: ${pattern}`);
+        logger.info(`Initial files to ignore: ${initialFileNames.join(', ')}`);
+        
+        while (Date.now() - startTime < timeout) {
+            try {
+                const currentFiles = await this.getMatchingFiles(pattern);
+                
+                // Find new files (not in initial list)
+                const newFiles = currentFiles.filter(file => !initialFileNames.includes(file.name));
+                
+                if (newFiles.length > 0) {
+                    const latestFile = newFiles[0]; // Newest file
+                    const currentSize = latestFile.size;
+                    
+                    logger.debug(`Found new file: ${latestFile.name}, size: ${currentSize}`);
+                    
+                    if (currentSize === lastFileSize) {
+                        if (stableStartTime === null) {
+                            stableStartTime = Date.now();
+                        } else if (Date.now() - stableStartTime >= stableTime) {
+                            logger.info(`File download completed: ${latestFile.path}`);
+                            return latestFile;
+                        }
+                    } else {
+                        stableStartTime = null;
+                        lastFileSize = currentSize;
+                    }
+                }
+                
+                if (options.onProgress) {
+                    options.onProgress(Date.now() - startTime, timeout);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
+            } catch (error) {
+                logger.error('Error monitoring file:', error);
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
+            }
+        }
+        
+        throw new Error(`Timeout waiting for file pattern: ${pattern}`);
+    }
+
+    findFilesByPattern(pattern) {
+        const fs = require('fs');
+        const path = require('path');
+        const matchedFiles = [];
+        const now = Date.now();
+        const regex = new RegExp(pattern);
+
+        try {
+            const downloadDir = this.downloadDirConfig.searchDirs[0];
+            if (!fs.existsSync(downloadDir)) {
+                return matchedFiles;
+            }
+
+            const files = fs.readdirSync(downloadDir);
+            
+            for (const fileName of files) {
+                // Skip backup files (containing numbers in parentheses like (1), (2), etc.)
+                if (fileName.match(/\(\d+\)/)) {
+                    continue;
+                }
+
+                if (regex.test(fileName)) {
+                    const filePath = path.join(downloadDir, fileName);
+                    const stats = fs.statSync(filePath);
+                    
+                    matchedFiles.push({
+                        path: filePath,
+                        name: fileName,
+                        size: stats.size,
+                        modified: stats.mtime,
+                        directory: downloadDir
+                    });
+                }
+            }
+        } catch (error) {
+            logger.error(`Cannot read directory ${this.downloadDirConfig.searchDirs[0]}:`, error);
+        }
+
+        // Sort by modification date (newest first)
+        return matchedFiles.sort((a, b) => b.modified.getTime() - a.modified.getTime());
     }
 
     async downloadVSCodeDirect(config, options = {}) {

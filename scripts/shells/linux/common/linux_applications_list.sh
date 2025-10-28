@@ -86,7 +86,7 @@ declare -gA BASE_PACKAGES=(
     ["rustdesk_name"]="RustDesk"
     ["rustdesk_exec"]="rustdesk"
     ["rustdesk_package_id"]="rustdesk"
-    ["rustdesk_install_method"]="$METHOD_SNAP"
+    ["rustdesk_install_method"]="$METHOD_FLATPAK"
     ["rustdesk_category"]="$CATEGORY_SYSTEM_UTILITIES"
     ["rustdesk_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
     ["rustdesk_description"]="Remote desktop application"
@@ -118,33 +118,7 @@ declare -gA BASE_PACKAGES=(
 
 # Development Tools - Programming environments and development utilities
 declare -gA DEV_PACKAGES=(
-    # VSCode
-    ["vscode_name"]="Visual Studio Code"
-    ["vscode_exec"]="code"
-    ["vscode_package_id"]="code"
-    ["vscode_install_method"]="$METHOD_MICROSOFT_APT"
-    ["vscode_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["vscode_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["vscode_description"]="Popular code editor by Microsoft"
-    ["vscode_verify_command"]="--version"
-    ["vscode_launch_command"]="which code && $USE_SUDO code --no-sandbox --user-data-dir"
-    ["vscode_super"]="code --no-sandbox --user-data-dir"
-    ["vscode_repo_type"]="$REPO_TYPE_MICROSOFT"
-    ["vscode_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
-    ["vscode_snap_fallback"]="true"
 
-    # Cursor AI Editor
-    ["cursor_name"]="Cursor AI Editor"
-    ["cursor_exec"]="cursor"
-    ["cursor_package_id"]="cursor"
-    ["cursor_install_method"]="$METHOD_SNAP"
-    ["cursor_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["cursor_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["cursor_description"]="AI-powered code editor"
-    ["cursor_verify_command"]="--version"
-    ["cursor_launch_command"]="which cursor && $USE_SUDO cursor --no-sandbox"
-    ["cursor_super"]="cursor --no-sandbox"
-    ["cursor_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
 
     # Postman API Testing
     ["postman_name"]="Postman"
@@ -307,35 +281,14 @@ declare -gA APP_PACKAGES=(
     # Opera Browser
     ["opera_name"]="Opera"
     ["opera_exec"]="opera"
-    ["opera_package_id"]="opera-stable"
-    ["opera_install_method"]="$METHOD_APT"
+    ["opera_package_id"]="opera-browser-stable"
+    ["opera_install_method"]="$METHOD_SNAP"
     ["opera_category"]="$CATEGORY_BROWSERS"
     ["opera_groups"]="$GROUP_ALL"
     ["opera_description"]="Opera web browser"
     ["opera_verify_command"]="--version"
     ["opera_launch_command"]="which opera && $USE_SUDO opera --no-sandbox"
 
-    # WhatsApp Messaging
-    ["whatsapp_name"]="WhatsApp"
-    ["whatsapp_exec"]="whatsapp-for-linux"
-    ["whatsapp_package_id"]="whatsapp-for-linux"
-    ["whatsapp_install_method"]="$METHOD_SNAP"
-    ["whatsapp_category"]="$CATEGORY_COMMUNICATION"
-    ["whatsapp_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
-    ["whatsapp_description"]="WhatsApp messaging"
-    ["whatsapp_verify_command"]=""
-    ["whatsapp_launch_command"]="which whatsapp-for-linux && $USE_SUDO whatsapp-for-linux"
-    
-    # WeChat Messaging
-    ["wechat_name"]="WeChat"
-    ["wechat_exec"]="wechat"
-    ["wechat_package_id"]="wechat-uos"
-    ["wechat_install_method"]="$METHOD_SNAP"
-    ["wechat_category"]="$CATEGORY_COMMUNICATION"
-    ["wechat_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
-    ["wechat_description"]="WeChat messaging"
-    ["wechat_verify_command"]=""
-    ["wechat_launch_command"]="which wechat && $USE_SUDO wechat"
 
     # Hey Mail
     ["hey_mail_name"]="Hey Mail"
@@ -359,27 +312,6 @@ declare -gA APP_PACKAGES=(
     ["gemini_desktop_verify_command"]=""
     ["gemini_desktop_launch_command"]="which gemini && $USE_SUDO gemini"
 
-    # Copilot Desktop
-    ["copilot_desktop_name"]="GitHub Copilot Desktop"
-    ["copilot_desktop_exec"]="copilot"
-    ["copilot_desktop_package_id"]=""
-    ["copilot_desktop_install_method"]=""
-    ["copilot_desktop_category"]="$CATEGORY_AI_TOOLS"
-    ["copilot_desktop_groups"]="$GROUP_ALL"
-    ["copilot_desktop_description"]="GitHub Copilot desktop app"
-    ["copilot_desktop_verify_command"]=""
-    ["copilot_desktop_launch_command"]=""
-
-    # DeepSeek Desktop
-    ["deepseek_desktop_name"]="DeepSeek Desktop"
-    ["deepseek_desktop_exec"]="deepseek"
-    ["deepseek_desktop_package_id"]=""
-    ["deepseek_desktop_install_method"]=""
-    ["deepseek_desktop_category"]="$CATEGORY_AI_TOOLS"
-    ["deepseek_desktop_groups"]="$GROUP_ALL"
-    ["deepseek_desktop_description"]="DeepSeek AI desktop app"
-    ["deepseek_desktop_verify_command"]=""
-    ["deepseek_desktop_launch_command"]=""
 )
 
 # AI Tools definitions (moved from 36_install_ai_tools.sh)
@@ -483,18 +415,17 @@ BASE_PACKAGE_LIST=(
 )
 
 DEV_PACKAGE_LIST=(
-    "vscode" "cursor" "postman" "termius" "android_studio"
+    "postman" "termius" "android_studio"
     "intellij" "pycharm" "clion" "sublime" "insomnia" "beekeeper"
     "code_insiders" "text_editor"
 )
 
 APP_PACKAGE_LIST=(
-    "firefox" "libreoffice" "opera" "whatsapp" "wechat" "hey_mail"
-    "gemini_desktop" "copilot_desktop" "deepseek_desktop"
+    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop"
 )
 
 AI_PACKAGE_LIST=(
-    "gemini" "claude" "codex" "cursor_agent" "langchain" "superclaude" "opencode" "auggie" "droid"
+    "gemini" "claude" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
 )
 
 MCP_PACKAGE_LIST=(

@@ -30,7 +30,7 @@ const downloadConfigs = {
         name: 'Cursor IDE',
         url: 'https://cursor.com/download',
         targetSelector: 'a[href*="AppImage"]',
-        keywords: ['Linux', 'AppImage', 'x64'],
+        keywords: ['linux', 'appimage', 'x64', 'download'],
         filePattern: 'cursor.*\\.appimage',
         downloadDir: downloadsDir,
         timeout: 300000,

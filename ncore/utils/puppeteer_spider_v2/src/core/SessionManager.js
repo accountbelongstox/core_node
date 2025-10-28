@@ -55,9 +55,36 @@ class Session {
 
     async newPage(options = {}) {
         try {
-            const wrappedPage = await this.browser.newPage(options);
-            const pageId = uuidv4();
+            // Check for blank page to reuse first
+            const pages = await this.browser.getPages();
+            let blankPageIndex = -1;
             
+            for (let i = 0; i < pages.length; i++) {
+                try {
+                    const pageUrl = await pages[i].mainFrame().url();
+                    const blankUrls = ['about:blank', 'chrome://newtab/', 'edge://newtab/', 'chrome://new-tab-page/', 'edge://new-tab-page/', 'about:newtab'];
+                    if (blankUrls.includes(pageUrl) || pageUrl === '') {
+                        blankPageIndex = i;
+                        break;
+                    }
+                } catch (error) {
+                    // Page might be closed or not ready
+                    continue;
+                }
+            }
+            
+            let wrappedPage;
+            if (blankPageIndex !== -1) {
+                // Reuse blank page
+                wrappedPage = pages[blankPageIndex];
+                logger.info(`✅ Reusing blank page at index ${blankPageIndex} in session ${this.id}`);
+            } else {
+                // Create new page
+                wrappedPage = await this.browser.newPage(options);
+                logger.info(`❌ No blank page found, created new page in session ${this.id}`);
+            }
+            
+            const pageId = uuidv4();
             this.pages.set(pageId, wrappedPage);
             this.activePage = wrappedPage;
             this.metrics.pagesCreated++;
@@ -167,6 +194,10 @@ class Session {
             logger.error(`Failed to close session ${this.id}:`, error);
             throw error;
         }
+    }
+
+    getBrowser() {
+        return this.browser;
     }
 
     getInfo() {

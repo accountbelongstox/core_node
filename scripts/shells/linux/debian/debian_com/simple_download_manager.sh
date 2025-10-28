@@ -1,0 +1,71 @@
+#!/bin/bash
+# Simple VSCode and Cursor Download Manager
+# Directly calls Node.js core_node_init for downloads
+
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY FORBIDDEN
+# ### AI SPECIAL ATTENTION RULES END ###
+
+# Source configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/vscode_cursor_config.sh"
+
+# Download VSCode
+download_vscode() {
+    log_info "Downloading VSCode..."
+    cd "$CORE_NODE_DIR" && timeout "$DOWNLOAD_TIMEOUT" node main.js apps=core_node_init download vscode
+    return $?
+}
+
+# Download Cursor
+download_cursor() {
+    log_info "Downloading Cursor..."
+    cd "$CORE_NODE_DIR" && timeout "$DOWNLOAD_TIMEOUT" node main.js apps=core_node_init download cursor
+    return $?
+}
+
+# Download both
+download_both() {
+    log_info "Downloading VSCode and Cursor..."
+    cd "$CORE_NODE_DIR" && timeout "$DOWNLOAD_TIMEOUT" node main.js apps=core_node_init
+    return $?
+}
+
+# Find downloaded files
+find_vscode_file() {
+    find "$HOME/Downloads" -name "$VSCODE_PATTERN" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-
+}
+
+find_cursor_file() {
+    find "$HOME/Downloads" -name "$CURSOR_PATTERN" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-
+}
+
+# Export functions
+export -f download_vscode download_cursor download_both find_vscode_file find_cursor_file
+
+# Main execution
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    case "${1:-both}" in
+        "vscode")
+            download_vscode
+            ;;
+        "cursor")
+            download_cursor
+            ;;
+        "both"|"")
+            download_both
+            ;;
+        *)
+            echo "Usage: $0 [vscode|cursor|both]"
+            exit 1
+            ;;
+    esac
+fi
