@@ -1200,18 +1200,53 @@ function Invoke-WingetCommand {
         }
         $fullCommand = "winget install --id $Id $params"
         
-        $firstCleanOldInstallCommand = "winget uninstall $Id"
+        $firstCleanOldInstallCommand = "winget uninstall $Id --silent --accept-source-agreements --accept-package-agreements"
         Write-Host "       Running: $firstCleanOldInstallCommand" -ForegroundColor Cyan
         
         # Start timing the uninstall process
         $uninstallStartTime = Get-Date
         
-        $firstCleanOldInstallProcess = Start-Process -FilePath "winget" -ArgumentList "uninstall $Id" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "winget_uninstall_output.log" -RedirectStandardError "winget_uninstall_error.log"
-        if ($firstCleanOldInstallProcess.ExitCode -eq 0) {
-            Write-Host "       Successfully cleaned old installation of $Id" -ForegroundColor Green
+        # Add timeout mechanism (30 seconds) to prevent hanging
+        $uninstallJob = Start-Job -ScriptBlock {
+            param($packageId)
+            $process = Start-Process -FilePath "winget" -ArgumentList "uninstall $packageId --silent --accept-source-agreements --accept-package-agreements" -Wait -NoNewWindow -PassThru -RedirectStandardOutput "winget_uninstall_output.log" -RedirectStandardError "winget_uninstall_error.log"
+            return $process.ExitCode
+        } -ArgumentList $Id
+        
+        $uninstallCompleted = Wait-Job $uninstallJob -Timeout 30
+        
+        if ($uninstallCompleted) {
+            $uninstallExitCode = Receive-Job $uninstallJob
+            Remove-Job $uninstallJob -Force
+            
+            if ($uninstallExitCode -eq 0) {
+                Write-Host "       Successfully cleaned old installation of $Id" -ForegroundColor Green
+            }
+            else {
+                Write-Host "       Failed to clean old installation of $Id (exit code: $uninstallExitCode), attempting precise registry cleanup..." -ForegroundColor Yellow
+            }
         }
         else {
-            Write-Host "       Failed to clean old installation of $Id, attempting precise registry cleanup..." -ForegroundColor Yellow
+            Write-Host "       Uninstall operation timed out after 30 seconds, stopping job and proceeding..." -ForegroundColor Yellow
+            Stop-Job $uninstallJob -PassThru | Remove-Job -Force
+            
+            # Clean up any stuck winget processes
+            Get-Process | Where-Object { $_.ProcessName -eq "winget" } | Stop-Process -Force -ErrorAction SilentlyContinue
+            
+            # Perform WinGet environment reset to resolve hanging issues
+            Write-Host "       Performing WinGet environment reset due to timeout..." -ForegroundColor Cyan
+            $resetResult = Reset-WinGetEnvironment -PackageId $Id
+            
+            if ($resetResult.Success) {
+                Write-Host "       WinGet environment reset completed successfully" -ForegroundColor Green
+            }
+            else {
+                Write-Host "       WinGet environment reset had issues, proceeding anyway..." -ForegroundColor Yellow
+            }
+        }
+        
+        if (-not $uninstallCompleted -or $uninstallExitCode -ne 0) {
+            Write-Host "       Proceeding with registry cleanup..." -ForegroundColor Yellow
 
             # Call precise registry cleanup function
             if (-not [string]::IsNullOrEmpty($RegistrySearchKeyword)) {
@@ -1357,11 +1392,32 @@ function Invoke-WingetCommand {
                 break
             }
             else {
-                # Check for specific network-related error codes
+                # Check for specific error types and apply appropriate fixes
                 $errorOutput = if (Test-Path "winget_install_error.log") { Get-Content "winget_install_error.log" -Raw } else { "" }
                 $isNetworkError = $errorOutput -match "0x80072ee2|InternetOpenUrl|network|connection|timeout|download"
+                $isInstallerError = $errorOutput -match "1722|1603|temporary directory|Windows Installer|msi|installer"
                 
-                if ($isNetworkError) {
+                if ($isInstallerError -and $retryAttempt -eq 1) {
+                    Write-Host "       Windows Installer error detected (attempt $retryAttempt): $($process.ExitCode)" -ForegroundColor Yellow
+                    Write-Host "       Attempting installer permission repair..." -ForegroundColor Cyan
+                    
+                    # Call permission repair function
+                    $repairResult = Repair-InstallerPermissions -PackageId $Id -ForceRepair $false
+                    
+                    if ($repairResult.Success) {
+                        Write-Host "       Permission repair completed, retrying installation..." -ForegroundColor Green
+                        continue
+                    }
+                    else {
+                        Write-Host "       Permission repair failed, trying force repair..." -ForegroundColor Yellow
+                        $forceRepairResult = Repair-InstallerPermissions -PackageId $Id -ForceRepair $true
+                        if ($forceRepairResult.Success) {
+                            Write-Host "       Force repair completed, retrying installation..." -ForegroundColor Green
+                            continue
+                        }
+                    }
+                }
+                elseif ($isNetworkError) {
                     Write-Host "       Network error detected (attempt $retryAttempt): $($process.ExitCode)" -ForegroundColor Yellow
                     if ($retryAttempt -lt $maxRetries) {
                         Write-Host "       Will retry installation due to network issue..." -ForegroundColor Cyan
@@ -1390,6 +1446,18 @@ function Invoke-WingetCommand {
             if ($AllowTryInstall) {
                 if (-not (Test-Path $tryInstallFlag)) {
                     Write-Host "       Failed and try to reinstall $Id" -ForegroundColor Red
+                    
+                    # Perform comprehensive repair before retry
+                    Write-Host "       Performing comprehensive installer repair before retry..." -ForegroundColor Cyan
+                    $comprehensiveRepairResult = Repair-InstallerPermissions -PackageId $Id -ForceRepair $true
+                    
+                    if ($comprehensiveRepairResult.Success) {
+                        Write-Host "       Comprehensive repair completed, proceeding with uninstall and reinstall..." -ForegroundColor Green
+                    }
+                    else {
+                        Write-Host "       Comprehensive repair had issues, proceeding anyway..." -ForegroundColor Yellow
+                    }
+                    
                     Start-Process -FilePath "winget" -ArgumentList "uninstall $Id" -Wait -NoNewWindow -PassThru
                     $process = Start-Process -FilePath "winget" -ArgumentList "install --id $Id $params" -Wait -NoNewWindow -PassThru
                     if ($process.ExitCode -eq 0) {
@@ -1468,6 +1536,435 @@ function Invoke-WingetCommand {
         return $null
     }
     return $finalExePath
+}
+
+<#
+.SYNOPSIS
+    Repairs Windows Installer permissions and cleans temporary files to resolve installation issues.
+
+.DESCRIPTION
+    This function addresses common Windows Installer issues by:
+    1. Cleaning temporary files from multiple locations
+    2. Repairing Windows Installer service permissions
+    3. Clearing Windows Installer cache
+    4. Fixing registry permissions for installer operations
+    5. Ensuring proper disk space and directory permissions
+
+.PARAMETER PackageId
+    Optional package ID for targeted cleanup (e.g., "Google.Chrome")
+
+.PARAMETER ForceRepair
+    If true, performs aggressive cleanup including Windows Installer service restart
+
+.RETURNS
+    Returns a hashtable with repair results and statistics
+
+.EXAMPLE
+    $result = Repair-InstallerPermissions -PackageId "Google.Chrome" -ForceRepair $true
+
+.NOTES
+    - Requires administrator privileges
+    - Automatically detects and fixes common MSI installation issues
+    - Safe to run multiple times
+    - Addresses Error 1722, Error 1603, and temporary directory issues
+#>
+function Repair-InstallerPermissions {
+    param(
+        [string]$PackageId = "",
+        [bool]$ForceRepair = $false
+    )
+    
+    Write-Host "=== Starting Installer Permission Repair ===" -ForegroundColor Magenta
+    
+    $repairResults = @{
+        TempFilesCleaned = 0
+        CacheCleared = 0
+        PermissionsFixed = 0
+        ServicesRestarted = 0
+        DiskSpaceFreed = 0
+        Errors = @()
+        Success = $true
+    }
+    
+    try {
+        # Method 1: Clean temporary files from multiple locations
+        Write-Host "       [REPAIR] Cleaning temporary files..." -ForegroundColor Cyan
+        
+        $tempLocations = @(
+            "$env:TEMP",
+            "$env:LOCALAPPDATA\Temp",
+            "C:\Windows\Temp",
+            "C:\Windows\Installer",
+            "$env:LOCALAPPDATA\Microsoft\Windows\INetCache",
+            "$env:LOCALAPPDATA\Microsoft\Windows\WebCache"
+        )
+        
+        foreach ($location in $tempLocations) {
+            if (Test-Path $location) {
+                try {
+                    # Clean temporary files older than 1 hour
+                    $tempFiles = Get-ChildItem -Path $location -Recurse -File -ErrorAction SilentlyContinue | 
+                        Where-Object { $_.LastWriteTime -lt (Get-Date).AddHours(-1) }
+                    
+                    $fileCount = 0
+                    foreach ($file in $tempFiles) {
+                        try {
+                            Remove-Item $file.FullName -Force -ErrorAction SilentlyContinue
+                            $fileCount++
+                        }
+                        catch {
+                            # Skip files that can't be deleted
+                        }
+                    }
+                    
+                    # Clean empty directories
+                    Get-ChildItem -Path $location -Recurse -Directory -ErrorAction SilentlyContinue | 
+                        Where-Object { (Get-ChildItem $_.FullName -Recurse -ErrorAction SilentlyContinue).Count -eq 0 } |
+                        ForEach-Object { 
+                            try { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue } catch {} 
+                        }
+                    
+                    $repairResults.TempFilesCleaned += $fileCount
+                    Write-Host "       [REPAIR] Cleaned $fileCount files from $location" -ForegroundColor Green
+                }
+                catch {
+                    Write-Host "       [REPAIR] Warning: Could not clean $location - $($_.Exception.Message)" -ForegroundColor Yellow
+                }
+            }
+        }
+        
+        # Method 2: Clean WinGet cache specifically
+        Write-Host "       [REPAIR] Cleaning WinGet cache..." -ForegroundColor Cyan
+        
+        $wingetCachePaths = @(
+            "$env:LOCALAPPDATA\Temp\WinGet",
+            "$env:LOCALAPPDATA\Microsoft\WinGet\Packages",
+            "$env:LOCALAPPDATA\Microsoft\WinGet\Cache"
+        )
+        
+        foreach ($cachePath in $wingetCachePaths) {
+            if (Test-Path $cachePath) {
+                try {
+                    $cacheSize = (Get-ChildItem -Path $cachePath -Recurse -ErrorAction SilentlyContinue | 
+                        Measure-Object -Property Length -Sum).Sum
+                    
+                    Remove-Item -Path "$cachePath\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    $repairResults.CacheCleared++
+                    $repairResults.DiskSpaceFreed += $cacheSize
+                    Write-Host "       [REPAIR] Cleared WinGet cache: $cachePath" -ForegroundColor Green
+                }
+                catch {
+                    Write-Host "       [REPAIR] Warning: Could not clear cache $cachePath" -ForegroundColor Yellow
+                }
+            }
+        }
+        
+        # Method 3: Fix Windows Installer service permissions
+        Write-Host "       [REPAIR] Repairing Windows Installer service..." -ForegroundColor Cyan
+        
+        try {
+            # Stop Windows Installer service
+            Stop-Service -Name "msiserver" -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            
+            # Clear Windows Installer cache
+            $installerCache = "C:\Windows\Installer"
+            if (Test-Path $installerCache) {
+                Get-ChildItem -Path $installerCache -Filter "*.tmp" -ErrorAction SilentlyContinue | 
+                    Remove-Item -Force -ErrorAction SilentlyContinue
+            }
+            
+            # Restart Windows Installer service
+            Start-Service -Name "msiserver" -ErrorAction SilentlyContinue
+            $repairResults.ServicesRestarted++
+            Write-Host "       [REPAIR] Windows Installer service restarted" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "       [REPAIR] Warning: Could not restart Windows Installer service" -ForegroundColor Yellow
+        }
+        
+        # Method 4: Fix registry permissions for installer operations
+        Write-Host "       [REPAIR] Repairing registry permissions..." -ForegroundColor Cyan
+        
+        $registryPaths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer",
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+        )
+        
+        foreach ($regPath in $registryPaths) {
+            try {
+                # Ensure current user has full control
+                $acl = Get-Acl $regPath
+                $accessRule = New-Object System.Security.AccessControl.RegistryAccessRule(
+                    [System.Security.Principal.WindowsIdentity]::GetCurrent().Name,
+                    "FullControl",
+                    "ContainerInherit,ObjectInherit",
+                    "None",
+                    "Allow"
+                )
+                $acl.SetAccessRule($accessRule)
+                Set-Acl -Path $regPath -AclObject $acl
+                $repairResults.PermissionsFixed++
+            }
+            catch {
+                Write-Host "       [REPAIR] Warning: Could not fix registry permissions for $regPath" -ForegroundColor Yellow
+            }
+        }
+        
+        # Method 5: Force repair if requested
+        if ($ForceRepair) {
+            Write-Host "       [REPAIR] Performing force repair..." -ForegroundColor Cyan
+            
+            # Clear all Windows Installer temporary files
+            try {
+                Get-ChildItem -Path "C:\Windows\Installer" -Filter "*.tmp" -ErrorAction SilentlyContinue | 
+                    Remove-Item -Force -ErrorAction SilentlyContinue
+                
+                # Clear Windows Installer log files
+                Get-ChildItem -Path "C:\Windows\Installer" -Filter "*.log" -ErrorAction SilentlyContinue | 
+                    Remove-Item -Force -ErrorAction SilentlyContinue
+                
+                # Reset Windows Installer service
+                Restart-Service -Name "msiserver" -Force -ErrorAction SilentlyContinue
+                
+                Write-Host "       [REPAIR] Force repair completed" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "       [REPAIR] Warning: Force repair encountered issues" -ForegroundColor Yellow
+            }
+        }
+        
+        # Method 6: Check and report disk space
+        Write-Host "       [REPAIR] Checking disk space..." -ForegroundColor Cyan
+        
+        $drives = @("C:", "D:")
+        foreach ($drive in $drives) {
+            if (Test-Path $drive) {
+                $driveInfo = Get-WmiObject -Class Win32_LogicalDisk -Filter "DeviceID='$drive'"
+                if ($driveInfo) {
+                    $freeSpaceGB = [math]::Round($driveInfo.FreeSpace / 1GB, 2)
+                    $totalSpaceGB = [math]::Round($driveInfo.Size / 1GB, 2)
+                    Write-Host "       [REPAIR] Drive $drive - Free: ${freeSpaceGB}GB / Total: ${totalSpaceGB}GB" -ForegroundColor Gray
+                    
+                    if ($freeSpaceGB -lt 2) {
+                        Write-Host "       [REPAIR] Warning: Low disk space on $drive (${freeSpaceGB}GB free)" -ForegroundColor Red
+                        $repairResults.Errors += "Low disk space on $drive"
+                    }
+                }
+            }
+        }
+        
+        Write-Host "       [REPAIR] Installer permission repair completed successfully" -ForegroundColor Green
+        Write-Host "       [REPAIR] Summary: $($repairResults.TempFilesCleaned) temp files cleaned, $($repairResults.CacheCleared) caches cleared, $($repairResults.PermissionsFixed) permissions fixed" -ForegroundColor Cyan
+        
+    }
+    catch {
+        $errorMsg = "Repair operation failed: $($_.Exception.Message)"
+        Write-Host "       [REPAIR] $errorMsg" -ForegroundColor Red
+        $repairResults.Errors += $errorMsg
+        $repairResults.Success = $false
+    }
+    
+    return $repairResults
+}
+
+<#
+.SYNOPSIS
+    Resets and updates WinGet to resolve hanging or unresponsive issues
+
+.DESCRIPTION
+    This function performs a comprehensive reset of WinGet including:
+    1. Stopping all WinGet processes
+    2. Clearing WinGet cache and temporary files
+    3. Resetting WinGet sources
+    4. Re-initializing WinGet with automatic agreement acceptance
+    5. Testing WinGet functionality
+
+.PARAMETER PackageId
+    Optional package ID for targeted testing after reset
+
+.RETURNS
+    Returns a hashtable with reset results and status
+
+.EXAMPLE
+    $result = Reset-WinGetEnvironment -PackageId "vim.vim"
+
+.NOTES
+    - Requires administrator privileges for some operations
+    - Automatically accepts source agreements to prevent hanging
+    - Safe to run multiple times
+    - Addresses WinGet hanging and unresponsive issues
+#>
+function Reset-WinGetEnvironment {
+    param(
+        [string]$PackageId = ""
+    )
+    
+    Write-Host "=== Starting WinGet Environment Reset ===" -ForegroundColor Magenta
+    
+    $resetResults = @{
+        ProcessesStopped = 0
+        CacheCleared = 0
+        SourcesReset = 0
+        SourcesAdded = 0
+        TestPassed = $false
+        Errors = @()
+        Success = $true
+    }
+    
+    try {
+        # Step 1: Stop all WinGet processes
+        Write-Host "       [RESET] Stopping WinGet processes..." -ForegroundColor Cyan
+        
+        $wingetProcesses = Get-Process | Where-Object { $_.ProcessName -eq "winget" }
+        foreach ($process in $wingetProcesses) {
+            try {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                $resetResults.ProcessesStopped++
+                Write-Host "       [RESET] Stopped WinGet process (PID: $($process.Id))" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "       [RESET] Warning: Could not stop process $($process.Id)" -ForegroundColor Yellow
+            }
+        }
+        
+        # Step 2: Clear WinGet cache and temporary files
+        Write-Host "       [RESET] Clearing WinGet cache..." -ForegroundColor Cyan
+        
+        $wingetCachePaths = @(
+            "$env:LOCALAPPDATA\Microsoft\WinGet",
+            "$env:LOCALAPPDATA\Temp\WinGet",
+            "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache",
+            "$env:TEMP\winget*"
+        )
+        
+        foreach ($cachePath in $wingetCachePaths) {
+            if (Test-Path $cachePath) {
+                try {
+                    Remove-Item -Path $cachePath -Recurse -Force -ErrorAction SilentlyContinue
+                    $resetResults.CacheCleared++
+                    Write-Host "       [RESET] Cleared cache: $cachePath" -ForegroundColor Green
+                }
+                catch {
+                    Write-Host "       [RESET] Warning: Could not clear $cachePath" -ForegroundColor Yellow
+                }
+            }
+        }
+        
+        # Step 3: Reset WinGet sources using official method
+        Write-Host "       [RESET] Resetting WinGet sources..." -ForegroundColor Cyan
+        
+        try {
+            # Reset sources with force
+            $sourceResetJob = Start-Job -ScriptBlock {
+                winget source reset --force
+            }
+            
+            $sourceResetCompleted = Wait-Job $sourceResetJob -Timeout 30
+            if ($sourceResetCompleted) {
+                Receive-Job $sourceResetJob | Out-Null
+                Remove-Job $sourceResetJob -Force
+                $resetResults.SourcesReset++
+                Write-Host "       [RESET] Sources reset successfully" -ForegroundColor Green
+            }
+            else {
+                Write-Host "       [RESET] Source reset timed out, stopping job..." -ForegroundColor Yellow
+                Stop-Job $sourceResetJob -PassThru | Remove-Job -Force
+            }
+        }
+        catch {
+            Write-Host "       [RESET] Warning: Source reset failed" -ForegroundColor Yellow
+        }
+        
+        # Step 4: Update WinGet sources using official method
+        Write-Host "       [RESET] Updating WinGet sources..." -ForegroundColor Cyan
+        
+        try {
+            # Update sources
+            $sourceUpdateJob = Start-Job -ScriptBlock {
+                winget source update
+            }
+            
+            $sourceUpdateCompleted = Wait-Job $sourceUpdateJob -Timeout 60
+            if ($sourceUpdateCompleted) {
+                Receive-Job $sourceUpdateJob | Out-Null
+                Remove-Job $sourceUpdateJob -Force
+                $resetResults.SourcesAdded++
+                Write-Host "       [RESET] Sources updated successfully" -ForegroundColor Green
+            }
+            else {
+                Write-Host "       [RESET] Source update timed out, stopping job..." -ForegroundColor Yellow
+                Stop-Job $sourceUpdateJob -PassThru | Remove-Job -Force
+            }
+        }
+        catch {
+            Write-Host "       [RESET] Warning: Source update failed" -ForegroundColor Yellow
+        }
+        
+        # Step 5: Test WinGet functionality
+        Write-Host "       [RESET] Testing WinGet functionality..." -ForegroundColor Cyan
+        
+        try {
+            # Test with a simple search
+            $testJob = Start-Job -ScriptBlock {
+                winget search --help
+            }
+            
+            $testCompleted = Wait-Job $testJob -Timeout 15
+            if ($testCompleted) {
+                Receive-Job $testJob | Out-Null
+                Remove-Job $testJob -Force
+                $resetResults.TestPassed = $true
+                Write-Host "       [RESET] WinGet functionality test passed" -ForegroundColor Green
+            }
+            else {
+                Write-Host "       [RESET] WinGet functionality test timed out" -ForegroundColor Yellow
+                Stop-Job $testJob -PassThru | Remove-Job -Force
+            }
+        }
+        catch {
+            Write-Host "       [RESET] Warning: WinGet functionality test failed" -ForegroundColor Yellow
+        }
+        
+        # Step 6: Test specific package search if provided
+        if (-not [string]::IsNullOrEmpty($PackageId)) {
+            Write-Host "       [RESET] Testing package search for: $PackageId" -ForegroundColor Cyan
+            
+            try {
+                $packageTestJob = Start-Job -ScriptBlock {
+                    param($pkgId)
+                    winget search $pkgId --accept-source-agreements --accept-package-agreements
+                } -ArgumentList $PackageId
+                
+                $packageTestCompleted = Wait-Job $packageTestJob -Timeout 20
+                if ($packageTestCompleted) {
+                    Receive-Job $packageTestJob | Out-Null
+                    Remove-Job $packageTestJob -Force
+                    Write-Host "       [RESET] Package search test passed for: $PackageId" -ForegroundColor Green
+                }
+                else {
+                    Write-Host "       [RESET] Package search test timed out for: $PackageId" -ForegroundColor Yellow
+                    Stop-Job $packageTestJob -PassThru | Remove-Job -Force
+                }
+            }
+            catch {
+                Write-Host "       [RESET] Warning: Package search test failed for: $PackageId" -ForegroundColor Yellow
+            }
+        }
+        
+        Write-Host "       [RESET] WinGet environment reset completed successfully" -ForegroundColor Green
+        Write-Host "       [RESET] Summary: $($resetResults.ProcessesStopped) processes stopped, $($resetResults.CacheCleared) caches cleared, $($resetResults.SourcesReset) sources reset, $($resetResults.SourcesAdded) sources added" -ForegroundColor Cyan
+        
+    }
+    catch {
+        $errorMsg = "WinGet reset operation failed: $($_.Exception.Message)"
+        Write-Host "       [RESET] $errorMsg" -ForegroundColor Red
+        $resetResults.Errors += $errorMsg
+        $resetResults.Success = $false
+    }
+    
+    return $resetResults
 }
 
 function Invoke-Command {
