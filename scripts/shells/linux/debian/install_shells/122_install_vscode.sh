@@ -9,57 +9,11 @@
 # This script installs Visual Studio Code from .deb files found in ~/Downloads
 # If no .deb is found, it opens the download page and waits for manual download
 #
-# Include common functions and centralized configuration
+# Source simple download manager
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LINUX_COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
-SHELLS_COMMON_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")/common"
-source "$LINUX_COMMON_DIR/common_functions.sh"
-source "$SHELLS_COMMON_DIR/install_logic.sh"
+DEBIAN_COM_DIR="$(dirname "$SCRIPT_DIR")/debian_com"
+source "$DEBIAN_COM_DIR/simple_download_manager.sh"
 
-# VSCode app configuration (inline to avoid separate app_registry.sh file)
-declare -gA VSCODE_CONFIG=(
-    ["name"]="Visual Studio Code"
-    ["exec"]="code"
-    ["package_id"]="code"
-    ["install_method"]="automated_download"
-    ["category"]="development"
-    ["groups"]="essential development all"
-    ["description"]="Microsoft Visual Studio Code editor"
-    ["verify_command"]="--version"
-    ["launch_command"]="code"
-    ["download_url"]="https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64"
-    ["file_extension"]="deb"
-    ["pattern"]="*code*.deb"
-)
-
-# Export legacy configuration for backward compatibility
-export_legacy_config() {
-    local app_name="$1"
-    case "$app_name" in
-        "vscode")
-            export VSCODE_NAME="${VSCODE_CONFIG[name]}"
-            export VSCODE_EXEC="${VSCODE_CONFIG[exec]}"
-            export VSCODE_PACKAGE_ID="${VSCODE_CONFIG[package_id]}"
-            export VSCODE_INSTALL_METHOD="${VSCODE_CONFIG[install_method]}"
-            export VSCODE_CATEGORY="${VSCODE_CONFIG[category]}"
-            export VSCODE_GROUPS="${VSCODE_CONFIG[groups]}"
-            export VSCODE_DESCRIPTION="${VSCODE_CONFIG[description]}"
-            export VSCODE_VERIFY_COMMAND="${VSCODE_CONFIG[verify_command]}"
-            export VSCODE_LAUNCH_COMMAND="${VSCODE_CONFIG[launch_command]}"
-            export VSCODE_DOWNLOAD_URL="${VSCODE_CONFIG[download_url]}"
-            export VSCODE_FILE_EXTENSION="${VSCODE_CONFIG[file_extension]}"
-            export VSCODE_PATTERN="${VSCODE_CONFIG[pattern]}"
-
-            # Set up APP_CONFIGS array for compatibility
-            declare -gA APP_CONFIGS
-            APP_CONFIGS[vscode_name]="${VSCODE_CONFIG[name]}"
-            APP_CONFIGS[vscode_url]="${VSCODE_CONFIG[download_url]}"
-            APP_CONFIGS[vscode_pattern]="${VSCODE_CONFIG[pattern]}"
-            ;;
-    esac
-}
-
-export_legacy_config "vscode"
 
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
@@ -92,7 +46,7 @@ FORCE_INSTALL=false
 CLEANUP_MODE=false
 
 # Set up VSCode directories using new applications_dir mapping
-APPLICATIONS_DIR=$(map_web_path "applications_dir")
+APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
 VSCODE_INSTALL_DIR="$APPLICATIONS_DIR/vscode"
 VSCODE_DEB_DIR="$VSCODE_INSTALL_DIR/deb"
 VSCODE_INSTALLED_FLAG="$VSCODE_INSTALL_DIR/.installed"
@@ -142,46 +96,49 @@ is_vscode_installed() {
     return 1  # Not installed
 }
 
-# Find VS Code .deb files using centralized logic
+# Find VS Code .deb files
 find_vscode_deb() {
-    find_files_by_pattern "${APP_CONFIGS[vscode_pattern]}"
+    find "$HOME/Downloads" -name "*code*.deb" -type f 2>/dev/null | head -1
 }
 
-# Use centralized automated download
+# Simple automated download - downloads both VSCode and Cursor
 vscode_automated_download() {
-    print_step_from_common_functions "Attempting automated download via core_node_init..."
-
-    if automated_download "vscode"; then
-        local deb_file=$(find_vscode_deb)
-        if [[ $? -eq 0 ]] && [[ -n "$deb_file" ]]; then
-            print_success_from_common_functions "Found downloaded VS Code .deb: $(basename "$deb_file")"
-            echo "$deb_file"
+    print_step_from_common_functions "Downloading VSCode and Cursor via core_node_init..."
+    
+    # Download both applications
+    if download_both; then
+        local vscode_file=$(find_vscode_file)
+        if [[ -n "$vscode_file" ]] && [[ -f "$vscode_file" ]]; then
+            print_success_from_common_functions "Found downloaded VSCode: $(basename "$vscode_file")"
+            echo "$vscode_file"
             return 0
-        else
-            print_warning_from_common_functions "Download completed but file not found"
-            return 1
         fi
-    else
-        print_warning_from_common_functions "Automated download failed"
-        return 1
     fi
+    
+    print_warning_from_common_functions "VSCode download failed"
+    return 1
 }
 
-# Manual download fallback using centralized logic
+# Manual download fallback
 vscode_manual_download() {
     print_step_from_common_functions "Falling back to manual download..."
-
-    # Capture only the file path, not the log output
-    local downloaded_file
-    downloaded_file=$(manual_download_fallback "vscode" "${APP_CONFIGS[vscode_name]}" "${APP_CONFIGS[vscode_url]}" "${APP_CONFIGS[vscode_pattern]}" 2>/dev/null)
-    local result=$?
-
-    if [[ $result -eq 0 ]] && [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
-        print_success_from_common_functions "Manual download completed: $(basename "$downloaded_file")"
+    
+    # Open VSCode download page
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "https://code.visualstudio.com/" >/dev/null 2>&1 &
+    fi
+    
+    print_info_from_common_functions "Please download VSCode .deb file to Downloads directory"
+    print_info_from_common_functions "Waiting for download to complete..."
+    
+    # Wait for file to appear
+    local downloaded_file=$(find_vscode_deb)
+    if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
+        print_success_from_common_functions "Found VSCode file: $(basename "$downloaded_file")"
         echo "$downloaded_file"
         return 0
     else
-        print_error_from_common_functions "Manual download failed"
+        print_error_from_common_functions "Timeout waiting for VSCode file download"
         return 1
     fi
 }

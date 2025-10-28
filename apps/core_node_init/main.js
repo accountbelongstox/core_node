@@ -238,7 +238,23 @@ async function start() {
 
         switch (args.command) {
             case 'download':
-                success = await executeDownload(args.target, args.options);
+                if (!args.target) {
+                    // Download both VSCode and Cursor when no target specified
+                    logger.info('No target specified, downloading both VSCode and Cursor...');
+                    
+                    const vscodeSuccess = await executeDownload('vscode', args.options);
+                    const cursorSuccess = await executeDownload('cursor', args.options);
+                    
+                    success = vscodeSuccess && cursorSuccess;
+                    
+                    if (success) {
+                        logger.info('Both VSCode and Cursor downloads completed successfully');
+                    } else {
+                        logger.error('One or more downloads failed');
+                    }
+                } else {
+                    success = await executeDownload(args.target, args.options);
+                }
                 break;
 
             case 'image':

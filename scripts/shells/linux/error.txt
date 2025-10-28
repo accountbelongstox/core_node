@@ -1,0 +1,398 @@
+Starting execution of 120_install_desktop_applications.sh...
+[[INSTALL_LIB]][2025-10-29 02:45:57] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:45:57] Starting Linux Desktop Applications Installation
+[[INSTALL_LIB]][2025-10-29 02:45:57] Install Mode: base
+[[INSTALL_LIB]][2025-10-29 02:45:57] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:45:57] Updating package lists with timeout...
+Hit:1 https://dl.google.com/linux/chrome/deb stable InRelease
+Hit:2 https://packages.microsoft.com/repos/edge stable InRelease                             
+Get:3 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]                    
+Get:4 http://la.archive.ubuntu.com/ubuntu noble InRelease [256 kB]                           
+Hit:5 https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble InRelease                 
+Ign:3 http://security.ubuntu.com/ubuntu noble-security InRelease                         
+Ign:4 http://la.archive.ubuntu.com/ubuntu noble InRelease
+Get:6 http://la.archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+Ign:6 http://la.archive.ubuntu.com/ubuntu noble-updates InRelease
+Get:7 http://la.archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+Ign:7 http://la.archive.ubuntu.com/ubuntu noble-backports InRelease
+Fetched 634 kB in 2s (286 kB/s)
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+14 packages can be upgraded. Run 'apt list --upgradable' to see them.
+W: GPG error: http://security.ubuntu.com/ubuntu noble-security InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: The repository 'http://security.ubuntu.com/ubuntu noble-security InRelease' is not signed.
+N: Data from such a repository can't be authenticated and is therefore potentially dangerous to use.
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+W: GPG error: http://la.archive.ubuntu.com/ubuntu noble InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: The repository 'http://la.archive.ubuntu.com/ubuntu noble InRelease' is not signed.
+N: Data from such a repository can't be authenticated and is therefore potentially dangerous to use.
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+W: GPG error: http://la.archive.ubuntu.com/ubuntu noble-updates InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: The repository 'http://la.archive.ubuntu.com/ubuntu noble-updates InRelease' is not signed.
+N: Data from such a repository can't be authenticated and is therefore potentially dangerous to use.
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+W: GPG error: http://la.archive.ubuntu.com/ubuntu noble-backports InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: The repository 'http://la.archive.ubuntu.com/ubuntu noble-backports InRelease' is not signed.
+N: Data from such a repository can't be authenticated and is therefore potentially dangerous to use.
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+[[INSTALL_LIB]][2025-10-29 02:46:01] Package lists updated successfully
+[[INSTALL_LIB]][2025-10-29 02:46:01] Installing essential system packages with timeout...
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+curl is already the newest version (8.5.0-2ubuntu10.6).
+wget is already the newest version (1.21.4-1ubuntu4.1).
+software-properties-common is already the newest version (0.99.49.3).
+apt-transport-https is already the newest version (2.8.3).
+ca-certificates is already the newest version (20240203).
+gnupg is already the newest version (2.4.4-2ubuntu17.3).
+lsb-release is already the newest version (12.0-2).
+0 upgraded, 0 newly installed, 0 to remove and 14 not upgraded.
+[[INSTALL_LIB]][2025-10-29 02:46:02] Essential packages installed successfully
+[[INSTALL_LIB]][2025-10-29 02:46:02] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:02] Environment Detection Results:
+[[INSTALL_LIB]][2025-10-29 02:46:02]   Environment Type: desktop
+[[INSTALL_LIB]][2025-10-29 02:46:02]   IS_WSL: false
+[[INSTALL_LIB]][2025-10-29 02:46:02]   IS_PRODUCTION: false
+[[INSTALL_LIB]][2025-10-29 02:46:02]   HAS_DESKTOP_ENVIRONMENT: true
+[[INSTALL_LIB]][2025-10-29 02:46:02] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:02] 
+[[INSTALL_LIB]][2025-10-29 02:46:02] Detected: Desktop Environment
+[[INSTALL_LIB]][2025-10-29 02:46:02] Will install: BASE, DEV, APP, AI, and MCP packages
+[[INSTALL_LIB]][2025-10-29 02:46:02] 
+[[INSTALL_LIB]][2025-10-29 02:46:02] Installation Plan:
+  - BASE
+  - DEV
+  - APP
+  - AI
+  - MCP
+[[INSTALL_LIB]][2025-10-29 02:46:02] 
+[[INSTALL_LIB]][2025-10-29 02:46:02] Press Enter to continue with installation...
+
+[[INSTALL_LIB]][2025-10-29 02:46:04] Starting package installation...
+[[INSTALL_LIB]][2025-10-29 02:46:04] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:04] 
+[[INSTALL_LIB]][2025-10-29 02:46:04] 
+[[INSTALL_LIB]][2025-10-29 02:46:04] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:04] Installing BASE packages...
+[[INSTALL_LIB]][2025-10-29 02:46:04] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:04] Installing applications for package group: BASE
+[[INSTALL_LIB]][2025-10-29 02:46:04] Found 5 applications for package group BASE
+[[INSTALL_LIB]][2025-10-29 02:46:04] Installing Google Chrome...
+[[INSTALL_LIB]][2025-10-29 02:46:04]   Method: apt
+[[INSTALL_LIB]][2025-10-29 02:46:04]   Package ID: google-chrome-stable
+[[INSTALL_LIB]][2025-10-29 02:46:04]   Executable: google-chrome
+[[INSTALL_LIB]][2025-10-29 02:46:04] Google Chrome is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:04] Google Chrome is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:04] Installing Vim...
+[[INSTALL_LIB]][2025-10-29 02:46:04]   Method: apt
+[[INSTALL_LIB]][2025-10-29 02:46:04]   Package ID: vim
+[[INSTALL_LIB]][2025-10-29 02:46:04]   Executable: vim
+[[INSTALL_LIB]][2025-10-29 02:46:04] Vim is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:04] Vim is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:04] Installing RustDesk...
+[[INSTALL_LIB]][2025-10-29 02:46:04]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:04]   Package ID: rustdesk
+[[INSTALL_LIB]][2025-10-29 02:46:04]   Executable: rustdesk
+[[INSTALL_LIB]][2025-10-29 02:46:04] RustDesk is not available in PATH
+[INSTALL_LIB] Universal install: RustDesk using method snap
+[[INSTALL_LIB]][2025-10-29 02:46:04] Installing RustDesk via snap: rustdesk
+error: snap "rustdesk" not found
+[[INSTALL_LIB]][2025-10-29 02:46:05] Failed to install RustDesk via snap
+[[INSTALL_LIB]][2025-10-29 02:46:05] Installation failed for RustDesk
+[[INSTALL_LIB]][2025-10-29 02:46:05] Installing CMake...
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Method: apt
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Package ID: cmake
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Executable: cmake
+[[INSTALL_LIB]][2025-10-29 02:46:05] CMake is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:05] CMake is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:05] Installing PowerShell...
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Method: apt
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Package ID: powershell
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Executable: pwsh
+[[INSTALL_LIB]][2025-10-29 02:46:05] PowerShell is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:05] PowerShell is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:05] Package group BASE installation complete: 4 successful, 0 failed, 1 skipped
+[[INSTALL_LIB]][2025-10-29 02:46:05] 
+[[INSTALL_LIB]][2025-10-29 02:46:05] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:05] Installing DEV packages...
+[[INSTALL_LIB]][2025-10-29 02:46:05] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:05] Installing applications for package group: DEV
+[[INSTALL_LIB]][2025-10-29 02:46:05] Found 11 applications for package group DEV
+[[INSTALL_LIB]][2025-10-29 02:46:05] Installing Postman...
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Package ID: postman
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Executable: postman
+[[INSTALL_LIB]][2025-10-29 02:46:05] Postman is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:05] Postman is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:05] Setting up super launch for postman
+[[INSTALL_LIB]][2025-10-29 02:46:05] Setting up super launch for: postman
+[[INSTALL_LIB]][2025-10-29 02:46:05] Found executable at: /usr/local/super_bin/postman
+[[INSTALL_LIB]][2025-10-29 02:46:05] Already in super_bin: /usr/local/super_bin/postman
+[[INSTALL_LIB]][2025-10-29 02:46:05] Created/Updated super launch script: /usr/local/super_scripts/postman.sh
+[[INSTALL_LIB]][2025-10-29 02:46:05] Created/Updated symlink: /usr/local/bin/postman -> /usr/local/super_scripts/postman.sh
+[[INSTALL_LIB]][2025-10-29 02:46:05] Installing Termius...
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Package ID: termius-app
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Executable: termius-app
+[[INSTALL_LIB]][2025-10-29 02:46:05] Termius is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:05] Termius is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:05] Setting up super launch for termius-app
+[[INSTALL_LIB]][2025-10-29 02:46:05] Setting up super launch for: termius-app
+[[INSTALL_LIB]][2025-10-29 02:46:05] Warning: Executable not found for: termius-app
+[[INSTALL_LIB]][2025-10-29 02:46:05] Installing Android Studio...
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Package ID: android-studio
+[[INSTALL_LIB]][2025-10-29 02:46:05]   Executable: android-studio
+[[INSTALL_LIB]][2025-10-29 02:46:05] Android Studio is not available in PATH
+[INSTALL_LIB] Universal install: Android Studio using method snap
+[[INSTALL_LIB]][2025-10-29 02:46:05] Installing Android Studio via snap: android-studio
+error: This revision of snap "android-studio" was published using classic confinement and
+       thus may perform arbitrary system changes outside of the security sandbox that snaps
+       are usually confined to, which may put your system at risk.
+
+       If you understand and want to proceed repeat the command including --classic.
+[[INSTALL_LIB]][2025-10-29 02:46:06] Failed to install Android Studio via snap
+[[INSTALL_LIB]][2025-10-29 02:46:06] Installation failed for Android Studio
+[[INSTALL_LIB]][2025-10-29 02:46:06] Installing IntelliJ IDEA Community...
+[[INSTALL_LIB]][2025-10-29 02:46:06]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:06]   Package ID: intellij-idea-community
+[[INSTALL_LIB]][2025-10-29 02:46:06]   Executable: intellij-idea-community
+[[INSTALL_LIB]][2025-10-29 02:46:06] IntelliJ IDEA Community is not available in PATH
+[INSTALL_LIB] Universal install: IntelliJ IDEA Community using method snap
+[[INSTALL_LIB]][2025-10-29 02:46:06] Installing IntelliJ IDEA Community via snap: intellij-idea-community
+error: This revision of snap "intellij-idea-community" was published using classic
+       confinement and thus may perform arbitrary system changes outside of the security
+       sandbox that snaps are usually confined to, which may put your system at risk.
+
+       If you understand and want to proceed repeat the command including --classic.
+[[INSTALL_LIB]][2025-10-29 02:46:06] Failed to install IntelliJ IDEA Community via snap
+[[INSTALL_LIB]][2025-10-29 02:46:06] Installation failed for IntelliJ IDEA Community
+[[INSTALL_LIB]][2025-10-29 02:46:07] Installing PyCharm Community...
+[[INSTALL_LIB]][2025-10-29 02:46:07]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:07]   Package ID: pycharm-community
+[[INSTALL_LIB]][2025-10-29 02:46:07]   Executable: pycharm-community
+[[INSTALL_LIB]][2025-10-29 02:46:07] PyCharm Community is not available in PATH
+[INSTALL_LIB] Universal install: PyCharm Community using method snap
+[[INSTALL_LIB]][2025-10-29 02:46:07] Installing PyCharm Community via snap: pycharm-community
+error: This revision of snap "pycharm-community" was published using classic confinement and
+       thus may perform arbitrary system changes outside of the security sandbox that snaps
+       are usually confined to, which may put your system at risk.
+
+       If you understand and want to proceed repeat the command including --classic.
+[[INSTALL_LIB]][2025-10-29 02:46:07] Failed to install PyCharm Community via snap
+[[INSTALL_LIB]][2025-10-29 02:46:07] Installation failed for PyCharm Community
+[[INSTALL_LIB]][2025-10-29 02:46:07] Installing CLion...
+[[INSTALL_LIB]][2025-10-29 02:46:07]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:07]   Package ID: clion
+[[INSTALL_LIB]][2025-10-29 02:46:07]   Executable: clion
+[[INSTALL_LIB]][2025-10-29 02:46:07] CLion is not available in PATH
+[INSTALL_LIB] Universal install: CLion using method snap
+[[INSTALL_LIB]][2025-10-29 02:46:07] Installing CLion via snap: clion
+error: This revision of snap "clion" was published using classic confinement and thus may
+       perform arbitrary system changes outside of the security sandbox that snaps are
+       usually confined to, which may put your system at risk.
+
+       If you understand and want to proceed repeat the command including --classic.
+[[INSTALL_LIB]][2025-10-29 02:46:08] Failed to install CLion via snap
+[[INSTALL_LIB]][2025-10-29 02:46:08] Installation failed for CLion
+[[INSTALL_LIB]][2025-10-29 02:46:08] Installing Sublime Text...
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Package ID: sublime-text
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Executable: subl
+[[INSTALL_LIB]][2025-10-29 02:46:08] Sublime Text is not available in PATH
+[INSTALL_LIB] Universal install: Sublime Text using method snap
+[[INSTALL_LIB]][2025-10-29 02:46:08] Installing Sublime Text via snap: sublime-text
+error: This revision of snap "sublime-text" was published using classic confinement and thus
+       may perform arbitrary system changes outside of the security sandbox that snaps are
+       usually confined to, which may put your system at risk.
+
+       If you understand and want to proceed repeat the command including --classic.
+[[INSTALL_LIB]][2025-10-29 02:46:08] Failed to install Sublime Text via snap
+[[INSTALL_LIB]][2025-10-29 02:46:08] Installation failed for Sublime Text
+[[INSTALL_LIB]][2025-10-29 02:46:08] Installing Insomnia...
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Package ID: insomnia
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Executable: insomnia
+[[INSTALL_LIB]][2025-10-29 02:46:08] Insomnia is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:08] Insomnia is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:08] Setting up super launch for insomnia
+[[INSTALL_LIB]][2025-10-29 02:46:08] Setting up super launch for: insomnia
+[[INSTALL_LIB]][2025-10-29 02:46:08] Found executable at: /usr/local/super_bin/insomnia
+[[INSTALL_LIB]][2025-10-29 02:46:08] Already in super_bin: /usr/local/super_bin/insomnia
+[[INSTALL_LIB]][2025-10-29 02:46:08] Created/Updated super launch script: /usr/local/super_scripts/insomnia.sh
+[[INSTALL_LIB]][2025-10-29 02:46:08] Created/Updated symlink: /usr/local/bin/insomnia -> /usr/local/super_scripts/insomnia.sh
+[[INSTALL_LIB]][2025-10-29 02:46:08] Installing Beekeeper Studio...
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Package ID: beekeeper-studio
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Executable: beekeeper-studio
+[[INSTALL_LIB]][2025-10-29 02:46:08] Beekeeper Studio is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:08] Beekeeper Studio is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:08] Setting up super launch for beekeeper-studio
+[[INSTALL_LIB]][2025-10-29 02:46:08] Setting up super launch for: beekeeper-studio
+[[INSTALL_LIB]][2025-10-29 02:46:08] Warning: Executable not found for: beekeeper-studio
+[[INSTALL_LIB]][2025-10-29 02:46:08] Installing Visual Studio Code Insiders...
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Package ID: code-insiders
+[[INSTALL_LIB]][2025-10-29 02:46:08]   Executable: code-insiders
+[[INSTALL_LIB]][2025-10-29 02:46:08] Visual Studio Code Insiders is not available in PATH
+[INSTALL_LIB] Universal install: Visual Studio Code Insiders using method snap
+[[INSTALL_LIB]][2025-10-29 02:46:08] Installing Visual Studio Code Insiders via snap: code-insiders
+error: This revision of snap "code-insiders" was published using classic confinement and thus
+       may perform arbitrary system changes outside of the security sandbox that snaps are
+       usually confined to, which may put your system at risk.
+
+       If you understand and want to proceed repeat the command including --classic.
+[[INSTALL_LIB]][2025-10-29 02:46:09] Failed to install Visual Studio Code Insiders via snap
+[[INSTALL_LIB]][2025-10-29 02:46:09] Installation failed for Visual Studio Code Insiders
+[[INSTALL_LIB]][2025-10-29 02:46:09] Installing Text Editor...
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Method: apt
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Package ID: gedit
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Executable: gedit
+[[INSTALL_LIB]][2025-10-29 02:46:09] Text Editor is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:09] Text Editor is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:09] Setting up super launch for gedit
+[[INSTALL_LIB]][2025-10-29 02:46:09] Setting up super launch for: gedit
+[[INSTALL_LIB]][2025-10-29 02:46:09] Found executable at: /usr/local/super_bin/gedit
+[[INSTALL_LIB]][2025-10-29 02:46:09] Already in super_bin: /usr/local/super_bin/gedit
+[[INSTALL_LIB]][2025-10-29 02:46:09] Created/Updated super launch script: /usr/local/super_scripts/gedit.sh
+[[INSTALL_LIB]][2025-10-29 02:46:09] Created/Updated symlink: /usr/local/bin/gedit -> /usr/local/super_scripts/gedit.sh
+[[INSTALL_LIB]][2025-10-29 02:46:09] Package group DEV installation complete: 5 successful, 0 failed, 6 skipped
+[[INSTALL_LIB]][2025-10-29 02:46:09] 
+[[INSTALL_LIB]][2025-10-29 02:46:09] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:09] Installing APP packages...
+[[INSTALL_LIB]][2025-10-29 02:46:09] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:09] Installing applications for package group: APP
+[[INSTALL_LIB]][2025-10-29 02:46:09] Found 9 applications for package group APP
+[[INSTALL_LIB]][2025-10-29 02:46:09] Installing Firefox...
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Package ID: firefox
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Executable: firefox
+[[INSTALL_LIB]][2025-10-29 02:46:09] Firefox is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:09] Firefox is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:09] Installing LibreOffice...
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Method: apt
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Package ID: libreoffice
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Executable: libreoffice
+[[INSTALL_LIB]][2025-10-29 02:46:09] LibreOffice is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:09] LibreOffice is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:09] Installing Opera...
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Method: apt
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Package ID: opera-stable
+[[INSTALL_LIB]][2025-10-29 02:46:09]   Executable: opera
+[[INSTALL_LIB]][2025-10-29 02:46:09] Opera is not available in PATH
+[INSTALL_LIB] Universal install: Opera using method apt
+[[INSTALL_LIB]][2025-10-29 02:46:09] Installing Opera via apt: opera-stable
+[[INSTALL_LIB]][2025-10-29 02:46:09] Updating package lists with timeout...
+Hit:1 https://dl.google.com/linux/chrome/deb stable InRelease
+Get:2 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]                    
+Get:3 http://la.archive.ubuntu.com/ubuntu noble InRelease [256 kB]                           
+Hit:4 https://packages.microsoft.com/repos/edge stable InRelease                             
+Ign:2 http://security.ubuntu.com/ubuntu noble-security InRelease                             
+Hit:5 https://ppa.launchpadcontent.net/ondrej/php/ubuntu noble InRelease
+Ign:3 http://la.archive.ubuntu.com/ubuntu noble InRelease
+Get:6 http://la.archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+Ign:6 http://la.archive.ubuntu.com/ubuntu noble-updates InRelease
+Get:7 http://la.archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+Ign:7 http://la.archive.ubuntu.com/ubuntu noble-backports InRelease
+Fetched 634 kB in 3s (194 kB/s)
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+14 packages can be upgraded. Run 'apt list --upgradable' to see them.
+W: GPG error: http://security.ubuntu.com/ubuntu noble-security InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: The repository 'http://security.ubuntu.com/ubuntu noble-security InRelease' is not signed.
+N: Data from such a repository can't be authenticated and is therefore potentially dangerous to use.
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+W: GPG error: http://la.archive.ubuntu.com/ubuntu noble InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: The repository 'http://la.archive.ubuntu.com/ubuntu noble InRelease' is not signed.
+N: Data from such a repository can't be authenticated and is therefore potentially dangerous to use.
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+W: GPG error: http://la.archive.ubuntu.com/ubuntu noble-updates InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: The repository 'http://la.archive.ubuntu.com/ubuntu noble-updates InRelease' is not signed.
+N: Data from such a repository can't be authenticated and is therefore potentially dangerous to use.
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+W: GPG error: http://la.archive.ubuntu.com/ubuntu noble-backports InRelease: The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 871920D1991BC93C
+W: The repository 'http://la.archive.ubuntu.com/ubuntu noble-backports InRelease' is not signed.
+N: Data from such a repository can't be authenticated and is therefore potentially dangerous to use.
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+[[INSTALL_LIB]][2025-10-29 02:46:14] Package lists updated successfully
+[[INSTALL_LIB]][2025-10-29 02:46:14] Installing package with timeout...
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+E: Unable to locate package opera-stable
+[[INSTALL_LIB]][2025-10-29 02:46:14] Failed to install Opera via apt
+[[INSTALL_LIB]][2025-10-29 02:46:14] Installation failed for Opera
+[[INSTALL_LIB]][2025-10-29 02:46:14] Installing WhatsApp...
+[[INSTALL_LIB]][2025-10-29 02:46:14]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:14]   Package ID: whatsapp-for-linux
+[[INSTALL_LIB]][2025-10-29 02:46:14]   Executable: whatsapp-for-linux
+[[INSTALL_LIB]][2025-10-29 02:46:14] WhatsApp is not available in PATH
+[INSTALL_LIB] Universal install: WhatsApp using method snap
+[[INSTALL_LIB]][2025-10-29 02:46:14] Installing WhatsApp via snap: whatsapp-for-linux
+error: snap "whatsapp-for-linux" not found
+[[INSTALL_LIB]][2025-10-29 02:46:15] Failed to install WhatsApp via snap
+[[INSTALL_LIB]][2025-10-29 02:46:15] Installation failed for WhatsApp
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing WeChat...
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Method: snap
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Package ID: wechat-uos
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Executable: wechat
+[[INSTALL_LIB]][2025-10-29 02:46:16] WeChat is not available in PATH
+[INSTALL_LIB] Universal install: WeChat using method snap
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing WeChat via snap: wechat-uos
+error: snap "wechat-uos" not found
+[[INSTALL_LIB]][2025-10-29 02:46:16] Failed to install WeChat via snap
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installation failed for WeChat
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing Hey Mail...
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Method: web
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Package ID: https://hey.com/download
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Executable: hey
+[[INSTALL_LIB]][2025-10-29 02:46:16] Hey Mail is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:16] Hey Mail is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing Gemini Desktop...
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Method: web
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Package ID: https://gemini.google.com/desktop
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Executable: gemini
+[[INSTALL_LIB]][2025-10-29 02:46:16] Gemini Desktop is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:16] Gemini Desktop is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:16] Skipping copilot_desktop - no package ID or install method
+[[INSTALL_LIB]][2025-10-29 02:46:16] Skipping deepseek_desktop - no package ID or install method
+[[INSTALL_LIB]][2025-10-29 02:46:16] Package group APP installation complete: 6 successful, 0 failed, 3 skipped
+[[INSTALL_LIB]][2025-10-29 02:46:16] 
+[[INSTALL_LIB]][2025-10-29 02:46:16] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing AI packages...
+[[INSTALL_LIB]][2025-10-29 02:46:16] ==========================================
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing applications for package group: AI
+[[INSTALL_LIB]][2025-10-29 02:46:16] Found 9 applications for package group AI
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing Google Gemini CLI...
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Method: npm
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Package ID: @google/gemini-cli
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Executable: gemini
+[[INSTALL_LIB]][2025-10-29 02:46:16] Google Gemini CLI is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:16] Google Gemini CLI is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing Anthropic Claude Code...
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Method: npm
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Package ID: @anthropic-ai/claude-code
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Executable: claude
+[[INSTALL_LIB]][2025-10-29 02:46:16] Anthropic Claude Code is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:16] Anthropic Claude Code is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing OpenAI Codex...
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Method: npm
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Package ID: @openai/codex
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Executable: codex
+[[INSTALL_LIB]][2025-10-29 02:46:16] OpenAI Codex is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:16] OpenAI Codex is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:16] Installing Cursor Agent...
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Method: curl
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Package ID: https://cursor.com/install
+[[INSTALL_LIB]][2025-10-29 02:46:16]   Executable: cursor
+[[INSTALL_LIB]][2025-10-29 02:46:16] Cursor Agent is installed and available in PATH
+[[INSTALL_LIB]][2025-10-29 02:46:16] Cursor Agent is already installed, skipping
+[[INSTALL_LIB]][2025-10-29 02:46:16] Skipping langchain - no package ID or install method
+/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/debian/install_shells/120_install_desktop_applications.sh: line 590: INSTALLATION_RESULTS["$display_name"]: bad array subscript
+
+Script execution completed with exit code: 1
+Press any key to return to test scripts menu...
+

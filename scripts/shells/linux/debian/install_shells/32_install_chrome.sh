@@ -38,19 +38,8 @@ echo "[$SCRIPT_INDEX] INSTALL_CHROME: $INSTALL_CHROME, INSTALL_MODE: $INSTALL_MO
 
 # Function to determine optimal Chrome installation directory
 get_chrome_install_directory() {
-    local base_dir=$(get_base_data_directory)
-    local sys_name="${SYSTEM_NAME}"
-    local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-    
-    # Use applications_dir from gvar_common.sh pattern
-    if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-        # Development: base_dir/_system_version/applications/chrome
-        CHROME_INSTALL_DIR="${base_dir}/_${sys_name}_${sys_version}/applications/chrome"
-    else
-        # Production server: /usr/.core_node/applications/chrome
-        CHROME_INSTALL_DIR="/usr/.core_node/applications/chrome"
-    fi
-    
+    # Use map_web_path for consistent directory mapping
+    CHROME_INSTALL_DIR=$(map_web_path "compile_dir" "applications/chrome")
     echo "[$SCRIPT_INDEX] Chrome installation directory: $CHROME_INSTALL_DIR"
 }
 
@@ -78,15 +67,42 @@ check_chrome_installation() {
     return 1
 }
 
+# Function to verify Chrome repository is configured
+verify_chrome_repo_for_install() {
+    # Check if Google Chrome repository is already configured
+    if [ -f "/etc/apt/sources.list.d/google-chrome.list" ]; then
+        return 0
+    fi
+    
+    # Check if google-chrome-stable package is available
+    if apt-cache policy google-chrome-stable 2>/dev/null | grep -q "Candidate:"; then
+        return 0
+    fi
+    
+    return 1
+}
+
 # Function to install Chrome via APT
 install_chrome_apt() {
     echo "[$SCRIPT_INDEX] Installing Chrome via APT package manager..."
     
-    # Repository should already be added by repository manager
-    echo "[$SCRIPT_INDEX] Installing Chrome from pre-configured repository..."
-    
-    # Update package list
-    $USE_SUDO apt update
+    # Add Google Chrome repository if not already added
+    if ! verify_chrome_repo_for_install; then
+        echo "[$SCRIPT_INDEX] Adding Google Chrome repository..."
+        
+        # Download and add Google Chrome signing key
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | $USE_SUDO apt-key add -
+        
+        # Add Google Chrome repository
+        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | $USE_SUDO tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
+        
+        # Update package list
+        $USE_SUDO apt update
+    else
+        echo "[$SCRIPT_INDEX] Installing Chrome from pre-configured repository..."
+        # Update package list
+        $USE_SUDO apt update
+    fi
     
     # Install Chrome
     $USE_SUDO apt install -y google-chrome-stable
@@ -346,7 +362,7 @@ else
     echo "[$SCRIPT_INDEX] Chrome browser not found, proceeding with installation..."
     
     # Try installation methods in order of preference
-    local installation_success=false
+    installation_success=false
     
     case "$CHROME_INSTALL_METHOD" in
         "apt")

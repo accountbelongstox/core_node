@@ -192,7 +192,7 @@ install_via_appimage() {
     local app_name="$2"
     local exec_name="$3"
     
-    local appimage_dir="/opt/appimages"
+    local appimage_dir=$(map_web_path "compile_dir" "applications/appimages")
     local appimage_file="$appimage_dir/${exec_name}.AppImage"
     
     log_message "Installing $app_name via AppImage from: $download_url"
@@ -426,19 +426,9 @@ create_symlink_usr_local_bin() {
 verify_installation() {
     local exec_name="$1"
     local app_name="$2"
-    local verify_command="$3"
     
     if command_exists "$exec_name"; then
         log_message "$app_name is installed and available in PATH"
-        
-        if [ -n "$verify_command" ]; then
-            log_message "Verifying $app_name with: $verify_command"
-            if $exec_name $verify_command >/dev/null 2>&1; then
-                log_message "$app_name verification successful"
-            else
-                log_message "$app_name verification failed but executable exists"
-            fi
-        fi
         return 0
     else
         log_message "$app_name is not available in PATH"
@@ -454,7 +444,6 @@ install_application() {
     local exec_name=""
     local install_method=""
     local package_id=""
-    local verify_command=""
     local launch_command=""
     local super_command=""
     local snap_confinement=""
@@ -470,7 +459,6 @@ install_application() {
     exec_name=$(get_app_property "$lookup_app" "exec")
     install_method=$(get_install_method "$lookup_app")
     package_id=$(get_package_id "$lookup_app")
-    verify_command=$(get_app_property "$lookup_app" "verify_command")
     launch_command=$(get_launch_command "$lookup_app")
     super_command=$(get_app_property "$lookup_app" "super")
     snap_confinement=$(get_snap_confinement "$lookup_app")
@@ -506,7 +494,7 @@ install_application() {
     fi
 
     # Check if already installed
-    if verify_installation "$exec_name" "$display_name" "$verify_command"; then
+    if verify_installation "$exec_name" "$display_name"; then
         log_message "$display_name is already installed, skipping"
 
         # Setup super launch if applicable
@@ -556,7 +544,7 @@ install_application() {
 
     # Verify installation
     if [ $install_result -eq 0 ]; then
-        if verify_installation "$exec_name" "$display_name" "$verify_command"; then
+        if verify_installation "$exec_name" "$display_name"; then
             log_message "Successfully installed and verified $display_name"
             return 0
         else
@@ -596,6 +584,13 @@ install_applications_by_package_group() {
             lookup_app="${app#mcp_}"
         fi
         local display_name=$(get_app_property "$lookup_app" "name")
+        
+        # Ensure display_name is valid for array subscript
+        if [[ -z "$display_name" ]]; then
+            display_name="$lookup_app"
+        fi
+        # Remove any problematic characters for array subscript
+        display_name=$(echo "$display_name" | sed 's/[^a-zA-Z0-9_-]/_/g')
 
         if install_application "$app" "$package_group"; then
             ((installed_count++))

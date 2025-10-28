@@ -395,7 +395,9 @@ class StandardPage extends IPage {
 
     async waitForTimeout(ms) {
         try {
-            await this.page.waitForTimeout(ms);
+            // Access the underlying Puppeteer page
+            const puppeteerPage = this.page.page || this.page;
+            await puppeteerPage.waitForTimeout(ms);
         } catch (error) {
             logger.error('Failed to wait for timeout:', error);
             throw error;

@@ -24,7 +24,7 @@ class CommandLineParser {
     parseArguments() {
         const args = process.argv.slice(2);
         const parsedArgs = {
-            command: 'help',
+            command: 'download', // Default to download command
             target: null,
             options: {}
         };
@@ -32,8 +32,8 @@ class CommandLineParser {
         for (let i = 0; i < args.length; i++) {
             const arg = args[i];
 
-            // Skip app= parameter
-            if (arg.startsWith('app=')) {
+            // Skip app= and apps= parameters
+            if (arg.startsWith('app=') || arg.startsWith('apps=')) {
                 continue;
             }
 
@@ -48,7 +48,7 @@ class CommandLineParser {
                 } else {
                     parsedArgs.options[optionName] = true;
                 }
-            } else if (!parsedArgs.command || parsedArgs.command === 'help') {
+            } else if (!parsedArgs.command || parsedArgs.command === 'download') {
                 // First non-option argument is the command
                 if (this.supportedCommands.includes(arg)) {
                     parsedArgs.command = arg;
