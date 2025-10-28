@@ -90,8 +90,11 @@ get_global_var() {
 
 # Function to ensure SSH key permissions are correct
 ensure_ssh_permissions() {
+    # Get the home directory user from the SSH directory path
     local ssh_dir="$HOME/.ssh"
-    local ssh_key="$ssh_dir/id_ed25519"
+    local home_user=$(basename "$HOME")
+    
+    write_color_text "Detected home user: $home_user" "DarkGray" >&2
     
     # Check if SSH directory exists
     if [ ! -d "$ssh_dir" ]; then
@@ -99,40 +102,70 @@ ensure_ssh_permissions() {
         return 0
     fi
     
-    # Check if SSH key exists
-    if [ ! -f "$ssh_key" ]; then
-        write_color_text "SSH key does not exist: $ssh_key" "Yellow" >&2
+    # Scan for SSH private keys in the directory
+    local ssh_keys=()
+    while IFS= read -r -d '' key_file; do
+        ssh_keys+=("$key_file")
+    done < <(find "$ssh_dir" -name "id_*" -type f ! -name "*.pub" -print0 2>/dev/null)
+    
+    if [ ${#ssh_keys[@]} -eq 0 ]; then
+        write_color_text "No SSH private keys found in $ssh_dir" "Yellow" >&2
         return 0
     fi
     
-    # Check current ownership and permissions
-    local current_owner=$(stat -c '%U' "$ssh_key" 2>/dev/null)
-    local current_perms=$(stat -c '%a' "$ssh_key" 2>/dev/null)
+    write_color_text "Found ${#ssh_keys[@]} SSH private key(s)" "DarkGray" >&2
     
-    write_color_text "SSH key current owner: $current_owner, permissions: $current_perms" "DarkGray" >&2
-    
-    # Fix ownership if needed
-    if [ "$current_owner" != "$USER" ]; then
-        write_color_text "Fixing SSH key ownership..." "Yellow" >&2
-        if $USE_SUDO chown "$USER:$USER" "$ssh_key" 2>/dev/null; then
-            write_color_text "SSH key ownership fixed" "Green" >&2
+    # Process each SSH key
+    for ssh_key in "${ssh_keys[@]}"; do
+        local key_name=$(basename "$ssh_key")
+        write_color_text "Processing SSH key: $key_name" "Cyan" >&2
+        
+        # Check current ownership and permissions
+        local current_owner=$(stat -c '%U' "$ssh_key" 2>/dev/null)
+        local current_perms=$(stat -c '%a' "$ssh_key" 2>/dev/null)
+        
+        write_color_text "  Current owner: $current_owner, permissions: $current_perms" "DarkGray" >&2
+        
+        # Fix ownership if needed
+        if [ "$current_owner" != "$home_user" ]; then
+            write_color_text "  Fixing ownership from $current_owner to $home_user..." "Yellow" >&2
+            if $USE_SUDO chown "$home_user:$home_user" "$ssh_key" 2>/dev/null; then
+                write_color_text "  SSH key ownership fixed" "Green" >&2
+            else
+                write_color_text "  Failed to fix SSH key ownership" "Red" >&2
+            fi
         else
-            write_color_text "Failed to fix SSH key ownership" "Red" >&2
+            write_color_text "  Ownership is correct" "Green" >&2
         fi
-    fi
-    
-    # Fix permissions if needed (should be 600)
-    if [ "$current_perms" != "600" ]; then
-        write_color_text "Fixing SSH key permissions..." "Yellow" >&2
-        if chmod 600 "$ssh_key" 2>/dev/null; then
-            write_color_text "SSH key permissions fixed to 600" "Green" >&2
+        
+        # Fix permissions if needed (should be 600)
+        if [ "$current_perms" != "600" ]; then
+            write_color_text "  Fixing permissions from $current_perms to 600..." "Yellow" >&2
+            if chmod 600 "$ssh_key" 2>/dev/null; then
+                write_color_text "  SSH key permissions fixed to 600" "Green" >&2
+            else
+                write_color_text "  Failed to fix SSH key permissions" "Red" >&2
+            fi
         else
-            write_color_text "Failed to fix SSH key permissions" "Red" >&2
+            write_color_text "  Permissions are correct" "Green" >&2
         fi
-    fi
+    done
     
     # Also fix SSH directory permissions (should be 700)
     local ssh_dir_perms=$(stat -c '%a' "$ssh_dir" 2>/dev/null)
+    local ssh_dir_owner=$(stat -c '%U' "$ssh_dir" 2>/dev/null)
+    
+    write_color_text "SSH directory owner: $ssh_dir_owner, permissions: $ssh_dir_perms" "DarkGray" >&2
+    
+    if [ "$ssh_dir_owner" != "$home_user" ]; then
+        write_color_text "Fixing SSH directory ownership..." "Yellow" >&2
+        if $USE_SUDO chown "$home_user:$home_user" "$ssh_dir" 2>/dev/null; then
+            write_color_text "SSH directory ownership fixed" "Green" >&2
+        else
+            write_color_text "Failed to fix SSH directory ownership" "Red" >&2
+        fi
+    fi
+    
     if [ "$ssh_dir_perms" != "700" ]; then
         write_color_text "Fixing SSH directory permissions..." "Yellow" >&2
         if chmod 700 "$ssh_dir" 2>/dev/null; then
