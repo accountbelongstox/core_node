@@ -64,7 +64,33 @@ else {
 }
 $Global:supportedWin = $Global:isWin11 -or $Global:isWin10
 
-$Global:BASE_DIR = "D:\programing\core_node"
+# Dynamically determine the core node root directory
+# This script is located at: scripts/shells/win/win_common/GlobalVars.ps1
+# So we need to go up 4 levels to reach the root directory
+try {
+    $scriptDir = $PSScriptRoot
+    $candidateCore = (Get-Item $scriptDir).Parent.Parent.Parent.Parent.FullName
+    if ($candidateCore -and (Test-Path (Join-Path $candidateCore 'scripts'))) {
+        $Global:BASE_DIR = $candidateCore
+    } else {
+        # Fallback: try to find the root by looking for package.json or main.js
+        $currentDir = $scriptDir
+        while ($currentDir -and $currentDir -ne (Split-Path $currentDir -Parent)) {
+            if ((Test-Path (Join-Path $currentDir 'package.json')) -or (Test-Path (Join-Path $currentDir 'main.js'))) {
+                $Global:BASE_DIR = $currentDir
+                break
+            }
+            $currentDir = Split-Path $currentDir -Parent
+        }
+        if (-not $Global:BASE_DIR) {
+            throw "Cannot determine core node root directory"
+        }
+    }
+} catch {
+    Write-Error "Failed to determine core node root directory: $($_.Exception.Message)"
+    exit 1
+}
+
 $Global:CORE_NODE_DIR = $Global:BASE_DIR
 $Global:CORE_NODE_SCRIPTS_DIR = Join-Path $BASE_DIR "scripts"
 
@@ -85,6 +111,9 @@ $Global:STEP_COUNT = 1
 # Debug Configuration
 $Global:DEBUG_MODE = $true  # Set to $false to disable debug output
 $Global:DEBUG_PREFIX = "[DEBUG]"
+
+# Execution Mode Configuration
+$Global:EXECUTION_MODE = "PROJECT"  # Default to PROJECT mode, will be set by InitializationManager.ps1
 
 # Desktop Cleanup Configuration
 $Global:AGGRESSIVE_CLEANUP_ENABLED = $false  # Set to $true to enable aggressive desktop cleanup
@@ -435,6 +464,12 @@ $Global:NODE_EXE_PATH = Join-Path $Global:NODE_DIR "node.exe"
 $Global:NPM_EXE_PATH = Join-Path $Global:NODE_DIR "npm.cmd"
 $Global:YARN_EXE_PATH = Join-Path $Global:NODE_DIR "yarn.cmd"
 $Global:NODE_WINGET_ID = "OpenJS.NodeJS.LTS"
+
+# Python related global variables
+$Global:PYTHON_DIR = "$Global:LANG_COMPILER_DIR\python313"
+$Global:PYTHON_EXE_PATH = Join-Path $Global:PYTHON_DIR "python.exe"
+$Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pip.exe"
+$Global:PYTHON_WINGET_ID = "Python.Python.3.13"
 
 # Repository Configuration - Auto-switch based on region
 $Global:GITEE_BASE_URL = "https://gitee.com/accountbelongstox/core_node/raw/main"

@@ -19,25 +19,8 @@
 # =============================================================================
 
 #region Import Dependencies
-# Import color message module (if exists)
-if (Test-Path "$PSScriptRoot\..\win_common\ColorMessage.ps1") {
-    . "$PSScriptRoot\..\win_common\ColorMessage.ps1"
-} else {
-    # Define basic color message functions as fallback
-    function Write-ColorMessage {
-        param(
-            [string]$Message,
-            [string]$Type = "Info"
-        )
-        switch ($Type) {
-            "Success" { Write-Host $Message -ForegroundColor Green }
-            "Error" { Write-Host $Message -ForegroundColor Red }
-            "Warning" { Write-Host $Message -ForegroundColor Yellow }
-            "Info" { Write-Host $Message -ForegroundColor Cyan }
-            default { Write-Host $Message }
-        }
-    }
-}
+# Import common functions module
+. (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\CommonFunc.ps1")
 #endregion
 
 #region Core Command Content Generation Functions
@@ -230,7 +213,7 @@ set /p UPGRADE_CHOICE="Do you want to upgrade Claude Code? (y/N): "
 if /i "%UPGRADE_CHOICE%"=="y" (
     echo.
     echo [INFO] Launching AI tools upgrade in separate window...
-    start "AI Tools Upgrade" "D:\programing\core_node\scripts\pytools\claude_tools\upgrade_claude_code.bat" all
+    start "AI Tools Upgrade" "D:\programing\core_node_a\scripts\pytools\claude_tools\upgrade_claude_code.bat" all
     echo [SUCCESS] Upgrade window opened
 ) else (
     echo [INFO] Skipping upgrade
@@ -243,7 +226,7 @@ echo ============================================================
 echo.
 
 REM Run MCP sync for Claude
-python -u "D:\programing\core_node\scripts\pytools\claude_tools\sync_mcp_servers.py" --target claude
+python -u "D:\programing\core_node_a\scripts\pytools\claude_tools\sync_mcp_servers.py" --target claude
 
 set MCP_EXIT_CODE=%ERRORLEVEL%
 
@@ -285,7 +268,7 @@ echo Syncing MCP Server Configurations...
 echo.
 
 REM Run MCP sync for Droid
-python -u "D:\programing\core_node\scripts\pytools\claude_tools\sync_mcp_servers.py" --target droid
+python -u "D:\programing\core_node_a\scripts\pytools\claude_tools\sync_mcp_servers.py" --target droid
 
 set MCP_EXIT_CODE=%ERRORLEVEL%
 
@@ -513,7 +496,7 @@ function New-CompleteCommandContent {
         
         # 4. Show preview (if needed)
         if ($ShowPreview) {
-            $targetPath = "D:\programing\core_node\.winenvs\${CommandPrefix}${FileNumber}.bat"
+            $targetPath = "D:\programing\core_node_a\.winenvs\${CommandPrefix}${FileNumber}.bat"
             Show-CommandPreview -Content $commandContent -FilePath $targetPath
         }
         
