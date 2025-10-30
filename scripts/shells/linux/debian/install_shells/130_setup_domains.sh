@@ -716,11 +716,14 @@ setup_domain() {
         echo "[$SCRIPT_INDEX]   $line"
     done
 
-    # Step 2: Add local website (HTML)
+    # Determine PHP version (use 8.4 for compatibility)
+    local php_version="8.4"
+
+    # Step 2: Add local website (HTML - static content)
     echo "[$SCRIPT_INDEX] Adding local website..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"local.$domain\" --type=html --ssl=auto"
+    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"local.$domain\" --type=html --ssl=auto --php-version=$php_version"
     local local_website_output
-    local_website_output=$(php artisan servermanager:website add "local.$domain" --type=html --ssl=auto 2>&1)
+    local_website_output=$(php artisan servermanager:website add "local.$domain" --type=html --ssl=auto --php-version=$php_version 2>&1)
     local local_result=$?
 
     echo "[$SCRIPT_INDEX] Local website setup result:"
@@ -730,9 +733,9 @@ setup_domain() {
 
     # Step 3: Add API website (Poly - bind to Laravel main)
     echo "[$SCRIPT_INDEX] Adding API website..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"api.$domain\" --type=poly --ssl=auto"
+    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
     local api_website_output
-    api_website_output=$(php artisan servermanager:website add "api.$domain" --type=poly --ssl=auto 2>&1)
+    api_website_output=$(php artisan servermanager:website add "api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
     local api_result=$?
 
     echo "[$SCRIPT_INDEX] API website setup result:"
@@ -742,9 +745,9 @@ setup_domain() {
 
     # Step 4: Add local.api website (Poly - for local testing with API)
     echo "[$SCRIPT_INDEX] Adding local.api website..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"local.api.$domain\" --type=poly --ssl=auto"
+    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"local.api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
     local local_api_website_output
-    local_api_website_output=$(php artisan servermanager:website add "local.api.$domain" --type=poly --ssl=auto 2>&1)
+    local_api_website_output=$(php artisan servermanager:website add "local.api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
     local local_api_result=$?
 
     echo "[$SCRIPT_INDEX] Local.api website setup result:"
