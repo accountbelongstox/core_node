@@ -19,6 +19,7 @@ PYTHON_VERSION=""
 SELECTED_REGION=""
 PYTHON_INSTALLED=false
 PIP_INSTALLED=false
+UBUNTU_ARCHIVE_KEY_ID="871920D1991BC93C"
 
 # Source global variables
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,6 +45,39 @@ fi
 SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
 
 print_header_from_common_functions "Python Environment Setup"
+
+# Try to fix APT GPG issues for Ubuntu 24.04 (noble) or similar environments
+fix_apt_gpg_if_needed() {
+    # Only attempt on Debian/Ubuntu-like systems with apt-get available
+    if ! command -v apt-get >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # First attempt: ensure ubuntu-keyring is present (may already be installed)
+    # If repositories are currently unverified, allow insecure temporarily only for keyring
+    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get update -qq || true
+    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ubuntu-keyring 2>/dev/null || \
+    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::AllowInsecureRepositories=true \
+        -o Acquire::AllowDowngradeToInsecureRepositories=true install -y -qq ubuntu-keyring || true
+
+    # Explicitly import the 2024 Ubuntu archive automatic signing key if missing
+    if [ ! -f /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg ]; then
+        if command -v gpg >/dev/null 2>&1; then
+            print_step_from_common_functions "Importing Ubuntu archive signing key ($UBUNTU_ARCHIVE_KEY_ID)"
+            tmpkey="/tmp/ubuntu-archive-2024.gpg"
+            curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$UBUNTU_ARCHIVE_KEY_ID" \
+                | gpg --dearmor | $USE_SUDO tee "$tmpkey" >/dev/null || true
+            if [ -s "$tmpkey" ]; then
+                $USE_SUDO mv "$tmpkey" /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg || true
+            else
+                rm -f "$tmpkey" 2>/dev/null || true
+            fi
+        fi
+    fi
+
+    # Retry update after key/keyring adjustments
+    $USE_SUDO apt-get update -qq || true
+}
 
 # Function to check if Python3 is installed
 check_python_installed() {
@@ -85,7 +119,10 @@ install_python_essentials() {
 
     # Update package list
     print_step_from_common_functions "Updating package list..."
-    $USE_SUDO apt-get update -qq
+    if ! $USE_SUDO apt-get update -qq; then
+        print_warning_from_common_functions "apt-get update failed, attempting to fix APT GPG keys"
+        fix_apt_gpg_if_needed
+    fi
 
     # Install Python and essential packages
     print_step_from_common_functions "Installing Python3 and development tools..."
@@ -96,7 +133,6 @@ install_python_essentials() {
         python3-dev \
         python3-setuptools \
         python3-wheel \
-        python3-distutils \
         build-essential \
         libssl-dev \
         libffi-dev \
@@ -115,8 +151,35 @@ install_python_essentials() {
         print_success_from_common_functions "pip3 installed: $(pip3 -V 2>&1)"
         PIP_INSTALLED=true
     else
-        print_error_from_common_functions "Failed to install pip3"
-        return 1
+        # Fallback: try ensurepip (may be disabled on Debian/Ubuntu builds) and re-check
+        print_warning_from_common_functions "pip3 not available, attempting python3 -m ensurepip"
+        if python3 -m ensurepip --upgrade >/dev/null 2>&1; then
+            if command -v pip3 >/dev/null 2>&1; then
+                print_success_from_common_functions "pip3 installed via ensurepip"
+                PIP_INSTALLED=true
+            else
+                print_warning_from_common_functions "ensurepip ran but pip3 still missing; attempting direct package install"
+                $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends || true
+                if command -v pip3 >/dev/null 2>&1; then
+                    print_success_from_common_functions "pip3 installed via apt after ensurepip"
+                    PIP_INSTALLED=true
+                else
+                    print_error_from_common_functions "Failed to install pip3"
+                    return 1
+                fi
+            fi
+        else
+            # As a last resort, attempt re-import keys and retry pip install
+            fix_apt_gpg_if_needed
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends || true
+            if command -v pip3 >/dev/null 2>&1; then
+                print_success_from_common_functions "pip3 installed after fixing APT keys"
+                PIP_INSTALLED=true
+            else
+                print_error_from_common_functions "Failed to install pip3"
+                return 1
+            fi
+        fi
     fi
 
     # Clean up
