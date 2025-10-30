@@ -33,7 +33,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source gvar_common.sh
 if [ -f "$PARENT_DIR_LEVEL_2/common/gvar_common.sh" ]; then
-    source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 fi
 
 # Default mount base directory

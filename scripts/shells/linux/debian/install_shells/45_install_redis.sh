@@ -19,17 +19,11 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 echo "[$SCRIPT_INDEX] Redis Installation Script"
+echo "[$SCRIPT_INDEX] Redis will always be installed"
 
-# Check if Redis installation is enabled
-INSTALL_REDIS=$(get_var "INSTALL_REDIS")
-if [ "$INSTALL_REDIS" != "true" ]; then
-    echo "[$SCRIPT_INDEX] Redis installation is disabled (INSTALL_REDIS: $INSTALL_REDIS)"
-    echo "[$SCRIPT_INDEX] Checking for existing Redis services to disable..."
-
-    # Disable any existing Redis services
-    disable_redis_services
-    exit 0
-fi
+# Check if Redis should be started after installation
+START_REDIS=$(get_var "START_REDIS" "false")
+echo "[$SCRIPT_INDEX] Start after installation: $START_REDIS"
 
 check_and_install_sudo
 
@@ -129,20 +123,13 @@ configure_redis() {
     fi
 }
 
-# Function to setup Redis service
-setup_redis_service() {
-    echo "[$SCRIPT_INDEX] Setting up Redis service..."
+# Function to setup Redis service (for testing only)
+setup_redis_service_for_testing() {
+    echo "[$SCRIPT_INDEX] Setting up Redis service for testing..."
 
-    # Enable Redis service
-    if $USE_SUDO systemctl enable redis-server; then
-        echo "[$SCRIPT_INDEX] Redis service enabled for auto-start"
-    else
-        echo "[$SCRIPT_INDEX] [WARNING] Failed to enable Redis service"
-    fi
-
-    # Start Redis service
+    # Start Redis service temporarily for testing
     if $USE_SUDO systemctl start redis-server; then
-        echo "[$SCRIPT_INDEX] Redis service started successfully"
+        echo "[$SCRIPT_INDEX] Redis service started for testing"
     else
         echo "[$SCRIPT_INDEX] [ERROR] Failed to start Redis service"
         return 1
@@ -158,6 +145,62 @@ setup_redis_service() {
         echo "[$SCRIPT_INDEX] [ERROR] Redis service failed to start"
         systemctl status redis-server --no-pager
         return 1
+    fi
+
+    return 0
+}
+
+# Function to configure Redis service startup based on START_REDIS variable
+configure_redis_service_startup() {
+    local start_redis="$1"
+
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] Configuring Redis service startup..."
+    echo "[$SCRIPT_INDEX] ============================================"
+
+    if [ "$start_redis" = "true" ]; then
+        echo "[$SCRIPT_INDEX] START_REDIS is true - enabling and starting Redis..."
+
+        # Enable Redis service for auto-start
+        if ! systemctl is-enabled --quiet redis-server; then
+            echo "[$SCRIPT_INDEX] Enabling Redis service for auto-start..."
+            $USE_SUDO systemctl enable redis-server
+            echo "[$SCRIPT_INDEX] Redis service enabled"
+        fi
+
+        # Start Redis service if not running
+        if ! systemctl is-active --quiet redis-server; then
+            echo "[$SCRIPT_INDEX] Starting Redis service..."
+            $USE_SUDO systemctl start redis-server
+            echo "[$SCRIPT_INDEX] Redis service started"
+        fi
+
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] Redis is installed and RUNNING"
+        echo "[$SCRIPT_INDEX] Service is enabled for auto-start on boot"
+        echo "[$SCRIPT_INDEX] ============================================"
+    else
+        echo "[$SCRIPT_INDEX] START_REDIS is false - service will remain stopped..."
+
+        # Stop Redis service if running
+        if systemctl is-active --quiet redis-server; then
+            echo "[$SCRIPT_INDEX] Stopping Redis service..."
+            $USE_SUDO systemctl stop redis-server
+            echo "[$SCRIPT_INDEX] Redis service stopped"
+        fi
+
+        # Disable Redis service from auto-start
+        if systemctl is-enabled --quiet redis-server; then
+            echo "[$SCRIPT_INDEX] Disabling Redis service from auto-start..."
+            $USE_SUDO systemctl disable redis-server
+            echo "[$SCRIPT_INDEX] Redis service disabled"
+        fi
+
+        echo "[$SCRIPT_INDEX] ============================================"
+        echo "[$SCRIPT_INDEX] Redis is installed but NOT running"
+        echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
+        echo "[$SCRIPT_INDEX] Use the Service Manager menu to start Redis when needed"
+        echo "[$SCRIPT_INDEX] ============================================"
     fi
 
     return 0
@@ -293,19 +336,27 @@ echo "[$SCRIPT_INDEX] === Redis Installation Process ==="
 if check_redis_installed; then
     echo "[$SCRIPT_INDEX] Redis is already installed"
 
-    # Ensure service is properly configured
-    setup_redis_service
-
     # Create symlinks
     create_redis_symlinks
 
-    # Test installation
-    if test_redis_installation; then
-        echo "[$SCRIPT_INDEX] [OK] Redis is ready for use"
-        store_redis_info
-        display_redis_info
+    # Start service temporarily for testing
+    if setup_redis_service_for_testing; then
+        # Test installation
+        if test_redis_installation; then
+            echo "[$SCRIPT_INDEX] [OK] Redis is ready for use"
+
+            # Configure service startup based on START_REDIS variable
+            configure_redis_service_startup "$START_REDIS"
+
+            store_redis_info
+            display_redis_info
+        else
+            echo "[$SCRIPT_INDEX] [WARNING] Redis is installed but tests failed"
+            configure_redis_service_startup "$START_REDIS"
+        fi
     else
-        echo "[$SCRIPT_INDEX] [WARNING] Redis is installed but tests failed"
+        echo "[$SCRIPT_INDEX] [WARNING] Could not start Redis for testing"
+        configure_redis_service_startup "$START_REDIS"
     fi
 else
     # Install Redis
@@ -315,24 +366,28 @@ else
         # Configure Redis
         configure_redis
 
-        # Setup service
-        if setup_redis_service; then
-            echo "[$SCRIPT_INDEX] Redis service setup completed"
+        # Create symlinks
+        create_redis_symlinks
 
-            # Create symlinks
-            create_redis_symlinks
-
+        # Start service temporarily for testing
+        if setup_redis_service_for_testing; then
             # Test installation
             if test_redis_installation; then
                 echo "[$SCRIPT_INDEX] [OK] Redis installation and tests completed successfully"
+
+                # Configure service startup based on START_REDIS variable
+                configure_redis_service_startup "$START_REDIS"
+
                 store_redis_info
                 display_redis_info
             else
                 echo "[$SCRIPT_INDEX] [ERROR] Redis installation completed but tests failed"
+                configure_redis_service_startup "$START_REDIS"
                 exit 1
             fi
         else
             echo "[$SCRIPT_INDEX] [ERROR] Redis service setup failed"
+            configure_redis_service_startup "$START_REDIS"
             exit 1
         fi
     else

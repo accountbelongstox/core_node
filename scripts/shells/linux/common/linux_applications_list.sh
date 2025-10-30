@@ -40,6 +40,7 @@ readonly METHOD_PIPX="pipx"
 readonly METHOD_UV_TOOL="uv_tool"
 readonly METHOD_CURL="curl"
 readonly METHOD_MICROSOFT_APT="microsoft_apt"
+readonly METHOD_APPIMAGE="appimage"
 
 # Snap confinement modes
 readonly SNAP_CONFINEMENT_STRICT="strict"
@@ -149,6 +150,7 @@ declare -gA DEV_PACKAGES=(
     ["android_studio_exec"]="android-studio"
     ["android_studio_package_id"]="android-studio"
     ["android_studio_install_method"]="$METHOD_SNAP"
+    ["android_studio_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["android_studio_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["android_studio_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["android_studio_description"]="Android development IDE"
@@ -161,6 +163,7 @@ declare -gA DEV_PACKAGES=(
     ["intellij_exec"]="intellij-idea-community"
     ["intellij_package_id"]="intellij-idea-community"
     ["intellij_install_method"]="$METHOD_SNAP"
+    ["intellij_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["intellij_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["intellij_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["intellij_description"]="Java IDE by JetBrains"
@@ -173,6 +176,7 @@ declare -gA DEV_PACKAGES=(
     ["pycharm_exec"]="pycharm-community"
     ["pycharm_package_id"]="pycharm-community"
     ["pycharm_install_method"]="$METHOD_SNAP"
+    ["pycharm_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["pycharm_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["pycharm_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["pycharm_description"]="Python IDE by JetBrains"
@@ -185,6 +189,7 @@ declare -gA DEV_PACKAGES=(
     ["clion_exec"]="clion"
     ["clion_package_id"]="clion"
     ["clion_install_method"]="$METHOD_SNAP"
+    ["clion_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["clion_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["clion_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["clion_description"]="C/C++ IDE by JetBrains"
@@ -197,6 +202,7 @@ declare -gA DEV_PACKAGES=(
     ["sublime_exec"]="subl"
     ["sublime_package_id"]="sublime-text"
     ["sublime_install_method"]="$METHOD_SNAP"
+    ["sublime_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["sublime_category"]="$CATEGORY_TEXT_EDITORS"
     ["sublime_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["sublime_description"]="Sophisticated text editor"
@@ -234,6 +240,7 @@ declare -gA DEV_PACKAGES=(
     ["code_insiders_exec"]="code-insiders"
     ["code_insiders_package_id"]="code-insiders"
     ["code_insiders_install_method"]="$METHOD_SNAP"
+    ["code_insiders_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
     ["code_insiders_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["code_insiders_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["code_insiders_description"]="VSCode Insiders preview version"
@@ -293,7 +300,7 @@ declare -gA APP_PACKAGES=(
     # Hey Mail
     ["hey_mail_name"]="Hey Mail"
     ["hey_mail_exec"]="hey"
-    ["hey_mail_package_id"]="https://hey.com/download"
+    ["hey_mail_package_id"]="https://download.hey.com/Hey-latest-amd64.deb"
     ["hey_mail_install_method"]="$METHOD_WEB"
     ["hey_mail_category"]="$CATEGORY_COMMUNICATION"
     ["hey_mail_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
@@ -311,6 +318,22 @@ declare -gA APP_PACKAGES=(
     ["gemini_desktop_description"]="Google Gemini AI desktop app"
     ["gemini_desktop_verify_command"]=""
     ["gemini_desktop_launch_command"]="which gemini && $USE_SUDO gemini"
+
+    # WeChat
+    ["wechat_name"]="WeChat"
+    ["wechat_exec"]="wechat"
+    ["wechat_package_id"]="https://dldir1v6.qq.com/weixin/Universal/Linux/WeChatLinux_x86_64.AppImage"
+    ["wechat_install_method"]="$METHOD_APPIMAGE"
+    ["wechat_category"]="$CATEGORY_COMMUNICATION"
+    ["wechat_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
+    ["wechat_description"]="WeChat messaging and social media app"
+    ["wechat_verify_command"]="--version"
+    ["wechat_launch_command"]="which wechat && wechat"
+    ["wechat_super"]="false"
+    ["wechat_desktop_name"]="WeChat"
+    ["wechat_desktop_comment"]="WeChat for Linux"
+    ["wechat_desktop_categories"]="Network;InstantMessaging;"
+    ["wechat_startup_wm_class"]="WeChat"
 
 )
 
@@ -421,7 +444,7 @@ DEV_PACKAGE_LIST=(
 )
 
 APP_PACKAGE_LIST=(
-    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop"
+    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop" "wechat"
 )
 
 AI_PACKAGE_LIST=(
@@ -636,13 +659,54 @@ create_launch_script() {
         return 0
     fi
 
-    # Create the launch script
+    # Get npm global bin directory for npm-based applications
+    local install_method=$(get_install_method "$app_name")
+    local npm_global_bin=""
+    if [ "$install_method" = "$METHOD_NPM" ]; then
+        npm_global_bin=$(npm config get prefix 2>/dev/null)
+        if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
+            npm_global_bin="$npm_global_bin/bin"
+        fi
+    fi
+
+    # Create the launch script with absolute paths
     cat > "/tmp/$script_name" << EOF
 #!/bin/bash
-# Auto-generated launch script for $app_name
-# Generated by linux_applications_list.sh
+# Launch script for $app_name
+# Generated by 120_install_desktop_applications.sh
+# Package: $(get_package_id "$app_name")
 
-$launch_command
+EOF
+
+    # Add npm global bin to PATH if this is an npm package
+    if [ -n "$npm_global_bin" ]; then
+        cat >> "/tmp/$script_name" << EOF
+# Add npm global bin to PATH
+export PATH="\$PATH:$npm_global_bin"
+EOF
+    fi
+
+    # Process the launch command to use absolute paths
+    local processed_command="$launch_command"
+
+    # For npm packages with node commands, ensure proper path resolution
+    if [ -n "$npm_global_bin" ] && [[ "$launch_command" =~ node[[:space:]]+[^[:space:]]+ ]]; then
+        # Extract the executable name after "node"
+        local exec_name=$(echo "$launch_command" | sed -n 's/.*node[[:space:]]\+\([^[:space:]]\+\).*/\1/p')
+        if [ -n "$exec_name" ]; then
+            local actual_binary="$npm_global_bin/$exec_name"
+            if [ -f "$actual_binary" ] || [ -L "$actual_binary" ]; then
+                # Replace "node exec" with "node /absolute/path/exec" and remove which part
+                processed_command=$(echo "$launch_command" | sed "s|which [^&]* && ||g" | sed "s|node[[:space:]]\+$exec_name|node $actual_binary|g")
+            fi
+        fi
+    fi
+
+    # Add the processed launch command
+    cat >> "/tmp/$script_name" << EOF
+
+# Execute the launch command
+$processed_command "\$@"
 EOF
 
     # Move to /usr/local/bin and make executable

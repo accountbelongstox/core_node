@@ -198,15 +198,23 @@ if [ "$INSTALL_DOCKER" = "true" ]; then
     # Install Docker if not present
     install_docker_with_snap_if_needed
     install_docker_compose_with_snap_if_needed
-    
-    # Enable Docker services
-    enable_docker_services
-    
+
+    # Disable Docker services to save memory
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] Disabling Docker service to save memory..."
+    echo "[$SCRIPT_INDEX] ============================================"
+    disable_docker_services
+
     # Set global variables
     set_var "DOCKER_AVAILABLE" "true"
-    set_var "DOCKER_ENABLED" "true"
-    
-    echo "[$SCRIPT_INDEX] Docker installation and enablement completed"
+    set_var "DOCKER_ENABLED" "false"
+
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] IMPORTANT: Docker is installed but NOT running"
+    echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
+    echo "[$SCRIPT_INDEX] Use the Service Manager menu to start Docker when needed"
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] Docker installation completed"
     
 elif [ "$INSTALL_DOCKER" = "false" ]; then
     echo "[$SCRIPT_INDEX] INSTALL_DOCKER is false - Disabling Docker services..."

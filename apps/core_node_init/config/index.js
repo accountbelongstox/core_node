@@ -15,10 +15,12 @@
 const path = require('path');
 const os = require('os');
 const globalDir = require('#@global_dir');
+const { pathtool } = require('#@btools');
 
 // Declare variables
 const homeDir = os.homedir();
-const downloadsDir = path.join(homeDir, 'Downloads');
+const downloadConfig = pathtool.getDownloadConfig();
+const downloadsDir = downloadConfig.defaultDir;
 
 // Extract the required directories
 const safeAppLargeFilesCacheDir = globalDir?.APP_LARGE_FILES_CACHE_DIR || path.join(homeDir, '.core_node', 'cache', 'large_files');
@@ -62,6 +64,7 @@ const puppeteerConfig = {
     disableGpu: true,
     mute: true,
     random_user_agent: true,
+    downloadDir: downloadsDir,
     args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -84,14 +87,9 @@ const fileMonitorConfig = {
     minFileSize: 1024 * 1024
 };
 
-// Download directories configuration
+// Download directories configuration (using pathtool)
 const downloadDirConfig = {
-    searchDirs: [
-        downloadsDir,
-        path.join(homeDir, 'downloads'),
-        path.join(homeDir, 'Desktop'),
-        '/tmp/downloads'
-    ],
+    ...downloadConfig,
     cacheDir: safeAppLargeFilesCacheDir,
     tempDir: safeAppRuntimeCacheDir
 };

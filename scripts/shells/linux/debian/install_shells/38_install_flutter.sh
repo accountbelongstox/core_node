@@ -21,11 +21,6 @@ SCRIPT_INDEX="38"
 SCRIPT_CURRENT_DIR=""
 PARENT_DIR_LEVEL_1=""
 PARENT_DIR_LEVEL_2=""
-INSTALL_MODE=""
-INSTALL_FLUTTER=""
-SCRIPT_TEMP_DIR=""
-LOG_FILE=""
-SELECTED_REGION=""
 
 # Paths setup
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,6 +29,13 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source globals
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+
+# Initialize variables after sourcing gvar_common.sh
+INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
+INSTALL_FLUTTER=$(get_var "INSTALL_FLUTTER" "")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "38_install_flutter")
+LOG_FILE="$SCRIPT_TEMP_DIR/flutter_install_$(date +%Y%m%d_%H%M%S).log"
+SELECTED_REGION=$(get_var "SELECTED_REGION" "Global")
 
 # Flutter configuration
 FLUTTER_VERSION="3.35.0"

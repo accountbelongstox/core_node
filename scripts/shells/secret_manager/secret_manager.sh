@@ -1,0 +1,366 @@
+#!/usr/bin/env bash
+
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of functions.
+# 6. For Shell (*.sh) scripts: Always use absolute paths, avoid relative paths like "../".
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+#=============================================================================
+# Secret Manager Library
+#
+# This library provides centralized encryption/decryption management for
+# secret keys stored in the core_node project.
+#
+# Directory Structure:
+#   .secret_keys/
+#     already_encrypted/  - Encrypted files (*.js)
+#     .secret_ignore/     - Decrypted raw files (gitignored)
+#
+# Dependencies:
+#   - Node.js (for running disguise.js encryption/decryption tool)
+#   - gvar_common.sh (for get_core_node_dir function)
+#
+# Main Functions:
+#   1. secret_decrypt_all    - Decrypt all encrypted files to specified directory
+#   2. secret_encrypt_all    - Encrypt all files from source to already_encrypted
+#   3. secret_get_key        - Get single key value (auto-decrypt if needed)
+#   4. secret_get_all_keys   - Get all keys as associative array
+#=============================================================================
+
+BATCH_DECRYPTION_COMPLETED=false
+
+# Source gvar_common.sh for get_core_node_dir function if not already loaded
+if ! type get_core_node_dir &>/dev/null; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # Try linux/common first (backward compat) then sibling scripts in shells root
+    if [ -f "$SCRIPT_DIR/../linux/common/gvar_common.sh" ]; then
+        source "$SCRIPT_DIR/../linux/common/gvar_common.sh"
+    elif [ -f "$SCRIPT_DIR/gvar_common.sh" ]; then
+        source "$SCRIPT_DIR/gvar_common.sh"
+    else
+        echo "ERROR: gvar_common.sh not found. Cannot determine core_node directory." >&2
+        exit 1
+    fi
+fi
+
+#=============================================================================
+# Helper function: Get secret directories
+#=============================================================================
+_secret_get_directories() {
+    local core_node_dir=$(get_core_node_dir)
+
+    echo "CORE_NODE_DIR=$core_node_dir"
+    echo "SCRIPTS_DIR=$core_node_dir/scripts"
+    echo "SECRET_KEYS_DIR=$core_node_dir/.secret_keys"
+    echo "ENCRYPTED_DIR=$core_node_dir/.secret_keys/already_encrypted"
+    echo "RAW_DIR=$core_node_dir/.secret_keys/.secret_ignore"
+}
+
+#=============================================================================
+# Helper function: Find disguise.js tool
+#=============================================================================
+_secret_find_disguise_tool() {
+    local scripts_dir="$1"
+
+    if [ -d "$scripts_dir" ]; then
+        local disguise_js=$(find "$scripts_dir" -name "disguise.js" -type f 2>/dev/null | head -n 1)
+        echo "$disguise_js"
+    fi
+}
+
+#=============================================================================
+# Function 1: Decrypt all encrypted files
+#=============================================================================
+secret_decrypt_all() {
+    local output_dir="$1"
+    local password="$2"
+
+    eval $(_secret_get_directories)
+
+    if [ -z "$output_dir" ]; then
+        output_dir="$RAW_DIR"
+    fi
+
+    if [ ! -d "$output_dir" ]; then
+        mkdir -p "$output_dir" || {
+            echo "[SECRET_DECRYPT_ALL] ERROR: Failed to create output directory: $output_dir" >&2
+            return 1
+        }
+    fi
+
+    if [ ! -d "$ENCRYPTED_DIR" ]; then
+        echo "[SECRET_DECRYPT_ALL] ERROR: Encrypted directory not found: $ENCRYPTED_DIR" >&2
+        return 1
+    fi
+
+    local encrypted_files=()
+    while IFS= read -r -d '' enc_file; do
+        encrypted_files+=("$enc_file")
+    done < <(find "$ENCRYPTED_DIR" -name "*.js" -type f -print0 2>/dev/null)
+
+    if [ ${#encrypted_files[@]} -eq 0 ]; then
+        echo "[SECRET_DECRYPT_ALL] No encrypted files found in: $ENCRYPTED_DIR" >&2
+        return 0
+    fi
+
+    echo "[SECRET_DECRYPT_ALL] Found ${#encrypted_files[@]} encrypted files" >&2
+
+    local disguise_js=$(_secret_find_disguise_tool "$SCRIPTS_DIR")
+    if [ -z "$disguise_js" ] || [ ! -f "$disguise_js" ]; then
+        echo "[SECRET_DECRYPT_ALL] ERROR: disguise.js not found in: $SCRIPTS_DIR" >&2
+        return 1
+    fi
+    echo "[SECRET_DECRYPT_ALL] Using decryption tool: $disguise_js" >&2
+
+    if [ -z "$password" ]; then
+        echo -n "[SECRET_DECRYPT_ALL] Enter decryption password: " >&2
+        read -s password
+        echo "" >&2
+    fi
+
+    if [ -z "$password" ]; then
+        echo "[SECRET_DECRYPT_ALL] ERROR: Password is required" >&2
+        return 1
+    fi
+
+    local success_count=0
+    local fail_count=0
+    for encrypted_file in "${encrypted_files[@]}"; do
+        local file_name=$(basename "$encrypted_file")
+        local key_name=$(basename "$encrypted_file" .js)
+        echo "[SECRET_DECRYPT_ALL] Decrypting: $file_name -> $key_name" >&2
+        local result
+        result=$(node "$encrypted_file" pwd "$password" "$output_dir" 2>&1)
+        local exit_code=$?
+        if [ $exit_code -eq 0 ]; then
+            echo "[SECRET_DECRYPT_ALL]   SUCCESS: $key_name" >&2
+            ((success_count++))
+        else
+            echo "[SECRET_DECRYPT_ALL]   FAILED: $key_name" >&2
+            echo "[SECRET_DECRYPT_ALL]   Error: $result" >&2
+            ((fail_count++))
+        fi
+    done
+
+    echo "" >&2
+    echo "[SECRET_DECRYPT_ALL] ========================================" >&2
+    echo "[SECRET_DECRYPT_ALL] Decryption Summary:" >&2
+    echo "[SECRET_DECRYPT_ALL]   Total files: ${#encrypted_files[@]}" >&2
+    echo "[SECRET_DECRYPT_ALL]   Successful:  $success_count" >&2
+    echo "[SECRET_DECRYPT_ALL]   Failed:      $fail_count" >&2
+    echo "[SECRET_DECRYPT_ALL]   Output dir:  $output_dir" >&2
+    echo "[SECRET_DECRYPT_ALL] ========================================" >&2
+
+    password=""
+    if [ $fail_count -gt 0 ]; then
+        return 1
+    fi
+    return 0
+}
+
+#=============================================================================
+# Function 2: Encrypt all files to already_encrypted
+#=============================================================================
+secret_encrypt_all() {
+    local source_dir="$1"
+    local password="$2"
+
+    if [ -z "$source_dir" ]; then
+        echo "[SECRET_ENCRYPT_ALL] ERROR: Source directory parameter is required" >&2
+        echo "[SECRET_ENCRYPT_ALL] Usage: secret_encrypt_all <source_dir> [password]" >&2
+        return 1
+    fi
+    if [ ! -d "$source_dir" ]; then
+        echo "[SECRET_ENCRYPT_ALL] ERROR: Source directory not found: $source_dir" >&2
+        return 1
+    fi
+
+    eval $(_secret_get_directories)
+
+    if [ ! -d "$ENCRYPTED_DIR" ]; then
+        mkdir -p "$ENCRYPTED_DIR" || {
+            echo "[SECRET_ENCRYPT_ALL] ERROR: Failed to create encrypted directory: $ENCRYPTED_DIR" >&2
+            return 1
+        }
+    fi
+
+    local disguise_js=$(_secret_find_disguise_tool "$SCRIPTS_DIR")
+    if [ -z "$disguise_js" ] || [ ! -f "$disguise_js" ]; then
+        echo "[SECRET_ENCRYPT_ALL] ERROR: disguise.js not found in: $SCRIPTS_DIR" >&2
+        return 1
+    fi
+    echo "[SECRET_ENCRYPT_ALL] Using encryption tool: $disguise_js" >&2
+
+    local source_files=()
+    while IFS= read -r -d '' src_file; do
+        local filename=$(basename "$src_file")
+        if [[ "$filename" != .* ]]; then
+            source_files+=("$src_file")
+        fi
+    done < <(find "$source_dir" -maxdepth 1 -type f -print0 2>/dev/null)
+
+    if [ ${#source_files[@]} -eq 0 ]; then
+        echo "[SECRET_ENCRYPT_ALL] No files found in: $source_dir" >&2
+        return 0
+    fi
+    echo "[SECRET_ENCRYPT_ALL] Found ${#source_files[@]} files to encrypt" >&2
+
+    if [ -z "$password" ]; then
+        echo -n "[SECRET_ENCRYPT_ALL] Enter encryption password: " >&2
+        read -s password
+        echo "" >&2
+        echo -n "[SECRET_ENCRYPT_ALL] Confirm password: " >&2
+        read -s password_confirm
+        echo "" >&2
+        if [ "$password" != "$password_confirm" ]; then
+            echo "[SECRET_ENCRYPT_ALL] ERROR: Passwords do not match" >&2
+            return 1
+        fi
+    fi
+    if [ -z "$password" ]; then
+        echo "[SECRET_ENCRYPT_ALL] ERROR: Password is required" >&2
+        return 1
+    fi
+
+    local success_count=0
+    local fail_count=0
+    for source_file in "${source_files[@]}"; do
+        local key_name=$(basename "$source_file")
+        local output_file="$ENCRYPTED_DIR/$key_name.js"
+        echo "[SECRET_ENCRYPT_ALL] Encrypting: $key_name -> $key_name.js" >&2
+        local content=$(cat "$source_file" 2>&1)
+        if [ $? -ne 0 ]; then
+            echo "[SECRET_ENCRYPT_ALL]   FAILED: Cannot read $key_name" >&2
+            ((fail_count++))
+            continue
+        fi
+        local result
+        result=$(node "$disguise_js" "$key_name" "$password" "$content" "$ENCRYPTED_DIR" 2>&1)
+        local exit_code=$?
+        if [ $exit_code -eq 0 ] && [ -f "$output_file" ]; then
+            echo "[SECRET_ENCRYPT_ALL]   SUCCESS: $key_name.js" >&2
+            ((success_count++))
+        else
+            echo "[SECRET_ENCRYPT_ALL]   FAILED: $key_name" >&2
+            echo "[SECRET_ENCRYPT_ALL]   Error: $result" >&2
+            ((fail_count++))
+        fi
+    done
+
+    echo "" >&2
+    echo "[SECRET_ENCRYPT_ALL] ========================================" >&2
+    echo "[SECRET_ENCRYPT_ALL] Encryption Summary:" >&2
+    echo "[SECRET_ENCRYPT_ALL]   Total files: ${#source_files[@]}" >&2
+    echo "[SECRET_ENCRYPT_ALL]   Successful:  $success_count" >&2
+    echo "[SECRET_ENCRYPT_ALL]   Failed:      $fail_count" >&2
+    echo "[SECRET_ENCRYPT_ALL]   Output dir:  $ENCRYPTED_DIR" >&2
+    echo "[SECRET_ENCRYPT_ALL] ========================================" >&2
+
+    password=""
+    password_confirm=""
+    if [ $fail_count -gt 0 ]; then
+        return 1
+    fi
+    return 0
+}
+
+#=============================================================================
+# Function 3: Get single secret key value
+#=============================================================================
+secret_get_key() {
+    local key_name="$1"
+    if [ -z "$key_name" ]; then
+        echo "[SECRET_GET_KEY] ERROR: key_name parameter is required" >&2
+        return 1
+    fi
+    eval $(_secret_get_directories)
+    local raw_file="$RAW_DIR/$key_name"
+    local encrypted_file="$ENCRYPTED_DIR/$key_name.js"
+    if [ -f "$raw_file" ]; then
+        local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+        if [ -n "$content" ]; then
+            echo "$content"
+            return 0
+        fi
+    fi
+    if [ ! -f "$encrypted_file" ]; then
+        echo "[SECRET_GET_KEY] ERROR: Key not found: $key_name" >&2
+        echo "[SECRET_GET_KEY] Encrypted file missing: $encrypted_file" >&2
+        return 1
+    fi
+    if [ "$BATCH_DECRYPTION_COMPLETED" = false ]; then
+        echo "[SECRET_GET_KEY] Raw file not found, triggering batch decryption..." >&2
+        if secret_decrypt_all "$RAW_DIR"; then
+            BATCH_DECRYPTION_COMPLETED=true
+        else
+            echo "[SECRET_GET_KEY] WARNING: Batch decryption failed or incomplete" >&2
+        fi
+    fi
+    if [ -f "$raw_file" ]; then
+        local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+        if [ -n "$content" ]; then
+            echo "$content"
+            return 0
+        fi
+    fi
+    echo "[SECRET_GET_KEY] ERROR: Failed to retrieve key: $key_name" >&2
+    return 1
+}
+
+#=============================================================================
+# Function 4: Get all secret keys as associative array
+#=============================================================================
+secret_get_all_keys() {
+    local array_name="$1"
+    if [ -z "$array_name" ]; then
+        echo "[SECRET_GET_ALL_KEYS] ERROR: array_name parameter is required" >&2
+        echo "[SECRET_GET_ALL_KEYS] Usage: declare -A secrets; secret_get_all_keys secrets" >&2
+        return 1
+    fi
+    if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+        echo "[SECRET_GET_ALL_KEYS] ERROR: Bash 4.0+ required for associative arrays" >&2
+        return 1
+    fi
+    eval $(_secret_get_directories)
+    if [ ! -d "$RAW_DIR" ]; then
+        mkdir -p "$RAW_DIR"
+    fi
+    local raw_file_count=$(find "$RAW_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l)
+    if [ "$raw_file_count" -eq 0 ] && [ "$BATCH_DECRYPTION_COMPLETED" = false ]; then
+        echo "[SECRET_GET_ALL_KEYS] No decrypted files found, triggering batch decryption..." >&2
+        if secret_decrypt_all "$RAW_DIR"; then
+            BATCH_DECRYPTION_COMPLETED=true
+        else
+            echo "[SECRET_GET_ALL_KEYS] WARNING: Batch decryption failed or incomplete" >&2
+        fi
+    fi
+    local key_count=0
+    while IFS= read -r -d '' raw_file; do
+        local key_name=$(basename "$raw_file")
+        local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+        if [ -n "$content" ]; then
+            eval "$array_name['$key_name']='$content'"
+            ((key_count++))
+        fi
+    done < <(find "$RAW_DIR" -maxdepth 1 -type f -print0 2>/dev/null)
+    echo "[SECRET_GET_ALL_KEYS] Loaded $key_count secret keys into array: $array_name" >&2
+    return 0
+}
+
+export -f secret_decrypt_all
+export -f secret_encrypt_all
+export -f secret_get_key
+export -f secret_get_all_keys
+export -f _secret_get_directories
+export -f _secret_find_disguise_tool
+
+echo "[SECRET_MANAGER] Library loaded successfully" >&2
+
+
