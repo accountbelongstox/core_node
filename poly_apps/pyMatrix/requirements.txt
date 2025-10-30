@@ -1,0 +1,33 @@
+# PyMatrix Requirements
+# Python 3.11+ required
+
+# GUI Framework
+PyQt6>=6.6.0
+PyQt6-WebEngine>=6.6.0
+
+# Video Processing
+av>=11.0.0              # PyAV - FFmpeg Python bindings
+numpy>=1.24.0
+opencv-python>=4.8.0
+
+# ADB Communication
+adb-shell>=0.4.4        # Pure Python ADB implementation
+
+# OpenGL Rendering
+pyopengl>=3.1.7         # OpenGL bindings
+pyopengl-accelerate>=3.1.7  # OpenGL acceleration
+
+# Image Processing
+pillow>=10.0.0
+
+# Data Validation
+pydantic>=2.5.0
+
+# Logging
+loguru>=0.7.2
+
+# Configuration
+pyyaml>=6.0.1
+
+# Utilities
+psutil>=5.9.0           # System monitoring
