@@ -475,6 +475,9 @@ SmartMatrix/
 ├── QtScrcpy_tree.md
 ├── README.md
 ├── README_zh.md
+├── SmartMatrix_tree.md
+├── SmartMatrix多设备群控技术补充文档.md
+├── SmartMatrix技术分析文档.md
 ├── UI_DESIGN_SPECIFICATION.md
 ├── UI_EXTENSION_ANALYSIS.md
 ├── build.ps1

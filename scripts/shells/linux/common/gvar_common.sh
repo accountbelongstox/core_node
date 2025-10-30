@@ -1313,125 +1313,143 @@ debug_path_analysis() {
 # Export debug function
 export -f debug_path_analysis
 
+# Load secret_manager library
+GVAR_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$GVAR_SCRIPT_DIR/secret_manager.sh" ]; then
+    source "$GVAR_SCRIPT_DIR/secret_manager.sh" 2>/dev/null || true
+fi
+
 # Function to get encrypted content by key name (equivalent to Invoke-DisguiseDecryption)
+# This function now uses the centralized secret_manager.sh library
+# For backward compatibility, this wrapper function is maintained
 get_secret_content() {
     local key_name="$1"
 
     if [ -z "$key_name" ]; then
-        echo "Error: KeyName parameter is required"
+        echo "Error: KeyName parameter is required" >&2
         return 1
     fi
 
-    # Use centralized core_node directory detection
-    local core_node_dir=$(get_core_node_dir)
+    # Check if secret_manager library is loaded
+    if type secret_get_key &>/dev/null; then
+        # Use new secret manager library
+        secret_get_key "$key_name"
+        return $?
+    else
+        # Fallback to old implementation (for backward compatibility)
+        echo "Warning: secret_manager.sh not loaded, using legacy implementation" >&2
 
-    # Variables declaration
-    local scripts_dir="$core_node_dir/scripts"
-    local secret_keys_dir="$core_node_dir/.secret_keys"
-    local raw_dir="$secret_keys_dir/.secret_ignore"
-    local encrypted_dir="$secret_keys_dir/already_encrypted"
-    local raw_file="$raw_dir/$key_name"
-    local encrypted_file="$encrypted_dir/$key_name.js"
-    
-    # First check if raw file exists
-    if [ -f "$raw_file" ]; then
-        local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
-        if [ -n "$content" ]; then
-            echo "$content"
-            return 0
-        fi
-    fi
-    
-    # Check if encrypted file exists
-    if [ ! -f "$encrypted_file" ]; then
-        return 1
-    fi
-    
-    # Check if we need to perform batch decryption
-    if [ "$BATCH_DECRYPTION_COMPLETED" = false ]; then
-        echo "[DECRYPT] Checking for encrypted files requiring batch decryption..." >&2
-        
-        # Find all encrypted .js files that don't have corresponding raw files
-        local encrypted_files=()
-        if [ -d "$encrypted_dir" ]; then
-            while IFS= read -r -d '' enc_file; do
-                local raw_file_name=$(basename "$enc_file" .js)
-                local raw_file_path="$raw_dir/$raw_file_name"
-                
-                if [ ! -f "$raw_file_path" ]; then
-                    encrypted_files+=("$enc_file")
-                fi
-            done < <(find "$encrypted_dir" -name "*.js" -print0 2>/dev/null)
-        fi
-        
-        if [ ${#encrypted_files[@]} -gt 0 ]; then
-            echo "[DECRYPT] Found ${#encrypted_files[@]} encrypted files requiring decryption" >&2
-            
-            # Find disguise.js
-            local disguise_js=""
-            if [ -d "$scripts_dir" ]; then
-                disguise_js=$(find "$scripts_dir" -name "disguise.js" -type f | head -n 1)
+        # Use centralized core_node directory detection
+        local core_node_dir=$(get_core_node_dir)
+
+        # Variables declaration
+        local scripts_dir="$core_node_dir/scripts"
+        local secret_keys_dir="$core_node_dir/.secret_keys"
+        local raw_dir="$secret_keys_dir/.secret_ignore"
+        local encrypted_dir="$secret_keys_dir/already_encrypted"
+        local raw_file="$raw_dir/$key_name"
+        local encrypted_file="$encrypted_dir/$key_name.js"
+
+        # First check if raw file exists
+        if [ -f "$raw_file" ]; then
+            local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+            if [ -n "$content" ]; then
+                echo "$content"
+                return 0
             fi
-            
-            if [ -n "$disguise_js" ]; then
-                echo "[DECRYPT] Found decryption tool: $disguise_js" >&2
-                
-                # Get password for batch decryption
-                echo -n "[DECRYPT] Enter decryption password for all encrypted files: " >&2
-                read -s password
-                echo "" >&2
-                
-                if [ -n "$password" ]; then
-                    # Ensure raw directory exists
-                    if [ ! -d "$raw_dir" ]; then
-                        mkdir -p "$raw_dir"
+        fi
+
+        # Check if encrypted file exists
+        if [ ! -f "$encrypted_file" ]; then
+            return 1
+        fi
+
+        # Check if we need to perform batch decryption
+        if [ "$BATCH_DECRYPTION_COMPLETED" = false ]; then
+            echo "[DECRYPT] Checking for encrypted files requiring batch decryption..." >&2
+
+            # Find all encrypted .js files that don't have corresponding raw files
+            local encrypted_files=()
+            if [ -d "$encrypted_dir" ]; then
+                while IFS= read -r -d '' enc_file; do
+                    local raw_file_name=$(basename "$enc_file" .js)
+                    local raw_file_path="$raw_dir/$raw_file_name"
+
+                    if [ ! -f "$raw_file_path" ]; then
+                        encrypted_files+=("$enc_file")
                     fi
-                    
-                    # Decrypt each file
-                    local success_count=0
-                    for encrypted_file in "${encrypted_files[@]}"; do
-                        local file_name=$(basename "$encrypted_file")
-                        echo "[DECRYPT] Decrypting: $file_name" >&2
-                        
-                        local result
-                        result=$(node "$encrypted_file" pwd "$password" "$raw_dir" 2>&1)
-                        local exit_code=$?
-                        
-                        if [ $exit_code -eq 0 ]; then
-                            echo "[DECRYPT] SUCCESS: Decrypted $file_name" >&2
-                            ((success_count++))
-                        else
-                            echo "[DECRYPT] WARNING: Failed to decrypt $file_name" >&2
-                            echo "[DECRYPT] Error: $result" >&2
-                        fi
-                    done
-                    
-                    echo "[DECRYPT] Batch decryption completed: $success_count/${#encrypted_files[@]} files decrypted" >&2
-                else
-                    echo "[DECRYPT] WARNING: Empty password provided, skipping batch decryption" >&2
+                done < <(find "$encrypted_dir" -name "*.js" -print0 2>/dev/null)
+            fi
+
+            if [ ${#encrypted_files[@]} -gt 0 ]; then
+                echo "[DECRYPT] Found ${#encrypted_files[@]} encrypted files requiring decryption" >&2
+
+                # Find disguise.js
+                local disguise_js=""
+                if [ -d "$scripts_dir" ]; then
+                    disguise_js=$(find "$scripts_dir" -name "disguise.js" -type f | head -n 1)
                 fi
-                
-                # Clear password from memory
-                password=""
-            else
-                echo "[DECRYPT] WARNING: disguise.js not found in scripts directory" >&2
+
+                if [ -n "$disguise_js" ]; then
+                    echo "[DECRYPT] Found decryption tool: $disguise_js" >&2
+
+                    # Get password for batch decryption
+                    echo -n "[DECRYPT] Enter decryption password for all encrypted files: " >&2
+                    read -s password
+                    echo "" >&2
+
+                    if [ -n "$password" ]; then
+                        # Ensure raw directory exists
+                        if [ ! -d "$raw_dir" ]; then
+                            mkdir -p "$raw_dir"
+                        fi
+
+                        # Decrypt each file
+                        local success_count=0
+                        for encrypted_file in "${encrypted_files[@]}"; do
+                            local file_name=$(basename "$encrypted_file")
+                            echo "[DECRYPT] Decrypting: $file_name" >&2
+
+                            local result
+                            result=$(node "$encrypted_file" pwd "$password" "$raw_dir" 2>&1)
+                            local exit_code=$?
+
+                            if [ $exit_code -eq 0 ]; then
+                                echo "[DECRYPT] SUCCESS: Decrypted $file_name" >&2
+                                ((success_count++))
+                            else
+                                echo "[DECRYPT] WARNING: Failed to decrypt $file_name" >&2
+                                echo "[DECRYPT] Error: $result" >&2
+                            fi
+                        done
+
+                        echo "[DECRYPT] Batch decryption completed: $success_count/${#encrypted_files[@]} files decrypted" >&2
+                    else
+                        echo "[DECRYPT] WARNING: Empty password provided, skipping batch decryption" >&2
+                    fi
+
+                    # Clear password from memory
+                    password=""
+                else
+                    echo "[DECRYPT] WARNING: disguise.js not found in scripts directory" >&2
+                fi
+            fi
+
+            # Mark batch decryption as completed for this session
+            BATCH_DECRYPTION_COMPLETED=true
+        fi
+
+        # Try to read the decrypted file again
+        if [ -f "$raw_file" ]; then
+            local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+            if [ -n "$content" ]; then
+                echo "$content"
+                return 0
             fi
         fi
-        
-        # Mark batch decryption as completed for this session
-        BATCH_DECRYPTION_COMPLETED=true
+
+        return 1
     fi
-    
-    # Try to read the decrypted file again
-    if [ -f "$raw_file" ]; then
-        local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
-        if [ -n "$content" ]; then
-            echo "$content"
-            return 0
-        fi
-    fi
-    
-    return 1
 }
 
 
