@@ -47,14 +47,16 @@ MYSQL_DATA_DIR=$(map_web_path "www" "mysql/data")
 MYSQL_LOG_DIR="/var/log/mysql"
 
 echo "[$SCRIPT_INDEX] MySQL Management Script"
-echo "[$SCRIPT_INDEX] INSTALL_MYSQL: $INSTALL_MYSQL"
+echo "[$SCRIPT_INDEX] MySQL will always be installed"
 
-# Check repository status before proceeding (only when installing)
-if [ "$INSTALL_MYSQL" = "true" ]; then
-    if ! verify_mysql_repo_for_install; then
-        echo "[$SCRIPT_INDEX] Please run 12_update.sh first to properly manage repositories"
-        exit 1
-    fi
+# Check if MySQL should be started after installation
+START_MYSQL=$(get_var "START_MYSQL" "false")
+echo "[$SCRIPT_INDEX] Start after installation: $START_MYSQL"
+
+# Check repository status before proceeding
+if ! verify_mysql_repo_for_install; then
+    echo "[$SCRIPT_INDEX] Please run 12_update.sh first to properly manage repositories"
+    exit 1
 fi
 
 # Function to check if command exists
@@ -334,14 +336,22 @@ if [ "$INSTALL_MYSQL" = "true" ]; then
         echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
     fi
     
-    # Enable MySQL services
-    enable_mysql_services
-    
+    # Disable MySQL services to save memory
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] Disabling MySQL service to save memory..."
+    echo "[$SCRIPT_INDEX] ============================================"
+    disable_mysql_services
+
     # Set global variables
     set_var "MYSQL_AVAILABLE" "true"
-    set_var "MYSQL_ENABLED" "true"
-    
-    echo "[$SCRIPT_INDEX] MySQL installation and enablement completed"
+    set_var "MYSQL_ENABLED" "false"
+
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] IMPORTANT: MySQL is installed but NOT running"
+    echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
+    echo "[$SCRIPT_INDEX] Use the Service Manager menu to start MySQL when needed"
+    echo "[$SCRIPT_INDEX] ============================================"
+    echo "[$SCRIPT_INDEX] MySQL installation completed"
     
 elif [ "$INSTALL_MYSQL" = "false" ]; then
     echo "[$SCRIPT_INDEX] INSTALL_MYSQL is false - Disabling MySQL services..."

@@ -156,6 +156,15 @@ install_package() {
 }
 
 check_and_install_sudo() {
+    # If running as root, no need for sudo
+    if [ "$EUID" -eq 0 ]; then
+        sudo=""
+        USE_SUDO=""
+        echo "Running as root. sudo not needed."
+        export USE_SUDO
+        return
+    fi
+
     if ! command -v sudo >/dev/null 2>&1; then
         echo "sudo not found. Attempting to install..."
         if install_package "sudo"; then
@@ -163,17 +172,22 @@ check_and_install_sudo() {
         else
             echo "Failed to install sudo. Commands will be run without sudo."
             sudo=""
+            USE_SUDO=""
+            export USE_SUDO
             return
         fi
     fi
 
     if command -v sudo >/dev/null 2>&1; then
         sudo="sudo"
+        USE_SUDO="sudo"
         echo "sudo is available and will be used."
     else
         sudo=""
+        USE_SUDO=""
         echo "sudo is not available. Commands will be run without sudo."
     fi
+    export USE_SUDO
 }
 
 check_and_install_dos2unix() {
@@ -958,12 +972,28 @@ show_special_software_env_menu() {
     local special_env_manager_script="$SHELLS_DIR/linux/menu_itemshells/special_software_env_manager.sh"
 
     if [ -f "$special_env_manager_script" ]; then
-        echo "Launching Special Software Environment Variables Manager..."
+        # Export USE_SUDO for child script
+        export USE_SUDO
         # Source the script to allow it to modify the current environment
         . "$special_env_manager_script"
     else
         echo "Error: special_software_env_manager.sh script not found at: $special_env_manager_script"
         echo "Please check if the special software environment manager is properly installed"
+    fi
+}
+
+# Function to show service manager
+show_service_manager() {
+    local service_manager_script="$SHELLS_DIR/linux/menu_itemshells/service_manager.sh"
+
+    if [ -f "$service_manager_script" ]; then
+        # Export USE_SUDO for child script
+        export USE_SUDO
+        # Execute the service manager script
+        bash "$service_manager_script"
+    else
+        echo "Error: service_manager.sh script not found at: $service_manager_script"
+        echo "Please check if the service manager is properly installed"
         echo "Press Enter to continue..."
         read
     fi
@@ -987,6 +1017,9 @@ initialize_menu_items() {
 
     menu_items["Set Special Software Environment Variables (like AI)"]="text=Set Special Software Environment Variables (like AI);values=default;current=0;key=SPECIAL_ENV_MENU;action=show_special_software_env_menu"
     menu_order+=("Set Special Software Environment Variables (like AI)")
+
+    menu_items["Service Manager"]="text=Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx);values=default;current=0;key=SERVICE_MANAGER_MENU;action=show_service_manager"
+    menu_order+=("Service Manager")
 
     menu_items["Push to git"]="text=Push to git;values=all,gitee,github,local;current=0;key=GIT_PUSH_TARGET;action=push_git"
     menu_order+=("Push to git")

@@ -17,19 +17,16 @@ source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 # Unified Menu Configuration Table - Avoid Duplicate Definitions
 
 # Menu configuration table: Menu Name|Menu Key|Available Options|Default(base)|Default(server)|Default(full)|Default(desktop)
+# Note: Services (MySQL, Redis, PostgreSQL, Docker, Nginx) are always installed
+# The menu option controls whether to start them after installation
 declare -a MENU_CONFIG=(
     "[*] Switch Installation Mode|INSTALL_MODE|base server full desktop|base|server|full|desktop"
     "[@] Select Region|SELECTED_REGION|China Global|Global|Global|Global|Global"
-    "[D] Install MySQL|INSTALL_MYSQL|false true|false|true|true|true"
-    "[R] Install Redis|INSTALL_REDIS|false true|false|false|true|true"
-    "[Q] Install PostgreSQL|INSTALL_POSTGRESQL|false true|false|false|true|true"
-    "[>] Install Nginx|INSTALL_NGINX|false true|false|true|true|true"
-    "[G] Install Go Language|INSTALL_GO|false true|true|true|true|true"
-    "[J] Install Java|INSTALL_JAVA|false true|true|true|true|true"
-    "[E] Install Edge|INSTALL_EDGE|false true|true|true|true|true"
-    "[N] Install Node.js|INSTALL_NODE|false true|true|true|true|true"
-    "[P] Install PHP|INSTALL_PHP|false true|true|true|true|true"
-    "[^] Install Docker|INSTALL_DOCKER|false true|true|true|true|false"
+    "[D] Start MySQL After Installation|START_MYSQL|false true|false|false|false|false"
+    "[R] Start Redis After Installation|START_REDIS|false true|false|false|false|false"
+    "[Q] Start PostgreSQL After Installation|START_POSTGRESQL|false true|false|false|false|false"
+    "[>] Start Nginx After Installation|START_NGINX|false true|false|false|false|false"
+    "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
 )

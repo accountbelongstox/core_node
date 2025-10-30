@@ -136,6 +136,11 @@ is_cursor_installed() {
 find_cursor_file() {
     local search_dirs=()
 
+    # Add global shared download directory first (highest priority)
+    if [ -n "$CORE_NODE_SHARED_DOWNLOADS" ] && [ -d "$CORE_NODE_SHARED_DOWNLOADS" ]; then
+        search_dirs+=("$CORE_NODE_SHARED_DOWNLOADS")
+    fi
+
     # Add current user's Downloads
     if [[ -d "$HOME/Downloads" ]]; then
         search_dirs+=("$HOME/Downloads")
@@ -148,6 +153,11 @@ find_cursor_file() {
                 search_dirs+=("$user_home/Downloads")
             fi
         done
+    fi
+
+    # Add root's Downloads
+    if [ -d "/root/Downloads" ]; then
+        search_dirs+=("/root/Downloads")
     fi
 
     # Search for .deb files first
@@ -205,18 +215,78 @@ cursor_automated_download() {
     return 1
 }
 
+# Safe process kill function
+safe_kill_processes() {
+    local process_name="$1"
+    local use_sudo="${2:-false}"
+
+    local pids=$(pgrep -f "$process_name" 2>/dev/null)
+
+    if [[ -z "$pids" ]]; then
+        print_info_from_common_functions "No $process_name processes found"
+        return 0
+    fi
+
+    print_info_from_common_functions "Found $process_name processes: $pids"
+
+    # Try graceful termination first (SIGTERM)
+    for pid in $pids; do
+        if [[ "$use_sudo" == "true" ]]; then
+            $USE_SUDO kill -15 "$pid" 2>/dev/null || true
+        else
+            kill -15 "$pid" 2>/dev/null || true
+        fi
+    done
+
+    # Wait up to 5 seconds for processes to terminate
+    local waited=0
+    while [[ $waited -lt 5 ]]; do
+        pids=$(pgrep -f "$process_name" 2>/dev/null)
+        if [[ -z "$pids" ]]; then
+            print_success_from_common_functions "$process_name processes terminated gracefully"
+            return 0
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    # Force kill if still running (SIGKILL)
+    pids=$(pgrep -f "$process_name" 2>/dev/null)
+    if [[ -n "$pids" ]]; then
+        print_warning_from_common_functions "Force killing remaining $process_name processes: $pids"
+        for pid in $pids; do
+            if [[ "$use_sudo" == "true" ]]; then
+                $USE_SUDO kill -9 "$pid" 2>/dev/null || true
+            else
+                kill -9 "$pid" 2>/dev/null || true
+            fi
+        done
+        sleep 1
+    fi
+
+    # Verify all processes are gone
+    pids=$(pgrep -f "$process_name" 2>/dev/null)
+    if [[ -z "$pids" ]]; then
+        print_success_from_common_functions "All $process_name processes terminated"
+        return 0
+    else
+        print_error_from_common_functions "Failed to terminate some $process_name processes: $pids"
+        return 1
+    fi
+}
+
 # Manual download fallback
 cursor_manual_download() {
     print_step_from_common_functions "Falling back to manual download..."
-    
+
     # Open Cursor download page
     if command -v xdg-open >/dev/null 2>&1; then
         xdg-open "https://cursor.sh/" >/dev/null 2>&1 &
     fi
-    
+
     print_info_from_common_functions "Please download Cursor .deb file to Downloads directory"
     print_info_from_common_functions "Waiting for download to complete..."
-    
+
     # Wait for file to appear
     local downloaded_file=$(find_cursor_appimage)
     if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
@@ -452,37 +522,63 @@ create_launcher_script() {
 
 # Create desktop entry
 create_desktop_entry() {
-    print_step_from_common_functions "Creating desktop entry..."
-    
-    local icon_path="$CURSOR_EXTRACTED_DIR/squashfs-root/cursor.png"
-    if [[ ! -f "$icon_path" ]]; then
-        # Try alternative icon locations
-        icon_path=$(find "$CURSOR_EXTRACTED_DIR/squashfs-root" -name "*.png" -type f | head -1)
-        if [[ -z "$icon_path" ]]; then
-            icon_path="cursor"  # Fallback to system icon
+    print_step_from_common_functions "Configuring desktop entry..."
+
+    # Check if desktop file already exists (from .deb installation)
+    if [[ -f "$CURSOR_DESKTOP_FILE" ]] && dpkg -l | grep -q "^ii.*cursor"; then
+        # .deb installation: modify existing desktop file to use wrapper script
+        print_info_from_common_functions "Modifying existing desktop file for wrapper script..."
+
+        # Backup original
+        $USE_SUDO cp "$CURSOR_DESKTOP_FILE" "${CURSOR_DESKTOP_FILE}.backup" 2>/dev/null || true
+
+        # Replace Exec lines to use wrapper script
+        $USE_SUDO sed -i 's|^Exec=/usr/share/cursor/cursor|Exec=/usr/local/super_scripts/cursor.sh|g' "$CURSOR_DESKTOP_FILE"
+
+        print_success_from_common_functions "Desktop entry updated to use wrapper script"
+    else
+        # AppImage installation: create complete desktop file
+        print_info_from_common_functions "Creating desktop file for AppImage installation..."
+
+        local icon_path="$CURSOR_EXTRACTED_DIR/squashfs-root/cursor.png"
+        if [[ ! -f "$icon_path" ]]; then
+            icon_path=$(find "$CURSOR_EXTRACTED_DIR/squashfs-root" -name "*.png" -type f 2>/dev/null | head -1)
+            if [[ -z "$icon_path" ]]; then
+                icon_path="cursor"
+            fi
         fi
-    fi
-    
-    local desktop_content="[Desktop Entry]
+
+        local desktop_content="[Desktop Entry]
 Name=Cursor
-Comment=AI-powered code editor
-Exec=/usr/local/super_scripts/cursor.sh %U
+Comment=The AI Code Editor.
+GenericName=Text Editor
+Exec=/usr/local/super_scripts/cursor.sh %F
 Icon=$icon_path
 Type=Application
-Categories=Development;TextEditor;IDE;
-MimeType=text/plain;text/x-chdr;text/x-csrc;text/x-c++hdr;text/x-c++src;text/x-java;text/x-dsrc;text/x-pascal;text/x-perl;text/x-python;application/x-php;application/x-httpd-php3;application/x-httpd-php4;application/x-httpd-php5;text/x-sql;text/x-diff;
-StartupNotify=true
-StartupWMClass=cursor
+Categories=TextEditor;Development;IDE;
+MimeType=application/x-cursor-workspace;text/plain;text/x-chdr;text/x-csrc;text/x-c++hdr;text/x-c++src;text/x-java;text/x-dsrc;text/x-pascal;text/x-perl;text/x-python;application/x-php;application/x-httpd-php3;application/x-httpd-php4;application/x-httpd-php5;text/x-sql;text/x-diff;
+Actions=new-empty-window;
+StartupNotify=false
+StartupWMClass=Cursor
+Keywords=cursor;
+
+[Desktop Action new-empty-window]
+Name=New Empty Window
+Exec=/usr/local/super_scripts/cursor.sh --new-window %F
+Icon=$icon_path
 "
-    
-    echo "$desktop_content" | $USE_SUDO tee "$CURSOR_DESKTOP_FILE" > /dev/null
-    $USE_SUDO chmod 644 "$CURSOR_DESKTOP_FILE"
-    
+
+        echo "$desktop_content" | $USE_SUDO tee "$CURSOR_DESKTOP_FILE" > /dev/null
+        $USE_SUDO chmod 644 "$CURSOR_DESKTOP_FILE"
+
+        print_success_from_common_functions "Desktop entry created"
+    fi
+
     # Update desktop database
     if command -v update-desktop-database >/dev/null 2>&1; then
         $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
     fi
-    
+
     return 0
 }
 
