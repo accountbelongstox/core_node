@@ -604,6 +604,15 @@ $Global:FLUTTER_MIRRORS = @{
 
 # Note: Rust configuration moved to ApplicationsList.ps1 for consistency
 
+# Global Qt Variables
+$Global:QT_DEFAULT_VERSION = "6.10.0"
+$Global:QT_INSTALL_BASE_DIR = Join-Path $Global:LANG_COMPILER_DIR "Qt"
+$Global:QT_INSTALL_METHOD = Get-GlobalVar -key "QT_INSTALL_METHOD" -defaultValue "installer"  # "installer" or "source"
+$Global:QT_INSTALLER_FILENAME = "qt-unified-windows-x64-online.exe"
+$Global:QT_INSTALLER_URL_GLOBAL = "https://download.qt.io/official_releases/online_installers/$Global:QT_INSTALLER_FILENAME"
+$Global:QT_INSTALLER_URL_CHINA = "https://mirrors.tuna.tsinghua.edu.cn/qt/official_releases/online_installers/$Global:QT_INSTALLER_FILENAME"
+$Global:QT_INSTALLER_DOWNLOAD_PATH = Join-Path $Global:DOWNLOADS_DIR $Global:QT_INSTALLER_FILENAME
+
 # Global Visual Studio Variables
 $Global:VS2022_VERSIONS = @{
     "2022" = @{
@@ -614,12 +623,29 @@ $Global:VS2022_VERSIONS = @{
             "Microsoft.VisualStudio.Workload.NativeDesktop"
         )
         Components = @(
+            # Core C++ components
             "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
             "Microsoft.VisualStudio.Component.VC.14.34.17.4.x86.x64",
+
+            # Windows SDK
             "Microsoft.VisualStudio.Component.Windows10SDK.19041",
+            "Microsoft.VisualStudio.Component.Windows11SDK.22000",
+
+            # CMake support
             "Microsoft.VisualStudio.Component.CMake.Tools",
             "Microsoft.VisualStudio.Component.VC.CMake.Project",
-            "Microsoft.VisualStudio.Component.IntelliCode"
+
+            # ATL and MFC (required for Qt Speech, WebView, and other Win32 apps)
+            "Microsoft.VisualStudio.Component.VC.ATL",
+            "Microsoft.VisualStudio.Component.VC.ATLMFC",
+
+            # C++/CLI support
+            "Microsoft.VisualStudio.Component.VC.CLI.Support",
+
+            # Additional useful components
+            "Microsoft.VisualStudio.Component.IntelliCode",
+            "Microsoft.VisualStudio.Component.VC.DiagnosticTools",
+            "Microsoft.VisualStudio.Component.VC.Redist.14.Latest"
         )
     }
     "2022-minimal" = @{

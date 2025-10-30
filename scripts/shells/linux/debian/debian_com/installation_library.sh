@@ -434,6 +434,27 @@ install_via_npm() {
     while [ $retry_count -lt $max_retries ]; do
         if timeout 300 $USE_SUDO npm install -g "$package_id"; then
             log_success "Successfully installed $app_name via NPM"
+            
+            # Fix permissions for npm global binaries
+            log_install "Setting executable permissions for npm global binaries..."
+            local npm_global_bin
+            npm_global_bin=$($USE_SUDO npm config get prefix 2>/dev/null)
+            if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
+                # Set executable permissions for all binaries in npm global bin directory
+                $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
+                log_success "Set executable permissions for binaries in: $npm_global_bin/bin"
+                
+                # Also check for the specific package binary
+                local package_name=$(echo "$package_id" | sed 's/.*\///' | sed 's/@.*//')
+                local binary_path="$npm_global_bin/bin/$package_name"
+                if [ -f "$binary_path" ]; then
+                    $USE_SUDO chmod +x "$binary_path"
+                    log_success "Set executable permission for: $binary_path"
+                fi
+            else
+                log_warning "Could not determine npm global bin directory"
+            fi
+            
             return 0
         else
             ((retry_count++))

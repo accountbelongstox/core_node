@@ -195,6 +195,8 @@ $launchSection
     $mcpContent = New-ClaudeMcpSection
 #>
 function New-ClaudeMcpSection {
+    $upgradeBatPath = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "pytools\claude_tools\upgrade_claude_code.bat"
+    $syncScriptPath = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "pytools\claude_tools\sync_mcp_servers.py"
     return @"
 
 REM Prompt for upgrade and sync MCP configuration
@@ -213,7 +215,7 @@ set /p UPGRADE_CHOICE="Do you want to upgrade Claude Code? (y/N): "
 if /i "%UPGRADE_CHOICE%"=="y" (
     echo.
     echo [INFO] Launching AI tools upgrade in separate window...
-    start "AI Tools Upgrade" "D:\programing\core_node_a\scripts\pytools\claude_tools\upgrade_claude_code.bat" all
+    start "AI Tools Upgrade" "$upgradeBatPath" all
     echo [SUCCESS] Upgrade window opened
 ) else (
     echo [INFO] Skipping upgrade
@@ -226,7 +228,7 @@ echo ============================================================
 echo.
 
 REM Run MCP sync for Claude
-python -u "D:\programing\core_node_a\scripts\pytools\claude_tools\sync_mcp_servers.py" --target claude
+python -u "$syncScriptPath" --target claude
 
 set MCP_EXIT_CODE=%ERRORLEVEL%
 
@@ -257,6 +259,7 @@ set /p CONTINUE="Press Enter to continue..."
     $mcpContent = New-DroidMcpSection
 #>
 function New-DroidMcpSection {
+    $syncScriptPath = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "pytools\claude_tools\sync_mcp_servers.py"
     return @"
 
 echo.
@@ -268,7 +271,7 @@ echo Syncing MCP Server Configurations...
 echo.
 
 REM Run MCP sync for Droid
-python -u "D:\programing\core_node_a\scripts\pytools\claude_tools\sync_mcp_servers.py" --target droid
+python -u "$syncScriptPath" --target droid
 
 set MCP_EXIT_CODE=%ERRORLEVEL%
 
@@ -496,7 +499,8 @@ function New-CompleteCommandContent {
         
         # 4. Show preview (if needed)
         if ($ShowPreview) {
-            $targetPath = "D:\programing\core_node_a\.winenvs\${CommandPrefix}${FileNumber}.bat"
+            $winenvsDir = Join-Path $Global:CORE_NODE_DIR $Global:WINENVS_DIR
+            $targetPath = Join-Path $winenvsDir "${CommandPrefix}${FileNumber}.bat"
             Show-CommandPreview -Content $commandContent -FilePath $targetPath
         }
         

@@ -723,6 +723,24 @@ $Global:APPLICATIONS_PACKAGES = @{
                 Name = "VSCode"
             }
         )
+        PostInstallCallbacks = @(
+            @{
+                Type = "context_menu"
+                Operation = "add_file_context"
+                FileExtensions = @("py", "js", "ts", "html", "css", "json", "xml", "yaml", "yml", "md", "txt", "log", "ini", "cfg", "conf", "php", "java", "cpp", "c", "h", "cs", "vb", "sql", "sh", "bat", "ps1", "go", "rs", "rb", "pl", "lua", "r", "scala", "kt", "swift", "dart", "vue", "jsx", "tsx", "svelte")
+                MenuText = "Open with VSCode"
+                IconPath = "EXECUTABLE_PATH"
+                Description = "Add VSCode to file context menu for development file types"
+            }
+            @{
+                Type = "context_menu"
+                Operation = "add_folder_context"
+                MenuText = "Open Folder in VSCode"
+                Command = "`"{{EXECUTABLE_PATH}}`" `"%1`""
+                IconPath = "EXECUTABLE_PATH"
+                Description = "Add folder context menu to open folder in VSCode"
+            }
+        )
     }
     RustDesk        = @{
         PackageId           = "RustDesk.RustDesk"
@@ -869,6 +887,14 @@ $Global:APPLICATIONS_PACKAGES = @{
         EnvVars           = @(
             @{
                 Type = @("AddExec")
+            }
+        )
+        PostInstallCallbacks = @(
+            @{
+                Type = "context_menu"
+                Operation = "add_all_files_context"
+                MenuText = "Edit with Notepad++"
+                Description = "Add Notepad++ to context menu for ALL file types"
             }
         )
     }
@@ -1655,7 +1681,7 @@ $Global:COMMON_SOFTWARE_PACKAGES = @{
         )
     }
     WPSOffice      = @{
-        PackageId           = "Kingsoft.WPSOffice.CN"
+        PackageId           = "Kingsoft.WPSOffice"
         Exec               = "WPS.exe"
         Name               = "WPSOffice"
         DesktopCategory    = $Global:DESKTOP_CATEGORY_OFFICE_TOOLS

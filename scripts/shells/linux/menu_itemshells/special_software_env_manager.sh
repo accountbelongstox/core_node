@@ -18,7 +18,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LINUX_COMMON_DIR="$(dirname "$SCRIPT_DIR")/common"
 LINUX_ENVS_DIR="/usr/local/bin"
-TEMP_SCRIPTS_DIR="/tmp/.core_node/env_scripts"
+GLOBAL_SCRIPTS_DIR="$COMPILE_DIR/env_scripts"
 
 # Source common functions if available
 if [ -f "$LINUX_COMMON_DIR/common_functions.sh" ]; then
@@ -113,6 +113,10 @@ EXTRACTED_API_URLS=()
 EXTRACTED_TOKENS=()
 CLEANED_INPUT_TEXT=""
 
+# User input tracking variables (Linux equivalent of PowerShell tracking)
+declare -A USER_INPUT_VALUES
+declare -A INPUT_TYPE_INDEX_TRACKER
+
 # Smart Input Processing Functions
 get_smart_input_for_variable() {
     local var_name="$1"
@@ -120,6 +124,8 @@ get_smart_input_for_variable() {
     local var_description="$3"
     local has_current_value="$4"
     local is_first_variable="$5"
+    local input_type="$6"
+    local default_value="$7"
     
     # Build prompt
     local prompt=""
@@ -131,6 +137,11 @@ get_smart_input_for_variable() {
     
     if [ -n "$var_description" ]; then
         prompt="$prompt\nDescription: $var_description"
+    fi
+    
+    # Add default value information if available
+    if [ -n "$default_value" ]; then
+        prompt="$prompt\nDefault value: $default_value"
     fi
     
     # Add smart recognition hint if enabled and this is the first variable
@@ -155,6 +166,11 @@ get_smart_input_for_variable() {
     
     # Check if input is empty
     if [ -z "$user_input" ]; then
+        # If there's a default value, use it
+        if [ -n "$default_value" ]; then
+            echo "$default_value"
+            return 0
+        fi
         return 1
     fi
     
@@ -180,7 +196,22 @@ get_smart_input_for_variable() {
             
             # Continue with smart extraction
             echo "Continuing with smart extraction..."
-            echo "$user_input"
+            
+            # Determine the value for current variable based on InputType
+            local final_value=""
+            if [ "$input_type" = "Url" ] && [ ${#EXTRACTED_API_URLS[@]} -gt 0 ]; then
+                final_value="${EXTRACTED_API_URLS[0]}"
+                echo "Using first API URL: $final_value"
+            elif [ "$input_type" = "Token" ] && [ ${#EXTRACTED_TOKENS[@]} -gt 0 ]; then
+                final_value="${EXTRACTED_TOKENS[0]}"
+                echo "Using first Token: $final_value"
+            else
+                # Fallback to original input
+                final_value="$user_input"
+                echo "Using original input (no matching type found)"
+            fi
+            
+            echo "$final_value"
             return 0
         fi
     fi
@@ -189,13 +220,140 @@ get_smart_input_for_variable() {
     return 0
 }
 
-# Environment Variables Configuration
+# Get default value for variable (Linux equivalent of PowerShell function)
+get_default_value_for_variable() {
+    local var_name="$1"
+    local default_var_name="$2"
+    
+    if [ -n "$default_var_name" ]; then
+        # First check user input values (for current session)
+        if [ -n "${USER_INPUT_VALUES[$default_var_name]}" ]; then
+            echo "${USER_INPUT_VALUES[$default_var_name]}"
+            return 0
+        fi
+        
+        # Then check environment variables
+        local default_value=$(get_env_variable "$default_var_name")
+        if [ -n "$default_value" ]; then
+            echo "$default_value"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+# Reset input type index tracker (Linux equivalent of PowerShell function)
+reset_input_type_index_tracker() {
+    INPUT_TYPE_INDEX_TRACKER=()
+}
+
+# Reset user input values (Linux equivalent of PowerShell function)
+reset_user_input_values() {
+    USER_INPUT_VALUES=()
+}
+
+# Get value for next variable (Linux equivalent of PowerShell function)
+get_value_for_next_variable() {
+    local var_name="$1"
+    local input_type="$2"
+    local default_var_name="$3"
+    
+    # Check for DefaultValue first
+    if [ -n "$default_var_name" ]; then
+        local default_value=$(get_default_value_for_variable "$var_name" "$default_var_name")
+        if [ -n "$default_value" ]; then
+            echo "$default_value"
+            return 0
+        fi
+    fi
+    
+    if [ -z "$input_type" ]; then
+        return 1
+    fi
+    
+    # Check if there's a user input value for the same InputType
+    for key in "${!USER_INPUT_VALUES[@]}"; do
+        # This is a simplified check - in a full implementation, you'd need to track input types
+        if [ -n "${USER_INPUT_VALUES[$key]}" ]; then
+            echo "${USER_INPUT_VALUES[$key]}"
+            return 0
+        fi
+    done
+    
+    # Initialize tracker for this InputType if not exists
+    if [ -z "${INPUT_TYPE_INDEX_TRACKER[$input_type]}" ]; then
+        INPUT_TYPE_INDEX_TRACKER[$input_type]=0
+    fi
+    
+    # Get current index for this InputType
+    local current_index=${INPUT_TYPE_INDEX_TRACKER[$input_type]}
+    
+    # Get the appropriate array based on InputType
+    local value_array=()
+    case "$input_type" in
+        "Url")
+            value_array=("${EXTRACTED_API_URLS[@]}")
+            ;;
+        "Token")
+            value_array=("${EXTRACTED_TOKENS[@]}")
+            ;;
+        *)
+            # For unknown types, try Tokens as fallback
+            value_array=("${EXTRACTED_TOKENS[@]}")
+            ;;
+    esac
+    
+    if [ ${#value_array[@]} -gt 0 ]; then
+        # Use current index, or last index if current index is out of bounds
+        local target_index=$current_index
+        if [ $target_index -ge ${#value_array[@]} ]; then
+            target_index=$((${#value_array[@]} - 1))
+        fi
+        
+        local selected_value="${value_array[$target_index]}"
+        
+        # Increment index for next variable of same type
+        INPUT_TYPE_INDEX_TRACKER[$input_type]=$((current_index + 1))
+        
+        echo "$selected_value"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Environment Variables Configuration (Enhanced structure matching PowerShell version)
 declare -A ENVIRONMENT_CONFIGS
-ENVIRONMENT_CONFIGS["Claude AI"]="title=Claude AI Environment Variables;description=Set up Claude AI environment variables for API access;common=claude;command_prefix=claude;vars=ANTHROPIC_BASE_URL,ANTHROPIC_AUTH_TOKEN;secrets=ANTHROPIC_AUTH_TOKEN;smart_recognition=true"
-ENVIRONMENT_CONFIGS["Alibaba Cloud"]="title=Alibaba Cloud Environment Variables;description=Set up Alibaba Cloud environment variables for API access;common=alibaba;command_prefix=aliyun;vars=ALIBABA_CLOUD_ACCESS_KEY_ID,ALIBABA_CLOUD_ACCESS_KEY_SECRET;secrets=ALIBABA_CLOUD_ACCESS_KEY_SECRET;smart_recognition=false"
-ENVIRONMENT_CONFIGS["Factory AI Droid"]="title=Factory AI Droid Environment Variables;description=Set up Factory AI Droid environment variables for API access;common=droid;command_prefix=droid;vars=FACTORY_API_KEY;secrets=FACTORY_API_KEY;smart_recognition=true"
-# Example: Add new service configuration
-# ENVIRONMENT_CONFIGS["OpenAI"]="title=OpenAI Environment Variables;description=Set up OpenAI environment variables for API access;common=openai;command_prefix=openai;vars=OPENAI_API_KEY,OPENAI_BASE_URL;secrets=OPENAI_API_KEY"
+
+# Claude AI Configuration
+ENVIRONMENT_CONFIGS["Claude AI"]="title=Claude AI Environment Variables;description=Set up Claude AI environment variables for API access;common=claude;command_prefix=claude;smart_recognition=true;vars=ANTHROPIC_BASE_URL,ANTHROPIC_AUTH_TOKEN,ANTHROPIC_API_KEY;secrets=ANTHROPIC_AUTH_TOKEN,ANTHROPIC_API_KEY;input_types=Url,Token,Token;default_values=,,ANTHROPIC_AUTH_TOKEN"
+
+# Alibaba Cloud Configuration  
+ENVIRONMENT_CONFIGS["Alibaba Cloud"]="title=Alibaba Cloud Environment Variables;description=Set up Alibaba Cloud environment variables for API access;common=alibaba;command_prefix=aliyun;smart_recognition=false;vars=ALIBABA_CLOUD_ACCESS_KEY_ID,ALIBABA_CLOUD_ACCESS_KEY_SECRET;secrets=ALIBABA_CLOUD_ACCESS_KEY_SECRET;input_types=AccessKeyId,Token;default_values=,"
+
+# Factory AI Droid Configuration
+ENVIRONMENT_CONFIGS["Factory AI Droid"]="title=Factory AI Droid Environment Variables;description=Set up Factory AI Droid environment variables for API access;common=droid;command_prefix=droid;smart_recognition=true;vars=FACTORY_API_KEY;secrets=FACTORY_API_KEY;input_types=Token;default_values="
+
+# OpenAI Configuration (uncommented and enhanced)
+ENVIRONMENT_CONFIGS["OpenAI"]="title=OpenAI Environment Variables;description=Set up OpenAI environment variables for API access;common=openai;command_prefix=openai;smart_recognition=true;vars=OPENAI_API_KEY,OPENAI_BASE_URL,OPENAI_ORG_ID;secrets=OPENAI_API_KEY;input_types=Token,Url,Token;default_values=,,OPENAI_API_KEY"
+
+# Action to Config Mapping (Linux equivalent of PowerShell mapping)
+declare -A ACTION_TO_CONFIG_MAPPING
+ACTION_TO_CONFIG_MAPPING["claude"]="Claude AI"
+ACTION_TO_CONFIG_MAPPING["alibaba"]="Alibaba Cloud"
+ACTION_TO_CONFIG_MAPPING["droid"]="Factory AI Droid"
+ACTION_TO_CONFIG_MAPPING["openai"]="OpenAI"
+
+# Get full config name (Linux equivalent of PowerShell function)
+get_full_config_name() {
+    local action="$1"
+    if [ -n "${ACTION_TO_CONFIG_MAPPING[$action]}" ]; then
+        echo "${ACTION_TO_CONFIG_MAPPING[$action]}"
+    else
+        echo "$action"
+    fi
+}
 
 # Helper Functions
 # Environment Variable Management Functions
@@ -260,6 +418,99 @@ get_config_value() {
     local key="$2"
     local config_str="${ENVIRONMENT_CONFIGS[$config_name]}"
     echo "$config_str" | grep -o "${key}=[^;]*" | cut -d= -f2
+}
+
+# Enhanced configuration parsing functions (Linux equivalent of PowerShell functions)
+get_config_display_name() {
+    local config_name="$1"
+    get_config_value "$config_name" "title"
+}
+
+get_smart_recognition_enabled() {
+    local config_name="$1"
+    local smart_recognition=$(get_config_value "$config_name" "smart_recognition")
+    [ "$smart_recognition" = "true" ]
+}
+
+get_config_variables() {
+    local config_name="$1"
+    local vars_str=$(get_config_value "$config_name" "vars")
+    if [ -n "$vars_str" ]; then
+        echo "$vars_str" | tr ',' ' '
+    fi
+}
+
+get_config_secrets() {
+    local config_name="$1"
+    local secrets_str=$(get_config_value "$config_name" "secrets")
+    if [ -n "$secrets_str" ]; then
+        echo "$secrets_str" | tr ',' ' '
+    fi
+}
+
+get_config_input_types() {
+    local config_name="$1"
+    local input_types_str=$(get_config_value "$config_name" "input_types")
+    if [ -n "$input_types_str" ]; then
+        echo "$input_types_str" | tr ',' ' '
+    fi
+}
+
+get_config_default_values() {
+    local config_name="$1"
+    local default_values_str=$(get_config_value "$config_name" "default_values")
+    if [ -n "$default_values_str" ]; then
+        echo "$default_values_str" | tr ',' ' '
+    fi
+}
+
+# Check if variable is secret
+is_variable_secret() {
+    local config_name="$1"
+    local var_name="$2"
+    local secrets=($(get_config_secrets "$config_name"))
+    for secret in "${secrets[@]}"; do
+        if [ "$var_name" = "$secret" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Get input type for variable
+get_variable_input_type() {
+    local config_name="$1"
+    local var_name="$2"
+    local vars=($(get_config_variables "$config_name"))
+    local input_types=($(get_config_input_types "$config_name"))
+    
+    for i in "${!vars[@]}"; do
+        if [ "${vars[$i]}" = "$var_name" ]; then
+            if [ $i -lt ${#input_types[@]} ]; then
+                echo "${input_types[$i]}"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
+# Get default value for variable
+get_variable_default_value() {
+    local config_name="$1"
+    local var_name="$2"
+    local vars=($(get_config_variables "$config_name"))
+    local default_values=($(get_config_default_values "$config_name"))
+    
+    for i in "${!vars[@]}"; do
+        if [ "${vars[$i]}" = "$var_name" ]; then
+            if [ $i -lt ${#default_values[@]} ]; then
+                echo "${default_values[$i]}"
+                return 0
+            fi
+        fi
+    done
+    return 1
 }
 
 get_command_prefix() {
@@ -370,8 +621,12 @@ generate_global_command() {
         return 1
     fi
     
-    # Create temp scripts directory
-    mkdir -p "$TEMP_SCRIPTS_DIR"
+    # Create global scripts directory
+    if [ -n "$USE_SUDO" ]; then
+        $USE_SUDO mkdir -p "$GLOBAL_SCRIPTS_DIR"
+    else
+        mkdir -p "$GLOBAL_SCRIPTS_DIR"
+    fi
     
     # Generate script content
     local script_content="#!/bin/bash\n"
@@ -393,23 +648,51 @@ generate_global_command() {
     script_content+="\n# Execute command with environment variables\n"
     script_content+="exec \"\$@\"\n"
     
-    # Determine output file
-    local output_file
+    # Determine output file in global scripts directory
+    local script_file
     if [ -n "$target_file_path" ]; then
-        output_file="$target_file_path"
+        # Extract filename from target path and use it in global scripts directory
+        local script_name=$(basename "$target_file_path")
+        script_file="$GLOBAL_SCRIPTS_DIR/$script_name"
     else
         local file_number=1
-        while [ -f "$LINUX_ENVS_DIR/${command_prefix}${file_number}" ]; do
+        while [ -f "$GLOBAL_SCRIPTS_DIR/${command_prefix}${file_number}" ]; do
             ((file_number++))
         done
-        output_file="$LINUX_ENVS_DIR/${command_prefix}${file_number}"
+        script_file="$GLOBAL_SCRIPTS_DIR/${command_prefix}${file_number}"
     fi
     
-    # Write script content
-    echo -e "$script_content" > "$output_file"
-    chmod +x "$output_file"
+    # Write script content to global scripts directory
+    if [ -n "$USE_SUDO" ]; then
+        echo -e "$script_content" | $USE_SUDO tee "$script_file" >/dev/null
+        $USE_SUDO chmod +x "$script_file"
+    else
+        echo -e "$script_content" > "$script_file"
+        chmod +x "$script_file"
+    fi
     
-    print_color green "Global command script generated: $output_file"
+    # Create symbolic link in /usr/local/bin
+    local link_name=$(basename "$script_file")
+    local link_path="$LINUX_ENVS_DIR/$link_name"
+    
+    # Remove existing link if it exists
+    if [ -L "$link_path" ] || [ -f "$link_path" ]; then
+        if [ -n "$USE_SUDO" ]; then
+            $USE_SUDO rm -f "$link_path"
+        else
+            rm -f "$link_path"
+        fi
+    fi
+    
+    # Create symbolic link
+    if [ -n "$USE_SUDO" ]; then
+        $USE_SUDO ln -s "$script_file" "$link_path"
+    else
+        ln -s "$script_file" "$link_path"
+    fi
+    
+    print_color green "Global command script generated: $script_file"
+    print_color green "Symbolic link created: $link_path -> $script_file"
     return 0
 }
 
@@ -546,39 +829,93 @@ set_environment_variables() {
     print_color green "If a variable is already set, you can press Enter to keep the current value or skip setting."
     print_color green "If a variable is not set, you can press Enter to skip setting it."
     
-    # Get user input for each variable
+    # Get user input for each variable using smart input processing
     declare -A new_values
     declare -a empty_variables
     declare -a temporarily_cleared
-
-    for var_name in "${var_names[@]}"; do
+    
+    # Enable smart recognition if configured
+    if get_smart_recognition_enabled "$config_name"; then
+        SMART_RECOGNITION_ENABLED=true
+    else
+        SMART_RECOGNITION_ENABLED=false
+    fi
+    
+    # Reset tracking variables for this session
+    reset_input_type_index_tracker
+    reset_user_input_values
+    
+    # Store extracted data for auto-filling next variables
+    local extracted_data=""
+    local skip_next=false
+    
+    for i in "${!var_names[@]}"; do
+        local var_name="${var_names[$i]}"
         local has_current_value="${current_values[$var_name]}"
-        local prompt_msg
-
-        local is_secret=0
-        for secret_var in "${secret_vars[@]}"; do
-            if [[ "$var_name" == "$secret_var" ]]; then
-                is_secret=1
-                break
+        local is_first_variable=false
+        if [ $i -eq 0 ]; then
+            is_first_variable=true
+        fi
+        
+        # Check if we should skip this variable (auto-filled from previous extraction)
+        if [ "$skip_next" = "true" ]; then
+            skip_next=false
+            local input_type=$(get_variable_input_type "$config_name" "$var_name")
+            local default_var_name=$(get_variable_default_value "$config_name" "$var_name")
+            local auto_value=$(get_value_for_next_variable "$var_name" "$input_type" "$default_var_name")
+            if [ -n "$auto_value" ]; then
+                new_values["$var_name"]="$auto_value"
+                print_color green "Auto-filled $var_name: $auto_value"
+                USER_INPUT_VALUES["$var_name"]="$auto_value"
+                continue
             fi
-        done
-
-        if [[ -n "$has_current_value" ]]; then
-            prompt_msg="Please enter $var_name (or press Enter to keep current value):"
-        else
-            prompt_msg="Please enter $var_name (or press Enter to skip):"
         fi
-
+        
+        # Get variable properties
+        local var_display="$var_name"
         local var_description=$(get_config_value "$config_name" "description")
-        if [[ -n "$var_description" ]]; then
-            prompt_msg+="\nDescription: $var_description"
+        local input_type=$(get_variable_input_type "$config_name" "$var_name")
+        local default_var_name=$(get_variable_default_value "$config_name" "$var_name")
+        local default_value=""
+        if [ -n "$default_var_name" ]; then
+            default_value=$(get_default_value_for_variable "$var_name" "$default_var_name")
         fi
-
-        print_color green "$prompt_msg"
-        read -p "$var_name: " user_input
-
-        if [[ -z "$user_input" ]]; then
-            if [[ -n "$has_current_value" ]]; then
+        
+        # Use smart input processing
+        local user_input=$(get_smart_input_for_variable "$var_name" "$var_display" "$var_description" "$has_current_value" "$is_first_variable" "$input_type" "$default_value")
+        
+        # Check for default value if user input is empty
+        if [ -z "$user_input" ]; then
+            if [ -n "$default_value" ]; then
+                user_input="$default_value"
+                print_color green "Using default value for $var_display: $default_value"
+            fi
+        fi
+        
+        if [ -n "$user_input" ]; then
+            # Check if this was smart extraction and should skip next
+            if [ "$SMART_RECOGNITION_ENABLED" = "true" ] && [ "$is_first_variable" = "true" ] && [ ${#EXTRACTED_API_URLS[@]} -gt 0 ] && [ ${#EXTRACTED_TOKENS[@]} -gt 0 ]; then
+                # Check if next variable is different type
+                if [ $((i + 1)) -lt ${#var_names[@]} ]; then
+                    local next_var_name="${var_names[$((i + 1))]}"
+                    local next_input_type=$(get_variable_input_type "$config_name" "$next_var_name")
+                    if [ "$input_type" != "$next_input_type" ]; then
+                        skip_next=true
+                        print_color green "Both URL and Token found. Next variable will be auto-filled."
+                    fi
+                fi
+            fi
+            
+            new_values["$var_name"]="$user_input"
+            USER_INPUT_VALUES["$var_name"]="$user_input"
+            
+            if is_variable_secret "$config_name" "$var_name"; then
+                print_color green "New value set: [HIDDEN]"
+            else
+                print_color green "New value set: $user_input"
+            fi
+        else
+            if [ -n "$has_current_value" ]; then
                 print_color green "Variable has current value. Choose action:"
                 print_color green "1. Keep current value"
                 print_color green "2. Set to empty (delete)"
@@ -586,7 +923,7 @@ set_environment_variables() {
 
                 read -p "Enter choice (1-3, default: 1): " choice
 
-                if [[ -z "$choice" ]]; then
+                if [ -z "$choice" ]; then
                     choice="1"
                 fi
 
@@ -602,7 +939,7 @@ set_environment_variables() {
                         ;;
                     *)
                         new_values["$var_name"]="$has_current_value"
-                        if [[ "$is_secret" -eq 1 ]]; then
+                        if is_variable_secret "$config_name" "$var_name"; then
                             print_color green "Keeping current value: [HIDDEN]"
                         else
                             print_color green "Keeping current value: $has_current_value"
@@ -612,13 +949,6 @@ set_environment_variables() {
             else
                 print_color yellow "Skipping $var_name - no value entered"
                 empty_variables+=("$var_name")
-            fi
-        else
-            new_values["$var_name"]="$user_input"
-            if [[ "$is_secret" -eq 1 ]]; then
-                print_color green "New value set: [HIDDEN]"
-            else
-                print_color green "New value set: $user_input"
             fi
         fi
     done
@@ -823,20 +1153,83 @@ generate_global_command() {
     env_commands+=("# Generated on $(date '+%Y-%m-%d %H:%M:%S')")
     env_commands+=("")
 
-    for var_name in "${var_names[@]}"; do
-        local prompt="Please enter $var_name:"
-        local var_description=$(get_config_value "$config_name" "description")
-        if [[ -n "$var_description" ]]; then
-            prompt+="\nDescription: $var_description"
+    # Enable smart recognition if configured
+    if get_smart_recognition_enabled "$config_name"; then
+        SMART_RECOGNITION_ENABLED=true
+    else
+        SMART_RECOGNITION_ENABLED=false
+    fi
+    
+    # Reset tracking variables for this session
+    reset_input_type_index_tracker
+    reset_user_input_values
+    
+    # Store extracted data for auto-filling next variables
+    local extracted_data=""
+    local skip_next=false
+
+    for i in "${!var_names[@]}"; do
+        local var_name="${var_names[$i]}"
+        local is_first_variable=false
+        if [ $i -eq 0 ]; then
+            is_first_variable=true
         fi
-
-        print_color green "$prompt"
-        read -p "$var_name: " user_input
-
-        if [[ -n "$user_input" ]]; then
+        
+        # Check if we should skip this variable (auto-filled from previous extraction)
+        if [ "$skip_next" = "true" ]; then
+            skip_next=false
+            local input_type=$(get_variable_input_type "$config_name" "$var_name")
+            local default_var_name=$(get_variable_default_value "$config_name" "$var_name")
+            local auto_value=$(get_value_for_next_variable "$var_name" "$input_type" "$default_var_name")
+            if [ -n "$auto_value" ]; then
+                env_commands+=("echo \"Setting $var_name=[AUTO-FILLED]\"")
+                env_commands+=("export $var_name=\"$auto_value\"")
+                env_exports+=("export $var_name=\"$auto_value\"")
+                print_color green "Auto-filled $var_name: $auto_value"
+                USER_INPUT_VALUES["$var_name"]="$auto_value"
+                continue
+            fi
+        fi
+        
+        # Get variable properties
+        local var_display="$var_name"
+        local var_description=$(get_config_value "$config_name" "description")
+        local input_type=$(get_variable_input_type "$config_name" "$var_name")
+        local default_var_name=$(get_variable_default_value "$config_name" "$var_name")
+        local default_value=""
+        if [ -n "$default_var_name" ]; then
+            default_value=$(get_default_value_for_variable "$var_name" "$default_var_name")
+        fi
+        
+        # Use smart input processing
+        local user_input=$(get_smart_input_for_variable "$var_name" "$var_display" "$var_description" "false" "$is_first_variable" "$input_type" "$default_value")
+        
+        # Check for default value if user input is empty
+        if [ -z "$user_input" ]; then
+            if [ -n "$default_value" ]; then
+                user_input="$default_value"
+                print_color green "Using default value for $var_display: $default_value"
+            fi
+        fi
+        
+        if [ -n "$user_input" ]; then
+            # Check if this was smart extraction and should skip next
+            if [ "$SMART_RECOGNITION_ENABLED" = "true" ] && [ "$is_first_variable" = "true" ] && [ ${#EXTRACTED_API_URLS[@]} -gt 0 ] && [ ${#EXTRACTED_TOKENS[@]} -gt 0 ]; then
+                # Check if next variable is different type
+                if [ $((i + 1)) -lt ${#var_names[@]} ]; then
+                    local next_var_name="${var_names[$((i + 1))]}"
+                    local next_input_type=$(get_variable_input_type "$config_name" "$next_var_name")
+                    if [ "$input_type" != "$next_input_type" ]; then
+                        skip_next=true
+                        print_color green "Both URL and Token found. Next variable will be auto-filled."
+                    fi
+                fi
+            fi
+            
             env_commands+=("echo \"Setting $var_name=$user_input\"")
             env_commands+=("export $var_name=\"$user_input\"")
             env_exports+=("export $var_name=\"$user_input\"")
+            USER_INPUT_VALUES["$var_name"]="$user_input"
         else
             env_commands+=("echo \"Skipping $var_name (not set)\"")
             env_commands+=("# export $var_name=\"\"  # Not set")
@@ -1434,15 +1827,15 @@ refresh_current_terminal_environment() {
     read -n 1
 }
 
-# Sub-menu for each configuration (1:1 match with Windows submenu structure)
+# Sub-menu for each configuration (1:1 match with PowerShell Show-SubMenu function)
 show_config_submenu() {
     local config_name="$1"
-    local title=$(get_config_value "$config_name" "title")
+    local config_display_name=$(get_config_display_name "$config_name")
 
     local menu_options=(
-        "Add $title Global Command"
-        "Set $title Environment Variables"
-        "View $title Scripts"
+        "Add $config_display_name Global Command"
+        "Set $config_display_name Environment Variables"
+        "View $config_display_name Scripts"
         "Back to Main Menu"
     )
 
@@ -1456,7 +1849,7 @@ show_config_submenu() {
 
     while true; do
         clear
-        print_color green "$title - Sub Menu"
+        print_color green "$config_display_name - Sub Menu"
         print_color green "Use Up/Down arrows to navigate, Enter to select"
         print_color green "=============================================="
 
@@ -1504,21 +1897,21 @@ show_config_submenu() {
                 # Restore terminal settings before executing action
                 stty "$old_settings"
                 case "$selected_option" in
-                    "Add $title Global Command")
-                        # Show file management menu first (1:1 match with Windows behavior)
-                        local existing_scripts=$(get_existing_scripts "$config_name")
-                        show_existing_files_menu "$config_name" "$existing_scripts"
-                        # Use global variables to determine action
+                    "Add $config_display_name Global Command")
+                        # Show file management menu first (1:1 match with PowerShell behavior)
+                        local existing_files=$(get_existing_scripts "$config_name")
+                        show_existing_files_menu "$config_name" "$existing_files"
+                        # Use global variables to determine action (matching PowerShell logic)
                         if [[ "$IS_REPLACING_FILE" == "true" ]]; then
                             generate_global_command "$config_name" "$TARGET_FILE_PATH"
                         else
                             generate_global_command "$config_name"
                         fi
                         ;;
-                    "Set $title Environment Variables")
+                    "Set $config_display_name Environment Variables")
                         set_environment_variables "$config_name"
                         ;;
-                    "View $title Scripts")
+                    "View $config_display_name Scripts")
                         show_list_scripts "$config_name"
                         ;;
                     "Back to Main Menu")
@@ -1545,25 +1938,26 @@ is_config_item() {
     [[ -n "${ENVIRONMENT_CONFIGS[$item]}" ]]
 }
 
-# Main Menu for this script (Generic - dynamically generated from ENVIRONMENT_CONFIGS)
+# Main Menu for this script (1:1 match with PowerShell version)
 main_special_env_menu() {
-    # Build menu options dynamically from ENVIRONMENT_CONFIGS
+    # Build menu options dynamically from ENVIRONMENT_CONFIGS (matching PowerShell structure)
     local menu_options=()
     
-    # Add all configured services from ENVIRONMENT_CONFIGS
+    # Add configuration-based menu items (matching PowerShell Show-SpecialSoftwareEnvMenu)
     for config_name in "${!ENVIRONMENT_CONFIGS[@]}"; do
-        menu_options+=("$config_name")
+        local common=$(get_config_value "$config_name" "common")
+        menu_options+=("$config_name|$common|true")  # Format: "DisplayName|Action|HasSubMenu"
     done
     
     # Sort config names alphabetically for consistent display
     IFS=$'\n' menu_options=($(sort <<<"${menu_options[*]}"))
     unset IFS
     
-    # Add fixed menu options
-    menu_options+=("View All Environment Variables")
-    menu_options+=("Refresh Current Terminal Environment")
-    menu_options+=("Back to Main Menu")
-    menu_options+=("Exit")
+    # Add utility menu items (matching PowerShell structure)
+    menu_options+=("View All Environment Variables|viewall|false")
+    menu_options+=("Refresh Current Terminal Environment|refresh|false")
+    menu_options+=("Back to Main Menu|back|false")
+    menu_options+=("Exit|exit|false")
     
     local selected_index=0
     local num_options=${#menu_options[@]}
@@ -1581,19 +1975,19 @@ main_special_env_menu() {
 
         for i in "${!menu_options[@]}"; do
             local menu_item="${menu_options[$i]}"
+            local display_name=$(echo "$menu_item" | cut -d'|' -f1)
+            local action=$(echo "$menu_item" | cut -d'|' -f2)
+            local has_submenu=$(echo "$menu_item" | cut -d'|' -f3)
             
-            # Check if this is a configuration item (dynamic check)
-            if is_config_item "$menu_item"; then
-                # Add submenu indicator for service configs
-                if [[ "$i" -eq "$selected_index" ]]; then
-                    print_color yellow "> $menu_item >"
+            if [[ "$i" -eq "$selected_index" ]]; then
+                if [[ "$has_submenu" == "true" ]]; then
+                    print_color yellow "> $display_name >"
                 else
-                    print_color green "  $menu_item >"
+                    print_color yellow "> $display_name"
                 fi
             else
-                # Regular menu item
-                if [[ "$i" -eq "$selected_index" ]]; then
-                    print_color yellow "> $menu_item"
+                if [[ "$has_submenu" == "true" ]]; then
+                    print_color green "  $display_name >"
                 else
                     print_color green "  $menu_item"
                 fi
@@ -1633,27 +2027,31 @@ main_special_env_menu() {
                 ;;
             $'\n'|$'\r'|'')
                 local selected_option="${menu_options[$selected_index]}"
+                local display_name=$(echo "$selected_option" | cut -d'|' -f1)
+                local action=$(echo "$selected_option" | cut -d'|' -f2)
+                local has_submenu=$(echo "$selected_option" | cut -d'|' -f3)
+                
                 # Restore terminal settings before executing action
                 stty "$old_settings"
                 
-                # Check if selected option is a config item (generic handling)
-                if is_config_item "$selected_option"; then
-                    # Show submenu for any configured service
-                    show_config_submenu "$selected_option"
+                if [[ "$has_submenu" == "true" ]]; then
+                    # Convert action to full config name (matching PowerShell behavior)
+                    local full_config_name=$(get_full_config_name "$action")
+                    show_config_submenu "$full_config_name"
                 else
-                    # Handle fixed menu options
-                    case "$selected_option" in
-                        "View All Environment Variables")
+                    # Handle fixed menu options (matching PowerShell switch statement)
+                    case "$action" in
+                        'viewall')
                             show_all_environment_variables
                             ;;
-                        "Refresh Current Terminal Environment")
+                        'refresh')
                             refresh_current_terminal_environment
                             ;;
-                        "Back to Main Menu")
+                        'back')
                             trap - EXIT
                             return
                             ;;
-                        "Exit")
+                        'exit')
                             trap - EXIT
                             exit 0
                             ;;

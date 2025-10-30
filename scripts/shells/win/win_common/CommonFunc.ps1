@@ -622,16 +622,16 @@ function Find-ExecutableByKeyword {
                 $searchedPaths += $searchPath
             }
             
-            Write-DebugLog -Message "Searching in: $searchPath" -Category "EXEC" -Color "Cyan"
+            # Write-DebugLog -Message "Searching in: $searchPath" -Category "EXEC" -Color "Cyan"
             
             try {
                 foreach ($searchKeyword in $allKeywords) {
                     # Determine search depth based on Recursive flag
                     foreach ($extension in $ExecutableExtensions) {
                         $exeFileName = Set-FileExtension -FileName $searchKeyword -Extension $extension
-                        Write-DebugLog -Message "Searching for file: '$exeFileName' in path: '$searchPath' (MaxDepth: $maxDepth)" -Category "EXEC" -Color "Cyan"
+                        # Write-DebugLog -Message "Searching for file: '$exeFileName' in path: '$searchPath' (MaxDepth: $maxDepth)" -Category "EXEC" -Color "Cyan"
                         $exePath = Find-FileWithDepth -BasePath $searchPath -FileName $exeFileName -MaxDepth $maxDepth
-                        Write-DebugLog -Message "Find-FileWithDepth result for '$exeFileName': '$exePath'" -Category "EXEC" -Color "Yellow"
+                        # Write-DebugLog -Message "Find-FileWithDepth result for '$exeFileName': '$exePath'" -Category "EXEC" -Color "Yellow"
                         if ($exePath) {
                             Write-DebugLog -Message "Found executable with keyword '$searchKeyword' and extension '$extension': $exePath" -Category "EXEC" -Color "Green"
                             return $exePath
