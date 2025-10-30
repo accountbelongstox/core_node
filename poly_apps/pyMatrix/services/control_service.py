@@ -1,0 +1,200 @@
+"""Device control service using centralized DeviceManager"""
+
+# Setup path
+try:
+    from .. import _path_setup
+except ImportError:
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from typing import Optional, Dict
+from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
+from pycore.pyutils.device_manager import DeviceManager
+from pycore.pyutils.adb import ADBManager
+from poly_apps.pyMatrix.config import Config
+
+
+class ControlService:
+    """
+    Device control service
+
+    Responsibilities:
+    - Send touch events to device
+    - Send key events to device
+    - Send text input to device
+    - Handle coordinate mapping
+
+    Uses centralized DeviceManager to access devices.
+    """
+
+    _instance: Optional['ControlService'] = None
+
+    def __init__(self):
+        self.adb_path = Config.get_adb_path()
+        self.device_manager = DeviceManager.instance()
+        self.message_builder = MessageBuilder()
+
+    @classmethod
+    def instance(cls) -> 'ControlService':
+        """Get singleton instance"""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    async def send_touch_event(self, serial: str, event_data: dict) -> bool:
+        """
+        Send touch event to device via scrcpy control socket
+
+        Args:
+            serial: Device serial
+            event_data: Touch event data from frontend
+                {
+                    "action": "down" | "up" | "move",
+                    "pointerId": 0,
+                    "x": 100,
+                    "y": 200,
+                    "pressure": 1.0,
+                    "screenWidth": 1080,
+                    "screenHeight": 2340
+                }
+
+        Returns:
+            Success status
+        """
+        try:
+            # Get device from centralized DeviceManager
+            device = self.device_manager.get_device(serial)
+            if not device:
+                print(f"Device {serial} not connected")
+                return False
+
+            # Create touch event
+            touch_event = TouchEvent(
+                action=event_data["action"],
+                pointer_id=event_data.get("pointerId", 0),
+                x=event_data["x"],
+                y=event_data["y"],
+                pressure=event_data.get("pressure", 1.0),
+                screen_width=event_data["screenWidth"],
+                screen_height=event_data["screenHeight"]
+            )
+
+            # Build control message
+            message = self.message_builder.build_touch_message(touch_event)
+
+            # Send to scrcpy-server via control socket
+            if device.is_connected():
+                device.send_control_message(message)
+                print(f"[ControlService] Touch {event_data['action']} sent to {serial} at ({event_data['x']}, {event_data['y']})")
+                return True
+            else:
+                print(f"[ControlService] Device {serial} not ready for control")
+                return False
+
+        except Exception as e:
+            print(f"[ControlService] Failed to send touch event to {serial}: {e}")
+            return False
+
+    async def send_key_event(self, serial: str, event_data: dict) -> bool:
+        """
+        Send key event to device via scrcpy control socket
+
+        Args:
+            serial: Device serial
+            event_data: Key event data from frontend
+                {
+                    "action": "down" | "up",
+                    "keyCode": 26,
+                    "metaState": 0
+                }
+
+        Returns:
+            Success status
+        """
+        try:
+            # Get device from centralized DeviceManager
+            device = self.device_manager.get_device(serial)
+            if not device:
+                print(f"Device {serial} not connected")
+                return False
+
+            # Create key event
+            key_event = KeyEvent(
+                action=event_data["action"],
+                key_code=event_data["keyCode"],
+                meta_state=event_data.get("metaState", 0)
+            )
+
+            # Build control message
+            message = self.message_builder.build_key_message(key_event)
+
+            # Send to scrcpy-server via control socket
+            if device.is_connected():
+                device.send_control_message(message)
+                print(f"[ControlService] Key {event_data['action']} sent to {serial}, keyCode={event_data['keyCode']}")
+                return True
+            else:
+                print(f"[ControlService] Device {serial} not ready for control")
+                return False
+
+        except Exception as e:
+            print(f"[ControlService] Failed to send key event to {serial}: {e}")
+            return False
+
+    async def send_text(self, serial: str, text: str) -> bool:
+        """
+        Send text input to device
+
+        Args:
+            serial: Device serial
+            text: Text to input
+
+        Returns:
+            Success status
+        """
+        try:
+            # Use ADB to input text
+            command = f'input text "{text}"'
+            ADBManager.execute_shell(serial, command, self.adb_path)
+
+            print(f"Text input for {serial}: {text}")
+            return True
+
+        except Exception as e:
+            print(f"Failed to send text to {serial}: {e}")
+            return False
+
+    async def send_swipe(self, serial: str, swipe_data: dict) -> bool:
+        """
+        Send swipe gesture to device
+
+        Args:
+            serial: Device serial
+            swipe_data: Swipe data
+                {
+                    "x1": 100, "y1": 100,
+                    "x2": 500, "y2": 500,
+                    "duration": 300
+                }
+
+        Returns:
+            Success status
+        """
+        try:
+            x1 = swipe_data["x1"]
+            y1 = swipe_data["y1"]
+            x2 = swipe_data["x2"]
+            y2 = swipe_data["y2"]
+            duration = swipe_data.get("duration", 300)
+
+            # Use ADB to perform swipe
+            command = f'input swipe {x1} {y1} {x2} {y2} {duration}'
+            ADBManager.execute_shell(serial, command, self.adb_path)
+
+            print(f"Swipe for {serial}: ({x1},{y1}) -> ({x2},{y2})")
+            return True
+
+        except Exception as e:
+            print(f"Failed to send swipe to {serial}: {e}")
+            return False

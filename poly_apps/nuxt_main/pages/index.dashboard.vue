@@ -229,7 +229,7 @@ import { getAppEntryConfig } from '@/app-entry';
 // Page metadata
 definePageMeta({
   title: 'Analytics Dashboard Home',
-  layout: 'default',
+  layout: 'dashboard',
   namespace: 'dashboard'
 });
 

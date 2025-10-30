@@ -135,6 +135,31 @@
                 "print_flutter_app_structure",
                 "health_check"
             ]
+        },
+        "AICollaboration": {
+            "command": "python3",
+            "args": [
+                "/mnt/dev_sdb3/programing/core_node/ncore/mcp_server/ai_collaboration/main.py"
+            ],
+            "env": {
+                "MCP_ALLOW_ALL_PATHS": "true"
+            },
+            "disabled": false,
+            "autoApprove": [
+                "register_role",
+                "get_role_list",
+                "write_log",
+                "read_logs",
+                "ask_question",
+                "answer_question",
+                "get_pending_questions",
+                "health_check",
+                "get_storage_stats",
+                "get_log_summary",
+                "get_qa_statistics",
+                "get_question_history",
+                "search_logs"
+            ]
         }
     }
 }

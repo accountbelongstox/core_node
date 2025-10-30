@@ -21,7 +21,7 @@ Supported targets:
 - Claude: C:\Users\{USERNAME}\.claude.json
 - Factory AI Droid: C:\Users\{USERNAME}\.factory\mcp.json
 
-Template: D:\programing\core_node\.prompt\mcpWindowsTemplate.json
+Template: D:\programing\core_node\_prompt\mcpWindowsTemplate.json
 
 The script recursively finds all 'mcpServers' objects in the target file
 and merges missing servers from the template.
@@ -36,7 +36,7 @@ from typing import Dict, Any, Set, Optional
 import shutil
 from datetime import datetime
 
-TEMPLATE_PATH = r"D:\programing\core_node\.prompt\mcpWindowsTemplate.json"
+TEMPLATE_PATH = r"D:\programing\core_node\_prompt\mcpWindowsTemplate.json"
 
 def print_same_line(message: str, end_with_newline: bool = False) -> None:
     """

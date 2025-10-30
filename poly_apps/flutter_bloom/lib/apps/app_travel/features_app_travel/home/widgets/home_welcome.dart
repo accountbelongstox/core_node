@@ -1,0 +1,59 @@
+import 'package:flutter/material.dart';
+import '../../../widgets/travel_icons.dart';
+
+class HomeWelcome extends StatelessWidget {
+  final String cityName;
+  final String temperature;
+
+  const HomeWelcome({
+    Key? key,
+    required this.cityName,
+    this.temperature = '35',
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10.0),
+      height: 32.0,
+      alignment: Alignment.center,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 12.0,
+            top: 0,
+            bottom: 0,
+            child: Row(
+              children: [
+                Icon(
+                  TravelIcons.cloud,
+                  size: 25.0,
+                  color: Colors.black87,
+                ),
+                const SizedBox(width: 2.0),
+                Text(
+                  '$temperature℃',
+                  style: const TextStyle(
+                    fontSize: 12.0,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Center(
+            child: Text(
+              '您好,欢迎来到$cityName',
+              style: const TextStyle(
+                fontSize: 16.0,
+                height: 1.0,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

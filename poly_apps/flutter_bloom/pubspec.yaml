@@ -87,6 +87,13 @@ flutter:
 
     - assets/apps/app_bank/images/
 
+    # Travel App assets
+    - assets/apps/app_travel/images/
+    - assets/apps/app_travel/images/nav/
+    - assets/apps/app_travel/images/upload/
+    - assets/apps/app_travel/fonts/
+    - assets/apps/app_travel/data/
+
   fonts:
     - family: Roboto
       fonts:
@@ -108,5 +115,8 @@ flutter:
           weight: 700
         - asset: assets/common/fonts/SourceHanSansCNLight.otf
           weight: 900
+    - family: iconfont
+      fonts:
+        - asset: assets/apps/app_travel/fonts/iconfont.ttf
 
 
