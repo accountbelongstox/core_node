@@ -24,8 +24,8 @@ Supported targets:
 - Factory AI Droid (Linux): ~/.factory/mcp.json
 
 Templates:
-- WSL: D:\programing\core_node\.prompt\mcpWSLTemplate.json
-- Linux: /www/wwwroot/core_node/.prompt/mcpLinuxTemplate.json (or detected project root)
+- WSL: D:\programing\core_node\_prompt\mcpWSLTemplate.json
+- Linux: /www/wwwroot/core_node/_prompt/mcpLinuxTemplate.json (or detected project root)
 
 The script automatically detects WSL vs native Linux and uses appropriate paths.
 """
@@ -62,7 +62,7 @@ def detect_environment() -> Tuple[str, str]:
     # Try to find project root (look for key directories)
     project_root = script_dir
     for _ in range(10):  # Search up to 10 levels
-        if (project_root / '.prompt').exists() or (project_root / 'ncore').exists():
+        if (project_root / '_prompt').exists() or (project_root / 'ncore').exists():
             break
         parent = project_root.parent
         if parent == project_root:
@@ -71,11 +71,11 @@ def detect_environment() -> Tuple[str, str]:
     
     if is_wsl:
         # WSL environment
-        wsl_template = project_root / '.prompt' / 'mcpWSLTemplate.json'
+        wsl_template = project_root / '_prompt' / 'mcpWSLTemplate.json'
         
         # Fallback to Windows path if needed
         if not wsl_template.exists():
-            wsl_template = Path('/mnt/d/programing/core_node/.prompt/mcpWSLTemplate.json')
+            wsl_template = Path('/mnt/d/programing/core_node/_prompt/mcpWSLTemplate.json')
         
         # Config base is Windows user directory via /mnt/c/Users/
         username = os.environ.get('USER', os.environ.get('USERNAME', ''))
@@ -84,13 +84,13 @@ def detect_environment() -> Tuple[str, str]:
         return str(wsl_template), str(config_base)
     else:
         # Native Linux environment
-        linux_template = project_root / '.prompt' / 'mcpLinuxTemplate.json'
+        linux_template = project_root / '_prompt' / 'mcpLinuxTemplate.json'
         
         # Fallback paths
         if not linux_template.exists():
-            linux_template = Path('/www/wwwroot/core_node/.prompt/mcpLinuxTemplate.json')
+            linux_template = Path('/www/wwwroot/core_node/_prompt/mcpLinuxTemplate.json')
         if not linux_template.exists():
-            linux_template = Path.home() / 'core_node' / '.prompt' / 'mcpLinuxTemplate.json'
+            linux_template = Path.home() / 'core_node' / '_prompt' / 'mcpLinuxTemplate.json'
         
         # Config base is user's home directory
         config_base = Path.home()

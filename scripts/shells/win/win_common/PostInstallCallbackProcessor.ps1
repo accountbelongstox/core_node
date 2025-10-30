@@ -1068,7 +1068,7 @@ function Invoke-McpProcessor {
             return Merge-McpServerConfiguration -SourceMcpPath $sourceMcpPath -TargetJsonPath $targetJsonPath -LogPrefix $LogPrefix
         }
         "gemini_integration" {
-            # Gemini MCP integration - convert .prompt\mcp.json to Gemini settings.json format
+            # Gemini MCP integration - convert _prompt\mcp.json to Gemini settings.json format
             $mcpConfigPath = $Global:MCP_CONFIG_PATH
 
             # Resolve relative path if needed

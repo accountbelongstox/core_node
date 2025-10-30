@@ -50,7 +50,7 @@ Usage:
 What it does:
 -------------
 1. Reads MCP server configurations from:
-   D:\programing\core_node\.prompt\mcpWindowsTemplate.json
+   D:\programing\core_node\_prompt\mcpWindowsTemplate.json
 
 2. Scans your user configuration:
    C:\Users\{YOUR_USERNAME}\.claude.json
@@ -88,7 +88,7 @@ Troubleshooting:
 If the script fails:
 1. Check Python is installed: python --version
 2. Check file permissions on C:\Users\{USERNAME}\.claude.json
-3. Verify template exists: D:\programing\core_node\.prompt\mcpWindowsTemplate.json
+3. Verify template exists: D:\programing\core_node\_prompt\mcpWindowsTemplate.json
 4. Check Python script output for detailed error messages
 
 Manual execution:

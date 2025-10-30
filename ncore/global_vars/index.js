@@ -11,6 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const encyclopedia = require('./gcommon/encyclopedia.js')
+const WS_RPC_CONSTANTS = require('./gcommon/ws_rpc_constants.js')
 
 
 const path = require('path');
@@ -118,5 +119,6 @@ module.exports = {
     isService,
     apps,
     startTime,
+    WS_RPC_CONSTANTS,
 
 };
