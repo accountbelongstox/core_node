@@ -135,6 +135,7 @@ create_super_launch_script() {
     local exec_name="$1"
     local super_command="$2"
     local super_scripts_dir="/usr/local/super_scripts"
+    local super_bin_dir="/usr/local/super_bin"
 
     if [ -z "$super_command" ] || [ "$super_command" = "true" ]; then
         super_command=$(generate_default_super_command "$exec_name")
@@ -144,13 +145,26 @@ create_super_launch_script() {
 
     local script_path="$super_scripts_dir/${exec_name}.sh"
 
+    # IMPORTANT: Replace command name with full path to avoid infinite loops
+    # The super command might be like "sudo wechat" or "which wechat && sudo wechat"
+    # We need to replace the exec_name with the full path to /usr/local/super_bin/exec_name
+    local super_bin_path="$super_bin_dir/$exec_name"
+
+    # Replace all occurrences of the exec_name (as a standalone word) with the full path
+    # This prevents infinite loops when /usr/local/bin/exec_name points to this script
+    local fixed_command="$super_command"
+
+    # Use word boundaries to replace only exact matches of exec_name
+    # Match patterns like: "sudo wechat", "which wechat &&", "wechat --args", etc.
+    fixed_command=$(echo "$fixed_command" | sed -E "s#(^|[[:space:]])${exec_name}([[:space:]]|\$)#\1${super_bin_path}\2#g")
+
     # Check if script already exists
     if [ -f "$script_path" ]; then
         # Read existing script content (skip shebang line)
         local existing_command=$(tail -n +2 "$script_path")
 
         # If command hasn't changed, don't update
-        if [ "$existing_command" = "$super_command" ]; then
+        if [ "$existing_command" = "$fixed_command" ]; then
             echo "$script_path"
             return 0
         fi
@@ -162,8 +176,8 @@ create_super_launch_script() {
 SUPER_COMMAND_PLACEHOLDER
 EOF
 
-    # Replace placeholder with actual command
-    sed -i "s|SUPER_COMMAND_PLACEHOLDER|$super_command|g" "/tmp/${exec_name}_super.sh"
+    # Replace placeholder with actual command (using fixed_command)
+    sed -i "s|SUPER_COMMAND_PLACEHOLDER|$fixed_command|g" "/tmp/${exec_name}_super.sh"
 
     # Move to super_scripts directory
     $USE_SUDO mv "/tmp/${exec_name}_super.sh" "$script_path"
@@ -246,6 +260,67 @@ setup_super_launch() {
     return 0
 }
 
+# Fix existing super launch scripts that may have infinite loop issues
+fix_all_super_launch_scripts() {
+    local log_func="${1:-echo}"
+    local super_scripts_dir="/usr/local/super_scripts"
+    local super_bin_dir="/usr/local/super_bin"
+    local fixed_count=0
+    local skipped_count=0
+
+    $log_func "Checking and fixing super launch scripts..."
+
+    if [ ! -d "$super_scripts_dir" ]; then
+        $log_func "No super_scripts directory found"
+        return 0
+    fi
+
+    for script_file in "$super_scripts_dir"/*.sh; do
+        [ -f "$script_file" ] || continue
+
+        local script_name=$(basename "$script_file" .sh)
+        local super_bin_path="$super_bin_dir/$script_name"
+
+        # Check if corresponding executable exists in super_bin
+        if [ ! -f "$super_bin_path" ]; then
+            $log_func "  ⚠ Skipping $script_name (no executable in super_bin)"
+            skipped_count=$((skipped_count + 1))
+            continue
+        fi
+
+        # Read script content (skip shebang)
+        local script_content=$(tail -n +2 "$script_file")
+
+        # Check if script contains the exec name without full path (potential infinite loop)
+        if echo "$script_content" | grep -qE "(^|[[:space:]])${script_name}([[:space:]]|\$)"; then
+            # Check if it's already using the full path
+            if ! echo "$script_content" | grep -q "$super_bin_path"; then
+                $log_func "  🔧 Fixing $script_name (infinite loop detected)"
+
+                # Replace exec_name with full path
+                local fixed_content=$(echo "$script_content" | sed -E "s#(^|[[:space:]])${script_name}([[:space:]]|\$)#\1${super_bin_path}\2#g")
+
+                # Write fixed script
+                $USE_SUDO tee "$script_file" > /dev/null << EOF
+#!/bin/bash
+$fixed_content
+EOF
+                $USE_SUDO chmod 755 "$script_file"
+
+                fixed_count=$((fixed_count + 1))
+                $log_func "    ✓ Fixed: $script_file"
+            else
+                $log_func "  ✓ $script_name (already fixed)"
+            fi
+        else
+            $log_func "  ✓ $script_name (no issues detected)"
+        fi
+    done
+
+    $log_func "Fix summary: $fixed_count fixed, $skipped_count skipped"
+    return 0
+}
+
 # Export functions for use by other scripts
 export -f ensure_super_directories
 export -f find_executable
@@ -255,3 +330,4 @@ export -f generate_default_super_command
 export -f create_super_launch_script
 export -f create_super_symlink
 export -f setup_super_launch
+export -f fix_all_super_launch_scripts

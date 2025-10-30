@@ -134,7 +134,49 @@ is_vscode_installed() {
 
 # Find VS Code .deb files
 find_vscode_deb() {
-    find "$HOME/Downloads" -name "*code*.deb" -type f 2>/dev/null | head -1
+    # Use the function from simple_download_manager if available
+    if type find_vscode_file &>/dev/null; then
+        find_vscode_file
+        return $?
+    fi
+
+    # Fallback: search in multiple locations
+    local search_dirs=()
+
+    # Add global shared download directory first (highest priority)
+    if [ -n "$CORE_NODE_SHARED_DOWNLOADS" ] && [ -d "$CORE_NODE_SHARED_DOWNLOADS" ]; then
+        search_dirs+=("$CORE_NODE_SHARED_DOWNLOADS")
+    fi
+
+    # Add current user's Downloads
+    if [ -d "$HOME/Downloads" ]; then
+        search_dirs+=("$HOME/Downloads")
+    fi
+
+    # Add all other users' Downloads directories
+    if [ -d "/home" ]; then
+        for user_home in /home/*; do
+            if [ -d "$user_home/Downloads" ]; then
+                search_dirs+=("$user_home/Downloads")
+            fi
+        done
+    fi
+
+    # Add root's Downloads
+    if [ -d "/root/Downloads" ]; then
+        search_dirs+=("/root/Downloads")
+    fi
+
+    # Search in all directories
+    for dir in "${search_dirs[@]}"; do
+        local found_file=$(find "$dir" -name "*code*.deb" -type f 2>/dev/null | head -1)
+        if [ -n "$found_file" ]; then
+            echo "$found_file"
+            return 0
+        fi
+    done
+
+    return 1
 }
 
 # Simple automated download - downloads both VSCode and Cursor
@@ -155,18 +197,78 @@ vscode_automated_download() {
     return 1
 }
 
+# Safe process kill function
+safe_kill_processes() {
+    local process_name="$1"
+    local use_sudo="${2:-false}"
+
+    local pids=$(pgrep -f "$process_name" 2>/dev/null)
+
+    if [[ -z "$pids" ]]; then
+        print_info_from_common_functions "No $process_name processes found"
+        return 0
+    fi
+
+    print_info_from_common_functions "Found $process_name processes: $pids"
+
+    # Try graceful termination first (SIGTERM)
+    for pid in $pids; do
+        if [[ "$use_sudo" == "true" ]]; then
+            $USE_SUDO kill -15 "$pid" 2>/dev/null || true
+        else
+            kill -15 "$pid" 2>/dev/null || true
+        fi
+    done
+
+    # Wait up to 5 seconds for processes to terminate
+    local waited=0
+    while [[ $waited -lt 5 ]]; do
+        pids=$(pgrep -f "$process_name" 2>/dev/null)
+        if [[ -z "$pids" ]]; then
+            print_success_from_common_functions "$process_name processes terminated gracefully"
+            return 0
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    # Force kill if still running (SIGKILL)
+    pids=$(pgrep -f "$process_name" 2>/dev/null)
+    if [[ -n "$pids" ]]; then
+        print_warning_from_common_functions "Force killing remaining $process_name processes: $pids"
+        for pid in $pids; do
+            if [[ "$use_sudo" == "true" ]]; then
+                $USE_SUDO kill -9 "$pid" 2>/dev/null || true
+            else
+                kill -9 "$pid" 2>/dev/null || true
+            fi
+        done
+        sleep 1
+    fi
+
+    # Verify all processes are gone
+    pids=$(pgrep -f "$process_name" 2>/dev/null)
+    if [[ -z "$pids" ]]; then
+        print_success_from_common_functions "All $process_name processes terminated"
+        return 0
+    else
+        print_error_from_common_functions "Failed to terminate some $process_name processes: $pids"
+        return 1
+    fi
+}
+
 # Manual download fallback
 vscode_manual_download() {
     print_step_from_common_functions "Falling back to manual download..."
-    
+
     # Open VSCode download page
     if command -v xdg-open >/dev/null 2>&1; then
         xdg-open "https://code.visualstudio.com/" >/dev/null 2>&1 &
     fi
-    
+
     print_info_from_common_functions "Please download VSCode .deb file to Downloads directory"
     print_info_from_common_functions "Waiting for download to complete..."
-    
+
     # Wait for file to appear
     local downloaded_file=$(find_vscode_deb)
     if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then

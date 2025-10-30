@@ -73,16 +73,26 @@ log_warning() {
 
 # Check if Android Studio is already installed
 check_android_studio_installed() {
+    # Check if installed via snap
+    if command -v snap >/dev/null 2>&1; then
+        if snap list 2>/dev/null | grep -q "^android-studio"; then
+            log_message "Android Studio is already installed via snap"
+            return 0
+        fi
+    fi
+
+    # Check if command is available in PATH
     if command -v android-studio >/dev/null 2>&1; then
         log_message "Android Studio is already installed and available in PATH"
         return 0
     fi
-    
+
+    # Check manual installation directory
     if [ -f "$ANDROID_STUDIO_INSTALL_DIR/bin/studio.sh" ]; then
         log_message "Android Studio is already installed in $ANDROID_STUDIO_INSTALL_DIR"
         return 0
     fi
-    
+
     return 1
 }
 
@@ -224,10 +234,15 @@ install_dependencies() {
 
     local i386_dependencies=(
         "libc6:i386"
-        "libncurses5:i386"
         "libstdc++6:i386"
         "lib32z1"
         "libbz2-1.0:i386"
+    )
+
+    # ncurses dependency with fallback (try libncurses6 first, then libncurses5)
+    local ncurses_i386_packages=(
+        "libncurses6:i386"
+        "libncurses5:i386"
     )
 
     for dep in "${base_dependencies[@]}"; do
@@ -238,6 +253,23 @@ install_dependencies() {
     done
 
     if dpkg --print-foreign-architectures | grep -q "i386"; then
+        # Try to install ncurses with fallback
+        local ncurses_installed=false
+        for ncurses_pkg in "${ncurses_i386_packages[@]}"; do
+            log_message "Trying to install: $ncurses_pkg"
+            if $USE_SUDO apt install -y "$ncurses_pkg" 2>/dev/null; then
+                log_message "Successfully installed $ncurses_pkg"
+                ncurses_installed=true
+                break
+            fi
+        done
+
+        if [ "$ncurses_installed" = false ]; then
+            log_warning "Could not install any ncurses i386 package (libncurses6:i386 or libncurses5:i386)"
+            log_warning "Android Studio may still work without it, or you can install it manually later"
+        fi
+
+        # Install other i386 dependencies
         for dep in "${i386_dependencies[@]}"; do
             log_message "Installing dependency: $dep"
             if ! $USE_SUDO apt install -y "$dep"; then
@@ -283,18 +315,42 @@ install_android_studio() {
 # Verify installation
 verify_installation() {
     log_message "Verifying Android Studio installation..."
-    
+
+    # Check if installed via snap
+    if command -v snap >/dev/null 2>&1; then
+        if snap list 2>/dev/null | grep -q "^android-studio"; then
+            log_success "Android Studio installed via snap (verified)"
+
+            # Ensure snap bin is in PATH
+            if [ -d "/snap/bin" ]; then
+                export PATH="/snap/bin:$PATH"
+                log_message "Added /snap/bin to PATH"
+            fi
+
+            # Create symlink for easier access
+            if [ -f "/snap/bin/android-studio" ]; then
+                $USE_SUDO ln -sf "/snap/bin/android-studio" "/usr/local/bin/android-studio" 2>/dev/null || true
+                log_message "Created symlink: /usr/local/bin/android-studio"
+            fi
+
+            return 0
+        fi
+    fi
+
+    # Check if command is available
     if command -v android-studio >/dev/null 2>&1; then
         log_success "Android Studio command is available in PATH"
         return 0
     fi
-    
+
+    # Check manual installation
     if [ -f "$ANDROID_STUDIO_INSTALL_DIR/bin/studio.sh" ]; then
-        log_success "Android Studio installation verified"
+        log_success "Android Studio installation verified (manual installation)"
         return 0
     fi
-    
+
     log_error "Android Studio installation verification failed"
+    log_error "Please check if snap installation succeeded with: snap list | grep android-studio"
     return 1
 }
 

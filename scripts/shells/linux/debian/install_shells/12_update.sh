@@ -45,8 +45,9 @@ command_exists() {
 initialize_core_node_directories() {
     echo "Initializing core_node shared directories..."
 
-    local CORE_NODE_BASE="/var/_core_node"
-    local SHARED_DOWNLOADS="$CORE_NODE_BASE/shared_downloads"
+    # Use global variables from gvar_common.sh
+    local CORE_NODE_BASE="${CORE_NODE_DATA_DIR}"
+    local SHARED_DOWNLOADS="${CORE_NODE_SHARED_DOWNLOADS}"
 
     if $USE_SUDO mkdir -p "$CORE_NODE_BASE" 2>/dev/null; then
         $USE_SUDO chmod 777 "$CORE_NODE_BASE" 2>/dev/null || true

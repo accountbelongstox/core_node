@@ -30,28 +30,37 @@ fi
 
 # Shared download directory
 get_shared_download_dir() {
-    if [ "$(uname)" = "Linux" ]; then
+    # Use global definition from gvar_common.sh if available
+    if [ -n "$CORE_NODE_SHARED_DOWNLOADS" ]; then
+        local shared_dir="$CORE_NODE_SHARED_DOWNLOADS"
+    elif [ "$(uname)" = "Linux" ]; then
         local shared_dir="${CORE_NODE_DATA_DIR}/shared_downloads"
-
-        if [ -d "$shared_dir" ] && [ -w "$shared_dir" ]; then
-            echo "$shared_dir"
-            return 0
-        fi
-
-        if [ ! -d "$shared_dir" ]; then
-            if sudo mkdir -p "$shared_dir" 2>/dev/null; then
-                sudo chmod 777 "$shared_dir" 2>/dev/null || true
-                if [ -w "$shared_dir" ]; then
-                    echo "$shared_dir"
-                    return 0
-                fi
-            fi
-        fi
     elif [ "$(uname)" = "MINGW"* ] || [ "$(uname)" = "CYGWIN"* ] || [ "$(uname)" = "MSYS"* ]; then
         local public_downloads="C:\\Users\\Public\\Downloads"
         if [ -d "$public_downloads" ]; then
             echo "$public_downloads"
             return 0
+        fi
+        echo "$HOME/Downloads"
+        return 0
+    else
+        echo "$HOME/Downloads"
+        return 0
+    fi
+
+    # Ensure the directory exists
+    if [ -d "$shared_dir" ] && [ -w "$shared_dir" ]; then
+        echo "$shared_dir"
+        return 0
+    fi
+
+    if [ ! -d "$shared_dir" ]; then
+        if sudo mkdir -p "$shared_dir" 2>/dev/null; then
+            sudo chmod 777 "$shared_dir" 2>/dev/null || true
+            if [ -w "$shared_dir" ]; then
+                echo "$shared_dir"
+                return 0
+            fi
         fi
     fi
 
