@@ -21,12 +21,37 @@ CONFIG_VERSION="1.0.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_NODE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
+# Shared download directory
+get_shared_download_dir() {
+    if [ "$(uname)" = "Linux" ]; then
+        local shared_dir="/usr/_core_node/shared_downloads"
+        if [ ! -d "$shared_dir" ]; then
+            sudo mkdir -p "$shared_dir" 2>/dev/null || mkdir -p "$shared_dir" 2>/dev/null || true
+            sudo chmod 777 "$shared_dir" 2>/dev/null || chmod 777 "$shared_dir" 2>/dev/null || true
+        fi
+        if [ -d "$shared_dir" ] && [ -w "$shared_dir" ]; then
+            echo "$shared_dir"
+            return 0
+        fi
+    elif [ "$(uname)" = "MINGW"* ] || [ "$(uname)" = "CYGWIN"* ] || [ "$(uname)" = "MSYS"* ]; then
+        local public_downloads="C:\\Users\\Public\\Downloads"
+        if [ -d "$public_downloads" ]; then
+            echo "$public_downloads"
+            return 0
+        fi
+    fi
+
+    echo "$HOME/Downloads"
+}
+
+SHARED_DOWNLOAD_DIR=$(get_shared_download_dir)
+
 # VSCode configuration
 VSCODE_NAME="Visual Studio Code"
 VSCODE_PATTERN="*code*.deb"
 VSCODE_URL="https://code.visualstudio.com/"
 
-# Cursor configuration  
+# Cursor configuration
 CURSOR_NAME="Cursor IDE"
 CURSOR_PATTERN="cursor*.deb"
 CURSOR_URL="https://cursor.sh/"
@@ -50,5 +75,5 @@ log_error() {
 # Export variables
 export VSCODE_NAME VSCODE_PATTERN VSCODE_URL
 export CURSOR_NAME CURSOR_PATTERN CURSOR_URL
-export CORE_NODE_DIR DOWNLOAD_TIMEOUT
-export -f log_info log_success log_error
+export CORE_NODE_DIR DOWNLOAD_TIMEOUT SHARED_DOWNLOAD_DIR
+export -f log_info log_success log_error get_shared_download_dir

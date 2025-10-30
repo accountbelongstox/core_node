@@ -22,6 +22,7 @@ const sysargtool = require('./sysargtool.js');
 const platformtool = require('./platformtool.js');
 const filetool = require('./filetool.js');
 const inspect = require('./inspect.js');
+const pathtool = require('./pathtool.js');
 const {
     dcopy,
     fcopy,
@@ -65,4 +66,5 @@ module.exports = {
     fwriter,
     datetool,
     inspect,
+    pathtool,
 };
