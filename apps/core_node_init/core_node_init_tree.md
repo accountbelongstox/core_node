@@ -15,6 +15,8 @@ core_node_init/
 ├── template/
 │   └── static/
 ├── core_node_init_tree.md
+├── demo.js
+├── error.txt
 └── main.js
 ```
 

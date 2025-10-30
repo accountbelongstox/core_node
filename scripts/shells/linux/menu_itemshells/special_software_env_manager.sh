@@ -15,10 +15,21 @@
 # This script provides a menu interface for setting environment variables for special software like AI tools.
 
 # Variable Declarations
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LINUX_COMMON_DIR="$(dirname "$SCRIPT_DIR")/common"
+# Use LOCAL prefix to avoid collision with dd.sh variables
+LOCAL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LINUX_COMMON_DIR="$(dirname "$LOCAL_SCRIPT_DIR")/common"
+SECRET_MANAGER_DIR="$(dirname "$(dirname "$LOCAL_SCRIPT_DIR")")/secret_manager"
 LINUX_ENVS_DIR="/usr/local/bin"
 GLOBAL_SCRIPTS_DIR="$COMPILE_DIR/env_scripts"
+
+# Inherit USE_SUDO from parent shell if available
+if [ -z "$USE_SUDO" ]; then
+    if [ "$EUID" -ne 0 ]; then
+        USE_SUDO="sudo"
+    else
+        USE_SUDO=""
+    fi
+fi
 
 # Source common functions if available
 if [ -f "$LINUX_COMMON_DIR/common_functions.sh" ]; then
@@ -28,6 +39,134 @@ fi
 if [ -f "$LINUX_COMMON_DIR/gvar_common.sh" ]; then
     source "$LINUX_COMMON_DIR/gvar_common.sh"
 fi
+
+if [ -f "$SECRET_MANAGER_DIR/secret_manager.sh" ]; then
+    source "$SECRET_MANAGER_DIR/secret_manager.sh"
+fi
+
+# Secret Cache Functions
+cache_secret_to_manager() {
+    local secret_name="$1"
+    local secret_value="$2"
+    local core_node_dir
+    local raw_cache_dir
+
+    core_node_dir=$(get_core_node_dir)
+    raw_cache_dir="$core_node_dir/.secret_keys/.secret_ignore"
+
+    if [ ! -d "$raw_cache_dir" ]; then
+        mkdir -p "$raw_cache_dir" 2>/dev/null || {
+            print_color yellow "[CACHE] Warning: Could not create secret cache directory"
+            return 1
+        }
+    fi
+
+    echo "$secret_value" | tr -d '\0' > "$raw_cache_dir/$secret_name" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        print_color green "[CACHE] Secret cached: $secret_name"
+        return 0
+    else
+        print_color yellow "[CACHE] Warning: Could not cache secret: $secret_name"
+        return 1
+    fi
+}
+
+encrypt_all_cached_secrets() {
+    local core_node_dir
+    local raw_cache_dir
+
+    core_node_dir=$(get_core_node_dir)
+    raw_cache_dir="$core_node_dir/.secret_keys/.secret_ignore"
+
+    if [ ! -d "$raw_cache_dir" ]; then
+        print_color yellow "[ENCRYPT] No cached secrets found to encrypt"
+        return 1
+    fi
+
+    local file_count=$(find "$raw_cache_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
+
+    if [ "$file_count" -eq 0 ]; then
+        print_color yellow "[ENCRYPT] No cached secrets found to encrypt"
+        return 1
+    fi
+
+    print_color green "[ENCRYPT] Found $file_count cached secrets"
+    print_color green "[ENCRYPT] Encrypting all cached secrets..."
+
+    if command -v secret_encrypt_all >/dev/null 2>&1; then
+        if secret_encrypt_all "$raw_cache_dir"; then
+            print_color green "[ENCRYPT] All secrets encrypted successfully"
+            return 0
+        else
+            print_color red "[ENCRYPT] Encryption failed or incomplete"
+            return 1
+        fi
+    else
+        print_color red "[ENCRYPT] Error: secret_manager.sh not loaded"
+        return 1
+    fi
+}
+
+decrypt_all_cached_secrets() {
+    local core_node_dir
+    local raw_cache_dir
+
+    core_node_dir=$(get_core_node_dir)
+    raw_cache_dir="$core_node_dir/.secret_keys/.secret_ignore"
+
+    print_color green "[DECRYPT] Decrypting all cached secrets..."
+
+    if command -v secret_decrypt_all >/dev/null 2>&1; then
+        if secret_decrypt_all "$raw_cache_dir"; then
+            print_color green "[DECRYPT] All secrets decrypted successfully"
+            return 0
+        else
+            print_color red "[DECRYPT] Decryption failed or incomplete"
+            return 1
+        fi
+    else
+        print_color red "[DECRYPT] Error: secret_manager.sh not loaded"
+        return 1
+    fi
+}
+
+get_cached_secret() {
+    local secret_name="$1"
+    local core_node_dir
+    local raw_cache_dir
+    local secret_file
+
+    core_node_dir=$(get_core_node_dir)
+    raw_cache_dir="$core_node_dir/.secret_keys/.secret_ignore"
+    secret_file="$raw_cache_dir/$secret_name"
+
+    if [ -f "$secret_file" ]; then
+        cat "$secret_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d'
+        return 0
+    fi
+
+    if command -v secret_get_key >/dev/null 2>&1; then
+        secret_get_key "$secret_name" 2>/dev/null
+        return $?
+    fi
+
+    return 1
+}
+
+list_cached_secrets() {
+    local core_node_dir
+    local raw_cache_dir
+
+    core_node_dir=$(get_core_node_dir)
+    raw_cache_dir="$core_node_dir/.secret_keys/.secret_ignore"
+
+    if [ ! -d "$raw_cache_dir" ]; then
+        return 1
+    fi
+
+    find "$raw_cache_dir" -maxdepth 1 -type f -exec basename {} \; 2>/dev/null | sort
+}
 
 # Smart Recognition Helper Functions
 test_string_has_whitespace_in_middle() {
@@ -126,43 +265,35 @@ get_smart_input_for_variable() {
     local is_first_variable="$5"
     local input_type="$6"
     local default_value="$7"
-    
-    # Build prompt
-    local prompt=""
+
+    # Ensure terminal is in proper state for input
+    stty sane 2>/dev/null || true
+
+    # Build and display prompt (send UI text to stderr so stdout only returns the value)
+    echo "" >&2
     if [ "$has_current_value" = "true" ]; then
-        prompt="Please enter $var_display (or press Enter to keep current value):"
+        echo "Please enter $var_display (or press Enter to keep current value):" >&2
     else
-        prompt="Please enter $var_display (or press Enter to skip):"
+        echo "Please enter $var_display (or press Enter to skip):" >&2
     fi
-    
+
     if [ -n "$var_description" ]; then
-        prompt="$prompt\nDescription: $var_description"
+        echo "Description: $var_description" >&2
     fi
-    
-    # Add default value information if available
+
     if [ -n "$default_value" ]; then
-        prompt="$prompt\nDefault value: $default_value"
+        echo "Default value: $default_value" >&2
     fi
-    
-    # Add smart recognition hint if enabled and this is the first variable
+
     if [ "$SMART_RECOGNITION_ENABLED" = "true" ] && [ "$is_first_variable" = "true" ]; then
-        prompt="$prompt\nNote: Multi-line input is supported and will be intelligently parsed."
-        prompt="$prompt\nIf input contains spaces or line breaks, smart extraction will be applied."
-        prompt="$prompt\nSubsequent variables may be auto-filled if both URL and Token are detected."
+        echo "Note: You can paste URL and Token together (separated by space)." >&2
     fi
-    
-    echo -e "$prompt"
-    
-    # Get user input (support multi-line)
+
+    echo -n "> " >&2
+
+    # Get user input - simple single line read
     local user_input=""
-    local line
-    while IFS= read -r line; do
-        if [ -z "$user_input" ]; then
-            user_input="$line"
-        else
-            user_input="$user_input\n$line"
-        fi
-    done
+    read -r user_input
     
     # Check if input is empty
     if [ -z "$user_input" ]; then
@@ -178,37 +309,37 @@ get_smart_input_for_variable() {
     if [ "$SMART_RECOGNITION_ENABLED" = "true" ] && [ "$is_first_variable" = "true" ]; then
         # Check if input has whitespace/newlines in the middle
         if test_string_has_whitespace_in_middle "$user_input"; then
-            echo "Multi-line input detected. Applying smart recognition..."
+            echo "Multi-line input detected. Applying smart recognition..." >&2
             
-            # Extract API URLs and tokens
-            extract_api_url_and_token "$user_input"
+            # Extract API URLs and tokens (send diagnostics to stderr so they don't pollute captured values)
+            extract_api_url_and_token "$user_input" >&2
             
-            echo ""
-            echo "Press Enter to continue with smart extraction, or any other key to return to manual input:"
+            echo "" >&2
+            echo "Press Enter to continue with smart extraction, or any other key to return to manual input:" >&2
             read -n 1 confirm_key
             
             if [ "$confirm_key" != "" ]; then
                 # User pressed a key other than Enter, return to manual input
-                echo "Returning to manual input..."
+                echo "Returning to manual input..." >&2
                 echo "$user_input"
                 return 0
             fi
             
             # Continue with smart extraction
-            echo "Continuing with smart extraction..."
+            echo "Continuing with smart extraction..." >&2
             
             # Determine the value for current variable based on InputType
             local final_value=""
             if [ "$input_type" = "Url" ] && [ ${#EXTRACTED_API_URLS[@]} -gt 0 ]; then
                 final_value="${EXTRACTED_API_URLS[0]}"
-                echo "Using first API URL: $final_value"
+                echo "Using first API URL: $final_value" >&2
             elif [ "$input_type" = "Token" ] && [ ${#EXTRACTED_TOKENS[@]} -gt 0 ]; then
                 final_value="${EXTRACTED_TOKENS[0]}"
-                echo "Using first Token: $final_value"
+                echo "Using first Token: $final_value" >&2
             else
                 # Fallback to original input
                 final_value="$user_input"
-                echo "Using original input (no matching type found)"
+                echo "Using original input (no matching type found)" >&2
             fi
             
             echo "$final_value"
@@ -535,6 +666,7 @@ set_env_variable() {
     local var_name="$1"
     local var_value="$2"
     local delete_flag="$3"
+    local is_secret="$4"
 
     if [ "$delete_flag" = "delete" ]; then
         # Remove from global vars
@@ -569,6 +701,11 @@ set_env_variable() {
         if [[ $status -eq 0 ]]; then
             # Persist in current shell session as well
             export "$var_name=$var_value"
+
+            # Cache secrets to secret manager
+            if [ "$is_secret" = "true" ] && [ -n "$var_value" ]; then
+                cache_secret_to_manager "$var_name" "$var_value" 2>/dev/null
+            fi
         fi
 
         return $status
@@ -596,8 +733,8 @@ get_env_variable() {
 # Script Generation Functions
 get_existing_scripts() {
     local config_name="$1"
-    local list_script_name=$(get_list_script_name "$config_name")
-    if [ -z "$list_script_name" ]; then
+    local command_prefix=$(get_command_prefix "$config_name")
+    if [ -z "$command_prefix" ]; then
         return
     fi
 
@@ -605,8 +742,11 @@ get_existing_scripts() {
         return
     fi
 
-    local pattern="${list_script_name}*"
-    find "$LINUX_ENVS_DIR" -name "$pattern" -type f 2>/dev/null | sort
+    # Find all files starting with the command prefix, exclude the list script itself
+    local list_script_name="${command_prefix}list"
+    find "$LINUX_ENVS_DIR" -maxdepth 1 -type f -name "${command_prefix}*" 2>/dev/null \
+        | grep -v "/${list_script_name}$" \
+        | sort
 }
 
 generate_global_command() {
@@ -791,21 +931,13 @@ set_environment_variables() {
     print_color green "$description"
     print_color green "$(printf '='%.0s $(seq 1 ${#title}))"
 
-    # Check admin privileges
-    if ! test_admin_privileges; then
-        print_color red "This operation requires root privileges."
-        print_color yellow "Please run dd.sh as root or with sudo to manage system environment variables."
-        print_color green "Press any key to continue..."
-        read -n 1
-    fi
-    
     # Get current values
     declare -A current_values
     print_color green "Current environment variable status:"
     for var_name in "${var_names[@]}"; do
         local current_value=$(get_env_variable "$var_name")
         current_values["$var_name"]="$current_value"
-        
+
         local is_secret=0
         for secret_var in "${secret_vars[@]}"; do
             if [[ "$var_name" == "$secret_var" ]]; then
@@ -824,6 +956,7 @@ set_environment_variables() {
             print_color yellow "$var_name: [Not set - Will be configured]"
         fi
     done
+    echo ""
     
     print_color green "Now you will be prompted to enter values for each environment variable."
     print_color green "If a variable is already set, you can press Enter to keep the current value or skip setting."
@@ -1012,16 +1145,17 @@ set_environment_variables() {
                         print_color green "Deleted $var_name"
                     fi
                 else
-                    if set_env_variable "$var_name" "${new_values[$var_name]}"; then
+                    local is_secret_flag="false"
+                    for secret_var in "${secret_vars[@]}"; do
+                        if [[ "$var_name" == "$secret_var" ]]; then
+                            is_secret_flag="true"
+                            break
+                        fi
+                    done
+
+                    if set_env_variable "$var_name" "${new_values[$var_name]}" "" "$is_secret_flag"; then
                         success_count=$((success_count + 1))
-                        local is_secret=0
-                        for secret_var in "${secret_vars[@]}"; do
-                            if [[ "$var_name" == "$secret_var" ]]; then
-                                is_secret=1
-                                break
-                            fi
-                        done
-                        if [[ "$is_secret" -eq 1 ]]; then
+                        if [[ "$is_secret_flag" == "true" ]]; then
                             print_color green "Set $var_name: [HIDDEN]"
                         else
                             print_color green "Set $var_name: ${new_values[$var_name]}"
@@ -1092,6 +1226,23 @@ set_environment_variables() {
 
         print_color green "Environment variables have been saved and verified."
         print_color yellow "Note: You may need to restart your terminal or applications to use the new environment variables."
+
+        # Ask if user wants to encrypt cached secrets
+        echo ""
+        print_color green "Secrets have been cached for backup and restoration purposes."
+        read -p "Do you want to encrypt the cached secrets now? (Y/N): " encrypt_choice
+
+        if [[ "$encrypt_choice" == "Y" || "$encrypt_choice" == "y" ]]; then
+            echo ""
+            if encrypt_all_cached_secrets; then
+                print_color green "All secrets encrypted successfully!"
+                print_color green "Your secrets are now securely stored."
+            else
+                print_color yellow "Encryption skipped or failed. Secrets remain in plain text cache."
+            fi
+        else
+            print_color yellow "Secrets cached in plain text. Use 'Encrypt Cached Secrets' menu to encrypt later."
+        fi
     else
         print_color red "Some environment variables could not be set."
         print_color yellow "Please check permissions or retry setting the values."
@@ -1104,6 +1255,17 @@ set_environment_variables() {
 generate_global_command() {
     local config_name="$1"
     local target_command_path="$2"
+
+    # Reset terminal state to ensure proper input handling
+    stty sane 2>/dev/null || true
+
+    # Verify global variables are properly set from show_existing_files_menu
+    if [[ -z "$IS_REPLACING_FILE" ]]; then
+        # Initialize if not set (shouldn't happen in normal flow)
+        IS_REPLACING_FILE=false
+        TARGET_FILE_PATH=""
+        print_color yellow "[WARNING] Global variables not set, initializing to defaults"
+    fi
 
     if [[ -z "${ENVIRONMENT_CONFIGS[$config_name]}" ]]; then
         print_color red "Configuration '$config_name' not found."
@@ -1135,6 +1297,12 @@ generate_global_command() {
     print_color green "Generate $title Global Command"
     print_color green "$description"
     print_color green "$(printf '='%.0s $(seq 1 ${#title}))"
+
+    # Debug: Show global variable state
+    print_color yellow "[DEBUG] Global variables at start of generate_global_command:"
+    print_color yellow "[DEBUG] IS_REPLACING_FILE = $IS_REPLACING_FILE"
+    print_color yellow "[DEBUG] TARGET_FILE_PATH = $TARGET_FILE_PATH"
+    print_color yellow "[DEBUG] CURRENT_COMMAND_PREFIX = $CURRENT_COMMAND_PREFIX"
 
     # Display operation type
     if [[ "$IS_REPLACING_FILE" == "true" ]]; then
@@ -1200,9 +1368,20 @@ generate_global_command() {
         if [ -n "$default_var_name" ]; then
             default_value=$(get_default_value_for_variable "$var_name" "$default_var_name")
         fi
-        
+
+        # Debug: Show variable input request
+        print_color yellow "[DEBUG] Requesting input for variable: $var_name"
+        print_color yellow "[DEBUG] Input type: $input_type, Is first: $is_first_variable"
+
         # Use smart input processing
         local user_input=$(get_smart_input_for_variable "$var_name" "$var_display" "$var_description" "false" "$is_first_variable" "$input_type" "$default_value")
+
+        # Debug: Show received input
+        if [ -n "$user_input" ]; then
+            print_color yellow "[DEBUG] Received input for $var_name: [VALUE PROVIDED]"
+        else
+            print_color yellow "[DEBUG] No input received for $var_name"
+        fi
         
         # Check for default value if user input is empty
         if [ -z "$user_input" ]; then
@@ -1248,8 +1427,6 @@ generate_global_command() {
     if [[ ! -d "$LINUX_ENVS_DIR" ]]; then
         if [ -n "$USE_SUDO" ]; then
             $USE_SUDO mkdir -p "$LINUX_ENVS_DIR"
-        elif [ -n "$sudo" ]; then
-            $sudo mkdir -p "$LINUX_ENVS_DIR"
         else
             mkdir -p "$LINUX_ENVS_DIR"
         fi
@@ -1316,6 +1493,14 @@ echo \"Executing: $common\"
 echo \"\"
 echo \"Command: $env_exports_string; $common\"
 echo \"\"
+    # Ensure target command exists before execution
+if ! command -v "$common" >/dev/null 2>&1; then
+    echo "Error: command '$common' not found in PATH." 1>&2
+    echo "Please install it or update the configuration 'common' value." 1>&2
+    echo ""; echo "Press any key to continue..."; read -n 1
+    exit 127
+fi
+
 echo \"Press any key to continue...\"
 read -n 1
 $env_exports_string; $common
@@ -1343,9 +1528,6 @@ read -n 1"
     if [ -n "$USE_SUDO" ]; then
         echo "$CURRENT_SCRIPT_CONTENT" | $USE_SUDO tee "$target_command_path" >/dev/null
         $USE_SUDO chmod +x "$target_command_path"
-    elif [ -n "$sudo" ]; then
-        echo "$CURRENT_SCRIPT_CONTENT" | $sudo tee "$target_command_path" >/dev/null
-        $sudo chmod +x "$target_command_path"
     else
         echo "$CURRENT_SCRIPT_CONTENT" > "$target_command_path"
         chmod +x "$target_command_path"
@@ -1363,6 +1545,38 @@ read -n 1"
 
     # Generate or update list script
     generate_list_script "$CURRENT_CONFIG_NAME"
+
+    # Cache secrets from generated script
+    echo ""
+    print_color green "Caching secrets from generated script..."
+    local vars_str=$(get_config_value "$CURRENT_CONFIG_NAME" "vars")
+    local secrets_str=$(get_config_value "$CURRENT_CONFIG_NAME" "secrets")
+    local -a var_names=($(echo "$vars_str" | tr ',' ' '))
+    local -a secret_vars=($(echo "$secrets_str" | tr ',' ' '))
+
+    for var_name in "${var_names[@]}"; do
+        for secret_var in "${secret_vars[@]}"; do
+            if [[ "$var_name" == "$secret_var" ]]; then
+                if [ -n "${USER_INPUT_VALUES[$var_name]}" ]; then
+                    cache_secret_to_manager "$var_name" "${USER_INPUT_VALUES[$var_name]}" 2>/dev/null
+                fi
+                break
+            fi
+        done
+    done
+
+    # Ask if user wants to encrypt cached secrets
+    echo ""
+    read -p "Do you want to encrypt the cached secrets now? (Y/N): " encrypt_choice
+
+    if [[ "$encrypt_choice" == "Y" || "$encrypt_choice" == "y" ]]; then
+        echo ""
+        if encrypt_all_cached_secrets; then
+            print_color green "All secrets encrypted successfully!"
+        else
+            print_color yellow "Encryption skipped or failed."
+        fi
+    fi
 
     return 0
 }
@@ -1532,9 +1746,6 @@ read -n 1"
     if [ -n "$USE_SUDO" ]; then
         echo "$list_script_content" | $USE_SUDO tee "$list_script_path" >/dev/null
         $USE_SUDO chmod +x "$list_script_path"
-    elif [ -n "$sudo" ]; then
-        echo "$list_script_content" | $sudo tee "$list_script_path" >/dev/null
-        $sudo chmod +x "$list_script_path"
     else
         echo "$list_script_content" > "$list_script_path"
         chmod +x "$list_script_path"
@@ -1658,6 +1869,10 @@ show_existing_files_menu() {
                 print_color green "Press any key to continue..."
                 read -n 1
 
+                # Reset terminal state before returning
+                stty sane 2>/dev/null || true
+                echo ""
+
                 return
                 ;;
         esac
@@ -1745,6 +1960,238 @@ show_list_scripts() {
 
     local list_script_name="${command_prefix}list"
     print_color green "\nList script: $list_script_name"
+    print_color green "Press any key to continue..."
+    read -n 1
+}
+
+# Restore Configurations from Secret Cache
+restore_configs_from_cache() {
+    clear
+    print_color green "Restore Configurations from Secret Cache"
+    print_color green "========================================="
+    print_color green "This feature will restore environment configurations from cached secrets."
+    print_color green "It will regenerate scripts (like claude1, claude2, etc.) using cached keys."
+    echo ""
+
+    # Decrypt all cached secrets first
+    if ! decrypt_all_cached_secrets; then
+        print_color red "Failed to decrypt cached secrets. Cannot proceed with restoration."
+        print_color green "Press any key to continue..."
+        read -n 1
+        return 1
+    fi
+
+    echo ""
+    print_color green "Available cached secrets:"
+    local cached_secrets=$(list_cached_secrets)
+
+    if [ -z "$cached_secrets" ]; then
+        print_color yellow "No cached secrets found. Nothing to restore."
+        print_color green "Press any key to continue..."
+        read -n 1
+        return 1
+    fi
+
+    echo "$cached_secrets" | while read -r secret_name; do
+        print_color green "  - $secret_name"
+    done
+
+    echo ""
+    print_color green "Select configuration to restore:"
+
+    # Build a sorted list of available configurations from ENVIRONMENT_CONFIGS
+    local -a config_names=()
+    while IFS= read -r name; do
+        if [[ -n "$name" ]]; then
+            config_names+=("$name")
+        fi
+    done < <(printf '%s\n' "${!ENVIRONMENT_CONFIGS[@]}" | sort)
+
+    # Render menu items dynamically
+    local idx=1
+    for name in "${config_names[@]}"; do
+        print_color green "${idx}. ${name}"
+        idx=$((idx + 1))
+    done
+
+    local restore_all_index=$idx
+    local cancel_index=$((idx + 1))
+    print_color green "${restore_all_index}. Restore All"
+    print_color green "${cancel_index}. Cancel"
+    echo ""
+
+    read -p "Enter choice (1-${cancel_index}): " restore_choice
+
+    # Validate numeric input
+    if ! [[ "$restore_choice" =~ ^[0-9]+$ ]]; then
+        print_color red "Invalid choice."
+    else
+        if (( restore_choice >= 1 && restore_choice <= ${#config_names[@]} )); then
+            local selected_name=${config_names[$((restore_choice - 1))]}
+            restore_single_config "$selected_name"
+        elif (( restore_choice == restore_all_index )); then
+            restore_all_configs
+        elif (( restore_choice == cancel_index )); then
+            print_color yellow "Restoration cancelled."
+        else
+            print_color red "Invalid choice."
+        fi
+    fi
+
+    echo ""
+    print_color green "Press any key to continue..."
+    read -n 1
+}
+
+restore_single_config() {
+    local config_name="$1"
+
+    if [[ -z "${ENVIRONMENT_CONFIGS[$config_name]}" ]]; then
+        print_color red "Configuration '$config_name' not found."
+        return 1
+    fi
+
+    local vars_str=$(get_config_value "$config_name" "vars")
+    local secrets_str=$(get_config_value "$config_name" "secrets")
+    local -a var_names=($(echo "$vars_str" | tr ',' ' '))
+    local -a secret_vars=($(echo "$secrets_str" | tr ',' ' '))
+
+    print_color green "Restoring configuration: $config_name"
+
+    declare -A restored_values
+    local restored_count=0
+    local missing_count=0
+
+    for var_name in "${var_names[@]}"; do
+        local cached_value=$(get_cached_secret "$var_name" 2>/dev/null)
+
+        if [ -n "$cached_value" ]; then
+            restored_values["$var_name"]="$cached_value"
+            restored_count=$((restored_count + 1))
+
+            local is_secret_flag="false"
+            for secret_var in "${secret_vars[@]}"; do
+                if [[ "$var_name" == "$secret_var" ]]; then
+                    is_secret_flag="true"
+                    break
+                fi
+            done
+
+            if set_env_variable "$var_name" "$cached_value" "" "$is_secret_flag"; then
+                if [[ "$is_secret_flag" == "true" ]]; then
+                    print_color green "  Restored $var_name: [HIDDEN]"
+                else
+                    print_color green "  Restored $var_name: $cached_value"
+                fi
+            fi
+        else
+            print_color yellow "  Missing cached value for: $var_name"
+            missing_count=$((missing_count + 1))
+        fi
+    done
+
+    if [ $restored_count -gt 0 ]; then
+        print_color green "Restoration Summary:"
+        print_color green "  Restored: $restored_count variables"
+        print_color green "  Missing: $missing_count variables"
+
+        echo ""
+        read -p "Generate script for this configuration? (Y/N): " generate_choice
+
+        if [[ "$generate_choice" == "Y" || "$generate_choice" == "y" ]]; then
+            local existing_scripts=$(get_existing_scripts "$config_name")
+            show_existing_files_menu "$config_name" "$existing_scripts"
+
+            if [[ "$IS_REPLACING_FILE" == "true" ]]; then
+                generate_global_command "$config_name" "$TARGET_FILE_PATH"
+            else
+                generate_global_command "$config_name"
+            fi
+        fi
+    else
+        print_color yellow "No variables were restored for $config_name"
+    fi
+
+    return 0
+}
+
+restore_all_configs() {
+    print_color green "Restoring all configurations..."
+    echo ""
+
+    for config_name in "${!ENVIRONMENT_CONFIGS[@]}"; do
+        print_color green "Processing: $config_name"
+        restore_single_config "$config_name"
+        echo ""
+    done
+
+    print_color green "All configurations restoration completed!"
+}
+
+# Encrypt Cached Secrets Menu
+encrypt_secrets_menu() {
+    clear
+    print_color green "Encrypt Cached Secrets"
+    print_color green "======================"
+    print_color green "This will encrypt all cached secrets in the secret manager."
+    echo ""
+
+    local cached_secrets=$(list_cached_secrets)
+
+    if [ -z "$cached_secrets" ]; then
+        print_color yellow "No cached secrets found to encrypt."
+        print_color green "Press any key to continue..."
+        read -n 1
+        return 1
+    fi
+
+    print_color green "Cached secrets to encrypt:"
+    echo "$cached_secrets" | while read -r secret_name; do
+        print_color green "  - $secret_name"
+    done
+
+    echo ""
+    read -p "Proceed with encryption? (Y/N): " confirm_choice
+
+    if [[ "$confirm_choice" == "Y" || "$confirm_choice" == "y" ]]; then
+        if encrypt_all_cached_secrets; then
+            print_color green "All secrets encrypted successfully!"
+        else
+            print_color red "Encryption failed or incomplete."
+        fi
+    else
+        print_color yellow "Encryption cancelled."
+    fi
+
+    echo ""
+    print_color green "Press any key to continue..."
+    read -n 1
+}
+
+# Decrypt Cached Secrets Menu
+decrypt_secrets_menu() {
+    clear
+    print_color green "Decrypt Cached Secrets"
+    print_color green "======================"
+    print_color green "This will decrypt all encrypted secrets from the secret manager."
+    echo ""
+
+    if decrypt_all_cached_secrets; then
+        print_color green "Decrypted secrets:"
+        local cached_secrets=$(list_cached_secrets)
+
+        if [ -n "$cached_secrets" ]; then
+            echo "$cached_secrets" | while read -r secret_name; do
+                print_color green "  - $secret_name"
+            done
+        else
+            print_color yellow "No decrypted secrets found."
+        fi
+    else
+        print_color red "Decryption failed or incomplete."
+    fi
+
+    echo ""
     print_color green "Press any key to continue..."
     read -n 1
 }
@@ -1901,10 +2348,18 @@ show_config_submenu() {
                         # Show file management menu first (1:1 match with PowerShell behavior)
                         local existing_files=$(get_existing_scripts "$config_name")
                         show_existing_files_menu "$config_name" "$existing_files"
+
+                        # Debug: Verify global variables after menu selection
+                        print_color green "[DEBUG] After show_existing_files_menu:"
+                        print_color green "[DEBUG] IS_REPLACING_FILE = $IS_REPLACING_FILE"
+                        print_color green "[DEBUG] TARGET_FILE_PATH = $TARGET_FILE_PATH"
+
                         # Use global variables to determine action (matching PowerShell logic)
                         if [[ "$IS_REPLACING_FILE" == "true" ]]; then
+                            print_color green "[DEBUG] Calling generate_global_command with replacement mode"
                             generate_global_command "$config_name" "$TARGET_FILE_PATH"
                         else
+                            print_color green "[DEBUG] Calling generate_global_command with new file mode"
                             generate_global_command "$config_name"
                         fi
                         ;;
@@ -1956,6 +2411,9 @@ main_special_env_menu() {
     # Add utility menu items (matching PowerShell structure)
     menu_options+=("View All Environment Variables|viewall|false")
     menu_options+=("Refresh Current Terminal Environment|refresh|false")
+    menu_options+=("Restore Configs from Secret Cache|restore|false")
+    menu_options+=("Encrypt Cached Secrets|encrypt|false")
+    menu_options+=("Decrypt Cached Secrets|decrypt|false")
     menu_options+=("Back to Main Menu|back|false")
     menu_options+=("Exit|exit|false")
     
@@ -2047,6 +2505,15 @@ main_special_env_menu() {
                         'refresh')
                             refresh_current_terminal_environment
                             ;;
+                        'restore')
+                            restore_configs_from_cache
+                            ;;
+                        'encrypt')
+                            encrypt_secrets_menu
+                            ;;
+                        'decrypt')
+                            decrypt_secrets_menu
+                            ;;
                         'back')
                             trap - EXIT
                             return
@@ -2071,13 +2538,5 @@ main_special_env_menu() {
 }
 
 # Main Execution for this script
-# Check if running as root (admin privileges)
-if ! test_admin_privileges; then
-    print_color red "This script requires root privileges to manage system environment variables."
-    print_color yellow "Please run dd.sh with sudo or as root."
-    print_color green "Press any key to continue..."
-    read -n 1
-fi
-
 # Show main menu for special environment variables
 main_special_env_menu

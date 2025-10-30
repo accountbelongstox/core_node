@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-source "${SCRIPT_DIR}/gvar_common.sh"
+source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 
 # Test Scripts Selector
 

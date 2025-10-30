@@ -365,6 +365,20 @@ main() {
                     if is_postgresql_running; then
                         setup_postgresql_user
                         show_postgresql_info
+
+                        # Stop and disable service after installation to save memory
+                        echo "[$SCRIPT_INDEX] ============================================"
+                        echo "[$SCRIPT_INDEX] Stopping and disabling PostgreSQL service..."
+                        echo "[$SCRIPT_INDEX] ============================================"
+                        $USE_SUDO systemctl stop postgresql
+                        $USE_SUDO systemctl disable postgresql
+                        echo "[$SCRIPT_INDEX] PostgreSQL service stopped and disabled"
+
+                        echo "[$SCRIPT_INDEX] ============================================"
+                        echo "[$SCRIPT_INDEX] IMPORTANT: PostgreSQL is installed but NOT running"
+                        echo "[$SCRIPT_INDEX] This prevents unnecessary memory usage"
+                        echo "[$SCRIPT_INDEX] Use the Service Manager menu to start PostgreSQL when needed"
+                        echo "[$SCRIPT_INDEX] ============================================"
                         echo "[$SCRIPT_INDEX] PostgreSQL installation completed successfully"
                     else
                         echo "[$SCRIPT_INDEX] PostgreSQL installation failed - service not running"

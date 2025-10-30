@@ -116,6 +116,7 @@ ncore/
 │       ├── jsontool.js
 │       ├── mathtool.js
 │       ├── parameter_tool.js
+│       ├── pathtool.js
 │       ├── platformtool.js
 │       ├── plattool.js
 │       ├── porttool.js
@@ -669,6 +670,7 @@ ncore/
 │   │   │   │   │   └── EdgeInstaller.js
 │   │   │   │   ├── downloaders/
 │   │   │   │   └── pages/
+│   │   │   │       ├── EnhancedPage.js
 │   │   │   │       └── StandardPage.js
 │   │   │   ├── interfaces/
 │   │   │   │   ├── IBrowser.js
@@ -679,13 +681,24 @@ ncore/
 │   │   │   │   ├── core/
 │   │   │   │   │   ├── AutomationPlugin.js
 │   │   │   │   │   ├── ContentPlugin.js
-│   │   │   │   │   └── DownloadPlugin.js
+│   │   │   │   │   ├── DownloadPlugin.js
+│   │   │   │   │   └── EnhancedDownloadPlugin.js
 │   │   │   │   └── extensions/
 │   │   │   │       ├── FormPlugin.js
 │   │   │   │       └── ScreenshotPlugin.js
 │   │   │   └── utils/
 │   │   │       ├── base/
 │   │   │       │   └── BaseUtils.js
+│   │   │       ├── control/
+│   │   │       │   └── BrowserControlUtils.js
+│   │   │       ├── events/
+│   │   │       │   └── EventUtils.js
+│   │   │       ├── extraction/
+│   │   │       │   └── DataExtractionUtils.js
+│   │   │       ├── finder/
+│   │   │       │   └── ElementFinderUtils.js
+│   │   │       ├── navigation/
+│   │   │       │   └── NavigationUtils.js
 │   │   │       ├── operations/
 │   │   │       │   └── PageOperationUtils.js
 │   │   │       ├── BrowserUtils.js
@@ -702,6 +715,7 @@ ncore/
 │   │   ├── REFACTORING_SUMMARY.md
 │   │   ├── example.js
 │   │   ├── main.js
+│   │   ├── puppeteer_spider_v2_tree.md
 │   │   └── test.js
 │   ├── shortcuttool/
 │   │   └── index.js

@@ -39,13 +39,64 @@ download_both() {
     return $?
 }
 
-# Find downloaded files
+# Find downloaded files in all user Downloads directories
 find_vscode_file() {
-    find "$HOME/Downloads" -name "$VSCODE_PATTERN" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-
+    local search_dirs=()
+
+    # Add shared download directory first (highest priority)
+    if [[ -d "$SHARED_DOWNLOAD_DIR" ]]; then
+        search_dirs+=("$SHARED_DOWNLOAD_DIR")
+    fi
+
+    # Add current user's Downloads
+    if [[ -d "$HOME/Downloads" ]]; then
+        search_dirs+=("$HOME/Downloads")
+    fi
+
+    # Add all other users' Downloads directories
+    if [[ -d "/home" ]]; then
+        for user_home in /home/*; do
+            if [[ -d "$user_home/Downloads" ]]; then
+                search_dirs+=("$user_home/Downloads")
+            fi
+        done
+    fi
+
+    # Search for VSCode .deb files
+    for dir in "${search_dirs[@]}"; do
+        find "$dir" -maxdepth 1 -name "$VSCODE_PATTERN" -type f -printf '%T@ %p\n' 2>/dev/null
+    done | sort -n | tail -1 | cut -d' ' -f2-
 }
 
 find_cursor_file() {
-    find "$HOME/Downloads" -name "$CURSOR_PATTERN" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-
+    local search_dirs=()
+
+    # Add shared download directory first (highest priority)
+    if [[ -d "$SHARED_DOWNLOAD_DIR" ]]; then
+        search_dirs+=("$SHARED_DOWNLOAD_DIR")
+    fi
+
+    # Add current user's Downloads
+    if [[ -d "$HOME/Downloads" ]]; then
+        search_dirs+=("$HOME/Downloads")
+    fi
+
+    # Add all other users' Downloads directories
+    if [[ -d "/home" ]]; then
+        for user_home in /home/*; do
+            if [[ -d "$user_home/Downloads" ]]; then
+                search_dirs+=("$user_home/Downloads")
+            fi
+        done
+    fi
+
+    # Search for Cursor files (both .deb and .AppImage)
+    for dir in "${search_dirs[@]}"; do
+        # Search for .deb files
+        find "$dir" -maxdepth 1 -name "cursor*.deb" -type f -printf '%T@ %p\n' 2>/dev/null
+        # Search for .AppImage files (case insensitive)
+        find "$dir" -maxdepth 1 -iname "cursor*.AppImage" -type f -printf '%T@ %p\n' 2>/dev/null
+    done | sort -n | tail -1 | cut -d' ' -f2-
 }
 
 # Export functions

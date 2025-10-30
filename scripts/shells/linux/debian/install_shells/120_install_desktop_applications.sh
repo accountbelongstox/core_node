@@ -86,7 +86,8 @@ command_exists() {
 install_via_snap() {
     local package_id="$1"
     local app_name="$2"
-    
+    local confinement="${3:-}"
+
     if ! command_exists snap; then
         log_message "Snap is not installed. Installing snapd..."
         log_message "Updating package lists with timeout..."
@@ -95,7 +96,7 @@ install_via_snap() {
         else
             log_message "Warning: Package update timed out or failed, continuing anyway"
         fi
-        
+
         log_message "Installing snapd..."
         if timeout 600 $USE_SUDO apt install -y snapd; then
             log_message "snapd installed successfully"
@@ -103,7 +104,7 @@ install_via_snap() {
             log_message "Error: Failed to install snapd"
             return 1
         fi
-        
+
         # Enable snap services
         log_message "Enabling snap services..."
         $USE_SUDO systemctl enable --now snapd.socket || {
@@ -111,9 +112,17 @@ install_via_snap() {
         }
         $USE_SUDO ln -sf /var/lib/snapd/snap /snap 2>/dev/null || true
     fi
-    
-    log_message "Installing $app_name via snap: $package_id"
-    if $USE_SUDO snap install $package_id; then
+
+    # Build snap install command with confinement option if specified
+    local snap_install_cmd="$USE_SUDO snap install"
+    if [ -n "$confinement" ] && [ "$confinement" = "classic" ]; then
+        snap_install_cmd="$snap_install_cmd --classic"
+        log_message "Installing $app_name via snap (classic confinement): $package_id"
+    else
+        log_message "Installing $app_name via snap: $package_id"
+    fi
+
+    if $snap_install_cmd $package_id; then
         log_message "Successfully installed $app_name via snap"
         return 0
     else
@@ -191,29 +200,181 @@ install_via_appimage() {
     local download_url="$1"
     local app_name="$2"
     local exec_name="$3"
-    
+    local app_id="${4:-${exec_name}}"
+
     local appimage_dir=$(map_web_path "compile_dir" "applications/appimages")
-    local appimage_file="$appimage_dir/${exec_name}.AppImage"
-    
+    local install_dir="$appimage_dir/$exec_name"
+    local appimage_file="$install_dir/${exec_name}.AppImage"
+    local extracted_dir="$install_dir/extracted"
+    local apprun_path="$extracted_dir/squashfs-root/AppRun"
+
     log_message "Installing $app_name via AppImage from: $download_url"
-    
-    # Create AppImage directory
-    $USE_SUDO mkdir -p "$appimage_dir"
-    
+
+    # Install libfuse2 dependency (required for AppImage)
+    if ! dpkg -l | grep -q "^ii.*libfuse2"; then
+        log_message "Installing libfuse2 (required for AppImage)..."
+        $USE_SUDO apt-get update -qq
+        $USE_SUDO apt-get install -y libfuse2 2>&1 | tee -a "$LOG_FILE" || log_message "Warning: Failed to install libfuse2"
+    fi
+
+    # Create AppImage directory structure
+    $USE_SUDO mkdir -p "$install_dir"
+    $USE_SUDO mkdir -p "$extracted_dir"
+
     # Download AppImage
-    if $USE_SUDO wget -O "$appimage_file" "$download_url"; then
-        # Make executable
-        $USE_SUDO chmod +x "$appimage_file"
-        
-        # Create symlink in /usr/local/bin
-        $USE_SUDO ln -sf "$appimage_file" "/usr/local/bin/$exec_name" 2>/dev/null || true
-        
-        log_message "Successfully installed $app_name AppImage"
-        return 0
+    if $USE_SUDO wget --progress=bar:force -O "$appimage_file" "$download_url" 2>&1 | tee -a "$LOG_FILE"; then
+        log_message "AppImage downloaded successfully"
     else
         log_message "Failed to download $app_name AppImage"
         return 1
     fi
+
+    # Make executable
+    $USE_SUDO chmod +x "$appimage_file"
+
+    # Extract AppImage to get icon, desktop file and AppRun
+    log_message "Extracting AppImage..."
+    cd "$extracted_dir"
+    if $USE_SUDO "$appimage_file" --appimage-extract >/dev/null 2>&1; then
+        log_message "AppImage extracted successfully"
+    else
+        log_message "Warning: AppImage extraction failed, will use AppImage directly"
+        # Fall back to using AppImage directly if extraction fails
+        apprun_path="$appimage_file"
+    fi
+    cd - >/dev/null
+
+    # Fix chrome-sandbox permissions if it exists (critical for Electron apps)
+    if [ -d "$extracted_dir/squashfs-root" ]; then
+        local chrome_sandbox_paths=(
+            "$extracted_dir/squashfs-root/chrome-sandbox"
+            "$extracted_dir/squashfs-root/usr/lib/chrome-sandbox"
+        )
+
+        for sandbox_pattern in "$extracted_dir/squashfs-root/opt/"*"/chrome-sandbox"; do
+            chrome_sandbox_paths+=("$sandbox_pattern")
+        done
+
+        for sandbox_path in "${chrome_sandbox_paths[@]}"; do
+            if [ -f "$sandbox_path" ]; then
+                log_message "Fixing chrome-sandbox permissions: $sandbox_path"
+                $USE_SUDO chown root:root "$sandbox_path" 2>/dev/null || true
+                $USE_SUDO chmod 4755 "$sandbox_path" 2>/dev/null || true
+            fi
+        done
+    fi
+
+    # Get app configuration from linux_applications_list.sh
+    local desktop_name="${app_id}_desktop_name"
+    local desktop_comment="${app_id}_desktop_comment"
+    local desktop_categories="${app_id}_desktop_categories"
+    local startup_wm_class="${app_id}_startup_wm_class"
+    local need_super="${app_id}_super"
+
+    # Create wrapper script
+    local wrapper_script="/usr/local/super_scripts/${exec_name}.sh"
+    log_message "Creating wrapper script: $wrapper_script"
+
+    $USE_SUDO mkdir -p "/usr/local/super_scripts"
+
+    # Determine which executable to use (AppRun or AppImage)
+    local exec_target=""
+    if [ -f "$apprun_path" ] && [ "$apprun_path" != "$appimage_file" ]; then
+        exec_target="$apprun_path"
+        log_message "Using extracted AppRun: $exec_target"
+    else
+        exec_target="$appimage_file"
+        log_message "Using AppImage directly: $exec_target"
+    fi
+
+    if [[ "${!need_super}" == "true" ]]; then
+        # Create wrapper with --no-sandbox flag (for apps needing root or sandbox bypass)
+        cat << WRAPPER_EOF | $USE_SUDO tee "$wrapper_script" > /dev/null
+#!/bin/bash
+# ${app_name} Launcher Script (AppImage Installation)
+# This script launches the app with --no-sandbox flag
+
+EXEC_PATH="$exec_target"
+
+if [[ ! -f "\$EXEC_PATH" ]]; then
+    echo "Error: Executable not found at \$EXEC_PATH"
+    echo "Please reinstall ${app_name}"
+    exit 1
+fi
+
+# Launch with --no-sandbox (required for certain execution contexts)
+exec "\$EXEC_PATH" --no-sandbox "\$@"
+WRAPPER_EOF
+    else
+        # Create simple wrapper without --no-sandbox
+        cat << WRAPPER_EOF | $USE_SUDO tee "$wrapper_script" > /dev/null
+#!/bin/bash
+# ${app_name} Launcher Script (AppImage Installation)
+
+EXEC_PATH="$exec_target"
+
+if [[ ! -f "\$EXEC_PATH" ]]; then
+    echo "Error: Executable not found at \$EXEC_PATH"
+    echo "Please reinstall ${app_name}"
+    exit 1
+fi
+
+# Launch application
+exec "\$EXEC_PATH" "\$@"
+WRAPPER_EOF
+    fi
+
+    $USE_SUDO chmod +x "$wrapper_script"
+
+    # Create symlink in /usr/local/bin
+    $USE_SUDO ln -sf "$wrapper_script" "/usr/local/bin/$exec_name"
+
+    # Find icon
+    local icon_path="$exec_name"
+    if [ -d "$extracted_dir/squashfs-root" ]; then
+        # Try to find icon in multiple common locations
+        local found_icon=$(find "$extracted_dir/squashfs-root" \( -name "${exec_name}.png" -o -name "${exec_name}.svg" -o -name "icon.png" -o -name "*.png" \) -type f 2>/dev/null | head -1)
+        if [ -n "$found_icon" ]; then
+            icon_path="$found_icon"
+            log_message "Using icon: $icon_path"
+        fi
+    fi
+
+    # Create desktop entry
+    local desktop_file="/usr/share/applications/${exec_name}.desktop"
+    log_message "Creating desktop entry: $desktop_file"
+
+    # For desktop launcher, use direct AppImage path instead of wrapper script
+    # This avoids issues with sudo in desktop environment (no terminal for password)
+    local desktop_exec_path="$exec_target"
+
+    local desktop_entry="[Desktop Entry]
+Name=${!desktop_name:-$app_name}
+Comment=${!desktop_comment:-$app_name}
+GenericName=${!desktop_name:-$app_name}
+Exec=$desktop_exec_path
+Icon=$icon_path
+Type=Application
+Terminal=false
+Categories=${!desktop_categories:-Utility;}
+StartupNotify=false
+StartupWMClass=${!startup_wm_class:-$app_name}
+Keywords=${exec_name};
+"
+
+    echo "$desktop_entry" | $USE_SUDO tee "$desktop_file" > /dev/null
+    $USE_SUDO chmod 644 "$desktop_file"
+
+    # Update desktop database
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
+    fi
+
+    log_message "Successfully installed $app_name"
+    log_message "Launcher: /usr/local/super_scripts/${exec_name}.sh"
+    log_message "Command: $exec_name"
+
+    return 0
 }
 
 # Function to install via web download (deb packages)
@@ -543,6 +704,18 @@ install_application() {
         else
             local install_result=$?
         fi
+    # Handle AppImage packages with custom installation
+    elif [ "$install_method" = "appimage" ]; then
+        log_message "  Installing AppImage from: $package_id"
+        # Get app configuration for desktop entry creation
+        local app_id="${lookup_app}"
+        if install_via_appimage "$package_id" "$display_name" "$exec_name" "$app_id"; then
+            local install_result=0
+            # AppImage creates its own wrapper, skip setup_super_launch
+            should_use_super=false
+        else
+            local install_result=$?
+        fi
     else
         # Use universal install function from installation library
         universal_install "$install_method" "$package_id" "$display_name" "$exec_name"
@@ -855,7 +1028,18 @@ refresh_environment() {
                 
                 # Extract the actual command from launch_command (remove "which exec && $USE_SUDO")
                 local actual_command=$(echo "$launch_command" | sed 's/which [^&]* && \$USE_SUDO //')
-                
+
+                # For npm packages, replace relative paths with absolute paths
+                local processed_command="$actual_command"
+                if [[ "$launch_command" =~ node[[:space:]]+[^[:space:]]+ ]]; then
+                    # Extract the executable name after "node"
+                    local node_exec=$(echo "$actual_command" | sed -n 's/.*node[[:space:]]\+\([^[:space:]]\+\).*/\1/p')
+                    if [ -n "$node_exec" ]; then
+                        # Use absolute path to the npm binary
+                        processed_command="node $binary_path \"\$@\""
+                    fi
+                fi
+
                 # Create the script content
                 cat > "/tmp/$exec_name" << EOF
 #!/bin/bash
@@ -863,8 +1047,11 @@ refresh_environment() {
 # Generated by 120_install_desktop_applications.sh
 # Package: $package_id
 
+# Add npm global bin to PATH
+export PATH="\$PATH:$npm_global_bin/bin"
+
 # Execute the launch command
-$actual_command "\$@"
+$processed_command "\$@"
 EOF
                 
                 # Move script to super_scripts and make executable

@@ -687,21 +687,40 @@ class CoreNodeInitPlugin extends IPlugin {
         try {
             const fs = require('fs');
             const path = require('path');
-            const downloadDir = '/home/ubuntu/Downloads';
-            const files = await fs.promises.readdir(downloadDir);
             const regex = new RegExp(pattern, 'i');
-            
-            return files
-                .filter(file => regex.test(file))
-                .map(file => ({
-                    name: file,
-                    path: path.join(downloadDir, file),
-                    size: fs.statSync(path.join(downloadDir, file)).size,
-                    mtime: fs.statSync(path.join(downloadDir, file)).mtime
-                }))
-                .sort((a, b) => b.mtime - a.mtime); // Sort by modification time, newest first
+            const allFiles = [];
+
+            const searchDirs = this.downloadDirConfig.searchDirs || [];
+
+            for (const downloadDir of searchDirs) {
+                try {
+                    if (!fs.existsSync(downloadDir)) {
+                        continue;
+                    }
+
+                    const files = await fs.promises.readdir(downloadDir);
+                    const matchedFiles = files
+                        .filter(file => regex.test(file))
+                        .map(file => {
+                            const filePath = path.join(downloadDir, file);
+                            const stats = fs.statSync(filePath);
+                            return {
+                                name: file,
+                                path: filePath,
+                                size: stats.size,
+                                mtime: stats.mtime
+                            };
+                        });
+
+                    allFiles.push(...matchedFiles);
+                } catch (error) {
+                    logger.warn(`Cannot read directory ${downloadDir}:`, error.message);
+                }
+            }
+
+            return allFiles.sort((a, b) => b.mtime - a.mtime);
         } catch (error) {
-            logger.error('Error reading download directory:', error);
+            logger.error('Error reading download directories:', error);
             return [];
         }
     }

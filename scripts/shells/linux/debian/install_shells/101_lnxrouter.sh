@@ -19,9 +19,15 @@
 
 set -e
 
+# Trap to clean up on error
+trap 'log_error "Script interrupted or failed at line $LINENO"' ERR
+
 # Script identification and path setup
 SCRIPT_INDEX="101"
-SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# IMPORTANT: Resolve symlink to get the real script path
+# This ensures relative paths work correctly when script is run via /usr/local/bin/lnxrouter
+REAL_SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "$REAL_SCRIPT_PATH")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
@@ -32,7 +38,8 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 COMMON_DIR="$PARENT_DIR_LEVEL_2/common"
 
 # Configuration files
-CONFIG_DIR="/usr/.core_node/lnxrouter"
+CORE_NODE_DATA_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}"
+CONFIG_DIR="${CORE_NODE_DATA_DIR}/lnxrouter"
 CONFIG_FILE="$CONFIG_DIR/config"
 CACHE_FILE="$CONFIG_DIR/interface_cache.conf"
 LNXROUTER_LINK="/usr/local/bin/lnxrouter"
@@ -131,6 +138,37 @@ check_wsl_mode() {
     return 0
 }
 
+# Check system dependencies
+check_dependencies() {
+    local missing_deps=()
+    local required_commands=("ip" "iptables" "systemctl" "awk" "grep")
+
+    for cmd in "${required_commands[@]}"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            missing_deps+=("$cmd")
+        fi
+    done
+
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log_error "Missing required commands: ${missing_deps[*]}"
+        log_error "Please install required packages:"
+        log_error "  Ubuntu/Debian: sudo apt install iproute2 iptables systemd gawk grep"
+        return 1
+    fi
+
+    return 0
+}
+
+# Check root/sudo permissions
+check_permissions() {
+    if [[ $EUID -ne 0 ]] && [[ -z "$USE_SUDO" ]]; then
+        log_error "This script requires root privileges or sudo"
+        log_error "Please run with: sudo bash $0"
+        return 1
+    fi
+    return 0
+}
+
 # Check if already installed
 check_installation() {
     if [ -f "$LNXROUTER_LINK" ] && [ -L "$LNXROUTER_LINK" ]; then
@@ -147,21 +185,95 @@ check_installation() {
     return 1
 }
 
+# Validate configuration file
+validate_config_file() {
+    if [[ ! -f "$CACHE_FILE" ]]; then
+        return 1
+    fi
+
+    local required_vars=("WAN_KEYWORD" "LAN_KEYWORD" "SYSTEM_SHARING")
+    local missing_vars=()
+
+    for var in "${required_vars[@]}"; do
+        if ! grep -q "^${var}=" "$CACHE_FILE" 2>/dev/null; then
+            missing_vars+=("$var")
+        fi
+    done
+
+    if [ ${#missing_vars[@]} -gt 0 ]; then
+        log_warning "Configuration file is incomplete or corrupted"
+        log_warning "Missing variables: ${missing_vars[*]}"
+        return 1
+    fi
+
+    return 0
+}
+
 # Create configuration directory
 create_config_dir() {
     if [[ ! -d "$CONFIG_DIR" ]]; then
-        $USE_SUDO mkdir -p "$CONFIG_DIR"
+        if ! $USE_SUDO mkdir -p "$CONFIG_DIR" 2>/dev/null; then
+            log_error "Failed to create configuration directory: $CONFIG_DIR"
+            log_error "Please check permissions and disk space"
+            return 1
+        fi
         $USE_SUDO chmod 755 "$CONFIG_DIR"
         log_info "Created configuration directory: $CONFIG_DIR"
     fi
+
+    if [[ ! -w "$CONFIG_DIR" ]] && [[ -z "$USE_SUDO" ]]; then
+        log_error "Configuration directory is not writable: $CONFIG_DIR"
+        return 1
+    fi
+
+    return 0
 }
 
 # Create temporary directory
 create_temp_dir() {
     if [ ! -d "$SCRIPT_TEMP_DIR" ]; then
-        $USE_SUDO mkdir -p "$SCRIPT_TEMP_DIR"
+        if ! $USE_SUDO mkdir -p "$SCRIPT_TEMP_DIR" 2>/dev/null; then
+            log_error "Failed to create temporary directory: $SCRIPT_TEMP_DIR"
+            return 1
+        fi
         log_info "Created temporary directory: $SCRIPT_TEMP_DIR"
     fi
+    return 0
+}
+
+# Cleanup function for installation rollback
+cleanup_on_failure() {
+    log_warning "Installation failed, cleaning up..."
+
+    # Stop and remove service if it was created
+    local full_service_name="ncore-$SERVICE_NAME"
+    if systemctl list-units --full --all | grep -q "$full_service_name"; then
+        log_info "Stopping and removing service..."
+        $USE_SUDO systemctl stop "$full_service_name" 2>/dev/null || true
+        $USE_SUDO systemctl disable "$full_service_name" 2>/dev/null || true
+    fi
+
+    # Remove service script
+    if [ -f "$SERVICE_SCRIPT" ]; then
+        log_info "Removing service script..."
+        $USE_SUDO rm -f "$SERVICE_SCRIPT" 2>/dev/null || true
+    fi
+
+    # NOTE: We keep the lnxrouter command link even on failure
+    # So users can run 'lnxrouter' to reconfigure later
+    if [ -L "$LNXROUTER_LINK" ]; then
+        log_info "Keeping lnxrouter command link for future use..."
+        log_info "You can run 'lnxrouter' later to complete setup"
+    fi
+
+    # Clean temporary directory
+    if [ -d "$SCRIPT_TEMP_DIR" ]; then
+        log_info "Cleaning temporary directory..."
+        $USE_SUDO rm -rf "$SCRIPT_TEMP_DIR" 2>/dev/null || true
+    fi
+
+    log_warning "Cleanup completed"
+    log_info "The 'lnxrouter' command is still available - run it to retry setup"
 }
 
 # Scan all network interfaces
@@ -181,7 +293,7 @@ scan_interfaces() {
 
         if [[ -n "$interface" && "$interface" != "lo" ]]; then
             ALL_INTERFACES+=("$interface")
-            ((interface_count++))
+            interface_count=$((interface_count + 1))
 
             # Get interface information
             ip_addr=$(ip addr show "$interface" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1 || echo "No IP")
@@ -228,7 +340,17 @@ scan_interfaces() {
 load_cache() {
     if [[ -f "$CACHE_FILE" ]]; then
         log_info "Loading cached configuration from: $CACHE_FILE"
-        source "$CACHE_FILE"
+
+        if ! validate_config_file; then
+            log_error "Configuration file validation failed"
+            return 1
+        fi
+
+        if ! source "$CACHE_FILE" 2>/dev/null; then
+            log_error "Failed to load configuration file: $CACHE_FILE"
+            log_error "File may be corrupted"
+            return 1
+        fi
 
         if [[ -n "$WAN_KEYWORD" && -n "$LAN_KEYWORD" ]]; then
             log_success "Found cached keywords:"
@@ -445,8 +567,8 @@ input_keywords() {
     # Ask about system sharing
     echo -e "${CYAN}Do you want to enable system-level network sharing for matched interfaces?${NC}"
     echo -e "${YELLOW}If 'no', interfaces will only be used for forwarding without system sharing.${NC}"
-    read -p "Enable system sharing? (yes/no) [no]: " sharing_response
-    if [[ "$sharing_response" =~ ^[Yy][Ee][Ss]$ ]]; then
+    read -p "Enable system sharing? (y/n) [no]: " sharing_response
+    if [[ "$sharing_response" =~ ^[Yy]([Ee][Ss])?$ ]]; then
         SYSTEM_SHARING="yes"
     else
         SYSTEM_SHARING="no"
@@ -510,27 +632,56 @@ match_interfaces() {
 
 # Create /usr/local/bin/lnxrouter command link
 create_lnxrouter_command() {
-    log_info "Creating lnxrouter command link..."
+    echo ""
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${WHITE} Creating lnxrouter Command${NC}"
+    echo -e "${CYAN}========================================${NC}"
 
     current_script=$(readlink -f "${BASH_SOURCE[0]}")
 
-    # Set script to executable
-    $USE_SUDO chmod 755 "$current_script"
-    log_info "Set script permissions to 755: $current_script"
+    # Set script to executable with 777 permissions
+    $USE_SUDO chmod 777 "$current_script"
+    log_success "Script permissions set to 777"
+    log_info "  Source: $current_script"
 
     if [ -L "$LNXROUTER_LINK" ]; then
         existing_target=$(readlink -f "$LNXROUTER_LINK")
         if [ "$existing_target" != "$current_script" ]; then
+            log_info "Updating existing symlink..."
             $USE_SUDO rm -f "$LNXROUTER_LINK"
+            $USE_SUDO ln -s "$current_script" "$LNXROUTER_LINK"
+            log_success "Command symlink updated: $LNXROUTER_LINK -> $current_script"
+        else
+            log_success "Command symlink already exists and is correct"
+        fi
+    else
+        $USE_SUDO ln -s "$current_script" "$LNXROUTER_LINK"
+        log_success "Command symlink created: $LNXROUTER_LINK -> $current_script"
+    fi
+
+    # Verify the symlink
+    if [ -L "$LNXROUTER_LINK" ]; then
+        local link_target=$(readlink -f "$LNXROUTER_LINK")
+        log_info "  Symlink verification:"
+        log_info "    Link: $LNXROUTER_LINK"
+        log_info "    Target: $link_target"
+
+        if [ "$link_target" = "$current_script" ]; then
+            log_success "  Symlink is correctly pointing to the script"
+        else
+            log_warning "  Symlink target mismatch!"
         fi
     fi
 
-    if [ ! -f "$LNXROUTER_LINK" ] && [ ! -L "$LNXROUTER_LINK" ]; then
-        $USE_SUDO ln -s "$current_script" "$LNXROUTER_LINK"
-        log_success "Command link created: $LNXROUTER_LINK"
-    else
-        log_info "Command link already exists: $LNXROUTER_LINK"
-    fi
+    echo ""
+    echo -e "${GREEN}✓ 'lnxrouter' command is now available${NC}"
+    echo -e "${YELLOW}  You can run 'lnxrouter' from anywhere to:${NC}"
+    echo -e "    - View router status"
+    echo -e "    - Modify configuration"
+    echo -e "    - Manage the routing service"
+    echo -e "    - View system logs"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
 
     return 0
 }
@@ -546,7 +697,15 @@ show_status() {
         echo -e "${CYAN}Configuration:${NC}"
         echo "  WAN Keyword: $WAN_KEYWORD"
         echo "  LAN Keyword: $LAN_KEYWORD"
-        echo "  System Sharing: $SYSTEM_SHARING"
+
+        # Display system sharing with detailed explanation
+        if [ "$SYSTEM_SHARING" = "yes" ]; then
+            echo -e "  System Sharing: ${GREEN}$SYSTEM_SHARING${NC} ${GREEN}✓${NC}"
+            echo -e "    ${WHITE}→ System CAN use WAN for internet access${NC}"
+        else
+            echo -e "  System Sharing: ${YELLOW}$SYSTEM_SHARING${NC} ${RED}✗${NC}"
+            echo -e "    ${WHITE}→ System CANNOT use WAN (only LAN forwarding)${NC}"
+        fi
         echo ""
 
         # Scan interfaces
@@ -655,15 +814,49 @@ show_interactive_menu() {
             4)
                 if [ -f "$CACHE_FILE" ]; then
                     source "$CACHE_FILE"
+
+                    echo ""
+                    echo -e "${CYAN}System Sharing Configuration${NC}"
+                    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+                    echo -e "Current status: ${GREEN}$SYSTEM_SHARING${NC}"
+                    echo ""
+                    echo -e "${WHITE}What is System Sharing?${NC}"
                     if [ "$SYSTEM_SHARING" = "yes" ]; then
-                        SYSTEM_SHARING="no"
-                        log_info "System sharing disabled"
+                        echo -e "  ${GREEN}✓ ENABLED${NC} - The system (this machine) CAN use WAN for internet"
+                        echo -e "    - System traffic goes through WAN interface"
+                        echo -e "    - Default route set via WAN gateway"
+                        echo -e "    - Both system and LAN clients share WAN internet"
+                        echo ""
+                        echo -e "${YELLOW}Do you want to DISABLE system sharing?${NC}"
+                        echo -e "  If disabled, only LAN clients can use WAN (not this system)"
                     else
-                        SYSTEM_SHARING="yes"
-                        log_info "System sharing enabled"
+                        echo -e "  ${RED}✗ DISABLED${NC} - The system (this machine) CANNOT use WAN for internet"
+                        echo -e "    - System traffic does NOT go through WAN"
+                        echo -e "    - Only LAN -> WAN forwarding works"
+                        echo -e "    - Only LAN clients can access internet via WAN"
+                        echo ""
+                        echo -e "${YELLOW}Do you want to ENABLE system sharing?${NC}"
+                        echo -e "  If enabled, this system can also use WAN for internet"
                     fi
-                    save_cache
-                    log_success "Configuration updated. Please restart the service for changes to take effect."
+                    echo ""
+                    read -p "Toggle system sharing? (y/n): " -n 1 -r toggle_response
+                    echo ""
+
+                    if [[ "$toggle_response" =~ ^[Yy]$ ]]; then
+                        if [ "$SYSTEM_SHARING" = "yes" ]; then
+                            SYSTEM_SHARING="no"
+                            log_info "System sharing disabled"
+                            echo -e "${YELLOW}System will NOT use WAN for internet (only forwarding LAN -> WAN)${NC}"
+                        else
+                            SYSTEM_SHARING="yes"
+                            log_info "System sharing enabled"
+                            echo -e "${GREEN}System will use WAN for internet access${NC}"
+                        fi
+                        save_cache
+                        log_success "Configuration updated. Please restart the service for changes to take effect."
+                    else
+                        log_info "System sharing unchanged: $SYSTEM_SHARING"
+                    fi
                 fi
                 echo ""
                 read -p "Press Enter to continue..."
@@ -708,7 +901,8 @@ show_interactive_menu() {
 create_service_script() {
     log_info "Creating dynamic router monitoring script..."
 
-    $USE_SUDO cat > "$SERVICE_SCRIPT" << 'EOF'
+    # Use tee to properly handle sudo permissions for file creation
+    $USE_SUDO tee "$SERVICE_SCRIPT" > /dev/null << 'EOF'
 #!/bin/bash
 # Dynamic Linux Router Monitor
 # Monitors interface availability and manages routing
@@ -719,7 +913,8 @@ LAN_KEYWORD=""
 WAN_INTERFACE=""
 LAN_INTERFACE=""
 SYSTEM_SHARING="no"
-CONFIG_FILE="/usr/.core_node/lnxrouter/interface_cache.conf"
+CORE_NODE_DATA_DIR="/var/_core_node"
+CONFIG_FILE="\${CORE_NODE_DATA_DIR}/lnxrouter/interface_cache.conf"
 
 # Colors
 RED='\033[0;31m'
@@ -785,7 +980,7 @@ setup_routing() {
     local wan_if="$1"
     local lan_if="$2"
 
-    log_service "Setting up routing: $wan_if -> $lan_if"
+    log_service "Setting up routing: $wan_if -> $lan_if (System Sharing: $SYSTEM_SHARING)"
 
     # Enable IP forwarding
     echo 1 > /proc/sys/net/ipv4/ip_forward
@@ -801,12 +996,80 @@ setup_routing() {
     iptables -A FORWARD -i "$lan_if" -o "$wan_if" -j ACCEPT
     iptables -A FORWARD -i "$wan_if" -o "$lan_if" -m state --state RELATED,ESTABLISHED -j ACCEPT
 
+    # Handle system sharing configuration
+    if [[ "$SYSTEM_SHARING" == "yes" ]]; then
+        log_service "Enabling system sharing - system will use WAN for internet access"
+
+        # Get WAN interface IP and gateway
+        local wan_ip=$(ip addr show "$wan_if" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+        local wan_gateway=$(ip route show dev "$wan_if" 2>/dev/null | grep -oP 'via \K[\d.]+' | head -1)
+
+        # If no gateway found via ip route, try to detect from DHCP or default route
+        if [[ -z "$wan_gateway" ]]; then
+            wan_gateway=$(ip route | grep "default.*$wan_if" | grep -oP 'via \K[\d.]+' | head -1)
+        fi
+
+        # If still no gateway, try to guess from IP (typically .1 or .254)
+        if [[ -z "$wan_gateway" ]] && [[ -n "$wan_ip" ]]; then
+            local subnet=$(echo "$wan_ip" | cut -d. -f1-3)
+            # Try common gateway IPs
+            for gw in "${subnet}.1" "${subnet}.254"; do
+                if ping -c 1 -W 1 "$gw" >/dev/null 2>&1; then
+                    wan_gateway="$gw"
+                    log_service "Detected gateway: $wan_gateway"
+                    break
+                fi
+            done
+        fi
+
+        if [[ -n "$wan_gateway" ]]; then
+            # Check if default route already exists for WAN
+            if ! ip route | grep -q "default.*$wan_if"; then
+                log_service "Setting default route via $wan_gateway on $wan_if"
+                ip route add default via "$wan_gateway" dev "$wan_if" metric 100 2>/dev/null || {
+                    log_error "Failed to add default route, may already exist"
+                }
+            else
+                log_service "Default route via $wan_if already exists"
+            fi
+
+            # Set DNS if available (try to use WAN's DNS)
+            local wan_dns=$(resolvectl status "$wan_if" 2>/dev/null | grep -oP 'DNS Servers: \K[\d.]+' | head -1)
+            if [[ -n "$wan_dns" ]]; then
+                log_service "Using DNS from WAN interface: $wan_dns"
+            fi
+
+            log_success "System sharing enabled - system can now use WAN ($wan_if) for internet"
+        else
+            log_error "Cannot enable system sharing - no gateway found for $wan_if"
+            log_service "WAN IP: ${wan_ip:-NOT FOUND}"
+            log_service "Only forwarding will work (LAN -> WAN)"
+        fi
+    else
+        log_service "System sharing disabled - only forwarding traffic (LAN -> WAN)"
+        log_service "System will NOT use WAN for its own internet access"
+
+        # Ensure no default route is set via WAN (remove if exists)
+        if ip route | grep -q "default.*$wan_if"; then
+            log_service "Removing default route via $wan_if (system sharing disabled)"
+            ip route del default dev "$wan_if" 2>/dev/null || true
+        fi
+    fi
+
     log_success "Routing rules applied successfully"
 }
 
 # Remove routing rules
 remove_routing() {
+    local wan_if="$1"
+
     log_service "Removing routing rules..."
+
+    # If system sharing was enabled, remove default route via WAN
+    if [[ -n "$wan_if" ]] && [[ "$SYSTEM_SHARING" == "yes" ]]; then
+        log_service "Removing system sharing route via $wan_if"
+        ip route del default dev "$wan_if" 2>/dev/null || true
+    fi
 
     # Clear NAT rules
     iptables -t nat -F POSTROUTING 2>/dev/null || true
@@ -841,7 +1104,7 @@ monitor_interfaces() {
         else
             if [[ "$routing_active" == true ]]; then
                 log_error "Interface unavailable - WAN: $wan_if, LAN: $lan_if"
-                remove_routing
+                remove_routing "$current_wan"
                 routing_active=false
                 current_wan=""
                 current_lan=""
@@ -866,8 +1129,24 @@ log_service "Starting interface monitoring..."
 monitor_interfaces
 EOF
 
-    $USE_SUDO chmod +x "$SERVICE_SCRIPT"
+    # Verify the script was created
+    if [ ! -f "$SERVICE_SCRIPT" ]; then
+        log_error "Failed to create service script: $SERVICE_SCRIPT"
+        return 1
+    fi
+
+    # Set executable permissions (777 for full access)
+    $USE_SUDO chmod 777 "$SERVICE_SCRIPT"
+    if [ $? -ne 0 ]; then
+        log_error "Failed to set permissions on service script"
+        return 1
+    fi
+
     log_success "Service script created: $SERVICE_SCRIPT"
+    log_info "  Permissions: 777 (full access)"
+    log_info "  Size: $(stat -c%s "$SERVICE_SCRIPT" 2>/dev/null || echo "unknown") bytes"
+
+    return 0
 }
 
 # Create systemd service using debian_service_manager.sh
@@ -910,14 +1189,39 @@ create_systemd_service() {
 install_lnxrouter() {
     log_header "Dynamic Linux Router Installation"
 
+    # Check dependencies
+    if ! check_dependencies; then
+        log_error "Dependency check failed"
+        return 1
+    fi
+
+    # Check permissions
+    if ! check_permissions; then
+        log_error "Permission check failed"
+        return 1
+    fi
+
     # Check WSL mode
     check_wsl_mode
 
     # Create configuration directory
-    create_config_dir
+    if ! create_config_dir; then
+        log_error "Failed to create configuration directory"
+        return 1
+    fi
 
     # Create temporary directory
-    create_temp_dir
+    if ! create_temp_dir; then
+        log_error "Failed to create temporary directory"
+        return 1
+    fi
+
+    # CREATE LNXROUTER COMMAND FIRST - so it's available immediately
+    if ! create_lnxrouter_command; then
+        log_error "Failed to create lnxrouter command"
+        cleanup_on_failure
+        return 1
+    fi
 
     # Scan all interfaces
     scan_interfaces
@@ -966,36 +1270,56 @@ install_lnxrouter() {
         done
     done
 
-    # Create lnxrouter command
-    create_lnxrouter_command
-
     # Create service script
-    create_service_script
+    if ! create_service_script; then
+        log_error "Failed to create service script"
+        cleanup_on_failure
+        return 1
+    fi
 
     # Create and install systemd service
     if create_systemd_service; then
         log_success "Dynamic router service installed successfully!"
+        echo ""
+        echo -e "${CYAN}Installation Summary:${NC}"
+        echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        log_info "Command: lnxrouter (access anytime)"
         log_info "Service name: ncore-$SERVICE_NAME"
         log_info "Service script: $SERVICE_SCRIPT"
         log_info "Configuration: $CACHE_FILE"
-        log_info "Command: lnxrouter (access anytime)"
+        echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
 
-        echo -e "${CYAN}Service Commands:${NC}"
-        echo "  lnxrouter          - Interactive menu"
-        echo "  systemctl status ncore-$SERVICE_NAME"
-        echo "  systemctl restart ncore-$SERVICE_NAME"
-        echo "  journalctl -u ncore-$SERVICE_NAME -f"
+        echo -e "${CYAN}Available Commands:${NC}"
+        echo "  ${YELLOW}lnxrouter${NC}                           - Open interactive menu"
+        echo "  ${YELLOW}systemctl status ncore-$SERVICE_NAME${NC}  - Check service status"
+        echo "  ${YELLOW}systemctl restart ncore-$SERVICE_NAME${NC} - Restart service"
+        echo "  ${YELLOW}systemctl stop ncore-$SERVICE_NAME${NC}    - Stop service"
+        echo "  ${YELLOW}journalctl -u ncore-$SERVICE_NAME -f${NC}  - View live logs"
+        echo ""
 
-        echo -e "${YELLOW}The service will monitor interface availability and automatically:"
-        echo -e "  - Enable routing when both WAN ($WAN_KEYWORD) and LAN ($LAN_KEYWORD) interfaces are available"
-        echo -e "  - Disable routing when interfaces are disconnected"
-        echo -e "  - Check every 5 seconds for interface changes"
-        echo -e "  - Log activities to /var/log/lnxrouter.log${NC}"
+        echo -e "${CYAN}Service Configuration:${NC}"
+        echo "  WAN Keyword: ${GREEN}$WAN_KEYWORD${NC}"
+        echo "  LAN Keyword: ${GREEN}$LAN_KEYWORD${NC}"
+        echo "  System Sharing: ${GREEN}$SYSTEM_SHARING${NC}"
+        echo ""
 
+        echo -e "${YELLOW}The service will monitor interface availability and automatically:${NC}"
+        echo -e "  ${GREEN}✓${NC} Enable routing when both WAN ($WAN_KEYWORD) and LAN ($LAN_KEYWORD) interfaces are available"
+        echo -e "  ${GREEN}✓${NC} Disable routing when interfaces are disconnected"
+        echo -e "  ${GREEN}✓${NC} Check every 5 seconds for interface changes"
+        echo -e "  ${GREEN}✓${NC} Log activities to /var/log/lnxrouter.log"
+        echo ""
+
+        echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${GREEN}Setup completed successfully!${NC}"
+        echo -e "${YELLOW}Run 'lnxrouter' to access the interactive menu${NC}"
+        echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        return 0
     else
         log_error "Failed to install service"
-        exit 1
+        cleanup_on_failure
+        return 1
     fi
 }
 
@@ -1112,10 +1436,31 @@ main() {
         # If not installed, prompt for installation
         log_header "LnxRouter Installation"
         log_info "LnxRouter is not installed yet."
-        echo -e "${CYAN}Do you want to install LnxRouter? (Type 'yes' to continue)${NC}"
+        echo ""
+        echo -e "${CYAN}LnxRouter - Dynamic Linux Router${NC}"
+        echo -e "${WHITE}This tool will help you set up network routing between interfaces.${NC}"
+        echo ""
+        echo -e "${CYAN}Features:${NC}"
+        echo -e "  ${GREEN}✓${NC} Keyword-based interface matching (dynamic hot-plug support)"
+        echo -e "  ${GREEN}✓${NC} Automatic routing when interfaces are available"
+        echo -e "  ${GREEN}✓${NC} Service monitoring every 5 seconds"
+        echo -e "  ${GREEN}✓${NC} Interactive menu for configuration management"
+        echo -e "  ${GREEN}✓${NC} System integration via systemd service"
+        echo ""
+        echo -e "${YELLOW}Installation Process:${NC}"
+        echo -e "  1. Create 'lnxrouter' command (available immediately)"
+        echo -e "  2. Scan and configure network interfaces"
+        echo -e "  3. Install systemd service"
+        echo -e "  4. Start monitoring service"
+        echo ""
+        echo -e "${CYAN}Do you want to install LnxRouter? (y/yes to continue)${NC}"
         read -p "Install? " install_response
 
-        if [[ "$install_response" == "yes" ]]; then
+        if [[ "$install_response" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+            echo ""
+            log_success "Starting installation process..."
+            echo -e "${YELLOW}Note: 'lnxrouter' command will be created first, even if setup is interrupted${NC}"
+            echo ""
             install_lnxrouter
         else
             log_warning "Installation cancelled."

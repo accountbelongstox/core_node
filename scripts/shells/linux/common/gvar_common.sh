@@ -534,6 +534,8 @@ export DISK_LIST
 export DISK_MOUNT_INFO
 export GLOBAL_TEMP_DIR
 export GLOBAL_VAR_DIR
+export CORE_NODE_DATA_DIR
+export CORE_NODE_SHARED_DOWNLOADS
 
 # System detection variables (merged from gvar_common.sh)
 PRE_COMPILE_DIR=".dev"
@@ -599,14 +601,21 @@ fi
 # Directory variables will be set after map_web_path function is defined
 
 # Additional directory variables
-SHELLS_DIR=""
-SHELLS_SCRIPTS_DIR=""
-CORE_SCRIPTS_DIR=""
+# Only set if not already defined (to avoid overwriting dd.sh values)
+if [ -z "$SHELLS_DIR" ]; then
+    SHELLS_DIR=""
+fi
+if [ -z "$SHELLS_SCRIPTS_DIR" ]; then
+    SHELLS_SCRIPTS_DIR=""
+fi
+if [ -z "$CORE_SCRIPTS_DIR" ]; then
+    CORE_SCRIPTS_DIR=""
+fi
 
-# Set directory variables based on script location
-if [ -n "${BASH_SOURCE[0]}" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    SHELLS_DIR="$(dirname "$SCRIPT_DIR")"
+# Set directory variables based on script location only if not already set
+if [ -n "${BASH_SOURCE[0]}" ] && [ -z "$SHELLS_DIR" ]; then
+    LOCAL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SHELLS_DIR="$(dirname "$LOCAL_SCRIPT_DIR")"
     SHELLS_SCRIPTS_DIR="$SHELLS_DIR/scripts"
     CORE_SCRIPTS_DIR="$(dirname "$SHELLS_DIR")"
 fi
@@ -758,26 +767,13 @@ mount_additional_disk() {
     fi
 }
 
-# Determine CORE_NODE_DATA_DIR based on environment
-CORE_NODE_DATA_DIR="/usr/.core_node"
-
-# Check if WSL Windows users path exists
-if [ -d "$WSL_USERS_PATH" ]; then
-    # Loop through each user directory
-    for user_dir in "$WSL_USERS_PATH"/*; do
-        if [ -d "$user_dir" ]; then
-            potential_dir="$user_dir/.core_node"
-
-            # Check if the .core_node directory exists
-            if [ -d "$potential_dir" ]; then
-                CORE_NODE_DATA_DIR="$potential_dir"
-                break
-            fi
-        fi
-    done
-fi
+# Determine CORE_NODE_DATA_DIR based on environment (standardized location)
+CORE_NODE_DATA_DIR="/var/_core_node"
 
 GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
+
+# Global download directory for all installation scripts
+CORE_NODE_SHARED_DOWNLOADS="$CORE_NODE_DATA_DIR/shared_downloads"
 
 # Function to map paths based on environment (using get_base_data_directory)
 map_web_path() {
@@ -845,8 +841,8 @@ map_web_path() {
                 local data_base=$(get_base_data_directory)
                 mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
             else
-                # Production server without desktop/NTFS: /usr/.core_node/applications
-                mapped_path="/usr/.core_node/applications"
+                # Production server without desktop/NTFS: /usr/_core_node/applications
+                mapped_path="/usr/_core_node/applications"
             fi
             ;;
         "nginx")
@@ -1331,9 +1327,9 @@ export -f debug_path_analysis
 
 # Load secret_manager library
 GVAR_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$GVAR_SCRIPT_DIR/secret_manager.sh" ]; then
-    source "$GVAR_SCRIPT_DIR/secret_manager.sh" 2>/dev/null || true
-fi
+# Only reference the centralized secret_manager directory under shells
+NEW_SECRET_MANAGER_PATH="$(dirname "$(dirname "$GVAR_SCRIPT_DIR")")/secret_manager/secret_manager.sh"
+source "$NEW_SECRET_MANAGER_PATH" 2>/dev/null || true
 
 # Function to get encrypted content by key name (equivalent to Invoke-DisguiseDecryption)
 # This function now uses the centralized secret_manager.sh library
