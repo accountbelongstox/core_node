@@ -462,6 +462,15 @@ function Add-FileToWinEnvs {
             Write-Log "File is not a supported executable format: $filePathNormalized (Supported: .exe, .cmd, .bat, .ps1)" -color "Yellow"
         }
     }
+
+    # Ensure .winenvs is on PATH and refresh environment after adding
+    try {
+        $globalEnvsNormalized = Normalize-WindowsPath $winEnvsDir
+        Add-Path -newPath $globalEnvsNormalized
+        Write-RefreshAllVarsBatch
+    } catch {
+        Write-Log "Failed to update PATH/refresh environment: $($_.Exception.Message)" -color "Yellow"
+    }
 }
 
 function Copy-FileToWinEnvs {
@@ -559,6 +568,26 @@ function Add-ScriptContentToWinEnvs {
     } catch {
         Write-Log "Failed to write script content to .winenvs: $($_.Exception.Message)" -color "Red"
     }
+
+    # Ensure .winenvs is on PATH and refresh environment after writing
+    try {
+        $globalEnvsNormalized = Normalize-WindowsPath $winEnvsDir
+        Add-Path -newPath $globalEnvsNormalized
+        Write-RefreshAllVarsBatch
+    } catch {
+        Write-Log "Failed to update PATH/refresh environment: $($_.Exception.Message)" -color "Yellow"
+    }
+}
+
+# Ensure .winenvs exists in Machine PATH before executing any action (after all functions are defined)
+try {
+    $winEnvsDirGuard = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    $winEnvsNormGuard = Normalize-WindowsPath $winEnvsDirGuard
+    if ($winEnvsNormGuard) {
+        Add-Path -newPath $winEnvsNormGuard
+    }
+} catch {
+    Write-Log "Failed to add .winenvs to PATH: $($_.Exception.Message)" -color "Red"
 }
 
 # Main logic

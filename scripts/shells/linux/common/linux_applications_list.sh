@@ -325,7 +325,7 @@ declare -gA AI_PACKAGES=(
     ["gemini_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["gemini_description"]="Google Gemini CLI - Advanced AI assistant with multimodal capabilities"
     ["gemini_verify_command"]="--version"
-    ["gemini_launch_command"]="which gemini && $USE_SUDO gemini"
+    ["gemini_launch_command"]="which gemini && $USE_SUDO node gemini"
 
     # Claude Code
     ["claude_name"]="Anthropic Claude Code"
@@ -336,7 +336,7 @@ declare -gA AI_PACKAGES=(
     ["claude_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["claude_description"]="Anthropic Claude Code - AI-powered coding assistant with advanced reasoning"
     ["claude_verify_command"]="--version"
-    ["claude_launch_command"]="which claude && $USE_SUDO claude"
+    ["claude_launch_command"]="which claude && $USE_SUDO node claude"
 
     # OpenAI Codex
     ["codex_name"]="OpenAI Codex"
@@ -347,7 +347,7 @@ declare -gA AI_PACKAGES=(
     ["codex_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["codex_description"]="OpenAI Codex - AI system that translates natural language to code"
     ["codex_verify_command"]="--version"
-    ["codex_launch_command"]="which codex && $USE_SUDO codex"
+    ["codex_launch_command"]="which codex && $USE_SUDO node codex"
 
     # Cursor Agent
     ["cursor_agent_name"]="Cursor Agent"
@@ -391,7 +391,7 @@ declare -gA AI_PACKAGES=(
     ["auggie_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["auggie_description"]="Augment Code Auggie - AI-powered code enhancement and development assistant"
     ["auggie_verify_command"]="--version"
-    ["auggie_launch_command"]="which auggie && $USE_SUDO auggie"
+    ["auggie_launch_command"]="which auggie && $USE_SUDO node auggie"
 
     # Droid AI Assistant
     ["droid_name"]="Droid AI Assistant"

@@ -761,7 +761,7 @@ function Install-BasePackage {
             Write-DebugLog -Message "scanKeywords: $($scanKeywords -join ', ')" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
             Write-Host "$SCRIPT_INDEX Shortcut Name: $shortcutName" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX Exe Path: $executable" -ForegroundColor Cyan
-            Write-Host "$SCRIPT_INDEX Icon Path: $iconPath" -ForegroundColor Cyan
+            # Write-Host "$SCRIPT_INDEX Icon Path: $iconPath" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX Category Names: $($DESKTOP_CATEGORIES -join ', ')" -ForegroundColor Cyan
             Write-Host "$SCRIPT_INDEX Scan Keywords: $scanKeywords" -ForegroundColor Cyan
             
@@ -769,7 +769,7 @@ function Install-BasePackage {
             Write-DebugLog -Message "Parameter details:" -Category "STEP12" -Color "Magenta" -LocalDebug $LocalDebugMode
             Write-Host "$SCRIPT_INDEX   - ShortcutName type: $($(if ($shortcutName) { $shortcutName.GetType().Name } else { 'null' })), value: '$shortcutName'" -ForegroundColor Magenta
             Write-Host "$SCRIPT_INDEX   - ExePath type: $($(if ($executable) { $executable.GetType().Name } else { 'null' })), value: '$executable'" -ForegroundColor Magenta
-            Write-Host "$SCRIPT_INDEX   - IconPath type: $($(if ($iconPath) { $iconPath.GetType().Name } else { 'null' })), value: '$iconPath'" -ForegroundColor Magenta
+            # Write-Host "$SCRIPT_INDEX   - IconPath type: $($(if ($iconPath) { $iconPath.GetType().Name } else { 'null' })), value: '$iconPath'" -ForegroundColor Magenta
             Write-Host "$SCRIPT_INDEX   - CategoryNames type: $($(if ($DESKTOP_CATEGORIES) { $DESKTOP_CATEGORIES.GetType().Name } else { 'null' })), count: $($(if ($DESKTOP_CATEGORIES) { $DESKTOP_CATEGORIES.Count } else { 0 }))" -ForegroundColor Magenta
             Write-Host "$SCRIPT_INDEX   - ScanKeywords type: $($(if ($scanKeywords) { $scanKeywords.GetType().Name } else { 'null' }))" -ForegroundColor Magenta
             
@@ -930,8 +930,8 @@ function Install-BasePackage {
         Write-DebugLog -Message "About to call Set-MultipleEnvironmentVariablesForPackage" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "PackageName: '$PackageName'" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "PackageName type: $($(if ($PackageName) { $PackageName.GetType().Name } else { 'null' }))" -Category "STEP12" -Color "Magenta"
-        Write-DebugLog -Message "EnvVars: $($PackageMeta.EnvVars | ConvertTo-Json -Depth 2)" -Category "STEP12" -Color "Magenta"
-        Write-DebugLog -Message "EnvVars type: $($(if ($PackageMeta.EnvVars) { $PackageMeta.EnvVars.GetType().Name } else { 'null' }))" -Category "STEP12" -Color "Magenta"
+        # Write-DebugLog -Message "EnvVars: $($PackageMeta.EnvVars | ConvertTo-Json -Depth 2)" -Category "STEP12" -Color "Magenta"
+        # Write-DebugLog -Message "EnvVars type: $($(if ($PackageMeta.EnvVars) { $PackageMeta.EnvVars.GetType().Name } else { 'null' }))" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "executable: '$executable'" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "executable type: $($(if ($executable) { $executable.GetType().Name } else { 'null' }))" -Category "STEP12" -Color "Magenta"
         Write-DebugLog -Message "executable value: $($(if ($executable) { $executable | ConvertTo-Json -Depth 3 } else { 'null' }))" -Category "STEP12" -Color "Magenta"
@@ -1100,10 +1100,10 @@ if (Test-PackageGroupFilter -GroupName "McpServicesPackages") {
 Write-Host "$SCRIPT_INDEX Executing post-MCP installation integration..." -ForegroundColor Cyan
 try {
     # Execute Gemini MCP integration
-    $mcpConfigPath = Join-Path $Global:PROJECT_DIR ".prompt\mcp.json"
+    $mcpConfigPath = Join-Path $Global:PROJECT_DIR "_prompt\mcp.json"
     # Check if mcp.json exists, if not copy from template
     if (-not (Test-Path $mcpConfigPath)) {
-        $templatePath = Join-Path $Global:PROJECT_DIR ".prompt\mcpWindowsTemplate.json"
+        $templatePath = Join-Path $Global:PROJECT_DIR "_prompt\mcpWindowsTemplate.json"
         if (Test-Path $templatePath) {
             Copy-Item $templatePath $mcpConfigPath
             Write-Host "$SCRIPT_INDEX [GEMINI_MCP] Created mcp.json from template" -ForegroundColor Green

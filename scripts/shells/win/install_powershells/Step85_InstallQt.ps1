@@ -12,6 +12,9 @@
 
 param(
     [Parameter(Mandatory = $false)]
+    [string]$Region = "Global",
+
+    [Parameter(Mandatory = $false)]
     [string]$QtVersion = "6.10.0",
 
     [Parameter(Mandatory = $false)]
@@ -49,7 +52,6 @@ $vs2022BatPath = ""
 $vs2022DefaultPath = ""
 $qtInstalledFlag = ""
 $qtOfflinePackagePath = ""
-$selectedRegion = ""
 $installType = ""
 $mirrorBaseUrl = ""
 $toolsList = @()
@@ -61,18 +63,74 @@ Write-Host "  [$SCRIPT_INDEX] Qt Framework Installation and Build" -ForegroundCo
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Get region and installation type from global variables
-$selectedRegion = Get-GlobalVar -key "SELECTED_REGION" -defaultValue "Global"
+# Get installation type from global variables
 $installType = Get-GlobalVar -key "INSTALL_TYPE" -defaultValue "full"
 
+# Get Qt installation method (installer or source)
+$qtInstallMethod = Get-GlobalVar -key "QT_INSTALL_METHOD" -defaultValue "installer"
+
 Write-Host "  [$SCRIPT_INDEX] Configuration:" -ForegroundColor White
-Write-Host "  [$SCRIPT_INDEX]   - Region: $selectedRegion" -ForegroundColor Gray
+Write-Host "  [$SCRIPT_INDEX]   - Region: $Region" -ForegroundColor Gray
 Write-Host "  [$SCRIPT_INDEX]   - Install Type: $installType" -ForegroundColor Gray
 Write-Host "  [$SCRIPT_INDEX]   - Qt Version: $QtVersion" -ForegroundColor Gray
+Write-Host "  [$SCRIPT_INDEX]   - Qt Install Method: $qtInstallMethod" -ForegroundColor Gray
 Write-Host ""
 
+# Prompt user for installation method if not set or if interactive
+if (-not $qtInstallMethod -or $qtInstallMethod -eq "") {
+    Write-Host "  [$SCRIPT_INDEX] ==========================================" -ForegroundColor Cyan
+    Write-Host "  [$SCRIPT_INDEX] Qt Installation Method Selection" -ForegroundColor Cyan
+    Write-Host "  [$SCRIPT_INDEX] ==========================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] Please select your preferred Qt installation method:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] [1] Official Installer (RECOMMENDED - Default)" -ForegroundColor Green
+    Write-Host "  [$SCRIPT_INDEX]     - Easy to use with GUI" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Pre-compiled binaries (ready to use immediately)" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Includes Qt Creator IDE" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Supports multiple Qt versions side-by-side" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Easy to update via MaintenanceTool" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Download size: ~30MB (installer), Components: ~2-4GB" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Installation time: 10-30 minutes" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] [2] Source Code Build (ADVANCED)" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX]     - Full control over build configuration" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Can customize which modules to include" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Requires Visual Studio 2022 with C++ components" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Requires CMake, Ninja, Python" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Download size: ~600MB (source archive)" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Build time: 2-8 hours depending on CPU" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]     - Disk space: ~30GB during build, ~10GB after" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] ==========================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    $userChoice = Read-Host "  [$SCRIPT_INDEX] Enter your choice (1 or 2) [Default: 1]"
+
+    if ([string]::IsNullOrWhiteSpace($userChoice) -or $userChoice -eq "1") {
+        $qtInstallMethod = "installer"
+        Write-Host "  [$SCRIPT_INDEX] Selected: Official Installer" -ForegroundColor Green
+    }
+    elseif ($userChoice -eq "2") {
+        $qtInstallMethod = "source"
+        Write-Host "  [$SCRIPT_INDEX] Selected: Source Code Build" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "  [$SCRIPT_INDEX] Invalid choice. Using default: Official Installer" -ForegroundColor Yellow
+        $qtInstallMethod = "installer"
+    }
+
+    # Save user choice for future runs
+    Set-GlobalVar -key "QT_INSTALL_METHOD" -value $qtInstallMethod
+    Write-Host ""
+}
+else {
+    Write-Host "  [$SCRIPT_INDEX] Using saved installation method: $qtInstallMethod" -ForegroundColor Cyan
+    Write-Host ""
+}
+
 # Configure mirror URLs based on region
-if ($selectedRegion -eq "China") {
+if ($Region -eq "China") {
     # China mirror - use https://mirrors.tuna.tsinghua.edu.cn/qt/
     $mirrorBaseUrl = "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt"
     Write-Host "  [$SCRIPT_INDEX] Using China mirror for Qt downloads" -ForegroundColor Green
@@ -83,8 +141,24 @@ else {
     Write-Host "  [$SCRIPT_INDEX] Using global mirror for Qt downloads" -ForegroundColor Green
 }
 
+# Validate Qt version format
+if ($QtVersion -eq "Global" -or $QtVersion -eq "China" -or -not ($QtVersion -match '^\d+\.\d+\.\d+$')) {
+    Write-Host "  [$SCRIPT_INDEX] ERROR: Invalid Qt version format: '$QtVersion'" -ForegroundColor Red
+    Write-Host "  [$SCRIPT_INDEX] Expected format: X.Y.Z (e.g., 6.10.0)" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Using default version: 6.10.0" -ForegroundColor Cyan
+    $QtVersion = "6.10.0"
+}
+
 # Construct Qt variables
-$qtVersionMajorMinor = ($QtVersion -split '\.')[0] + "." + ($QtVersion -split '\.')[1]
+$versionParts = $QtVersion -split '\.'
+if ($versionParts.Count -lt 2) {
+    Write-Host "  [$SCRIPT_INDEX] ERROR: Qt version must have at least major.minor format" -ForegroundColor Red
+    Write-Host "  [$SCRIPT_INDEX] Using default version: 6.10.0" -ForegroundColor Cyan
+    $QtVersion = "6.10.0"
+    $versionParts = $QtVersion -split '\.'
+}
+
+$qtVersionMajorMinor = $versionParts[0] + "." + $versionParts[1]
 $qtSrcFileName = "qt-everywhere-src-$QtVersion.zip"
 $qtSrcFileUrl = "$mirrorBaseUrl/$qtVersionMajorMinor/$QtVersion/single/$qtSrcFileName"
 $qtSrcDownloadPath = Join-Path $Global:DOWNLOADS_DIR $qtSrcFileName
@@ -117,7 +191,8 @@ if (Test-Path $maintenanceToolPath) {
     if (Test-Path $qtExePath) {
         Write-Host "  [$SCRIPT_INDEX] Qt $QtVersion is already installed at: $qtInstallDir" -ForegroundColor Green
         Write-Host "  [$SCRIPT_INDEX] qmake.exe found at: $qtExePath" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  [$SCRIPT_INDEX] Qt $QtVersion is NOT installed yet." -ForegroundColor Yellow
         Write-Host ""
         Write-Host "  [$SCRIPT_INDEX] To install Qt $QtVersion with all required components:" -ForegroundColor Cyan
@@ -165,9 +240,11 @@ if (Test-Path $maintenanceToolPath) {
         $currentCMakePath = [Environment]::GetEnvironmentVariable("CMAKE_PREFIX_PATH", "Machine")
         if ($currentCMakePath -and -not $currentCMakePath.Contains($qtInstallDir)) {
             $newCMakePath = "$qtInstallDir;$currentCMakePath"
-        } elseif (-not $currentCMakePath) {
+        }
+        elseif (-not $currentCMakePath) {
             $newCMakePath = $qtInstallDir
-        } else {
+        }
+        else {
             $newCMakePath = $currentCMakePath
         }
 
@@ -178,7 +255,8 @@ if (Test-Path $maintenanceToolPath) {
         $qtVer = if ($qtCMakeDir -match "Qt6") { "Qt6" } else { "Qt5" }
         & $windowsPathFuncPath "setvar" "${qtVer}_DIR" $qtCMakeDir
         Write-Host "  [$SCRIPT_INDEX]   - ${qtVersion}_DIR = $qtCMakeDir" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  [$SCRIPT_INDEX]   - WARNING: Qt CMake directory not found" -ForegroundColor Yellow
     }
 
@@ -222,9 +300,11 @@ if (Test-Path $qtExePath) {
         $currentCMakePath = [Environment]::GetEnvironmentVariable("CMAKE_PREFIX_PATH", "Machine")
         if ($currentCMakePath -and -not $currentCMakePath.Contains($qtInstallDir)) {
             $newCMakePath = "$qtInstallDir;$currentCMakePath"
-        } elseif (-not $currentCMakePath) {
+        }
+        elseif (-not $currentCMakePath) {
             $newCMakePath = $qtInstallDir
-        } else {
+        }
+        else {
             $newCMakePath = $currentCMakePath
         }
 
@@ -235,7 +315,8 @@ if (Test-Path $qtExePath) {
         $qtVer = if ($qtCMakeDir -match "Qt6") { "Qt6" } else { "Qt5" }
         & $windowsPathFuncPath "setvar" "${qtVer}_DIR" $qtCMakeDir
         Write-Host "  [$SCRIPT_INDEX]   - ${qtVersion}_DIR = $qtCMakeDir" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  [$SCRIPT_INDEX]   - WARNING: Qt CMake directory not found" -ForegroundColor Yellow
     }
 
@@ -248,6 +329,158 @@ if (Test-Path $qtExePath) {
 
 Write-Host "  [$SCRIPT_INDEX] Qt not found, proceeding with installation..." -ForegroundColor Yellow
 Write-Host ""
+
+# Branch based on installation method
+if ($qtInstallMethod -eq "installer") {
+    Write-Host "  [$SCRIPT_INDEX] ===========================================" -ForegroundColor Cyan
+    Write-Host "  [$SCRIPT_INDEX] Qt Installation via Official Installer" -ForegroundColor Cyan
+    Write-Host "  [$SCRIPT_INDEX] ===========================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    # Function to install Qt using official installer
+    function Install-QtWithOfficialInstaller {
+        param(
+            [string]$Region,
+            [string]$QtVersion,
+            [string]$LogPrefix
+        )
+
+        # Determine installer URL based on region
+        $installerUrl = if ($Region -eq "China") {
+            $Global:QT_INSTALLER_URL_CHINA
+        } else {
+            $Global:QT_INSTALLER_URL_GLOBAL
+        }
+
+        $installerPath = $Global:QT_INSTALLER_DOWNLOAD_PATH
+        $qtBaseDir = $Global:QT_INSTALL_BASE_DIR
+
+        Write-Host "$LogPrefix Qt Official Installer Installation" -ForegroundColor Cyan
+        Write-Host "$LogPrefix Installer URL: $installerUrl" -ForegroundColor Gray
+        Write-Host "$LogPrefix Download Path: $installerPath" -ForegroundColor Gray
+        Write-Host "$LogPrefix Install Directory: $qtBaseDir" -ForegroundColor Gray
+        Write-Host ""
+
+        # Check if installer already downloaded
+        if (Test-Path $installerPath) {
+            Write-Host "$LogPrefix Installer already downloaded: $installerPath" -ForegroundColor Green
+        }
+        else {
+            Write-Host "$LogPrefix Downloading Qt installer..." -ForegroundColor Yellow
+            Write-Host "$LogPrefix This may take a few minutes..." -ForegroundColor Gray
+            Write-Host ""
+
+            try {
+                # Ensure downloads directory exists
+                $downloadsDir = Split-Path $installerPath -Parent
+                if (-not (Test-Path $downloadsDir)) {
+                    New-Item -ItemType Directory -Path $downloadsDir -Force | Out-Null
+                }
+
+                # Download installer
+                $webClient = New-Object System.Net.WebClient
+                $webClient.DownloadFile($installerUrl, $installerPath)
+                Write-Host "$LogPrefix Installer downloaded successfully" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "$LogPrefix ERROR: Failed to download Qt installer" -ForegroundColor Red
+                Write-Host "$LogPrefix Exception: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host ""
+                Write-Host "$LogPrefix You can manually download the installer from:" -ForegroundColor Yellow
+                Write-Host "$LogPrefix $installerUrl" -ForegroundColor White
+                Write-Host "$LogPrefix Save it to: $installerPath" -ForegroundColor White
+                return $false
+            }
+        }
+
+        Write-Host ""
+        Write-Host "$LogPrefix ===========================================" -ForegroundColor Magenta
+        Write-Host "$LogPrefix MANUAL INSTALLATION REQUIRED" -ForegroundColor Magenta
+        Write-Host "$LogPrefix ===========================================" -ForegroundColor Magenta
+        Write-Host ""
+        Write-Host "$LogPrefix The Qt installer has been downloaded." -ForegroundColor Cyan
+        Write-Host "$LogPrefix Please follow these steps to complete the installation:" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "$LogPrefix 1. Run the installer:" -ForegroundColor Yellow
+        Write-Host "$LogPrefix    $installerPath" -ForegroundColor White
+        Write-Host ""
+        Write-Host "$LogPrefix 2. Create a Qt account or log in (required)" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "$LogPrefix 3. When prompted, select the installation directory:" -ForegroundColor Yellow
+        Write-Host "$LogPrefix    RECOMMENDED: $qtBaseDir" -ForegroundColor White
+        Write-Host ""
+        Write-Host "$LogPrefix 4. Select components to install:" -ForegroundColor Yellow
+        Write-Host "$LogPrefix    REQUIRED components for Qt $QtVersion:" -ForegroundColor White
+        Write-Host "$LogPrefix      ✓ Qt -> Qt $qtVersionMajorMinor -> Qt $QtVersion" -ForegroundColor Green
+        Write-Host "$LogPrefix      ✓ MSVC 2022 64-bit (for Visual Studio)" -ForegroundColor Green
+        Write-Host "$LogPrefix      ✓ MinGW 64-bit (optional, for GCC)" -ForegroundColor Gray
+        Write-Host "$LogPrefix      ✓ Qt 5 Compatibility Module" -ForegroundColor Green
+        Write-Host "$LogPrefix      ✓ Additional Libraries -> Qt Multimedia" -ForegroundColor Green
+        Write-Host "$LogPrefix      ✓ Additional Libraries -> Qt Network" -ForegroundColor Green
+        Write-Host "$LogPrefix      ✓ Additional Libraries -> Qt WebEngine" -ForegroundColor Gray
+        Write-Host "$LogPrefix      ✓ Developer and Designer Tools -> Qt Creator" -ForegroundColor Green
+        Write-Host "$LogPrefix      ✓ Developer and Designer Tools -> CMake" -ForegroundColor Green
+        Write-Host "$LogPrefix      ✓ Developer and Designer Tools -> Ninja" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "$LogPrefix 5. Click 'Install' and wait for completion (10-30 minutes)" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "$LogPrefix 6. After installation completes, run this script again to:" -ForegroundColor Yellow
+        Write-Host "$LogPrefix    - Verify Qt installation" -ForegroundColor Gray
+        Write-Host "$LogPrefix    - Configure environment variables" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "$LogPrefix ===========================================" -ForegroundColor Magenta
+        Write-Host ""
+
+        # Launch installer if user confirms
+        Write-Host "$LogPrefix Do you want to launch the installer now? (Y/N)" -ForegroundColor Cyan
+        $launchChoice = Read-Host "$LogPrefix"
+
+        if ($launchChoice -eq "Y" -or $launchChoice -eq "y") {
+            Write-Host "$LogPrefix Launching Qt installer..." -ForegroundColor Green
+            Write-Host ""
+            Start-Process -FilePath $installerPath -Wait
+            Write-Host ""
+            Write-Host "$LogPrefix Installer has been closed" -ForegroundColor Cyan
+            Write-Host "$LogPrefix Please run this script again to verify installation" -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "$LogPrefix Installer launch skipped" -ForegroundColor Yellow
+            Write-Host "$LogPrefix You can manually run: $installerPath" -ForegroundColor White
+        }
+
+        return $true
+    }
+
+    # Call official installer function
+    $installerResult = Install-QtWithOfficialInstaller -Region $Region -QtVersion $QtVersion -LogPrefix "  [$SCRIPT_INDEX]"
+
+    if ($installerResult) {
+        Write-Host ""
+        Write-Host "  [$SCRIPT_INDEX] ===========================================" -ForegroundColor Green
+        Write-Host "  [$SCRIPT_INDEX] Qt Installer Setup Complete" -ForegroundColor Green
+        Write-Host "  [$SCRIPT_INDEX] ===========================================" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "  [$SCRIPT_INDEX] Next steps:" -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX]   1. Complete the installation using the Qt installer" -ForegroundColor White
+        Write-Host "  [$SCRIPT_INDEX]   2. Run this script again to configure environment variables" -ForegroundColor White
+        Write-Host ""
+    }
+
+    exit 0
+}
+elseif ($qtInstallMethod -eq "source") {
+    Write-Host "  [$SCRIPT_INDEX] ===========================================" -ForegroundColor Cyan
+    Write-Host "  [$SCRIPT_INDEX] Qt Installation from Source Code" -ForegroundColor Cyan
+    Write-Host "  [$SCRIPT_INDEX] ===========================================" -ForegroundColor Cyan
+    Write-Host ""
+    # Continue with source build (existing code below)
+}
+else {
+    Write-Host "  [$SCRIPT_INDEX] ERROR: Invalid installation method: $qtInstallMethod" -ForegroundColor Red
+    exit 1
+}
+
+# Source build continues below...
 
 # Function to find tool in dev directory
 function Find-ToolInDevDirectory {
@@ -325,18 +558,18 @@ if (-not (Test-Path $vs2022BatPath)) {
             Write-Host "  [$SCRIPT_INDEX] Found vcvarsall.bat at: $vs2022BatPath" -ForegroundColor Green
         }
         else {
-            Write-Host "  [$SCRIPT_INDEX] ERROR: vcvarsall.bat not found in Visual Studio directory" -ForegroundColor Red
-            Write-Host "  [$SCRIPT_INDEX] Please ensure Visual Studio 2022 with C++ Desktop Development workload is installed" -ForegroundColor Red
-            Write-Host ""
-            exit 1
+            Write-Host "  [$SCRIPT_INDEX] WARNING: vcvarsall.bat not found in Visual Studio directory" -ForegroundColor Yellow
+            Write-Host "  [$SCRIPT_INDEX] Please ensure Visual Studio 2022 with C++ Desktop Development workload is installed" -ForegroundColor Yellow
+            Write-Host "  [$SCRIPT_INDEX] Continuing with installation despite missing Visual Studio..." -ForegroundColor Cyan
+            $vs2022BatPath = $null
         }
     }
     else {
-        Write-Host "  [$SCRIPT_INDEX] ERROR: Visual Studio 2022 not found" -ForegroundColor Red
-        Write-Host "  [$SCRIPT_INDEX] Please install Visual Studio 2022 Community with C++ Desktop Development workload" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] WARNING: Visual Studio 2022 not found" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] Please install Visual Studio 2022 Community with C++ Desktop Development workload" -ForegroundColor Yellow
         Write-Host "  [$SCRIPT_INDEX] You can run: winget install Microsoft.VisualStudio.2022.Community" -ForegroundColor Yellow
-        Write-Host ""
-        exit 1
+        Write-Host "  [$SCRIPT_INDEX] Continuing with installation despite missing Visual Studio..." -ForegroundColor Cyan
+        $vs2022BatPath = $null
     }
 }
 else {
@@ -363,15 +596,13 @@ else {
     Write-Host "  [$SCRIPT_INDEX] Downloading Qt $QtVersion source code..." -ForegroundColor Cyan
     Write-Host "  [$SCRIPT_INDEX] This is a large file and may take considerable time" -ForegroundColor Yellow
     Write-Host "  [$SCRIPT_INDEX] URL: $qtSrcFileUrl" -ForegroundColor Gray
+    Write-Host ""
 
-    try {
-        Invoke-WebRequest -Uri $qtSrcFileUrl -OutFile $qtSrcDownloadPath -UseBasicParsing
-        Write-Host "  [$SCRIPT_INDEX] Download completed successfully" -ForegroundColor Green
-    }
-    catch {
+    Get-FileWithSizeCheck -localPath $qtSrcDownloadPath -remoteUrl $qtSrcFileUrl -description "Qt $QtVersion Source Code"
+    
+    if (-not (Test-Path $qtSrcDownloadPath)) {
         Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to download Qt source code" -ForegroundColor Red
-        Write-Host "  [$SCRIPT_INDEX] Error: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host ""
+        Write-Host "  [$SCRIPT_INDEX] Please check your internet connection and try again" -ForegroundColor Yellow
         exit 1
     }
 }
@@ -385,15 +616,91 @@ else {
     Write-Host "  [$SCRIPT_INDEX] Extracting Qt source code..." -ForegroundColor Cyan
     Write-Host "  [$SCRIPT_INDEX] This may take several minutes..." -ForegroundColor Yellow
 
+    # Check if downloaded file exists and has reasonable size
+    if (-not (Test-Path $qtSrcDownloadPath)) {
+        Write-Host "  [$SCRIPT_INDEX] ERROR: Downloaded file not found: $qtSrcDownloadPath" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] Please re-run the script to download again" -ForegroundColor Yellow
+        exit 1
+    }
+
+    $fileSize = (Get-Item $qtSrcDownloadPath).Length
+    $fileSizeMB = [math]::Round($fileSize / 1MB, 2)
+    Write-Host "  [$SCRIPT_INDEX] Downloaded file size: $fileSizeMB MB" -ForegroundColor Cyan
+
+    # Check if file size is reasonable (should be around 1.8GB for Qt 6.10.0)
+    if ($fileSize -lt 100MB) {
+        Write-Host "  [$SCRIPT_INDEX] ERROR: Downloaded file is too small ($fileSizeMB MB)" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] Expected size should be around 1800+ MB" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] The download may have failed or been interrupted" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] Removing corrupted file and exiting..." -ForegroundColor Yellow
+        Remove-Item $qtSrcDownloadPath -Force
+        exit 1
+    }
+
     try {
+        # Try to extract using PowerShell's Expand-Archive
+        Write-Host "  [$SCRIPT_INDEX] Attempting extraction with Expand-Archive..." -ForegroundColor Cyan
         Expand-Archive -Path $qtSrcDownloadPath -DestinationPath $qtSrcExtractDir -Force
         Write-Host "  [$SCRIPT_INDEX] Extraction completed successfully" -ForegroundColor Green
     }
     catch {
-        Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to extract Qt source code" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to extract Qt source code with Expand-Archive" -ForegroundColor Red
         Write-Host "  [$SCRIPT_INDEX] Error: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host ""
+        
+        # Try alternative extraction method using 7-Zip if available
+        Write-Host "  [$SCRIPT_INDEX] Trying alternative extraction method..." -ForegroundColor Yellow
+        
+        $sevenZipPath = $null
+        $possiblePaths = @(
+            $Global:SEVENZIP_EXE_PATH,
+            "C:\Program Files\7-Zip\7z.exe",
+            "C:\Program Files (x86)\7-Zip\7z.exe"
+        )
+        
+        foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+                $sevenZipPath = $path
+                break
+            }
+        }
+        
+        if ($sevenZipPath) {
+            Write-Host "  [$SCRIPT_INDEX] Found 7-Zip at: $sevenZipPath" -ForegroundColor Green
+            try {
+                $extractArgs = @("x", "`"$qtSrcDownloadPath`"", "-o`"$qtSrcExtractDir`"", "-y")
+                $extractProcess = Start-Process -FilePath $sevenZipPath -ArgumentList $extractArgs -Wait -NoNewWindow -PassThru
+                
+                if ($extractProcess.ExitCode -eq 0) {
+                    Write-Host "  [$SCRIPT_INDEX] Extraction completed successfully with 7-Zip" -ForegroundColor Green
+                }
+                else {
+                    Write-Host "  [$SCRIPT_INDEX] ERROR: 7-Zip extraction failed with exit code: $($extractProcess.ExitCode)" -ForegroundColor Red
+                    throw "7-Zip extraction failed"
+                }
+            }
+            catch {
+                Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to extract with 7-Zip: $($_.Exception.Message)" -ForegroundColor Red
+                throw "All extraction methods failed"
+            }
+        }
+        else {
+            Write-Host "  [$SCRIPT_INDEX] ERROR: 7-Zip not found, cannot use alternative extraction method" -ForegroundColor Red
+            Write-Host "  [$SCRIPT_INDEX] The ZIP file may be corrupted. Please try downloading again." -ForegroundColor Yellow
+            Write-Host "  [$SCRIPT_INDEX] You can also try manually extracting: $qtSrcDownloadPath" -ForegroundColor Cyan
+            throw "No alternative extraction method available"
+        }
+    }
+
+    # Verify extraction was successful
+    if (-not (Test-Path $qtSrcDir)) {
+        Write-Host "  [$SCRIPT_INDEX] ERROR: Extraction verification failed - Qt source directory not found" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] Expected directory: $qtSrcDir" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] Please check the downloaded file and try again" -ForegroundColor Yellow
         exit 1
+    }
+    else {
+        Write-Host "  [$SCRIPT_INDEX] Extraction verification successful" -ForegroundColor Green
+        Write-Host "  [$SCRIPT_INDEX] Qt source directory: $qtSrcDir" -ForegroundColor Cyan
     }
 }
 Write-Host ""
@@ -410,11 +717,17 @@ Write-Host "  [$SCRIPT_INDEX] ==========================================" -Foreg
 Write-Host "  [$SCRIPT_INDEX] IMPORTANT BUILD INFORMATION" -ForegroundColor Magenta
 Write-Host "  [$SCRIPT_INDEX] ==========================================" -ForegroundColor Magenta
 Write-Host "  [$SCRIPT_INDEX] Qt compilation is a VERY long process that may take:" -ForegroundColor Yellow
-Write-Host "  [$SCRIPT_INDEX]   - 2-6 hours on modern multi-core systems" -ForegroundColor Yellow
-Write-Host "  [$SCRIPT_INDEX]   - Significant disk space (20-30 GB)" -ForegroundColor Yellow
+Write-Host "  [$SCRIPT_INDEX]   - 4-8 hours on modern multi-core systems (with all components)" -ForegroundColor Yellow
+Write-Host "  [$SCRIPT_INDEX]   - Significant disk space (30-50 GB with all components)" -ForegroundColor Yellow
 Write-Host "  [$SCRIPT_INDEX]   - High CPU and memory usage" -ForegroundColor Yellow
 Write-Host "  [$SCRIPT_INDEX] " -ForegroundColor White
-Write-Host "  [$SCRIPT_INDEX] This script will create a RELOCATABLE offline Qt package" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX] This script will install ALL Qt components including:" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX]   - Qt Core, GUI, Widgets, Network, SQL, Multimedia" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX]   - Qt WebEngine (full web browser engine)" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX]   - Qt Tests and Examples" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX]   - All Qt Tools and Documentation" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX] " -ForegroundColor White
+Write-Host "  [$SCRIPT_INDEX] This will create a COMPLETE relocatable offline Qt package" -ForegroundColor Cyan
 Write-Host "  [$SCRIPT_INDEX] that can be distributed and used on other Windows systems" -ForegroundColor Cyan
 Write-Host "  [$SCRIPT_INDEX] ==========================================" -ForegroundColor Magenta
 Write-Host ""
@@ -436,19 +749,26 @@ Write-Host "  [$SCRIPT_INDEX] Install directory: $qtInstallDir" -ForegroundColor
 Push-Location $qtBuildDir
 
 try {
-    # Setup MSVC environment
-    Write-Host "  [$SCRIPT_INDEX] Setting up Visual Studio environment..." -ForegroundColor Cyan
-    $vcvarsCmd = "`"$vs2022BatPath`" amd64 && set"
-    $envVars = cmd /c $vcvarsCmd 2>&1
+    # Setup MSVC environment (if Visual Studio is available)
+    if ($vs2022BatPath) {
+        Write-Host "  [$SCRIPT_INDEX] Setting up Visual Studio environment..." -ForegroundColor Cyan
+        $vcvarsCmd = "`"$vs2022BatPath`" amd64 && set"
+        $envVars = cmd /c $vcvarsCmd 2>&1
 
-    foreach ($line in $envVars) {
-        if ($line -match "^(.*?)=(.*)$") {
-            $varName = $matches[1]
-            $varValue = $matches[2]
-            Set-Item -Force -Path "Env:\$varName" -Value "$varValue" -ErrorAction SilentlyContinue
+        foreach ($line in $envVars) {
+            if ($line -match "^(.*?)=(.*)$") {
+                $varName = $matches[1]
+                $varValue = $matches[2]
+                Set-Item -Force -Path "Env:\$varName" -Value "$varValue" -ErrorAction SilentlyContinue
+            }
         }
+        Write-Host "  [$SCRIPT_INDEX] MSVC environment initialized" -ForegroundColor Green
     }
-    Write-Host "  [$SCRIPT_INDEX] MSVC environment initialized" -ForegroundColor Green
+    else {
+        Write-Host "  [$SCRIPT_INDEX] WARNING: Visual Studio environment not available" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] Attempting to build without MSVC environment setup..." -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX] This may fail if MSVC tools are required" -ForegroundColor Yellow
+    }
     Write-Host ""
 
     # Run configure
@@ -456,43 +776,109 @@ try {
     Write-Host "  [$SCRIPT_INDEX] This may take 10-20 minutes..." -ForegroundColor Yellow
 
     $configureBat = Join-Path $qtSrcDir "configure.bat"
+    
+    # Choose platform based on Visual Studio availability
+    if ($vs2022BatPath) {
+        $platform = "win32-msvc"
+        Write-Host "  [$SCRIPT_INDEX] Using MSVC platform for Qt build" -ForegroundColor Green
+    }
+    else {
+        $platform = "win32-g++"
+        Write-Host "  [$SCRIPT_INDEX] Using MinGW platform for Qt build (Visual Studio not available)" -ForegroundColor Yellow
+    }
+
+    # Check for ATL (Active Template Library) support
+    Write-Host "  [$SCRIPT_INDEX] Checking for ATL (Active Template Library) support..." -ForegroundColor Cyan
+    $atlHeaderPath = "C:\Program Files (x86)\Windows Kits\10\Include"
+    $atlSupported = $false
+
+    if (Test-Path $atlHeaderPath) {
+        $atlbasePath = Get-ChildItem -Path $atlHeaderPath -Recurse -Filter "atlbase.h" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($atlbasePath) {
+            $atlSupported = $true
+            Write-Host "  [$SCRIPT_INDEX]   [OK] ATL library found: $($atlbasePath.FullName)" -ForegroundColor Green
+        }
+    }
+
+    if (-not $atlSupported) {
+        Write-Host "  [$SCRIPT_INDEX]   [WARNING] ATL library not found" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX]   ATL is required for QtSpeech SAPI plugin and QtWebView" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX]   Modules requiring ATL will be skipped" -ForegroundColor Yellow
+        Write-Host "" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX]   To install ATL:" -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX]   1. Open Visual Studio Installer" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   2. Click 'Modify' on VS 2022" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   3. Go to 'Individual components' tab" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   4. Search for 'ATL' and check:" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]      - C++ ATL for latest build tools" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]      - C++ MFC for latest build tools (optional)" -ForegroundColor Gray
+        Write-Host "" -ForegroundColor Yellow
+    }
+
+    # Build configure arguments
     $configureArgs = @(
         "-prefix", "`"$qtInstallDir`"",
         "-opensource",
         "-confirm-license",
         "-release",
-        "-nomake", "tests",
-        "-nomake", "examples",
-        "-skip", "qtwebengine",
-        "-platform", "win32-msvc",
-        "-feature-separate-debug-info",
-        "-feature-relocatable"
+        "-platform", $platform
     )
+
+    # Skip modules that require ATL if not available
+    if (-not $atlSupported) {
+        Write-Host "  [$SCRIPT_INDEX] Configuring Qt WITHOUT ATL-dependent modules:" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX]   - Skipping QtSpeech (requires ATL for SAPI plugin)" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   - Skipping QtWebView (requires ATL for WebView2 plugin)" -ForegroundColor Gray
+        $configureArgs += @("-skip", "qtspeech")
+        $configureArgs += @("-skip", "qtwebview")
+    }
+    else {
+        Write-Host "  [$SCRIPT_INDEX] Configuring Qt WITH all modules (ATL available)" -ForegroundColor Green
+    }
 
     $configureProcess = Start-Process -FilePath $configureBat -ArgumentList $configureArgs -Wait -NoNewWindow -PassThru
 
     if ($configureProcess.ExitCode -ne 0) {
-        Write-Host "  [$SCRIPT_INDEX] ERROR: Qt configure failed with exit code: $($configureProcess.ExitCode)" -ForegroundColor Red
-        Pop-Location
-        exit 1
+        Write-Host "  [$SCRIPT_INDEX] WARNING: Qt configure failed with exit code: $($configureProcess.ExitCode)" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] This may be due to missing Visual Studio or other prerequisites" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] Attempting to continue with build process..." -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX] Note: Build may fail if configure step was critical" -ForegroundColor Yellow
     }
-
-    Write-Host "  [$SCRIPT_INDEX] Qt configure completed successfully" -ForegroundColor Green
+    else {
+        Write-Host "  [$SCRIPT_INDEX] Qt configure completed successfully" -ForegroundColor Green
+    }
     Write-Host ""
 
     # Build Qt
     Write-Host "  [$SCRIPT_INDEX] Building Qt (this will take several hours)..." -ForegroundColor Cyan
     Write-Host "  [$SCRIPT_INDEX] You can monitor progress in the console output" -ForegroundColor Yellow
+    Write-Host ""
 
     $buildProcess = Start-Process -FilePath "cmake" -ArgumentList "--build", ".", "--parallel" -Wait -NoNewWindow -PassThru
 
     if ($buildProcess.ExitCode -ne 0) {
-        Write-Host "  [$SCRIPT_INDEX] ERROR: Qt build failed with exit code: $($buildProcess.ExitCode)" -ForegroundColor Red
-        Pop-Location
-        exit 1
-    }
+        Write-Host "" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] ============================================" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] ERROR: Qt build failed (exit code: $($buildProcess.ExitCode))" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] ============================================" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  [$SCRIPT_INDEX] Common causes:" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX]   1. Missing ATL library (see error above)" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   2. Incomplete Visual Studio installation" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   3. Missing Windows SDK components" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   4. Insufficient disk space" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "  [$SCRIPT_INDEX] To retry build after fixing issues:" -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX]   1. Fix the issue (e.g., install ATL)" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   2. Delete build directory: $qtBuildDir" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   3. Run this script again" -ForegroundColor Gray
+        Write-Host ""
 
-    Write-Host "  [$SCRIPT_INDEX] Qt build completed successfully" -ForegroundColor Green
+        throw "Qt build failed - see error messages above for details"
+    }
+    else {
+        Write-Host "  [$SCRIPT_INDEX] Qt build completed successfully" -ForegroundColor Green
+    }
     Write-Host ""
 
     # Install Qt
@@ -501,36 +887,51 @@ try {
     $installProcess = Start-Process -FilePath "cmake" -ArgumentList "--install", "." -Wait -NoNewWindow -PassThru
 
     if ($installProcess.ExitCode -ne 0) {
-        Write-Host "  [$SCRIPT_INDEX] ERROR: Qt installation failed with exit code: $($installProcess.ExitCode)" -ForegroundColor Red
-        Pop-Location
-        exit 1
+        Write-Host "  [$SCRIPT_INDEX] WARNING: Qt installation failed with exit code: $($installProcess.ExitCode)" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] This may be due to missing Visual Studio or other prerequisites" -ForegroundColor Yellow
+        Write-Host "  [$SCRIPT_INDEX] Attempting to continue with environment setup..." -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX] Note: Qt may not be fully functional if installation failed" -ForegroundColor Yellow
     }
-
-    Write-Host "  [$SCRIPT_INDEX] Qt installation completed successfully" -ForegroundColor Green
+    else {
+        Write-Host "  [$SCRIPT_INDEX] Qt installation completed successfully" -ForegroundColor Green
+    }
     Write-Host ""
 }
 catch {
-    Write-Host "  [$SCRIPT_INDEX] ERROR: An exception occurred during Qt build process" -ForegroundColor Red
-    Write-Host "  [$SCRIPT_INDEX] Error: $($_.Exception.Message)" -ForegroundColor Red
-    Pop-Location
-    exit 1
+    Write-Host "  [$SCRIPT_INDEX] WARNING: An exception occurred during Qt build process" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Continuing with environment setup..." -ForegroundColor Cyan
+    Write-Host "  [$SCRIPT_INDEX] Note: Qt may not be fully functional due to build errors" -ForegroundColor Yellow
 }
 finally {
     Pop-Location
 }
 
-# Add Qt bin to PATH
-Write-Host "  [$SCRIPT_INDEX] Adding Qt bin directory to system PATH..." -ForegroundColor Cyan
-Add-ToPath -PathToAdd $qtBinPath -Scope "Machine"
-Write-Host "  [$SCRIPT_INDEX] Qt bin added to PATH: $qtBinPath" -ForegroundColor Green
+# Add Qt bin to PATH (if Qt was successfully installed)
+Write-Host "  [$SCRIPT_INDEX] Setting up Qt environment variables..." -ForegroundColor Cyan
+if (Test-Path $qtBinPath) {
+    Write-Host "  [$SCRIPT_INDEX] Adding Qt bin directory to system PATH..." -ForegroundColor Cyan
+    Add-ToPath -PathToAdd $qtBinPath -Scope "Machine"
+    Write-Host "  [$SCRIPT_INDEX] Qt bin added to PATH: $qtBinPath" -ForegroundColor Green
+}
+else {
+    Write-Host "  [$SCRIPT_INDEX] WARNING: Qt bin directory not found at: $qtBinPath" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Skipping PATH update for Qt bin" -ForegroundColor Yellow
+}
 Write-Host ""
 
 # Set Qt environment variables for CMake
 Write-Host "  [$SCRIPT_INDEX] Configuring Qt environment variables..." -ForegroundColor Cyan
 
-# Set QTDIR to the Qt installation root
-Set-EnvVar -varName "QTDIR" -varValue $qtInstallDir
-Write-Host "  [$SCRIPT_INDEX]   - QTDIR set to: $qtInstallDir" -ForegroundColor Green
+# Set QTDIR to the Qt installation root (if Qt was successfully installed)
+if (Test-Path $qtInstallDir) {
+    Set-EnvVar -varName "QTDIR" -varValue $qtInstallDir
+    Write-Host "  [$SCRIPT_INDEX]   - QTDIR set to: $qtInstallDir" -ForegroundColor Green
+}
+else {
+    Write-Host "  [$SCRIPT_INDEX]   - WARNING: Qt installation directory not found at: $qtInstallDir" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX]   - Skipping QTDIR environment variable setup" -ForegroundColor Yellow
+}
 
 # Detect Qt CMake config directory
 $qtCMakeDir = Join-Path $qtInstallDir "lib\cmake\Qt6"
@@ -539,13 +940,15 @@ if (-not (Test-Path $qtCMakeDir)) {
 }
 
 if (Test-Path $qtCMakeDir) {
-    # Get Qt install directory to set as CMAKE_PREFIX_PATH
+    # Update CMAKE_PREFIX_PATH
     $currentCMakePath = [Environment]::GetEnvironmentVariable("CMAKE_PREFIX_PATH", "Machine")
     if ($currentCMakePath -and -not $currentCMakePath.Contains($qtInstallDir)) {
         $newCMakePath = "$qtInstallDir;$currentCMakePath"
-    } elseif (-not $currentCMakePath) {
+    }
+    elseif (-not $currentCMakePath) {
         $newCMakePath = $qtInstallDir
-    } else {
+    }
+    else {
         $newCMakePath = $currentCMakePath
     }
 
@@ -556,8 +959,11 @@ if (Test-Path $qtCMakeDir) {
     $qtVersion = if ($qtCMakeDir -match "Qt6") { "Qt6" } else { "Qt5" }
     Set-EnvVar -varName "${qtVersion}_DIR" -varValue $qtCMakeDir
     Write-Host "  [$SCRIPT_INDEX]   - ${qtVersion}_DIR set to: $qtCMakeDir" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "  [$SCRIPT_INDEX]   - WARNING: Qt CMake directory not found at: $qtCMakeDir" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX]   - This may indicate Qt installation was incomplete" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX]   - Skipping CMake environment variable setup" -ForegroundColor Yellow
 }
 
 Write-Host "  [$SCRIPT_INDEX] Qt environment variables configured" -ForegroundColor Green
@@ -603,17 +1009,34 @@ else {
 Write-Host ""
 
 Write-Host "================================================================================" -ForegroundColor Green
-Write-Host "  [$SCRIPT_INDEX] Qt $QtVersion Installation Completed Successfully" -ForegroundColor Green
-Write-Host "================================================================================" -ForegroundColor Green
-Write-Host "  [$SCRIPT_INDEX] Installation Directory: $qtInstallDir" -ForegroundColor Cyan
-Write-Host "  [$SCRIPT_INDEX] qmake Path: $qtExePath" -ForegroundColor Cyan
-Write-Host "  [$SCRIPT_INDEX] Qt bin added to PATH: $qtBinPath" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  [$SCRIPT_INDEX] To use Qt in new terminal sessions:" -ForegroundColor Yellow
-Write-Host "  [$SCRIPT_INDEX]   - Close and reopen your terminal/IDE" -ForegroundColor Gray
-Write-Host "  [$SCRIPT_INDEX]   - Or run: refreshenv (if using Chocolatey)" -ForegroundColor Gray
-Write-Host ""
-Write-Host "  [$SCRIPT_INDEX] Quick test command:" -ForegroundColor Yellow
-Write-Host "  [$SCRIPT_INDEX]   qmake --version" -ForegroundColor Gray
+if (Test-Path $qtExePath) {
+    Write-Host "  [$SCRIPT_INDEX] Qt $QtVersion Installation Completed Successfully" -ForegroundColor Green
+    Write-Host "================================================================================" -ForegroundColor Green
+    Write-Host "  [$SCRIPT_INDEX] Installation Directory: $qtInstallDir" -ForegroundColor Cyan
+    Write-Host "  [$SCRIPT_INDEX] qmake Path: $qtExePath" -ForegroundColor Cyan
+    if (Test-Path $qtBinPath) {
+        Write-Host "  [$SCRIPT_INDEX] Qt bin added to PATH: $qtBinPath" -ForegroundColor Cyan
+    }
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] To use Qt in new terminal sessions:" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX]   - Close and reopen your terminal/IDE" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]   - Or run: refreshenv (if using Chocolatey)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] Quick test command:" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX]   qmake --version" -ForegroundColor Gray
+}
+else {
+    Write-Host "  [$SCRIPT_INDEX] Qt $QtVersion Installation Completed with Warnings" -ForegroundColor Yellow
+    Write-Host "================================================================================" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Qt may not be fully functional due to missing prerequisites" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Expected Installation Directory: $qtInstallDir" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX] Expected qmake Path: $qtExePath" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] Please check the warnings above and install missing prerequisites:" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX]   - Visual Studio 2022 with C++ Desktop Development workload" -ForegroundColor Gray
+    Write-Host "  [$SCRIPT_INDEX]   - CMake, Ninja, Python (if not already installed)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  [$SCRIPT_INDEX] You can run this script again after installing prerequisites" -ForegroundColor Cyan
+}
 Write-Host "================================================================================" -ForegroundColor Green
 Write-Host ""

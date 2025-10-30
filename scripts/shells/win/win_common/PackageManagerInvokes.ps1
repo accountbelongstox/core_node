@@ -319,43 +319,190 @@ function Invoke-PipCommand {
     # Get pip executable path
     $pipExe = $Global:PIP_EXE_PATH
     
-    # Get Python Scripts directory
+    # Get Python Scripts directory using GlobalVars.ps1 definitions
+    $pythonScriptsDir = $null
+    Write-DebugLog -Message "Starting Python Scripts directory detection..." -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "PIP executable path: $pipExe" -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "Global PYTHON_DIR: $Global:PYTHON_DIR" -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "Global PYTHON_EXE_PATH: $Global:PYTHON_EXE_PATH" -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "Global PIP_EXE_PATH: $Global:PIP_EXE_PATH" -Category "PIP" -Color "Cyan"
+    
     try {
-        $pipShowOutput = & $pipExe show pip
-        $locationLine = $pipShowOutput | Select-String "Location:"
-        if ($locationLine) {
-            # Extract path after "Location: " (note the space after colon)
-            $pythonScriptsDir = $locationLine.ToString() -replace "^Location:\s*", ""
-            $pythonScriptsDir = Join-Path $pythonScriptsDir "Scripts"
-            Write-DebugLog -Message "Python Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
+        # Method 1: Use GlobalVars.ps1 PYTHON_DIR + Scripts
+        Write-DebugLog -Message "Method 1: Using GlobalVars PYTHON_DIR..." -Category "PIP" -Color "Cyan"
+        if ($Global:PYTHON_DIR) {
+            $pythonScriptsDir = Join-Path $Global:PYTHON_DIR "Scripts"
+            Write-DebugLog -Message "Method 1: Calculated Scripts path: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
+            Write-DebugLog -Message "Method 1: Path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
+            
+            if (Test-Path $pythonScriptsDir) {
+                Write-DebugLog -Message "Method 1 SUCCESS: Python Scripts directory (from GlobalVars): $pythonScriptsDir" -Category "PIP" -Color "Green"
+            } else {
+                Write-DebugLog -Message "Method 1 FAILED: GlobalVars Scripts directory not accessible: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
+                $pythonScriptsDir = $null
+            }
         } else {
-            throw "Location not found in pip show output"
+            Write-DebugLog -Message "Method 1 FAILED: GlobalVars PYTHON_DIR is not defined" -Category "PIP" -Color "Yellow"
+        }
+        
+        # Method 2: Try pip show pip command
+        if (-not $pythonScriptsDir) {
+            Write-DebugLog -Message "Method 2: Trying 'pip show pip' command..." -Category "PIP" -Color "Cyan"
+            $pipShowOutput = & $pipExe show pip 2>&1
+            $pipShowExitCode = $LASTEXITCODE
+            Write-DebugLog -Message "pip show pip exit code: $pipShowExitCode" -Category "PIP" -Color "Cyan"
+            Write-DebugLog -Message "pip show pip output: $($pipShowOutput -join '`n')" -Category "PIP" -Color "Cyan"
+            
+            if ($pipShowExitCode -eq 0 -and $pipShowOutput) {
+                $locationLine = $pipShowOutput | Select-String "Location:"
+                if ($locationLine) {
+                    $pipLocation = $locationLine.ToString() -replace "^Location:\s*", ""
+                    $pythonScriptsDir = Join-Path $pipLocation "Scripts"
+                    Write-DebugLog -Message "Method 2 SUCCESS: Python Scripts directory (from pip show): $pythonScriptsDir" -Category "PIP" -Color "Green"
+                    Write-DebugLog -Message "Checking if path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
+                } else {
+                    Write-DebugLog -Message "Method 2 FAILED: Location line not found in pip show output" -Category "PIP" -Color "Yellow"
+                }
+            } else {
+                Write-DebugLog -Message "Method 2 FAILED: pip show pip command failed or returned empty output" -Category "PIP" -Color "Yellow"
+            }
+        }
+        
+        # Method 3: Fallback to Python executable location
+        if (-not $pythonScriptsDir) {
+            Write-DebugLog -Message "Method 3: Trying to find Python executable..." -Category "PIP" -Color "Cyan"
+            $pythonExe = Get-Command python -ErrorAction SilentlyContinue
+            if ($pythonExe) {
+                Write-DebugLog -Message "Found Python executable: $($pythonExe.Source)" -Category "PIP" -Color "Cyan"
+                $pythonDir = Split-Path $pythonExe.Source -Parent
+                $pythonScriptsDir = Join-Path $pythonDir "Scripts"
+                Write-DebugLog -Message "Method 3 SUCCESS: Python Scripts directory (from python command): $pythonScriptsDir" -Category "PIP" -Color "Green"
+                Write-DebugLog -Message "Checking if path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
+            } else {
+                Write-DebugLog -Message "Method 3 FAILED: Python executable not found in PATH" -Category "PIP" -Color "Yellow"
+            }
+        }
+        
+        # Method 4: Fallback to PIP_EXE_PATH location
+        if (-not $pythonScriptsDir) {
+            Write-DebugLog -Message "Method 4: Trying PIP executable location..." -Category "PIP" -Color "Cyan"
+            $pipDir = Split-Path $pipExe -Parent
+            $pythonScriptsDir = Join-Path $pipDir "Scripts"
+            Write-DebugLog -Message "Method 4 SUCCESS: Python Scripts directory (from pip path): $pythonScriptsDir" -Category "PIP" -Color "Green"
+            Write-DebugLog -Message "Checking if path exists: $(Test-Path $pythonScriptsDir)" -Category "PIP" -Color "Cyan"
+        }
+        
+        # Final validation
+        if ($pythonScriptsDir) {
+            Write-DebugLog -Message "Final validation: Checking if $pythonScriptsDir exists..." -Category "PIP" -Color "Cyan"
+            if (Test-Path $pythonScriptsDir) {
+                Write-DebugLog -Message "SUCCESS: Python Scripts directory found and accessible: $pythonScriptsDir" -Category "PIP" -Color "Green"
+            } else {
+                Write-DebugLog -Message "WARNING: Python Scripts directory found but not accessible: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
+            }
+        } else {
+            Write-DebugLog -Message "ERROR: Could not determine Python Scripts directory using any method" -Category "PIP" -Color "Red"
+            throw "Could not determine Python Scripts directory using any method"
         }
     }
     catch {
-        Write-DebugLog -Message "Failed to get Python Scripts directory: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "CRITICAL ERROR: Failed to get Python Scripts directory: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "Stack trace: $($_.ScriptStackTrace)" -Category "PIP" -Color "Red"
         return $null
     }
     
-    # Build search paths for pip packages
+    # Build search paths for pip packages with comprehensive debugging
     $searchPaths = @()
+    Write-DebugLog -Message "Starting search paths building..." -Category "PIP" -Color "Cyan"
+    
     try {
-        $searchPaths += $pythonScriptsDir
-        Write-DebugLog -Message "Added Python Scripts path: $pythonScriptsDir" -Category "PIP" -Color "Magenta"
+        # Add the main Python Scripts directory
+        if ($pythonScriptsDir) {
+            Write-DebugLog -Message "Adding main Python Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
+            if (Test-Path $pythonScriptsDir) {
+                $searchPaths += $pythonScriptsDir
+                Write-DebugLog -Message "SUCCESS: Added Python Scripts path: $pythonScriptsDir" -Category "PIP" -Color "Green"
+            } else {
+                Write-DebugLog -Message "WARNING: Python Scripts directory not accessible: $pythonScriptsDir" -Category "PIP" -Color "Yellow"
+            }
+        } else {
+            Write-DebugLog -Message "ERROR: pythonScriptsDir is null or empty" -Category "PIP" -Color "Red"
+        }
         
         # Add user-specific pip paths if available
-        $userPipShowOutput = & $pipExe show pip --user 2>$null
-        $userLocationLine = $userPipShowOutput | Select-String "Location:"
-        if ($userLocationLine) {
-            $userPipDir = $userLocationLine.ToString() -replace "^Location:\s*", ""
-            $userScriptsDir = Join-Path $userPipDir "Scripts"
-            $searchPaths += $userScriptsDir
-            Write-DebugLog -Message "Added user pip Scripts path: $userScriptsDir" -Category "PIP" -Color "Magenta"
+        Write-DebugLog -Message "Trying to find user-specific pip paths..." -Category "PIP" -Color "Cyan"
+        try {
+            $userPipShowOutput = & $pipExe show pip --user 2>&1
+            $userPipExitCode = $LASTEXITCODE
+            Write-DebugLog -Message "pip show pip --user exit code: $userPipExitCode" -Category "PIP" -Color "Cyan"
+            Write-DebugLog -Message "pip show pip --user output: $($userPipShowOutput -join '`n')" -Category "PIP" -Color "Cyan"
+            
+            if ($userPipExitCode -eq 0 -and $userPipShowOutput) {
+                $userLocationLine = $userPipShowOutput | Select-String "Location:"
+                if ($userLocationLine) {
+                    $userPipDir = $userLocationLine.ToString() -replace "^Location:\s*", ""
+                    $userScriptsDir = Join-Path $userPipDir "Scripts"
+                    Write-DebugLog -Message "Found user pip directory: $userScriptsDir" -Category "PIP" -Color "Cyan"
+                    
+                    if (Test-Path $userScriptsDir) {
+                        $searchPaths += $userScriptsDir
+                        Write-DebugLog -Message "SUCCESS: Added user pip Scripts path: $userScriptsDir" -Category "PIP" -Color "Green"
+                    } else {
+                        Write-DebugLog -Message "WARNING: User pip Scripts directory not accessible: $userScriptsDir" -Category "PIP" -Color "Yellow"
+                    }
+                } else {
+                    Write-DebugLog -Message "WARNING: Location line not found in user pip show output" -Category "PIP" -Color "Yellow"
+                }
+            } else {
+                Write-DebugLog -Message "WARNING: pip show pip --user command failed or returned empty output" -Category "PIP" -Color "Yellow"
+            }
+        }
+        catch {
+            Write-DebugLog -Message "ERROR: Exception while getting user pip location: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        }
+        
+        # Add additional common pip installation paths
+        Write-DebugLog -Message "Adding additional common pip installation paths..." -Category "PIP" -Color "Cyan"
+        $additionalPaths = @(
+            (Join-Path $env:USERPROFILE ".local\Scripts"),
+            (Join-Path $env:APPDATA "Python\Scripts"),
+            (Join-Path $env:LOCALAPPDATA "Programs\Python\Scripts"),
+            (Join-Path $env:USERPROFILE "AppData\Local\Programs\Python\Scripts"),
+            (Join-Path $env:USERPROFILE "AppData\Roaming\Python\Scripts")
+        )
+        
+        foreach ($path in $additionalPaths) {
+            Write-DebugLog -Message "Checking additional path: $path" -Category "PIP" -Color "Cyan"
+            if (Test-Path $path) {
+                $searchPaths += $path
+                Write-DebugLog -Message "SUCCESS: Added additional pip path: $path" -Category "PIP" -Color "Green"
+            } else {
+                Write-DebugLog -Message "Path not found: $path" -Category "PIP" -Color "Gray"
+            }
+        }
+        
+        # Ensure we have at least one search path
+        Write-DebugLog -Message "Final search paths count: $($searchPaths.Count)" -Category "PIP" -Color "Cyan"
+        if ($searchPaths.Count -eq 0) {
+            Write-DebugLog -Message "WARNING: No valid pip search paths found, adding fallback path" -Category "PIP" -Color "Yellow"
+            # Add a fallback path based on pip executable location
+            $pipDir = Split-Path $pipExe -Parent
+            $fallbackPath = Join-Path $pipDir "Scripts"
+            $searchPaths += $fallbackPath
+            Write-DebugLog -Message "Added fallback pip path: $fallbackPath" -Category "PIP" -Color "Yellow"
+        }
+        
+        # Log all final search paths
+        Write-DebugLog -Message "Final search paths:" -Category "PIP" -Color "Cyan"
+        for ($i = 0; $i -lt $searchPaths.Count; $i++) {
+            Write-DebugLog -Message "  [$i] $($searchPaths[$i])" -Category "PIP" -Color "Cyan"
         }
     }
     catch {
-        Write-DebugLog -Message "Error building search paths: $($_.Exception.Message)" -Category "PIP" -Color "Red"
-        throw
+        Write-DebugLog -Message "CRITICAL ERROR: Error building search paths: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "Stack trace: $($_.ScriptStackTrace)" -Category "PIP" -Color "Red"
+        # Don't throw here, continue with empty search paths
+        Write-DebugLog -Message "Continuing with empty search paths" -Category "PIP" -Color "Yellow"
     }
     
     # Build search keywords
@@ -381,54 +528,159 @@ function Invoke-PipCommand {
     }
     
     # Install package
-    Write-DebugLog -Message "Installing pip package: $PackageName" -Category "PIP" -Color "Yellow"
+    # Install package with comprehensive debugging
+    Write-DebugLog -Message "Starting pip package installation for: $PackageName" -Category "PIP" -Color "Yellow"
+    Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PIP" -Color "Cyan"
+    Write-DebugLog -Message "Search paths count: $($searchPaths.Count)" -Category "PIP" -Color "Cyan"
+    
     try {
-        $installArgs = @("install", "--user", $PackageName)
-        $Command = "$pipExe $installArgs"
-        Write-DebugLog -Message "Command: $Command" -Category "PIP" -Color "Magenta"
+        # Try different installation methods with detailed logging
+        $installMethods = @(
+            @{ Args = @("install", $PackageName); Name = "global installation" },
+            @{ Args = @("install", "--upgrade", $PackageName); Name = "upgrade installation" },
+            @{ Args = @("install", "--force-reinstall", $PackageName); Name = "force reinstall" }
+        )
         
-        # Capture pip output but don't return it
-        $pipOutput = & $pipExe $installArgs
-        Write-DebugLog -Message "pip installation output: $($pipOutput -join ' ')" -Category "PIP" -Color "Cyan"
+        $installationSuccessful = $false
+        $pipOutput = $null
+        $successfulMethod = $null
         
-        if ($LASTEXITCODE -eq 0) {
-            Write-DebugLog -Message "Installation successful" -Category "PIP" -Color "Green"
+        Write-DebugLog -Message "Will try $($installMethods.Count) installation methods" -Category "PIP" -Color "Cyan"
+        
+        foreach ($method in $installMethods) {
+            Write-DebugLog -Message "=== Trying $($method.Name) ===" -Category "PIP" -Color "Magenta"
+            Write-DebugLog -Message "Command: $pipExe $($method.Args -join ' ')" -Category "PIP" -Color "Magenta"
             
-            # Refresh search paths after installation
-            Write-DebugLog -Message "Refreshing search paths..." -Category "PIP" -Color "Magenta"
-            $searchPaths = @()
             try {
-                $searchPaths += $pythonScriptsDir
-                if ($userPipDir) {
-                    $userScriptsDir = Join-Path $userPipDir "Scripts"
-                    $searchPaths += $userScriptsDir
+                $startTime = Get-Date
+                Write-DebugLog -Message "Starting pip installation..." -Category "PIP" -Color "Cyan"
+                
+                # Use direct execution with real-time output
+                $pipOutput = & $pipExe $method.Args 2>&1
+                $endTime = Get-Date
+                $duration = ($endTime - $startTime).TotalSeconds
+                
+                # Display real-time output
+                Write-DebugLog -Message "Installation completed in $duration seconds" -Category "PIP" -Color "Cyan"
+                Write-DebugLog -Message "Pip output:" -Category "PIP" -Color "Cyan"
+                if ($pipOutput) {
+                    foreach ($line in $pipOutput) {
+                        Write-DebugLog -Message "  $line" -Category "PIP" -Color "White"
+                    }
+                }
+                
+                # Check if binary actually exists after installation attempt
+                Write-DebugLog -Message "Checking if binary exists after installation attempt..." -Category "PIP" -Color "Cyan"
+                $binaryFound = $false
+                
+                # Search for the installed binary in all possible locations
+                $binarySearchPaths = @()
+                if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
+                    $binarySearchPaths += $pythonScriptsDir
+                }
+                $binarySearchPaths += $searchPaths
+                
+                foreach ($searchPath in $binarySearchPaths) {
+                    if (Test-Path $searchPath) {
+                        foreach ($ext in $ExecutableExtensions) {
+                            $binaryPath = Join-Path $searchPath "$PackageName$ext"
+                            if (Test-Path $binaryPath) {
+                                Write-DebugLog -Message "SUCCESS: Binary found at $binaryPath" -Category "PIP" -Color "Green"
+                                $binaryFound = $true
+                                break
+                            }
+                        }
+                        if ($binaryFound) { break }
+                    }
+                }
+                
+                if ($binaryFound) {
+                    Write-DebugLog -Message "SUCCESS: Installation successful with $($method.Name) - binary exists" -Category "PIP" -Color "Green"
+                    $installationSuccessful = $true
+                    $successfulMethod = $method.Name
+                    break
+                } else {
+                    Write-DebugLog -Message "FAILED: Installation failed with $($method.Name) - binary not found" -Category "PIP" -Color "Yellow"
                 }
             }
             catch {
-                Write-DebugLog -Message "Error in refresh search paths: $($_.Exception.Message)" -Category "PIP" -Color "Red"
-                throw
+                Write-DebugLog -Message "EXCEPTION: Exception during $($method.Name): $($_.Exception.Message)" -Category "PIP" -Color "Red"
+                Write-DebugLog -Message "Exception type: $($_.Exception.GetType().Name)" -Category "PIP" -Color "Red"
+            }
+        }
+        
+        if ($installationSuccessful) {
+            Write-DebugLog -Message "Installation successful with method: $successfulMethod" -Category "PIP" -Color "Green"
+            
+            # Refresh search paths after installation
+            Write-DebugLog -Message "Refreshing search paths after installation..." -Category "PIP" -Color "Magenta"
+            $refreshedSearchPaths = @()
+            try {
+                # Rebuild search paths with the same logic as before
+                if ($pythonScriptsDir -and (Test-Path $pythonScriptsDir)) {
+                    $refreshedSearchPaths += $pythonScriptsDir
+                    Write-DebugLog -Message "Added refreshed path: $pythonScriptsDir" -Category "PIP" -Color "Cyan"
+                }
+                
+                # Add additional common paths
+                $additionalPaths = @(
+                    (Join-Path $env:USERPROFILE ".local\Scripts"),
+                    (Join-Path $env:APPDATA "Python\Scripts"),
+                    (Join-Path $env:LOCALAPPDATA "Programs\Python\Scripts")
+                )
+                
+                foreach ($path in $additionalPaths) {
+                    if (Test-Path $path) {
+                        $refreshedSearchPaths += $path
+                        Write-DebugLog -Message "Added refreshed additional path: $path" -Category "PIP" -Color "Cyan"
+                    }
+                }
+                
+                # Ensure we have at least one search path
+                if ($refreshedSearchPaths.Count -eq 0) {
+                    $pipDir = Split-Path $pipExe -Parent
+                    $fallbackPath = Join-Path $pipDir "Scripts"
+                    $refreshedSearchPaths += $fallbackPath
+                    Write-DebugLog -Message "Added refreshed fallback path: $fallbackPath" -Category "PIP" -Color "Yellow"
+                }
+                
+                Write-DebugLog -Message "Refreshed search paths count: $($refreshedSearchPaths.Count)" -Category "PIP" -Color "Cyan"
+            }
+            catch {
+                Write-DebugLog -Message "ERROR: Error refreshing search paths: $($_.Exception.Message)" -Category "PIP" -Color "Yellow"
+                # Use original search paths as fallback
+                $refreshedSearchPaths = $searchPaths
+                Write-DebugLog -Message "Using original search paths as fallback" -Category "PIP" -Color "Yellow"
             }
             
             # Find the installed executable
             Write-DebugLog -Message "Searching for executable after installation..." -Category "PIP" -Color "Magenta"
-            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
+            Write-DebugLog -Message "Search keywords: $($searchKeywords -join ', ')" -Category "PIP" -Color "Cyan"
+            Write-DebugLog -Message "Search paths: $($refreshedSearchPaths -join ', ')" -Category "PIP" -Color "Cyan"
+            
+            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $refreshedSearchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
             
             if ($executable) {
-                Write-DebugLog -Message "Found executable: $executable" -Category "PIP" -Color "Green"
+                Write-DebugLog -Message "SUCCESS: Found executable: $executable" -Category "PIP" -Color "Green"
                 return $executable
             }
             else {
-                Write-DebugLog -Message "Installation completed but executable not found" -Category "PIP" -Color "Yellow"
+                Write-DebugLog -Message "WARNING: Installation completed but executable not found" -Category "PIP" -Color "Yellow"
+                Write-DebugLog -Message "This might be normal for packages that don't install executables" -Category "PIP" -Color "Yellow"
                 return $null
             }
         }
         else {
-            Write-DebugLog -Message "Installation failed with exit code: $LASTEXITCODE" -Category "PIP" -Color "Red"
+            Write-DebugLog -Message "CRITICAL ERROR: All installation methods failed" -Category "PIP" -Color "Red"
+            Write-DebugLog -Message "Package: $PackageName" -Category "PIP" -Color "Red"
+            Write-DebugLog -Message "Tried methods: $($installMethods.Name -join ', ')" -Category "PIP" -Color "Red"
             return $null
         }
     }
     catch {
-        Write-DebugLog -Message "Installation error: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "CRITICAL ERROR: Exception during pip installation: $($_.Exception.Message)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "Exception type: $($_.Exception.GetType().Name)" -Category "PIP" -Color "Red"
+        Write-DebugLog -Message "Stack trace: $($_.ScriptStackTrace)" -Category "PIP" -Color "Red"
         return $null
     }
 }
