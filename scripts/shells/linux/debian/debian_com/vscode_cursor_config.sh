@@ -19,19 +19,33 @@ CONFIG_VERSION="1.0.0"
 
 # Core Node directory (dynamically detected)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 CORE_NODE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+# Source global variables (relative path)
+if [ -f "$PARENT_DIR_LEVEL_2/common/gvar_common.sh" ]; then
+    source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+fi
 
 # Shared download directory
 get_shared_download_dir() {
     if [ "$(uname)" = "Linux" ]; then
-        local shared_dir="/usr/_core_node/shared_downloads"
-        if [ ! -d "$shared_dir" ]; then
-            sudo mkdir -p "$shared_dir" 2>/dev/null || mkdir -p "$shared_dir" 2>/dev/null || true
-            sudo chmod 777 "$shared_dir" 2>/dev/null || chmod 777 "$shared_dir" 2>/dev/null || true
-        fi
+        local shared_dir="${CORE_NODE_DATA_DIR}/shared_downloads"
+
         if [ -d "$shared_dir" ] && [ -w "$shared_dir" ]; then
             echo "$shared_dir"
             return 0
+        fi
+
+        if [ ! -d "$shared_dir" ]; then
+            if sudo mkdir -p "$shared_dir" 2>/dev/null; then
+                sudo chmod 777 "$shared_dir" 2>/dev/null || true
+                if [ -w "$shared_dir" ]; then
+                    echo "$shared_dir"
+                    return 0
+                fi
+            fi
         fi
     elif [ "$(uname)" = "MINGW"* ] || [ "$(uname)" = "CYGWIN"* ] || [ "$(uname)" = "MSYS"* ]; then
         local public_downloads="C:\\Users\\Public\\Downloads"

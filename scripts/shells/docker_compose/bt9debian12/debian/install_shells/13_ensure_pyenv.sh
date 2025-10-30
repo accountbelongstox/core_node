@@ -21,7 +21,7 @@ PARENT_DIR_LEVEL_5="$(dirname "$PARENT_DIR_LEVEL_4")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_5/linux/LGar.sh"
-source "$PARENT_DIR_LEVEL_5/linux/common/gvar_common.sh"
+source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
 
 # Get Python version
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')

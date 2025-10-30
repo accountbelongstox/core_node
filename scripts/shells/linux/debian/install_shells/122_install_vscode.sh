@@ -89,6 +89,41 @@ parse_arguments() {
     done
 }
 
+# Extract version from filename
+extract_version_from_filename() {
+    local filename="$1"
+    local basename_file=$(basename "$filename")
+
+    # Pattern: code_1.85.0-1234567890_amd64.deb -> 1.85.0
+    if [[ "$basename_file" =~ code[_-]([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+
+    return 1
+}
+
+# Get installed version
+get_installed_version() {
+    if [[ -f "$VSCODE_INSTALLED_FLAG" ]]; then
+        grep "^VERSION=" "$VSCODE_INSTALLED_FLAG" 2>/dev/null | cut -d= -f2
+    fi
+}
+
+# Save installation info
+save_installation_info() {
+    local version="$1"
+    local package_file="$2"
+
+    $USE_SUDO mkdir -p "$(dirname "$VSCODE_INSTALLED_FLAG")"
+    cat <<EOF | $USE_SUDO tee "$VSCODE_INSTALLED_FLAG" > /dev/null
+DATE=$(date '+%Y-%m-%d %H:%M:%S')
+VERSION=$version
+PACKAGE=$(basename "$package_file")
+PATH=$package_file
+EOF
+}
+
 # Check if VS Code is already installed
 is_vscode_installed() {
     if command -v code >/dev/null 2>&1; then
@@ -421,10 +456,16 @@ install_vscode() {
         return 1
     fi
 
-    # Create installation flag
-    print_step_from_common_functions "Creating installation flag..."
-    $USE_SUDO mkdir -p "$(dirname "$VSCODE_INSTALLED_FLAG")"
-    echo "$(date): VS Code installed successfully" | $USE_SUDO tee "$VSCODE_INSTALLED_FLAG" > /dev/null
+    # Save installation info with version
+    print_step_from_common_functions "Saving installation info..."
+    local installed_version=$(extract_version_from_filename "$deb_file")
+    if [[ -n "$installed_version" ]]; then
+        save_installation_info "$installed_version" "$deb_file"
+        print_info_from_common_functions "Installed version: $installed_version"
+    else
+        $USE_SUDO mkdir -p "$(dirname "$VSCODE_INSTALLED_FLAG")"
+        echo "$(date): VS Code installed successfully" | $USE_SUDO tee "$VSCODE_INSTALLED_FLAG" > /dev/null
+    fi
 
     print_success_from_common_functions "Visual Studio Code installation completed successfully!"
     print_info_from_common_functions "You can now launch VS Code from:"
@@ -435,25 +476,125 @@ install_vscode() {
     return 0
 }
 
-# Interactive cleanup prompt using centralized logic
+# Interactive cleanup prompt with version check
 prompt_cleanup_reinstall() {
     if is_vscode_installed; then
         print_warning_from_common_functions "VS Code is already installed"
+
+        local installed_version=$(get_installed_version)
+        if [[ -n "$installed_version" ]]; then
+            print_info_from_common_functions "Installed version: $installed_version"
+        else
+            print_info_from_common_functions "No version metadata found for current installation"
+        fi
+
+        print_step_from_common_functions "Downloading latest version to check for updates..."
+
+        if download_vscode; then
+            sleep 2
+
+            local available_file=$(find_vscode_file)
+            if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
+                local available_version=$(extract_version_from_filename "$available_file")
+                print_info_from_common_functions "Downloaded: $(basename "$available_file")"
+
+                if [[ -n "$available_version" ]]; then
+                    print_info_from_common_functions "Downloaded version: $available_version"
+
+                    if [[ -z "$installed_version" ]]; then
+                        print_info_from_common_functions "No version metadata, proceeding with upgrade..."
+                        cleanup_vscode
+                        return 0
+                    elif [[ "$available_version" != "$installed_version" ]]; then
+                        echo -n "Upgrade to version $available_version? (Y/n): "
+                        read -r response
+                        case "$response" in
+                            [nN]|[nN][oO])
+                                print_info_from_common_functions "Keeping current installation"
+                                return 1
+                                ;;
+                            *)
+                                print_info_from_common_functions "Upgrading VS Code..."
+                                cleanup_vscode
+                                return 0
+                                ;;
+                        esac
+                    else
+                        print_info_from_common_functions "Downloaded version matches installed version"
+                        print_info_from_common_functions "You can reinstall to fix potential issues"
+                        echo -n "Reinstall VS Code? (y/N): "
+                        read -r response
+                        case "$response" in
+                            [yY]|[yY][eE][sS])
+                                print_info_from_common_functions "Reinstalling VS Code..."
+                                cleanup_vscode
+                                return 0
+                                ;;
+                            *)
+                                print_info_from_common_functions "Keeping existing installation"
+                                return 1
+                                ;;
+                        esac
+                    fi
+                fi
+            fi
+        else
+            print_warning_from_common_functions "Failed to download latest version"
+        fi
+
+        local available_file=$(find_vscode_file)
+        if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
+            print_info_from_common_functions "Found existing download: $(basename "$available_file")"
+            local available_version=$(extract_version_from_filename "$available_file")
+
+            if [[ -n "$available_version" ]] && [[ -n "$installed_version" ]]; then
+                if [[ "$available_version" != "$installed_version" ]]; then
+                    echo -n "Upgrade to version $available_version? (Y/n): "
+                    read -r response
+                    case "$response" in
+                        [nN]|[nN][oO])
+                            print_info_from_common_functions "Keeping current installation"
+                            return 1
+                            ;;
+                        *)
+                            print_info_from_common_functions "Upgrading VS Code..."
+                            cleanup_vscode
+                            return 0
+                            ;;
+                    esac
+                else
+                    echo -n "Reinstall VS Code? (y/N): "
+                    read -r response
+                    case "$response" in
+                        [yY]|[yY][eE][sS])
+                            print_info_from_common_functions "Reinstalling VS Code..."
+                            cleanup_vscode
+                            return 0
+                            ;;
+                        *)
+                            print_info_from_common_functions "Keeping existing installation"
+                            return 1
+                            ;;
+                    esac
+                fi
+            fi
+        fi
+
         echo -n "Do you want to clean up and reinstall? (y/N): "
         read -r response
         case "$response" in
             [yY]|[yY][eE][sS])
                 print_info_from_common_functions "Cleaning up existing installation..."
                 cleanup_vscode
-                return 0  # Proceed with installation
+                return 0
                 ;;
             *)
                 print_info_from_common_functions "Keeping existing installation"
-                return 1  # Skip installation
+                return 1
                 ;;
         esac
     fi
-    return 0  # No existing installation, proceed
+    return 0
 }
 
 # Main script execution

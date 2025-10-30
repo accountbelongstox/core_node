@@ -23,7 +23,7 @@ PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 COMMON_DIR="$PARENT_DIR/common"
 
 # Source common functions
-source "${COMMON_DIR}/gvar_common.sh"
+source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
 
 selected_option=""
 current_system=""

@@ -713,55 +713,105 @@ prompt_cleanup_reinstall() {
     if is_cursor_installed; then
         print_warning_from_common_functions "Cursor is already installed"
 
-        # Get installed version
         local installed_version=$(get_installed_version)
         if [[ -n "$installed_version" ]]; then
             print_info_from_common_functions "Installed version: $installed_version"
+        else
+            print_info_from_common_functions "No version metadata found for current installation"
         fi
 
-        # Check for available update in Downloads
+        print_step_from_common_functions "Downloading latest version to check for updates..."
+
+        if download_cursor; then
+            sleep 2
+
+            local available_file=$(find_cursor_file)
+            if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
+                local available_version=$(extract_version_from_filename "$available_file")
+                print_info_from_common_functions "Downloaded: $(basename "$available_file")"
+
+                if [[ -n "$available_version" ]]; then
+                    print_info_from_common_functions "Downloaded version: $available_version"
+
+                    if [[ -z "$installed_version" ]]; then
+                        print_info_from_common_functions "No version metadata, proceeding with upgrade..."
+                        cleanup_cursor
+                        return 0
+                    elif [[ "$available_version" != "$installed_version" ]]; then
+                        echo -n "Upgrade to version $available_version? (Y/n): "
+                        read -r response
+                        case "$response" in
+                            [nN]|[nN][oO])
+                                print_info_from_common_functions "Keeping current installation"
+                                return 1
+                                ;;
+                            *)
+                                print_info_from_common_functions "Upgrading Cursor..."
+                                cleanup_cursor
+                                return 0
+                                ;;
+                        esac
+                    else
+                        print_info_from_common_functions "Downloaded version matches installed version"
+                        print_info_from_common_functions "You can reinstall to fix potential issues"
+                        echo -n "Reinstall Cursor? (y/N): "
+                        read -r response
+                        case "$response" in
+                            [yY]|[yY][eE][sS])
+                                print_info_from_common_functions "Reinstalling Cursor..."
+                                cleanup_cursor
+                                return 0
+                                ;;
+                            *)
+                                print_info_from_common_functions "Keeping existing installation"
+                                return 1
+                                ;;
+                        esac
+                    fi
+                fi
+            fi
+        else
+            print_warning_from_common_functions "Failed to download latest version"
+        fi
+
         local available_file=$(find_cursor_file)
         if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
+            print_info_from_common_functions "Found existing download: $(basename "$available_file")"
             local available_version=$(extract_version_from_filename "$available_file")
 
             if [[ -n "$available_version" ]] && [[ -n "$installed_version" ]]; then
                 if [[ "$available_version" != "$installed_version" ]]; then
-                    print_info_from_common_functions "New version available: $available_version"
-                    print_info_from_common_functions "Found: $(basename "$available_file")"
                     echo -n "Upgrade to version $available_version? (Y/n): "
                     read -r response
                     case "$response" in
                         [nN]|[nN][oO])
                             print_info_from_common_functions "Keeping current installation"
-                            return 1  # Skip installation
+                            return 1
                             ;;
                         *)
                             print_info_from_common_functions "Upgrading Cursor..."
                             cleanup_cursor
-                            return 0  # Proceed with upgrade
+                            return 0
                             ;;
                     esac
                 else
-                    print_info_from_common_functions "Same version in Downloads: $available_version"
-                    print_info_from_common_functions "You can reinstall to fix potential issues"
                     echo -n "Reinstall Cursor? (y/N): "
                     read -r response
                     case "$response" in
                         [yY]|[yY][eE][sS])
                             print_info_from_common_functions "Reinstalling Cursor..."
                             cleanup_cursor
-                            return 0  # Proceed with reinstallation
+                            return 0
                             ;;
                         *)
                             print_info_from_common_functions "Keeping existing installation"
-                            return 1  # Skip installation
+                            return 1
                             ;;
                     esac
                 fi
             fi
         fi
 
-        # Fallback: No version info available
         print_info_from_common_functions "Current installation: $CURSOR_INSTALL_DIR"
         echo -n "Clean up and reinstall? (y/N): "
         read -r response
@@ -769,15 +819,15 @@ prompt_cleanup_reinstall() {
             [yY]|[yY][eE][sS])
                 print_info_from_common_functions "Cleaning up existing installation..."
                 cleanup_cursor
-                return 0  # Proceed with installation
+                return 0
                 ;;
             *)
                 print_info_from_common_functions "Keeping existing installation"
-                return 1  # Skip installation
+                return 1
                 ;;
         esac
     fi
-    return 0  # No existing installation, proceed
+    return 0
 }
 
 # Main script execution
