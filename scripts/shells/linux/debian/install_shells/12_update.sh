@@ -122,26 +122,53 @@ fix_temp_permissions() {
     echo "Temporary directory permissions fixed"
 }
 
-# Function to fix GPG key issues
+# Function to import Ubuntu archive signing keys
+import_ubuntu_keys() {
+    echo "Importing Ubuntu archive signing keys..."
+
+    local ubuntu_keyserver="keyserver.ubuntu.com"
+    local ubuntu_keys=(
+        "871920D1991BC93C"
+        "3B4FE6ACC0B21F32"
+        "40976EAF437D05B5"
+    )
+
+    for key_id in "${ubuntu_keys[@]}"; do
+        echo "Importing Ubuntu key: $key_id"
+        if $USE_SUDO apt-key adv --keyserver "$ubuntu_keyserver" --recv-keys "$key_id" 2>/dev/null; then
+            echo "Successfully imported key: $key_id"
+        else
+            echo "Failed to import key: $key_id, trying alternative method..."
+            if $USE_SUDO gpg --keyserver "$ubuntu_keyserver" --recv-keys "$key_id" 2>/dev/null; then
+                $USE_SUDO gpg --export "$key_id" | $USE_SUDO apt-key add - 2>/dev/null || true
+                echo "Imported key via gpg: $key_id"
+            else
+                echo "Warning: Could not import key $key_id"
+            fi
+        fi
+    done
+
+    echo "Ubuntu key import completed"
+}
+
 # Function to fix GPG key issues
 fix_gpg_keys() {
     echo "Fixing GPG key issues..."
-    
+
     # Install required packages
     $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
     $USE_SUDO apt install -y gnupg2 gnupg1 apt-transport-https ca-certificates curl wget
-    
+
     # Fix GPG configuration
     $USE_SUDO mkdir -p /etc/apt/keyrings
     $USE_SUDO chmod 755 /etc/apt/keyrings
-    
-    # Clean up old GPG keys
-    $USE_SUDO rm -f /etc/apt/trusted.gpg.d/*.gpg 2>/dev/null || true
-    $USE_SUDO rm -f /usr/share/keyrings/*.gpg 2>/dev/null || true
-    
+
+    # Import Ubuntu signing keys before cleaning
+    import_ubuntu_keys
+
     # Update GPG keyring
     $USE_SUDO apt-key update 2>/dev/null || true
-    
+
     echo "GPG key issues fixed"
 }
 

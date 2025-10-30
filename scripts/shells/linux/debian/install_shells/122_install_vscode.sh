@@ -35,6 +35,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/installation_library.sh"
 
 # Initialize global variables
@@ -144,21 +145,59 @@ vscode_manual_download() {
 }
 
 # Install .deb package
+check_deb_integrity() {
+    local deb_file="$1"
+
+    print_step_from_common_functions "Checking .deb file integrity..."
+
+    if [[ ! -f "$deb_file" ]]; then
+        print_error_from_common_functions ".deb file not found: $deb_file"
+        return 1
+    fi
+
+    local file_size=$(stat -c%s "$deb_file" 2>/dev/null || echo "0")
+
+    if [[ "$file_size" -lt 50000000 ]]; then
+        print_warning_from_common_functions ".deb file too small ($file_size bytes), expected > 50MB"
+        return 1
+    fi
+
+    if ! dpkg-deb --info "$deb_file" >/dev/null 2>&1; then
+        print_warning_from_common_functions ".deb file is corrupted (dpkg-deb check failed)"
+        return 1
+    fi
+
+    if ! ar t "$deb_file" >/dev/null 2>&1; then
+        print_warning_from_common_functions ".deb file is corrupted (ar archive check failed)"
+        return 1
+    fi
+
+    print_success_from_common_functions ".deb file integrity check passed"
+    return 0
+}
+
 install_deb_package() {
     local deb_file="$1"
-    
+
     print_step_from_common_functions "Installing VS Code from .deb package..."
-    
+
+    if ! check_deb_integrity "$deb_file"; then
+        print_error_from_common_functions ".deb file integrity check failed"
+        print_step_from_common_functions "Removing corrupted file: $deb_file"
+        rm -f "$deb_file"
+        return 2
+    fi
+
     # Create directories
     $USE_SUDO mkdir -p "$VSCODE_DEB_DIR"
-    
+
     # Copy .deb to installation directory
     print_step_from_common_functions "Copying .deb to $VSCODE_DEB_DIR"
     $USE_SUDO cp "$deb_file" "$VSCODE_DEB_DIR/"
-    
+
     local deb_name=$(basename "$deb_file")
     local installed_deb="$VSCODE_DEB_DIR/$deb_name"
-    
+
     # Install the .deb package
     print_step_from_common_functions "Installing .deb package..."
     if $USE_SUDO dpkg -i "$installed_deb"; then
@@ -170,10 +209,12 @@ install_deb_package() {
             print_success_from_common_functions "VS Code .deb package installed successfully after fixing dependencies"
         else
             print_error_from_common_functions "Failed to install VS Code .deb package"
+            print_step_from_common_functions "Removing corrupted installed file: $installed_deb"
+            $USE_SUDO rm -f "$installed_deb"
             return 1
         fi
     fi
-    
+
     return 0
 }
 
@@ -287,22 +328,32 @@ install_vscode() {
     # Install dependencies
     install_dependencies
 
-    # Use centralized download and install workflow
+    # Use simple download manager workflow
     print_step_from_common_functions "Starting VS Code download workflow..."
 
-    # Enable debug mode and show all output
-    print_info_from_common_functions "DEBUG: Calling download_and_install_app with vscode, force=$FORCE_INSTALL"
+    # Check if already downloaded
+    local deb_file=$(find_vscode_file)
 
-    # Capture the file path while showing all log output
-    local deb_file
-    deb_file=$(download_and_install_app "vscode" "$FORCE_INSTALL")
-    local download_result=$?
+    if [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]] || [[ "$FORCE_INSTALL" == true ]]; then
+        print_step_from_common_functions "Downloading VS Code via core_node_init..."
 
-    print_info_from_common_functions "DEBUG: download_and_install_app returned: exit_code=$download_result, file='$deb_file'"
+        # Download using core_node_init
+        if download_vscode; then
+            print_success_from_common_functions "Download completed"
+
+            # Find the downloaded file
+            sleep 2  # Wait for file to be fully written
+            deb_file=$(find_vscode_file)
+        else
+            print_warning_from_common_functions "Automated download failed"
+        fi
+    else
+        print_info_from_common_functions "Found existing VS Code file: $(basename "$deb_file")"
+    fi
 
     # Validate the result
-    if [[ $download_result -ne 0 ]] || [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
-        print_warning_from_common_functions "Centralized download failed, trying manual download..."
+    if [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
+        print_warning_from_common_functions "Download failed, trying manual download..."
 
         # Try manual download as final fallback
         deb_file=$(vscode_manual_download)
@@ -316,9 +367,51 @@ install_vscode() {
 
     print_success_from_common_functions "Using VS Code .deb: $(basename "$deb_file")"
 
-    # Install .deb package
-    if ! install_deb_package "$deb_file"; then
-        print_error_from_common_functions "Failed to install VS Code .deb package"
+    # Install .deb package with automatic retry on corruption
+    local install_result
+    local max_retries=2
+    local retry_count=0
+
+    while [[ $retry_count -lt $max_retries ]]; do
+        install_deb_package "$deb_file"
+        install_result=$?
+
+        if [[ $install_result -eq 0 ]]; then
+            break
+        elif [[ $install_result -eq 2 ]]; then
+            print_warning_from_common_functions "Corrupted .deb detected (attempt $((retry_count + 1))/$max_retries)"
+
+            if [[ $retry_count -lt $((max_retries - 1)) ]]; then
+                print_step_from_common_functions "Removing corrupted backup file..."
+                $USE_SUDO rm -f "$VSCODE_DEB_DIR/$(basename "$deb_file")" 2>/dev/null || true
+
+                print_step_from_common_functions "Re-downloading VS Code..."
+
+                if download_vscode; then
+                    sleep 2  # Wait for file to be fully written
+                    deb_file=$(find_vscode_file)
+
+                    if [[ -z "$deb_file" ]] || [[ ! -f "$deb_file" ]]; then
+                        print_error_from_common_functions "Re-download failed - file not found"
+                        return 1
+                    fi
+
+                    print_info_from_common_functions "Using re-downloaded file: $(basename "$deb_file")"
+                else
+                    print_error_from_common_functions "Re-download failed"
+                    return 1
+                fi
+            fi
+
+            retry_count=$((retry_count + 1))
+        else
+            print_error_from_common_functions "Failed to install VS Code .deb package"
+            return 1
+        fi
+    done
+
+    if [[ $install_result -ne 0 ]]; then
+        print_error_from_common_functions "Failed to install VS Code after $max_retries attempts"
         return 1
     fi
 

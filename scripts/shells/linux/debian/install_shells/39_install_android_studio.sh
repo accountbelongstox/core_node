@@ -182,27 +182,72 @@ EOF
     log_success "Desktop file created successfully"
 }
 
+# Enable i386 architecture
+enable_i386_architecture() {
+    log_message "Checking i386 architecture support..."
+
+    if dpkg --print-foreign-architectures | grep -q "i386"; then
+        log_message "i386 architecture is already enabled"
+        return 0
+    fi
+
+    log_message "Enabling i386 architecture..."
+    if $USE_SUDO dpkg --add-architecture i386; then
+        log_success "i386 architecture enabled successfully"
+
+        log_message "Updating package lists for i386 architecture..."
+        if $USE_SUDO apt update; then
+            log_success "Package lists updated successfully"
+            return 0
+        else
+            log_warning "Package list update failed, but continuing..."
+            return 0
+        fi
+    else
+        log_error "Failed to enable i386 architecture"
+        return 1
+    fi
+}
+
 # Install required dependencies
 install_dependencies() {
     log_message "Installing required dependencies..."
-    
-    local dependencies=(
+
+    enable_i386_architecture
+
+    local base_dependencies=(
         "openjdk-17-jdk"
+        "unzip"
+        "wget"
+        "curl"
+    )
+
+    local i386_dependencies=(
         "libc6:i386"
         "libncurses5:i386"
         "libstdc++6:i386"
         "lib32z1"
         "libbz2-1.0:i386"
-        "unzip"
-        "wget"
-        "curl"
     )
-    
-    for dep in "${dependencies[@]}"; do
+
+    for dep in "${base_dependencies[@]}"; do
         log_message "Installing dependency: $dep"
-        $USE_SUDO apt install -y "$dep" || log_warning "Failed to install $dep"
+        if ! $USE_SUDO apt install -y "$dep"; then
+            log_warning "Failed to install $dep"
+        fi
     done
-    
+
+    if dpkg --print-foreign-architectures | grep -q "i386"; then
+        for dep in "${i386_dependencies[@]}"; do
+            log_message "Installing dependency: $dep"
+            if ! $USE_SUDO apt install -y "$dep"; then
+                log_warning "Failed to install $dep"
+            fi
+        done
+    else
+        log_warning "i386 architecture not enabled, skipping i386 dependencies"
+    fi
+
     log_success "Dependencies installation completed"
 }
 

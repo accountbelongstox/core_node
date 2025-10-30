@@ -54,6 +54,15 @@ class PuppeteerInstanceManager {
             const browserInstance = await puppeteer.launch(mergedConfig);
             const page = await browserInstance.newPage();
             await page.setViewport(mergedConfig.viewport);
+
+            // Set download behavior for shared download directory
+            if (mergedConfig.downloadDir) {
+                const client = await page.target().createCDPSession();
+                await client.send('Page.setDownloadBehavior', {
+                    behavior: 'allow',
+                    downloadPath: mergedConfig.downloadDir
+                });
+            }
             
             const instance = {
                 id: instanceId,
