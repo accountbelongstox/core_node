@@ -15,7 +15,7 @@
 const path = require('path');
 const os = require('os');
 const globalDir = require('#@global_dir');
-const { pathtool } = require('#@ncore/foundation/utilities');
+const { pathtool } = require('#@btools');
 
 // Declare variables
 const homeDir = os.homedir();

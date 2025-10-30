@@ -17,14 +17,14 @@ SHELLS_DIR="$PARENT_DIR"
 
 # Source gvar_common.sh from parent directory
 if [ -f "${PARENT_DIR}/gvar_common.sh" ]; then
-    source "$COMMON_DIR/gvar_common.sh"
+source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
 else
     echo "Error: gvar_common.sh not found in ${PARENT_DIR}"
     exit 1
 fi
 
 # Source common variables
-source "${SHELLS_DIR}/common/gvar_common.sh"
+source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
 
 selector_common_file="${SHELLS_DIR}/common/selector_common.sh"
 INSTALL_SHELLS_DIR="${SCRIPT_CURRENT_DIR}/install_shells"

@@ -18,7 +18,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2$PARENT_DIR_LEVEL_2/linux/LGar.sh"
-source "$COMMON_SHELLS_DIR/gvar_common.sh"
+source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
 INSTALL_MYSQL=$(get_var "INSTALL_MYSQL")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 

@@ -41,6 +41,35 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Function to initialize core_node shared directories
+initialize_core_node_directories() {
+    echo "Initializing core_node shared directories..."
+
+    local CORE_NODE_BASE="/var/_core_node"
+    local SHARED_DOWNLOADS="$CORE_NODE_BASE/shared_downloads"
+
+    if $USE_SUDO mkdir -p "$CORE_NODE_BASE" 2>/dev/null; then
+        $USE_SUDO chmod 777 "$CORE_NODE_BASE" 2>/dev/null || true
+        echo "Created base directory: $CORE_NODE_BASE"
+    else
+        echo "Warning: Could not create $CORE_NODE_BASE (may already exist)"
+    fi
+
+    if $USE_SUDO mkdir -p "$SHARED_DOWNLOADS" 2>/dev/null; then
+        $USE_SUDO chmod 777 "$SHARED_DOWNLOADS" 2>/dev/null || true
+        echo "Created shared downloads directory: $SHARED_DOWNLOADS"
+        echo "All users can now access: $SHARED_DOWNLOADS"
+    else
+        echo "Warning: Could not create $SHARED_DOWNLOADS (may already exist)"
+    fi
+
+    if [ -d "$CORE_NODE_BASE" ]; then
+        echo "Core node directories initialized successfully"
+    else
+        echo "Warning: Failed to initialize core node directories"
+    fi
+}
+
 # Function to install essential packages and configure Git
 install_packages_and_configure_git() {
     echo "Installing essential packages..."
@@ -49,7 +78,7 @@ install_packages_and_configure_git() {
         libreadline-dev libsqlite3-dev llvm libncurses5-dev libncursesw5-dev \
         xz-utils tk-dev libffi-dev liblzma-dev make software-properties-common \
         cron dnsutils libvips-dev cpulimit expect tar gzip procps
-    
+
     # Configure Git globally
     git config --global http.sslVerify "false"
     git config --global user.name "prop-dev"
@@ -59,6 +88,9 @@ install_packages_and_configure_git() {
 
 # Main execution
 echo "Starting system update and repair process..."
+
+# Initialize core_node directories first
+initialize_core_node_directories
 
 # Check for skip GPG flag
 SKIP_GPG_FIXES=false

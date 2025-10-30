@@ -2,7 +2,7 @@
 # Include common functions and variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
-source "$COMMON_DIR/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:

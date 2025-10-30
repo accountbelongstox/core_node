@@ -18,7 +18,7 @@ SCRIPT_INDEX="18"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/linux/LGar.sh"
-source "$PARENT_DIR_LEVEL_2/linux/common/gvar_common.sh"
+source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
 
 # Get region information
 SELECTED_REGION=$(get_var "SELECTED_REGION")

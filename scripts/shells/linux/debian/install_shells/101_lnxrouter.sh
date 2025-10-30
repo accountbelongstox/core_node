@@ -32,7 +32,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 COMMON_DIR="$PARENT_DIR_LEVEL_2/common"
 
 # Configuration files
-CONFIG_DIR="/usr/.core_node/lnxrouter"
+CONFIG_DIR="${CORE_NODE_DATA_DIR}/lnxrouter"
 CONFIG_FILE="$CONFIG_DIR/config"
 CACHE_FILE="$CONFIG_DIR/interface_cache.conf"
 LNXROUTER_LINK="/usr/local/bin/lnxrouter"
@@ -708,7 +708,7 @@ show_interactive_menu() {
 create_service_script() {
     log_info "Creating dynamic router monitoring script..."
 
-    $USE_SUDO cat > "$SERVICE_SCRIPT" << 'EOF'
+    $USE_SUDO cat > "$SERVICE_SCRIPT" << EOF
 #!/bin/bash
 # Dynamic Linux Router Monitor
 # Monitors interface availability and manages routing
@@ -719,7 +719,7 @@ LAN_KEYWORD=""
 WAN_INTERFACE=""
 LAN_INTERFACE=""
 SYSTEM_SHARING="no"
-CONFIG_FILE="/usr/.core_node/lnxrouter/interface_cache.conf"
+CONFIG_FILE="${CORE_NODE_DATA_DIR}/lnxrouter/interface_cache.conf"
 
 # Colors
 RED='\033[0;31m'

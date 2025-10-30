@@ -758,24 +758,8 @@ mount_additional_disk() {
     fi
 }
 
-# Determine CORE_NODE_DATA_DIR based on environment
-CORE_NODE_DATA_DIR="/usr/.core_node"
-
-# Check if WSL Windows users path exists
-if [ -d "$WSL_USERS_PATH" ]; then
-    # Loop through each user directory
-    for user_dir in "$WSL_USERS_PATH"/*; do
-        if [ -d "$user_dir" ]; then
-            potential_dir="$user_dir/.core_node"
-
-            # Check if the .core_node directory exists
-            if [ -d "$potential_dir" ]; then
-                CORE_NODE_DATA_DIR="$potential_dir"
-                break
-            fi
-        fi
-    done
-fi
+# Determine CORE_NODE_DATA_DIR based on environment (standardized location)
+CORE_NODE_DATA_DIR="/var/_core_node"
 
 GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
 
@@ -845,8 +829,8 @@ map_web_path() {
                 local data_base=$(get_base_data_directory)
                 mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
             else
-                # Production server without desktop/NTFS: /usr/.core_node/applications
-                mapped_path="/usr/.core_node/applications"
+                # Production server without desktop/NTFS: /usr/_core_node/applications
+                mapped_path="/usr/_core_node/applications"
             fi
             ;;
         "nginx")

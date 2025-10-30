@@ -6,7 +6,7 @@
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
 
 # PHP Version Configuration
 PHP_VERSION="8.4"

@@ -116,6 +116,7 @@ ncore/
 │       ├── jsontool.js
 │       ├── mathtool.js
 │       ├── parameter_tool.js
+│       ├── pathtool.js
 │       ├── platformtool.js
 │       ├── plattool.js
 │       ├── porttool.js

@@ -47,7 +47,7 @@ class PathUtil {
 
     _getLinuxSharedDownloadDir() {
         const sharedPaths = [
-            '/usr/_core_node/shared_downloads',
+            '/var/_core_node/shared_downloads',
             '/var/tmp/downloads',
             '/opt/downloads'
         ];
@@ -63,8 +63,13 @@ class PathUtil {
             }
         }
 
-        const defaultShared = '/usr/_core_node/shared_downloads';
+        const defaultShared = '/var/_core_node/shared_downloads';
         try {
+            const baseDir = '/var/_core_node';
+            if (!fs.existsSync(baseDir)) {
+                fs.mkdirSync(baseDir, { recursive: true, mode: 0o777 });
+                fs.chmodSync(baseDir, 0o777);
+            }
             if (!fs.existsSync(defaultShared)) {
                 fs.mkdirSync(defaultShared, { recursive: true, mode: 0o777 });
             }
@@ -134,7 +139,7 @@ class PathUtil {
 
     _getLinuxUserDownloadDirs() {
         const dirs = [
-            '/usr/_core_node/shared_downloads'
+            '/var/_core_node/shared_downloads'
         ];
 
         try {
