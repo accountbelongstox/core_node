@@ -4,9 +4,7 @@
       "Bash(Select-Object ProcessName, Id, CPU)",
       "Bash(Format-Table)",
       "Bash(python -m py_compile:*)",
-<<<<<<< HEAD
       "Bash(find:*)"
-=======
       "Bash(python:*)",
       "Bash(Select-Object -Last 50)",
       "Bash(tee:*)",
@@ -24,7 +22,6 @@
       "Bash(done)",
       "Bash(timeout 300 tail -f /d/programing/core_node/poly_apps/qtscrcpy_tc/build_log.txt)",
       "mcp__PlaceholderImageGenerator__generate_placeholder"
->>>>>>> 88f564b38583c51df3385b0d28ac97b6ccd1f9e2
     ],
     "deny": [],
     "ask": [],
