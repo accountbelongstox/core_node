@@ -212,34 +212,41 @@ class WuyProfileScreen extends StatelessWidget {
   }
 
   Widget _buildProfileInfo(BuildContext context, UserModelAppWuy? user) {
-    return Card(
-      elevation: 0.3,
-      shadowColor: ThemeColors.black.withOpacity(0.03),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    return Container(
+      decoration: BoxDecoration(
+        color: ThemeColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-      color: ThemeColors.white,
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          vertical: 6,
-          horizontal: 12,
-        ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           children: [
             _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileName.tr(context), user?.displayName ?? ''),
-            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            Divider(height: 1, thickness: 0.5, color: ThemeColors.grey200.withOpacity(0.5), indent: 16, endIndent: 16),
             _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileSignature.tr(context), user?.about ?? ''),
-            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            Divider(height: 1, thickness: 0.5, color: ThemeColors.grey200.withOpacity(0.5), indent: 16, endIndent: 16),
             _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileGender.tr(context), _getGenderDisplay(user?.gender, context)),
-            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            Divider(height: 1, thickness: 0.5, color: ThemeColors.grey200.withOpacity(0.5), indent: 16, endIndent: 16),
             _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfilePhone.tr(context), _getPhoneDisplay(user)),
-            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            Divider(height: 1, thickness: 0.5, color: ThemeColors.grey200.withOpacity(0.5), indent: 16, endIndent: 16),
             _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileBirthDate.tr(context), _formatBirthDate(user?.birthday) ?? ''),
-            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            Divider(height: 1, thickness: 0.5, color: ThemeColors.grey200.withOpacity(0.5), indent: 16, endIndent: 16),
             _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileLocation.tr(context), user?.city ?? ''),
-            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            Divider(height: 1, thickness: 0.5, color: ThemeColors.grey200.withOpacity(0.5), indent: 16, endIndent: 16),
             _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileEmail.tr(context), _getEmailDisplay(user)),
-            Divider(height: 1, thickness: 0.3, color: ThemeColors.grey200),
+            Divider(height: 1, thickness: 0.5, color: ThemeColors.grey200.withOpacity(0.5), indent: 16, endIndent: 16),
             _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileIdNumber.tr(context), _getIdNumberDisplay(user)),
           ],
         ),
@@ -248,39 +255,48 @@ class WuyProfileScreen extends StatelessWidget {
   }
 
   Widget _buildCompactInfoRow(BuildContext context, String label, String value) {
-    return GestureDetector(
-      onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: ThemeTextStyles.footnote.copyWith(
-                color: ThemeColors.grey600,
+    return Material(
+      color: ThemeColors.transparent,
+      child: InkWell(
+        onTap: () => context.go(WuyAppRouter.getEditProfileRoute()),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: ThemeTextStyles.footnote.copyWith(
+                  color: ThemeColors.grey600,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    value,
-                    style: ThemeTextStyles.footnote.copyWith(
-                      color: ThemeColors.black,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      value.isEmpty ? '-' : value,
+                      style: ThemeTextStyles.footnote.copyWith(
+                        color: value.isEmpty ? ThemeColors.grey400 : ThemeColors.black,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                SizedBox(width: 4),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 12,
-                  color: ThemeColors.grey400,
-                ),
-              ],
-            ),
-          ],
+                  SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    color: ThemeColors.grey400,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -289,39 +305,103 @@ class WuyProfileScreen extends StatelessWidget {
   Widget _buildProfileActions(BuildContext context) {
     return Column(
       children: [
-        WuyGradientButton(
-          text: LocalizationKeysAppWuy.wuyProfileEditProfile.tr(context),
-          onPressed: () {
-            context.go(WuyAppRouter.getEditProfileRoute());
-          },
-          height: 38,
-        ),
-        SizedBox(height: 8),
         Container(
-          height: 38,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: ThemeColors.teal.withOpacity(0.3),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: WuyGradientButton(
+            text: LocalizationKeysAppWuy.wuyProfileEditProfile.tr(context),
+            onPressed: () {
+              context.go(WuyAppRouter.getEditProfileRoute());
+            },
+            height: 48,
+          ),
+        ),
+        SizedBox(height: 12),
+        Container(
+          height: 48,
           decoration: BoxDecoration(
             color: ThemeColors.white,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: ThemeColors.red.withOpacity(0.3),
-              width: 1,
+              width: 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: ThemeColors.red.withOpacity(0.1),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
           child: Material(
             color: ThemeColors.transparent,
             child: InkWell(
               onTap: () async {
-                await AuthGuard.onLogout(context);
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: Center(
-                child: Text(
-                  LocalizationKeysAppWuy.wuyProfileLogout.tr(context),
-                  style: ThemeTextStyles.subhead.copyWith(
-                    color: ThemeColors.red,
-                    fontWeight: FontWeight.w600,
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Row(
+                      children: [
+                        Icon(Icons.logout, color: ThemeColors.red, size: 24),
+                        SizedBox(width: 12),
+                        Text(LocalizationKeysAppWuy.wuyProfileLogout.tr(context)),
+                      ],
+                    ),
+                    content: Text('Are you sure you want to logout?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ThemeColors.red,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text('Logout'),
+                      ),
+                    ],
                   ),
-                ),
+                );
+                if (confirmed == true) {
+                  await AuthGuard.onLogout(context);
+                }
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.logout,
+                    color: ThemeColors.red,
+                    size: 18,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    LocalizationKeysAppWuy.wuyProfileLogout.tr(context),
+                    style: ThemeTextStyles.subhead.copyWith(
+                      color: ThemeColors.red,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

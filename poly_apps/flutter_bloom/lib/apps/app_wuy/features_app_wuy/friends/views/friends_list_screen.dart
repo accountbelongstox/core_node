@@ -226,58 +226,181 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
     return Container(
       margin: EdgeInsets.symmetric(
         horizontal: WuyAppThemeConfig.wuyDefaultPadding,
-        vertical: ThemeDimensions.spacing4,
+        vertical: ThemeDimensions.spacing8,
       ),
-      decoration: WuyAppThemeConfig.wuyCardDecoration,
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: WuyAppThemeConfig.wuyDefaultPadding,
-          vertical: WuyAppThemeConfig.wuySmallPadding,
-        ),
-        leading: CircleAvatar(
-          radius: WuyAppThemeConfig.wuyAvatarRadius,
-          backgroundColor: friend.isOnline
-              ? WuyAppThemeConfig.wuyOnlineColor
-              : WuyAppThemeConfig.wuyOfflineColor,
-          child: Icon(
-            Icons.person,
-            color: Colors.white,
-            size: 20,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            context.go(
+                WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
+          },
+          child: Padding(
+            padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
+            child: Row(
+              children: [
+                _buildAvatarWithStatus(friend),
+                SizedBox(width: WuyAppThemeConfig.wuyDefaultPadding),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        friend.displayName,
+                        style: WuyAppThemeConfig.wuyFriendName.copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                      if (friend.username != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '@${friend.username}',
+                          style: ThemeTextStyles.bodyText2.copyWith(
+                            color: WuyAppThemeConfig.wuyTextSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: friend.isOnline
+                                  ? WuyAppThemeConfig.wuyOnlineColor
+                                  : WuyAppThemeConfig.wuyOfflineColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            friend.isOnline ? 'Online' : 'Offline',
+                            style: ThemeTextStyles.caption.copyWith(
+                              color: friend.isOnline
+                                  ? WuyAppThemeConfig.wuyOnlineColor
+                                  : WuyAppThemeConfig.wuyTextSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildActionButton(
+                      icon: Icons.chat_bubble_outline,
+                      color: WuyAppThemeConfig.wuyPrimaryColor,
+                      onPressed: () {
+                        context.go(
+                            '${WuyAppRouter.routeChat.replaceAll(':id', friend.id)}?name=${Uri.encodeComponent(friend.displayName)}');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _buildActionButton(
+                      icon: Icons.info_outline,
+                      color: WuyAppThemeConfig.wuyAccentColor,
+                      onPressed: () {
+                        context.go(
+                            WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-        title: Text(
-          friend.displayName,
-          style: WuyAppThemeConfig.wuyFriendName,
+      ),
+    );
+  }
+
+  Widget _buildAvatarWithStatus(FriendModelAppWuy friend) {
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: (friend.isOnline
+                        ? WuyAppThemeConfig.wuyOnlineColor
+                        : Colors.grey)
+                    .withOpacity(0.3),
+                blurRadius: 8,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: CircleAvatar(
+            radius: 28,
+            backgroundColor: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.1),
+            child: Icon(
+              Icons.person,
+              color: WuyAppThemeConfig.wuyPrimaryColor,
+              size: 28,
+            ),
+          ),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.chat, size: 20),
-              onPressed: () {
-                context.go(
-                    '${WuyAppRouter.routeChat.replaceAll(':id', friend.id)}?name=${Uri.encodeComponent(friend.displayName)}');
-              },
-              tooltip: 'Chat',
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: friend.isOnline
+                  ? WuyAppThemeConfig.wuyOnlineColor
+                  : WuyAppThemeConfig.wuyOfflineColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.5),
             ),
-            IconButton(
-              icon: const Icon(Icons.info_outline, size: 20),
-              onPressed: () {
-                context.go(
-                    WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
-              },
-              tooltip: 'Info',
-            ),
-            Switch(
-              value: friend.isOnline,
-              onChanged: (value) {
-                // Data center functionality merged into unified service
-                // Friend status update functionality removed
-              },
-              activeColor: WuyAppThemeConfig.wuyPrimaryColor,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: IconButton(
+        icon: Icon(icon, size: 20, color: color),
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(8),
+        constraints: const BoxConstraints(
+          minWidth: 40,
+          minHeight: 40,
         ),
       ),
     );
