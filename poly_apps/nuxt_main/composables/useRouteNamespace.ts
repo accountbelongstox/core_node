@@ -17,6 +17,7 @@ import codemartConfig from '@/configs/codemart.config';
 import devConfig from '@/configs/dev.config';
 import adminSubsiteConfig from '@/configs/subsite-admin.config';
 import dashboardConfig from '@/configs/dashboard.config';
+import pymatrixConfig from '@/configs/pymatrix.config';
 
 // Route namespace configuration
 export interface RouteNamespaceConfig {
@@ -88,6 +89,17 @@ const namespaceRegistry: Record<string, RouteNamespaceConfig> = {
       'reports'
     ],
     theme: dashboardConfig.theme
+  },
+  pymatrix: {
+    namespace: 'pymatrix',
+    prefix: '/pymatrix',
+    config: pymatrixConfig,
+    pages: [
+      'pymatrix',
+      'pymatrix-devices',
+      'pymatrix-groups'
+    ],
+    theme: pymatrixConfig.theme
   }
 };
 
@@ -153,6 +165,12 @@ export const useRouteNamespace = () => {
           { path: '/dashboard', label: 'Overview' },
           { path: '/dashboard/analytics', label: 'Analytics' },
           { path: '/dashboard/charts', label: 'Charts' }
+        ];
+      case 'pymatrix':
+        return [
+          { path: '/pymatrix', label: 'Devices' },
+          { path: '/pymatrix/groups', label: 'Groups' },
+          { path: '/pymatrix/settings', label: 'Settings' }
         ];
       default:
         return [];

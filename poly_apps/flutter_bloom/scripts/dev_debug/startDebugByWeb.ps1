@@ -50,10 +50,11 @@ Set-Location $PROJECT_ROOT
 Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
 
 function Load-WebDebugVariables {
-    """
+    <#
+    .SYNOPSIS
     Load essential variables for Web debugging
     Can work with or without Python-saved variables
-    """
+    #>
     Write-Host "[INFO] Loading variables for Web debug..." -ForegroundColor Cyan
 
     # Load essential variables with sensible defaults
@@ -71,7 +72,7 @@ function Load-WebDebugVariables {
     Write-Host "  Action: Debug (hardcoded)" -ForegroundColor Yellow
     Write-Host "  Platform: Web (hardcoded)" -ForegroundColor Yellow
 
-    return @{
+    $configObject = [PSCustomObject]@{
         App = $selectedApp
         Action = "Debug"
         Platform = "Web"
@@ -79,10 +80,18 @@ function Load-WebDebugVariables {
         AppIndex = $appIndex
         DebugPort = $debugPort
     }
+
+    Write-Host "[DEBUG] Config object type: $($configObject.GetType().Name)" -ForegroundColor Magenta
+    Write-Host "[DEBUG] Config has EntryFile property: $($configObject.PSObject.Properties.Name -contains 'EntryFile')" -ForegroundColor Magenta
+
+    return $configObject
 }
 
 function Start-WebDebug {
     param($Config)
+
+    Write-Host "[DEBUG] Received config type: $($Config.GetType().Name)" -ForegroundColor Magenta
+    Write-Host "[DEBUG] Config properties: $($Config.PSObject.Properties.Name -join ', ')" -ForegroundColor Magenta
 
     Write-Host "[INFO] Starting Flutter Web Debug..." -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan

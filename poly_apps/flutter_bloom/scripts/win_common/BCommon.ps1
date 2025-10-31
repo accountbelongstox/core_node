@@ -15,10 +15,16 @@
 # Author: Development Script System
 # Version: 1.0
 
-# Import Gvar system and common utilities
-. "$PSScriptRoot\FlutterGlobalVar.ps1"
-. "$PSScriptRoot\CommonUtilities.ps1"
-. "$PSScriptRoot\FlutterLogManager.ps1"
+# Import Gvar system and common utilities (only if not already loaded)
+if (-not (Get-Command -Name "Get-FileVariable" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\FlutterGlobalVar.ps1"
+}
+if (-not (Get-Command -Name "Test-PathSafe" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\CommonUtilities.ps1"
+}
+if (-not (Get-Command -Name "Write-LogMessage" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\FlutterLogManager.ps1"
+}
 
 function Invoke-SafeCommand {
     <#
@@ -285,12 +291,12 @@ function Test-FlutterEnvironment {
     try {
         $flutterVersion = flutter --version 2>&1
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ Flutter is available" -ForegroundColor Green
+            Write-Host "[OK] Flutter is available" -ForegroundColor Green
             return $true
         }
     }
     catch {
-        Write-Error "✗ Flutter is not available in PATH"
+        Write-Error "[X] Flutter is not available in PATH"
         Write-Host "Please install Flutter and ensure it's in your PATH" -ForegroundColor Red
         return $false
     }
@@ -560,7 +566,8 @@ function Invoke-DebugMode {
             Write-Host "[DEBUG] Current working directory: $(Get-Location)" -ForegroundColor Magenta
 
             # Import and run pre-debug splash update
-            $splashManagerPath = Join-Path $WinCommonDir "SplashManager.ps1"
+            # Use PSScriptRoot which works correctly even when dot-sourced
+            $splashManagerPath = Join-Path $PSScriptRoot "SplashManager.ps1"
             if (Test-Path $splashManagerPath) {
                 Write-Host "[DEBUG] Loading SplashManager for pre-debug splash update" -ForegroundColor Magenta
                 . $splashManagerPath

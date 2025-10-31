@@ -40,7 +40,7 @@
 // ============================================================================
 
 // Supported application types (must match directory names in apps/)
-export type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'ittools';
+export type AppEntryType = 'example' | 'codemart' | 'dev' | 'admin' | 'dashboard' | 'ittools' | 'pymatrix';
 
 export interface AppEntryConfig {
   name: string;
@@ -191,7 +191,7 @@ const appEntryRegistry: Record<AppEntryType, AppEntryConfig> = {
     theme: {
       primary: '#e7515a',
       secondary: '#e2a03f',
-      layout: 'admin-layout'
+      layout: 'admin'
     },
     api: {
       namespace: 'admin',
@@ -219,7 +219,7 @@ const appEntryRegistry: Record<AppEntryType, AppEntryConfig> = {
     theme: {
       primary: '#00ab55',
       secondary: '#2196f3',
-      layout: 'dashboard-layout'
+      layout: 'dashboard'
     },
     api: {
       namespace: 'dashboard',
@@ -235,6 +235,34 @@ const appEntryRegistry: Record<AppEntryType, AppEntryConfig> = {
     permissions: {
       required: ['dashboard.access'],
       roles: ['analyst', 'admin']
+    }
+  },
+  pymatrix: {
+    name: 'pymatrix',
+    displayName: 'pyMatrix Device Control',
+    description: 'Android device mirroring and group control system',
+    namespace: 'pymatrix',
+    defaultRoute: '/pymatrix',
+    theme: {
+      primary: '#3b82f6',
+      secondary: '#8b5cf6',
+      layout: 'pymatrix'
+    },
+    api: {
+      namespace: 'pymatrix',
+      baseUrl: '/api/pymatrix',
+      version: 'v1'
+    },
+    features: {
+      videoStreaming: true,
+      deviceControl: true,
+      groupControl: true,
+      touchInput: true,
+      keyboardInput: true
+    },
+    permissions: {
+      required: ['pymatrix.access'],
+      roles: ['user', 'developer', 'admin']
     }
   }
 };

@@ -90,22 +90,21 @@ function Validate-AppStructure {
     )
 
     $appPath = Join-Path $AppsDirectory "app_$AppName"
-    $requiredDirs = @(
-        "config_app_$AppName",
-        "pages_app_$AppName"
-    )
 
-    $isValid = $true
-
-    foreach ($dir in $requiredDirs) {
-        $dirPath = Join-Path $appPath $dir
-        if (-not (Test-Path $dirPath -PathType Container)) {
-            Write-Host "[WARNING] Missing directory: $dir in app_$AppName" -ForegroundColor Yellow
-            $isValid = $false
-        }
+    if (-not (Test-Path $appPath -PathType Container)) {
+        Write-Host "[ERROR] Application directory not found: app_$AppName" -ForegroundColor Red
+        return $false
     }
 
-    return $isValid
+    $hasAnyContent = (Get-ChildItem -Path $appPath -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
+
+    if (-not $hasAnyContent) {
+        Write-Host "[WARNING] Application directory is empty: app_$AppName" -ForegroundColor Yellow
+        return $false
+    }
+
+    Write-Host "[INFO] Discovered app: app_$AppName" -ForegroundColor Gray
+    return $true
 }
 
 function Build-ApplicationConfigs {

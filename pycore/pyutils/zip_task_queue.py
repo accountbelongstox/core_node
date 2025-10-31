@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import logging
 
-from pycore.pygvar.pyglobal_vars import (
+from pycore.pyfoundations.gvar.pyglobal_vars import (
     SEVEN_ZIP_EXECUTABLE,
     MAX_CONCURRENT_ZIP_TASKS,
     CPU_COUNT,

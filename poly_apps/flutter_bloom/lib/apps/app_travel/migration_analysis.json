@@ -1,0 +1,54 @@
+{
+  "app_name": "Travel App",
+  "original_framework": "Vue.js + Vite",
+  "pages": [
+    {
+      "name": "city",
+      "components": [
+        "CitySearch"
+      ]
+    },
+    {
+      "name": "home",
+      "components": [
+        "HomeGridNav",
+        "HomeHeader",
+        "HomeLocalHot",
+        "HomeLocalNav",
+        "HomePopular",
+        "HomeRecommend",
+        "HomeSubnav",
+        "HomeSwiper",
+        "HomeWaterfall",
+        "HomeWaterfallItem"
+      ]
+    }
+  ],
+  "components": {
+    "city": [
+      "CitySearch"
+    ],
+    "home": [
+      "HomeGridNav",
+      "HomeHeader",
+      "HomeLocalHot",
+      "HomeLocalNav",
+      "HomePopular",
+      "HomeRecommend",
+      "HomeSubnav",
+      "HomeSwiper",
+      "HomeWaterfall",
+      "HomeWaterfallItem"
+    ]
+  },
+  "data_files": [
+    "city.json",
+    "home.json",
+    "sight0.json",
+    "sight1.json"
+  ],
+  "assets": {
+    "images": 36,
+    "fonts": 7
+  }
+}
