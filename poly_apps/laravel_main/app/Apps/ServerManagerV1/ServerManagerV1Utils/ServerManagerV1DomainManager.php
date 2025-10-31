@@ -705,8 +705,16 @@ server {
                 return false;
             }
 
-            // Use SSL configuration as the active one
-            $activeConfigFile = $sslConfigFile;
+            // Create symbolic links for BOTH HTTP redirect and HTTPS
+            // HTTP redirect link (for port 80)
+            $httpEnabledFile = $enabledFile;  // e.g., /sites-enabled/domain.com
+            $httpSymlinkResult = symlink($configFile, $httpEnabledFile);
+
+            // HTTPS link (for port 443)
+            $sslEnabledFile = "$enabledFile-ssl";  // e.g., /sites-enabled/domain.com-ssl
+            $sslSymlinkResult = symlink($sslConfigFile, $sslEnabledFile);
+
+            return $httpSymlinkResult && $sslSymlinkResult;
         } else {
             // Write HTTP configuration file
             $httpResult = file_put_contents($configFile, $httpConfig);
@@ -714,12 +722,9 @@ server {
                 return false;
             }
 
-            // Use HTTP configuration as the active one
-            $activeConfigFile = $configFile;
+            // Create symbolic link to enable HTTP configuration
+            return symlink($configFile, $enabledFile);
         }
-
-        // Create symbolic link to enable the appropriate configuration
-        return symlink($activeConfigFile, $enabledFile);
     }
 
     /**

@@ -1,0 +1,19 @@
+> 36_install_ruby.sh
+  37_install_dotnet.sh
+  38_install_flutter.sh
+  39_install_android_studio.sh
+  45_install_redis.sh
+  46_install_postgresql.sh
+  47_install_docker.sh
+  48_install_mysql.sh
+  48_set_docker_daemon.sh
+1. Redis           : [STOPPED - Auto-start DISABLED]
+2. PostgreSQL      : [NOT INSTALLED]
+3. Docker          : [NOT INSTALLED]
+4. MySQL           : [NOT INSTALLED]
+5. Nginx           : [RUNNING]
+
+为什么有几个没有安装成功，查看脚本，服务无论如何都会安装，只是根据变量是否要
+启动。 
+
+
