@@ -18,8 +18,8 @@ class DatabasePathHelper
 {
     public static function getWwwRoot(): string
     {
-        $wwwRoot = PHP_OS_FAMILY === 'Windows' 
-            ? 'D:\wwwroot' 
+        $wwwRoot = PHP_OS_FAMILY === 'Windows'
+            ? 'D:\wwwroot'
             : '/www/wwwroot';
         return $wwwRoot;
     }
@@ -32,8 +32,9 @@ class DatabasePathHelper
 
     public static function getLaravelDatabaseDir(): string
     {
-        $laravelPublicPath = self::getLaravelPublicPath();
-        return $laravelPublicPath . '/laravel_db';
+        // Use actual Laravel base path instead of hardcoded path
+        $laravelBasePath = base_path();
+        return $laravelBasePath . '/laravel_db';
     }
 
     public static function getDefaultDatabasePath($databaseName = 'database.sqlite'): string
