@@ -1091,6 +1091,9 @@ handle_menu_action() {
         "show_special_software_env_menu")
             show_special_software_env_menu
             ;;
+        "show_service_manager")
+            show_service_manager
+            ;;
         "unified_manager")
             local unified_manager_script="$CORE_NODE_ROOT_DIR/scripts/unified_manager/unified_manager.sh"
             if [ -x "$unified_manager_script" ]; then
