@@ -58,10 +58,27 @@ const fs = require('fs');
 const path = require('path');
 
 // Configuration
-const SUPPORTED_APPS = ['example', 'codemart', 'dev', 'admin', 'dashboard', 'ittools'];
+const APPS_DIR = path.join(__dirname, '../apps');
 const PAGES_DIR = path.join(__dirname, '../pages');
 const INDEX_FILE = path.join(PAGES_DIR, 'index.vue');
 const BACKUP_DIR = path.join(__dirname, '../.app-backups');
+
+// Automatically scan for available apps
+function scanAvailableApps() {
+  if (!fs.existsSync(APPS_DIR)) {
+    return [];
+  }
+
+  const entries = fs.readdirSync(APPS_DIR, { withFileTypes: true });
+  const apps = entries
+    .filter(entry => entry.isDirectory() && entry.name.startsWith('app_'))
+    .map(entry => entry.name.replace(/^app_/, ''))
+    .sort();
+
+  return apps;
+}
+
+const SUPPORTED_APPS = scanAvailableApps();
 
 // Colors for console output
 const colors = {

@@ -76,7 +76,7 @@ class ServiceNameConstants:
     AUTO_APPROVE_TOOLS = ["tool1", "tool2", "health_check"]
 ```
 
-### 1.5 开发后的MCP更新 mcpWindowsTemplate.json 和 mcpLinuxTemplate.json 文件
+### 1.5 开发后的MCP更新 mcpWindowsTemplate.json 和 mcpLinuxTemplate.json、mcpUbuntoDesktopTemplate.jso、mcpWSLTemplate.json 文件
 **🚨 严禁删除重建 Template 文件！**
 - **只能增量添加**: 向现有配置中添加新的 MCP 服务配置
 - **禁止删除重建**: 绝对不允许删除整个文件后重新创建

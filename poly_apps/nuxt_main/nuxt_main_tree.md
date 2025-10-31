@@ -13,6 +13,7 @@ nuxt_main/
 │   │   ├── constants_app_admin/
 │   │   │   └── admin-constants.ts
 │   │   ├── layouts_app_admin/
+│   │   │   └── default.vue
 │   │   ├── locales_app_admin/
 │   │   ├── pages_app_admin/
 │   │   │   └── datasources.vue
@@ -107,6 +108,7 @@ nuxt_main/
 │   │   ├── config_app_dashboard/
 │   │   ├── constants_app_dashboard/
 │   │   ├── layouts_app_dashboard/
+│   │   │   └── default.vue
 │   │   ├── locales_app_dashboard/
 │   │   ├── pages_app_dashboard/
 │   │   ├── router_app_dashboard/
@@ -210,44 +212,66 @@ nuxt_main/
 │   │   └── theme_app_example/
 │   │       └── example-theme.ts
 │   ├── app_ittools/
-│   │   ├── components_app_ittools/
 │   │   ├── composables_app_ittools/
 │   │   │   └── useItTools.ts
 │   │   ├── config_app_ittools/
 │   │   │   └── index.ts
 │   │   ├── constants_app_ittools/
 │   │   │   └── tools.ts
-│   │   ├── layouts_app_ittools/
-│   │   ├── locales_app_ittools/
 │   │   ├── pages_app_ittools/
 │   │   │   └── index.vue
-│   │   ├── router_app_ittools/
 │   │   ├── services_app_ittools/
 │   │   │   └── ittools-main-api.ts
 │   │   ├── stores_app_ittools/
 │   │   │   └── ittools-store.ts
-│   │   ├── styles_app_ittools/
 │   │   ├── theme_app_ittools/
 │   │   │   └── colors.ts
 │   │   ├── types_app_ittools/
 │   │   │   └── index.ts
 │   │   └── app-config.json
-│   └── app_main/
-│       ├── components_app_main/
-│       ├── composables_app_main/
-│       ├── config_app_main/
-│       │   └── app-config.ts
-│       ├── constants_app_main/
-│       ├── layouts_app_main/
-│       ├── locales_app_main/
-│       ├── pages_app_main/
-│       │   └── index.vue
-│       ├── router_app_main/
+│   ├── app_main/
+│   │   ├── components_app_main/
+│   │   ├── composables_app_main/
+│   │   ├── config_app_main/
+│   │   │   └── app-config.ts
+│   │   ├── constants_app_main/
+│   │   ├── layouts_app_main/
+│   │   ├── locales_app_main/
+│   │   ├── pages_app_main/
+│   │   │   └── index.vue
+│   │   ├── router_app_main/
+│   │   │   └── index.ts
+│   │   ├── services_app_main/
+│   │   ├── stores_app_main/
+│   │   ├── styles_app_main/
+│   │   └── theme_app_main/
+│   └── app_pymatrix/
+│       ├── components_app_pymatrix/
+│       │   ├── PyMatrixConnectDialog.vue
+│       │   ├── PyMatrixDeviceGrid.vue
+│       │   ├── PyMatrixEmptyState.vue
+│       │   ├── PyMatrixLeftPanel.vue
+│       │   ├── PyMatrixRightPanel.vue
+│       │   ├── PyMatrixSettingsDialog.vue
+│       │   ├── PyMatrixTopBar.vue
+│       │   └── VideoPlayer.vue
+│       ├── composables_app_pymatrix/
+│       │   ├── useDeviceControl.ts
+│       │   ├── useGroupControl.ts
+│       │   └── useVideoStream.ts
+│       ├── config_app_pymatrix/
 │       │   └── index.ts
-│       ├── services_app_main/
-│       ├── stores_app_main/
-│       ├── styles_app_main/
-│       └── theme_app_main/
+│       ├── layouts_app_pymatrix/
+│       │   └── default.vue
+│       ├── pages_app_pymatrix/
+│       ├── stores_app_pymatrix/
+│       │   ├── deviceStore.ts
+│       │   └── groupStore.ts
+│       ├── types_app_pymatrix/
+│       ├── ARCHITECTURE_SUMMARY.md
+│       ├── README.md
+│       ├── app-config.json
+│       └── app_pymatrix_tree.md
 ├── assets/
 │   └── css/
 │       ├── animate.css
@@ -360,7 +384,8 @@ nuxt_main/
 │   ├── useRoles.ts
 │   ├── useRouteNamespace.ts
 │   ├── useTables.ts
-│   └── useVueQuery.ts
+│   ├── useVueQuery.ts
+│   └── useWSRPC.ts
 ├── configs/
 │   ├── codemart-menu.ts
 │   ├── codemart.config.ts
@@ -374,6 +399,8 @@ nuxt_main/
 │   │   ├── admin-constants.ts
 │   │   └── codemart-constants.ts
 │   └── base-constants.ts
+├── development-guides/
+│   └── NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md
 ├── docs/
 │   └── DATASOURCE_ARCHITECTURE.md
 ├── i18n/
@@ -394,9 +421,13 @@ nuxt_main/
 │       ├── tr.json
 │       └── zh.json
 ├── layouts/
+│   ├── admin.vue
 │   ├── auth-layout.vue
+│   ├── base.vue
 │   ├── codemart-layout.vue
-│   └── default.vue
+│   ├── dashboard.vue
+│   ├── default-with-nav.vue
+│   └── pymatrix.vue
 ├── middleware/
 │   └── app-entry.global.ts
 ├── pages/
@@ -520,6 +551,7 @@ nuxt_main/
 │   ├── index.dev.vue
 │   ├── index.example.vue
 │   ├── index.ittools.vue
+│   ├── index.pymatrix.vue
 │   ├── index.vue
 │   ├── mainsite-dashboard.vue
 │   ├── tables.vue
@@ -945,13 +977,20 @@ nuxt_main/
 ├── types/
 │   ├── api.ts
 │   ├── datasource.ts
-│   └── devops.ts
+│   ├── devops.ts
+│   └── pymatrix.ts
 ├── utils/
 │   ├── apiHelpers.ts
 │   └── namespace-registry.ts
 ├── .gitignore
+├── ARCHITECTURE_ANALYSIS_MULTI_LAYER_ISSUES.md
+├── ARCHITECTURE_ANALYSIS_REPORT.md
 ├── ARCHITECTURE_COMPLETE.txt
+├── ARCHITECTURE_FIXES_SUMMARY.txt
+├── ARCHITECTURE_REFACTORING_PROPOSAL.md
 ├── COMMAND_TRACE_EXPLANATION.md
+├── IMPLEMENTATION_COMPLETE.md
+├── IMPLEMENTATION_GUIDE.md
 ├── IMPLEMENTATION_PHASES.txt
 ├── MIGRATION_FINAL_REPORT.txt
 ├── README.md

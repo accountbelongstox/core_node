@@ -62,10 +62,15 @@ $Global:STEP4_FALLBACK_REASON_PREFIX = "STEP4_FALLBACK_REASON_"
 $Global:STEP4_PROCESSING_TIMESTAMP_PREFIX = "STEP4_PROCESSING_TIMESTAMP_"
 $Global:STEP4_ORIGINAL_PATH_PREFIX = "STEP4_ORIGINAL_PATH_"
 
-# Platform Detection
-$Global:IS_WINDOWS = $PSVersionTable.Platform -eq "Win32NT" -or $null -eq $PSVersionTable.Platform
-$Global:IS_LINUX = $PSVersionTable.Platform -eq "Unix"
-$Global:IS_MACOS = $PSVersionTable.OS -like "*Darwin*"
+# Platform Detection (defensive for different PowerShell versions)
+$plat = $null
+if ($PSVersionTable -is [hashtable] -and $PSVersionTable.ContainsKey('Platform')) {
+    $plat = $PSVersionTable['Platform']
+}
+$osEnv = $env:OS
+$Global:IS_WINDOWS = ($plat -eq 'Win32NT') -or ($osEnv -eq 'Windows_NT')
+$Global:IS_LINUX = ($plat -eq 'Unix') -and -not $Global:IS_WINDOWS
+$Global:IS_MACOS = $false
 
 # Build Configuration
 $Global:ORIGINAL_CONFIG_FILE = Join-Path $Global:DEV_SCRIPT_DIR "original_config.ini"

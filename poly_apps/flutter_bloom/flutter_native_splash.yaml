@@ -2,10 +2,10 @@ flutter_native_splash:
   # Basic splash screen configuration
   # Either color or background_image is required
   color: #667eea
-  background_image: assets/apps/app_wuy/launch/background.png
+  background_image: assets/common/launch/splash_bg.png
   
   # Splash screen logo/image
-  #image: assets/apps/app_wuy/icons/logo.png
+  #image: "assets/common/launch/splash_logo.png"
   
   # Branding image (appears at bottom)
   #branding: "assets/common/launch/branding.png"
@@ -14,8 +14,8 @@ flutter_native_splash:
   
   # Dark mode variants
   color_dark: #121212
-  background_image_dark: assets/apps/app_wuy/launch/background.png
-  #image_dark: assets/apps/app_wuy/icons/logo.png
+  background_image_dark: assets/common/launch/dark_launch.jpg
+  #image_dark: "assets/common/launch/splash_logo_dark.png"
   #branding_dark: "assets/common/launch/branding_dark.png"
   
   # Android 12+ specific configuration
@@ -24,8 +24,8 @@ flutter_native_splash:
     color_dark: #121212
     icon_background_color: #667eea
     icon_background_color_dark: #121212
-    #image: assets/apps/app_wuy/icons/logo.png
-    #image_dark: assets/apps/app_wuy/icons/logo.png
+    #image: "assets/common/launch/splash_logo.png"
+    #image_dark: "assets/common/launch/splash_logo_dark.png"
     #branding: "assets/common/launch/branding.png"
   
   # Platform toggles
@@ -42,12 +42,12 @@ flutter_native_splash:
   fullscreen: true
   
   # Platform-specific colors
-  color_android: #667eea
-  color_dark_android: #121212
-  color_ios: #667eea
-  color_dark_ios: #121212
-  color_web: #667eea
-  color_dark_web: #121212
+  #color_android: "#667eea"
+  #color_dark_android: "#121212"
+  #color_ios: "#667eea"
+  #color_dark_ios: "#121212"
+  #color_web: "#667eea"
+  #color_dark_web: "#121212"
   
   # Platform-specific images
   #image_android: "assets/common/launch/splash_logo.png"
