@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Dict, List, Tuple
 import subprocess
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 import time
 
 try:
