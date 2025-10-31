@@ -18,6 +18,10 @@ SCRIPT_INDEX="45"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
+# Use compile_dir for Redis data and logs (auto-selects based on environment)
+REDIS_DATA_DIR=$(map_web_path "compile_dir" "redis/data")
+REDIS_LOG_DIR=$(map_web_path "compile_dir" "redis/logs")
+
 echo "[$SCRIPT_INDEX] Redis Installation Script"
 echo "[$SCRIPT_INDEX] Redis will always be installed"
 
@@ -96,6 +100,16 @@ configure_redis() {
 
     local redis_conf="/etc/redis/redis.conf"
 
+    # Ensure Redis directories exist
+    $USE_SUDO mkdir -p "$REDIS_DATA_DIR"
+    $USE_SUDO mkdir -p "$REDIS_LOG_DIR"
+
+    # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+    if [ "$IS_WSL" = false ]; then
+        $USE_SUDO chown -R redis:redis "$REDIS_DATA_DIR"
+        $USE_SUDO chown -R redis:redis "$REDIS_LOG_DIR"
+    fi
+
     if [ -f "$redis_conf" ]; then
         # Backup original configuration
         $USE_SUDO cp "$redis_conf" "${redis_conf}.backup.$(date +%Y%m%d_%H%M%S)"
@@ -106,8 +120,8 @@ configure_redis() {
         # Set supervised to systemd
         $USE_SUDO sed -i 's/^supervised no/supervised systemd/' "$redis_conf"
 
-        # Set working directory
-        $USE_SUDO sed -i 's|^dir ./|dir /var/lib/redis|' "$redis_conf"
+        # Set working directory to mapped path
+        $USE_SUDO sed -i "s|^dir .*|dir $REDIS_DATA_DIR|" "$redis_conf"
 
         # Configure memory management
         if ! grep -q "maxmemory-policy" "$redis_conf"; then
@@ -282,10 +296,10 @@ store_redis_info() {
         set_var "REDIS_VERSION" "$redis_version"
     fi
 
-    # Store Redis configuration paths
+    # Store Redis configuration paths using mapped directories
     set_var "REDIS_CONFIG_FILE" "/etc/redis/redis.conf"
-    set_var "REDIS_DATA_DIR" "/var/lib/redis"
-    set_var "REDIS_LOG_FILE" "/var/log/redis/redis-server.log"
+    set_var "REDIS_DATA_DIR" "$REDIS_DATA_DIR"
+    set_var "REDIS_LOG_DIR" "$REDIS_LOG_DIR"
 
     echo "[$SCRIPT_INDEX] Redis information stored successfully"
 }
@@ -314,8 +328,8 @@ display_redis_info() {
         fi
 
         echo "[$SCRIPT_INDEX] Configuration: /etc/redis/redis.conf"
-        echo "[$SCRIPT_INDEX] Data Directory: /var/lib/redis"
-        echo "[$SCRIPT_INDEX] Log File: /var/log/redis/redis-server.log"
+        echo "[$SCRIPT_INDEX] Data Directory: $REDIS_DATA_DIR"
+        echo "[$SCRIPT_INDEX] Log Directory: $REDIS_LOG_DIR"
 
         # Test connection
         if timeout 5 redis-cli ping >/dev/null 2>&1; then

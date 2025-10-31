@@ -43,10 +43,10 @@ SCRIPT_INDEX="46"
 INSTALL_POSTGRESQL=$(get_var "INSTALL_POSTGRESQL")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 POSTGRESQL_VERSION="15"
-# Use path mapping from gvar_common.sh to support WSL Windows directories
-POSTGRESQL_DATA_DIR=$(map_web_path "wwwroot" "postgresql/data")
+# Use compile_dir for database data and logs (auto-selects based on environment)
+POSTGRESQL_DATA_DIR=$(map_web_path "compile_dir" "postgresql/data")
 POSTGRESQL_CONFIG_DIR=""
-POSTGRESQL_LOG_DIR=$(map_web_path "wwwroot" "postgresql/logs")
+POSTGRESQL_LOG_DIR=$(map_web_path "compile_dir" "postgresql/logs")
 
 echo "[$SCRIPT_INDEX] PostgreSQL Database Management Script"
 echo "[$SCRIPT_INDEX] INSTALL_POSTGRESQL: $INSTALL_POSTGRESQL"
@@ -99,8 +99,8 @@ detect_postgresql_version() {
 create_postgresql_directories() {
     echo "[$SCRIPT_INDEX] Ensuring PostgreSQL directories..."
 
-    # Use path mapping from gvar_common.sh to support WSL Windows directories
-    local postgresql_parent=$(map_web_path "wwwroot" "postgresql")
+    # Use compile_dir for database directories (auto-selects based on environment)
+    local postgresql_parent=$(map_web_path "compile_dir" "postgresql")
 
     # Parent and logs
     $USE_SUDO mkdir -p "$postgresql_parent"
@@ -338,8 +338,8 @@ remove_postgresql() {
     echo "[$SCRIPT_INDEX] Do you want to remove PostgreSQL data directories? (y/N)"
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
-        # Use path mapping from gvar_common.sh to support WSL Windows directories
-        local postgresql_parent=$(map_web_path "wwwroot" "postgresql")
+        # Use compile_dir for database directories (auto-selects based on environment)
+        local postgresql_parent=$(map_web_path "compile_dir" "postgresql")
         $USE_SUDO rm -rf "$postgresql_parent"
         echo "[$SCRIPT_INDEX] PostgreSQL data directories removed"
     fi

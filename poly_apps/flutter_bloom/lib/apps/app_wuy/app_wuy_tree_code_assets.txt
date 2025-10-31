@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-23 11:53:16
+Generated: 2025-10-31 17:44:33
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -62,23 +62,6 @@ app_wuy [code_assets]
 │   │   │   ├── 06_display_settings.html
 │   │   │   ├── 07_notification_settings.html
 │   │   │   └── 08_privacy_settings.html
-│   │   ├── pageviewshtmlclaude.bak
-│   │   │   ├── 01_homepage_main_view.html
-│   │   │   ├── 02_bottom_navigation.html
-│   │   │   ├── 03_menu_drawer_open.html
-│   │   │   ├── 04_settings_page.html
-│   │   │   ├── 05_account_settings.html
-│   │   │   ├── 06_display_settings.html
-│   │   │   ├── 07_notification_settings.html
-│   │   │   ├── 08_privacy_settings.html
-│   │   │   ├── 09_data_storage_settings.html
-│   │   │   ├── 10_help_feedback_page.html
-│   │   │   ├── 11_about_page.html
-│   │   │   ├── 12_theme_selection_dialog.html
-│   │   │   ├── 13_font_size_adjustment.html
-│   │   │   ├── 14_language_settings.html
-│   │   │   ├── 15_search_functionality.html
-│   │   │   └── 16_app_info_details.html
 │   │   ├── pageviewshtmlcodebuddy
 │   │   │   ├── about.html
 │   │   │   ├── add-friend.html

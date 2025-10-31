@@ -42,9 +42,9 @@ SCRIPT_INDEX="48"
 INSTALL_MYSQL=$(get_var "INSTALL_MYSQL")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 MYSQL_CONFIG_FILE="/etc/mysql/mysql.conf.d/mysqld.cnf"
-# Use path mapping from gvar_common.sh to support WSL Windows directories
-MYSQL_DATA_DIR=$(map_web_path "www" "mysql/data")
-MYSQL_LOG_DIR="/var/log/mysql"
+# Use compile_dir for database data and logs (auto-selects based on environment)
+MYSQL_DATA_DIR=$(map_web_path "compile_dir" "mysql/data")
+MYSQL_LOG_DIR=$(map_web_path "compile_dir" "mysql/logs")
 
 echo "[$SCRIPT_INDEX] MySQL Management Script"
 echo "[$SCRIPT_INDEX] MySQL will always be installed"
@@ -142,14 +142,14 @@ setup_data_dir() {
     # Use the mapped path from variable initialization
     local DATA_DIR="$MYSQL_DATA_DIR"
 
-    # Create MySQL directories
+    # Create MySQL directories using mapped paths
     mkdir -p "$DATA_DIR"
-    mkdir -p /var/log/mysql
+    mkdir -p "$MYSQL_LOG_DIR"
 
     # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
     if [ "$IS_WSL" = false ]; then
         chown -R mysql:mysql "$DATA_DIR"
-        chown -R mysql:mysql /var/log/mysql
+        chown -R mysql:mysql "$MYSQL_LOG_DIR"
     fi
     chmod 750 "$DATA_DIR" 2>/dev/null || true
 
@@ -300,9 +300,9 @@ store_mysql_info() {
     set_global_var "MYSQLD_BIN" "$(which mysqld)"
     set_global_var "MYSQL_VERSION" "$(mysql --version)"
     set_global_var "MYSQL_CONFIG_DIR" "/etc/mysql"
-    # Use the mapped path from variable initialization
+    # Use the mapped paths from variable initialization
     set_global_var "MYSQL_DATA_DIR" "$MYSQL_DATA_DIR"
-    set_global_var "MYSQL_LOG_DIR" "/var/log/mysql"
+    set_global_var "MYSQL_LOG_DIR" "$MYSQL_LOG_DIR"
     set_global_var "MYSQL_CONFIG_FILE" "/etc/mysql/mysql.conf.d/mysqld.cnf"
     set_global_var "MYSQL_SERVICE_STATUS" "$(systemctl is-active mariadb)"
     local port=$(mysql -N -e "SHOW VARIABLES LIKE 'port';" | awk '{print $2}')

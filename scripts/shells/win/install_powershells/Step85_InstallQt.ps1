@@ -38,6 +38,7 @@ $windowsPathFuncPath = Join-Path $winCommonPath "WindowsPathFunction.ps1"
 . $windowsPathFuncPath
 
 # All variable declarations
+$proceedChoice = ""
 $qtVersionMajorMinor = ""
 $qtSrcFileName = ""
 $qtSrcFileUrl = ""
@@ -61,6 +62,20 @@ Write-Host ""
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "  [$SCRIPT_INDEX] Qt Framework Installation and Build" -ForegroundColor Cyan
 Write-Host "================================================================================" -ForegroundColor Cyan
+Write-Host ""
+
+# Ask user if they want to proceed with installation
+Write-Host "  [$SCRIPT_INDEX] Do you want to proceed with Qt installation? (y/N)" -ForegroundColor Yellow
+Write-Host "  [$SCRIPT_INDEX] Default: N (Skip)" -ForegroundColor Gray
+$proceedChoice = Read-Host "  [$SCRIPT_INDEX]"
+
+if ($proceedChoice -ne "Y" -and $proceedChoice -ne "y") {
+    Write-Host "  [$SCRIPT_INDEX] Qt installation skipped by user" -ForegroundColor Yellow
+    Write-Host ""
+    exit 0
+}
+
+Write-Host "  [$SCRIPT_INDEX] Proceeding with Qt installation..." -ForegroundColor Green
 Write-Host ""
 
 # Get installation type from global variables
@@ -361,36 +376,41 @@ if ($qtInstallMethod -eq "installer") {
         Write-Host "$LogPrefix Install Directory: $qtBaseDir" -ForegroundColor Gray
         Write-Host ""
 
-        # Check if installer already downloaded
-        if (Test-Path $installerPath) {
-            Write-Host "$LogPrefix Installer already downloaded: $installerPath" -ForegroundColor Green
-        }
-        else {
-            Write-Host "$LogPrefix Downloading Qt installer..." -ForegroundColor Yellow
-            Write-Host "$LogPrefix This may take a few minutes..." -ForegroundColor Gray
-            Write-Host ""
+        # Download Qt installer using common download function
+        Write-Host "$LogPrefix Downloading Qt installer..." -ForegroundColor Yellow
+        Write-Host "$LogPrefix URL: $installerUrl" -ForegroundColor Gray
+        Write-Host ""
 
-            try {
-                # Ensure downloads directory exists
-                $downloadsDir = Split-Path $installerPath -Parent
-                if (-not (Test-Path $downloadsDir)) {
-                    New-Item -ItemType Directory -Path $downloadsDir -Force | Out-Null
-                }
-
-                # Download installer
-                $webClient = New-Object System.Net.WebClient
-                $webClient.DownloadFile($installerUrl, $installerPath)
-                Write-Host "$LogPrefix Installer downloaded successfully" -ForegroundColor Green
+        try {
+            # Ensure downloads directory exists
+            $downloadsDir = Split-Path $installerPath -Parent
+            if (-not (Test-Path $downloadsDir)) {
+                New-Item -ItemType Directory -Path $downloadsDir -Force | Out-Null
             }
-            catch {
-                Write-Host "$LogPrefix ERROR: Failed to download Qt installer" -ForegroundColor Red
-                Write-Host "$LogPrefix Exception: $($_.Exception.Message)" -ForegroundColor Red
-                Write-Host ""
-                Write-Host "$LogPrefix You can manually download the installer from:" -ForegroundColor Yellow
-                Write-Host "$LogPrefix $installerUrl" -ForegroundColor White
-                Write-Host "$LogPrefix Save it to: $installerPath" -ForegroundColor White
+
+            # Use common download function with size check and progress
+            Get-FileWithSizeCheck -localPath $installerPath -remoteUrl $installerUrl -description "Qt Online Installer"
+
+            # Verify download
+            if (Test-Path $installerPath) {
+                $fileSize = (Get-Item $installerPath).Length
+                $fileSizeMB = [math]::Round($fileSize / 1MB, 2)
+                Write-Host "$LogPrefix Installer downloaded successfully" -ForegroundColor Green
+                Write-Host "$LogPrefix File size: $fileSizeMB MB" -ForegroundColor Cyan
+            }
+            else {
+                Write-Host "$LogPrefix ERROR: Downloaded file not found" -ForegroundColor Red
                 return $false
             }
+        }
+        catch {
+            Write-Host "$LogPrefix ERROR: Failed to download Qt installer" -ForegroundColor Red
+            Write-Host "$LogPrefix Exception: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "$LogPrefix You can manually download the installer from:" -ForegroundColor Yellow
+            Write-Host "$LogPrefix $installerUrl" -ForegroundColor White
+            Write-Host "$LogPrefix Save it to: $installerPath" -ForegroundColor White
+            return $false
         }
 
         Write-Host ""
@@ -410,17 +430,17 @@ if ($qtInstallMethod -eq "installer") {
         Write-Host "$LogPrefix    RECOMMENDED: $qtBaseDir" -ForegroundColor White
         Write-Host ""
         Write-Host "$LogPrefix 4. Select components to install:" -ForegroundColor Yellow
-        Write-Host "$LogPrefix    REQUIRED components for Qt $QtVersion:" -ForegroundColor White
-        Write-Host "$LogPrefix      ✓ Qt -> Qt $qtVersionMajorMinor -> Qt $QtVersion" -ForegroundColor Green
-        Write-Host "$LogPrefix      ✓ MSVC 2022 64-bit (for Visual Studio)" -ForegroundColor Green
-        Write-Host "$LogPrefix      ✓ MinGW 64-bit (optional, for GCC)" -ForegroundColor Gray
-        Write-Host "$LogPrefix      ✓ Qt 5 Compatibility Module" -ForegroundColor Green
-        Write-Host "$LogPrefix      ✓ Additional Libraries -> Qt Multimedia" -ForegroundColor Green
-        Write-Host "$LogPrefix      ✓ Additional Libraries -> Qt Network" -ForegroundColor Green
-        Write-Host "$LogPrefix      ✓ Additional Libraries -> Qt WebEngine" -ForegroundColor Gray
-        Write-Host "$LogPrefix      ✓ Developer and Designer Tools -> Qt Creator" -ForegroundColor Green
-        Write-Host "$LogPrefix      ✓ Developer and Designer Tools -> CMake" -ForegroundColor Green
-        Write-Host "$LogPrefix      ✓ Developer and Designer Tools -> Ninja" -ForegroundColor Green
+        Write-Host "$LogPrefix    REQUIRED components for Qt ${QtVersion}:" -ForegroundColor White
+        Write-Host "$LogPrefix      [X] Qt -> Qt $qtVersionMajorMinor -> Qt $QtVersion" -ForegroundColor Green
+        Write-Host "$LogPrefix      [X] MSVC 2022 64-bit (for Visual Studio)" -ForegroundColor Green
+        Write-Host "$LogPrefix      [X] MinGW 64-bit (optional, for GCC)" -ForegroundColor Gray
+        Write-Host "$LogPrefix      [X] Qt 5 Compatibility Module" -ForegroundColor Green
+        Write-Host "$LogPrefix      [X] Additional Libraries -> Qt Multimedia" -ForegroundColor Green
+        Write-Host "$LogPrefix      [X] Additional Libraries -> Qt Network" -ForegroundColor Green
+        Write-Host "$LogPrefix      [X] Additional Libraries -> Qt WebEngine" -ForegroundColor Gray
+        Write-Host "$LogPrefix      [X] Developer and Designer Tools -> Qt Creator" -ForegroundColor Green
+        Write-Host "$LogPrefix      [X] Developer and Designer Tools -> CMake" -ForegroundColor Green
+        Write-Host "$LogPrefix      [X] Developer and Designer Tools -> Ninja" -ForegroundColor Green
         Write-Host ""
         Write-Host "$LogPrefix 5. Click 'Install' and wait for completion (10-30 minutes)" -ForegroundColor Yellow
         Write-Host ""
