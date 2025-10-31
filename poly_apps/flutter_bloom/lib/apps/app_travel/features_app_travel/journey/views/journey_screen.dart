@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models_app_travel/order_model.dart';
-import '../../../data/test_orders_data.dart';
+import '../../../testdata/orders_data.dart';
 
 class JourneyScreen extends StatefulWidget {
   const JourneyScreen({Key? key}) : super(key: key);
