@@ -1,9 +1,0 @@
-# Python dependencies for Media Compressor
-
-# Image processing
-Pillow>=10.0.0
-
-# Note: ffmpeg is required but must be installed separately
-# Windows: Download from https://ffmpeg.org/download.html
-# macOS: brew install ffmpeg
-# Linux: sudo apt install ffmpeg
