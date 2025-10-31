@@ -199,7 +199,20 @@ class FileTransferRequestHandler(BaseHTTPRequestHandler):
                 self.send_header('Content-Length', str(file_size))
 
             self.send_header('Content-Type', 'application/octet-stream')
-            self.send_header('Content-Disposition', f'attachment; filename="{full_path.name}"')
+
+            # Handle filename encoding for non-ASCII characters (RFC 2231)
+            filename = full_path.name
+            try:
+                # Try to encode as ASCII
+                filename.encode('ascii')
+                # ASCII filename, use simple format
+                self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            except UnicodeEncodeError:
+                # Non-ASCII filename, use RFC 2231 format
+                encoded_filename = quote(filename, safe='')
+                self.send_header('Content-Disposition',
+                                f"attachment; filename*=UTF-8''{encoded_filename}")
+
             self.send_header('Accept-Ranges', 'bytes')
             self.end_headers()
 
