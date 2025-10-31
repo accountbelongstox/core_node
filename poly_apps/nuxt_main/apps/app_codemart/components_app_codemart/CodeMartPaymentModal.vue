@@ -179,12 +179,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import paymentApi from '~/apps/app_codemart/services_app_codemart/payment-api'
-import type { PaymentMethod, PaymentType } from '~/apps/app_codemart/types_app_codemart'
+import { usePaymentModal } from '~/apps/app_codemart/composables_app_codemart/use-payment-modal'
+import { usePaymentStore } from '~/apps/app_codemart/stores/codemart/payment'
+import type { PaymentType } from '~/apps/app_codemart/types_app_codemart'
 
 const { t } = useI18n()
+const paymentStore = usePaymentStore()
 
 interface Props {
   visible: boolean
@@ -210,111 +212,57 @@ const emit = defineEmits<{
   'close': []
 }>()
 
-const isVisible = ref(props.visible)
-const currentStep = ref<'details' | 'processing' | 'success' | 'error'>('details')
-const selectedMethod = ref<PaymentMethod>('alipay')
-const agreedToTerms = ref(false)
-const transactionId = ref<string>()
-const errorMessage = ref<string>()
-const successMessage = ref<string>()
+// Use composable for all business logic
+const {
+  isVisible,
+  currentStep,
+  selectedMethod,
+  agreedToTerms,
+  transactionId,
+  errorMessage,
+  successMessage,
+  loading,
+  retryAttempts,
+  paymentDuration,
+  paymentHistory,
+  preferences,
+  availableMethods,
+  selectedMethodInfo,
+  canProceed,
+  isAmountValid,
+  canRetry,
+  formattedAmount,
+  recentPayments,
+  handleClose,
+  resetModal,
+  handlePay,
+  handleRetry,
+  handleSuccess,
+  processPayment,
+  validatePayment,
+  clearPaymentHistory,
+  updatePreferences,
+  downloadReceipt,
+  formatCurrency,
+  formatDate
+} = usePaymentModal(props, emit)
 
-watch(() => props.visible, (newValue) => {
-  isVisible.value = newValue
-  if (newValue) {
-    resetModal()
-  }
+// Computed - Format remaining attempts
+const remainingAttempts = computed(() => {
+  return Math.max(0, 3 - retryAttempts.value)
 })
 
-const availableMethods = [
-  {
-    value: 'alipay' as PaymentMethod,
-    label: t('codemart.payment.methods.alipay'),
-    icon: '💳',
-    description: t('codemart.payment.methods.alipayDesc')
-  },
-  {
-    value: 'wechat' as PaymentMethod,
-    label: t('codemart.payment.methods.wechat'),
-    icon: '💚',
-    description: t('codemart.payment.methods.wechatDesc')
-  },
-  {
-    value: 'bank_card' as PaymentMethod,
-    label: t('codemart.payment.methods.bankCard'),
-    icon: '🏦',
-    description: t('codemart.payment.methods.bankCardDesc')
-  },
-  {
-    value: 'wallet' as PaymentMethod,
-    label: t('codemart.payment.methods.wallet'),
-    icon: '👛',
-    description: t('codemart.payment.methods.walletDesc')
-  }
-]
-
-const canProceed = computed(() => {
-  return selectedMethod.value && agreedToTerms.value
+const showPaymentHistory = computed(() => {
+  return recentPayments.value.length > 0
 })
 
-const formatCurrency = (amount: number, currency: string) => {
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: currency
-  }).format(amount)
-}
-
-const resetModal = () => {
-  currentStep.value = 'details'
-  selectedMethod.value = 'alipay'
-  agreedToTerms.value = false
-  transactionId.value = undefined
-  errorMessage.value = undefined
-  successMessage.value = undefined
-}
-
-const handlePay = async () => {
-  currentStep.value = 'processing'
-
-  try {
-    const payment = await paymentApi.createPayment({
-      payee_id: props.payeeId || 0,
-      project_id: props.projectId,
-      milestone_id: props.milestoneId,
-      amount: props.amount,
-      type: props.paymentType || 'project_payment',
-      payment_method: selectedMethod.value,
-      description: props.description
-    })
-
-    // Simulate payment gateway processing
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    transactionId.value = payment.id?.toString()
-    successMessage.value = t('codemart.payment.successMessage')
-    currentStep.value = 'success'
-
-    emit('success', payment.id as number)
-  } catch (error) {
-    console.error('Payment failed:', error)
-    errorMessage.value = error instanceof Error ? error.message : 'Unknown error'
-    currentStep.value = 'error'
-    emit('error', error instanceof Error ? error : new Error('Unknown error'))
+// Watch payment success to update store
+watch(() => currentStep.value, (newStep) => {
+  if (newStep === 'success' && transactionId.value) {
+    // Payment successful, refresh payment data in store
+    paymentStore.initialize()
   }
-}
-
-const handleSuccess = () => {
-  handleClose()
-}
-
-const handleRetry = () => {
-  resetModal()
-}
-
-const handleClose = () => {
-  isVisible.value = false
-  emit('update:visible', false)
-  emit('close')
-}
+})
 </script>
 
 <!-- NO <style> tag - All styles defined in theme files -->

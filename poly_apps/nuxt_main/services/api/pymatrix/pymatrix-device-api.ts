@@ -107,8 +107,22 @@ export class PyMatrixDeviceAPI {
   /**
    * Connect to a device
    */
-  async connectDevice(serial: string): Promise<DeviceActionResponse> {
+  async connectDevice(
+    serial: string,
+    options?: {
+      maxSize?: number;
+      bitRate?: number;
+      maxFps?: number;
+    }
+  ): Promise<DeviceActionResponse> {
     try {
+      // Convert bitRate from Mbps to bps if provided
+      const body = {
+        max_size: options?.maxSize || 720,
+        bit_rate: options?.bitRate ? options.bitRate * 1000000 : 8000000,
+        max_fps: options?.maxFps || 60
+      };
+
       const response = await $fetch<{ success: boolean; message: string; device?: any }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/connect`,
         {
@@ -116,7 +130,8 @@ export class PyMatrixDeviceAPI {
           headers: {
             'X-App-Namespace': 'pymatrix',
             'Content-Type': 'application/json'
-          }
+          },
+          body
         }
       );
 

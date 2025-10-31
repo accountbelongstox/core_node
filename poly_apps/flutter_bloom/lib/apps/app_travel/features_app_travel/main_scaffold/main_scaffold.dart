@@ -13,6 +13,8 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/enhanced_bottom_navigation.dart';
 import '../home/views/home_screen.dart';
+import '../journey/views/journey_screen.dart';
+import '../service/views/service_screen.dart';
 import '../explore/views/explore_screen.dart';
 import '../favorites/views/favorites_screen.dart';
 import '../profile/views/profile_screen.dart';
@@ -69,8 +71,9 @@ class _MainScaffoldState extends State<MainScaffold> {
         onPageChanged: _onPageChanged,
         children: const [
           HomeScreen(isInScaffold: true),
+          JourneyScreen(),
+          ServiceScreen(),
           ExploreScreen(),
-          FavoritesScreen(),
           ProfileScreen(),
         ],
       ),
@@ -78,29 +81,38 @@ class _MainScaffoldState extends State<MainScaffold> {
         currentIndex: _currentIndex,
         onTap: _onNavItemTapped,
         showLabels: true,
+        selectedItemColor: const Color(0xFF00D0D8),
         items: const [
           NavigationItem(
             icon: Icons.home_outlined,
             activeIcon: Icons.home,
-            label: 'Home',
+            label: '首页',
+            route: TravelAppRoutesProvider.routeHome,
+          ),
+          NavigationItem(
+            icon: Icons.calendar_today_outlined,
+            activeIcon: Icons.calendar_today,
+            label: '行程',
+            route: TravelAppRoutesProvider.routeHome,
+          ),
+          NavigationItem(
+            icon: Icons.chat_bubble_outline,
+            activeIcon: Icons.chat_bubble,
+            label: '客服',
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.explore_outlined,
             activeIcon: Icons.explore,
-            label: 'Explore',
+            label: '看世界',
             route: TravelAppRoutesProvider.routeSearch,
-          ),
-          NavigationItem(
-            icon: Icons.favorite_border,
-            activeIcon: Icons.favorite,
-            label: 'Favorites',
-            route: TravelAppRoutesProvider.routeFavorites,
+            badge: '旅行攻略',
+            badgeColor: Color(0xFFFF3B30),
           ),
           NavigationItem(
             icon: Icons.person_outline,
             activeIcon: Icons.person,
-            label: 'Profile',
+            label: '我的',
             route: TravelAppRoutesProvider.routeProfile,
           ),
         ],

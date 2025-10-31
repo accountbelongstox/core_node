@@ -1,23 +1,4 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
-import 'package:qyflutter/common/widgets/custom_button.dart';
-import '../../../provider_app_travel/search_provider_app_travel.dart';
-import '../../../provider_app_travel/user_provider_app_travel.dart';
-import '../../../router_app_travel/routes_provider_app_travel.dart';
-import '../../../models_app_travel/sight_model_app_travel.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({Key? key}) : super(key: key);
@@ -26,86 +7,201 @@ class ExploreScreen extends StatefulWidget {
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveClientMixin {
-  final TextEditingController _searchController = TextEditingController();
-  String _selectedCategory;
+class _ExploreScreenState extends State<ExploreScreen> {
+  int _selectedMonthIndex = 0;
 
-  _ExploreScreenState() : _selectedCategory = 'All';
+  final List<Map<String, String>> _monthTabs = [
+    {'label': '11月', 'subtitle': '天凉好个秋'},
+    {'label': '赏秋', 'subtitle': ''},
+    {'label': '12月', 'subtitle': '玩雪泡温泉'},
+    {'label': '1月', 'subtitle': '人少景美'},
+  ];
 
-  @override
-  bool get wantKeepAlive => true;
+  final Map<String, dynamic> _featuredDestination = {
+    'image': 'assets/apps/app_travel/images/inspiration_november.png',
+    'title': '11月去哪儿玩',
+    'recommend': 40319,
+  };
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  final List<Map<String, dynamic>> _destinations = [
+    {
+      'image': 'assets/apps/app_travel/images/destination_sanya.png',
+      'title': '三亚',
+      'subtitle': '全年人流最少时',
+    },
+    {
+      'image': 'assets/apps/app_travel/images/destination_hongcun.png',
+      'title': '宏村',
+      'subtitle': '秋色正浓皖南景致',
+    },
+    {
+      'image': 'assets/apps/app_travel/images/destination_changbai.png',
+      'title': '长白山',
+      'subtitle': '新雪季，开板滑雪去',
+    },
+    {
+      'image': 'assets/apps/app_travel/images/destination_tengchong.png',
+      'title': '腾冲',
+      'subtitle': '赏银杏，泡温泉',
+    },
+  ];
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Explore',
+      body: CustomScrollView(
+        slivers: [
+          _buildHeaderWithSearch(),
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTravelInspiration(),
+                _buildBroadcastNotice(),
+                _buildPromotion(),
+                const SizedBox(height: 80.0),
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          debugPrint('Create content tapped');
+        },
+        backgroundColor: const Color(0xFF00D0D8),
+        child: const Icon(
+          Icons.add,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderWithSearch() {
+    return SliverAppBar(
+      expandedHeight: 280.0,
+      floating: false,
+      pinned: true,
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              'assets/apps/app_travel/images/explore_header_bg.png',
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFFFF9A56), Color(0xFFFF7A3D)],
+                    ),
+                  ),
+                );
+              },
+            ),
+            Positioned(
+              left: 16.0,
+              top: 60.0,
+              child: Row(
+                children: const [
+                  Text(
+                    '看世界',
+                    style: TextStyle(
+                      fontSize: 24.0,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 12.0),
+                  Text(
+                    '北京',
+                    style: TextStyle(
+                      fontSize: 16.0,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.white,
+                    size: 20.0,
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 16.0,
+              top: 60.0,
+              child: Row(
+                children: [
+                  Container(
+                    width: 36.0,
+                    height: 36.0,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.notifications_outlined,
+                      size: 20.0,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  Container(
+                    width: 36.0,
+                    height: 36.0,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_outline,
+                      size: 20.0,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              left: 16.0,
+              right: 16.0,
+              bottom: 16.0,
+              child: Container(
+                height: 48.0,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8.0,
+                      offset: const Offset(0, 2.0),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: const [
+                    SizedBox(width: 16.0),
+                    Icon(
+                      Icons.search,
+                      size: 22.0,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(width: 12.0),
+                    Text(
+                      '想去哪儿，搜一搜',
                       style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 15.0,
+                        color: Colors.grey,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: () {
-                        context.push(TravelAppRoutesProvider.routeSearch);
-                      },
-                      child: Container(
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(25),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withOpacity(0.2),
-                              spreadRadius: 1,
-                              blurRadius: 5,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 16),
-                            Icon(Icons.search, color: Colors.grey[600]),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Search destinations...',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildCategoryFilters(),
                   ],
                 ),
               ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: _buildExploreContent(),
             ),
           ],
         ),
@@ -113,275 +209,341 @@ class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveCl
     );
   }
 
-  Widget _buildCategoryFilters() {
-    final categories = ['All', 'Nature', 'Historical', 'City', 'Adventure', 'Beach'];
-
-    return SizedBox(
-      height: 40,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          final category = categories[index];
-          final isSelected = _selectedCategory == category;
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: Text(category),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  _selectedCategory = category;
-                });
-              },
-              backgroundColor: Colors.white,
-              selectedColor: Colors.blue[100],
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.blue[700] : Colors.grey[800],
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+  Widget _buildTravelInspiration() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text(
+              '出行灵感',
+              style: TextStyle(
+                fontSize: 18.0,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildExploreContent() {
-    final allSights = _getFilteredSights();
-
-    return SliverGrid(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.7,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final sight = allSights[index];
-          return _buildSightCard(sight);
-        },
-        childCount: allSights.length,
-      ),
-    );
-  }
-
-  Widget _buildSightCard(SightModelAppTravel sight) {
-    final userProvider = context.watch<UserProviderAppTravel>();
-    final isFavorite = userProvider.isFavorite(sight.id);
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        onTap: () {
-          context.push(TravelAppRoutesProvider.getSightDetailRoute(sight.id));
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                Image.network(
-                  sight.imageUrl,
-                  height: 140,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 140,
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.broken_image, size: 48),
-                    );
+          ),
+          const SizedBox(height: 12.0),
+          SizedBox(
+            height: 80.0,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              itemCount: _monthTabs.length,
+              itemBuilder: (context, index) {
+                final tab = _monthTabs[index];
+                final isSelected = _selectedMonthIndex == index;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedMonthIndex = index;
+                    });
                   },
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.white,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 18,
-                      icon: Icon(
-                        isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: isFavorite ? Colors.red : Colors.grey,
-                      ),
-                      onPressed: () {
-                        if (isFavorite) {
-                          userProvider.removeFavorite(sight.id);
-                        } else {
-                          userProvider.addFavorite(sight.id);
-                        }
-                      },
+                  child: Container(
+                    width: 90.0,
+                    margin: const EdgeInsets.only(right: 12.0),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8.0),
+                      color: isSelected
+                          ? const Color(0xFFFF9A56)
+                          : const Color(0xFFF5F5F5),
                     ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          tab['label']!,
+                          style: TextStyle(
+                            fontSize: 16.0,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        if (tab['subtitle']!.isNotEmpty) ...[
+                          const SizedBox(height: 4.0),
+                          Text(
+                            tab['subtitle']!,
+                            style: TextStyle(
+                              fontSize: 11.0,
+                              color: isSelected ? Colors.white : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16.0),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    height: 340.0,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.asset(
+                            _featuredDestination['image'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: const Color(0xFFFFC107),
+                              );
+                            },
+                          ),
+                          Positioned(
+                            bottom: 16.0,
+                            left: 16.0,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12.0,
+                                    vertical: 6.0,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF00D0D8),
+                                    borderRadius: BorderRadius.circular(4.0),
+                                  ),
+                                  child: Text(
+                                    _featuredDestination['title'],
+                                    style: const TextStyle(
+                                      fontSize: 15.0,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8.0),
+                                Text(
+                                  '${_featuredDestination['recommend']}人推荐',
+                                  style: const TextStyle(
+                                    fontSize: 13.0,
+                                    color: Colors.white,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black38,
+                                        blurRadius: 4.0,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8.0),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    children: _destinations.map((dest) {
+                      return Container(
+                        height: 82.0,
+                        margin: const EdgeInsets.only(bottom: 8.0),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8.0),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.asset(
+                                dest['image'],
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: Colors.grey[300],
+                                  );
+                                },
+                              ),
+                              Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withOpacity(0.6),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 8.0,
+                                left: 8.0,
+                                right: 8.0,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      dest['title'],
+                                      style: const TextStyle(
+                                        fontSize: 14.0,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2.0),
+                                    Text(
+                                      dest['subtitle'],
+                                      style: const TextStyle(
+                                        fontSize: 11.0,
+                                        color: Colors.white70,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
               ],
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      sight.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.location_on, size: 12, color: Colors.grey[600]),
-                        const SizedBox(width: 2),
-                        Expanded(
-                          child: Text(
-                            sight.location,
-                            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.star, size: 12, color: Colors.amber),
-                            const SizedBox(width: 2),
-                            Text(
-                              sight.rating.toString(),
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          sight.formattedPrice,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: sight.isFree ? Colors.green : Colors.blue,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+          ),
+          const SizedBox(height: 12.0),
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(3, (index) {
+                return Container(
+                  width: index == 0 ? 16.0 : 8.0,
+                  height: 8.0,
+                  margin: const EdgeInsets.symmetric(horizontal: 3.0),
+                  decoration: BoxDecoration(
+                    color: index == 0 ? const Color(0xFF00D0D8) : const Color(0xFFD9D9D9),
+                    borderRadius: BorderRadius.circular(4.0),
+                  ),
+                );
+              }),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  List<SightModelAppTravel> _getFilteredSights() {
-    final allSights = _getAllSights();
-
-    if (_selectedCategory == 'All') {
-      return allSights;
-    }
-
-    return allSights.where((sight) {
-      return sight.tags.any((tag) => tag.toLowerCase() == _selectedCategory.toLowerCase());
-    }).toList();
+  Widget _buildBroadcastNotice() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8F0),
+        borderRadius: BorderRadius.circular(8.0),
+      ),
+      child: Row(
+        children: const [
+          Icon(
+            Icons.volume_up,
+            size: 20.0,
+            color: Color(0xFFFF6B35),
+          ),
+          SizedBox(width: 8.0),
+          Text(
+            '广播',
+            style: TextStyle(
+              fontSize: 13.0,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFFF6B35),
+            ),
+          ),
+          SizedBox(width: 8.0),
+          Text(
+            '【重要通知】',
+            style: TextStyle(
+              fontSize: 13.0,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '#夏日玩水/避暑好去处#',
+              style: TextStyle(
+                fontSize: 13.0,
+                color: Colors.black54,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Icon(
+            Icons.chevron_right,
+            size: 20.0,
+            color: Colors.black26,
+          ),
+        ],
+      ),
+    );
   }
 
-  List<SightModelAppTravel> _getAllSights() {
-    return [
-      SightModelAppTravel(
-        id: 'sight_1',
-        title: 'Great Wall',
-        imageUrl: 'https://via.placeholder.com/300x200?text=Great+Wall',
-        location: 'Beijing',
-        rating: 4.8,
-        price: 100.0,
-        description: 'Ancient Chinese fortification',
-        tags: ['Historical', 'UNESCO', 'Adventure'],
+  Widget _buildPromotion() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      height: 160.0,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8.0,
+            offset: const Offset(0, 2.0),
+          ),
+        ],
       ),
-      SightModelAppTravel(
-        id: 'sight_2',
-        title: 'West Lake',
-        imageUrl: 'https://via.placeholder.com/300x200?text=West+Lake',
-        location: 'Hangzhou',
-        rating: 4.7,
-        price: 0.0,
-        description: 'Beautiful scenic lake',
-        tags: ['Nature', 'Relaxation'],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8.0),
+        child: Image.asset(
+          'assets/apps/app_travel/images/promo_winter_banner.png',
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF4DA0E8), Color(0xFF87CEEB)],
+                ),
+              ),
+              child: const Center(
+                child: Text(
+                  '冬季一年赏雪季',
+                  style: TextStyle(
+                    fontSize: 24.0,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
       ),
-      SightModelAppTravel(
-        id: 'sight_3',
-        title: 'Terracotta Army',
-        imageUrl: 'https://via.placeholder.com/300x200?text=Terracotta+Army',
-        location: 'Xi\'an',
-        rating: 4.9,
-        price: 150.0,
-        description: 'Ancient archaeological site',
-        tags: ['Historical', 'UNESCO', 'Museum'],
-      ),
-      SightModelAppTravel(
-        id: 'sight_4',
-        title: 'Yellow Mountain',
-        imageUrl: 'https://via.placeholder.com/300x200?text=Yellow+Mountain',
-        location: 'Anhui',
-        rating: 4.8,
-        price: 200.0,
-        description: 'Stunning mountain scenery',
-        tags: ['Nature', 'Adventure'],
-      ),
-      SightModelAppTravel(
-        id: 'sight_5',
-        title: 'The Bund',
-        imageUrl: 'https://via.placeholder.com/300x200?text=The+Bund',
-        location: 'Shanghai',
-        rating: 4.6,
-        price: 0.0,
-        description: 'Historic waterfront area',
-        tags: ['City', 'Historical'],
-      ),
-      SightModelAppTravel(
-        id: 'sight_6',
-        title: 'Zhangjiajie',
-        imageUrl: 'https://via.placeholder.com/300x200?text=Zhangjiajie',
-        location: 'Hunan',
-        rating: 4.9,
-        price: 180.0,
-        description: 'Avatar mountains inspiration',
-        tags: ['Nature', 'Adventure', 'UNESCO'],
-      ),
-      SightModelAppTravel(
-        id: 'sight_7',
-        title: 'Sanya Beach',
-        imageUrl: 'https://via.placeholder.com/300x200?text=Sanya+Beach',
-        location: 'Hainan',
-        rating: 4.5,
-        price: 0.0,
-        description: 'Tropical paradise beach',
-        tags: ['Beach', 'Nature', 'Relaxation'],
-      ),
-      SightModelAppTravel(
-        id: 'sight_8',
-        title: 'Forbidden City',
-        imageUrl: 'https://via.placeholder.com/300x200?text=Forbidden+City',
-        location: 'Beijing',
-        rating: 4.8,
-        price: 120.0,
-        description: 'Imperial palace complex',
-        tags: ['Historical', 'UNESCO', 'City'],
-      ),
-    ];
+    );
   }
 }

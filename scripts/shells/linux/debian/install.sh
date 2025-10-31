@@ -120,7 +120,15 @@ echo
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 echo "Selected options:"
 echo "  Installation mode: $INSTALL_MODE"
-echo 
+echo
+
+# Set installation variables for services (always install, START_* controls whether to start)
+echo "Setting up installation variables for services..."
+set_var "INSTALL_MYSQL" "true"
+set_var "INSTALL_REDIS" "true"
+set_var "INSTALL_POSTGRESQL" "true"
+set_var "INSTALL_DOCKER" "true"
+set_var "INSTALL_NGINX" "true"
 
 execute_installation_scripts
 

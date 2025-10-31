@@ -15,6 +15,8 @@ import PyMatrixDeviceGrid from '~/apps/app_pymatrix/components_app_pymatrix/PyMa
 import PyMatrixEmptyState from '~/apps/app_pymatrix/components_app_pymatrix/PyMatrixEmptyState.vue';
 import PyMatrixConnectDialog from '~/apps/app_pymatrix/components_app_pymatrix/PyMatrixConnectDialog.vue';
 import KeyboardShortcutsHelp from '~/apps/app_pymatrix/components_app_pymatrix/KeyboardShortcutsHelp.vue';
+import GroupControlPanel from '~/apps/app_pymatrix/components_app_pymatrix/GroupControlPanel.vue';
+import { useGroupControl } from '~/apps/app_pymatrix/composables_app_pymatrix/useGroupControl';
 
 definePageMeta({
   layout: 'pymatrix'
@@ -47,6 +49,21 @@ const baseUrl = computed(() => 'ws://localhost:8000');
 
 const showConnectDialog = ref(false);
 const showShortcutsHelp = ref(false);
+const showGroupControl = ref(false);
+
+// Group Control WebSocket
+const {
+  connect: connectGroupControl,
+  disconnect: disconnectGroupControl,
+  createGroup,
+  addSlave,
+  removeSlave,
+  enableGroup,
+  disableGroup,
+  getGroupState
+} = useGroupControl({
+  baseUrl: baseUrl.value
+});
 
 function handleConnectDevice() {
   showConnectDialog.value = true;
@@ -72,6 +89,18 @@ shortcuts.push({
   description: 'Show keyboard shortcuts help',
   action: () => {
     showShortcutsHelp.value = !showShortcutsHelp.value;
+  }
+});
+
+shortcuts.push({
+  key: 'g',
+  ctrl: true,
+  description: 'Open group control panel',
+  action: () => {
+    showGroupControl.value = !showGroupControl.value;
+    if (showGroupControl.value) {
+      connectGroupControl();
+    }
   }
 });
 
@@ -119,6 +148,41 @@ async function handleDisconnect(serial: string) {
     console.error('Disconnect error:', error);
   }
 }
+
+function handleCreateGroup(groupId: string, hostSerial: string) {
+  createGroup(groupId, hostSerial);
+  groupStore.createGroup(groupId, hostSerial);
+  deviceStore.updateDevice(hostSerial, { isHost: true });
+}
+
+function handleAddSlave(groupId: string, slaveSerial: string) {
+  addSlave(groupId, slaveSerial);
+  groupStore.addSlave(slaveSerial);
+}
+
+function handleRemoveSlave(groupId: string, slaveSerial: string) {
+  removeSlave(groupId, slaveSerial);
+  groupStore.removeSlave(slaveSerial);
+}
+
+function handleEnableGroup(groupId: string) {
+  enableGroup(groupId);
+  groupStore.enableGroup();
+}
+
+function handleDisableGroup(groupId: string) {
+  disableGroup(groupId);
+  groupStore.disableGroup();
+}
+
+function handleDeleteGroup(groupId: string) {
+  disableGroup(groupId);
+  if (groupStore.hostSerial) {
+    deviceStore.updateDevice(groupStore.hostSerial, { isHost: false });
+  }
+  groupStore.destroyGroup();
+  showGroupControl.value = false;
+}
 </script>
 
 <template>
@@ -164,6 +228,23 @@ async function handleDisconnect(serial: string) {
       :shortcuts="shortcuts"
       @close="showShortcutsHelp = false"
     />
+
+    <!-- Group Control Panel -->
+    <div v-if="showGroupControl" class="modal-overlay" @click.self="showGroupControl = false">
+      <GroupControlPanel
+        :show="showGroupControl"
+        :devices="devices"
+        :group-state="groupStore.groupState"
+        :group-enabled="groupStore.enabled"
+        @close="showGroupControl = false"
+        @create-group="handleCreateGroup"
+        @add-slave="handleAddSlave"
+        @remove-slave="handleRemoveSlave"
+        @enable-group="handleEnableGroup"
+        @disable-group="handleDisableGroup"
+        @delete-group="handleDeleteGroup"
+      />
+    </div>
   </div>
 </template>
 
@@ -223,5 +304,28 @@ async function handleDisconnect(serial: string) {
 
 .retry-btn:hover {
   background: #2563eb;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 </style>

@@ -12,4 +12,5 @@ class TravelIcons {
   static const IconData search = IconData(0xe632, fontFamily: _fontFamily);
   static const IconData cloud = IconData(0xe616, fontFamily: _fontFamily);
   static const IconData location = IconData(0xe65e, fontFamily: _fontFamily);
+  static const IconData scan = IconData(0xe639, fontFamily: _fontFamily);
 }
