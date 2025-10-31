@@ -10,6 +10,7 @@ Quick Imports:
     from pycore.pyutils import TouchEvent, KeyEvent
     from pycore.pyutils import GroupController, AllSyncStrategy
     from pycore.pyutils import WebSocketManager
+    from pycore.pyutils import MediaCompressor, get_media_compressor, CompressionStats
 """
 
 # Device Manager (centralized singleton)
@@ -39,6 +40,13 @@ from .stream import (
     VideoFormat,
     VideoStreamHandler,
     H264Config,
+)
+
+# Media compression utilities
+from .media_compressor import (
+    MediaCompressor,
+    get_media_compressor,
+    CompressionStats,
 )
 
 # Import complete FMP4 encoder if available
@@ -75,6 +83,11 @@ try:
         'VideoFormat',
         'VideoStreamHandler',
         'H264Config',
+
+        # Media Compression
+        'MediaCompressor',
+        'get_media_compressor',
+        'CompressionStats',
     ]
 except ImportError:
     __all__ = [
@@ -106,6 +119,11 @@ except ImportError:
         'VideoFormat',
         'VideoStreamHandler',
         'H264Config',
+
+        # Media Compression
+        'MediaCompressor',
+        'get_media_compressor',
+        'CompressionStats',
     ]
 
 # API utilities (optional, may not be needed by all apps)

@@ -13,8 +13,8 @@
 import 'package:qyflutter/common/storage/app_storage_base.dart';
 
 /// Main App Storage Implementation
-/// Extends AppStorageBase to provide app-specific storage functionality
-class StorageAppMain extends AppStorageBase {
+/// Extends AppStorageBaseImpl to provide app-specific storage functionality
+class StorageAppMain extends AppStorageBaseImpl {
   static StorageAppMain? _instance;
 
   StorageAppMain._internal();
@@ -29,6 +29,11 @@ class StorageAppMain extends AppStorageBase {
 
   @override
   String get cacheNamespace => 'main_cache';
+
+  @override
+  Future<void> initAppStorage() async {
+    // Initialize main app specific storage if needed
+  }
   
   // Main app specific storage keys
   static const String _keyShowcaseSettings = 'showcase_settings';

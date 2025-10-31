@@ -18,6 +18,17 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import unquote, quote
 import time
 
+# Import unified media compressor from pyutils
+try:
+    from pycore.pyutils import MediaCompressor as UnifiedMediaCompressor, CompressionStats
+    UNIFIED_COMPRESSOR_AVAILABLE = True
+except ImportError:
+    print("Warning: pycore.pyutils.MediaCompressor not available")
+    print("Falling back to legacy compression methods")
+    UNIFIED_COMPRESSOR_AVAILABLE = False
+    UnifiedMediaCompressor = None
+    CompressionStats = None
+
 try:
     from PIL import Image
 except ImportError:
@@ -621,6 +632,16 @@ class MediaCompressor:
         self.total_compressed_size = 0
         self.total_files_processed = 0
 
+        # Initialize unified media compressor if available
+        self.unified_compressor = None
+        if UNIFIED_COMPRESSOR_AVAILABLE:
+            try:
+                self.unified_compressor = UnifiedMediaCompressor(verbose=False)
+                print("✓ Unified MediaCompressor initialized (with GPU detection)")
+            except Exception as e:
+                print(f"Warning: Failed to initialize UnifiedMediaCompressor: {e}")
+                self.unified_compressor = None
+
     def _ensure_directories(self):
         """Ensure necessary directories exist"""
         self.TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -852,7 +873,59 @@ class MediaCompressor:
         return copied
 
     def _compress_image(self, src: Path, dst: Path) -> bool:
-        """Compress image"""
+        """Compress image using unified compressor or fallback to legacy method"""
+        # Try unified compressor first (with GPU support)
+        if self.unified_compressor is not None:
+            try:
+                # Ensure destination directory exists
+                dst.parent.mkdir(parents=True, exist_ok=True)
+
+                # Determine if resize is needed
+                file_size_kb = src.stat().st_size / 1024
+                needs_resize = False
+                resize_dims = None
+
+                # Quick dimension check using PIL
+                if Image is not None:
+                    try:
+                        with Image.open(src) as img:
+                            width, height = img.size
+                            if max(width, height) > self.IMAGE_MAX_DIMENSION:
+                                needs_resize = True
+                                if width > height:
+                                    new_width = self.IMAGE_MAX_DIMENSION
+                                    new_height = int(height * (self.IMAGE_MAX_DIMENSION / width))
+                                else:
+                                    new_height = self.IMAGE_MAX_DIMENSION
+                                    new_width = int(width * (self.IMAGE_MAX_DIMENSION / height))
+                                resize_dims = (new_width, new_height)
+                    except:
+                        pass
+
+                # Check if compression needed
+                needs_compress = file_size_kb > self.IMAGE_MAX_SIZE_KB
+
+                if not needs_resize and not needs_compress:
+                    # No compression needed, just copy
+                    shutil.copy2(src, dst)
+                    return True
+
+                # Use unified compressor (with potential GPU acceleration)
+                stats = self.unified_compressor.compress_image(
+                    input_path=src,
+                    output_path=dst,
+                    quality=self.IMAGE_QUALITY,
+                    resize=resize_dims,
+                    use_gpu=True  # Enable GPU if available
+                )
+
+                return stats.compressed_size > 0
+
+            except Exception as e:
+                print(f"  Unified compressor failed, falling back to legacy: {e}")
+                # Fall through to legacy method
+
+        # Legacy PIL-based compression
         if Image is None:
             print("PIL not installed, cannot compress images")
             return False
@@ -952,7 +1025,59 @@ class MediaCompressor:
         return 0, 0
 
     def _compress_video(self, src: Path, dst: Path) -> bool:
-        """Compress video (no upscaling)"""
+        """Compress video using unified compressor or fallback to legacy method (no upscaling)"""
+        # Try unified compressor first (with GPU NVENC support)
+        if self.unified_compressor is not None:
+            try:
+                # Ensure destination directory exists
+                dst.parent.mkdir(parents=True, exist_ok=True)
+
+                # Get original video dimensions
+                width, height = self._get_video_dimensions(src)
+
+                # Determine resolution for compression (no upscaling)
+                resolution = None
+                if height > self.VIDEO_MAX_DIMENSION:
+                    # Calculate width to maintain aspect ratio
+                    if width > 0 and height > 0:
+                        new_height = self.VIDEO_MAX_DIMENSION
+                        new_width = int(width * (self.VIDEO_MAX_DIMENSION / height))
+                        # Ensure even dimensions (required for h264)
+                        new_width = new_width - (new_width % 2)
+                        new_height = new_height - (new_height % 2)
+                        resolution = (new_width, new_height)
+                        print(f"  Using unified compressor... (CRF={self.VIDEO_CRF}, {width}x{height} -> {new_width}x{new_height})")
+                elif height > 0:
+                    print(f"  Using unified compressor... (CRF={self.VIDEO_CRF}, keeping {width}x{height})")
+                else:
+                    print(f"  Using unified compressor... (CRF={self.VIDEO_CRF}, preset={self.VIDEO_PRESET})")
+
+                # Use unified compressor (with potential GPU NVENC acceleration)
+                stats = self.unified_compressor.compress_video(
+                    input_path=src,
+                    output_path=dst,
+                    codec='h264',
+                    preset=self.VIDEO_PRESET,
+                    crf=self.VIDEO_CRF,
+                    resolution=resolution,
+                    use_gpu=True  # Enable GPU hardware encoding if available
+                )
+
+                if stats.compressed_size > 0:
+                    if stats.used_gpu:
+                        print(f"  ✓ Compressed with GPU acceleration: {self._format_size(stats.compressed_size)}")
+                    else:
+                        print(f"  ✓ Compressed with CPU: {self._format_size(stats.compressed_size)}")
+                    return True
+                else:
+                    print(f"  Unified compressor returned no output, falling back to legacy")
+                    # Fall through to legacy method
+
+            except Exception as e:
+                print(f"  Unified compressor failed, falling back to legacy: {e}")
+                # Fall through to legacy method
+
+        # Legacy FFmpeg-based compression
         if not self._check_ffmpeg():
             print("ffmpeg not installed or not in PATH")
             print("Please install ffmpeg: https://ffmpeg.org/download.html")
