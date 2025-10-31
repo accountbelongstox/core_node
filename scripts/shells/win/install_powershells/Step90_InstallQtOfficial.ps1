@@ -224,13 +224,14 @@ if (Test-Path $maintenanceToolPath) {
         Write-Host ""
 
         # Launch MaintenanceTool if user confirms
-        Write-Host "  [$SCRIPT_INDEX] Do you want to launch the MaintenanceTool now? (Y/N)" -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX] Do you want to launch the MaintenanceTool now? (Y/n)" -ForegroundColor Cyan
+        Write-Host "  [$SCRIPT_INDEX] Default: Y (Launch)" -ForegroundColor Gray
         $launchChoice = Read-Host "  [$SCRIPT_INDEX]"
 
-        if ($launchChoice -eq "Y" -or $launchChoice -eq "y") {
+        if ($launchChoice -ne "N" -and $launchChoice -ne "n") {
             Write-Host "  [$SCRIPT_INDEX] Launching Qt MaintenanceTool..." -ForegroundColor Green
             Write-Host ""
-            Start-Process -FilePath $maintenanceToolPath
+            Start-Process -FilePath "explorer.exe" -ArgumentList $maintenanceToolPath
             Write-Host ""
             Write-Host "  [$SCRIPT_INDEX] MaintenanceTool has been launched" -ForegroundColor Cyan
             Write-Host "  [$SCRIPT_INDEX] Please complete the installation and run this script again" -ForegroundColor Yellow
@@ -347,16 +348,17 @@ Write-Host "  [$SCRIPT_INDEX] ==========================================" -Foreg
 Write-Host ""
 
 # Launch installer if user confirms
-Write-Host "  [$SCRIPT_INDEX] Do you want to launch the installer now? (Y/N)" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX] Do you want to launch the installer now? (Y/n)" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX] Default: Y (Launch)" -ForegroundColor Gray
 $launchChoice = Read-Host "  [$SCRIPT_INDEX]"
 
-if ($launchChoice -eq "Y" -or $launchChoice -eq "y") {
+if ($launchChoice -ne "N" -and $launchChoice -ne "n") {
     Write-Host "  [$SCRIPT_INDEX] Launching Qt installer..." -ForegroundColor Green
     Write-Host ""
-    Start-Process -FilePath $installerPath -Wait
+    Start-Process -FilePath "explorer.exe" -ArgumentList $installerPath
     Write-Host ""
-    Write-Host "  [$SCRIPT_INDEX] Installer has been closed" -ForegroundColor Cyan
-    Write-Host "  [$SCRIPT_INDEX] Please run this script again to verify installation" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Qt installer has been launched in background" -ForegroundColor Cyan
+    Write-Host "  [$SCRIPT_INDEX] Please complete the installation and run this script again to verify installation" -ForegroundColor Yellow
     Write-Host ""
 }
 else {
