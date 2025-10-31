@@ -219,12 +219,15 @@ class FileTransferRequestHandler(BaseHTTPRequestHandler):
             # Send file content
             bytes_sent = 0
             try:
-                with open(full_path, 'rb') as f:
+                # Use larger buffer for better performance (256KB)
+                with open(full_path, 'rb', buffering=262144) as f:
                     if start_byte > 0:
                         f.seek(start_byte)
 
+                    # Use larger chunk size for better throughput (256KB)
+                    chunk_size = 262144
                     while True:
-                        chunk = f.read(65536)  # Read 64KB chunks for better performance
+                        chunk = f.read(chunk_size)
                         if not chunk:
                             break
                         try:
@@ -343,9 +346,22 @@ class FileTransferServer:
             print("No files to serve!")
             return
 
-        # Create server
+        # Create server with optimized settings
         self.server = HTTPServer((self.host, self.port), FileTransferRequestHandler)
         self.server.file_map = self.file_map
+
+        # Optimize socket settings for better performance
+        try:
+            # Enable TCP_NODELAY to disable Nagle's algorithm
+            self.server.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            # Increase send buffer size to 1MB
+            self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            # Increase receive buffer size to 1MB
+            self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+            # Enable SO_REUSEADDR to allow quick restart
+            self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        except Exception as e:
+            print(f"Warning: Could not optimize socket settings: {e}")
 
         local_ip = self._get_local_ip()
 
@@ -355,6 +371,10 @@ class FileTransferServer:
         print(f"Local URL:    http://127.0.0.1:{self.port}")
         print(f"Network URL:  http://{local_ip}:{self.port}")
         print(f"\nClient command: Use option 6 and enter: {local_ip}:{self.port}")
+        print(f"\nOptimizations enabled:")
+        print(f"  - Chunk size: 256KB")
+        print(f"  - Socket buffer: 1MB")
+        print(f"  - TCP_NODELAY: enabled")
         print(f"\nPress Ctrl+C to stop server")
         print(f"{'='*60}\n")
 
@@ -455,19 +475,21 @@ class FileTransferClient:
 
                 # Download with progress
                 downloaded = current_size
-                chunk_size = 65536  # 64KB chunks for better performance
+                chunk_size = 262144  # 256KB chunks for better performance
                 start_time = time.time()
                 last_progress_time = start_time
+                progress_interval = 10 * 1024 * 1024  # Show progress every 10MB
 
-                with open(target_path, mode) as f:
+                # Use larger buffer for file writing (256KB)
+                with open(target_path, mode, buffering=262144) as f:
                     for chunk in response.iter_content(chunk_size=chunk_size):
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
 
-                            # Show progress every 2 seconds or every 5MB
+                            # Show progress every 5 seconds or every 10MB
                             current_time = time.time()
-                            if (current_time - last_progress_time >= 2.0) or (downloaded % (5 * 1024 * 1024) < chunk_size):
+                            if (current_time - last_progress_time >= 5.0) or (downloaded % progress_interval < chunk_size):
                                 progress = (downloaded / expected_size * 100) if expected_size > 0 else 0
                                 elapsed = current_time - start_time
                                 speed = (downloaded - current_size) / elapsed if elapsed > 0 else 0
