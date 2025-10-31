@@ -1,4 +1,4 @@
-"""设备管理 API 路由"""
+"""Device management API routes"""
 
 # Setup path
 try:
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/devices", tags=["devices"])
 
 
 class DeviceConnectRequest(BaseModel):
-    """设备连接请求"""
+    """Device connection request"""
     max_size: Optional[int] = 720
     bit_rate: Optional[int] = 8000000
     max_fps: Optional[int] = 60
@@ -27,10 +27,10 @@ class DeviceConnectRequest(BaseModel):
 @router.get("/list")
 async def list_devices():
     """
-    列出所有 ADB 设备
+    List all ADB devices
 
     Returns:
-        设备列表
+        Device list
     """
     service = DeviceService.instance()
     devices = await service.list_devices()
@@ -52,10 +52,10 @@ async def list_devices():
 @router.get("/{serial}/info")
 async def get_device_info(serial: str):
     """
-    获取设备详细信息
+    Get device detailed information
 
     Args:
-        serial: 设备序列号
+        serial: Device serial number
     """
     service = DeviceService.instance()
     device_info = await service.get_device_info(serial)
@@ -82,11 +82,11 @@ async def get_device_info(serial: str):
 @router.post("/{serial}/connect")
 async def connect_device(serial: str, request: DeviceConnectRequest):
     """
-    连接设备
+    Connect device
 
     Args:
-        serial: 设备序列号
-        request: 连接参数
+        serial: Device serial number
+        request: Connection parameters
     """
     service = DeviceService.instance()
 
@@ -110,10 +110,10 @@ async def connect_device(serial: str, request: DeviceConnectRequest):
 @router.post("/{serial}/disconnect")
 async def disconnect_device(serial: str):
     """
-    断开设备
+    Disconnect device
 
     Args:
-        serial: 设备序列号
+        serial: Device serial number
     """
     service = DeviceService.instance()
     success = await service.disconnect_device(serial)

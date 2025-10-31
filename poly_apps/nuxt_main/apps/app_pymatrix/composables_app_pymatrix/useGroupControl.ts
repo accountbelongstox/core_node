@@ -64,6 +64,10 @@ export function useGroupControl(options: UseGroupControlOptions) {
         }
         break;
 
+      case 'group.broadcast_complete':
+        console.log('Touch broadcast complete:', data);
+        break;
+
       case 'error':
         console.error('Group control error:', data);
         break;
@@ -157,6 +161,32 @@ export function useGroupControl(options: UseGroupControlOptions) {
     });
   }
 
+  function broadcastTouch(
+    hostSerial: string,
+    action: 'down' | 'up' | 'move',
+    x: number,
+    y: number,
+    screenWidth: number,
+    screenHeight: number
+  ) {
+    if (!wsConnected.value) {
+      return false;
+    }
+
+    return sendMessage({
+      type: 'group.broadcast_touch',
+      timestamp: Date.now(),
+      data: {
+        hostSerial,
+        action,
+        x,
+        y,
+        screenWidth,
+        screenHeight
+      }
+    });
+  }
+
   function connect() {
     connectWS();
   }
@@ -174,6 +204,7 @@ export function useGroupControl(options: UseGroupControlOptions) {
     removeSlave,
     enableGroup,
     disableGroup,
-    getGroupState
+    getGroupState,
+    broadcastTouch
   };
 }
