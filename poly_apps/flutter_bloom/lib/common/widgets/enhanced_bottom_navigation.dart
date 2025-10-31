@@ -30,6 +30,8 @@ class NavigationItem {
   final String route;
   final VoidCallback? onTap;
   final bool isCenter;
+  final String? badge;
+  final Color? badgeColor;
 
   const NavigationItem({
     required this.icon,
@@ -38,6 +40,8 @@ class NavigationItem {
     required this.route,
     this.onTap,
     this.isCenter = false,
+    this.badge,
+    this.badgeColor,
   });
 }
 
@@ -156,10 +160,40 @@ class EnhancedBottomNavigation extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  isActive ? (item.activeIcon ?? item.icon) : item.icon,
-                  color: isActive ? defaultSelectedColor : defaultUnselectedColor,
-                  size: ThemeDimensions.iconSizeMedium,
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(
+                      isActive ? (item.activeIcon ?? item.icon) : item.icon,
+                      color: isActive ? defaultSelectedColor : defaultUnselectedColor,
+                      size: ThemeDimensions.iconSizeMedium,
+                    ),
+                    if (item.badge != null)
+                      Positioned(
+                        top: -4,
+                        right: -8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                          decoration: BoxDecoration(
+                            color: item.badgeColor ?? Colors.red,
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 12,
+                          ),
+                          child: Text(
+                            item.badge!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 8.0,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 if (showLabels) ...[
                   SizedBox(height: ThemeDimensions.spacing4),

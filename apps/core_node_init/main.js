@@ -17,9 +17,9 @@ const gconfig = require('#@gconfig');
 const { fdir } = require('#@ftools');
 
 // Import puppeteer_spider_v2 framework
-const { 
-    createSpiderEngine, 
-    createSession, 
+const {
+    createSpiderEngine,
+    createSession,
     shutdown,
     SpiderEngine,
     SessionManager,
@@ -35,6 +35,7 @@ const config = require('./config');
 let spiderEngine = null;
 let session = null;
 let downloadPlugin = null;
+let mcpServer = null;
 
 // Initialize application using puppeteer_spider_v2
 async function initialize() {
@@ -205,9 +206,56 @@ async function executeUrlDownload(url, options) {
     }
 }
 
+// Check if MCP mode is enabled
+function isMCPMode() {
+    const args = process.argv;
+    for (const arg of args) {
+        if (arg.toLowerCase().includes('mcp=true') ||
+            arg.toLowerCase().includes('--mcp') ||
+            arg.toLowerCase() === 'mcp') {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Start MCP server
+async function startMCPServer() {
+    try {
+        logger.info('Starting Core Node Init in MCP mode...');
+
+        const { initializeMCPServer, shutdownMCPServer } = require('./mcp/server.js');
+
+        mcpServer = await initializeMCPServer();
+
+        logger.info('MCP Server is running. Use stdio for communication.');
+
+        process.on('SIGINT', async () => {
+            logger.info('Received SIGINT, shutting down MCP server...');
+            await shutdownMCPServer();
+            process.exit(0);
+        });
+
+        process.on('SIGTERM', async () => {
+            logger.info('Received SIGTERM, shutting down MCP server...');
+            await shutdownMCPServer();
+            process.exit(0);
+        });
+
+    } catch (error) {
+        logger.error('Failed to start MCP server:', error.message);
+        throw error;
+    }
+}
+
 // Main application entry point
 async function start() {
     try {
+        if (isMCPMode()) {
+            await startMCPServer();
+            return;
+        }
+
         logger.info('Starting Core Node Init application (v2)...');
 
         // Parse command line arguments first to check if it's help command

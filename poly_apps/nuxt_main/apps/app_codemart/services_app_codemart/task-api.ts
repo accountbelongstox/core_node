@@ -56,28 +56,45 @@ export interface ReviewSubmissionRequest {
 }
 
 export class TaskApi extends CodeMartApiBase {
-  async getTasks(filters: GetTasksRequest = {}): Promise<PaginatedResponse<Task>> {
+  async getTasks(filtersOrProjectId?: GetTasksRequest | string): Promise<PaginatedResponse<Task>> {
+    let filters: GetTasksRequest = {};
+
+    if (typeof filtersOrProjectId === 'string') {
+      // If a project ID string is passed, treat it as a filter
+      filters = { search: filtersOrProjectId };
+    } else if (filtersOrProjectId) {
+      filters = filtersOrProjectId;
+    }
+
     const query = this.buildQuery(filters, filters);
     const response = await this.get<PaginatedResponse<Task>>('/tasks', query);
     return response;
   }
 
-  async createTask(data: CreateTaskRequest): Promise<Task> {
+  async createTask(data: CreateTaskRequest | any): Promise<Task> {
     const response = await this.post<Task>('/tasks', data);
     return response;
   }
 
-  async getTask(taskId: number): Promise<Task> {
+  async getTask(taskId: number | string): Promise<Task> {
     const response = await this.get<Task>(`/tasks/${taskId}`);
     return response;
   }
 
-  async updateTask(taskId: number, data: UpdateTaskRequest): Promise<Task> {
+  async updateTask(taskId: number | string, data: UpdateTaskRequest | any): Promise<Task> {
     const response = await this.put<Task>(`/tasks/${taskId}`, data);
     return response;
   }
 
-  async submitTask(taskId: number, data: SubmitTaskRequest): Promise<TaskSubmission> {
+  async submitTask(taskId: number | string, dataOrDeliverables: SubmitTaskRequest | string): Promise<TaskSubmission> {
+    let data: SubmitTaskRequest;
+
+    if (typeof dataOrDeliverables === 'string') {
+      data = { submission_note: dataOrDeliverables };
+    } else {
+      data = dataOrDeliverables;
+    }
+
     const response = await this.post<TaskSubmission>(`/tasks/${taskId}/submit`, data);
     return response;
   }
@@ -89,6 +106,21 @@ export class TaskApi extends CodeMartApiBase {
 
   async reviewSubmission(submissionId: number, data: ReviewSubmissionRequest): Promise<CodeReview> {
     const response = await this.post<CodeReview>(`/submissions/${submissionId}/review`, data);
+    return response;
+  }
+
+  async deleteTask(taskId: number | string): Promise<void> {
+    const response = await this.delete<void>(`/tasks/${taskId}`);
+    return response;
+  }
+
+  async acceptTask(taskId: number | string): Promise<Task> {
+    const response = await this.post<Task>(`/tasks/${taskId}/accept`, {});
+    return response;
+  }
+
+  async rejectTask(taskId: number | string, reason: string): Promise<Task> {
+    const response = await this.post<Task>(`/tasks/${taskId}/reject`, { reason });
     return response;
   }
 }

@@ -184,6 +184,14 @@ async def device_control_endpoint(websocket: WebSocket, serial: str):
                             "message": "Failed to send swipe"
                         }))
 
+                elif msg_type == "system":
+                    action = msg_data.get("action", "")
+                    success = await control_service.send_system_key(serial, action)
+                    if not success:
+                        await websocket.send_text(create_wsrpc_message("error", {
+                            "message": "Failed to send system key"
+                        }))
+
             except WebSocketDisconnect:
                 break
             except json.JSONDecodeError:
@@ -295,6 +303,49 @@ async def group_control_endpoint(websocket: WebSocket):
                         "groupId": group_id,
                         "state": state
                     }))
+
+                elif msg_type == "group.broadcast_touch":
+                    host_serial = msg_data.get("hostSerial")
+                    action = msg_data.get("action")
+                    x = msg_data.get("x")
+                    y = msg_data.get("y")
+                    screen_width = msg_data.get("screenWidth")
+                    screen_height = msg_data.get("screenHeight")
+
+                    # Find group for this host
+                    group_id = None
+                    for gid, controller in group_service.groups.items():
+                        if controller.master_device == host_serial and group_service.is_enabled(gid):
+                            group_id = gid
+                            break
+
+                    if group_id:
+                        # Get control service
+                        control_service = ControlService.instance()
+
+                        # Broadcast touch to all slave devices
+                        controller = group_service.get_controller(group_id)
+                        for slave_serial in controller.slave_devices:
+                            touch_event = {
+                                "action": action,
+                                "pointerId": 0,
+                                "x": x,
+                                "y": y,
+                                "pressure": 1.0,
+                                "screenWidth": screen_width,
+                                "screenHeight": screen_height
+                            }
+                            await control_service.send_touch_event(slave_serial, touch_event)
+
+                        await websocket.send_text(create_wsrpc_message("group.broadcast_complete", {
+                            "success": True,
+                            "groupId": group_id,
+                            "slaveCount": len(controller.slave_devices)
+                        }))
+                    else:
+                        await websocket.send_text(create_wsrpc_message("error", {
+                            "message": f"No active group found for host {host_serial}"
+                        }))
 
             except WebSocketDisconnect:
                 break
