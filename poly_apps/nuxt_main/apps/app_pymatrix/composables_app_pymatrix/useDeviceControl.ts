@@ -95,13 +95,12 @@ export function useDeviceControl(options: UseDeviceControlOptions) {
     });
   }
 
-  function sendScroll(
-    x: number,
-    y: number,
-    hScroll: number,
-    vScroll: number,
-    screenWidth: number,
-    screenHeight: number
+  function sendSwipe(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    duration: number = 300
   ) {
     if (!wsConnected.value) {
       return false;
@@ -111,12 +110,11 @@ export function useDeviceControl(options: UseDeviceControlOptions) {
       type: 'control.swipe',
       timestamp: Date.now(),
       data: {
-        x,
-        y,
-        hScroll,
-        vScroll,
-        screenWidth,
-        screenHeight
+        x1,
+        y1,
+        x2,
+        y2,
+        duration
       }
     });
   }
@@ -149,7 +147,7 @@ export function useDeviceControl(options: UseDeviceControlOptions) {
     sendTouch,
     sendKey,
     sendText,
-    sendScroll,
+    sendSwipe,
     sendSystemKey
   };
 }

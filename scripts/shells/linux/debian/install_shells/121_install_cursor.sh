@@ -160,18 +160,18 @@ find_cursor_file() {
         search_dirs+=("/root/Downloads")
     fi
 
-    # Search for .deb files first
+    # Search for .deb files first (sort by modification time, newest first)
     for dir in "${search_dirs[@]}"; do
-        local deb_file=$(find "$dir" -maxdepth 1 -name "cursor*.deb" -type f 2>/dev/null | head -1)
+        local deb_file=$(find "$dir" -maxdepth 1 -name "cursor*.deb" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
         if [[ -n "$deb_file" ]]; then
             echo "$deb_file"
             return 0
         fi
     done
 
-    # Search for .AppImage files
+    # Search for .AppImage files (sort by modification time, newest first)
     for dir in "${search_dirs[@]}"; do
-        local appimage_file=$(find "$dir" -maxdepth 1 -name "cursor*.AppImage" -type f 2>/dev/null | head -1)
+        local appimage_file=$(find "$dir" -maxdepth 1 -name "cursor*.AppImage" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
         if [[ -n "$appimage_file" ]]; then
             echo "$appimage_file"
             return 0
@@ -849,12 +849,12 @@ prompt_cleanup_reinstall() {
                         esac
                     else
                         print_info_from_common_functions "Downloaded version matches installed version"
-                        print_info_from_common_functions "You can reinstall to fix potential issues"
-                        echo -n "Reinstall Cursor? (y/N): "
+                        print_info_from_common_functions "You can update to the latest build or fix potential issues"
+                        echo -n "Update Cursor? (y/N): "
                         read -r response
                         case "$response" in
                             [yY]|[yY][eE][sS])
-                                print_info_from_common_functions "Reinstalling Cursor..."
+                                print_info_from_common_functions "Updating Cursor..."
                                 cleanup_cursor
                                 return 0
                                 ;;
@@ -891,11 +891,11 @@ prompt_cleanup_reinstall() {
                             ;;
                     esac
                 else
-                    echo -n "Reinstall Cursor? (y/N): "
+                    echo -n "Update Cursor? (y/N): "
                     read -r response
                     case "$response" in
                         [yY]|[yY][eE][sS])
-                            print_info_from_common_functions "Reinstalling Cursor..."
+                            print_info_from_common_functions "Updating Cursor..."
                             cleanup_cursor
                             return 0
                             ;;
@@ -909,7 +909,7 @@ prompt_cleanup_reinstall() {
         fi
 
         print_info_from_common_functions "Current installation: $CURSOR_INSTALL_DIR"
-        echo -n "Clean up and reinstall? (y/N): "
+        echo -n "Clean up and update? (y/N): "
         read -r response
         case "$response" in
             [yY]|[yY][eE][sS])

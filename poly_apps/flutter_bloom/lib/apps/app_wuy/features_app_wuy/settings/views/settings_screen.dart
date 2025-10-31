@@ -132,32 +132,86 @@ class WuySettingsScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: EdgeInsets.only(left: ThemeDimensions.spacingSmall),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: ThemeDimensions.defaultPadding,
+            vertical: ThemeDimensions.spacingSmall,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.12),
+                WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.04),
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Row(
             children: [
-              Icon(icon, color: WuyAppThemeConfig.wuyPrimaryColor, size: 20),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  color: WuyAppThemeConfig.wuyPrimaryColor,
+                  size: 20,
+                ),
+              ),
               SizedBox(width: ThemeDimensions.spacingSmall),
               Text(
                 title,
                 style: ThemeTextStyles.titleLarge.copyWith(
                   color: WuyAppThemeConfig.wuyPrimaryColor,
                   fontWeight: FontWeight.bold,
+                  fontSize: 18,
                 ),
               ),
             ],
           ),
         ),
         SizedBox(height: ThemeDimensions.spacingSmall),
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          child: Column(
-            children: settings.map((setting) {
-              return _buildSettingItem(context, controller, setting);
-            }).toList(),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Column(
+              children: settings.asMap().entries.map((entry) {
+                final index = entry.key;
+                final setting = entry.value;
+                return Column(
+                  children: [
+                    _buildSettingItem(context, controller, setting),
+                    if (index < settings.length - 1)
+                      Divider(
+                        height: 1,
+                        indent: ThemeDimensions.defaultPadding,
+                        endIndent: ThemeDimensions.defaultPadding,
+                        color: Colors.grey.withOpacity(0.15),
+                      ),
+                  ],
+                );
+              }).toList(),
+            ),
           ),
         ),
       ],
@@ -190,25 +244,55 @@ class WuySettingsScreen extends StatelessWidget {
   ) {
     final value = controller.getSetting<bool>(setting.key, setting.defaultValue as bool) ?? false;
 
-    return ListTile(
-      title: Text(
-        setting.name,
-        style: ThemeTextStyles.titleMedium,
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.defaultPadding,
+        vertical: ThemeDimensions.spacingSmall,
       ),
-      subtitle: setting.description != null
-          ? Text(
-              setting.description!,
-              style: ThemeTextStyles.bodyMedium.copyWith(
-                color: ThemeColors.textSecondary,
-              ),
-            )
-          : null,
-      trailing: Switch(
-        value: value,
-        onChanged: (newValue) async {
-          await controller.setSetting(setting.key, newValue);
-        },
-        activeColor: WuyAppThemeConfig.wuyPrimaryColor,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  setting.name,
+                  style: ThemeTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                if (setting.description != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    setting.description!,
+                    style: ThemeTextStyles.bodySmall.copyWith(
+                      color: ThemeColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: value
+                  ? WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.1)
+                  : Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Switch(
+              value: value,
+              onChanged: (newValue) async {
+                await controller.setSetting(setting.key, newValue);
+              },
+              activeColor: WuyAppThemeConfig.wuyPrimaryColor,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -220,47 +304,114 @@ class WuySettingsScreen extends StatelessWidget {
   ) {
     final value = controller.getSetting<String>(setting.key, setting.defaultValue as String) ?? setting.defaultValue as String;
 
-    return ListTile(
-      title: Text(
-        setting.name,
-        style: ThemeTextStyles.titleMedium,
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.defaultPadding,
+        vertical: ThemeDimensions.spacingSmall,
       ),
-      subtitle: Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            setting.name,
+            style: ThemeTextStyles.titleMedium.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
+          ),
           if (setting.description != null) ...[
+            const SizedBox(height: 4),
             Text(
               setting.description!,
-              style: ThemeTextStyles.bodyMedium.copyWith(
+              style: ThemeTextStyles.bodySmall.copyWith(
                 color: ThemeColors.textSecondary,
+                fontSize: 13,
               ),
             ),
-            SizedBox(height: ThemeDimensions.spacingSmall),
           ],
-          Text(
-            setting.labels?[value] ?? value,
-            style: ThemeTextStyles.bodySmall.copyWith(
-              color: WuyAppThemeConfig.wuyPrimaryColor,
-              fontWeight: FontWeight.w500,
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () async {
+              final selectedValue = await showModalBottomSheet<String>(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                builder: (context) {
+                  return Container(
+                    padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        ...setting.options!.map((option) {
+                          final optionStr = option.toString();
+                          final isSelected = optionStr == value;
+                          return ListTile(
+                            title: Text(
+                              setting.labels?[optionStr] ?? optionStr,
+                              style: TextStyle(
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                color: isSelected
+                                    ? WuyAppThemeConfig.wuyPrimaryColor
+                                    : Colors.black87,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? Icon(Icons.check, color: WuyAppThemeConfig.wuyPrimaryColor)
+                                : null,
+                            onTap: () {
+                              Navigator.pop(context, optionStr);
+                            },
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  );
+                },
+              );
+              if (selectedValue != null) {
+                await controller.setSetting(setting.key, selectedValue);
+              }
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    setting.labels?[value] ?? value,
+                    style: ThemeTextStyles.bodyMedium.copyWith(
+                      color: WuyAppThemeConfig.wuyPrimaryColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    color: WuyAppThemeConfig.wuyPrimaryColor,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
-      ),
-      trailing: PopupMenuButton<String>(
-        icon: Icon(Icons.arrow_drop_down, color: WuyAppThemeConfig.wuyPrimaryColor),
-        initialValue: value,
-        onSelected: (newValue) async {
-          await controller.setSetting(setting.key, newValue);
-        },
-        itemBuilder: (context) {
-          return setting.options!.map((option) {
-            final optionStr = option.toString();
-            return PopupMenuItem<String>(
-              value: optionStr,
-              child: Text(setting.labels?[optionStr] ?? optionStr),
-            );
-          }).toList();
-        },
       ),
     );
   }
@@ -272,44 +423,81 @@ class WuySettingsScreen extends StatelessWidget {
   ) {
     final value = controller.getSetting<double>(setting.key, setting.defaultValue as double) ?? setting.defaultValue as double;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ListTile(
-          title: Text(
-            setting.name,
-            style: ThemeTextStyles.titleMedium,
-          ),
-          subtitle: setting.description != null
-              ? Text(
-                  setting.description!,
-                  style: ThemeTextStyles.bodyMedium.copyWith(
-                    color: ThemeColors.textSecondary,
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.defaultPadding,
+        vertical: ThemeDimensions.spacingSmall,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      setting.name,
+                      style: ThemeTextStyles.titleMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    if (setting.description != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        setting.description!,
+                        style: ThemeTextStyles.bodySmall.copyWith(
+                          color: ThemeColors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  value.toStringAsFixed(0),
+                  style: ThemeTextStyles.titleMedium.copyWith(
+                    color: WuyAppThemeConfig.wuyPrimaryColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
-                )
-              : null,
-          trailing: Text(
-            value.toStringAsFixed(0),
-            style: ThemeTextStyles.titleMedium.copyWith(
-              color: WuyAppThemeConfig.wuyPrimaryColor,
-              fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: WuyAppThemeConfig.wuyPrimaryColor,
+              inactiveTrackColor: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.2),
+              thumbColor: WuyAppThemeConfig.wuyPrimaryColor,
+              overlayColor: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.2),
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            ),
+            child: Slider(
+              value: value,
+              min: setting.minValue!,
+              max: setting.maxValue!,
+              divisions: ((setting.maxValue! - setting.minValue!) ~/ 1),
+              onChanged: (newValue) async {
+                await controller.setSetting(setting.key, newValue);
+              },
             ),
           ),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultPadding),
-          child: Slider(
-            value: value,
-            min: setting.minValue!,
-            max: setting.maxValue!,
-            divisions: ((setting.maxValue! - setting.minValue!) ~/ 1),
-            activeColor: WuyAppThemeConfig.wuyPrimaryColor,
-            onChanged: (newValue) async {
-              await controller.setSetting(setting.key, newValue);
-            },
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -320,91 +508,169 @@ class WuySettingsScreen extends StatelessWidget {
   ) {
     final value = controller.getSetting<int>(setting.key, setting.defaultValue as int) ?? setting.defaultValue as int;
 
-    return ListTile(
-      title: Text(
-        setting.name,
-        style: ThemeTextStyles.titleMedium,
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.defaultPadding,
+        vertical: ThemeDimensions.spacingSmall,
       ),
-      subtitle: setting.description != null
-          ? Text(
-              setting.description!,
-              style: ThemeTextStyles.bodyMedium.copyWith(
-                color: ThemeColors.textSecondary,
-              ),
-            )
-          : null,
-      trailing: Container(
-        constraints: const BoxConstraints(minWidth: 100),
-        child: TextFormField(
-          initialValue: value.toString(),
-          keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
-          style: ThemeTextStyles.titleMedium.copyWith(
-            color: WuyAppThemeConfig.wuyPrimaryColor,
-            fontWeight: FontWeight.bold,
-          ),
-          decoration: InputDecoration(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  setting.name,
+                  style: ThemeTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                if (setting.description != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    setting.description!,
+                    style: ThemeTextStyles.bodySmall.copyWith(
+                      color: ThemeColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ],
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           ),
-          onFieldSubmitted: (newValue) async {
-            final intValue = int.tryParse(newValue);
-            if (intValue != null) {
-              if (setting.minIntValue != null && intValue < setting.minIntValue!) return;
-              if (setting.maxIntValue != null && intValue > setting.maxIntValue!) return;
-              await controller.setSetting(setting.key, intValue);
-            }
-          },
-        ),
+          const SizedBox(width: 12),
+          Container(
+            width: 100,
+            decoration: BoxDecoration(
+              color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: TextFormField(
+              initialValue: value.toString(),
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: ThemeTextStyles.titleMedium.copyWith(
+                color: WuyAppThemeConfig.wuyPrimaryColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              onFieldSubmitted: (newValue) async {
+                final intValue = int.tryParse(newValue);
+                if (intValue != null) {
+                  if (setting.minIntValue != null && intValue < setting.minIntValue!) return;
+                  if (setting.maxIntValue != null && intValue > setting.maxIntValue!) return;
+                  await controller.setSetting(setting.key, intValue);
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildResetButton(BuildContext context, SettingsController controller) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.spacingLarge),
-      child: ElevatedButton.icon(
-        onPressed: () async {
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: Text(LocalizationKeysAppWuy.wuySettingsResetTitle.tr(context)),
-              content: Text(LocalizationKeysAppWuy.wuySettingsResetConfirm.tr(context)),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text(LocalizationKeysAppWuy.wuyButtonCancel.tr(context)),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: TextButton.styleFrom(
-                    foregroundColor: ThemeColors.error,
-                  ),
-                  child: Text(LocalizationKeysAppWuy.wuyButtonReset.tr(context)),
-                ),
-              ],
+      padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultPadding),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: ThemeColors.error.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-          );
-
-          if (confirmed == true) {
-            await controller.resetAllSettings();
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(LocalizationKeysAppWuy.wuySettingsResetSuccess.tr(context)),
+          ],
+        ),
+        child: ElevatedButton.icon(
+          onPressed: () async {
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              );
+                title: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: ThemeColors.error, size: 28),
+                    const SizedBox(width: 12),
+                    Text(LocalizationKeysAppWuy.wuySettingsResetTitle.tr(context)),
+                  ],
+                ),
+                content: Text(LocalizationKeysAppWuy.wuySettingsResetConfirm.tr(context)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    child: Text(LocalizationKeysAppWuy.wuyButtonCancel.tr(context)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ThemeColors.error,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(LocalizationKeysAppWuy.wuyButtonReset.tr(context)),
+                  ),
+                ],
+              ),
+            );
+
+            if (confirmed == true) {
+              await controller.resetAllSettings();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.white),
+                        const SizedBox(width: 12),
+                        Text(LocalizationKeysAppWuy.wuySettingsResetSuccess.tr(context)),
+                      ],
+                    ),
+                    backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+              }
             }
-          }
-        },
-        icon: const Icon(Icons.restore),
-        label: Text(LocalizationKeysAppWuy.wuySettingsResetToDefaults.tr(context)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: ThemeColors.error,
-          foregroundColor: ThemeColors.white,
-          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          },
+          icon: const Icon(Icons.restore, size: 20),
+          label: Text(
+            LocalizationKeysAppWuy.wuySettingsResetToDefaults.tr(context),
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ThemeColors.error,
+            foregroundColor: ThemeColors.white,
+            padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
+          ),
         ),
       ),
     );

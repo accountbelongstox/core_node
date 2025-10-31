@@ -1,146 +1,540 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
-import '../../../provider_app_travel/user_provider_app_travel.dart';
-import '../../../router_app_travel/routes_provider_app_travel.dart';
+import '../../settings/views/settings_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final List<Map<String, dynamic>> _statsData = [
+    {'icon': Icons.local_activity, 'label': '优惠券', 'value': 10, 'hasBadge': true},
+    {'icon': Icons.star_border, 'label': '收藏浏览', 'value': 0, 'hasBadge': false},
+    {'icon': Icons.account_balance_wallet, 'label': '积分', 'value': 0, 'hasBadge': false},
+  ];
+
+  final List<Map<String, dynamic>> _orderActions = [
+    {'icon': Icons.credit_card, 'label': '待付款'},
+    {'icon': Icons.luggage, 'label': '待出行'},
+    {'icon': Icons.rate_review, 'label': '待点评'},
+    {'icon': Icons.assignment_return, 'label': '退款/售后'},
+    {'icon': Icons.receipt_long, 'label': '我的订单', 'isHighlight': true},
+  ];
+
+  final List<Map<String, dynamic>> _financialServices = [
+    {'amount': '30万', 'title': '信用贷', 'subtitle': '最高可借'},
+    {'amount': '10万', 'title': '拿去花', 'subtitle': '最高额度'},
+    {'amount': '50万', 'title': '生意人贷', 'subtitle': '最高可借'},
+    {'amount': '20万', 'title': '银行专区', 'subtitle': '最高可借'},
+  ];
+
+  final List<Map<String, dynamic>> _functionGrid = [
+    {'icon': Icons.info_outline, 'label': '常用信息'},
+    {'icon': Icons.receipt, 'label': '我的发票'},
+    {'icon': Icons.card_giftcard, 'label': '权益卡'},
+    {'icon': Icons.rate_review, 'label': '我的点评'},
+    {'icon': Icons.edit_note, 'label': '我的笔记'},
+    {'icon': Icons.camera_alt, 'label': '创作中心'},
+    {'icon': Icons.group, 'label': '我的社区'},
+    {'icon': Icons.map, 'label': '旅行足迹'},
+    {'icon': Icons.feedback, 'label': '我要吐槽'},
+    {'icon': Icons.credit_score, 'label': '我的信用'},
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              context.push(TravelAppRoutesProvider.routeSettings);
+      backgroundColor: const Color(0xFFF5F5F5),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildHeader(),
+            _buildMemberCard(),
+            _buildStats(),
+            _buildOrderActions(),
+            _build12306Prompt(),
+            _buildFinancialServices(),
+            _buildFunctionGrid(),
+            _buildRecommendation(),
+            const SizedBox(height: 20.0),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16.0, 48.0, 16.0, 16.0),
+      child: Row(
+        children: [
+          Container(
+            width: 60.0,
+            height: 60.0,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFE0E0E0), width: 2.0),
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/apps/app_travel/images/profile_avatar.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: const Color(0xFFE3F2FD),
+                    child: const Icon(
+                      Icons.person,
+                      size: 36.0,
+                      color: Color(0xFF00D0D8),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 12.0),
+          const Text(
+            '去哪儿用户',
+            style: TextStyle(
+              fontSize: 18.0,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: () {
+              debugPrint('Hexagon icon tapped');
+            },
+            child: Container(
+              width: 36.0,
+              height: 36.0,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(6.0),
+              ),
+              child: const Icon(
+                Icons.hexagon_outlined,
+                size: 20.0,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8.0),
+          GestureDetector(
+            onTap: () {
+              debugPrint('QR code scanner tapped');
+            },
+            child: Container(
+              width: 36.0,
+              height: 36.0,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(6.0),
+              ),
+              child: const Icon(
+                Icons.qr_code_scanner,
+                size: 20.0,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8.0),
+          GestureDetector(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+            child: Container(
+              width: 36.0,
+              height: 36.0,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(6.0),
+              ),
+              child: const Icon(
+                Icons.message_outlined,
+                size: 20.0,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMemberCard() {
+    return Container(
+      margin: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Color(0xFF9DD8F2), Color(0xFFB8E3F8)],
+        ),
+        borderRadius: BorderRadius.circular(12.0),
+      ),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '大众会员',
+                style: TextStyle(
+                  fontSize: 20.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 4.0),
+              Row(
+                children: const [
+                  Icon(
+                    Icons.diamond,
+                    size: 14.0,
+                    color: Colors.black54,
+                  ),
+                  SizedBox(width: 4.0),
+                  Text(
+                    '积分抵现',
+                    style: TextStyle(
+                      fontSize: 13.0,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const Spacer(),
+          Image.asset(
+            'assets/apps/app_travel/images/profile_member_badge.png',
+            width: 80.0,
+            height: 80.0,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                width: 80.0,
+                height: 80.0,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.verified,
+                  size: 40.0,
+                  color: Colors.white,
+                ),
+              );
             },
           ),
         ],
       ),
-      body: Consumer<UserProviderAppTravel>(
-        builder: (context, userProvider, child) {
-          final user = userProvider.user;
+    );
+  }
 
-          if (!userProvider.isLoggedIn) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.person_outline,
-                    size: 100,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Not logged in',
-                    style: TextStyle(fontSize: 20),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      context.push(TravelAppRoutesProvider.routeLogin);
-                    },
-                    child: const Text('Login'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+  Widget _buildStats() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: _statsData.map((stat) {
+          return GestureDetector(
+            onTap: () {
+              debugPrint('${stat['label']} tapped');
+            },
             child: Column(
               children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundImage: user.avatarUrl != null
-                      ? NetworkImage(user.avatarUrl!)
-                      : null,
-                  child: user.avatarUrl == null
-                      ? Text(
-                          user.username?.substring(0, 1).toUpperCase() ?? 'U',
-                          style: const TextStyle(fontSize: 40),
-                        )
-                      : null,
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          stat['icon'],
+                          size: 20.0,
+                          color: Colors.black54,
+                        ),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          stat['label'],
+                          style: const TextStyle(
+                            fontSize: 14.0,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          '${stat['value']}',
+                          style: const TextStyle(
+                            fontSize: 16.0,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (stat['hasBadge'])
+                      Positioned(
+                        top: -4.0,
+                        right: -4.0,
+                        child: Container(
+                          width: 8.0,
+                          height: 8.0,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFF6B35),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildOrderActions() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 20.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: _orderActions.map((action) {
+          final isHighlight = action['isHighlight'] ?? false;
+          return GestureDetector(
+            onTap: () {
+              debugPrint('${action['label']} tapped');
+            },
+            child: Column(
+              children: [
+                Icon(
+                  action['icon'],
+                  size: 28.0,
+                  color: isHighlight ? const Color(0xFF00D0D8) : Colors.black54,
+                ),
+                const SizedBox(height: 6.0),
                 Text(
-                  user.username ?? 'User',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+                  action['label'],
+                  style: TextStyle(
+                    fontSize: 12.0,
+                    color: isHighlight ? const Color(0xFF00D0D8) : Colors.black54,
                   ),
                 ),
-                if (user.email != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    user.email!,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _build12306Prompt() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8.0),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.train,
+            size: 20.0,
+            color: Color(0xFF00D0D8),
+          ),
+          const SizedBox(width: 8.0),
+          const Expanded(
+            child: Text(
+              '登录12306账号可享极速出票、优先退改',
+              style: TextStyle(
+                fontSize: 13.0,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              debugPrint('12306 prompt tapped');
+            },
+            child: Row(
+              children: const [
+                Text(
+                  '去查看',
+                  style: TextStyle(
+                    fontSize: 13.0,
+                    color: Color(0xFF00D0D8),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18.0,
+                  color: Color(0xFF00D0D8),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialServices() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8.0),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ..._financialServices.map((service) {
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      debugPrint('${service['title']} tapped');
+                    },
+                    child: Column(
+                      children: [
+                        Text(
+                          service['amount'],
+                          style: const TextStyle(
+                            fontSize: 18.0,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4.0),
+                        Text(
+                          service['title'],
+                          style: const TextStyle(
+                            fontSize: 13.0,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 2.0),
+                        Text(
+                          service['subtitle'],
+                          style: const TextStyle(
+                            fontSize: 11.0,
+                            color: Colors.black45,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-                const SizedBox(height: 32),
-                _buildInfoCard(
-                  icon: Icons.location_city,
-                  title: 'Current City',
-                  value: user.currentCity ?? 'Not set',
+                );
+              }).toList(),
+              Container(
+                width: 60.0,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 40.0,
+                      height: 40.0,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE3F2FD),
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: const Icon(
+                        Icons.account_balance_wallet,
+                        size: 24.0,
+                        color: Color(0xFF00D0D8),
+                      ),
+                    ),
+                    const SizedBox(height: 4.0),
+                    const Text(
+                      '我的钱包',
+                      style: TextStyle(
+                        fontSize: 11.0,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
                 ),
-                _buildInfoCard(
-                  icon: Icons.favorite,
-                  title: 'Favorites',
-                  value: '${user.favorites?.length ?? 0} items',
-                  onTap: () {
-                    context.push(TravelAppRoutesProvider.routeFavorites);
-                  },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12.0),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 6.0),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF9A56),
+              borderRadius: BorderRadius.circular(15.0),
+            ),
+            child: const Text(
+              '去查看',
+              style: TextStyle(
+                fontSize: 13.0,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFunctionGrid() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8.0),
+      ),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          crossAxisSpacing: 8.0,
+          mainAxisSpacing: 20.0,
+          childAspectRatio: 0.9,
+        ),
+        itemCount: _functionGrid.length,
+        itemBuilder: (context, index) {
+          final function = _functionGrid[index];
+          return GestureDetector(
+            onTap: () {
+              debugPrint('${function['label']} tapped');
+            },
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  function['icon'],
+                  size: 28.0,
+                  color: Colors.black54,
                 ),
-                _buildInfoCard(
-                  icon: Icons.bookmark,
-                  title: 'Bookmarks',
-                  value: '${user.bookmarks?.length ?? 0} items',
-                  onTap: () {
-                    context.push(TravelAppRoutesProvider.routeBookmarks);
-                  },
-                ),
-                const SizedBox(height: 32),
-                ListTile(
-                  leading: const Icon(Icons.edit),
-                  title: const Text('Edit Profile'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    _showEditProfileDialog(context, userProvider);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.red),
-                  title: const Text(
-                    'Logout',
-                    style: TextStyle(color: Colors.red),
+                const SizedBox(height: 6.0),
+                Text(
+                  function['label'],
+                  style: const TextStyle(
+                    fontSize: 11.0,
+                    color: Colors.black54,
                   ),
-                  onTap: () async {
-                    await userProvider.logout();
-                    if (context.mounted) {
-                      context.go(TravelAppRoutesProvider.routeLogin);
-                    }
-                  },
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -150,112 +544,80 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    VoidCallback? onTap,
-  }) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            if (onTap != null) ...[
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, size: 20),
-            ],
-          ],
-        ),
-        onTap: onTap,
+  Widget _buildRecommendation() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8.0),
       ),
-    );
-  }
-
-  void _showEditProfileDialog(
-    BuildContext context,
-    UserProviderAppTravel userProvider,
-  ) {
-    final TextEditingController usernameController = TextEditingController(
-      text: userProvider.user.username,
-    );
-    final TextEditingController emailController = TextEditingController(
-      text: userProvider.user.email,
-    );
-    final TextEditingController cityController = TextEditingController(
-      text: userProvider.user.currentCity,
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Edit Profile'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Username',
-                    border: OutlineInputBorder(),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(
+                  Icons.circle,
+                  size: 8.0,
+                  color: Color(0xFF00D0D8),
+                ),
+                SizedBox(width: 8.0),
+                Text(
+                  '精彩推荐 一玩到底',
+                  style: TextStyle(
+                    fontSize: 16.0,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: cityController,
-                  decoration: const InputDecoration(
-                    labelText: 'Current City',
-                    border: OutlineInputBorder(),
-                  ),
+                SizedBox(width: 8.0),
+                Icon(
+                  Icons.circle,
+                  size: 8.0,
+                  color: Color(0xFF00D0D8),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(8.0),
+              bottomRight: Radius.circular(8.0),
             ),
-            ElevatedButton(
-              onPressed: () async {
-                await userProvider.updateProfile(
-                  username: usernameController.text,
-                  email: emailController.text,
-                  currentCity: cityController.text,
-                );
-                if (context.mounted) {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Profile updated successfully'),
+            child: Image.asset(
+              'assets/apps/app_travel/images/profile_recommendation_banner.png',
+              width: double.infinity,
+              height: 200.0,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: double.infinity,
+                  height: 200.0,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF9C27B0), Color(0xFFE040FB)],
                     ),
-                  );
-                }
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '精彩推荐',
+                      style: TextStyle(
+                        fontSize: 24.0,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                );
               },
-              child: const Text('Save'),
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 }

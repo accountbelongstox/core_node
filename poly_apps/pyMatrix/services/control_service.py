@@ -198,3 +198,48 @@ class ControlService:
         except Exception as e:
             print(f"Failed to send swipe to {serial}: {e}")
             return False
+
+    async def send_system_key(self, serial: str, action: str) -> bool:
+        """
+        Send system key event to device
+
+        Args:
+            serial: Device serial
+            action: System key action
+                - 'home': Home button (KEYCODE_HOME = 3)
+                - 'back': Back button (KEYCODE_BACK = 4)
+                - 'recent': Recent apps (KEYCODE_APP_SWITCH = 187)
+                - 'power': Power button (KEYCODE_POWER = 26)
+                - 'volume_up': Volume up (KEYCODE_VOLUME_UP = 24)
+                - 'volume_down': Volume down (KEYCODE_VOLUME_DOWN = 25)
+
+        Returns:
+            Success status
+        """
+        try:
+            # Map action to Android keycode
+            keycode_map = {
+                'home': 3,
+                'back': 4,
+                'recent': 187,
+                'power': 26,
+                'volume_up': 24,
+                'volume_down': 25
+            }
+
+            if action not in keycode_map:
+                print(f"Unknown system key action: {action}")
+                return False
+
+            keycode = keycode_map[action]
+
+            # Use ADB to send keyevent
+            command = f'input keyevent {keycode}'
+            ADBManager.execute_shell(serial, command, self.adb_path)
+
+            print(f"System key '{action}' (keycode {keycode}) sent to {serial}")
+            return True
+
+        except Exception as e:
+            print(f"Failed to send system key to {serial}: {e}")
+            return False

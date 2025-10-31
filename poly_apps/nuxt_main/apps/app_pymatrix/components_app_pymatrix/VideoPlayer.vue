@@ -67,6 +67,25 @@
       @close="showDeviceInfo = false"
       @refresh="handleRefreshDeviceInfo"
     />
+
+    <button
+      class="system-key-toggle-btn"
+      @click="showSystemKeys = !showSystemKeys"
+      title="System Keys"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+        <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+      </svg>
+    </button>
+
+    <div v-if="showSystemKeys" class="system-key-panel-overlay">
+      <SystemKeyPanel
+        :show="showSystemKeys"
+        @close="showSystemKeys = false"
+        @key-press="handleSystemKeyPress"
+      />
+    </div>
   </div>
 </template>
 
@@ -79,6 +98,7 @@ import { useGroupStore } from '../stores_app_pymatrix/groupStore';
 import { useDeviceStore } from '../stores_app_pymatrix/deviceStore';
 import VideoControlPanel from './VideoControlPanel.vue';
 import DeviceInfoPanel from './DeviceInfoPanel.vue';
+import SystemKeyPanel from './SystemKeyPanel.vue';
 import type { Device } from '~/types/pymatrix';
 
 interface Props {
@@ -99,6 +119,7 @@ const touchCanvas = ref<HTMLCanvasElement | null>(null);
 const isMouseDown = ref(false);
 const currentQuality = ref<'high' | 'medium' | 'low'>('high');
 const showDeviceInfo = ref(false);
+const showSystemKeys = ref(false);
 
 const groupStore = useGroupStore();
 
@@ -121,7 +142,8 @@ const {
   connected: controlConnected,
   connect: connectControl,
   disconnect: disconnectControl,
-  sendTouch
+  sendTouch,
+  sendSystemKey
 } = useDeviceControl({
   deviceSerial: props.device.serial,
   baseUrl: props.baseUrl
@@ -266,6 +288,12 @@ async function handleRefreshDeviceInfo() {
   } catch (error) {
     console.error('[VideoPlayer] Failed to refresh device info:', error);
   }
+}
+
+function handleSystemKeyPress(action: string) {
+  console.log('[VideoPlayer] System key pressed:', action);
+  sendSystemKey(action as 'home' | 'back' | 'recent' | 'power' | 'volume_up' | 'volume_down');
+  showSystemKeys.value = false;
 }
 
 onMounted(() => {
@@ -446,5 +474,53 @@ watch(() => videoElement.value, () => {
 
 .info-toggle-btn:active {
   transform: scale(0.95);
+}
+
+.system-key-toggle-btn {
+  position: absolute;
+  top: 12px;
+  right: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 4;
+}
+
+.system-key-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: white;
+  transform: scale(1.05);
+}
+
+.system-key-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.system-key-panel-overlay {
+  position: absolute;
+  top: 50px;
+  right: 12px;
+  z-index: 5;
+  animation: slideInDown 0.2s ease-out;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

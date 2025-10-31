@@ -20,12 +20,15 @@ import '../widgets/home_swiper.dart';
 import '../widgets/home_header.dart';
 import '../widgets/home_local_nav.dart';
 import '../widgets/home_grid_nav.dart';
+import '../widgets/home_grid_nav_section.dart';
 import '../widgets/home_subnav.dart';
 import '../widgets/home_welcome.dart';
 import '../widgets/home_popular.dart';
 import '../widgets/home_recommend.dart';
+import '../widgets/home_content_mix.dart';
 import '../widgets/home_local_hot.dart';
 import '../widgets/home_waterfall.dart';
+import '../widgets/home_location_prompt.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isInScaffold;
@@ -128,19 +131,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: Column(
-                      children: homeProvider.homeData!.data.gridNavs.asMap().entries.map((entry) {
-                        return HomeGridNav(
-                          gridNav: entry.value,
-                          isFirst: entry.key == 0,
-                        );
-                      }).toList(),
-                    ),
-                  ),
+                HomeGridNavSection(
+                  gridNavs: homeProvider.homeData!.data.gridNavs,
                 ),
                 HomeSubnav(
                   subnavs: homeProvider.homeData!.data.subnavs,
@@ -160,6 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 HomeRecommend(
                   recommend: homeProvider.homeData!.data.recommend,
                 ),
+                const HomeContentMix(),
                 const SizedBox(height: 4),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12.0),
@@ -189,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
           currentCity: userProvider.user.currentCity ?? 'Luoyang',
         ),
       ),
+      const HomeLocationPrompt(),
     ],
   );
 

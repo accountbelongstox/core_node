@@ -60,123 +60,98 @@ class HomeHeader extends StatelessWidget {
         color: headerBg,
         boxShadow: boxShadow != null ? [boxShadow] : null,
       ),
-      child: Row(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.5),
-            child: GestureDetector(
-              onTap: onCityTap ?? () async {
-                final selectedCity = await context.push<String>(
-                  TravelAppRoutesProvider.routeCity,
-                );
-                if (selectedCity != null && context.mounted) {
-                  final userProvider = context.read<UserProviderAppTravel>();
-                  await userProvider.updateProfile(currentCity: selectedCity);
-                }
-              },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 56.0),
-                    child: Text(
-                      currentCity,
-                      style: TextStyle(
-                        color: cityColor,
-                        fontSize: 14.0,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      maxLines: 1,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10.5),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 36.0,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4.0,
+                      offset: const Offset(0, 2.0),
                     ),
-                  ),
-                  Icon(
-                    TravelIcons.arrowDown,
-                    size: 12.0,
-                    color: cityColor,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            child: Container(
-              height: 32.0,
-              alignment: Alignment.center,
-              child: Stack(
-                children: [
-                  Container(
-                    height: 32.0,
-                    decoration: BoxDecoration(
-                      color: searchBg,
-                      borderRadius: BorderRadius.circular(16.0),
-                    ),
-                    child: GestureDetector(
-                      onTap: () {
-                        context.push(TravelAppRoutesProvider.routeSearch);
-                      },
-                      child: AbsorbPointer(
-                        child: TextField(
-                          decoration: InputDecoration(
-                            hintText: '$currentCity攻略·游记·精选酒店',
-                            hintStyle: TextStyle(
-                              fontSize: 12.0,
-                              color: Colors.grey[400],
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.only(
-                              left: 28.0,
-                              right: 14.0,
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          context.push(TravelAppRoutesProvider.routeSearch);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.only(left: 16.0),
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            '新人大礼包',
+                            style: TextStyle(
+                              fontSize: 14.0,
+                              color: Colors.grey[600],
                             ),
                           ),
-                          style: const TextStyle(fontSize: 12.0),
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: 6.0,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: Icon(
-                        TravelIcons.search,
-                        size: 14.0,
-                        color: const Color(0xFF00BCD4),
+                    GestureDetector(
+                      onTap: () {
+                        context.push(TravelAppRoutesProvider.routeSearch);
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.all(4.0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20.0,
+                          vertical: 6.0,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00D0D8),
+                          borderRadius: BorderRadius.circular(14.0),
+                        ),
+                        child: const Text(
+                          '搜索',
+                          style: TextStyle(
+                            fontSize: 13.0,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
-            child: GestureDetector(
-              onTap: onMenuTap,
-              child: Container(
-                width: 30.0,
-                height: 24.0,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24.0),
-                  border: Border.all(
-                    color: searchBg,
-                    width: 0.5,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildDot(cityColor),
-                    const SizedBox(width: 2.0),
-                    _buildDot(cityColor),
-                    const SizedBox(width: 2.0),
-                    _buildDot(cityColor),
                   ],
                 ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8.0),
+            GestureDetector(
+              onTap: onMenuTap,
+              child: Container(
+                width: 32.0,
+                height: 32.0,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4.0,
+                      offset: const Offset(0, 2.0),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  TravelIcons.scan,
+                  size: 18.0,
+                  color: const Color(0xFF00D0D8),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
