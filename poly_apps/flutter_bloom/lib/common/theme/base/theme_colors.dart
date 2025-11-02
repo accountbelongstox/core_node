@@ -283,6 +283,31 @@ class ThemeColors {
 
   static const Color primaryLight = blue10;
 
+  // Semantic color aliases for VIP Club and modern apps
+  // Use these for consistent theming across all features
+
+  // Neutral colors (for backgrounds, text, borders)
+  static const Color neutralWhite = white;           // #FFFFFF - Pure white backgrounds
+  static const Color neutralBlack = black;           // #000000 - Pure black text
+  static const Color neutralGrey = grey500;          // #9E9E9E - Default grey
+  static const Color neutralLightGrey = grey300;     // #E0E0E0 - Light grey backgrounds
+  static const Color neutralDarkGrey = grey700;      // #616161 - Dark grey text
+
+  // Primary and accent colors (for branding and highlights)
+  static const Color primaryBlue = blue;             // #007AFF - Primary brand color
+  static const Color accentGold = Color(0xFFD4AF37); // #D4AF37 - VIP Gold tier
+  static const Color accentPurple = purple;          // #AF52DE - Purple accents
+  static const Color accentGreen = green;            // #34C759 - Green accents
+  static const Color accentOrange = orange;          // #FF9500 - Orange accents
+
+  // Semantic state colors (for status indicators)
+  static const Color successGreen = green;           // #34C759 - Success states
+  static const Color errorRed = red;                 // #FF3B30 - Error states
+  static const Color warningYellow = yellow;         // #FFCC00 - Warning states
+
+  // iOS system gray colors (for UI elements)
+  static const Color systemGray6 = grey100;          // #F5F5F5 - Very light gray for fills
+
   // Color scheme generators
   static ColorScheme lightColorScheme = const ColorScheme.light(
     primary: blue,

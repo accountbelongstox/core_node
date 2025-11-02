@@ -1,0 +1,9 @@
+现在有一个桥接文件，poly_apps\pyMatrix\AI_COLLABORATION_BRIDGE.json 是前端和后端共享的，注意你是前端，
+你可以更新桥接文件上的内容，但注意你遵循的是你自己的规则，桥接文件只是一个交流而非规范。将你的工作内容更新到桥接文档。并注意最后日期，当你读取过的内容标记为：知道了。
+你们将实现联调，使前前和后端的功能能够一致并做到有效能用。
+poly_apps\nuxt_main\apps\app_pymatrix\IMPLEMENTATION_PROGRESS.json  根据你的分析，和另一个AI的补充
+poly_apps\pyMatrix\UI_PLANNING_DOCUMENT.md，继续完成并更新进度
+文件。poly_apps\nuxt_main\apps\app_pymatrix\IMPLEMENTATION_PROGRESS.json 注意，UI_PLANNING_DOCUMENT.md
+你只能只读，同时，遵守nuxt是一个多app的规范，按照主题中心化，数据中心化，组件公共公的原则,类库中心化的原则
+，优先引用公共组件扩展为子app组件，你可以参考
+D:\programing\core_node\poly_apps\nuxt_main\development-guides\NUXT_MULTI_APP_NAMESPACE_ARCHITECTURE.md 。请继续。

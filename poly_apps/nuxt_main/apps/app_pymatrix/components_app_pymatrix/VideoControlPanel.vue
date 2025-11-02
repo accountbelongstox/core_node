@@ -69,7 +69,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { VideoMetadata } from '~/types/pymatrix';
+import type { VideoMetadata } from '../../../types/pymatrix';
 
 interface Props {
   show?: boolean;

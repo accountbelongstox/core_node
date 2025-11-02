@@ -53,6 +53,7 @@
       <!-- Dialogs -->
       <PyMatrixConnectDialog
         v-if="showConnectDialog"
+        :available-devices="deviceStore.deviceList"
         @close="showConnectDialog = false"
         @connect="handleConnect"
       />
@@ -61,25 +62,35 @@
         v-if="showSettings"
         @close="showSettings = false"
       />
+
+      <!-- Toast Notifications -->
+      <ToastContainer position="top-right" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useDeviceStore } from '~/apps/app_pymatrix/stores_app_pymatrix/deviceStore';
-import { useGroupStore } from '~/apps/app_pymatrix/stores_app_pymatrix/groupStore';
-import { useDeviceControl } from '~/apps/app_pymatrix/composables_app_pymatrix/useDeviceControl';
-import type { Device } from '~/types/pymatrix';
+import { useDeviceStore } from '../stores_app_pymatrix/deviceStore';
+import { useGroupStore } from '../stores_app_pymatrix/groupStore';
+import { useConfigStore } from '../stores_app_pymatrix/configStore';
+import { useDeviceControl } from '../composables_app_pymatrix/useDeviceControl';
+import { useConnectDevice } from '../composables_app_pymatrix/useConnectDevice';
+import { useToast } from '../composables_app_pymatrix/useToast';
+import type { DeviceConfig } from '../../../types/pymatrix';
 
-import PyMatrixTopBar from '~/apps/app_pymatrix/components_app_pymatrix/PyMatrixTopBar.vue';
-import PyMatrixLeftPanel from '~/apps/app_pymatrix/components_app_pymatrix/PyMatrixLeftPanel.vue';
-import PyMatrixRightPanel from '~/apps/app_pymatrix/components_app_pymatrix/PyMatrixRightPanel.vue';
-import PyMatrixConnectDialog from '~/apps/app_pymatrix/components_app_pymatrix/PyMatrixConnectDialog.vue';
-import PyMatrixSettingsDialog from '~/apps/app_pymatrix/components_app_pymatrix/PyMatrixSettingsDialog.vue';
+import PyMatrixTopBar from '../components_app_pymatrix/PyMatrixTopBar.vue';
+import PyMatrixLeftPanel from '../components_app_pymatrix/PyMatrixLeftPanel.vue';
+import PyMatrixRightPanel from '../components_app_pymatrix/PyMatrixRightPanel.vue';
+import PyMatrixConnectDialog from '../components_app_pymatrix/PyMatrixConnectDialog.vue';
+import PyMatrixSettingsDialog from '../components_app_pymatrix/PyMatrixSettingsDialog.vue';
+import ToastContainer from '~/common/components/ui/ToastContainer.vue';
 
 const deviceStore = useDeviceStore();
 const groupStore = useGroupStore();
+const configStore = useConfigStore();
+const { connect: connectDevice } = useConnectDevice();
+const toast = useToast();
 
 const baseUrl = ref('ws://localhost:8000');
 const showConnectDialog = ref(false);
@@ -90,46 +101,14 @@ const hostDevice = computed(() => {
   return deviceStore.getDevice(groupStore.hostSerial);
 });
 
-async function handleConnect(formData: any) {
+async function handleConnect(payload: { serial: string; deviceName?: string; config: DeviceConfig }) {
   try {
-    const response = await fetch(`http://localhost:8000/api/devices/${formData.serial}/connect`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        max_size: formData.maxSize,
-        bit_rate: formData.bitRate * 1000000,
-        max_fps: formData.maxFps
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      const deviceInfoRes = await fetch(`http://localhost:8000/api/devices/${formData.serial}/info`);
-      const deviceInfo = await deviceInfoRes.json();
-
-      if (deviceInfo.success) {
-        const device: Device = {
-          serial: formData.serial,
-          name: deviceInfo.device.model || `Device ${formData.serial.substring(0, 8)}`,
-          model: deviceInfo.device.model,
-          state: 'connected',
-          resolution: deviceInfo.device.resolution,
-          streaming: true,
-          controllable: true
-        };
-
-        deviceStore.addDevice(device);
-        showConnectDialog.value = false;
-      }
-    } else {
-      alert(`Failed to connect: ${data.message || 'Unknown error'}`);
-    }
+    await connectDevice(payload);
+    showConnectDialog.value = false;
+    toast.success('Device connected successfully', 'Connection Success');
   } catch (error) {
     console.error('Connection error:', error);
-    alert('Failed to connect to device');
+    toast.error('Failed to connect to device', 'Connection Error');
   }
 }
 
@@ -143,7 +122,7 @@ function toggleGroupControl() {
 
 function enableGroupControl() {
   if (deviceStore.deviceCount < 2) {
-    alert('At least 2 devices are required for group control');
+    toast.warning('At least 2 devices are required for group control', 'Group Control');
     return;
   }
 
@@ -206,6 +185,14 @@ function handleSendText(text: string) {
 }
 
 onMounted(async () => {
+  if (!configStore.isLoaded) {
+    try {
+      await configStore.fetchConfig();
+    } catch (error) {
+      console.error('Failed to load configuration:', error);
+    }
+  }
+
   try {
     const response = await fetch('http://localhost:8000/api/devices/list');
     const data = await response.json();

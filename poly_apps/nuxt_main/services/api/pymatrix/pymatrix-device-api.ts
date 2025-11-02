@@ -5,7 +5,7 @@
  * Following Nuxt multi-app namespace architecture
  */
 
-import type { Device } from '~/types/pymatrix';
+import type { Device } from '../../types/pymatrix';
 
 export interface DeviceListResponse {
   devices: Device[];
@@ -113,15 +113,28 @@ export class PyMatrixDeviceAPI {
       maxSize?: number;
       bitRate?: number;
       maxFps?: number;
+      codec?: 'h264' | 'h265' | 'av1';
+      control?: boolean;
+      lockedVideoOrientation?: number;
+      deviceName?: string;
     }
   ): Promise<DeviceActionResponse> {
     try {
-      // Convert bitRate from Mbps to bps if provided
-      const body = {
-        max_size: options?.maxSize || 720,
-        bit_rate: options?.bitRate ? options.bitRate * 1000000 : 8000000,
-        max_fps: options?.maxFps || 60
+      const body: Record<string, unknown> = {
+        device_name: options?.deviceName,
+        max_size: options?.maxSize,
+        bit_rate: options?.bitRate,
+        max_fps: options?.maxFps,
+        codec: options?.codec,
+        control: options?.control,
+        locked_video_orientation: options?.lockedVideoOrientation,
       };
+
+      Object.keys(body).forEach((key) => {
+        if (body[key] === undefined) {
+          delete body[key];
+        }
+      });
 
       const response = await $fetch<{ success: boolean; message: string; device?: any }>(
         `${this.baseUrl}${this.apiPrefix}/devices/${serial}/connect`,
@@ -186,6 +199,164 @@ export class PyMatrixDeviceAPI {
     } catch (error) {
       console.error(`[PyMatrixDeviceAPI] Failed to disconnect device ${serial}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Get device clipboard content
+   */
+  async getClipboard(serial: string): Promise<{ success: boolean; text?: string; error?: string }> {
+    try {
+      const response = await $fetch<{ text: string }>(
+        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/clipboard`,
+        {
+          method: 'GET',
+          headers: {
+            'X-App-Namespace': 'pymatrix',
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return {
+        success: true,
+        text: response.text
+      };
+    } catch (error) {
+      console.error(`[PyMatrixDeviceAPI] Failed to get clipboard for ${serial}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Set device clipboard content
+   */
+  async setClipboard(
+    serial: string,
+    text: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      await $fetch(
+        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/clipboard`,
+        {
+          method: 'POST',
+          headers: {
+            'X-App-Namespace': 'pymatrix',
+            'Content-Type': 'application/json'
+          },
+          body: { text }
+        }
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error(`[PyMatrixDeviceAPI] Failed to set clipboard for ${serial}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Control screen power
+   */
+  async controlScreenPower(
+    serial: string,
+    action: 'on' | 'off' | 'toggle'
+  ): Promise<{ success: boolean; state?: string; error?: string }> {
+    try {
+      const response = await $fetch<{ success: boolean; state: string }>(
+        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/power`,
+        {
+          method: 'POST',
+          headers: {
+            'X-App-Namespace': 'pymatrix',
+            'Content-Type': 'application/json'
+          },
+          body: { action }
+        }
+      );
+
+      return {
+        success: true,
+        state: response.state
+      };
+    } catch (error) {
+      console.error(`[PyMatrixDeviceAPI] Failed to control screen power for ${serial}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Set screen brightness
+   */
+  async setScreenBrightness(
+    serial: string,
+    level: number
+  ): Promise<{ success: boolean; level?: number; error?: string }> {
+    try {
+      const response = await $fetch<{ success: boolean; level: number }>(
+        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/brightness`,
+        {
+          method: 'POST',
+          headers: {
+            'X-App-Namespace': 'pymatrix',
+            'Content-Type': 'application/json'
+          },
+          body: { level }
+        }
+      );
+
+      return {
+        success: true,
+        level: response.level
+      };
+    } catch (error) {
+      console.error(`[PyMatrixDeviceAPI] Failed to set brightness for ${serial}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Set screen rotation
+   */
+  async setScreenRotation(
+    serial: string,
+    rotation: 0 | 90 | 180 | 270
+  ): Promise<{ success: boolean; rotation?: number; error?: string }> {
+    try {
+      const response = await $fetch<{ success: boolean; rotation: number }>(
+        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/rotation`,
+        {
+          method: 'POST',
+          headers: {
+            'X-App-Namespace': 'pymatrix',
+            'Content-Type': 'application/json'
+          },
+          body: { rotation }
+        }
+      );
+
+      return {
+        success: true,
+        rotation: response.rotation
+      };
+    } catch (error) {
+      console.error(`[PyMatrixDeviceAPI] Failed to set rotation for ${serial}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 

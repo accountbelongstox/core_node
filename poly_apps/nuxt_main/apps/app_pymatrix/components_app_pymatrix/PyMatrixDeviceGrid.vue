@@ -1,18 +1,32 @@
 <template>
-  <div class="device-grid" :class="gridClass">
+  <div class="device-grid" :class="gridClass" :style="gridStyle">
     <div
-      v-for="device in devices"
+      v-for="(device, index) in orderedDevices"
       :key="device.serial"
       class="device-item"
       :class="{
         'is-host': device.isHost,
-        'is-selected': selectedSerial === device.serial
+        'is-selected': selectedSerial === device.serial,
+        'is-dragging': draggedIndex === index,
+        'is-drag-over': dragOverIndex === index,
+        'drag-enabled': dragEnabled
       }"
+      :draggable="dragEnabled"
+      @dragstart="handleDragStart($event, index)"
+      @dragend="handleDragEnd"
+      @dragover.prevent="handleDragOver($event, index)"
+      @dragleave="handleDragLeave"
+      @drop.prevent="handleDrop($event, index)"
     >
+      <div v-if="dragEnabled" class="drag-handle" title="Drag to reorder">
+        <span class="drag-icon">⋮⋮</span>
+      </div>
+
       <VideoPlayer
         :device="device"
         :base-url="baseUrl"
         :enable-control="enableControl"
+        @toggle-fullscreen="emit('toggle-fullscreen', $event)"
       />
 
       <div class="device-actions">
@@ -42,9 +56,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useUIPreferencesStore } from '../stores_app_pymatrix/uiPreferencesStore';
 import VideoPlayer from './VideoPlayer.vue';
-import type { Device } from '~/types/pymatrix';
+import type { Device } from '../../../types/pymatrix';
 
 interface Props {
   devices: Device[];
@@ -52,30 +67,154 @@ interface Props {
   baseUrl?: string;
   enableControl?: boolean;
   groupEnabled?: boolean;
+  dragEnabled?: boolean;
 }
 
 interface Emits {
   (e: 'setHost', serial: string): void;
   (e: 'removeHost', serial: string): void;
   (e: 'disconnect', serial: string): void;
+  (e: 'toggle-fullscreen', device: Device): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   baseUrl: 'ws://localhost:8000',
   enableControl: true,
-  groupEnabled: false
+  groupEnabled: false,
+  dragEnabled: false
 });
 
 const emit = defineEmits<Emits>();
 
+const uiPreferencesStore = useUIPreferencesStore();
+
+// Drag and drop state
+const draggedIndex = ref<number | null>(null);
+const dragOverIndex = ref<number | null>(null);
+
+// Computed: Effective columns based on store preference or auto-detect
+const effectiveColumns = computed(() =>
+  uiPreferencesStore.getEffectiveColumns(props.devices.length)
+);
+
+// Computed: Grid class for legacy support
 const gridClass = computed(() => {
-  const count = props.devices.length;
-  if (count <= 1) return 'grid-1';
-  if (count <= 4) return 'grid-2x2';
-  if (count <= 9) return 'grid-3x3';
-  if (count <= 16) return 'grid-4x4';
-  return 'grid-5x5';
+  const cols = effectiveColumns.value;
+  return `grid-cols-${cols}`;
 });
+
+// Computed: Grid style with dynamic columns
+const gridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${effectiveColumns.value}, 1fr)`
+}));
+
+// Computed: Ordered devices based on stored order
+const orderedDevices = computed(() => {
+  const devices = [...props.devices];
+  const storedOrder = uiPreferencesStore.deviceOrder;
+
+  // If no stored order or devices changed, return original order
+  if (storedOrder.length === 0) {
+    return devices;
+  }
+
+  // Sort devices according to stored order
+  return devices.sort((a, b) => {
+    const indexA = storedOrder.indexOf(a.serial);
+    const indexB = storedOrder.indexOf(b.serial);
+
+    // If both devices are in the stored order, sort by their position
+    if (indexA !== -1 && indexB !== -1) {
+      return indexA - indexB;
+    }
+
+    // If only one device is in the stored order, prioritize it
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+
+    // If neither device is in the stored order, maintain original order
+    return 0;
+  });
+});
+
+// Watch devices and sync with store order
+watch(
+  () => props.devices,
+  (newDevices) => {
+    const currentOrder = uiPreferencesStore.deviceOrder;
+    const deviceSerials = newDevices.map(d => d.serial);
+
+    // Remove disconnected devices from order
+    const filteredOrder = currentOrder.filter(serial => deviceSerials.includes(serial));
+
+    // Add new devices to order
+    const newSerials = deviceSerials.filter(serial => !filteredOrder.includes(serial));
+    const updatedOrder = [...filteredOrder, ...newSerials];
+
+    // Update store if order changed
+    if (JSON.stringify(currentOrder) !== JSON.stringify(updatedOrder)) {
+      uiPreferencesStore.setDeviceOrder(updatedOrder);
+    }
+  },
+  { immediate: true, deep: true }
+);
+
+// Drag and drop handlers
+function handleDragStart(event: DragEvent, index: number) {
+  if (!props.dragEnabled) return;
+
+  draggedIndex.value = index;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', index.toString());
+  }
+  console.log('[PyMatrixDeviceGrid] Drag started:', index);
+}
+
+function handleDragEnd() {
+  draggedIndex.value = null;
+  dragOverIndex.value = null;
+  console.log('[PyMatrixDeviceGrid] Drag ended');
+}
+
+function handleDragOver(event: DragEvent, index: number) {
+  if (!props.dragEnabled || draggedIndex.value === null) return;
+
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+  dragOverIndex.value = index;
+}
+
+function handleDragLeave() {
+  dragOverIndex.value = null;
+}
+
+function handleDrop(event: DragEvent, toIndex: number) {
+  if (!props.dragEnabled || draggedIndex.value === null) return;
+
+  event.preventDefault();
+  const fromIndex = draggedIndex.value;
+
+  if (fromIndex !== toIndex) {
+    // Get the serial numbers in the current order
+    const currentSerials = orderedDevices.value.map(d => d.serial);
+
+    // Reorder the serials
+    const reorderedSerials = [...currentSerials];
+    const [movedSerial] = reorderedSerials.splice(fromIndex, 1);
+    reorderedSerials.splice(toIndex, 0, movedSerial);
+
+    // Update store
+    uiPreferencesStore.setDeviceOrder(reorderedSerials);
+
+    console.log('[PyMatrixDeviceGrid] Device moved from', fromIndex, 'to', toIndex);
+  }
+
+  draggedIndex.value = null;
+  dragOverIndex.value = null;
+}
 </script>
 
 <style scoped>
@@ -85,29 +224,6 @@ const gridClass = computed(() => {
   padding: 16px;
   height: 100%;
   width: 100%;
-}
-
-.grid-1 {
-  grid-template-columns: 1fr;
-}
-
-.grid-2x2 {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-}
-
-.grid-3x3 {
-  grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 1fr;
-}
-
-.grid-4x4 {
-  grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: 1fr;
-}
-
-.grid-5x5 {
-  grid-template-columns: repeat(5, 1fr);
   grid-auto-rows: 1fr;
 }
 
@@ -132,6 +248,64 @@ const gridClass = computed(() => {
 
 .device-item.is-selected {
   border-color: #10b981;
+}
+
+/* Drag and Drop Styles */
+.device-item.drag-enabled {
+  cursor: grab;
+}
+
+.device-item.drag-enabled:active {
+  cursor: grabbing;
+}
+
+.device-item.is-dragging {
+  opacity: 0.5;
+  border-color: #6366f1;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+  transform: scale(0.95);
+}
+
+.device-item.is-drag-over {
+  border-color: #22c55e;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.drag-handle {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  cursor: grab;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.drag-handle:hover {
+  background: rgba(0, 0, 0, 0.85);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.1);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  transform: scale(0.95);
+}
+
+.drag-icon {
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: -2px;
 }
 
 .device-actions {

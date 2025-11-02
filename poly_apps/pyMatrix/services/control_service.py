@@ -243,3 +243,79 @@ class ControlService:
         except Exception as e:
             print(f"Failed to send system key to {serial}: {e}")
             return False
+
+    async def set_clipboard(self, serial: str, text: str) -> bool:
+        """
+        Set clipboard content on device
+
+        Args:
+            serial: Device serial
+            text: Text to set in clipboard
+
+        Returns:
+            Success status
+        """
+        try:
+            # Escape special characters for shell
+            escaped_text = text.replace('"', '\\"').replace('$', '\\$').replace('`', '\\`')
+
+            # Use ADB to set clipboard via am broadcast
+            # Alternative method using service call:
+            # command = f'service call clipboard 1 i32 0 s16 "com.android.shell" s16 "{escaped_text}"'
+
+            # Simpler method: use input text which also sets clipboard
+            # Or use am to trigger clipboard service
+            command = f'am broadcast -a clipper.set -e text "{escaped_text}"'
+
+            # Fallback: use service call (more reliable)
+            # command = f'cmd clipboard set-text "{escaped_text}"'  # Requires Android 10+
+
+            ADBManager.execute_shell(serial, command, self.adb_path)
+
+            print(f"[ControlService] Clipboard set for {serial}: {text[:50]}...")
+            return True
+
+        except Exception as e:
+            print(f"[ControlService] Failed to set clipboard for {serial}: {e}")
+            return False
+
+    async def get_clipboard(self, serial: str) -> str:
+        """
+        Get clipboard content from device
+
+        Args:
+            serial: Device serial
+
+        Returns:
+            Clipboard text content
+        """
+        try:
+            # Use ADB to get clipboard content
+            # Method 1: service call (most reliable)
+            # command = 'cmd clipboard get-text'  # Android 10+
+
+            # Method 2: using service call (works on older Android)
+            command = 'service call clipboard 1'
+
+            result = ADBManager.execute_shell(serial, command, self.adb_path)
+
+            # Parse the result - service call returns hex encoded string
+            # For simplicity, we'll use a different approach
+
+            # Alternative: Try cmd clipboard (Android 10+)
+            try:
+                command = 'cmd clipboard get-text'
+                result = ADBManager.execute_shell(serial, command, self.adb_path, timeout=5)
+                clipboard_text = result.strip()
+
+                print(f"[ControlService] Clipboard get for {serial}: {clipboard_text[:50]}...")
+                return clipboard_text
+
+            except Exception:
+                # Fallback: return empty if not supported
+                print(f"[ControlService] Get clipboard not supported on {serial}, returning empty")
+                return ""
+
+        except Exception as e:
+            print(f"[ControlService] Failed to get clipboard from {serial}: {e}")
+            return ""
