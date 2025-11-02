@@ -125,6 +125,7 @@ $Global:PROJECT_ROOT_DIR = "D:\programing"
 $Global:PROJECT_DIR = "$PROJECT_ROOT_DIR\core_node"
 $Global:PROJECT_SCRIPTS_DIR = "$PROJECT_DIR\scripts"
 $Global:PROJECT_WIN_SCRIPTS_DIR = "$PROJECT_SCRIPTS_DIR\shells\win"
+$Global:INLINE_WINENVS_DIR = "$PROJECT_SCRIPTS_DIR\winenvs"  # Inline scripts directory - scripts in memory travel with code
 $Global:CHOCO_DIR = "C:\ProgramData\chocolatey"
 $Global:SCOOP_CACHE_DIR = "$TEMP_DIR\scoop"
 $Global:SCOOP_DIR = "$LANG_COMPILER_DIR\scoop"

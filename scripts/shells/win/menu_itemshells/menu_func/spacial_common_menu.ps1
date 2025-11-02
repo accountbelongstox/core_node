@@ -663,14 +663,13 @@ function Get-ExistingScripts {
     if (-not $listScriptName) {
         return @()
     }
-    
-    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
-    if (-not (Test-Path $winEnvsDir)) {
+
+    if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
         return @()
     }
-    
+
     $pattern = "${listScriptName}*"
-    $scripts = Get-ChildItem -Path $winEnvsDir -Filter $pattern -File -ErrorAction SilentlyContinue | Sort-Object Name
+    $scripts = Get-ChildItem -Path $Global:INLINE_WINENVS_DIR -Filter $pattern -File -ErrorAction SilentlyContinue | Sort-Object Name
     
     $scripts = Ensure-Array -InputObject $scripts
     
@@ -802,8 +801,7 @@ function Generate-EnvironmentScript {
     if (-not $TargetScriptPath) {
         $listScriptName = Get-ListScriptName -ConfigName $ConfigName
         $scriptName = "${listScriptName}${scriptNumber}.ps1"
-        $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
-        $TargetScriptPath = Join-Path $winEnvsDir $scriptName
+        $TargetScriptPath = Join-Path $Global:INLINE_WINENVS_DIR $scriptName
     }
     
     $scriptContent = @"
@@ -834,9 +832,9 @@ foreach (`$var in @($($config.Variables | ForEach-Object { "`"$($_.Name)`"" } | 
         $scriptContent | Out-File -FilePath $TargetScriptPath -Encoding UTF8 -Force
         
         & $script:WINDOWS_PATH_FUNCTION_PATH "addfile" $TargetScriptPath
-        
+
         Write-ColorMessage -Message "Script generated successfully: $TargetScriptPath" -Type "Success"
-        Write-ColorMessage -Message "Script has been added to .winenvs directory" -Type "Success"
+        Write-ColorMessage -Message "Script has been added to inline winenvs directory (travels with code)" -Type "Success"
         
         return $true
     } catch {
@@ -855,10 +853,9 @@ function Show-ListScripts {
         Write-ColorMessage -Message "No command prefix found for $ConfigName" -Type "Error"
         return
     }
-    
-    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
-    if (-not (Test-Path $winEnvsDir)) {
-        Write-ColorMessage -Message ".winenvs directory not found" -Type "Error"
+
+    if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
+        Write-ColorMessage -Message "Inline winenvs directory not found" -Type "Error"
         return
     }
     
@@ -927,13 +924,12 @@ function Get-ExistingFiles {
     if (-not $filePrefix) {
         return @()
     }
-    
-    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
-    if (-not (Test-Path $winEnvsDir)) {
+
+    if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
         return @()
     }
-    
-    $files = Get-ChildItem -Path $winEnvsDir -Filter "${filePrefix}*" -File -ErrorAction SilentlyContinue
+
+    $files = Get-ChildItem -Path $Global:INLINE_WINENVS_DIR -Filter "${filePrefix}*" -File -ErrorAction SilentlyContinue
     
     $files = Ensure-Array -InputObject $files
     
@@ -978,11 +974,10 @@ function Show-ExistingFilesMenu {
     $menuItems = @()
     
     $menuItems += @{ Text = "Create new file: $nextFileName (auto-increment)"; Action = "new" }
-    
-    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+
     foreach ($file in $Files) {
         if ($null -ne $file -and $file.PSObject.Properties['Name'] -and $file.Name) {
-            $fullPath = Join-Path $winEnvsDir $file.Name
+            $fullPath = Join-Path $Global:INLINE_WINENVS_DIR $file.Name
             $menuItems += @{ Text = "Replace existing: $($file.Name)"; Action = $fullPath }
         }
     }
@@ -1047,21 +1042,20 @@ function Generate-ListScript {
         Write-ColorMessage -Message "No command prefix found for $ConfigName" -Type "Error"
         return $false
     }
-    
-    $winEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
-    if (-not (Test-Path $winEnvsDir)) {
-        Write-ColorMessage -Message ".winenvs directory not found" -Type "Error"
+
+    if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
+        Write-ColorMessage -Message "Inline winenvs directory not found" -Type "Error"
         return $false
     }
-    
+
     $existingFiles = Get-ExistingFiles -ConfigName $ConfigName
-    
+
     $existingFiles = Ensure-Array -InputObject $existingFiles
-    
+
     $fileCount = $existingFiles.Count
-    
+
     $listScriptName = "${commandPrefix}list"
-    $listScriptPath = Join-Path $winEnvsDir "${listScriptName}.ps1"
+    $listScriptPath = Join-Path $Global:INLINE_WINENVS_DIR "${listScriptName}.ps1"
 
     $listScriptContent = @"
 # $($config.Title) Command List with Delete Function
@@ -1170,7 +1164,7 @@ function Generate-GlobalCommand {
     $script:CurrentConfig = $script:EnvironmentConfigs[$ConfigName]
     $script:CurrentCommandPrefix = Get-CommandPrefix -ConfigName $ConfigName
     $script:CurrentFileNumber = 1
-    $script:CurrentWinEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+    $script:CurrentWinEnvsDir = $Global:INLINE_WINENVS_DIR
     $script:CurrentFileName = $null
     $script:CurrentBatchContent = $null
     $script:CurrentPsCommand = $script:CurrentConfig.Common
@@ -1343,7 +1337,7 @@ function Generate-GlobalCommand {
     
     if (-not (Test-Path $script:CurrentWinEnvsDir)) {
         New-Item -ItemType Directory -Path $script:CurrentWinEnvsDir -Force | Out-Null
-        Write-ColorMessage -Message "Created .winenvs directory: $script:CurrentWinEnvsDir" -Type "Info"
+        Write-ColorMessage -Message "Created inline winenvs directory: $script:CurrentWinEnvsDir" -Type "Info"
     }
 
     if ($script:IsReplacingFile) {
@@ -1851,6 +1845,415 @@ function Show-EmptyVariablesMenu {
             }
         }
     }
+}
+
+#endregion
+
+#region Configuration Save and Restore Functions
+
+<#
+.SYNOPSIS
+    Save configuration to a file
+
+.DESCRIPTION
+    Saves the current configuration (environment variables) to a PowerShell script file
+    The saved configuration can be used to restore settings on other machines
+
+.PARAMETER ConfigName
+    Configuration name (e.g. "Claude AI", "Factory AI Droid")
+
+.PARAMETER ConfigData
+    Hashtable containing configuration data with variables and their values
+
+.PARAMETER ConfigFilePath
+    Optional custom path for the configuration file
+    If not specified, will save to menu_func directory with auto-generated name
+
+.EXAMPLE
+    Save-ConfigurationToFile -ConfigName "Claude AI" -ConfigData $configData
+#>
+function Save-ConfigurationToFile {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName,
+        [Parameter(Mandatory=$true)] [hashtable]$ConfigData,
+        [Parameter(Mandatory=$false)] [string]$ConfigFilePath = $null
+    )
+
+    if (-not $script:EnvironmentConfigs.ContainsKey($ConfigName)) {
+        Write-ColorMessage -Message "Configuration '$ConfigName' not found." -Type "Error"
+        return $false
+    }
+
+    $config = $script:EnvironmentConfigs[$ConfigName]
+    $commandPrefix = Get-CommandPrefix -ConfigName $ConfigName
+    if (-not $commandPrefix) {
+        Write-ColorMessage -Message "No command prefix found for $ConfigName" -Type "Error"
+        return $false
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ConfigFilePath)) {
+        $safeConfigName = $commandPrefix -replace '[^\w]', '_'
+        $configFileName = "${safeConfigName}_config.ps1"
+        $ConfigFilePath = Join-Path $script:MENU_FUNC_DIR $configFileName
+    }
+
+    $configFileContent = @"
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+<#
+.SYNOPSIS
+    Saved Configuration for $ConfigName
+
+.DESCRIPTION
+    This file contains saved configuration data for $ConfigName
+    Generated on $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+
+.NOTES
+    To restore this configuration, use "Restore from Configuration" menu option
+#>
+
+function Get-SavedConfigurationData {
+    return @{
+        ConfigName = "$ConfigName"
+        CommandPrefix = "$commandPrefix"
+        SavedDate = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        Variables = @{
+"@
+
+    foreach ($var in $config.Variables) {
+        if ($ConfigData.ContainsKey($var.Name) -and -not [string]::IsNullOrWhiteSpace($ConfigData[$var.Name])) {
+            $value = $ConfigData[$var.Name]
+            $configFileContent += @"
+
+            "$($var.Name)" = "$value"
+"@
+        }
+    }
+
+    $configFileContent += @"
+
+        }
+    }
+}
+"@
+
+    try {
+        $configDir = Split-Path $ConfigFilePath -Parent
+        if (-not (Test-Path $configDir)) {
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+        }
+
+        $configFileContent | Out-File -FilePath $ConfigFilePath -Encoding UTF8 -Force
+
+        Write-ColorMessage -Message "Configuration saved successfully: $ConfigFilePath" -Type "Success"
+        return $true
+    } catch {
+        Write-ColorMessage -Message "Failed to save configuration: $($_.Exception.Message)" -Type "Error"
+        return $false
+    }
+}
+
+<#
+.SYNOPSIS
+    Load configuration from a file
+
+.DESCRIPTION
+    Loads configuration data from a saved PowerShell script file
+
+.PARAMETER ConfigFilePath
+    Path to the configuration file
+
+.EXAMPLE
+    $configData = Load-ConfigurationFromFile -ConfigFilePath "C:\path\to\config.ps1"
+#>
+function Load-ConfigurationFromFile {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigFilePath
+    )
+
+    if (-not (Test-Path $ConfigFilePath)) {
+        Write-ColorMessage -Message "Configuration file not found: $ConfigFilePath" -Type "Error"
+        return $null
+    }
+
+    try {
+        . $ConfigFilePath
+        if (Get-Command Get-SavedConfigurationData -ErrorAction SilentlyContinue) {
+            $configData = Get-SavedConfigurationData
+            Remove-Item Function:\Get-SavedConfigurationData -ErrorAction SilentlyContinue
+            return $configData
+        } else {
+            Write-ColorMessage -Message "Invalid configuration file format" -Type "Error"
+            return $null
+        }
+    } catch {
+        Write-ColorMessage -Message "Failed to load configuration: $($_.Exception.Message)" -Type "Error"
+        return $null
+    }
+}
+
+<#
+.SYNOPSIS
+    Get list of saved configuration files
+
+.DESCRIPTION
+    Returns array of configuration files for a specific tool
+
+.PARAMETER ConfigName
+    Configuration name (e.g. "Claude AI", "Factory AI Droid")
+
+.EXAMPLE
+    $configs = Get-SavedConfigurations -ConfigName "Claude AI"
+#>
+function Get-SavedConfigurations {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+
+    $commandPrefix = Get-CommandPrefix -ConfigName $ConfigName
+    if (-not $commandPrefix) {
+        return @()
+    }
+
+    if (-not (Test-Path $script:MENU_FUNC_DIR)) {
+        return @()
+    }
+
+    $safeConfigName = $commandPrefix -replace '[^\w]', '_'
+    $pattern = "${safeConfigName}_config_*.ps1"
+    $configFiles = Get-ChildItem -Path $script:MENU_FUNC_DIR -Filter $pattern -File -ErrorAction SilentlyContinue | Sort-Object Name -Descending
+
+    $configFiles = Ensure-Array -InputObject $configFiles
+
+    return $configFiles
+}
+
+<#
+.SYNOPSIS
+    Show menu to select and restore a saved configuration
+
+.DESCRIPTION
+    Displays interactive menu to select from saved configurations and restore them
+
+.PARAMETER ConfigName
+    Configuration name (e.g. "Claude AI", "Factory AI Droid")
+
+.EXAMPLE
+    Show-RestoreConfigurationMenu -ConfigName "Claude AI"
+#>
+function Show-RestoreConfigurationMenu {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName
+    )
+
+    $savedConfigs = Get-SavedConfigurations -ConfigName $ConfigName
+    $savedConfigs = Ensure-Array -InputObject $savedConfigs
+
+    if ($savedConfigs.Count -eq 0) {
+        Clear-Host
+        Write-ColorMessage -Message "No saved configurations found for $ConfigName" -Type "Warning"
+        Write-ColorMessage -Message "Press any key to continue..." -Type "Info"
+        $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        return $null
+    }
+
+    $menuItems = @()
+
+    foreach ($configFile in $savedConfigs) {
+        $configData = Load-ConfigurationFromFile -ConfigFilePath $configFile.FullName
+        if ($configData) {
+            $displayText = "$($configFile.Name) (Saved: $($configData.SavedDate))"
+            $menuItems += @{ Text = $displayText; Action = $configFile.FullName; Data = $configData }
+        }
+    }
+
+    $menuItems += @{ Text = "Back to Menu"; Action = "back"; Data = $null }
+
+    $selectedIndex = 0
+
+    while ($true) {
+        Clear-Host
+        Write-ColorMessage -Message "Restore Configuration for $ConfigName" -Type "Info"
+        Write-ColorMessage -Message "Use Up/Down arrows to navigate, Enter to select" -Type "Info"
+        Write-ColorMessage -Message "=" -Type "Info"
+
+        for ($i = 0; $i -lt $menuItems.Count; $i++) {
+            if ($i -eq $selectedIndex) {
+                Write-Host "> $($menuItems[$i].Text)" -ForegroundColor Yellow
+            } else {
+                Write-Host "  $($menuItems[$i].Text)" -ForegroundColor White
+            }
+        }
+
+        $key = [Console]::ReadKey($true).Key
+
+        switch ($key) {
+            'UpArrow' {
+                $selectedIndex = if ($selectedIndex -gt 0) { $selectedIndex - 1 } else { $menuItems.Count - 1 }
+            }
+            'DownArrow' {
+                $selectedIndex = if ($selectedIndex -lt $menuItems.Count - 1) { $selectedIndex + 1 } else { 0 }
+            }
+            'Enter' {
+                $action = $menuItems[$selectedIndex].Action
+                if ($action -eq "back") {
+                    return $null
+                }
+                return $menuItems[$selectedIndex].Data
+            }
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+    Restore configuration and generate command using CommandContentGenerator
+
+.DESCRIPTION
+    Takes saved configuration data and generates a new command file using the standard generation process
+
+.PARAMETER ConfigName
+    Configuration name (e.g. "Claude AI", "Factory AI Droid")
+
+.PARAMETER SavedConfigData
+    Configuration data loaded from saved configuration file
+
+.EXAMPLE
+    Restore-ConfigurationAndGenerate -ConfigName "Claude AI" -SavedConfigData $configData
+#>
+function Restore-ConfigurationAndGenerate {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ConfigName,
+        [Parameter(Mandatory=$true)] [hashtable]$SavedConfigData
+    )
+
+    if (-not $script:EnvironmentConfigs.ContainsKey($ConfigName)) {
+        Write-ColorMessage -Message "Configuration '$ConfigName' not found." -Type "Error"
+        return $false
+    }
+
+    $script:CurrentConfigName = $ConfigName
+    $script:CurrentConfig = $script:EnvironmentConfigs[$ConfigName]
+    $script:CurrentCommandPrefix = Get-CommandPrefix -ConfigName $ConfigName
+    $script:CurrentWinEnvsDir = $Global:INLINE_WINENVS_DIR
+    $script:CurrentPsCommand = $script:CurrentConfig.Common
+
+    Clear-Host
+    Write-ColorMessage -Message "Restore Configuration for $ConfigName" -Type "Info"
+    Write-ColorMessage -Message "Saved Date: $($SavedConfigData.SavedDate)" -Type "Info"
+    Write-ColorMessage -Message ("=" * 50) -Type "Info"
+    Write-Host ""
+
+    Write-ColorMessage -Message "Configuration will be restored with the following values:" -Type "Info"
+    foreach ($varName in $SavedConfigData.Variables.Keys) {
+        $value = $SavedConfigData.Variables[$varName]
+        Write-ColorMessage -Message "  $varName = $value" -Type "Success"
+    }
+
+    Write-Host ""
+    Write-ColorMessage -Message "Do you want to proceed with restoring this configuration? (Y/N)" -Type "Warning"
+    $confirm = Read-Host "Confirm"
+
+    if ($confirm -ne "Y" -and $confirm -ne "y") {
+        Write-ColorMessage -Message "Configuration restore cancelled" -Type "Warning"
+        return $false
+    }
+
+    $existingFiles = Get-ExistingFiles -ConfigName $ConfigName
+    Show-ExistingFilesMenu -ConfigName $ConfigName -Files $existingFiles
+
+    $existingFiles = Get-ExistingFiles -ConfigName $ConfigName
+    $script:CurrentFileNumber = 1
+    $existingNumbers = @()
+
+    if ($script:IsReplacingFile) {
+        $tempFileName = Split-Path $script:TargetFilePath -Leaf
+        if ($tempFileName -match "^${script:CurrentCommandPrefix}(\d+)\.ps1$") {
+            $script:CurrentFileNumber = [int]$matches[1]
+        } else {
+            $script:CurrentFileNumber = 1
+        }
+    } else {
+        foreach ($file in $existingFiles) {
+            if ($file.Name -match "^${script:CurrentCommandPrefix}(\d+)\.ps1$") {
+                $existingNumbers += [int]$matches[1]
+            }
+        }
+
+        while ($existingNumbers -contains $script:CurrentFileNumber) {
+            $script:CurrentFileNumber++
+        }
+    }
+
+    if ($script:IsReplacingFile) {
+        $script:CurrentFileName = Split-Path $script:TargetFilePath -Leaf
+    } else {
+        $script:CurrentFileName = "${script:CurrentCommandPrefix}${script:CurrentFileNumber}.ps1"
+    }
+
+    $TargetCommandPath = Join-Path $script:CurrentWinEnvsDir $script:CurrentFileName
+
+    $secretsToSave = @{}
+    foreach ($varName in $SavedConfigData.Variables.Keys) {
+        $value = $SavedConfigData.Variables[$varName]
+        $secretKeyName = "${varName}_$($script:CurrentFileNumber)"
+        $secretsToSave[$secretKeyName] = $value
+    }
+
+    if ($secretsToSave.Count -gt 0) {
+        Write-ColorMessage -Message "" -Type "Info"
+        Write-ColorMessage -Message "Saving $($secretsToSave.Count) secrets to SecretManager..." -Type "Info"
+        if (Get-Command Set-SecretKeyBatch -ErrorAction SilentlyContinue) {
+            Set-SecretKeyBatch -Secrets $secretsToSave | Out-Null
+        } else {
+            Write-ColorMessage -Message "Set-SecretKeyBatch not available, using fallback method" -Type "Warning"
+            foreach ($key in $secretsToSave.Keys) {
+                Save-SecretToManager -KeyName $key -Value $secretsToSave[$key] -SkipEncryption | Out-Null
+            }
+        }
+    }
+
+    $result = New-CompleteCommandContent -Config $script:CurrentConfig -CommandPrefix $script:CurrentCommandPrefix -PsCommand $script:CurrentPsCommand -FileNumber $script:CurrentFileNumber -UserInputs $SavedConfigData.Variables -ShowPreview $true -RequireConfirmation $true -FileName $script:CurrentFileName
+
+    if (-not $result.Success) {
+        Write-ColorMessage -Message "Failed to generate command content: $($result.Message)" -Type "Error"
+        return $false
+    }
+
+    $script:CurrentBatchContent = $result.Content
+
+    $commandDir = Split-Path $TargetCommandPath -Parent
+    if (-not (Test-Path $commandDir)) {
+        New-Item -ItemType Directory -Path $commandDir -Force | Out-Null
+    }
+
+    & $script:WINDOWS_PATH_FUNCTION_PATH "addscript" $script:CurrentBatchContent $script:CurrentFileName
+
+    Write-ColorMessage -Message "Configuration restored and command generated successfully: $TargetCommandPath" -Type "Success"
+    Write-ColorMessage -Message "File written to .winenvs directory using addscript method" -Type "Success"
+
+    if (Test-Path $TargetCommandPath) {
+        Write-ColorMessage -Message "File verification: SUCCESS" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "File verification: FAILED" -Type "Error"
+    }
+
+    Generate-ListScript -ConfigName $script:CurrentConfigName | Out-Null
+
+    Write-ColorMessage -Message "Press any key to continue..." -Type "Info"
+    $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+
+    return $true
 }
 
 #endregion

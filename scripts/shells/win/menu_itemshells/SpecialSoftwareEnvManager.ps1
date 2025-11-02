@@ -71,6 +71,7 @@ $script:EnvironmentConfigs = @{}
 $script:EnvironmentConfigs["Claude AI"] = Get-ClaudeConfig
 $script:EnvironmentConfigs["OpenAI"] = Get-OpenAIConfig
 $script:EnvironmentConfigs["Factory AI Droid"] = Get-DroidConfig
+
 #endregion
 
 #region Configuration Mapping
