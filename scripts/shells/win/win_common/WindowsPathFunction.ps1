@@ -590,168 +590,84 @@ function Add-ScriptContentToWinEnvs {
     }
 }
 
-function Add-ScriptToInline {
-    param (
-        [string]$scriptPath
-    )
-
+function Ensure-InlineWinEnvsDir {
     if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
         New-Item -ItemType Directory -Path $Global:INLINE_WINENVS_DIR -Force | Out-Null
         Write-Log "Created inline winenvs directory: $Global:INLINE_WINENVS_DIR" -color "Yellow"
     }
+    $inlineEnvsNormalized = Normalize-WindowsPath $Global:INLINE_WINENVS_DIR
+    Add-Path -newPath $inlineEnvsNormalized
+}
 
-    $scriptPathNormalized = Normalize-WindowsPath $scriptPath
-    if (-not (Test-Path $scriptPathNormalized)) {
-        Write-Log "Script path does not exist: $scriptPathNormalized" -color "Red"
-        return
-    }
-
-    $scriptItem = Get-Item $scriptPathNormalized
-    $targetPath = Join-Path $Global:INLINE_WINENVS_DIR $scriptItem.Name
-
+function Copy-ItemToInline {
+    param (
+        [System.IO.FileInfo]$item
+    )
+    $targetPath = Join-Path $Global:INLINE_WINENVS_DIR $item.Name
     if (Test-Path $targetPath) {
-        try {
-            Remove-Item -Path $targetPath -Force -ErrorAction Stop
-            Write-Log "Removed existing file: $targetPath" -color "Yellow"
-        } catch {
-            Write-Log "Failed to remove existing file: $targetPath" -color "Red"
-            return
-        }
+        Remove-Item -Path $targetPath -Force -ErrorAction SilentlyContinue | Out-Null
     }
-
     try {
-        Copy-Item -Path $scriptItem.FullName -Destination $targetPath -Force
-        Write-Log "Script added to inline directory: $($scriptItem.Name) -> $targetPath" -color "Green"
+        Copy-Item -Path $item.FullName -Destination $targetPath -Force
+        Write-Log "File added to inline: $($item.Name) -> $targetPath" -color "Green"
     } catch {
-        Write-Log "Failed to copy script to inline directory: $($_.Exception.Message)" -color "Red"
+        Write-Log "Failed to copy: $($_.Exception.Message)" -color "Red"
+    }
+}
+
+function Link-ExecToInline {
+    param (
+        [System.IO.FileInfo]$item
+    )
+    $targetPath = Join-Path $Global:INLINE_WINENVS_DIR $item.Name
+    if (Test-Path $targetPath) {
+        Remove-Item -Path $targetPath -Force -ErrorAction SilentlyContinue | Out-Null
+    }
+    try {
+        New-Item -ItemType SymbolicLink -Path $targetPath -Target $item.FullName -Force | Out-Null
+        Write-Log "Symbolic link created: $($item.Name) -> $($item.FullName)" -color "Green"
+    } catch {
+        Write-Log "Failed to create link: $($_.Exception.Message)" -color "Red"
     }
 }
 
 function Add-FileToInline {
-    param (
-        [string]$filePath
-    )
-
-    if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
-        New-Item -ItemType Directory -Path $Global:INLINE_WINENVS_DIR -Force | Out-Null
-        Write-Log "Created inline winenvs directory: $Global:INLINE_WINENVS_DIR" -color "Yellow"
-    }
-
-    $filePathNormalized = Normalize-WindowsPath $filePath
-    if (-not (Test-Path $filePathNormalized)) {
-        Write-Log "File path does not exist: $filePathNormalized" -color "Red"
+    param ([string]$filePath)
+    Ensure-InlineWinEnvsDir
+    $pathNormalized = Normalize-WindowsPath $filePath
+    if (-not (Test-Path $pathNormalized)) {
+        Write-Log "Path does not exist: $pathNormalized" -color "Red"
         return
     }
-
-    $fileItem = Get-Item $filePathNormalized
-
-    if ($fileItem.PSIsContainer) {
-        Write-Log "Processing directory: $filePathNormalized" -color "Cyan"
-        $files = Get-ChildItem -Path $filePathNormalized -Recurse -ErrorAction SilentlyContinue
-        foreach ($file in $files) {
-            if (-not $file.PSIsContainer) {
-                $targetPath = Join-Path $Global:INLINE_WINENVS_DIR $file.Name
-                try {
-                    Copy-Item -Path $file.FullName -Destination $targetPath -Force
-                    Write-Log "File added to inline directory: $($file.Name) -> $targetPath" -color "Green"
-                } catch {
-                    Write-Log "Failed to copy file $($file.Name): $($_.Exception.Message)" -color "Red"
-                }
-            }
-        }
+    $item = Get-Item $pathNormalized
+    if ($item.PSIsContainer) {
+        Get-ChildItem -Path $pathNormalized -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { Copy-ItemToInline -item $_ }
     } else {
-        $targetPath = Join-Path $Global:INLINE_WINENVS_DIR $fileItem.Name
-
-        if (Test-Path $targetPath) {
-            try {
-                Remove-Item -Path $targetPath -Force -ErrorAction Stop
-                Write-Log "Removed existing file: $targetPath" -color "Yellow"
-            } catch {
-                Write-Log "Failed to remove existing file: $targetPath" -color "Red"
-                return
-            }
-        }
-
-        try {
-            Copy-Item -Path $fileItem.FullName -Destination $targetPath -Force
-            Write-Log "File added to inline directory: $($fileItem.Name) -> $targetPath" -color "Green"
-        } catch {
-            Write-Log "Failed to copy file to inline directory: $($_.Exception.Message)" -color "Red"
-        }
+        Copy-ItemToInline -item $item
     }
 }
 
 function Add-ExecToInline {
-    param (
-        [string]$execPath
-    )
-
-    if (-not (Test-Path $Global:INLINE_WINENVS_DIR)) {
-        New-Item -ItemType Directory -Path $Global:INLINE_WINENVS_DIR -Force | Out-Null
-        Write-Log "Created inline winenvs directory: $Global:INLINE_WINENVS_DIR" -color "Yellow"
-    }
-
-    $inlineEnvsNormalized = Normalize-WindowsPath $Global:INLINE_WINENVS_DIR
-    Add-Path -newPath $inlineEnvsNormalized
-
-    $execPathNormalized = Normalize-WindowsPath $execPath
-    if (-not (Test-Path $execPathNormalized)) {
-        Write-Log "Executable path does not exist: $execPathNormalized" -color "Red"
+    param ([string]$execPath)
+    Ensure-InlineWinEnvsDir
+    $pathNormalized = Normalize-WindowsPath $execPath
+    if (-not (Test-Path $pathNormalized)) {
+        Write-Log "Path does not exist: $pathNormalized" -color "Red"
         return
     }
-
-    $execItem = Get-Item $execPathNormalized
-
-    if ($execItem.PSIsContainer) {
-        Write-Log "Processing directory: $execPathNormalized" -color "Cyan"
-        $executableFiles = Get-ChildItem -Path $execPathNormalized -Recurse -ErrorAction SilentlyContinue | Where-Object {
-            Test-IsExecutableFile -FileItem $_
-        }
-        foreach ($file in $executableFiles) {
-            $targetPath = Join-Path $Global:INLINE_WINENVS_DIR $file.Name
-
-            if (Test-Path $targetPath) {
-                try {
-                    Remove-Item -Path $targetPath -Force -ErrorAction Stop
-                    Write-Log "Removed existing link: $targetPath" -color "Yellow"
-                } catch {
-                    Write-Log "Failed to remove existing link: $targetPath" -color "Red"
-                    continue
-                }
-            }
-
-            try {
-                New-Item -ItemType SymbolicLink -Path $targetPath -Target $file.FullName -Force | Out-Null
-                Write-Log "Created symbolic link: $($file.Name) -> $($file.FullName)" -color "Green"
-            } catch {
-                Write-Log "Failed to create symbolic link for $($file.Name)" -color "Red"
-            }
-        }
+    $item = Get-Item $pathNormalized
+    if ($item.PSIsContainer) {
+        Get-ChildItem -Path $pathNormalized -Recurse -ErrorAction SilentlyContinue | Where-Object { Test-IsExecutableFile -FileItem $_ } | ForEach-Object { Link-ExecToInline -item $_ }
     } else {
-        if (Test-IsExecutableFile -FileItem $execItem) {
-            $targetPath = Join-Path $Global:INLINE_WINENVS_DIR $execItem.Name
-
-            if (Test-Path $targetPath) {
-                try {
-                    Remove-Item -Path $targetPath -Force -ErrorAction Stop
-                    Write-Log "Removed existing link: $targetPath" -color "Yellow"
-                } catch {
-                    Write-Log "Failed to remove existing link: $targetPath" -color "Red"
-                    return
-                }
-            }
-
-            try {
-                New-Item -ItemType SymbolicLink -Path $targetPath -Target $execItem.FullName -Force | Out-Null
-                Write-Log "Created symbolic link: $($execItem.Name) -> $($execItem.FullName)" -color "Green"
-            } catch {
-                Write-Log "Failed to create symbolic link for $($execItem.Name)" -color "Red"
-            }
+        if (Test-IsExecutableFile -FileItem $item) {
+            Link-ExecToInline -item $item
         } else {
-            Write-Log "File is not an executable: $execPathNormalized" -color "Red"
+            Write-Log "Not an executable: $pathNormalized" -color "Red"
         }
     }
 }
+
+Set-Alias -Name Add-ScriptToInline -Value Add-FileToInline
 
 # Ensure .winenvs exists in Machine PATH before executing any action (after all functions are defined)
 try {
@@ -883,21 +799,21 @@ switch ($action) {
     }
     "inlineaddscript" {
         if ([string]::IsNullOrWhiteSpace($param1)) {
-            Write-Log "Script path is required for inlineaddscript" -color "Red"
+            Write-Log "Script path is required" -color "Red"
         } else {
-            Add-ScriptToInline -scriptPath $param1
+            Add-FileToInline -filePath $param1
         }
     }
     "inlineaddfile" {
         if ([string]::IsNullOrWhiteSpace($param1)) {
-            Write-Log "File path is required for inlineaddfile" -color "Red"
+            Write-Log "File path is required" -color "Red"
         } else {
             Add-FileToInline -filePath $param1
         }
     }
     "inlineaddexec" {
         if ([string]::IsNullOrWhiteSpace($param1)) {
-            Write-Log "Executable path is required for inlineaddexec" -color "Red"
+            Write-Log "Executable path is required" -color "Red"
         } else {
             Add-ExecToInline -execPath $param1
         }
