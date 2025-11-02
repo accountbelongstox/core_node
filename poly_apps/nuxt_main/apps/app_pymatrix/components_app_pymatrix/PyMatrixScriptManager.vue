@@ -822,36 +822,45 @@ function handleStopRecording() {
   }
 }
 
-function handleExecuteScript() {
+async function handleExecuteScript() {
   if (!scriptStore.currentScript || !executionDeviceSerial.value) return;
+
+  console.log('[ScriptManager] Execute script:', scriptStore.currentScript.id);
 
   if (executionDeviceSerial.value === 'all') {
     // Execute on all devices
-    props.availableDevices.forEach(device => {
-      scriptStore.startExecution(scriptStore.currentScript!.id, device.serial);
-    });
+    const deviceSerials = props.availableDevices.map(d => d.serial);
+    await scriptExecutor.executeScriptOnDevices(
+      scriptStore.currentScript.id,
+      deviceSerials,
+      baseUrl.value
+    );
   } else {
-    scriptStore.startExecution(scriptStore.currentScript.id, executionDeviceSerial.value);
+    // Execute on single device
+    await scriptExecutor.executeScript(
+      scriptStore.currentScript.id,
+      executionDeviceSerial.value,
+      baseUrl.value
+    );
   }
-
-  // TODO: Implement actual execution logic with device control
-  console.log('[ScriptManager] Execute script:', scriptStore.currentScript.id);
 }
 
 function handlePauseExecution() {
   if (!executionDeviceSerial.value) return;
-  scriptStore.pauseExecution(executionDeviceSerial.value);
+  scriptExecutor.pauseExecution(executionDeviceSerial.value);
+  console.log('[ScriptManager] Execution paused');
 }
 
-function handleResumeExecution() {
+async function handleResumeExecution() {
   if (!executionDeviceSerial.value) return;
-  scriptStore.resumeExecution(executionDeviceSerial.value);
+  await scriptExecutor.resumeExecution(executionDeviceSerial.value, baseUrl.value);
+  console.log('[ScriptManager] Execution resumed');
 }
 
 function handleStopExecution() {
   if (!executionDeviceSerial.value) return;
-  scriptStore.completeExecution(executionDeviceSerial.value, false);
-  scriptStore.clearExecutionState(executionDeviceSerial.value);
+  scriptExecutor.stopExecution(executionDeviceSerial.value);
+  console.log('[ScriptManager] Execution stopped');
 }
 
 function handleBatchExport() {
