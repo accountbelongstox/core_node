@@ -111,6 +111,26 @@ const automationConfig = {
     retryDelay: 2000
 };
 
+// MCP Server configuration
+const mcpConfig = {
+    serverName: 'core_node_init_web_automation',
+    serverVersion: '2.0.0',
+    transport: 'stdio',
+    capabilities: {
+        tools: {}
+    },
+    session: {
+        timeout: 3600000,
+        maxSessions: 100,
+        cleanupInterval: 300000
+    },
+    logging: {
+        level: 'info',
+        stream: 'auto',
+        format: 'text'
+    }
+};
+
 // Export configuration
 const config = {
     downloadConfigs,
@@ -119,6 +139,7 @@ const config = {
     fileMonitorConfig,
     downloadDirConfig,
     loggingConfig,
+    mcpConfig,
     defaultTimeout: 120000,
     defaultRetries: 3,
     defaultWaitTime: 5000,

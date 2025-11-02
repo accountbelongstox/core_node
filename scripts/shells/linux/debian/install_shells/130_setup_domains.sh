@@ -18,6 +18,16 @@ SCRIPT_INDEX="130"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
+# Variable declarations (used throughout the script)
+domains_content=""
+laravel_dir=""
+www_root=""
+nginx_config_dir=""
+ssl_dir=""
+php_version="8.4"
+success_count=0
+total_count=0
+
 echo "[$SCRIPT_INDEX] Domain Setup Script - Adding domains to nginx and certbot"
 
 # USE_SUDO is already defined in gvar_common.sh
@@ -29,36 +39,33 @@ initialize_system_directories() {
     echo "[$SCRIPT_INDEX] INITIALIZING SYSTEM DIRECTORIES"
     echo "[$SCRIPT_INDEX] =================================="
 
-    # List of critical system directories
-    local system_dirs=(
-        "/www/nginxconfig"
-        "/www/nginxconfig/ssl"
-        "/www/nginxconfig/sites-available"
-        "/www/nginxconfig/sites-enabled"
-        "/www/wwwroot"
-        "/www/wwwroot/laravel_main"
-        "/www/wwwroot/laravel_main/laravel_db"
-        "/www/server/panel/vhost/cert"
-    )
-
-    # Also use mapped paths from gvar_common.sh
-    local www_root=$(map_web_path "wwwroot")
-    local nginx_config=$(map_web_path "nginxconfig")
-    local ssl_dir=$(map_web_path "nginxconfig")/ssl
+    # Get mapped paths from gvar_common.sh
+    www_root=$(map_web_path "wwwroot")
+    nginx_config_dir=$(map_web_path "nginxconfig")
+    ssl_dir=$(map_web_path "nginxconfig")/ssl
     local shared_data=$(map_web_path "shared-data")
     local backup_dir=$(map_web_path "backup")
 
-    # Add mapped paths to directories list
-    system_dirs+=("$www_root" "$nginx_config" "$shared_data" "$backup_dir")
-
-    # Add Laravel-specific paths that match DatabasePathHelper logic
+    # Build system directories list using mapped paths
     local laravel_main="$www_root/laravel_main"
     local laravel_db="$laravel_main/laravel_db"
-    system_dirs+=("$laravel_main" "$laravel_db")
+    
+    local system_dirs=(
+        "$nginx_config_dir"
+        "$ssl_dir"
+        "$nginx_config_dir/sites-available"
+        "$nginx_config_dir/sites-enabled"
+        "$www_root"
+        "$laravel_main"
+        "$laravel_db"
+        "$shared_data"
+        "$backup_dir"
+        "/www/server/panel/vhost/cert"
+    )
 
     echo "[$SCRIPT_INDEX] Using mapped paths from gvar_common.sh:"
     echo "[$SCRIPT_INDEX]   wwwroot: $www_root"
-    echo "[$SCRIPT_INDEX]   nginxconfig: $nginx_config"
+    echo "[$SCRIPT_INDEX]   nginxconfig: $nginx_config_dir"
     echo "[$SCRIPT_INDEX]   ssl: $ssl_dir"
     echo "[$SCRIPT_INDEX]   shared-data: $shared_data"
     echo "[$SCRIPT_INDEX]   backup: $backup_dir"
@@ -414,7 +421,7 @@ get_laravel_dir() {
 
 # Function to check if Laravel is available
 check_laravel_available() {
-    local laravel_dir=$(get_laravel_dir)
+    laravel_dir=$(get_laravel_dir)
 
     if [ ! -d "$laravel_dir" ]; then
         echo "[$SCRIPT_INDEX] Laravel directory not found: $laravel_dir"
@@ -593,7 +600,7 @@ check_laravel_available() {
 read_domains() {
     echo "[$SCRIPT_INDEX] Reading domains from secret storage..."
 
-    local domains_content=$(get_secret_content "domains_list")
+    domains_content=$(get_secret_content "DOMAINS_LIST")
     if [ -z "$domains_content" ]; then
         echo "[$SCRIPT_INDEX] No domains found in secret storage"
         return 1
@@ -611,7 +618,7 @@ read_domains() {
 
 # Function to get domains list (without debug output)
 get_domains_list() {
-    get_secret_content "domains_list" | tr -d '\r' | sed '/^$/d'
+    get_secret_content "DOMAINS_LIST" | tr -d '\r' | sed '/^$/d'
 }
 
 # Function to read DNSPod configuration
@@ -625,8 +632,8 @@ read_dnspod_config() {
         return 1
     fi
 
-    local email=$(get_secret_content "dns_dnspod_email")
-    local api_token=$(get_secret_content "dns_dnspod_api_token")
+    local email=$(get_secret_content "DNS_DNSPOD_EMAIL")
+    local api_token=$(get_secret_content "DNS_DNSPOD_API_TOKEN")
 
     if [ -z "$email" ] || [ -z "$api_token" ]; then
         echo "[$SCRIPT_INDEX] DNSPod configuration not found or incomplete"
@@ -634,8 +641,8 @@ read_dnspod_config() {
         echo "[$SCRIPT_INDEX]   API Token: ${api_token:+FOUND}"
         echo "[$SCRIPT_INDEX]"
         echo "[$SCRIPT_INDEX] Please configure DNSPod credentials in secret storage:"
-        echo "[$SCRIPT_INDEX]   - dns_dnspod_email"
-        echo "[$SCRIPT_INDEX]   - dns_dnspod_api_token"
+        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAIL"
+        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKEN"
         return 1
     fi
 
@@ -654,7 +661,7 @@ read_dnspod_config() {
 # Function to setup domain in nginx and certbot
 setup_domain() {
     local domain="$1"
-    local laravel_dir=$(get_laravel_dir)
+    laravel_dir=$(get_laravel_dir)
 
     echo "[$SCRIPT_INDEX] Setting up domain: $domain"
 
@@ -678,7 +685,7 @@ setup_domain() {
     # Domain validation will be handled by Laravel commands directly
 
     # Ensure wwwroot directory exists using path mapping from gvar_common.sh
-    local www_root=$(map_web_path "wwwroot")
+    www_root=$(map_web_path "wwwroot")
     echo "[$SCRIPT_INDEX] Ensuring $www_root directory exists..."
     if [ ! -d "$www_root" ]; then
         echo "[$SCRIPT_INDEX] Creating $www_root directory..."
@@ -716,8 +723,7 @@ setup_domain() {
         echo "[$SCRIPT_INDEX]   $line"
     done
 
-    # Determine PHP version (use 8.4 for compatibility)
-    local php_version="8.4"
+    # PHP version is already set in global variable declaration
 
     # Step 2: Add local website (HTML - static content)
     echo "[$SCRIPT_INDEX] Adding local website..."
@@ -822,7 +828,7 @@ show_windows_hosts_info() {
 
     local possible_ips=$(get_possible_ips)
 
-    local domains_content=$(get_domains_list)
+    domains_content=$(get_domains_list)
     if [ -n "$domains_content" ]; then
         # Show entries for each IP address
         for ip in $possible_ips; do
@@ -956,7 +962,7 @@ show_nginx_configs() {
     echo "[$SCRIPT_INDEX] NGINX CONFIGURATION FILES"
     echo "[$SCRIPT_INDEX] =================================="
 
-    local nginx_config_dir=$(map_web_path "nginxconfig")
+    nginx_config_dir=$(map_web_path "nginxconfig")
     local sites_available="$nginx_config_dir/sites-available"
     local sites_enabled="$nginx_config_dir/sites-enabled"
 
@@ -1019,7 +1025,7 @@ show_config_content() {
     echo "[$SCRIPT_INDEX] CONFIGURATION FILE CONTENT"
     echo "[$SCRIPT_INDEX] =================================="
 
-    local nginx_config_dir=$(map_web_path "nginxconfig")
+    nginx_config_dir=$(map_web_path "nginxconfig")
     local sites_available="$nginx_config_dir/sites-available"
     local config_file="$sites_available/$config_name"
 
@@ -1080,7 +1086,7 @@ print_summary() {
     echo "[$SCRIPT_INDEX]"
     echo "[$SCRIPT_INDEX] You can now access your domains:"
 
-    local domains_content=$(get_domains_list)
+    domains_content=$(get_domains_list)
     if [ -n "$domains_content" ]; then
         echo "$domains_content" | while read -r domain; do
             if [ -n "$domain" ]; then
@@ -1126,7 +1132,7 @@ print_summary() {
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX]"
 
-    local nginx_config_dir=$(map_web_path "nginxconfig")
+    nginx_config_dir=$(map_web_path "nginxconfig")
     local sites_available="$nginx_config_dir/sites-available"
 
     if [ -d "$sites_available" ]; then
@@ -1193,11 +1199,11 @@ echo "[$SCRIPT_INDEX]   Certbot: $(certbot --version 2>&1 | cut -d' ' -f2)"
 echo "[$SCRIPT_INDEX]   certbot-dns-dnspod: $(pip3 show certbot-dns-dnspod 2>/dev/null | grep Version | cut -d' ' -f2 || echo 'NOT INSTALLED')"
 echo "[$SCRIPT_INDEX]"
 echo "[$SCRIPT_INDEX] Directories (using mapped paths):"
-local actual_www_root=$(map_web_path "wwwroot")
-local actual_ssl_dir=$(map_web_path "nginxconfig")/ssl
+www_root=$(map_web_path "wwwroot")
+ssl_dir=$(map_web_path "nginxconfig")/ssl
 local actual_laravel_db=$(map_web_path "wwwroot")/laravel_main/laravel_db
 
-for check_dir in "$actual_ssl_dir" "$actual_www_root" "$actual_laravel_db"; do
+for check_dir in "$ssl_dir" "$www_root" "$actual_laravel_db"; do
     if [ -d "$check_dir" ] && [ -w "$check_dir" ]; then
         echo "[$SCRIPT_INDEX]   ✓ $check_dir (writable)"
     elif [ -d "$check_dir" ]; then
@@ -1230,9 +1236,7 @@ if [ -z "$domains_content" ]; then
     exit 1
 fi
 
-# Setup each domain
-success_count=0
-total_count=0
+# Setup each domain (counters already initialized in global declarations)
 
 # Use process substitution to avoid subshell issues
 while read -r domain; do
@@ -1266,7 +1270,7 @@ setup_local_testing_mode() {
     echo "[$SCRIPT_INDEX] =================================="
 
     # Get all configured domains
-    local domains_content=$(get_domains_list)
+    domains_content=$(get_domains_list)
     if [ -z "$domains_content" ]; then
         echo "[$SCRIPT_INDEX] No domains found to configure"
         return 1
@@ -1411,7 +1415,7 @@ if [ $success_count -eq $total_count ] && [ $total_count -gt 0 ]; then
         echo "[$SCRIPT_INDEX]   ssl: $(map_web_path 'nginxconfig')/ssl"
         echo "[$SCRIPT_INDEX]"
         echo "[$SCRIPT_INDEX] Configured Domains:"
-        local domains_content=$(get_domains_list)
+        domains_content=$(get_domains_list)
         echo "$domains_content" | while read -r domain; do
             if [ -n "$domain" ]; then
                 echo "[$SCRIPT_INDEX]   - $domain"

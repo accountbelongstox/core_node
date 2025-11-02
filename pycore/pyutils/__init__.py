@@ -47,6 +47,8 @@ from .media_compressor import (
     MediaCompressor,
     get_media_compressor,
     CompressionStats,
+    CompressionTask,
+    QueueStats,
 )
 
 # Import complete FMP4 encoder if available
@@ -88,6 +90,8 @@ try:
         'MediaCompressor',
         'get_media_compressor',
         'CompressionStats',
+        'CompressionTask',
+        'QueueStats',
     ]
 except ImportError:
     __all__ = [
@@ -124,6 +128,8 @@ except ImportError:
         'MediaCompressor',
         'get_media_compressor',
         'CompressionStats',
+        'CompressionTask',
+        'QueueStats',
     ]
 
 # API utilities (optional, may not be needed by all apps)

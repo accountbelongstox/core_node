@@ -595,6 +595,11 @@ class ThemeTextStyles {
   static const TextStyle labelMedium = buttonMedium;
   static const TextStyle labelSmall = caption1;
 
+  // Material Design 3 headline styles
+  static const TextStyle headlineLarge = title1;         // 28pt - Large headlines
+  static const TextStyle headlineMedium = title2;        // 22pt - Medium headlines
+  static const TextStyle headlineSmall = title3;         // 20pt - Small headlines
+
   // Modern heading aliases for consistent app usage
   static const TextStyle headingLarge = largeTitle;      // 34pt - Large titles
   static const TextStyle headingMedium = title2;         // 22pt - Section headers
@@ -604,6 +609,9 @@ class ThemeTextStyles {
 
   /// Button text style - commonly used across all apps
   static const TextStyle buttonText = buttonMedium;
+
+  /// Caption style - backward compatibility alias for caption1
+  static const TextStyle caption = caption1;
 
   // Additional getters for compatibility (removed duplicates)
 

@@ -528,14 +528,300 @@ function Get-AllSecretKeys {
     return $secrets
 }
 
+<#
+.SYNOPSIS
+    Set a single secret key with encryption
+
+.DESCRIPTION
+    Saves a secret key value to both raw and encrypted storage
+    - Saves raw value to .secret_ignore directory (for quick access)
+    - Encrypts and saves to already_encrypted directory (for secure storage)
+
+.PARAMETER KeyName
+    Name of the secret key (required)
+
+.PARAMETER Value
+    Value to save (required)
+
+.PARAMETER Password
+    Encryption password (if not provided, will prompt)
+
+.PARAMETER SkipEncryption
+    Skip encryption and only save raw file (default: false)
+
+.EXAMPLE
+    Set-SecretKey -KeyName "github_token" -Value "ghp_xxxxxxxxxxxx"
+    Set-SecretKey -KeyName "api_key" -Value "sk-xxxx" -Password "mypassword"
+    Set-SecretKey -KeyName "temp_value" -Value "test" -SkipEncryption
+#>
+function Set-SecretKey {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$KeyName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Value,
+
+        [string]$Password,
+
+        [switch]$SkipEncryption
+    )
+
+    if ([string]::IsNullOrWhiteSpace($KeyName)) {
+        Write-Error "[SECRET_SET_KEY] ERROR: KeyName parameter is required"
+        return $false
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        Write-Error "[SECRET_SET_KEY] ERROR: Value parameter is required"
+        return $false
+    }
+
+    $dirs = Get-SecretDirectories
+
+    if (-not (Test-Path $dirs.RAW_DIR)) {
+        New-Item -ItemType Directory -Path $dirs.RAW_DIR -Force | Out-Null
+    }
+
+    if (-not (Test-Path $dirs.ENCRYPTED_DIR)) {
+        New-Item -ItemType Directory -Path $dirs.ENCRYPTED_DIR -Force | Out-Null
+    }
+
+    $rawFile = Join-Path $dirs.RAW_DIR $KeyName
+
+    try {
+        Set-Content -Path $rawFile -Value $Value -Encoding UTF8 -Force -NoNewline
+        Write-Host "[SECRET_SET_KEY] Saved raw secret: $KeyName" -ForegroundColor Green
+    } catch {
+        Write-Error "[SECRET_SET_KEY] ERROR: Failed to save raw secret: $KeyName - $($_.Exception.Message)"
+        return $false
+    }
+
+    if ($SkipEncryption) {
+        Write-Host "[SECRET_SET_KEY] Skipped encryption for: $KeyName" -ForegroundColor Yellow
+        return $true
+    }
+
+    $disguiseJs = Find-DisguiseTool -ScriptsDir $dirs.SCRIPTS_DIR
+
+    if ([string]::IsNullOrWhiteSpace($disguiseJs) -or -not (Test-Path $disguiseJs)) {
+        Write-Host "[SECRET_SET_KEY] WARNING: disguise.js not found, saved without encryption" -ForegroundColor Yellow
+        return $true
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Password)) {
+        $securePassword = Read-Host -Prompt "[SECRET_SET_KEY] Enter encryption password" -AsSecureString
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+        try {
+            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Password)) {
+        Write-Host "[SECRET_SET_KEY] WARNING: No password provided, saved without encryption" -ForegroundColor Yellow
+        return $true
+    }
+
+    try {
+        $result = & node $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR 2>&1
+
+        $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$KeyName.js"
+        if ($LASTEXITCODE -eq 0 -and (Test-Path $encryptedFile)) {
+            Write-Host "[SECRET_SET_KEY] Encrypted and saved: $KeyName" -ForegroundColor Green
+            return $true
+        } else {
+            Write-Host "[SECRET_SET_KEY] WARNING: Encryption failed, saved without encryption" -ForegroundColor Yellow
+            Write-Host "[SECRET_SET_KEY]   Error: $result" -ForegroundColor Red
+            return $true
+        }
+    } catch {
+        Write-Host "[SECRET_SET_KEY] WARNING: Encryption error, saved without encryption" -ForegroundColor Yellow
+        Write-Host "[SECRET_SET_KEY]   Error: $($_.Exception.Message)" -ForegroundColor Red
+        return $true
+    }
+
+    $Password = $null
+}
+
+<#
+.SYNOPSIS
+    Batch save multiple secret keys with single password encryption
+
+.DESCRIPTION
+    Saves multiple secret key-value pairs to both raw and encrypted storage
+    Only prompts for password once for all keys
+
+.PARAMETER Secrets
+    Hashtable of key-value pairs to save
+
+.PARAMETER Password
+    Encryption password (if not provided, will prompt once)
+
+.PARAMETER SkipEncryption
+    Skip encryption for all keys (default: false)
+
+.EXAMPLE
+    $secrets = @{
+        "API_KEY_1" = "value1"
+        "API_KEY_2" = "value2"
+        "TOKEN_1" = "token_value"
+    }
+    Set-SecretKeyBatch -Secrets $secrets
+#>
+function Set-SecretKeyBatch {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Secrets,
+
+        [string]$Password,
+
+        [switch]$SkipEncryption
+    )
+
+    if ($Secrets.Count -eq 0) {
+        Write-Host "[SECRET_SET_KEY_BATCH] WARNING: No secrets to save" -ForegroundColor Yellow
+        return $true
+    }
+
+    $dirs = Get-SecretDirectories
+
+    if (-not (Test-Path $dirs.RAW_DIR)) {
+        New-Item -ItemType Directory -Path $dirs.RAW_DIR -Force | Out-Null
+    }
+
+    if (-not (Test-Path $dirs.ENCRYPTED_DIR)) {
+        New-Item -ItemType Directory -Path $dirs.ENCRYPTED_DIR -Force | Out-Null
+    }
+
+    Write-Host "[SECRET_SET_KEY_BATCH] Saving $($Secrets.Count) secrets..." -ForegroundColor Cyan
+
+    $savedCount = 0
+    $rawFiles = @()
+
+    foreach ($keyName in $Secrets.Keys) {
+        $value = $Secrets[$keyName]
+
+        if ([string]::IsNullOrWhiteSpace($keyName) -or [string]::IsNullOrWhiteSpace($value)) {
+            Write-Host "[SECRET_SET_KEY_BATCH] Skipping empty key or value" -ForegroundColor Yellow
+            continue
+        }
+
+        $rawFile = Join-Path $dirs.RAW_DIR $keyName
+
+        try {
+            Set-Content -Path $rawFile -Value $value -Encoding UTF8 -Force -NoNewline
+            Write-Host "[SECRET_SET_KEY_BATCH] Saved raw secret: $keyName" -ForegroundColor Green
+            $savedCount++
+            $rawFiles += $rawFile
+        } catch {
+            Write-Host "[SECRET_SET_KEY_BATCH] ERROR: Failed to save $keyName - $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+
+    Write-Host "[SECRET_SET_KEY_BATCH] Saved $savedCount raw secrets" -ForegroundColor Green
+
+    if ($SkipEncryption) {
+        Write-Host "[SECRET_SET_KEY_BATCH] Skipped encryption (as requested)" -ForegroundColor Yellow
+        return $true
+    }
+
+    $disguiseJs = Find-DisguiseTool -ScriptsDir $dirs.SCRIPTS_DIR
+
+    if ([string]::IsNullOrWhiteSpace($disguiseJs) -or -not (Test-Path $disguiseJs)) {
+        Write-Host "[SECRET_SET_KEY_BATCH] WARNING: disguise.js not found, saved without encryption" -ForegroundColor Yellow
+        return $true
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Password)) {
+        Write-Host ""
+        Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
+        Write-Host "[SECRET_SET_KEY_BATCH] Encryption Setup" -ForegroundColor Cyan
+        Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
+        Write-Host "[SECRET_SET_KEY_BATCH] You need to provide a password to encrypt all $savedCount secrets" -ForegroundColor Yellow
+        Write-Host ""
+
+        $securePassword = Read-Host -Prompt "[SECRET_SET_KEY_BATCH] Enter encryption password" -AsSecureString
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+        try {
+            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+        }
+
+        $securePasswordConfirm = Read-Host -Prompt "[SECRET_SET_KEY_BATCH] Confirm encryption password" -AsSecureString
+        $BSTRConfirm = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePasswordConfirm)
+        try {
+            $passwordConfirm = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTRConfirm)
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTRConfirm)
+        }
+
+        if ($Password -ne $passwordConfirm) {
+            Write-Host "[SECRET_SET_KEY_BATCH] WARNING: Passwords do not match, saved without encryption" -ForegroundColor Yellow
+            $Password = $null
+            $passwordConfirm = $null
+            return $true
+        }
+
+        $passwordConfirm = $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Password)) {
+        Write-Host "[SECRET_SET_KEY_BATCH] WARNING: No password provided, saved without encryption" -ForegroundColor Yellow
+        return $true
+    }
+
+    Write-Host ""
+    Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
+    Write-Host "[SECRET_SET_KEY_BATCH] Encrypting $savedCount secrets..." -ForegroundColor Cyan
+    Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
+
+    $encryptedCount = 0
+    $failedCount = 0
+
+    foreach ($rawFile in $rawFiles) {
+        $keyName = [System.IO.Path]::GetFileName($rawFile)
+
+        try {
+            $result = & node $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR 2>&1
+
+            $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$keyName.js"
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $encryptedFile)) {
+                Write-Host "[SECRET_SET_KEY_BATCH]   SUCCESS: $keyName" -ForegroundColor Green
+                $encryptedCount++
+            } else {
+                Write-Host "[SECRET_SET_KEY_BATCH]   FAILED: $keyName" -ForegroundColor Red
+                Write-Host "[SECRET_SET_KEY_BATCH]     Error: $result" -ForegroundColor Red
+                $failedCount++
+            }
+        } catch {
+            Write-Host "[SECRET_SET_KEY_BATCH]   FAILED: $keyName" -ForegroundColor Red
+            Write-Host "[SECRET_SET_KEY_BATCH]     Error: $($_.Exception.Message)" -ForegroundColor Red
+            $failedCount++
+        }
+    }
+
+    Write-Host ""
+    Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
+    Write-Host "[SECRET_SET_KEY_BATCH] Encryption Summary:" -ForegroundColor Cyan
+    Write-Host "[SECRET_SET_KEY_BATCH]   Total:      $savedCount" -ForegroundColor Cyan
+    Write-Host "[SECRET_SET_KEY_BATCH]   Encrypted:  $encryptedCount" -ForegroundColor Green
+    Write-Host "[SECRET_SET_KEY_BATCH]   Failed:     $failedCount" -ForegroundColor Red
+    Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
+
+    $Password = $null
+
+    if ($failedCount -gt 0) {
+        Write-Host "[SECRET_SET_KEY_BATCH] WARNING: Some secrets failed to encrypt but raw files are saved" -ForegroundColor Yellow
+    }
+
+    return $true
+}
+
 Write-Host "[SECRET_MANAGER] Library loaded successfully" -ForegroundColor Green
 
-Export-ModuleMember -Function @(
-    'Invoke-SecretDecryptAll',
-    'Invoke-SecretEncryptAll',
-    'Get-SecretKey',
-    'Get-AllSecretKeys',
-    'Get-SecretDirectories',
-    'Find-DisguiseTool',
-    'Get-CoreNodeDir'
-)
+# Note: This is a script file (.ps1), not a module (.psm1)
+# When dot-sourced (using . $script:SECRET_MANAGER_PATH), all functions are automatically loaded into the current scope
+# Export-ModuleMember is only for module files and should not be used here

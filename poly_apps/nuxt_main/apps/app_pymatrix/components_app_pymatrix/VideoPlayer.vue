@@ -1,5 +1,9 @@
 <template>
-  <div class="video-player-container" ref="containerRef">
+  <div
+    class="video-player-container"
+    ref="containerRef"
+    @contextmenu="handleContextMenu"
+  >
     <video
       ref="videoElement"
       class="video-element"
@@ -47,10 +51,29 @@
       </button>
     </div>
 
-    <div class="host-badge" v-if="device?.isHost">
-      <span class="badge-icon">★</span>
-      <span>HOST</span>
+    <div class="group-role-badge">
+      <GroupRoleIndicator
+        :device-serial="device.serial"
+        :role="deviceRole"
+        size="md"
+        :show-label="true"
+      />
     </div>
+
+    <div v-if="deviceTags.length > 0" class="device-tags-display">
+      <DeviceTagBadge
+        v-for="tag in deviceTags"
+        :key="tag.id"
+        :label="tag.name"
+        :color="tag.color"
+        size="xs"
+      />
+    </div>
+
+    <RecordingControlPanel
+      :device-serial="device.serial"
+      :show="true"
+    />
 
     <VideoControlPanel
       :show="true"
@@ -67,6 +90,17 @@
       @close="showDeviceInfo = false"
       @refresh="handleRefreshDeviceInfo"
     />
+
+    <button
+      v-if="!fullscreenMode"
+      class="fullscreen-toggle-btn"
+      @click="$emit('toggle-fullscreen', device)"
+      title="Fullscreen (F)"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1h-4zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zM.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5z"/>
+      </svg>
+    </button>
 
     <button
       class="system-key-toggle-btn"
@@ -86,6 +120,87 @@
         @key-press="handleSystemKeyPress"
       />
     </div>
+
+    <button
+      class="clipboard-toggle-btn"
+      @click="showClipboard = !showClipboard"
+      title="Clipboard Sync"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+        <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+      </svg>
+    </button>
+
+    <div v-if="showClipboard" class="clipboard-panel-overlay">
+      <ClipboardSyncPanel
+        :show="showClipboard"
+        :device-serial="device.serial"
+        @close="showClipboard = false"
+      />
+    </div>
+
+    <button
+      class="screen-control-toggle-btn"
+      @click="showScreenControl = !showScreenControl"
+      title="Screen Control"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13zm13 1a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h13z"/>
+        <path d="M3 5.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm9 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zM8 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+      </svg>
+    </button>
+
+    <button
+      class="file-push-toggle-btn"
+      @click="showFilePush = !showFilePush"
+      title="Push File"
+    >
+      📁
+    </button>
+
+    <button
+      class="apk-install-toggle-btn"
+      @click="showApkInstall = !showApkInstall"
+      title="Install APK"
+    >
+      📦
+    </button>
+
+    <div v-if="showScreenControl" class="screen-control-panel-overlay">
+      <ScreenControlPanel
+        :show="showScreenControl"
+        :device-serial="device.serial"
+        @close="showScreenControl = false"
+      />
+    </div>
+
+    <div v-if="showFilePush" class="file-push-panel-overlay">
+      <FilePushPanel
+        :show="showFilePush"
+        :device-serial="device.serial"
+        @close="showFilePush = false"
+        @success="handleFilePushSuccess"
+      />
+    </div>
+
+    <div v-if="showApkInstall" class="apk-install-panel-overlay">
+      <ApkInstallPanel
+        :show="showApkInstall"
+        :device-serial="device.serial"
+        @close="showApkInstall = false"
+        @success="handleApkInstallSuccess"
+      />
+    </div>
+
+    <DeviceContextMenu
+      :show="showContextMenu"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :device-serial="device.serial"
+      @close="showContextMenu = false"
+      @action="handleContextMenuAction"
+    />
   </div>
 </template>
 
@@ -94,25 +209,43 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useVideoStream } from '../composables_app_pymatrix/useVideoStream';
 import { useDeviceControl } from '../composables_app_pymatrix/useDeviceControl';
 import { useGroupControl } from '../composables_app_pymatrix/useGroupControl';
+import { useDeviceRole } from '../composables_app_pymatrix/useDeviceRole';
 import { useGroupStore } from '../stores_app_pymatrix/groupStore';
 import { useDeviceStore } from '../stores_app_pymatrix/deviceStore';
+import { useScriptRecorder } from '../composables_app_pymatrix/useScriptRecorder';
 import VideoControlPanel from './VideoControlPanel.vue';
 import DeviceInfoPanel from './DeviceInfoPanel.vue';
 import SystemKeyPanel from './SystemKeyPanel.vue';
-import type { Device } from '~/types/pymatrix';
+import GroupRoleIndicator from './GroupRoleIndicator.vue';
+import RecordingControlPanel from './RecordingControlPanel.vue';
+import ClipboardSyncPanel from './ClipboardSyncPanel.vue';
+import ScreenControlPanel from './ScreenControlPanel.vue';
+import FilePushPanel from './FilePushPanel.vue';
+import ApkInstallPanel from './ApkInstallPanel.vue';
+import DeviceContextMenu from './DeviceContextMenu.vue';
+import DeviceTagBadge from '../../../common/components/ui/DeviceTagBadge.vue';
+import { useTagsStore } from '../stores_app_pymatrix/tagsStore';
+import { useToast } from '../composables_app_pymatrix/useToast';
+import type { Device } from '../../../types/pymatrix';
 
 interface Props {
   device: Device;
   baseUrl?: string;
   showOverlay?: boolean;
   enableControl?: boolean;
+  fullscreenMode?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   baseUrl: 'ws://localhost:8000',
   showOverlay: true,
-  enableControl: true
+  enableControl: true,
+  fullscreenMode: false
 });
+
+defineEmits<{
+  'toggle-fullscreen': [device: Device];
+}>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
 const touchCanvas = ref<HTMLCanvasElement | null>(null);
@@ -120,8 +253,27 @@ const isMouseDown = ref(false);
 const currentQuality = ref<'high' | 'medium' | 'low'>('high');
 const showDeviceInfo = ref(false);
 const showSystemKeys = ref(false);
+const showClipboard = ref(false);
+const showScreenControl = ref(false);
+const showFilePush = ref(false);
+const showApkInstall = ref(false);
+const showContextMenu = ref(false);
+const contextMenuX = ref(0);
+const contextMenuY = ref(0);
 
 const groupStore = useGroupStore();
+const deviceStore = useDeviceStore();
+const tagsStore = useTagsStore();
+const toast = useToast();
+const recorder = useScriptRecorder();
+
+const { role: deviceRole, isHost } = useDeviceRole(props.device.serial);
+
+// Check if recording is active for this device
+const isRecordingThisDevice = computed(() =>
+  recorder.isRecording.value &&
+  recorder.recordingDeviceSerial.value === props.device.serial
+);
 
 const {
   videoElement,
@@ -157,8 +309,15 @@ const {
   baseUrl: props.baseUrl
 });
 
-const isHost = computed(() => groupStore.isHost(props.device.serial));
 const inGroup = computed(() => groupStore.hasGroup && (isHost.value || groupStore.isSlave(props.device.serial)));
+
+/**
+ * Get device tags
+ */
+const deviceTags = computed(() => {
+  const tagIds = deviceStore.getDeviceTagIds(props.device.serial);
+  return tagsStore.getTagsByIds(tagIds);
+});
 
 function handleMouseDown(event: MouseEvent) {
   if (!props.enableControl || !videoElement.value) return;
@@ -174,6 +333,14 @@ function handleMouseDown(event: MouseEvent) {
     broadcastTouch(props.device.serial, 'down', x, y, rect.width, rect.height);
   } else {
     sendTouch('down', x, y, rect.width, rect.height);
+  }
+
+  // Record touch if recording is active for this device
+  if (isRecordingThisDevice.value) {
+    // Store the start position for tap recording
+    (event.target as any)._recordStartX = x;
+    (event.target as any)._recordStartY = y;
+    (event.target as any)._recordStartTime = Date.now();
   }
 }
 
@@ -207,6 +374,36 @@ function handleMouseUp(event: MouseEvent) {
     broadcastTouch(props.device.serial, 'up', x, y, rect.width, rect.height);
   } else {
     sendTouch('up', x, y, rect.width, rect.height);
+  }
+
+  // Record touch action if recording is active
+  if (isRecordingThisDevice.value && event.target) {
+    const target = event.target as any;
+    const startX = target._recordStartX;
+    const startY = target._recordStartY;
+    const startTime = target._recordStartTime;
+
+    if (startX !== undefined && startY !== undefined && startTime !== undefined) {
+      const duration = Date.now() - startTime;
+      const distance = Math.sqrt(Math.pow(x - startX, 2) + Math.pow(y - startY, 2));
+
+      // Determine action type based on duration and distance
+      if (distance > 20) {
+        // It's a swipe
+        recorder.recordSwipe(startX, startY, x, y, duration);
+      } else if (duration > 800) {
+        // It's a long press
+        recorder.recordTouch('long_press', startX, startY, duration);
+      } else {
+        // It's a tap
+        recorder.recordTouch('tap', startX, startY);
+      }
+
+      // Clean up temporary data
+      delete target._recordStartX;
+      delete target._recordStartY;
+      delete target._recordStartTime;
+    }
   }
 }
 
@@ -266,6 +463,16 @@ function handleResume() {
   console.log('[VideoPlayer] Video resumed');
 }
 
+function handleFilePushSuccess(filePath: string) {
+  console.log('[VideoPlayer] File pushed successfully:', filePath);
+  // Could show a toast notification here
+}
+
+function handleApkInstallSuccess(packageName: string) {
+  console.log('[VideoPlayer] APK installed successfully:', packageName);
+  // Could show a toast notification here
+}
+
 function toggleDeviceInfo() {
   showDeviceInfo.value = !showDeviceInfo.value;
 }
@@ -292,8 +499,135 @@ async function handleRefreshDeviceInfo() {
 
 function handleSystemKeyPress(action: string) {
   console.log('[VideoPlayer] System key pressed:', action);
-  sendSystemKey(action as 'home' | 'back' | 'recent' | 'power' | 'volume_up' | 'volume_down');
+  const systemKey = action as 'home' | 'back' | 'recent' | 'power' | 'volume_up' | 'volume_down';
+  sendSystemKey(systemKey);
+
+  // Record system key if recording is active
+  if (isRecordingThisDevice.value) {
+    recorder.recordSystemKey(systemKey);
+  }
+
   showSystemKeys.value = false;
+}
+
+function handleContextMenu(event: MouseEvent) {
+  event.preventDefault();
+  contextMenuX.value = event.clientX;
+  contextMenuY.value = event.clientY;
+  showContextMenu.value = true;
+}
+
+async function handleContextMenuAction(action: string, serial: string) {
+  console.log('[VideoPlayer] Context menu action:', action, serial);
+
+  const deviceStore = useDeviceStore();
+
+  switch (action) {
+    case 'show-info':
+      showDeviceInfo.value = true;
+      break;
+
+    case 'toggle-recording':
+      // Toggle recording via RecordingStore
+      const recordingStore = await import('../stores_app_pymatrix/recordingStore');
+      const isRecording = recordingStore.useRecordingStore().isRecording(serial);
+
+      if (isRecording) {
+        recordingStore.useRecordingStore().stopRecording(serial);
+        toast.success('Recording stopped', 'Recording');
+      } else {
+        recordingStore.useRecordingStore().startRecording(serial);
+        toast.success('Recording started', 'Recording');
+      }
+      break;
+
+    case 'screenshot':
+      try {
+        const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+        const response = await pyMatrixDeviceAPI.takeScreenshot(serial);
+
+        if (response.success) {
+          toast.success(`Screenshot saved: ${response.path}`, 'Screenshot');
+        } else {
+          toast.error('Failed to take screenshot', 'Screenshot Error');
+        }
+      } catch (error) {
+        console.error('[VideoPlayer] Screenshot failed:', error);
+        toast.error('Failed to take screenshot', 'Screenshot Error');
+      }
+      break;
+
+    case 'screen-control':
+      showScreenControl.value = true;
+      break;
+
+    case 'clipboard-sync':
+      showClipboard.value = true;
+      break;
+
+    case 'text-input':
+      // TODO: Implement text input dialog
+      toast.info('Text input feature coming soon', 'Text Input');
+      break;
+
+    case 'push-file':
+      showFilePush.value = true;
+      break;
+
+    case 'install-apk':
+      showApkInstall.value = true;
+      break;
+
+    case 'add-to-group':
+      if (groupStore.hasHost) {
+        groupStore.addSlave(serial);
+        toast.success('Device added to group', 'Group Management');
+      } else {
+        toast.warning('Please set a host device first', 'Group Management');
+      }
+      break;
+
+    case 'set-host':
+      groupStore.setHost(serial);
+      toast.success('Device set as host', 'Group Management');
+      break;
+
+    case 'remove-host':
+      groupStore.removeHost();
+      toast.success('Host removed', 'Group Management');
+      break;
+
+    case 'remove-from-group':
+      groupStore.removeSlave(serial);
+      toast.success('Device removed from group', 'Group Management');
+      break;
+
+    case 'restart':
+      try {
+        const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+        await pyMatrixDeviceAPI.restartDevice(serial);
+        toast.success('Device restart initiated', 'Device Control');
+      } catch (error) {
+        console.error('[VideoPlayer] Restart failed:', error);
+        toast.error('Failed to restart device', 'Device Error');
+      }
+      break;
+
+    case 'disconnect':
+      try {
+        const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+        await pyMatrixDeviceAPI.disconnectDevice(serial);
+        deviceStore.removeDevice(serial);
+        toast.success('Device disconnected', 'Device Control');
+      } catch (error) {
+        console.error('[VideoPlayer] Disconnect failed:', error);
+        toast.error('Failed to disconnect device', 'Device Error');
+      }
+      break;
+
+    default:
+      console.warn('[VideoPlayer] Unknown context menu action:', action);
+  }
 }
 
 onMounted(() => {
@@ -406,27 +740,25 @@ watch(() => videoElement.value, () => {
   animation: pulse 2s infinite;
 }
 
-.host-badge {
+.group-role-badge {
   position: absolute;
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  border-radius: 16px;
-  font-size: 12px;
-  font-weight: 700;
-  color: white;
   z-index: 3;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
-.badge-icon {
-  font-size: 14px;
-  animation: star-glow 2s ease-in-out infinite;
+.device-tags-display {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 90%;
+  justify-content: center;
 }
 
 @keyframes pulse {
@@ -435,15 +767,6 @@ watch(() => videoElement.value, () => {
   }
   50% {
     opacity: 0.5;
-  }
-}
-
-@keyframes star-glow {
-  0%, 100% {
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-  }
-  50% {
-    text-shadow: 0 0 20px rgba(255, 255, 255, 1);
   }
 }
 
@@ -473,6 +796,35 @@ watch(() => videoElement.value, () => {
 }
 
 .info-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.fullscreen-toggle-btn {
+  position: absolute;
+  top: 12px;
+  right: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 4;
+}
+
+.fullscreen-toggle-btn:hover {
+  background: rgba(59, 130, 246, 0.8);
+  border-color: #3b82f6;
+  color: white;
+  transform: scale(1.05);
+}
+
+.fullscreen-toggle-btn:active {
   transform: scale(0.95);
 }
 
@@ -513,10 +865,164 @@ watch(() => videoElement.value, () => {
   animation: slideInDown 0.2s ease-out;
 }
 
+.clipboard-toggle-btn {
+  position: absolute;
+  top: 12px;
+  right: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 4;
+}
+
+.clipboard-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: white;
+  transform: scale(1.05);
+}
+
+.clipboard-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.clipboard-panel-overlay {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  animation: slideInDown 0.2s ease-out;
+}
+
+.screen-control-toggle-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 4;
+}
+
+.screen-control-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: white;
+  transform: scale(1.05);
+}
+
+.screen-control-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.screen-control-panel-overlay {
+  position: absolute;
+  bottom: 50px;
+  right: 12px;
+  z-index: 6;
+  animation: slideInUp 0.2s ease-out;
+}
+
+.file-push-toggle-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 56px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 4;
+}
+
+.file-push-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: white;
+  transform: scale(1.05);
+}
+
+.file-push-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.file-push-panel-overlay {
+  position: absolute;
+  bottom: 50px;
+  right: 56px;
+  z-index: 6;
+  animation: slideInUp 0.2s ease-out;
+}
+
+.apk-install-toggle-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 100px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 4;
+}
+
+.apk-install-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(34, 197, 94, 0.6);
+  color: white;
+  transform: scale(1.05);
+}
+
+.apk-install-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.apk-install-panel-overlay {
+  position: absolute;
+  bottom: 50px;
+  right: 100px;
+  z-index: 6;
+  animation: slideInUp 0.2s ease-out;
+}
+
 @keyframes slideInDown {
   from {
     opacity: 0;
     transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
   to {
     opacity: 1;

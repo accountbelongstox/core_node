@@ -1246,10 +1246,243 @@ class MediaCompressor:
             print(f"Verification failed: {e}")
             return False
 
-    def scan_and_compress_one_by_one(self):
-        """Scan and compress files one by one (copy → compress → delete → next)"""
+    def scan_and_compress_batch(self):
+        """
+        Scan and compress files with auto mode selection
+        - GPU available: Multi-threaded batch processing
+        - No GPU: Fallback to one-by-one processing
+        """
+        # Display mode info and get user confirmation
+        is_multithreaded = False
+        workers = 1
+
+        if self.unified_compressor:
+            status = self.unified_compressor.get_status_info()
+            gpu_available = status.get('cuda_available', False)
+            workers = status.get('max_workers', 1)
+            is_multithreaded = workers > 1
+
+            print(f"\n{'='*60}")
+            if gpu_available:
+                print(f"Auto Mode: Multi-threaded Batch Processing")
+                print(f"GPU: {status.get('gpu_name', 'Unknown')}")
+                print(f"GPU Memory: {status.get('gpu_memory_gb', 0):.1f} GB")
+                print(f"NVENC Support: {'Yes' if status.get('ffmpeg_cuda_support') else 'No'}")
+            else:
+                print(f"Auto Mode: CPU Multi-threaded Processing")
+
+            if is_multithreaded:
+                print(f"\n[*] Multi-threading: ENABLED")
+                print(f"    Worker Threads: {workers}")
+                print(f"    Concurrent Tasks: Up to {workers} files simultaneously")
+            else:
+                print(f"\n[!] Multi-threading: DISABLED (single worker)")
+
+            print(f"{'='*60}")
+
+            # User confirmation for multi-threaded mode
+            if is_multithreaded:
+                print(f"\nThis will use {workers} parallel worker threads.")
+                print("Press 'y' or Enter to continue, any other key to cancel...")
+                choice = input("Continue? [Y/n]: ").strip().lower()
+
+                if choice and choice not in ['y', 'yes', '']:
+                    print("Operation cancelled by user")
+                    return
+
+                print(f"\n[OK] Starting multi-threaded batch processing with {workers} workers...\n")
+        else:
+            print(f"\n{'='*60}")
+            print(f"Auto Mode: Fallback to One-by-One Processing")
+            print(f"{'='*60}")
+
+        # Step 1: Scan files
+        files = self.scan_files()
+
+        total_files = sum(len(f) for f in files.values())
+        if total_files == 0:
+            print("No files to process")
+            return
+
+        # Step 2: Collect all tasks (with skip logic)
+        if not UNIFIED_COMPRESSOR_AVAILABLE:
+            print("\nWarning: Unified compressor not available, falling back to one-by-one mode")
+            return self.scan_and_compress_one_by_one()
+
+        from pycore.pyutils import CompressionTask
+
+        tasks = []
+        skipped = 0
+
         print(f"\n{'='*60}")
-        print(f"Starting One-by-One Processing (Low Disk Usage Mode)")
+        print("Collecting compression tasks...")
+        print(f"{'='*60}\n")
+
+        for file_type, file_list in files.items():
+            for filepath in file_list:
+                # Rename file if it contains spaces
+                filepath = self._rename_file_spaces(filepath)
+
+                rel_path = self._get_relative_path(filepath)
+                file_key = str(rel_path)
+
+                # Skip if already compressed
+                if file_key in self.cache['files']:
+                    cached_status = self.cache['files'][file_key].get('status')
+                    if cached_status == 'compressed':
+                        print(f"Skip compressed: {rel_path}")
+                        skipped += 1
+                        continue
+                    elif cached_status == 'failed':
+                        print(f"Skip failed: {rel_path}")
+                        skipped += 1
+                        continue
+
+                # Skip duplicate
+                if self._is_duplicate_media(filepath, file_type[:-1]):
+                    print(f"Skip duplicate: {rel_path}")
+                    skipped += 1
+                    continue
+
+                # Skip corrupted files
+                ext = filepath.suffix.lower()
+                if ext in (self.VIDEO_EXTENSIONS | self.AUDIO_EXTENSIONS):
+                    if not self._verify_file(filepath):
+                        print(f"Skip corrupted: {rel_path}")
+                        skipped += 1
+                        continue
+
+                # Create task
+                compress_path = self.COMPRESS_DIR / rel_path
+
+                # Determine task type and options
+                if file_type == 'images':
+                    task_type = 'image'
+                    options = {
+                        'quality': self.IMAGE_QUALITY,
+                        'use_gpu': True
+                    }
+                    # Check if resize needed
+                    if Image:
+                        try:
+                            with Image.open(filepath) as img:
+                                width, height = img.size
+                                if max(width, height) > self.IMAGE_MAX_DIMENSION:
+                                    if width > height:
+                                        new_width = self.IMAGE_MAX_DIMENSION
+                                        new_height = int(height * (self.IMAGE_MAX_DIMENSION / width))
+                                    else:
+                                        new_height = self.IMAGE_MAX_DIMENSION
+                                        new_width = int(width * (self.IMAGE_MAX_DIMENSION / height))
+                                    options['resize'] = (new_width, new_height)
+                        except:
+                            pass
+
+                elif file_type == 'videos':
+                    task_type = 'video'
+                    # Get video dimensions
+                    width, height = self._get_video_dimensions(filepath)
+                    resolution = None
+                    if height > self.VIDEO_MAX_DIMENSION and width > 0 and height > 0:
+                        new_height = self.VIDEO_MAX_DIMENSION
+                        new_width = int(width * (self.VIDEO_MAX_DIMENSION / height))
+                        new_width = new_width - (new_width % 2)
+                        new_height = new_height - (new_height % 2)
+                        resolution = (new_width, new_height)
+
+                    options = {
+                        'codec': 'h264',
+                        'preset': self.VIDEO_PRESET,
+                        'crf': self.VIDEO_CRF,
+                        'resolution': resolution,
+                        'use_gpu': True
+                    }
+
+                else:  # audio - skip for now, handle separately
+                    continue
+
+                # Create task with callback
+                def make_callback(rel_path_str, file_key_str):
+                    def task_callback(task_id, success, stats):
+                        if success and stats:
+                            # Update cache
+                            self.cache['files'][file_key_str] = {
+                                'type': file_type[:-1],
+                                'status': 'compressed',
+                                'original_size': stats.original_size,
+                                'compressed_size': stats.compressed_size,
+                                'compression_ratio': stats.compression_ratio
+                            }
+                            self._save_cache()
+                        else:
+                            # Mark as failed
+                            self.cache['files'][file_key_str] = {
+                                'type': file_type[:-1],
+                                'status': 'failed',
+                                'error': 'Compression failed'
+                            }
+                            self._save_cache()
+                    return task_callback
+
+                task = CompressionTask(
+                    task_id=str(rel_path),
+                    input_path=filepath,
+                    output_path=compress_path,
+                    task_type=task_type,
+                    options=options,
+                    callback=make_callback(str(rel_path), file_key)
+                )
+                tasks.append(task)
+
+        print(f"\nCollected {len(tasks)} tasks (skipped {skipped})")
+
+        if len(tasks) == 0:
+            print("No tasks to process")
+            return
+
+        # Step 3: Process batch using unified compressor
+        if not self.unified_compressor:
+            print("\nWarning: Unified compressor not available, falling back to one-by-one mode")
+            return self.scan_and_compress_one_by_one()
+
+        print(f"\nStarting batch processing with {self.unified_compressor.max_workers} worker threads...\n")
+
+        # Define queue callback
+        def queue_callback(queue_stats):
+            total_time = queue_stats.end_time - queue_stats.start_time
+            total_saved = queue_stats.total_original_size - queue_stats.total_compressed_size
+            total_ratio = (total_saved / queue_stats.total_original_size * 100) if queue_stats.total_original_size > 0 else 0
+
+            print(f"\n{'='*60}")
+            print("FINAL SUMMARY")
+            print(f"{'='*60}")
+            print(f"Total files: {queue_stats.total_tasks}")
+            print(f"Completed: {queue_stats.completed_tasks}")
+            print(f"Failed: {queue_stats.failed_tasks}")
+            print(f"Skipped: {skipped}")
+            print(f"Processing time: {total_time:.1f}s")
+            print(f"Total space saved: {self._format_size(total_saved)} ({total_ratio:.1f}%)")
+            print(f"{'='*60}\n")
+
+        # Define progress callback
+        def progress_callback(completed, total):
+            pct = (completed / total) * 100
+            print(f"Overall Progress: {completed}/{total} ({pct:.1f}%)")
+
+        # Execute batch processing
+        queue_stats = self.unified_compressor.process_batch(
+            tasks=tasks,
+            queue_callback=queue_callback,
+            progress_callback=progress_callback
+        )
+
+        print("\nBatch processing complete!")
+        print(f"Success rate: {queue_stats.completed_tasks}/{queue_stats.total_tasks}")
+
+    def scan_and_compress_one_by_one(self):
+        """Scan and compress files one by one (copy → compress → delete → next) - Fallback mode"""
+        print(f"\n{'='*60}")
+        print(f"Starting One-by-One Processing (Fallback/Low Memory Mode)")
         print(f"{'='*60}")
 
         # Step 1: Scan files
@@ -1827,10 +2060,10 @@ def show_menu():
     print(f"\n{'='*60}")
     print(f"  Baidu Netdisk Media Compression Tool")
     print(f"{'='*60}")
-    print("1. Scan and Compress Files (One-by-One)")
-    print("   - Process each file individually")
-    print("   - Copy → Compress → Delete temp → Next")
-    print("   - Low disk usage mode")
+    print("1. Scan and Compress Files")
+    print("   - Auto-select: GPU batch mode or CPU fallback")
+    print("   - Smart multi-threaded processing")
+    print("   - Unified skip logic (compressed/failed/duplicate)")
     print()
     print("2. Replace Original Files")
     print("   - Replace originals with compressed")
@@ -1865,11 +2098,12 @@ def main():
 
         if choice == '1':
             print("\n" + "="*60)
-            print("Executing: Scan and Compress (One-by-One Mode)")
+            print("Executing: Scan and Compress (Auto Mode)")
             print("="*60)
 
-            # One-by-one processing: copy → compress → delete → next
-            compressor.scan_and_compress_one_by_one()
+            # Auto-select batch or one-by-one mode
+            # Batch mode if GPU available, otherwise fallback to one-by-one
+            compressor.scan_and_compress_batch()
 
             print("\nProcess completed! Please verify compression results before replacing originals")
 

@@ -1018,7 +1018,7 @@ initialize_menu_items() {
     menu_items["Set Special Software Environment Variables (like AI)"]="text=Set Special Software Environment Variables (like AI);values=default;current=0;key=SPECIAL_ENV_MENU;action=show_special_software_env_menu"
     menu_order+=("Set Special Software Environment Variables (like AI)")
 
-    menu_items["Service Manager"]="text=Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx);values=default;current=0;key=SERVICE_MANAGER_MENU;action=show_service_manager"
+    menu_items["Service Manager"]="text=Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx/SSH);values=default;current=0;key=SERVICE_MANAGER_MENU;action=show_service_manager"
     menu_order+=("Service Manager")
 
     menu_items["Push to git"]="text=Push to git;values=all,gitee,github,local;current=0;key=GIT_PUSH_TARGET;action=push_git"
@@ -1408,7 +1408,12 @@ main() {
     local disk_setup_flag="$GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED"
     local skip_disk_setup=false
 
-    if [ -f "$disk_setup_flag" ]; then
+    # Check if running in WSL environment (skip disk setup in WSL)
+    if [ "$IS_WSL" = true ]; then
+        echo -e "\033[33m[BASE SETUP] WSL environment detected - skipping disk setup\033[0m"
+        echo -e "\033[33m[BASE SETUP] WSL manages disk mounts automatically via /mnt/c, /mnt/d, etc.\033[0m"
+        skip_disk_setup=true
+    elif [ -f "$disk_setup_flag" ]; then
         local setup_time=$(cat "$disk_setup_flag" 2>/dev/null)
         echo -e "\033[33m[BASE SETUP] Disk setup already completed at: $setup_time\033[0m"
         echo -e "\033[33m[BASE SETUP] Skipping disk detection to avoid redundant operations\033[0m"

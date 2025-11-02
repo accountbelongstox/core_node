@@ -101,3 +101,6 @@ require_once 'CodeMartV1Router/api.php';
 Route::prefix('achat/v1')->group(function () {
     require_once __DIR__ . '/achat_v1/api_info.php';
 });
+
+// VipClubV1 Routes
+require_once 'VipClubV1Router/api.php';

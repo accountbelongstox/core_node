@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import { useWSRPC } from '~/composables/useWSRPC';
-import type { TouchEvent, KeyEvent, WSRPCMessage } from '~/types/pymatrix';
+import { useWSRPC } from '../../../composables/useWSRPC';
+import type { TouchEvent, KeyEvent, WSRPCMessage } from '../../../types/pymatrix';
 
 interface UseDeviceControlOptions {
   deviceSerial: string;
@@ -131,6 +131,30 @@ export function useDeviceControl(options: UseDeviceControlOptions) {
     });
   }
 
+  function sendClipboard(text: string) {
+    if (!wsConnected.value) {
+      return false;
+    }
+
+    return sendMessage({
+      type: 'clipboard.set',
+      timestamp: Date.now(),
+      data: { text }
+    });
+  }
+
+  function requestClipboard() {
+    if (!wsConnected.value) {
+      return false;
+    }
+
+    return sendMessage({
+      type: 'clipboard.get',
+      timestamp: Date.now(),
+      data: {}
+    });
+  }
+
   function connect() {
     connectWS();
   }
@@ -148,6 +172,8 @@ export function useDeviceControl(options: UseDeviceControlOptions) {
     sendKey,
     sendText,
     sendSwipe,
-    sendSystemKey
+    sendSystemKey,
+    sendClipboard,
+    requestClipboard
   };
 }

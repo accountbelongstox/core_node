@@ -1,5 +1,5 @@
 import { ref, onUnmounted } from 'vue';
-import type { WSRPCMessage } from '~/types/pymatrix';
+import type { WSRPCMessage } from '../types/pymatrix';
 
 interface UseWSRPCOptions {
   url: string;

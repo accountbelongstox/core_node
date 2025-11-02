@@ -15,33 +15,21 @@
 const logger = require('#@logger');
 const gconfig = require('#@gconfig');
 const { fdir } = require('#@ftools');
+const { DualModeRunner } = require('#@ncore/utils/mcp_server');
+const { createSpiderEngine } = require('#@puppeteer-v2');
 
-// Import puppeteer_spider_v2 framework
-const {
-    createSpiderEngine,
-    createSession,
-    shutdown,
-    SpiderEngine,
-    SessionManager,
-    PluginManager
-} = require('#@puppeteer-v2');
-
-// Import application components
 const CommandLineParser = require('./controller/CommandLineParser');
 const CoreNodeInitPlugin = require('./controller/CoreNodeInitPlugin');
+const WebAutomationTools = require('./mcp/tools/web_automation');
 const config = require('./config');
 
-// Declare variables
 let spiderEngine = null;
 let session = null;
 let downloadPlugin = null;
-let mcpServer = null;
 
-// Initialize application using puppeteer_spider_v2
 async function initialize() {
     logger.info('Initializing Core Node Init application (v2)...');
-    
-    // Ensure required directories exist using ncore foundation
+
     try {
         const downloadDirConfig = gconfig.downloadDirConfig || gconfig.DOWNLOADDIRCONFIG;
         const loggingConfig = gconfig.loggingConfig || gconfig.LOGGINGCONFIG;
@@ -59,12 +47,10 @@ async function initialize() {
         logger.error('Failed to ensure directories:', error.message);
         throw error;
     }
-    
-    // Create spider engine
+
     spiderEngine = createSpiderEngine();
     await spiderEngine.initialize();
-    
-    // Create session with configuration
+
     session = await spiderEngine.createSession({
         browser: config.puppeteerConfig.browser,
         browserOptions: {
@@ -76,15 +62,13 @@ async function initialize() {
             ignoreHTTPSErrors: true
         }
     });
-    
-    // Register and initialize download plugin
+
     downloadPlugin = new CoreNodeInitPlugin();
     await downloadPlugin.initialize(session);
-    
+
     logger.info('Core Node Init application initialized successfully');
 }
 
-// List available download targets
 function listTargets() {
     logger.info('Available download targets:');
 
@@ -99,18 +83,17 @@ function listTargets() {
     }
 }
 
-// Show download status
 async function showStatus() {
     logger.info('Download status check...');
-    
+
     if (!downloadPlugin) {
         logger.error('Download plugin not initialized');
         return;
     }
-    
+
     try {
         const status = await downloadPlugin.getDownloadStatus();
-        
+
         logger.info('Download Status:');
         for (const [target, info] of Object.entries(status)) {
             const statusText = info.downloaded ? 'Downloaded' : 'Not Downloaded';
@@ -122,18 +105,17 @@ async function showStatus() {
     }
 }
 
-// Execute download command using download plugin
 async function executeDownload(target, options) {
     if (!target) {
         logger.error('Download target is required');
         return false;
     }
-    
+
     if (!downloadPlugin) {
         logger.error('Download plugin not initialized');
         return false;
     }
-    
+
     try {
         const result = await downloadPlugin.downloadApplication(target, options);
         return result.success;
@@ -143,18 +125,17 @@ async function executeDownload(target, options) {
     }
 }
 
-// Execute image download command using download plugin
 async function executeImageDownload(selector, options) {
     if (!selector) {
         logger.error('Image selector is required');
         return false;
     }
-    
+
     if (!downloadPlugin) {
         logger.error('Download plugin not initialized');
         return false;
     }
-    
+
     try {
         const result = await downloadPlugin.downloadImage(selector, options);
         return result.success;
@@ -164,18 +145,17 @@ async function executeImageDownload(selector, options) {
     }
 }
 
-// Execute audio download command using download plugin
 async function executeAudioDownload(selector, options) {
     if (!selector) {
         logger.error('Audio selector is required');
         return false;
     }
-    
+
     if (!downloadPlugin) {
         logger.error('Download plugin not initialized');
         return false;
     }
-    
+
     try {
         const result = await downloadPlugin.downloadAudio(selector, options);
         return result.success;
@@ -185,18 +165,17 @@ async function executeAudioDownload(selector, options) {
     }
 }
 
-// Execute URL download command using download plugin
 async function executeUrlDownload(url, options) {
     if (!url) {
         logger.error('URL is required');
         return false;
     }
-    
+
     if (!downloadPlugin) {
         logger.error('Download plugin not initialized');
         return false;
     }
-    
+
     try {
         const result = await downloadPlugin.downloadFromUrl(url, options);
         return result.success;
@@ -206,63 +185,31 @@ async function executeUrlDownload(url, options) {
     }
 }
 
-// Check if MCP mode is enabled
-function isMCPMode() {
-    const args = process.argv;
-    for (const arg of args) {
-        if (arg.toLowerCase().includes('mcp=true') ||
-            arg.toLowerCase().includes('--mcp') ||
-            arg.toLowerCase() === 'mcp') {
-            return true;
-        }
-    }
-    return false;
-}
-
-// Start MCP server
-async function startMCPServer() {
+async function cleanup() {
     try {
-        logger.info('Starting Core Node Init in MCP mode...');
+        if (downloadPlugin) {
+            await downloadPlugin.cleanup();
+        }
 
-        const { initializeMCPServer, shutdownMCPServer } = require('./mcp/server.js');
+        if (session) {
+            await spiderEngine.closeSession(session.id);
+        }
 
-        mcpServer = await initializeMCPServer();
+        if (spiderEngine) {
+            await spiderEngine.shutdown();
+        }
 
-        logger.info('MCP Server is running. Use stdio for communication.');
-
-        process.on('SIGINT', async () => {
-            logger.info('Received SIGINT, shutting down MCP server...');
-            await shutdownMCPServer();
-            process.exit(0);
-        });
-
-        process.on('SIGTERM', async () => {
-            logger.info('Received SIGTERM, shutting down MCP server...');
-            await shutdownMCPServer();
-            process.exit(0);
-        });
-
+        logger.info('Cleanup complete');
     } catch (error) {
-        logger.error('Failed to start MCP server:', error.message);
-        throw error;
+        logger.error('Cleanup error:', error.message);
     }
 }
 
-// Main application entry point
-async function start() {
+async function runCLIMode() {
     try {
-        if (isMCPMode()) {
-            await startMCPServer();
-            return;
-        }
-
-        logger.info('Starting Core Node Init application (v2)...');
-
-        // Parse command line arguments first to check if it's help command
         const parser = new CommandLineParser();
         const args = parser.parseArguments();
 
-        // Skip initialization for help and list commands
         if (args.command === 'help') {
             parser.displayHelp();
             logger.info('Core Node Init application completed successfully');
@@ -276,25 +223,22 @@ async function start() {
             process.exit(0);
         }
 
-        // Initialize application for other commands
         await initialize();
 
         logger.info(`Command: ${args.command}, Target: ${args.target || 'none'}`);
 
-        // Execute command
         let success = true;
 
         switch (args.command) {
             case 'download':
                 if (!args.target) {
-                    // Download both VSCode and Cursor when no target specified
                     logger.info('No target specified, downloading both VSCode and Cursor...');
-                    
+
                     const vscodeSuccess = await executeDownload('vscode', args.options);
                     const cursorSuccess = await executeDownload('cursor', args.options);
-                    
+
                     success = vscodeSuccess && cursorSuccess;
-                    
+
                     if (success) {
                         logger.info('Both VSCode and Cursor downloads completed successfully');
                     } else {
@@ -326,20 +270,9 @@ async function start() {
                 parser.displayHelp();
                 break;
         }
-        
-        // Cleanup
-        if (downloadPlugin) {
-            await downloadPlugin.cleanup();
-        }
-        
-        if (session) {
-            await spiderEngine.closeSession(session.id);
-        }
-        
-        if (spiderEngine) {
-            await spiderEngine.shutdown();
-        }
-        
+
+        await cleanup();
+
         if (success) {
             logger.info('Core Node Init application completed successfully');
             process.exit(0);
@@ -347,40 +280,55 @@ async function start() {
             logger.error('Core Node Init application completed with errors');
             process.exit(1);
         }
-        
+
     } catch (error) {
-        logger.error('Fatal error in Core Node Init application:', error.message);
-        
-        // Cleanup on error
-        if (downloadPlugin) {
-            try {
-                await downloadPlugin.cleanup();
-            } catch (cleanupError) {
-                logger.error('Download plugin cleanup error:', cleanupError.message);
-            }
-        }
-        
-        if (session) {
-            try {
-                await spiderEngine.closeSession(session.id);
-            } catch (cleanupError) {
-                logger.error('Session cleanup error:', cleanupError.message);
-            }
-        }
-        
-        if (spiderEngine) {
-            try {
-                await spiderEngine.shutdown();
-            } catch (cleanupError) {
-                logger.error('Spider engine cleanup error:', cleanupError.message);
-            }
-        }
-        
+        logger.error('Fatal error in CLI mode:', error.message);
+        await cleanup();
         process.exit(1);
     }
 }
 
-// Export the start function for the main application launcher
-module.exports = {
-    start
-};
+async function start() {
+    try {
+        const runner = new DualModeRunner({
+            mcpConfig: {
+                server: {
+                    name: config.mcpConfig?.serverName || 'core_node_init_web_automation',
+                    version: config.mcpConfig?.serverVersion || '1.0.0',
+                    capabilities: {
+                        tools: {}
+                    }
+                },
+                session: {
+                    timeout: 3600000,
+                    maxSessions: 100,
+                    cleanupInterval: 300000
+                }
+            },
+            cliRunner: runCLIMode,
+            enableSingleInstance: true
+        });
+
+        await runner.start();
+
+        if (runner.getMode() === 'mcp') {
+            logger.info('Registering MCP tools...');
+
+            const mcpServer = runner.getMCPServer();
+
+            const webTools = new WebAutomationTools();
+            await webTools.initialize();
+
+            mcpServer.registerTool(webTools);
+
+            logger.info('MCP tools registered successfully');
+        }
+
+    } catch (error) {
+        logger.error('Fatal error in Core Node Init application:', error.message);
+        await cleanup();
+        process.exit(1);
+    }
+}
+
+module.exports = { start };

@@ -1,0 +1,6 @@
+现在有一个桥接文件，poly_apps\flutter_bloom\.prompts\AI_COLLABORATION_BRIDGE_VIP_CLUB.json 是flutter端和后端共享的，注意你是flutter端，
+你可以更新桥接文件上的内容，但注意你遵循的是你自己的规则，桥接文件只是一个交流而非规范。将你的工作内容更新到桥接文档。并注意最后日期，当你读取过的内容标记为：知道了。
+你们将实现联调，使前前和后端的功能能够一致并做到有效能用。
+你的规范为参考，特别注意，你可以扩展和增强功能。
+D:\programing\core_node\poly_apps\laravel_main\development-guides\LARAVEL_GUIDE_THIS_FILE_NO_AI_EDIT.md
+根据flutter端的内容，你将在 读取和更新AI_COLLABORATION_BRIDGE_VIP_CLUB.json  开发后端，你可以提出更新的建议并更新桥接文件。

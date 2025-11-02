@@ -334,3 +334,5 @@ app.*.symbols
 [aA][uU][xX]
 [cC][oO][mM]1
 [cC][oO][mM]2
+# pyMatrix runtime configuration storage
+poly_apps/pyMatrix/storage/

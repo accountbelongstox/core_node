@@ -41,11 +41,25 @@ class ThemeDimensions {
   static const double spacing96 = 96.0;
   
   // Semantic spacing aliases
+  static const double spacingTiny = spacing4;
   static const double spacingSmall = spacing8;
   static const double spacingMedium = spacing16;
   static const double spacingLarge = spacing24;
   static const double spacingXLarge = spacing32;
+  static const double spacingHuge = spacing48;
   static const double defaultPadding = spacing16;
+
+  // Common padding values
+  static const double tinyPadding = spacing4;
+  static const double smallPadding = spacing8;
+  static const double mediumPadding = spacing16;
+  static const double largePadding = spacing24;
+  static const double hugePadding = spacing48;
+
+  // Common radius values
+  static const double smallRadius = radiusS;
+  static const double defaultRadius = radiusM;
+  static const double largeRadius = radiusL;
 
   // Legacy compatibility aliases (for migration from old Dimensions class)
   static const double defaultSize = spacing16;
@@ -79,10 +93,15 @@ class ThemeDimensions {
   static const double paddingSizeSeven = 7.0;
   static const double paddingSizeExtraSmall = 5.0;
 
-  // Semantic padding constants for const usage
+  // Semantic padding constants for const usage (double values)
   static const double paddingSmall = spacing8;
   static const double paddingMedium = spacing16;
   static const double paddingLarge = spacing24;
+
+  // Semantic EdgeInsets padding constants
+  static const EdgeInsets paddingSmallInsets = paddingS;
+  static const EdgeInsets paddingMediumInsets = paddingM;
+  static const EdgeInsets paddingLargeInsets = paddingL;
 
   // Horizontal padding
   static const EdgeInsets paddingHorizontalXS = EdgeInsets.symmetric(horizontal: spacing4);

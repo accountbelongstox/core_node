@@ -19,9 +19,13 @@ router = APIRouter(prefix="/devices", tags=["devices"])
 
 class DeviceConnectRequest(BaseModel):
     """Device connection request"""
+    device_name: Optional[str] = None
     max_size: Optional[int] = 720
     bit_rate: Optional[int] = 8000000
     max_fps: Optional[int] = 60
+    codec: Optional[str] = None
+    control: Optional[bool] = None
+    locked_video_orientation: Optional[int] = None
 
 
 @router.get("/list")
@@ -93,7 +97,11 @@ async def connect_device(serial: str, request: DeviceConnectRequest):
     params = {
         "max_size": request.max_size,
         "bit_rate": request.bit_rate,
-        "max_fps": request.max_fps
+        "max_fps": request.max_fps,
+        "codec": request.codec,
+        "control": request.control,
+        "locked_video_orientation": request.locked_video_orientation,
+        "device_name": request.device_name,
     }
 
     success = await service.connect_device(serial, params)

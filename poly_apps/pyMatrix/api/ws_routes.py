@@ -192,6 +192,25 @@ async def device_control_endpoint(websocket: WebSocket, serial: str):
                             "message": "Failed to send system key"
                         }))
 
+                elif msg_type == "clipboard.set":
+                    text = msg_data.get("text", "")
+                    success = await control_service.set_clipboard(serial, text)
+                    if success:
+                        await websocket.send_text(create_wsrpc_message("clipboard.set_complete", {
+                            "success": True,
+                            "message": "Clipboard set successfully"
+                        }))
+                    else:
+                        await websocket.send_text(create_wsrpc_message("error", {
+                            "message": "Failed to set clipboard"
+                        }))
+
+                elif msg_type == "clipboard.get":
+                    clipboard_text = await control_service.get_clipboard(serial)
+                    await websocket.send_text(create_wsrpc_message("clipboard.data", {
+                        "text": clipboard_text
+                    }))
+
             except WebSocketDisconnect:
                 break
             except json.JSONDecodeError:

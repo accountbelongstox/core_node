@@ -14,16 +14,15 @@ except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from typing import List, Dict, Optional
-from pathlib import Path
-import asyncio
 
 # Use pycore centralized services
-from pycore.pyutils.device_manager import DeviceManager, DeviceState
+from pycore.pyutils.device_manager import DeviceManager
 from pycore.pyutils.adb import ADBManager, ADBDevice
 from pycore.pyfoundations.device import AndroidDevice, DeviceInfo, ServerParams, VideoCodec
 from pycore.pyfoundations.event_bus import EventBus, EventTypes
 
 from poly_apps.pyMatrix.config import Config
+from .config_service import ConfigService
 
 
 class DeviceService:
@@ -50,6 +49,9 @@ class DeviceService:
 
         # Use event bus for cross-app communication
         self.event_bus = EventBus.instance()
+
+        # Centralized configuration service
+        self.config_service = ConfigService.instance()
 
         # Subscribe to device events
         self._setup_event_listeners()
@@ -115,6 +117,9 @@ class DeviceService:
             Success status
         """
         try:
+            overrides: Dict = dict(params) if params else {}
+            device_name_override = overrides.pop("device_name", None)
+
             # Push scrcpy-server.jar if needed
             if self.scrcpy_server_jar.exists():
                 success = ADBManager.push_file(
@@ -127,13 +132,32 @@ class DeviceService:
                     print(f"Failed to push scrcpy-server.jar")
                     return False
 
-            # Create server parameters
+            # Resolve device name for per-device configuration
+            device_name: Optional[str] = device_name_override
+            try:
+                if not device_name_override:
+                    info = await self.device_manager.get_device_info(serial, self.adb_path)
+                    if info:
+                        device_name = info.model or info.serial
+            except Exception:
+                device_name = None
+
+            # Merge configuration layers: global -> device -> request overrides
+            effective_params = await self.config_service.get_effective_server_params(device_name, overrides)
+
+            codec_value = effective_params.get("codec", Config.DEFAULT_CODEC)
+            try:
+                codec_enum = VideoCodec(codec_value)
+            except ValueError:
+                codec_enum = VideoCodec(Config.DEFAULT_CODEC)
+
             server_params = ServerParams(
-                max_size=params.get('max_size', Config.DEFAULT_MAX_SIZE) if params else Config.DEFAULT_MAX_SIZE,
-                bit_rate=params.get('bit_rate', Config.DEFAULT_BIT_RATE) if params else Config.DEFAULT_BIT_RATE,
-                max_fps=params.get('max_fps', Config.DEFAULT_MAX_FPS) if params else Config.DEFAULT_MAX_FPS,
-                codec=VideoCodec.H264,
-                control=True
+                max_size=effective_params.get("max_size", Config.DEFAULT_MAX_SIZE),
+                bit_rate=effective_params.get("bit_rate", Config.DEFAULT_BIT_RATE),
+                max_fps=effective_params.get("max_fps", Config.DEFAULT_MAX_FPS),
+                codec=codec_enum,
+                control=effective_params.get("control", True),
+                locked_video_orientation=effective_params.get("locked_video_orientation", -1),
             )
 
             # Use centralized device manager to connect
@@ -149,7 +173,7 @@ class DeviceService:
             await self.event_bus.emit(
                 EventTypes.DEVICE_CONNECTED,
                 source="pyMatrix",
-                data={"serial": serial, "params": params}
+                data={"serial": serial, "params": effective_params, "deviceName": device_name}
             )
 
             return True

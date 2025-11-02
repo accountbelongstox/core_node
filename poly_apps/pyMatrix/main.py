@@ -20,9 +20,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from poly_apps.pyMatrix.config import Config
 
 # API Routes - use absolute import
-from poly_apps.pyMatrix.api import device_router, health_router, ws_router
+from poly_apps.pyMatrix.api import config_router, device_router, health_router, ws_router, recording_router, screen_router, group_router, file_router
 
-# 初始化 FastAPI 应用
+# Middleware
+from poly_apps.pyMatrix.middleware import APILoggingMiddleware, PerformanceMonitoringMiddleware
+
+# Initialize FastAPI application
 app = FastAPI(
     title="pyMatrix API",
     description="Android Device Mirroring and Group Control System",
@@ -31,7 +34,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# 配置 CORS
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=Config.CORS_ALLOW_ORIGINS,
@@ -40,9 +43,18 @@ app.add_middleware(
     allow_headers=Config.CORS_ALLOW_HEADERS,
 )
 
+# Add logging and performance monitoring middleware
+app.add_middleware(APILoggingMiddleware)
+app.add_middleware(PerformanceMonitoringMiddleware)
+
 # Register routes
 app.include_router(health_router, prefix=Config.API_PREFIX)
+app.include_router(config_router, prefix=Config.API_PREFIX)
 app.include_router(device_router, prefix=Config.API_PREFIX)
+app.include_router(recording_router, prefix=Config.API_PREFIX)
+app.include_router(screen_router, prefix=Config.API_PREFIX)
+app.include_router(group_router, prefix=Config.API_PREFIX)
+app.include_router(file_router, prefix=Config.API_PREFIX)
 app.include_router(ws_router)  # WebSocket routes (no prefix)
 
 

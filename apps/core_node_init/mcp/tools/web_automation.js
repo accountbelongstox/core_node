@@ -79,32 +79,43 @@ class WebAutomationTools {
         return [
             {
                 name: 'open_webpage',
-                description: 'Open a webpage in the browser',
+                description: 'Open a webpage in the browser and wait for page load',
+                version: '1.0.0',
+                category: 'navigation',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         url: {
                             type: 'string',
-                            description: 'The URL to open'
+                            description: 'The URL to open (must be a valid HTTP/HTTPS URL)'
                         },
                         waitUntil: {
                             type: 'string',
                             description: 'Wait until event (load, domcontentloaded, networkidle0, networkidle2)',
+                            enum: ['load', 'domcontentloaded', 'networkidle0', 'networkidle2'],
                             default: 'networkidle2'
                         }
                     },
                     required: ['url']
-                }
+                },
+                examples: [
+                    {
+                        description: 'Open Google homepage',
+                        input: { url: 'https://google.com', waitUntil: 'networkidle2' }
+                    }
+                ]
             },
             {
                 name: 'take_screenshot',
-                description: 'Take a screenshot of the current page',
+                description: 'Take a screenshot of the current page or specific element',
+                version: '1.0.0',
+                category: 'capture',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         filename: {
                             type: 'string',
-                            description: 'The filename for the screenshot (optional, will generate if not provided)'
+                            description: 'The filename for the screenshot (optional, will auto-generate with timestamp if not provided)'
                         },
                         fullPage: {
                             type: 'boolean',
@@ -117,25 +128,49 @@ class WebAutomationTools {
                         }
                     },
                     required: []
-                }
+                },
+                examples: [
+                    {
+                        description: 'Take full page screenshot',
+                        input: { fullPage: true }
+                    },
+                    {
+                        description: 'Screenshot specific element',
+                        input: { selector: '.main-content', fullPage: false }
+                    }
+                ]
             },
             {
                 name: 'get_html_content',
-                description: 'Get the HTML content of the current page',
+                description: 'Get the HTML content of the current page or specific element',
+                version: '1.0.0',
+                category: 'content',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         selector: {
                             type: 'string',
-                            description: 'CSS selector to get HTML of a specific element (optional)'
+                            description: 'CSS selector to get HTML of a specific element (optional, returns full page HTML if not provided)'
                         }
                     },
                     required: []
-                }
+                },
+                examples: [
+                    {
+                        description: 'Get full page HTML',
+                        input: {}
+                    },
+                    {
+                        description: 'Get specific element HTML',
+                        input: { selector: '#main-content' }
+                    }
+                ]
             },
             {
                 name: 'click_element',
-                description: 'Click on an element on the page',
+                description: 'Click on an element on the page by CSS selector',
+                version: '1.0.0',
+                category: 'interaction',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -150,11 +185,19 @@ class WebAutomationTools {
                         }
                     },
                     required: ['selector']
-                }
+                },
+                examples: [
+                    {
+                        description: 'Click a button',
+                        input: { selector: 'button.submit', waitForNavigation: false }
+                    }
+                ]
             },
             {
                 name: 'type_text',
-                description: 'Type text into an input element',
+                description: 'Type text into an input element with optional delay',
+                version: '1.0.0',
+                category: 'interaction',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -164,20 +207,29 @@ class WebAutomationTools {
                         },
                         text: {
                             type: 'string',
-                            description: 'Text to type'
+                            description: 'Text to type into the element'
                         },
                         delay: {
                             type: 'number',
                             description: 'Delay between keystrokes in milliseconds',
-                            default: 0
+                            default: 0,
+                            minimum: 0
                         }
                     },
                     required: ['selector', 'text']
-                }
+                },
+                examples: [
+                    {
+                        description: 'Type search query',
+                        input: { selector: 'input[name="q"]', text: 'hello world', delay: 50 }
+                    }
+                ]
             },
             {
                 name: 'download_resource',
-                description: 'Download a resource from a URL',
+                description: 'Download a resource from a URL to local storage',
+                version: '1.0.0',
+                category: 'download',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -187,29 +239,49 @@ class WebAutomationTools {
                         },
                         filename: {
                             type: 'string',
-                            description: 'The filename to save as (optional)'
+                            description: 'The filename to save as (optional, will use URL filename if not provided)'
                         }
                     },
                     required: ['url']
-                }
+                },
+                examples: [
+                    {
+                        description: 'Download file',
+                        input: { url: 'https://example.com/file.pdf', filename: 'document.pdf' }
+                    }
+                ]
             },
             {
                 name: 'evaluate_javascript',
-                description: 'Execute JavaScript code on the page',
+                description: 'Execute JavaScript code on the page and return the result',
+                version: '1.0.0',
+                category: 'scripting',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         code: {
                             type: 'string',
-                            description: 'JavaScript code to execute'
+                            description: 'JavaScript code to execute in the page context'
                         }
                     },
                     required: ['code']
-                }
+                },
+                examples: [
+                    {
+                        description: 'Get page title',
+                        input: { code: 'document.title' }
+                    },
+                    {
+                        description: 'Get all links',
+                        input: { code: 'Array.from(document.querySelectorAll("a")).map(a => a.href)' }
+                    }
+                ]
             },
             {
                 name: 'get_element_attribute',
-                description: 'Get an attribute value from an element',
+                description: 'Get an attribute value from an element by CSS selector',
+                version: '1.0.0',
+                category: 'content',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -219,15 +291,23 @@ class WebAutomationTools {
                         },
                         attribute: {
                             type: 'string',
-                            description: 'Attribute name to get'
+                            description: 'Attribute name to get (e.g., href, src, class, id)'
                         }
                     },
                     required: ['selector', 'attribute']
-                }
+                },
+                examples: [
+                    {
+                        description: 'Get link URL',
+                        input: { selector: 'a.download', attribute: 'href' }
+                    }
+                ]
             },
             {
                 name: 'wait_for_selector',
-                description: 'Wait for an element to appear on the page',
+                description: 'Wait for an element to appear on the page with timeout',
+                version: '1.0.0',
+                category: 'navigation',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -238,20 +318,35 @@ class WebAutomationTools {
                         timeout: {
                             type: 'number',
                             description: 'Maximum time to wait in milliseconds',
-                            default: 30000
+                            default: 30000,
+                            minimum: 1000
                         }
                     },
                     required: ['selector']
-                }
+                },
+                examples: [
+                    {
+                        description: 'Wait for element to load',
+                        input: { selector: '.content-loaded', timeout: 30000 }
+                    }
+                ]
             },
             {
                 name: 'close_browser',
-                description: 'Close the browser session',
+                description: 'Close the browser session and cleanup resources',
+                version: '1.0.0',
+                category: 'session',
                 inputSchema: {
                     type: 'object',
                     properties: {},
                     required: []
-                }
+                },
+                examples: [
+                    {
+                        description: 'Close browser',
+                        input: {}
+                    }
+                ]
             }
         ];
     }

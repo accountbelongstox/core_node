@@ -56,8 +56,12 @@ SERVICE_NAME["nginx"]="Nginx"
 SERVICE_SYSTEMD["nginx"]="nginx"
 SERVICE_INSTALL_SCRIPT["nginx"]="25_install_nginx.sh"
 
+SERVICE_NAME["ssh"]="SSH Server"
+SERVICE_SYSTEMD["ssh"]="ssh"
+SERVICE_INSTALL_SCRIPT["ssh"]="17_setup_ssh_remote.sh"
+
 # Service list
-SERVICES=("redis" "postgresql" "docker" "mysql" "nginx")
+SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh")
 
 # Function to check if service is installed
 is_service_installed() {
@@ -65,6 +69,18 @@ is_service_installed() {
     local systemd_name="${SERVICE_SYSTEMD[$service]}"
 
     if [ -z "$systemd_name" ]; then
+        return 1
+    fi
+
+    # Special handling for SSH (can be ssh or sshd)
+    if [ "$service" = "ssh" ]; then
+        if systemctl list-unit-files | grep -q "^ssh.service"; then
+            SERVICE_SYSTEMD["ssh"]="ssh"
+            return 0
+        elif systemctl list-unit-files | grep -q "^sshd.service"; then
+            SERVICE_SYSTEMD["ssh"]="sshd"
+            return 0
+        fi
         return 1
     fi
 
@@ -478,7 +494,7 @@ show_main_menu() {
         read -p "Choose an option: " choice
 
         case "$choice" in
-            [1-5])
+            [1-6])
                 local service_index=$((choice - 1))
                 if [ $service_index -lt ${#SERVICES[@]} ]; then
                     manage_service "${SERVICES[$service_index]}"

@@ -53,6 +53,14 @@ class GlobalTablesMap
             'password' => 'password',
             'user_token' => 'user_token',
             'remember_token' => 'remember_token',
+            'phone' => 'phone',
+            'avatar_url' => 'avatar_url',
+            'member_type' => 'member_type',
+            'vip_points' => 'vip_points',
+            'member_since' => 'member_since',
+            'member_expiry' => 'member_expiry',
+            'is_active' => 'is_active',
+            'preferences' => 'preferences',
             'created_at' => 'created_at',
             'updated_at' => 'updated_at'
         ]

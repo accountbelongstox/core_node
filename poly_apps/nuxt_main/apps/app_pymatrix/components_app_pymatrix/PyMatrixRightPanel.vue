@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import type { Device } from '~/types/pymatrix';
+import type { Device } from '../../../types/pymatrix';
 
 interface Props {
   groupEnabled?: boolean;
