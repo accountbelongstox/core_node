@@ -555,11 +555,17 @@
         "ScreenControlOptions interface",
         "GroupTreeNode interface",
         "UIPreferences interface",
-        "Device interface (extended with tags?: string[] field)"
+        "Device interface (extended with tags?: string[] field)",
+        "ScriptStepType type (touch|key|text|swipe|system|wait|screenshot|clipboard)",
+        "ScriptStep interface (script step with type-specific data)",
+        "ScriptStepData interface (union type for all step data)",
+        "Script interface (complete script with metadata and steps)",
+        "ScriptExecutionState interface (execution state tracking)",
+        "ScriptCategory interface (script category definition)"
       ],
       "status": "completed",
-      "completedDate": "2025-11-03T03:30:00Z",
-      "notes": "Extended pymatrix.ts with 12 new type definitions covering recording, clipboard, file transfer, screen control, UI preferences, and device tagging. Extended Device interface with optional tags field for tagging system support"
+      "completedDate": "2025-11-03T08:00:00Z",
+      "notes": "Extended pymatrix.ts with 18 new type definitions covering recording, clipboard, file transfer, screen control, UI preferences, device tagging, and script management. Script-related types support 8 step types with flexible data structure, execution state tracking, and category management"
     }
   ],
 
