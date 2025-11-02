@@ -816,8 +816,7 @@ function New-CompleteCommandContent {
 
         # 3. Show preview (if needed)
         if ($ShowPreview) {
-            $winenvsDir = Join-Path $Global:CORE_NODE_DIR $Global:WINENVS_DIR
-            $targetPath = Join-Path $winenvsDir "${CommandPrefix}${FileNumber}.ps1"
+            $targetPath = Join-Path $Global:INLINE_WINENVS_DIR "${CommandPrefix}${FileNumber}.ps1"
             Show-CommandPreview -Content $commandContent -FilePath $targetPath
         }
 
