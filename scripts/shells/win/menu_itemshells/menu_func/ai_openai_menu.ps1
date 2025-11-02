@@ -67,6 +67,7 @@ function Show-OpenAISubMenu {
     $menuItems = @(
         @{ Text = "Add $configDisplayName Global Command"; Action = "addcommand" },
         @{ Text = "View $configDisplayName Scripts"; Action = "viewscripts" },
+        @{ Text = "Restore from Configuration"; Action = "restore" },
         @{ Text = "Back to Main Menu"; Action = "back" }
     )
 
@@ -106,7 +107,20 @@ function Show-OpenAISubMenu {
                         }
 
                         Show-ExistingFilesMenu -ConfigName $configName -Files (Get-ExistingFiles -ConfigName $configName)
-                        Generate-GlobalCommand -ConfigName $configName
+                        $result = Generate-GlobalCommand -ConfigName $configName
+
+                        if ($result) {
+                            Write-ColorMessage -Message "" -Type "Info"
+                            Write-ColorMessage -Message "Do you want to save this configuration for later restoration? (Y/N)" -Type "Info"
+                            $saveConfig = Read-Host "Save configuration"
+
+                            if ($saveConfig -eq "Y" -or $saveConfig -eq "y") {
+                                if ($script:UserInputValues -and $script:UserInputValues.Count -gt 0) {
+                                    Save-ConfigurationToFile -ConfigName $configName -ConfigData $script:UserInputValues
+                                }
+                            }
+                        }
+
                         Write-ColorMessage -Message "Press any key to continue..." -Type "Info"
                         $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                     }
@@ -116,6 +130,17 @@ function Show-OpenAISubMenu {
                             $script:EnvironmentConfigs[$configName] = Get-OpenAIConfig
                         }
                         Show-ListScripts -ConfigName $configName
+                    }
+                    'restore' {
+                        $configName = "OpenAI"
+                        if (-not $script:EnvironmentConfigs.ContainsKey($configName)) {
+                            $script:EnvironmentConfigs[$configName] = Get-OpenAIConfig
+                        }
+
+                        $savedConfigData = Show-RestoreConfigurationMenu -ConfigName $configName
+                        if ($savedConfigData) {
+                            Restore-ConfigurationAndGenerate -ConfigName $configName -SavedConfigData $savedConfigData
+                        }
                     }
                     'back' {
                         return

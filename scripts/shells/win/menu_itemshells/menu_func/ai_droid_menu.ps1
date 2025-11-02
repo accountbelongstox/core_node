@@ -53,6 +53,7 @@ function Show-DroidSubMenu {
     $menuItems = @(
         @{ Text = "Add $configDisplayName Global Command"; Action = "addcommand" },
         @{ Text = "View $configDisplayName Scripts"; Action = "viewscripts" },
+        @{ Text = "Restore from Configuration"; Action = "restore" },
         @{ Text = "Back to Main Menu"; Action = "back" }
     )
 
@@ -92,7 +93,20 @@ function Show-DroidSubMenu {
                         }
 
                         Show-ExistingFilesMenu -ConfigName $configName -Files (Get-ExistingFiles -ConfigName $configName)
-                        Generate-GlobalCommand -ConfigName $configName
+                        $result = Generate-GlobalCommand -ConfigName $configName
+
+                        if ($result) {
+                            Write-ColorMessage -Message "" -Type "Info"
+                            Write-ColorMessage -Message "Do you want to save this configuration for later restoration? (Y/N)" -Type "Info"
+                            $saveConfig = Read-Host "Save configuration"
+
+                            if ($saveConfig -eq "Y" -or $saveConfig -eq "y") {
+                                if ($script:UserInputValues -and $script:UserInputValues.Count -gt 0) {
+                                    Save-ConfigurationToFile -ConfigName $configName -ConfigData $script:UserInputValues
+                                }
+                            }
+                        }
+
                         Write-ColorMessage -Message "Press any key to continue..." -Type "Info"
                         $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                     }
@@ -102,6 +116,17 @@ function Show-DroidSubMenu {
                             $script:EnvironmentConfigs[$configName] = Get-DroidConfig
                         }
                         Show-ListScripts -ConfigName $configName
+                    }
+                    'restore' {
+                        $configName = "Factory AI Droid"
+                        if (-not $script:EnvironmentConfigs.ContainsKey($configName)) {
+                            $script:EnvironmentConfigs[$configName] = Get-DroidConfig
+                        }
+
+                        $savedConfigData = Show-RestoreConfigurationMenu -ConfigName $configName
+                        if ($savedConfigData) {
+                            Restore-ConfigurationAndGenerate -ConfigName $configName -SavedConfigData $savedConfigData
+                        }
                     }
                     'back' {
                         return
