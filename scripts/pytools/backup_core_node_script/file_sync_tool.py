@@ -4,6 +4,12 @@
 File Synchronization Tool - Server and Client
 Provides web interface and API for file browsing and batch downloading
 Supports concurrent downloads, resume capability, and progress tracking
+
+AI SPECIAL ATTENTION RULES:
+- This file uses ONLY Python standard library for server functionality
+- Virtual environment is auto-initialized on first run
+- Client uses requests and tqdm (installed in venv)
+- DO NOT add Flask or any non-standard server dependencies
 """
 
 import os
@@ -12,32 +18,100 @@ import json
 import hashlib
 import threading
 import time
+import subprocess
+import urllib.parse
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from io import BytesIO
 
-try:
-    from flask import Flask, jsonify, send_file, request, render_template_string
-    import requests
-    from tqdm import tqdm
-except ImportError as e:
-    print("=" * 70)
-    print("ERROR: Missing required packages")
-    print("=" * 70)
-    print(f"\nImport error: {e}")
-    print("\nThis script requires: flask, requests, tqdm")
-    print("\nTo fix this issue, run the initialization script first:")
-    print("\n  python init_env.py")
-    print("\nThen use one of these methods to run:")
-    if sys.platform.startswith('win'):
-        print("\n  Method 1: .\\run_server.ps1")
-        print("  Method 2: .\\activate.ps1 && python file_sync_tool.py server")
+# =============================================================================
+# Virtual Environment Auto-Initialization
+# =============================================================================
+
+def is_venv():
+    """Check if running in virtual environment"""
+    return hasattr(sys, 'real_prefix') or (
+        hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix
+    )
+
+def get_script_dir():
+    """Get the directory of this script"""
+    return os.path.dirname(os.path.abspath(__file__))
+
+def init_venv_if_needed():
+    """Initialize virtual environment if not present and relaunch in venv"""
+    script_dir = get_script_dir()
+    venv_dir = os.path.join(script_dir, '.venv')
+
+    # If already in venv, check for client dependencies
+    if is_venv():
+        # Only check client dependencies if running client mode
+        if len(sys.argv) > 1 and sys.argv[1] == 'client':
+            try:
+                import requests
+                import tqdm
+            except ImportError:
+                print("Installing client dependencies...")
+                subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', 'requests', 'tqdm'])
+        return
+
+    # Not in venv, check if venv exists
+    if not os.path.exists(venv_dir):
+        print("=" * 70)
+        print("First-time setup: Creating virtual environment...")
+        print("=" * 70)
+
+        # Create virtual environment
+        print("\n[1/2] Creating virtual environment...")
+        try:
+            subprocess.check_call([sys.executable, '-m', 'venv', venv_dir])
+            print("✓ Virtual environment created")
+        except subprocess.CalledProcessError as e:
+            print(f"\n✗ Failed to create virtual environment: {e}")
+            print("\nOn Ubuntu/Debian, you may need to install:")
+            print("  sudo apt-get install python3-venv python3-full")
+            sys.exit(1)
+
+        # Install client dependencies
+        print("\n[2/2] Installing client dependencies (requests, tqdm)...")
+        venv_python = os.path.join(venv_dir, 'Scripts' if sys.platform == 'win32' else 'bin', 'python')
+        try:
+            subprocess.check_call([venv_python, '-m', 'pip', 'install', '-q', 'requests', 'tqdm'])
+            print("✓ Dependencies installed")
+        except subprocess.CalledProcessError as e:
+            print(f"\n✗ Failed to install dependencies: {e}")
+            sys.exit(1)
+
+        print("\n" + "=" * 70)
+        print("Setup completed! Restarting in virtual environment...")
+        print("=" * 70 + "\n")
+
+    # Relaunch in venv
+    venv_python = os.path.join(venv_dir, 'Scripts' if sys.platform == 'win32' else 'bin', 'python')
+    if not os.path.exists(venv_python):
+        venv_python = venv_python + '.exe' if sys.platform == 'win32' else venv_python
+
+    if os.path.exists(venv_python):
+        os.execv(venv_python, [venv_python] + sys.argv)
     else:
-        print("\n  Method 1: ./run_server.sh")
-        print("  Method 2: source ./activate.sh && python file_sync_tool.py server")
-    print("\n" + "=" * 70)
-    sys.exit(1)
+        print(f"Error: Virtual environment Python not found at {venv_python}")
+        sys.exit(1)
+
+# Initialize venv before importing any non-standard libraries
+init_venv_if_needed()
+
+# Now safe to import client dependencies (only needed for client mode)
+if len(sys.argv) > 1 and sys.argv[1] == 'client':
+    try:
+        import requests
+        from tqdm import tqdm
+    except ImportError:
+        print("Error: Client dependencies not found. Please run:")
+        print(f"  {sys.executable} -m pip install requests tqdm")
+        sys.exit(1)
 
 
 # =============================================================================
@@ -89,8 +163,196 @@ def should_exclude_path(path: str, exclude_dirs: List[str]) -> bool:
 
 
 # =============================================================================
-# Server Implementation
+# Native HTTP Server Implementation
 # =============================================================================
+
+class FileServerHandler(BaseHTTPRequestHandler):
+    """HTTP request handler for file server"""
+
+    def log_message(self, format, *args):
+        """Override to customize logging"""
+        # Suppress default logging, we'll handle it ourselves
+        pass
+
+    def send_json_response(self, data: dict, status: int = 200):
+        """Send JSON response"""
+        json_data = json.dumps(data).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(json_data)))
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json_data)
+
+    def send_html_response(self, html: str, status: int = 200):
+        """Send HTML response"""
+        html_data = html.encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(html_data)))
+        self.end_headers()
+        self.wfile.write(html_data)
+
+    def send_file_response(self, file_path: str):
+        """Send file with range support"""
+        try:
+            file_size = os.path.getsize(file_path)
+            start_byte = 0
+            end_byte = file_size - 1
+
+            # Check for Range header
+            range_header = self.headers.get('Range')
+            if range_header:
+                range_match = range_header.replace('bytes=', '').split('-')
+                start_byte = int(range_match[0]) if range_match[0] else 0
+                end_byte = int(range_match[1]) if len(range_match) > 1 and range_match[1] else end_byte
+
+                self.send_response(206)  # Partial Content
+                self.send_header('Content-Range', f'bytes {start_byte}-{end_byte}/{file_size}')
+            else:
+                self.send_response(200)
+
+            content_length = end_byte - start_byte + 1
+            filename = os.path.basename(file_path)
+
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Length', str(content_length))
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            self.send_header('Accept-Ranges', 'bytes')
+            self.end_headers()
+
+            # Send file content
+            with open(file_path, 'rb') as f:
+                f.seek(start_byte)
+                remaining = content_length
+                while remaining > 0:
+                    chunk_size = min(Config.CHUNK_SIZE, remaining)
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+
+        except Exception as e:
+            self.send_json_response({"error": str(e)}, 500)
+
+    def do_GET(self):
+        """Handle GET requests"""
+        parsed_path = urllib.parse.urlparse(self.path)
+        path = parsed_path.path
+        query = urllib.parse.parse_qs(parsed_path.query)
+
+        # Route requests
+        if path == '/':
+            self.handle_index()
+        elif path == '/api/list':
+            self.handle_api_list(query)
+        elif path == '/api/tree':
+            self.handle_api_tree()
+        elif path == '/api/download':
+            self.handle_api_download(query)
+        else:
+            self.send_json_response({"error": "Not found"}, 404)
+
+    def handle_index(self):
+        """Serve web interface"""
+        self.send_html_response(WEB_TEMPLATE)
+
+    def handle_api_list(self, query: dict):
+        """API endpoint to list files"""
+        path = query.get('path', [''])[0]
+        root_dir = self.server.root_dir
+        full_path = os.path.join(root_dir, path.lstrip('/'))
+
+        if not os.path.exists(full_path):
+            self.send_json_response({"error": "Path not found"}, 404)
+            return
+
+        if not os.path.isdir(full_path):
+            self.send_json_response({"error": "Not a directory"}, 400)
+            return
+
+        try:
+            items = []
+            for item_name in sorted(os.listdir(full_path)):
+                item_path = os.path.join(full_path, item_name)
+                relative_path = os.path.relpath(item_path, root_dir)
+
+                # Skip excluded directories
+                if should_exclude_path(relative_path, Config.EXCLUDE_DIRS):
+                    continue
+
+                item_info = {
+                    "name": item_name,
+                    "path": relative_path.replace(os.sep, '/'),
+                    "is_dir": os.path.isdir(item_path)
+                }
+
+                if not item_info["is_dir"]:
+                    try:
+                        stat = os.stat(item_path)
+                        item_info["size"] = stat.st_size
+                        item_info["modified"] = stat.st_mtime
+                    except:
+                        item_info["size"] = 0
+                        item_info["modified"] = 0
+
+                items.append(item_info)
+
+            self.send_json_response({
+                "path": path,
+                "items": items
+            })
+        except Exception as e:
+            self.send_json_response({"error": str(e)}, 500)
+
+    def handle_api_tree(self):
+        """API endpoint to get complete file tree"""
+        root_dir = self.server.root_dir
+        files = []
+
+        for root, dirs, filenames in os.walk(root_dir):
+            # Filter excluded directories
+            dirs[:] = [d for d in dirs if not should_exclude_path(
+                os.path.relpath(os.path.join(root, d), root_dir),
+                Config.EXCLUDE_DIRS
+            )]
+
+            for filename in filenames:
+                file_path = os.path.join(root, filename)
+                relative_path = os.path.relpath(file_path, root_dir)
+
+                try:
+                    stat = os.stat(file_path)
+                    files.append({
+                        "path": relative_path.replace(os.sep, '/'),
+                        "size": stat.st_size,
+                        "modified": stat.st_mtime
+                    })
+                except:
+                    continue
+
+        self.send_json_response({
+            "total_files": len(files),
+            "files": files
+        })
+
+    def handle_api_download(self, query: dict):
+        """API endpoint to download a file"""
+        path = query.get('path', [''])[0]
+        root_dir = self.server.root_dir
+        full_path = os.path.join(root_dir, path.lstrip('/'))
+
+        if not os.path.exists(full_path):
+            self.send_json_response({"error": "File not found"}, 404)
+            return
+
+        if os.path.isdir(full_path):
+            self.send_json_response({"error": "Cannot download directory"}, 400)
+            return
+
+        self.send_file_response(full_path)
+
 
 class FileServer:
     """File server with web interface and API"""
@@ -98,108 +360,7 @@ class FileServer:
     def __init__(self, root_dir: str, port: int = Config.DEFAULT_PORT):
         self.root_dir = os.path.abspath(root_dir)
         self.port = port
-        self.app = Flask(__name__)
-        self.setup_routes()
-
-    def setup_routes(self):
-        """Setup Flask routes"""
-
-        @self.app.route('/')
-        def index():
-            """Main web interface"""
-            return render_template_string(WEB_TEMPLATE)
-
-        @self.app.route('/api/list')
-        def api_list_files():
-            """API endpoint to list files"""
-            path = request.args.get('path', '')
-            full_path = os.path.join(self.root_dir, path.lstrip('/'))
-
-            if not os.path.exists(full_path):
-                return jsonify({"error": "Path not found"}), 404
-
-            if not os.path.isdir(full_path):
-                return jsonify({"error": "Not a directory"}), 400
-
-            try:
-                items = []
-                for item_name in sorted(os.listdir(full_path)):
-                    item_path = os.path.join(full_path, item_name)
-                    relative_path = os.path.relpath(item_path, self.root_dir)
-
-                    # Skip excluded directories
-                    if should_exclude_path(relative_path, Config.EXCLUDE_DIRS):
-                        continue
-
-                    item_info = {
-                        "name": item_name,
-                        "path": relative_path.replace(os.sep, '/'),
-                        "is_dir": os.path.isdir(item_path)
-                    }
-
-                    if not item_info["is_dir"]:
-                        try:
-                            stat = os.stat(item_path)
-                            item_info["size"] = stat.st_size
-                            item_info["modified"] = stat.st_mtime
-                        except:
-                            item_info["size"] = 0
-                            item_info["modified"] = 0
-
-                    items.append(item_info)
-
-                return jsonify({
-                    "path": path,
-                    "items": items
-                })
-            except Exception as e:
-                return jsonify({"error": str(e)}), 500
-
-        @self.app.route('/api/download')
-        def api_download_file():
-            """API endpoint to download a file"""
-            path = request.args.get('path', '')
-            full_path = os.path.join(self.root_dir, path.lstrip('/'))
-
-            if not os.path.exists(full_path):
-                return jsonify({"error": "File not found"}), 404
-
-            if os.path.isdir(full_path):
-                return jsonify({"error": "Cannot download directory"}), 400
-
-            # Support range requests for resume capability
-            return send_file(full_path, as_attachment=True, conditional=True)
-
-        @self.app.route('/api/tree')
-        def api_file_tree():
-            """API endpoint to get complete file tree"""
-            files = []
-
-            for root, dirs, filenames in os.walk(self.root_dir):
-                # Filter excluded directories
-                dirs[:] = [d for d in dirs if not should_exclude_path(
-                    os.path.relpath(os.path.join(root, d), self.root_dir),
-                    Config.EXCLUDE_DIRS
-                )]
-
-                for filename in filenames:
-                    file_path = os.path.join(root, filename)
-                    relative_path = os.path.relpath(file_path, self.root_dir)
-
-                    try:
-                        stat = os.stat(file_path)
-                        files.append({
-                            "path": relative_path.replace(os.sep, '/'),
-                            "size": stat.st_size,
-                            "modified": stat.st_mtime
-                        })
-                    except:
-                        continue
-
-            return jsonify({
-                "total_files": len(files),
-                "files": files
-            })
+        self.httpd = None
 
     def run(self):
         """Start the server"""
@@ -212,7 +373,15 @@ class FileServer:
         print(f"  - Download: http://0.0.0.0:{self.port}/api/download?path=<file_path>")
         print(f"\nPress Ctrl+C to stop the server")
 
-        self.app.run(host='0.0.0.0', port=self.port, threaded=True)
+        # Create server with custom handler
+        self.httpd = HTTPServer(('0.0.0.0', self.port), FileServerHandler)
+        self.httpd.root_dir = self.root_dir
+
+        try:
+            self.httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\n\nShutting down server...")
+            self.httpd.shutdown()
 
 
 # =============================================================================
@@ -647,112 +816,63 @@ WEB_TEMPLATE = """
 
 
 # =============================================================================
-# Menu System
+# Command Line Interface
 # =============================================================================
-
-def show_menu():
-    """Display main menu"""
-    print("\n" + "=" * 60)
-    print("File Synchronization Tool".center(60))
-    print("=" * 60)
-    print("\n1. Start Server (Share files from /www/wwwroot/)")
-    print("2. Start Client (Download files from server)")
-    print("3. Exit")
-    print("\n" + "=" * 60)
-
-
-def start_server():
-    """Start file server"""
-    print("\n" + "=" * 60)
-    print("Starting File Server".center(60))
-    print("=" * 60 + "\n")
-
-    root_dir = Config.SERVER_ROOT
-    if not os.path.exists(root_dir):
-        print(f"Warning: Server root directory does not exist: {root_dir}")
-        create = input("Create directory? (y/n): ").strip().lower()
-        if create == 'y':
-            os.makedirs(root_dir, exist_ok=True)
-            print(f"Created directory: {root_dir}")
-        else:
-            print("Cannot start server without root directory")
-            return
-
-    port = input(f"Enter port (default: {Config.DEFAULT_PORT}): ").strip()
-    if not port:
-        port = Config.DEFAULT_PORT
-    else:
-        try:
-            port = int(port)
-        except:
-            print("Invalid port, using default")
-            port = Config.DEFAULT_PORT
-
-    server = FileServer(root_dir, port)
-    server.run()
-
-
-def start_client():
-    """Start file client"""
-    print("\n" + "=" * 60)
-    print("Starting File Client".center(60))
-    print("=" * 60 + "\n")
-
-    server_ip = input("Enter server IP address: ").strip()
-    if not server_ip:
-        print("Server IP is required")
-        return
-
-    port = input(f"Enter server port (default: {Config.DEFAULT_PORT}): ").strip()
-    if not port:
-        port = Config.DEFAULT_PORT
-    else:
-        try:
-            port = int(port)
-        except:
-            print("Invalid port, using default")
-            port = Config.DEFAULT_PORT
-
-    print(f"\nConnecting to {server_ip}:{port}...")
-
-    client = FileClient(server_ip, port)
-    client.start_sync()
-
-    print("\nPress Enter to continue...")
-    input()
-
 
 def main():
     """Main program entry point"""
-    while True:
-        show_menu()
-        choice = input("\nEnter your choice (1-3): ").strip()
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  python file_sync_tool.py server [--port PORT]")
+        print("  python file_sync_tool.py client --server SERVER_URL [--path PATH]")
+        sys.exit(1)
 
-        if choice == '1':
-            try:
-                start_server()
-            except KeyboardInterrupt:
-                print("\n\nServer stopped by user")
-            except Exception as e:
-                print(f"\nServer error: {e}")
-            input("\nPress Enter to continue...")
+    command = sys.argv[1]
 
-        elif choice == '2':
-            try:
-                start_client()
-            except KeyboardInterrupt:
-                print("\n\nClient stopped by user")
-            except Exception as e:
-                print(f"\nClient error: {e}")
-            input("\nPress Enter to continue...")
+    if command == 'server':
+        # Parse server arguments
+        port = Config.DEFAULT_PORT
+        for i, arg in enumerate(sys.argv):
+            if arg == '--port' and i + 1 < len(sys.argv):
+                port = int(sys.argv[i + 1])
 
-        elif choice == '3':
-            print("\nExiting...")
-            sys.exit(0)
+        root_dir = Config.SERVER_ROOT
+        if not os.path.exists(root_dir):
+            print(f"Warning: Server root directory does not exist: {root_dir}")
+            print("Creating directory...")
+            os.makedirs(root_dir, exist_ok=True)
 
+        server = FileServer(root_dir, port)
+        server.run()
+
+    elif command == 'client':
+        # Parse client arguments
+        server_url = None
+        for i, arg in enumerate(sys.argv):
+            if arg == '--server' and i + 1 < len(sys.argv):
+                server_url = sys.argv[i + 1]
+
+        if not server_url:
+            print("Error: --server argument is required")
+            print("Usage: python file_sync_tool.py client --server http://SERVER_IP:PORT")
+            sys.exit(1)
+
+        # Extract IP and port from URL
+        server_url = server_url.replace('http://', '').replace('https://', '')
+        if ':' in server_url:
+            server_ip, port = server_url.split(':')
+            port = int(port)
         else:
-            print("\nInvalid choice. Please enter 1, 2, or 3.")
-            input("Press Enter to continue...")
+            server_ip = server_url
+            port = Config.DEFAULT_PORT
+
+        client = FileClient(server_ip, port)
+        client.start_sync()
+
+    else:
+        print(f"Unknown command: {command}")
+        print("Available commands: server, client")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 #!/bin/bash
 # Script: 34_install_composer.sh
-# Description: Dedicated Composer installation with PHP 8.4
+# Description: Dedicated Composer installation with PHP 8.4 and strong auto-correction
 # Author: System Administrator
-# Version: 1.0
+# Version: 2.0
 
 # Color definitions
 RED='\033[0;31m'
@@ -27,6 +27,15 @@ source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
 # Configuration - using variables from php_common_vars.sh
 PHP_BINARY="/usr/local/bin/php"
+
+# Version requirements
+MIN_COMPOSER_VERSION_MAJOR=2
+MIN_COMPOSER_VERSION_MINOR=7
+MIN_COMPOSER_VERSION_PATCH=0
+MIN_COMPOSER_VERSION="2.7.0"
+
+# PHP version tracking file
+PHP_VERSION_TRACK_FILE="/usr/local/etc/.composer_php_version"
 
 # Set Composer environment based on user privileges
 if [ "$EUID" -eq 0 ]; then
@@ -73,6 +82,146 @@ get_composer_version() {
     fi
 }
 
+# Compare version strings (returns 0 if version1 >= version2)
+version_compare() {
+    local version1=$1
+    local version2=$2
+
+    if [ "$version1" = "unknown" ] || [ "$version1" = "not_installed" ]; then
+        return 1
+    fi
+
+    local IFS=.
+    local ver1=($version1)
+    local ver2=($version2)
+
+    for ((i=0; i<3; i++)); do
+        local num1=${ver1[i]:-0}
+        local num2=${ver2[i]:-0}
+
+        if ((num1 > num2)); then
+            return 0
+        elif ((num1 < num2)); then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+# Check if Composer has deprecation warnings (indicates old version)
+check_composer_errors() {
+    local test_output
+    test_output=$(COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d open_basedir= "${COMPOSER_TARGET_PATH}.original" --version 2>&1)
+
+    if echo "$test_output" | grep -qi "deprecated\|warning\|error"; then
+        return 1
+    fi
+    return 0
+}
+
+# Get current PHP version
+get_current_php_version() {
+    if [ -x "$PHP_BINARY" ]; then
+        "$PHP_BINARY" -v 2>/dev/null | grep -oP 'PHP \K[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || echo "unknown"
+    else
+        echo "not_found"
+    fi
+}
+
+# Get stored PHP version
+get_stored_php_version() {
+    if [ -f "$PHP_VERSION_TRACK_FILE" ]; then
+        cat "$PHP_VERSION_TRACK_FILE" 2>/dev/null || echo "unknown"
+    else
+        echo "not_stored"
+    fi
+}
+
+# Store current PHP version
+store_php_version() {
+    local php_version=$(get_current_php_version)
+    if [ "$php_version" != "unknown" ] && [ "$php_version" != "not_found" ]; then
+        $USE_SUDO mkdir -p "$(dirname "$PHP_VERSION_TRACK_FILE")"
+        echo "$php_version" | $USE_SUDO tee "$PHP_VERSION_TRACK_FILE" > /dev/null
+        echo -e "${GREEN}$SCRIPT_INDEX Stored PHP version: $php_version${NC}"
+    fi
+}
+
+# Check if PHP version changed
+is_php_version_changed() {
+    local current_version=$(get_current_php_version)
+    local stored_version=$(get_stored_php_version)
+
+    if [ "$stored_version" = "not_stored" ]; then
+        return 0
+    fi
+
+    if [ "$current_version" != "$stored_version" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP version changed: $stored_version -> $current_version${NC}"
+        return 0
+    fi
+
+    return 1
+}
+
+# Strong correction check - determines if reinstall is needed
+needs_correction() {
+    local reason=""
+
+    # Check 1: Composer binary location
+    if [ ! -f "$COMPOSER_TARGET_PATH" ]; then
+        reason="Composer binary missing at $COMPOSER_TARGET_PATH"
+        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
+        return 0
+    fi
+
+    # Check 2: Original binary location
+    if [ ! -f "${COMPOSER_TARGET_PATH}.original" ]; then
+        reason="Original Composer binary missing"
+        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
+        return 0
+    fi
+
+    # Check 3: Installation completeness
+    if ! is_composer_installation_complete; then
+        reason="Incomplete installation (wrapper or original binary not working)"
+        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
+        return 0
+    fi
+
+    # Check 4: Version compatibility
+    local current_version=$(get_composer_version)
+    if ! version_compare "$current_version" "$MIN_COMPOSER_VERSION"; then
+        reason="Composer version $current_version is too old (requires >= $MIN_COMPOSER_VERSION for PHP 8.4)"
+        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
+        return 0
+    fi
+
+    # Check 5: Deprecation warnings
+    if ! check_composer_errors; then
+        reason="Composer showing deprecation warnings (old version incompatible with PHP 8.4)"
+        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
+        return 0
+    fi
+
+    # Check 6: PHP version changed
+    if is_php_version_changed; then
+        reason="PHP version changed, Composer needs reinstallation"
+        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
+        return 0
+    fi
+
+    # Check 7: Wrapper script integrity
+    if [ ! -f "/usr/local/bin/composer-safe" ]; then
+        reason="composer-safe wrapper missing"
+        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
+        return 0
+    fi
+
+    return 1
+}
+
 # Check if Composer installation is complete and working
 is_composer_installation_complete() {
     # Both original binary and wrapper must exist and work
@@ -109,7 +258,8 @@ fi
 # Simple installation check
 main() {
     echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX Composer Installation for PHP 8.4${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Composer Installation for PHP 8.4 (Server Edition)${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Version: 2.0 - With Strong Auto-Correction${NC}"
     echo -e "${CYAN}============================================================================${NC}"
 
     # Check PHP 8.4 availability
@@ -124,20 +274,34 @@ main() {
         exit 1
     fi
 
-    echo -e "${GREEN}$SCRIPT_INDEX PHP 8.4 confirmed at $PHP_BINARY${NC}"
+    local php_version=$(get_current_php_version)
+    echo -e "${GREEN}$SCRIPT_INDEX PHP $php_version confirmed at $PHP_BINARY${NC}"
 
-    # Check current Composer installation status
+    # Strong correction check
     local current_version=$(get_composer_version)
-    if [ "$current_version" != "not_installed" ] && is_composer_installation_complete && [ "$FORCE_REINSTALL" = false ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX Composer $current_version is already installed and working${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX Location: $COMPOSER_TARGET_PATH (wrapper)${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX Original: ${COMPOSER_TARGET_PATH}.original${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX Safe wrapper: /usr/local/bin/composer-safe${NC}"
-        echo -e "${CYAN}$SCRIPT_INDEX Use --force to reinstall and recreate wrappers${NC}"
+    local auto_fix_needed=false
+
+    if [ "$FORCE_REINSTALL" = true ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX [FORCE MODE] Force reinstall requested${NC}"
+        auto_fix_needed=true
+    elif needs_correction; then
+        echo -e "${YELLOW}$SCRIPT_INDEX [AUTO-CORRECTION] Issues detected, automatic reinstall triggered${NC}"
+        auto_fix_needed=true
+    elif [ "$current_version" != "not_installed" ] && is_composer_installation_complete; then
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Composer $current_version is properly installed and working${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Location: $COMPOSER_TARGET_PATH (wrapper)${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Original: ${COMPOSER_TARGET_PATH}.original${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Safe wrapper: /usr/local/bin/composer-safe${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ PHP version tracking: $php_version${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX All checks passed - no corrections needed${NC}"
         exit 0
-    elif [ "$current_version" != "not_installed" ] && [ "$FORCE_REINSTALL" = false ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Composer $current_version found but installation is incomplete${NC}"
-        echo -e "${YELLOW}$SCRIPT_INDEX Missing wrappers or original binary, reinstalling...${NC}"
+    else
+        echo -e "${YELLOW}$SCRIPT_INDEX Composer not found or incomplete, proceeding with installation${NC}"
+        auto_fix_needed=true
+    fi
+
+    if [ "$auto_fix_needed" = false ]; then
+        exit 0
     fi
 
     # Show environment configuration
@@ -148,12 +312,19 @@ main() {
         echo -e "${CYAN}$SCRIPT_INDEX Non-interactive mode enabled: COMPOSER_NO_INTERACTION=1${NC}"
     fi
 
-    # Clean install - remove all composer-related files to ensure clean state
-    echo -e "${CYAN}$SCRIPT_INDEX Cleaning existing Composer installations...${NC}"
+    # Strong cleanup - remove all composer-related files to ensure clean state
+    echo -e "${CYAN}============================================================================${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX [CLEANUP] Removing all existing Composer installations...${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
+
     $USE_SUDO rm -f "$COMPOSER_TARGET_PATH" 2>/dev/null || true
     $USE_SUDO rm -f "${COMPOSER_TARGET_PATH}.original" 2>/dev/null || true
     $USE_SUDO rm -f "/usr/local/bin/composer-safe" 2>/dev/null || true
     $USE_SUDO rm -f "/usr/local/bin/composer-php84" 2>/dev/null || true
+    $USE_SUDO rm -f "/usr/bin/composer" 2>/dev/null || true
+    $USE_SUDO rm -f "/usr/local/bin/composer.phar" 2>/dev/null || true
+
+    echo -e "${GREEN}$SCRIPT_INDEX ✓ Cleanup completed${NC}"
 
     # Only download and install Composer if original binary doesn't exist
     if ! is_original_composer_working; then

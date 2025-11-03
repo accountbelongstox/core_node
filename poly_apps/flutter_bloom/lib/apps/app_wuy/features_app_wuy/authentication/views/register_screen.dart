@@ -68,32 +68,36 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
           appBar: AppBar(
             title: Text(
               LocalizationKeysAppWuy.wuyRegisterTitle.tr(context),
-              style: ThemeTextStyles.displayMedium,
+              style: ThemeTextStyles.displayMedium.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             backgroundColor: ThemeColors.primary,
             elevation: 0,
+            centerTitle: true,
           ),
           body: SingleChildScrollView(
-            padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(height: ThemeDimensions.spacingLarge),
+                  const SizedBox(height: 12),
                   _buildLogo(),
-                  SizedBox(height: ThemeDimensions.spacingXLarge),
+                  const SizedBox(height: 36),
                   _buildPhoneField(),
-                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  const SizedBox(height: 16),
                   _buildVerificationCodeField(),
-                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  const SizedBox(height: 16),
                   _buildPasswordField(),
-                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  const SizedBox(height: 16),
                   _buildConfirmPasswordField(),
-                  SizedBox(height: ThemeDimensions.spacingLarge),
+                  const SizedBox(height: 32),
                   _buildRegisterButton(),
-                  SizedBox(height: ThemeDimensions.spacingMedium),
+                  const SizedBox(height: 20),
                   _buildSignInLink(),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -106,20 +110,56 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
   Widget _buildLogo() {
     return Column(
       children: [
-        Icon(
-          Icons.apps,
-          size: 80,
-          color: ThemeColors.primary,
+        Container(
+          width: 88,
+          height: 88,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.accent,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: ThemeColors.primary.withOpacity(0.3),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+                spreadRadius: 0,
+              ),
+              BoxShadow(
+                color: ThemeColors.accent.withOpacity(0.2),
+                blurRadius: 28,
+                offset: const Offset(0, 12),
+                spreadRadius: -5,
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.apps,
+            size: 44,
+            color: Colors.white,
+          ),
         ),
-        SizedBox(height: ThemeDimensions.spacingMedium),
+        const SizedBox(height: 18),
         Text(
           LocalizationKeysAppWuy.wuyRegisterTitle.tr(context),
-          style: ThemeTextStyles.displayMedium,
+          style: ThemeTextStyles.displayMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 24,
+            letterSpacing: -0.5,
+          ),
         ),
+        const SizedBox(height: 6),
         Text(
           LocalizationKeysAppWuy.wuyRegisterSubtitle.tr(context),
           style: ThemeTextStyles.bodyLarge.copyWith(
-            color: ThemeColors.textSecondary,
+            color: ThemeColors.textSecondary.withOpacity(0.8),
+            fontSize: 14,
+            letterSpacing: 0.2,
           ),
         ),
       ],
@@ -147,6 +187,7 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
 
   Widget _buildVerificationCodeField() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: WuyModernInputField(
@@ -166,14 +207,41 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
             },
           ),
         ),
-        SizedBox(width: ThemeDimensions.spacingMedium),
-        SizedBox(
-          width: 120,
-          child: WuyGradientButton(
-            text: _countdown > 0 ? '${_countdown}s' : 'Send Code',
-            onPressed: _countdown > 0 ? null : _sendVerificationCode,
-            height: 56,
-            enabled: _countdown == 0,
+        const SizedBox(width: 12),
+        Container(
+          width: 110,
+          height: 56,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: _countdown > 0
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      ThemeColors.primary,
+                      ThemeColors.accent,
+                    ],
+                  ),
+            color: _countdown > 0 ? ThemeColors.textSecondary.withOpacity(0.2) : null,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: _countdown > 0 ? null : _sendVerificationCode,
+              child: Center(
+                child: Text(
+                  _countdown > 0 ? '${_countdown}s' : 'Send',
+                  style: ThemeTextStyles.bodyMedium.copyWith(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -241,11 +309,33 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
   }
 
   Widget _buildRegisterButton() {
-    return WuyGradientButton(
-      text: 'Register',
-      onPressed: _handleRegister,
-      isLoading: _isLoading,
-      height: 50,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.primary.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.accent.withOpacity(0.15),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: WuyGradientButton(
+        text: 'Register',
+        onPressed: _handleRegister,
+        isLoading: _isLoading,
+        height: 54,
+        borderRadius: 28.0,
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 
@@ -255,17 +345,28 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
       children: [
         Text(
           "Already have an account? ",
-          style: ThemeTextStyles.bodyMedium,
+          style: ThemeTextStyles.bodyMedium.copyWith(
+            fontSize: 14,
+            color: ThemeColors.textSecondary.withOpacity(0.9),
+            letterSpacing: 0.1,
+          ),
         ),
         TextButton(
           onPressed: () {
             context.go(WuyAppRouter.routeLogin);
           },
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
           child: Text(
             'Sign In',
             style: ThemeTextStyles.bodyMedium.copyWith(
               color: ThemeColors.primary,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              letterSpacing: 0.1,
             ),
           ),
         ),

@@ -109,10 +109,27 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
       appBar: AppBar(
         title: Text(
           LocalizationKeysAppWuy.wuyMapTitle.tr(context),
-          style: ThemeTextStyles.displayMedium,
+          style: ThemeTextStyles.displayMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.my_location, color: ThemeColors.white),
@@ -205,13 +222,27 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
       top: 100,
       left: 20,
       right: 20,
-      child: Card(
-        elevation: 8,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+              spreadRadius: 0,
+            ),
+          ],
         ),
         child: Padding(
-          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          padding: const EdgeInsets.all(20),
           child: Column(
             children: [
               Row(
@@ -234,24 +265,30 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
                           children: [
                             Text(
                               friend.displayName,
-                              style: ThemeTextStyles.title3Bold,
+                              style: ThemeTextStyles.title3Bold.copyWith(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                                letterSpacing: -0.3,
+                              ),
                             ),
                             if (friend.daysTogether != null) ...[
-                              SizedBox(width: ThemeDimensions.spacing8),
+                              const SizedBox(width: 10),
                               Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: ThemeDimensions.spacing8,
-                                  vertical: ThemeDimensions.spacing4,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: ThemeColors.orange.withOpacity(0.1),
+                                  color: ThemeColors.orange.withOpacity(0.12),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
                                   '${friend.daysTogether} days',
                                   style: ThemeTextStyles.caption1.copyWith(
                                     color: ThemeColors.orange,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                    letterSpacing: 0.2,
                                   ),
                                 ),
                               ),
@@ -353,9 +390,16 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
           color: ThemeColors.white,
           boxShadow: [
             BoxShadow(
-              color: ThemeColors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: Offset(0, -2),
+              color: ThemeColors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+              spreadRadius: 0,
             ),
           ],
         ),

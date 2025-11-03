@@ -312,11 +312,142 @@ verify_installation() {
     fi
 }
 
+# Function to setup Python venv for production server with high Python version
+setup_production_python_venv() {
+    print_step_from_common_functions "Setting up Python venv for production server..."
+
+    local python_venv_dir="$COMPILE_DIR/python_venv"
+    local python_version_major=""
+    local python_version_minor=""
+    local system_python3_path=""
+
+    if command -v python3 >/dev/null 2>&1; then
+        system_python3_path=$(command -v python3)
+        python_version_major=$(python3 -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo "0")
+        python_version_minor=$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo "0")
+    else
+        print_error_from_common_functions "Python3 not found, cannot setup venv"
+        return 1
+    fi
+
+    local python_version_full="${python_version_major}.${python_version_minor}"
+    print_info_from_common_functions "Detected Python version: $python_version_full (path: $system_python3_path)"
+
+    if [ "$python_version_major" -lt 3 ]; then
+        print_error_from_common_functions "Python version too old: $python_version_full"
+        return 1
+    fi
+
+    if [ "$python_version_major" -eq 3 ] && [ "$python_version_minor" -le 11 ]; then
+        print_info_from_common_functions "Python version $python_version_full is acceptable (<=3.11), skipping venv setup"
+        return 0
+    fi
+
+    print_warning_from_common_functions "Python version $python_version_full is higher than 3.11"
+    print_step_from_common_functions "Creating Python venv in: $python_venv_dir"
+
+    if [ -d "$python_venv_dir" ] && [ -f "$python_venv_dir/bin/python3" ]; then
+        print_info_from_common_functions "Python venv already exists at: $python_venv_dir"
+        print_step_from_common_functions "Verifying existing venv..."
+    else
+        print_step_from_common_functions "Creating new Python venv..."
+
+        if [ ! -d "$COMPILE_DIR" ]; then
+            print_step_from_common_functions "Creating compile directory: $COMPILE_DIR"
+            $USE_SUDO mkdir -p "$COMPILE_DIR"
+            $USE_SUDO chmod 755 "$COMPILE_DIR"
+        fi
+
+        print_step_from_common_functions "Ensuring python3-venv is installed..."
+        if ! python3 -m venv --help >/dev/null 2>&1; then
+            print_warning_from_common_functions "python3-venv module not available, installing..."
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv --no-install-recommends || true
+        fi
+
+        print_step_from_common_functions "Creating venv with system Python3: $system_python3_path"
+        if $system_python3_path -m venv "$python_venv_dir" 2>&1; then
+            print_success_from_common_functions "Python venv created successfully"
+        else
+            print_error_from_common_functions "Failed to create Python venv"
+            print_warning_from_common_functions "Attempting alternative venv creation method..."
+
+            if python3 -m venv --system-site-packages "$python_venv_dir" 2>&1; then
+                print_success_from_common_functions "Python venv created with --system-site-packages"
+            else
+                print_error_from_common_functions "All venv creation methods failed"
+                return 1
+            fi
+        fi
+
+        print_step_from_common_functions "Installing essential packages in venv..."
+        if [ -f "$python_venv_dir/bin/pip3" ]; then
+            "$python_venv_dir/bin/pip3" install --upgrade pip setuptools wheel 2>&1 | head -20 || true
+        fi
+    fi
+
+    local venv_python3="$python_venv_dir/bin/python3"
+    local venv_pip3="$python_venv_dir/bin/pip3"
+
+    if [ ! -f "$venv_python3" ]; then
+        print_error_from_common_functions "Python venv python3 binary not found at: $venv_python3"
+        return 1
+    fi
+
+    if [ ! -f "$venv_pip3" ]; then
+        print_warning_from_common_functions "pip3 not found in venv, but python3 exists"
+    fi
+
+    print_step_from_common_functions "Setting +x permissions on venv binaries..."
+    $USE_SUDO chmod +x "$venv_python3" 2>/dev/null || chmod +x "$venv_python3"
+    if [ -f "$venv_pip3" ]; then
+        $USE_SUDO chmod +x "$venv_pip3" 2>/dev/null || chmod +x "$venv_pip3"
+    fi
+
+    print_step_from_common_functions "Setting up global symlinks to venv Python..."
+
+    if [ -L /usr/local/bin/python3 ] || [ -f /usr/local/bin/python3 ]; then
+        $USE_SUDO rm -f /usr/local/bin/python3
+    fi
+    $USE_SUDO ln -sf "$venv_python3" /usr/local/bin/python3
+    print_success_from_common_functions "Created symlink: /usr/local/bin/python3 -> $venv_python3"
+
+    if [ -f "$venv_pip3" ]; then
+        if [ -L /usr/local/bin/pip3 ] || [ -f /usr/local/bin/pip3 ]; then
+            $USE_SUDO rm -f /usr/local/bin/pip3
+        fi
+        $USE_SUDO ln -sf "$venv_pip3" /usr/local/bin/pip3
+        print_success_from_common_functions "Created symlink: /usr/local/bin/pip3 -> $venv_pip3"
+    fi
+
+    if [ -L /usr/local/bin/python ] || [ -f /usr/local/bin/python ]; then
+        $USE_SUDO rm -f /usr/local/bin/python
+    fi
+    $USE_SUDO ln -sf "$venv_python3" /usr/local/bin/python
+    print_success_from_common_functions "Created symlink: /usr/local/bin/python -> $venv_python3"
+
+    if [ -f "$venv_pip3" ]; then
+        if [ -L /usr/local/bin/pip ] || [ -f /usr/local/bin/pip ]; then
+            $USE_SUDO rm -f /usr/local/bin/pip
+        fi
+        $USE_SUDO ln -sf "$venv_pip3" /usr/local/bin/pip
+        print_success_from_common_functions "Created symlink: /usr/local/bin/pip -> $venv_pip3"
+    fi
+
+    print_success_from_common_functions "Production Python venv setup complete!"
+    print_info_from_common_functions "Python venv location: $python_venv_dir"
+    print_info_from_common_functions "System Python version: $python_version_full"
+    print_info_from_common_functions "Global python3/pip3 now point to venv binaries"
+    print_info_from_common_functions "Venv allows isolated package management for production"
+
+    return 0
+}
+
 # Main function
 main() {
     local needs_install=false
 
     print_step_from_common_functions "Checking Python environment status..."
+    print_info_from_common_functions "Environment type: IS_PRODUCTION=$IS_PRODUCTION, IS_WSL=$IS_WSL, HAS_DESKTOP_ENVIRONMENT=$HAS_DESKTOP_ENVIRONMENT"
 
     # Check Python installation
     if ! check_python_installed; then
@@ -345,9 +476,21 @@ main() {
         set_pip_mirror
     fi
 
-    # Fix Python symlinks (always run to ensure correctness)
-    if ! fix_python_links; then
-        print_warning_from_common_functions "Failed to fix some Python symlinks"
+    # Production server special handling: setup venv for high Python versions
+    if [ "$IS_PRODUCTION" = true ]; then
+        print_header_from_common_functions "Production Server Python Environment"
+        print_info_from_common_functions "Detected production server environment"
+        print_info_from_common_functions "Will check Python version and setup venv if needed"
+
+        if ! setup_production_python_venv; then
+            print_warning_from_common_functions "Failed to setup production Python venv"
+            print_warning_from_common_functions "Continuing with system Python..."
+        fi
+    else
+        # Fix Python symlinks for non-production environments (always run to ensure correctness)
+        if ! fix_python_links; then
+            print_warning_from_common_functions "Failed to fix some Python symlinks"
+        fi
     fi
 
     # Verify installation
@@ -358,7 +501,11 @@ main() {
     fi
 
     print_success_from_common_functions "Python environment setup complete!"
-    print_info_from_common_functions "System Python is used directly (no virtual environments)"
+    if [ "$IS_PRODUCTION" = true ]; then
+        print_info_from_common_functions "Production server: Using venv-based Python for high version compatibility"
+    else
+        print_info_from_common_functions "System Python is used directly (no virtual environments)"
+    fi
     print_info_from_common_functions "Tools available: python3, pip3"
 
     return 0

@@ -116,11 +116,27 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
             appBar: AppBar(
               title: Text(
                 LocalizationKeysAppWuy.wuyFriendsTitle.tr(context),
-                style: WuyAppThemeConfig.wuyAppBarTitle,
+                style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                  letterSpacing: -0.5,
+                ),
               ),
               backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
               elevation: 0,
               centerTitle: true,
+              flexibleSpace: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      WuyAppThemeConfig.wuyPrimaryColor,
+                      WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.9),
+                    ],
+                  ),
+                ),
+              ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.search, color: Colors.white),
@@ -141,14 +157,13 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
               ],
             ),
             bottomNavigationBar: WuyBottomNavigation(
-              currentIndex: 1, // Friends is the 2nd item (index 1)
+              currentIndex: 1,
               onTap: (index) {
                 switch (index) {
                   case 0:
                     context.go(WuyAppRouter.routeSearch);
                     break;
                   case 1:
-                    // Already on friends page
                     break;
                   case 2:
                     context.go(WuyAppRouter.routeFindFriends);
@@ -167,12 +182,24 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
 
   Widget _buildSearchBar() {
     return Container(
-      padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
-      child: WuyModernInputField(
-        controller: _searchController,
-        onChanged: _filterFriends,
-        hintText: LocalizationKeysAppWuy.wuyFriendsSearch.tr(context),
-        prefixIcon: Icons.search,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: WuyModernInputField(
+          controller: _searchController,
+          onChanged: _filterFriends,
+          hintText: LocalizationKeysAppWuy.wuyFriendsSearch.tr(context),
+          prefixIcon: Icons.search,
+        ),
       ),
     );
   }
@@ -224,36 +251,38 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
 
   Widget _buildFriendItem(FriendModelAppWuy friend) {
     return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: WuyAppThemeConfig.wuyDefaultPadding,
-        vertical: ThemeDimensions.spacing8,
+      margin: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 8,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 14,
             offset: const Offset(0, 4),
+            spreadRadius: 0,
           ),
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
-            blurRadius: 4,
+            blurRadius: 6,
             offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           onTap: () {
             context.go(
                 WuyAppRouter.routeFriendInfo.replaceAll(':id', friend.id));
           },
           child: Padding(
-            padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 _buildAvatarWithStatus(friend),

@@ -74,10 +74,27 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
       appBar: AppBar(
         title: Text(
           'Friend Info',
-          style: ThemeTextStyles.displayMedium,
+          style: ThemeTextStyles.displayMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.go(WuyAppRouter.routeHome),
@@ -151,16 +168,23 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
 
   Widget _buildLocationsSection() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultPadding),
-      padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+      margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 2),
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
@@ -169,38 +193,51 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
         children: [
           Text(
             'TA今天去过的地方',
-            style: ThemeTextStyles.title3,
+            style: ThemeTextStyles.title3.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 19,
+              letterSpacing: -0.4,
+            ),
           ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
+          SizedBox(height: 16),
           Row(
             children: [
-              Icon(Icons.grid_view, color: ThemeColors.primary),
-              SizedBox(width: ThemeDimensions.spacingSmall),
+              Icon(Icons.grid_view, color: ThemeColors.primary, size: 22),
+              SizedBox(width: 12),
               Text(
                 '2020-04-20 20:00',
-                style: ThemeTextStyles.bodyMedium,
+                style: ThemeTextStyles.bodyMedium.copyWith(
+                  fontSize: 15,
+                  letterSpacing: 0.1,
+                ),
               ),
             ],
           ),
-          SizedBox(height: ThemeDimensions.spacingSmall),
+          SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.grid_view, color: ThemeColors.primary),
-              SizedBox(width: ThemeDimensions.spacingSmall),
+              Icon(Icons.grid_view, color: ThemeColors.primary, size: 22),
+              SizedBox(width: 12),
               Text(
                 '2020-04-20 18:30',
-                style: ThemeTextStyles.bodyMedium,
+                style: ThemeTextStyles.bodyMedium.copyWith(
+                  fontSize: 15,
+                  letterSpacing: 0.1,
+                ),
               ),
             ],
           ),
-          SizedBox(height: ThemeDimensions.spacingSmall),
+          SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.grid_view, color: ThemeColors.primary),
-              SizedBox(width: ThemeDimensions.spacingSmall),
+              Icon(Icons.grid_view, color: ThemeColors.primary, size: 22),
+              SizedBox(width: 12),
               Text(
                 '2020-04-20 15:15',
-                style: ThemeTextStyles.bodyMedium,
+                style: ThemeTextStyles.bodyMedium.copyWith(
+                  fontSize: 15,
+                  letterSpacing: 0.1,
+                ),
               ),
             ],
           ),
@@ -211,16 +248,23 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
 
   Widget _buildAchievementsSection() {
     return Container(
-      margin: EdgeInsets.all(ThemeDimensions.defaultPadding),
-      padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+      margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 2),
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
@@ -229,9 +273,13 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
         children: [
           Text(
             'TA今天的成就',
-            style: ThemeTextStyles.title3,
+            style: ThemeTextStyles.title3.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 19,
+              letterSpacing: -0.4,
+            ),
           ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
+          SizedBox(height: 16),
           _buildAchievementItem('跑步公里', '5.2 km'),
           _buildAchievementItem('步数', '8,432'),
           _buildAchievementItem('卡路里', '245 cal'),
@@ -243,18 +291,24 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
 
   Widget _buildAchievementItem(String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: ThemeDimensions.spacingSmall),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
-            style: ThemeTextStyles.bodyMedium,
+            style: ThemeTextStyles.bodyMedium.copyWith(
+              fontSize: 15,
+              letterSpacing: 0.1,
+              color: ThemeColors.textSecondary,
+            ),
           ),
           Text(
             value,
             style: ThemeTextStyles.bodyMedium.copyWith(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              letterSpacing: 0.1,
               color: ThemeColors.primary,
             ),
           ),
@@ -265,40 +319,108 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
 
   Widget _buildActionsSection() {
     return Container(
-      margin: EdgeInsets.all(ThemeDimensions.defaultPadding),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
           Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () {
-                context.go(WuyAppRouter.routeHistoryTracks);
-              },
-              icon: Icon(Icons.history),
-              label: Text(LocalizationKeysAppWuy.wuyFriendInfoHistoryTracks
-                  .tr(context)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ThemeColors.primary,
-                shape: RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: ThemeColors.primary.withOpacity(0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                    spreadRadius: 0,
+                  ),
+                  BoxShadow(
+                    color: ThemeColors.accent.withOpacity(0.15),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                    spreadRadius: -4,
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: () {
+                  context.go(WuyAppRouter.routeHistoryTracks);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ThemeColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 54),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  elevation: 0,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.history, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      LocalizationKeysAppWuy.wuyFriendInfoHistoryTracks.tr(context),
+                      style: ThemeTextStyles.bodyMedium.copyWith(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          SizedBox(width: ThemeDimensions.spacingMedium),
+          const SizedBox(width: 16),
           Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () {
-                context.go(WuyAppRouter.routeNetworkRecords);
-              },
-              icon: Icon(Icons.network_check),
-              label: Text(LocalizationKeysAppWuy.wuyFriendInfoNetworkRecords
-                  .tr(context)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                shape: RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: ThemeColors.green40.withOpacity(0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                    spreadRadius: 0,
+                  ),
+                  BoxShadow(
+                    color: ThemeColors.green60.withOpacity(0.2),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                    spreadRadius: -4,
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: () {
+                  context.go(WuyAppRouter.routeNetworkRecords);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ThemeColors.green40,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 54),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  elevation: 0,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.network_check, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      LocalizationKeysAppWuy.wuyFriendInfoNetworkRecords.tr(context),
+                      style: ThemeTextStyles.bodyMedium.copyWith(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

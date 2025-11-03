@@ -968,6 +968,42 @@ set_global_var() {
 }
 
 # Menu Functions
+
+# Initialize liunxenvs directory and register all scripts
+initialize_liunxenvs() {
+    local liunxenvs_dir="$SCRIPT_DIR/liunxenvs"
+    local linux_path_function="$COMMON_SHELLS_DIR/linux_path_function.sh"
+
+    if [ ! -f "$linux_path_function" ]; then
+        return 0
+    fi
+
+    if [ ! -d "$liunxenvs_dir" ]; then
+        return 0
+    fi
+
+    source "$linux_path_function"
+
+    for script_file in "$liunxenvs_dir"/*.sh; do
+        if [ -f "$script_file" ]; then
+            local filename=$(basename "$script_file")
+            local basename_without_ext="${filename%.sh}"
+            local link_path="/usr/local/bin/$basename_without_ext"
+
+            if [ ! -L "$link_path" ] && [ ! -f "$link_path" ]; then
+                local target_path="$liunxenvs_dir/$filename"
+                chmod +x "$target_path" 2>/dev/null || $sudo chmod +x "$target_path"
+
+                if [ -w "/usr/local/bin" ]; then
+                    ln -sf "$target_path" "$link_path" 2>/dev/null
+                else
+                    $sudo ln -sf "$target_path" "$link_path" 2>/dev/null
+                fi
+            fi
+        fi
+    done
+}
+
 show_special_software_env_menu() {
     local special_env_manager_script="$SHELLS_DIR/linux/menu_itemshells/special_software_env_manager.sh"
 
@@ -1528,6 +1564,9 @@ main() {
     else
         echo "[INSTALLATION MODE] Skipping symlink creation - running from temporary location"
     fi
+
+    # Initialize liunxenvs directory and register all scripts
+    initialize_liunxenvs
 
     # Initialize and show menu
     detect_system_version

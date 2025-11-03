@@ -69,27 +69,46 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
       appBar: AppBar(
         title: Text(
           'Add Friend',
-          style: ThemeTextStyles.displayMedium,
+          style: ThemeTextStyles.displayMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.go(WuyAppRouter.routeHome),
         ),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+        padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: 8),
               _buildProfileSection(),
-              SizedBox(height: ThemeDimensions.spacingLarge),
+              const SizedBox(height: 24),
               _buildFormSection(),
-              SizedBox(height: ThemeDimensions.spacingLarge),
+              const SizedBox(height: 28),
               _buildAddButton(),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -98,79 +117,119 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   }
 
   Widget _buildProfileSection() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              ThemeColors.orange40,
-              ThemeColors.red40,
-            ],
-          ),
-          borderRadius:
-              BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
-        ),
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.white.withOpacity(0.2),
-              child: Icon(
-                Icons.person,
-                size: 50,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            Text(
-              WuyUnifiedService().currentUser?.displayName ?? 'User',
-              style: ThemeTextStyles.title2.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              'openAI',
-              style: ThemeTextStyles.bodyLarge.copyWith(
-                color: Colors.white.withOpacity(0.9),
-              ),
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            ThemeColors.orange40,
+            ThemeColors.red40,
           ],
         ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.orange40.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.red40.withOpacity(0.2),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 54,
+              backgroundColor: Colors.white.withOpacity(0.25),
+              child: const Icon(
+                Icons.person,
+                size: 52,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            WuyUnifiedService().currentUser?.displayName ?? 'User',
+            style: ThemeTextStyles.title2.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 24,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'openAI',
+            style: ThemeTextStyles.bodyLarge.copyWith(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 16,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildFormSection() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+    return Container(
+      decoration: BoxDecoration(
+        color: ThemeColors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
       ),
-      child: Padding(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Friend Information',
-              style: ThemeTextStyles.title3,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Friend Information',
+            style: ThemeTextStyles.title3.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 19,
+              letterSpacing: -0.4,
             ),
-            SizedBox(height: ThemeDimensions.spacingLarge),
-            _buildGreetingField(),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildRemarkField(),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildRelationshipField(),
-          ],
-        ),
+          ),
+          const SizedBox(height: 20),
+          _buildGreetingField(),
+          const SizedBox(height: 16),
+          _buildRemarkField(),
+          const SizedBox(height: 16),
+          _buildRelationshipField(),
+        ],
       ),
     );
   }
@@ -275,12 +334,34 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   }
 
   Widget _buildAddButton() {
-    return WuyGradientButton(
-      text: 'Add Friend',
-      onPressed: _handleAddFriend,
-      isLoading: _isLoading,
-      height: 50,
-      gradientColors: [ThemeColors.green40, ThemeColors.green60],
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.green40.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.green60.withOpacity(0.2),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: WuyGradientButton(
+        text: 'Add Friend',
+        onPressed: _handleAddFriend,
+        isLoading: _isLoading,
+        height: 54,
+        borderRadius: 28.0,
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+        gradientColors: [ThemeColors.green40, ThemeColors.green60],
+      ),
     );
   }
 
