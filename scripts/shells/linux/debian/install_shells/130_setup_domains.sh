@@ -76,14 +76,14 @@ initialize_system_directories() {
         if [ ! -d "$dir" ]; then
             echo "[$SCRIPT_INDEX]   Creating: $dir"
             $USE_SUDO mkdir -p "$dir" 2>/dev/null || {
-                echo "[$SCRIPT_INDEX]   âœ— Failed to create $dir"
+                echo "[$SCRIPT_INDEX]   âœ?Failed to create $dir"
                 return 1
             }
             # Set appropriate permissions
             $USE_SUDO chmod 755 "$dir" 2>/dev/null || true
-            echo "[$SCRIPT_INDEX]   âœ“ Created: $dir"
+            echo "[$SCRIPT_INDEX]   âœ?Created: $dir"
         else
-            echo "[$SCRIPT_INDEX]   âœ“ Exists: $dir"
+            echo "[$SCRIPT_INDEX]   âœ?Exists: $dir"
         fi
     done
 
@@ -95,16 +95,16 @@ initialize_system_directories() {
             if [ "$IS_WSL" = true ]; then
                 # WSL doesn't support chown properly, just set permissions
                 $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
-                echo "[$SCRIPT_INDEX]   âœ“ Set WSL permissions: $dir"
+                echo "[$SCRIPT_INDEX]   âœ?Set WSL permissions: $dir"
             else
                 # Linux: Set ownership and group
                 $USE_SUDO chown -R $USER:www-data "$dir" 2>/dev/null || {
-                    echo "[$SCRIPT_INDEX]   âš  Could not set user:www-data, trying 777..."
+                    echo "[$SCRIPT_INDEX]   âš?Could not set user:www-data, trying 777..."
                     $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
                 }
                 # Set group write permissions
                 $USE_SUDO chmod -R 775 "$dir" 2>/dev/null || true
-                echo "[$SCRIPT_INDEX]   âœ“ Set ownership: $dir"
+                echo "[$SCRIPT_INDEX]   âœ?Set ownership: $dir"
             fi
         fi
     done
@@ -115,22 +115,22 @@ initialize_system_directories() {
     local permission_errors=0
     for dir in "${test_dirs[@]}"; do
         if [ -d "$dir" ] && [ ! -w "$dir" ]; then
-            echo "[$SCRIPT_INDEX]   âœ— Not writable: $dir"
+            echo "[$SCRIPT_INDEX]   âœ?Not writable: $dir"
             permission_errors=$((permission_errors + 1))
         elif [ -d "$dir" ]; then
-            echo "[$SCRIPT_INDEX]   âœ“ Writable: $dir"
+            echo "[$SCRIPT_INDEX]   âœ?Writable: $dir"
         else
-            echo "[$SCRIPT_INDEX]   âš  Directory not found: $dir"
+            echo "[$SCRIPT_INDEX]   âš?Directory not found: $dir"
         fi
     done
 
     if [ $permission_errors -gt 0 ]; then
-        echo "[$SCRIPT_INDEX] âš  Warning: $permission_errors directories are not writable"
+        echo "[$SCRIPT_INDEX] âš?Warning: $permission_errors directories are not writable"
         echo "[$SCRIPT_INDEX]   This may cause Laravel commands to fail"
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] âœ“ System directories initialized"
+    echo "[$SCRIPT_INDEX] âœ?System directories initialized"
     echo "[$SCRIPT_INDEX] =================================="
     return 0
 }
@@ -146,17 +146,17 @@ install_certbot_dnspod() {
         echo "[$SCRIPT_INDEX] pip3 not found, installing python3-pip..."
         $USE_SUDO apt-get update >/dev/null 2>&1
         $USE_SUDO apt-get install -y python3-pip >/dev/null 2>&1 || {
-            echo "[$SCRIPT_INDEX] âœ— Failed to install python3-pip"
+            echo "[$SCRIPT_INDEX] âœ?Failed to install python3-pip"
             return 1
         }
-        echo "[$SCRIPT_INDEX] âœ“ python3-pip installed"
+        echo "[$SCRIPT_INDEX] âœ?python3-pip installed"
     else
-        echo "[$SCRIPT_INDEX] âœ“ pip3 is available"
+        echo "[$SCRIPT_INDEX] âœ?pip3 is available"
     fi
 
     # Check if certbot-dns-dnspod is installed
     if pip3 list 2>/dev/null | grep -qi "certbot-dns-dnspod"; then
-        echo "[$SCRIPT_INDEX] âœ“ certbot-dns-dnspod already installed"
+        echo "[$SCRIPT_INDEX] âœ?certbot-dns-dnspod already installed"
         local version=$(pip3 show certbot-dns-dnspod 2>/dev/null | grep "Version:" | cut -d' ' -f2)
         echo "[$SCRIPT_INDEX]   Version: ${version:-unknown}"
         return 0
@@ -168,9 +168,9 @@ install_certbot_dnspod() {
     done
 
     if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] âœ“ certbot-dns-dnspod installed successfully"
+        echo "[$SCRIPT_INDEX] âœ?certbot-dns-dnspod installed successfully"
     else
-        echo "[$SCRIPT_INDEX] âš  certbot-dns-dnspod installation had issues, but continuing..."
+        echo "[$SCRIPT_INDEX] âš?certbot-dns-dnspod installation had issues, but continuing..."
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
@@ -187,7 +187,7 @@ check_environment() {
     echo "[$SCRIPT_INDEX] Checking PHP..."
     if command -v php >/dev/null 2>&1; then
         local php_version=$(php -v 2>&1 | head -n 1)
-        echo "[$SCRIPT_INDEX]   âœ“ PHP installed: $php_version"
+        echo "[$SCRIPT_INDEX]   âœ?PHP installed: $php_version"
 
         # Check PHP CLI SAPI
         local php_sapi=$(php -r "echo PHP_SAPI;" 2>/dev/null)
@@ -198,13 +198,13 @@ check_environment() {
         local required_extensions=("mbstring" "json" "pdo" "openssl" "tokenizer" "xml" "ctype" "fileinfo")
         for ext in "${required_extensions[@]}"; do
             if php -m 2>/dev/null | grep -qi "^$ext$"; then
-                echo "[$SCRIPT_INDEX]     âœ“ $ext"
+                echo "[$SCRIPT_INDEX]     âœ?$ext"
             else
-                echo "[$SCRIPT_INDEX]     âœ— $ext (MISSING)"
+                echo "[$SCRIPT_INDEX]     âœ?$ext (MISSING)"
             fi
         done
     else
-        echo "[$SCRIPT_INDEX]   âœ— PHP not found in PATH"
+        echo "[$SCRIPT_INDEX]   âœ?PHP not found in PATH"
         echo "[$SCRIPT_INDEX]   Please install PHP first"
         return 1
     fi
@@ -213,9 +213,9 @@ check_environment() {
     echo "[$SCRIPT_INDEX] Checking Composer..."
     if command -v composer >/dev/null 2>&1; then
         local composer_version=$(composer --version 2>&1 | head -n 1)
-        echo "[$SCRIPT_INDEX]   âœ“ Composer installed: $composer_version"
+        echo "[$SCRIPT_INDEX]   âœ?Composer installed: $composer_version"
     else
-        echo "[$SCRIPT_INDEX]   âœ— Composer not found in PATH"
+        echo "[$SCRIPT_INDEX]   âœ?Composer not found in PATH"
         echo "[$SCRIPT_INDEX]   Please install Composer first"
         return 1
     fi
@@ -224,43 +224,43 @@ check_environment() {
     echo "[$SCRIPT_INDEX] Checking Node.js (optional)..."
     if command -v node >/dev/null 2>&1; then
         local node_version=$(node --version 2>&1)
-        echo "[$SCRIPT_INDEX]   âœ“ Node.js installed: $node_version"
+        echo "[$SCRIPT_INDEX]   âœ?Node.js installed: $node_version"
     else
-        echo "[$SCRIPT_INDEX]   â„¹ Node.js not found (not required for headless Laravel)"
+        echo "[$SCRIPT_INDEX]   â„?Node.js not found (not required for headless Laravel)"
     fi
 
     # Check Git
     echo "[$SCRIPT_INDEX] Checking Git..."
     if command -v git >/dev/null 2>&1; then
         local git_version=$(git --version 2>&1)
-        echo "[$SCRIPT_INDEX]   âœ“ Git installed: $git_version"
+        echo "[$SCRIPT_INDEX]   âœ?Git installed: $git_version"
     else
-        echo "[$SCRIPT_INDEX]   âœ— Git not found"
+        echo "[$SCRIPT_INDEX]   âœ?Git not found"
     fi
 
     # Check Nginx
     echo "[$SCRIPT_INDEX] Checking Nginx..."
     if command -v nginx >/dev/null 2>&1; then
         local nginx_version=$(nginx -v 2>&1)
-        echo "[$SCRIPT_INDEX]   âœ“ Nginx installed: $nginx_version"
+        echo "[$SCRIPT_INDEX]   âœ?Nginx installed: $nginx_version"
 
         # Check if nginx is running
         if pgrep nginx >/dev/null 2>&1; then
-            echo "[$SCRIPT_INDEX]   âœ“ Nginx is running"
+            echo "[$SCRIPT_INDEX]   âœ?Nginx is running"
         else
-            echo "[$SCRIPT_INDEX]   âš  Nginx is installed but not running"
+            echo "[$SCRIPT_INDEX]   âš?Nginx is installed but not running"
         fi
     else
-        echo "[$SCRIPT_INDEX]   âœ— Nginx not found"
+        echo "[$SCRIPT_INDEX]   âœ?Nginx not found"
     fi
 
     # Check Certbot
     echo "[$SCRIPT_INDEX] Checking Certbot..."
     if command -v certbot >/dev/null 2>&1; then
         local certbot_version=$(certbot --version 2>&1)
-        echo "[$SCRIPT_INDEX]   âœ“ Certbot installed: $certbot_version"
+        echo "[$SCRIPT_INDEX]   âœ?Certbot installed: $certbot_version"
     else
-        echo "[$SCRIPT_INDEX]   âœ— Certbot not found"
+        echo "[$SCRIPT_INDEX]   âœ?Certbot not found"
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
@@ -298,14 +298,14 @@ initialize_laravel_directories() {
         if [ ! -d "$dir" ]; then
             echo "[$SCRIPT_INDEX]   Creating: $dir"
             mkdir -p "$dir" 2>/dev/null || {
-                echo "[$SCRIPT_INDEX]   âš  Failed to create $dir, trying with sudo..."
+                echo "[$SCRIPT_INDEX]   âš?Failed to create $dir, trying with sudo..."
                 $USE_SUDO mkdir -p "$dir" || {
-                    echo "[$SCRIPT_INDEX]   âœ— Failed to create $dir even with sudo"
+                    echo "[$SCRIPT_INDEX]   âœ?Failed to create $dir even with sudo"
                     return 1
                 }
             }
         else
-            echo "[$SCRIPT_INDEX]   âœ“ Exists: $dir"
+            echo "[$SCRIPT_INDEX]   âœ?Exists: $dir"
         fi
     done
 
@@ -315,12 +315,12 @@ initialize_laravel_directories() {
     # Critical directories need 777 for Laravel to write
     echo "[$SCRIPT_INDEX]   Setting 777 for storage..."
     chmod -R 777 storage 2>/dev/null || $USE_SUDO chmod -R 777 storage || {
-        echo "[$SCRIPT_INDEX]   âš  Could not set storage permissions"
+        echo "[$SCRIPT_INDEX]   âš?Could not set storage permissions"
     }
 
     echo "[$SCRIPT_INDEX]   Setting 777 for bootstrap/cache..."
     chmod -R 777 bootstrap/cache 2>/dev/null || $USE_SUDO chmod -R 777 bootstrap/cache || {
-        echo "[$SCRIPT_INDEX]   âš  Could not set bootstrap/cache permissions"
+        echo "[$SCRIPT_INDEX]   âš?Could not set bootstrap/cache permissions"
     }
 
     # Make artisan executable
@@ -332,27 +332,27 @@ initialize_laravel_directories() {
     local permission_errors=0
 
     if [ ! -w "storage" ]; then
-        echo "[$SCRIPT_INDEX]   âœ— storage directory is not writable"
+        echo "[$SCRIPT_INDEX]   âœ?storage directory is not writable"
         permission_errors=$((permission_errors + 1))
     else
-        echo "[$SCRIPT_INDEX]   âœ“ storage directory is writable"
+        echo "[$SCRIPT_INDEX]   âœ?storage directory is writable"
     fi
 
     if [ ! -w "bootstrap/cache" ]; then
-        echo "[$SCRIPT_INDEX]   âœ— bootstrap/cache directory is not writable"
+        echo "[$SCRIPT_INDEX]   âœ?bootstrap/cache directory is not writable"
         permission_errors=$((permission_errors + 1))
     else
-        echo "[$SCRIPT_INDEX]   âœ“ bootstrap/cache directory is writable"
+        echo "[$SCRIPT_INDEX]   âœ?bootstrap/cache directory is writable"
     fi
 
     if [ $permission_errors -gt 0 ]; then
-        echo "[$SCRIPT_INDEX] âš  Warning: $permission_errors permission issues remain"
+        echo "[$SCRIPT_INDEX] âš?Warning: $permission_errors permission issues remain"
         echo "[$SCRIPT_INDEX] Attempting to use deploy.sh for complete initialization..."
         return 2  # Signal that we should try deploy.sh
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] âœ“ Laravel directories initialized"
+    echo "[$SCRIPT_INDEX] âœ?Laravel directories initialized"
     echo "[$SCRIPT_INDEX] =================================="
     return 0
 }
@@ -387,13 +387,13 @@ run_laravel_deploy_init() {
     bash "$deploy_script" || {
         local exit_code=$?
         echo "[$SCRIPT_INDEX] =================================="
-        echo "[$SCRIPT_INDEX] âš  deploy.sh exited with code: $exit_code"
+        echo "[$SCRIPT_INDEX] âš?deploy.sh exited with code: $exit_code"
         echo "[$SCRIPT_INDEX] Continuing anyway..."
         return 0  # Don't fail completely
     }
 
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] âœ“ Deploy script completed"
+    echo "[$SCRIPT_INDEX] âœ?Deploy script completed"
     echo "[$SCRIPT_INDEX] =================================="
     return 0
 }
@@ -492,20 +492,20 @@ check_laravel_available() {
 
         # Check .env file
         if [ ! -f ".env" ]; then
-            echo "[$SCRIPT_INDEX] âš  .env file not found!"
+            echo "[$SCRIPT_INDEX] âš?.env file not found!"
             if [ -f ".env.example" ]; then
-                echo "[$SCRIPT_INDEX] â„¹ .env.example exists. You may need to copy it:"
+                echo "[$SCRIPT_INDEX] â„?.env.example exists. You may need to copy it:"
                 echo "[$SCRIPT_INDEX]   cp .env.example .env"
                 echo "[$SCRIPT_INDEX]   php artisan key:generate"
             fi
         else
-            echo "[$SCRIPT_INDEX] âœ“ .env file exists"
+            echo "[$SCRIPT_INDEX] âœ?.env file exists"
 
             # Check APP_KEY
             if grep -q "^APP_KEY=base64:" .env; then
-                echo "[$SCRIPT_INDEX] âœ“ APP_KEY is set"
+                echo "[$SCRIPT_INDEX] âœ?APP_KEY is set"
             else
-                echo "[$SCRIPT_INDEX] âš  APP_KEY not set. Run: php artisan key:generate"
+                echo "[$SCRIPT_INDEX] âš?APP_KEY not set. Run: php artisan key:generate"
             fi
         fi
 
@@ -515,7 +515,7 @@ check_laravel_available() {
             local storage_writable=$([ -w "storage" ] && echo "YES" || echo "NO")
             echo "[$SCRIPT_INDEX] Storage writable: $storage_writable"
         else
-            echo "[$SCRIPT_INDEX] âš  storage directory not found"
+            echo "[$SCRIPT_INDEX] âš?storage directory not found"
         fi
 
         # Check bootstrap/cache
@@ -524,12 +524,12 @@ check_laravel_available() {
             local cache_writable=$([ -w "bootstrap/cache" ] && echo "YES" || echo "NO")
             echo "[$SCRIPT_INDEX] bootstrap/cache writable: $cache_writable"
         else
-            echo "[$SCRIPT_INDEX] âš  bootstrap/cache directory not found"
+            echo "[$SCRIPT_INDEX] âš?bootstrap/cache directory not found"
         fi
 
         return 1
     else
-        echo "[$SCRIPT_INDEX] âœ“ Artisan command successful: $artisan_output"
+        echo "[$SCRIPT_INDEX] âœ?Artisan command successful: $artisan_output"
     fi
 
     # Check database configuration
@@ -545,9 +545,9 @@ check_laravel_available() {
         local db_test_output
         db_test_output=$(php artisan db:show 2>&1 | head -n 5)
         if [ $? -eq 0 ]; then
-            echo "[$SCRIPT_INDEX] âœ“ Database connection successful"
+            echo "[$SCRIPT_INDEX] âœ?Database connection successful"
         else
-            echo "[$SCRIPT_INDEX] âš  Database connection test output:"
+            echo "[$SCRIPT_INDEX] âš?Database connection test output:"
             echo "$db_test_output" | while IFS= read -r line; do
                 echo "[$SCRIPT_INDEX]   $line"
             done
@@ -559,7 +559,7 @@ check_laravel_available() {
     local available_commands=$(php artisan list 2>/dev/null | grep -i servermanager || true)
 
     if [ -z "$available_commands" ]; then
-        echo "[$SCRIPT_INDEX] âš  No servermanager commands found"
+        echo "[$SCRIPT_INDEX] âš?No servermanager commands found"
         echo "[$SCRIPT_INDEX] Listing all available artisan commands:"
         php artisan list 2>/dev/null | head -n 30 | while IFS= read -r line; do
             echo "[$SCRIPT_INDEX]   $line"
@@ -585,13 +585,13 @@ check_laravel_available() {
         return 1
     fi
 
-    echo "[$SCRIPT_INDEX] âœ“ ServerManagerV1 commands verified:"
+    echo "[$SCRIPT_INDEX] âœ?ServerManagerV1 commands verified:"
     echo "$available_commands" | while IFS= read -r line; do
         echo "[$SCRIPT_INDEX]   $line"
     done
 
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] âœ“ Laravel is ready for use"
+    echo "[$SCRIPT_INDEX] âœ?Laravel is ready for use"
     echo "[$SCRIPT_INDEX] =================================="
     return 0
 }
@@ -861,7 +861,7 @@ test_nginx_config() {
     echo "[$SCRIPT_INDEX] =================================="
 
     if ! command -v nginx >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] âœ— Nginx command not found"
+        echo "[$SCRIPT_INDEX] âœ?Nginx command not found"
         return 1
     fi
 
@@ -875,10 +875,10 @@ test_nginx_config() {
     done
 
     if [ $test_result -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] âœ“ Nginx configuration test PASSED"
+        echo "[$SCRIPT_INDEX] âœ?Nginx configuration test PASSED"
         return 0
     else
-        echo "[$SCRIPT_INDEX] âœ— Nginx configuration test FAILED"
+        echo "[$SCRIPT_INDEX] âœ?Nginx configuration test FAILED"
         return 1
     fi
 }
@@ -890,7 +890,7 @@ reload_nginx() {
     echo "[$SCRIPT_INDEX] =================================="
 
     if ! command -v nginx >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] âœ— Nginx command not found"
+        echo "[$SCRIPT_INDEX] âœ?Nginx command not found"
         return 1
     fi
 
@@ -899,16 +899,16 @@ reload_nginx() {
     local reload_result=$?
 
     if [ $reload_result -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] âœ“ Nginx reloaded successfully"
+        echo "[$SCRIPT_INDEX] âœ?Nginx reloaded successfully"
     else
-        echo "[$SCRIPT_INDEX] âš  Nginx reload failed, trying restart..."
+        echo "[$SCRIPT_INDEX] âš?Nginx reload failed, trying restart..."
         reload_output=$($USE_SUDO systemctl restart nginx 2>&1)
         reload_result=$?
 
         if [ $reload_result -eq 0 ]; then
-            echo "[$SCRIPT_INDEX] âœ“ Nginx restarted successfully"
+            echo "[$SCRIPT_INDEX] âœ?Nginx restarted successfully"
         else
-            echo "[$SCRIPT_INDEX] âœ— Nginx restart failed"
+            echo "[$SCRIPT_INDEX] âœ?Nginx restart failed"
             echo "$reload_output" | while IFS= read -r line; do
                 echo "[$SCRIPT_INDEX]   $line"
             done
@@ -926,7 +926,7 @@ get_nginx_status() {
     echo "[$SCRIPT_INDEX] =================================="
 
     if ! command -v nginx >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] âœ— Nginx command not found"
+        echo "[$SCRIPT_INDEX] âœ?Nginx command not found"
         return 1
     fi
 
@@ -940,7 +940,7 @@ get_nginx_status() {
     echo "[$SCRIPT_INDEX]"
 
     if [ "$is_active" = "active" ]; then
-        echo "[$SCRIPT_INDEX] âœ“ Nginx is running"
+        echo "[$SCRIPT_INDEX] âœ?Nginx is running"
 
         local nginx_pid=$(pgrep -o nginx 2>/dev/null)
         if [ -n "$nginx_pid" ]; then
@@ -950,7 +950,7 @@ get_nginx_status() {
         local worker_count=$(pgrep nginx | wc -l)
         echo "[$SCRIPT_INDEX] Worker processes: $worker_count"
     else
-        echo "[$SCRIPT_INDEX] âœ— Nginx is not running"
+        echo "[$SCRIPT_INDEX] âœ?Nginx is not running"
     fi
 
     return 0
@@ -967,7 +967,7 @@ show_nginx_configs() {
     local sites_enabled="$nginx_config_dir/sites-enabled"
 
     if [ ! -d "$sites_available" ]; then
-        echo "[$SCRIPT_INDEX] âš  sites-available directory not found: $sites_available"
+        echo "[$SCRIPT_INDEX] âš?sites-available directory not found: $sites_available"
         return 1
     fi
 
@@ -1000,10 +1000,10 @@ show_nginx_configs() {
                 local filename=$(basename "$config_file")
                 local filesize=$(stat -f%z "$config_file" 2>/dev/null || stat -c%s "$config_file" 2>/dev/null || echo "unknown")
 
-                local is_enabled="âœ—"
+                local is_enabled="âœ?
                 local link_path="$sites_enabled/$filename"
                 if [ -L "$link_path" ]; then
-                    is_enabled="âœ“"
+                    is_enabled="âœ?
                 fi
 
                 echo "[$SCRIPT_INDEX]   [$is_enabled] $filename ($filesize bytes)"
@@ -1030,7 +1030,7 @@ show_config_content() {
     local config_file="$sites_available/$config_name"
 
     if [ ! -f "$config_file" ]; then
-        echo "[$SCRIPT_INDEX] âœ— Configuration file not found: $config_file"
+        echo "[$SCRIPT_INDEX] âœ?Configuration file not found: $config_file"
         return 1
     fi
 
@@ -1120,7 +1120,7 @@ print_summary() {
         # Get nginx status after reload
         get_nginx_status
     else
-        echo "[$SCRIPT_INDEX] âš  Skipping nginx reload due to configuration errors"
+        echo "[$SCRIPT_INDEX] âš?Skipping nginx reload due to configuration errors"
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
@@ -1205,11 +1205,11 @@ local actual_laravel_db=$(map_web_path "wwwroot")/laravel_main/laravel_db
 
 for check_dir in "$ssl_dir" "$www_root" "$actual_laravel_db"; do
     if [ -d "$check_dir" ] && [ -w "$check_dir" ]; then
-        echo "[$SCRIPT_INDEX]   âœ“ $check_dir (writable)"
+        echo "[$SCRIPT_INDEX]   âœ?$check_dir (writable)"
     elif [ -d "$check_dir" ]; then
-        echo "[$SCRIPT_INDEX]   âš  $check_dir (exists but NOT writable)"
+        echo "[$SCRIPT_INDEX]   âš?$check_dir (exists but NOT writable)"
     else
-        echo "[$SCRIPT_INDEX]   âœ— $check_dir (does not exist)"
+        echo "[$SCRIPT_INDEX]   âœ?$check_dir (does not exist)"
     fi
 done
 echo "[$SCRIPT_INDEX] =================================="
@@ -1295,7 +1295,7 @@ setup_local_testing_mode() {
 
     echo "[$SCRIPT_INDEX] Test domains to configure:"
     for test_domain in "${test_domains[@]}"; do
-        echo "[$SCRIPT_INDEX]   - $test_domain â†’ 127.0.0.1"
+        echo "[$SCRIPT_INDEX]   - $test_domain â†?127.0.0.1"
     done
 
     # Determine Windows hosts file path
@@ -1307,7 +1307,7 @@ setup_local_testing_mode() {
         # Git Bash or similar
         windows_hosts_file="/c/Windows/System32/drivers/etc/hosts"
     else
-        echo "[$SCRIPT_INDEX] âš  Warning: Not in WSL/Windows environment"
+        echo "[$SCRIPT_INDEX] âš?Warning: Not in WSL/Windows environment"
         echo "[$SCRIPT_INDEX] You need to manually add entries to your hosts file:"
         echo ""
         for test_domain in "${test_domains[@]}"; do
@@ -1317,7 +1317,7 @@ setup_local_testing_mode() {
     fi
 
     if [ ! -f "$windows_hosts_file" ]; then
-        echo "[$SCRIPT_INDEX] âœ— Windows hosts file not found: $windows_hosts_file"
+        echo "[$SCRIPT_INDEX] âœ?Windows hosts file not found: $windows_hosts_file"
         echo "[$SCRIPT_INDEX] You need to manually add entries to your hosts file"
         return 1
     fi
@@ -1329,7 +1329,7 @@ setup_local_testing_mode() {
     local backup_file="${windows_hosts_file}.backup.$(date +%Y%m%d_%H%M%S)"
     echo "[$SCRIPT_INDEX] Creating backup: $backup_file"
     cp "$windows_hosts_file" "$backup_file" 2>/dev/null || {
-        echo "[$SCRIPT_INDEX] âš  Warning: Could not create backup (may need admin rights)"
+        echo "[$SCRIPT_INDEX] âš?Warning: Could not create backup (may need admin rights)"
     }
 
     # Generate hosts entries
@@ -1344,12 +1344,12 @@ setup_local_testing_mode() {
     local marker_found=false
     if grep -q "Auto-generated by 130_setup_domains.sh" "$windows_hosts_file" 2>/dev/null; then
         marker_found=true
-        echo "[$SCRIPT_INDEX] âš  Auto-generated entries already exist in hosts file"
+        echo "[$SCRIPT_INDEX] âš?Auto-generated entries already exist in hosts file"
         echo "[$SCRIPT_INDEX] Removing old entries..."
 
         # Remove old auto-generated entries
         sed -i '/# Auto-generated by 130_setup_domains.sh/,/# End of auto-generated entries/d' "$windows_hosts_file" 2>/dev/null || {
-            echo "[$SCRIPT_INDEX] âœ— Failed to remove old entries (may need admin rights)"
+            echo "[$SCRIPT_INDEX] âœ?Failed to remove old entries (may need admin rights)"
             echo "[$SCRIPT_INDEX] Please manually edit: $windows_hosts_file"
             return 1
         }
@@ -1358,14 +1358,14 @@ setup_local_testing_mode() {
     # Append new entries
     echo "[$SCRIPT_INDEX] Adding new test domain entries..."
     echo -e "$hosts_entries" >> "$windows_hosts_file" 2>/dev/null || {
-        echo "[$SCRIPT_INDEX] âœ— Failed to add entries (need admin/sudo rights)"
+        echo "[$SCRIPT_INDEX] âœ?Failed to add entries (need admin/sudo rights)"
         echo "[$SCRIPT_INDEX] Please run PowerShell as Administrator and add:"
         echo ""
         echo -e "$hosts_entries"
         return 1
     }
 
-    echo "[$SCRIPT_INDEX] âœ“ Local testing mode configured successfully!"
+    echo "[$SCRIPT_INDEX] âœ?Local testing mode configured successfully!"
     echo "[$SCRIPT_INDEX]"
     echo "[$SCRIPT_INDEX] You can now access:"
     for test_domain in "${test_domains[@]}"; do
@@ -1390,7 +1390,7 @@ if [ $success_count -eq $total_count ] && [ $total_count -gt 0 ]; then
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX] Do you want to enable local testing mode?"
     echo "[$SCRIPT_INDEX] This will automatically add test domains to your Windows hosts file"
-    echo "[$SCRIPT_INDEX] (local.*, api.*, local.api.* â†’ 127.0.0.1)"
+    echo "[$SCRIPT_INDEX] (local.*, api.*, local.api.* â†?127.0.0.1)"
     echo ""
     read -p "[$SCRIPT_INDEX] Enable local testing mode? (y/N): " -n 1 -r
     echo ""
