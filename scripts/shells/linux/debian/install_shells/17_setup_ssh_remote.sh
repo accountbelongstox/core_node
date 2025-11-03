@@ -146,6 +146,14 @@ configure_ssh_server() {
 
     $USE_SUDO sed -i 's/^#*PasswordAuthentication .*/PasswordAuthentication yes/' "$SSH_CONFIG_FILE"
 
+    $USE_SUDO sed -i 's/^#*ClientAliveInterval .*/ClientAliveInterval 60/' "$SSH_CONFIG_FILE"
+
+    $USE_SUDO sed -i 's/^#*ClientAliveCountMax .*/ClientAliveCountMax 999/' "$SSH_CONFIG_FILE"
+
+    $USE_SUDO sed -i 's/^#*LoginGraceTime .*/LoginGraceTime 0/' "$SSH_CONFIG_FILE"
+
+    $USE_SUDO sed -i 's/^#*TCPKeepAlive .*/TCPKeepAlive yes/' "$SSH_CONFIG_FILE"
+
     if ! grep -q "^Port $SSH_PORT" "$SSH_CONFIG_FILE"; then
         echo "Port $SSH_PORT" | $USE_SUDO tee -a "$SSH_CONFIG_FILE" > /dev/null
     fi
@@ -154,7 +162,26 @@ configure_ssh_server() {
         echo "PermitRootLogin yes" | $USE_SUDO tee -a "$SSH_CONFIG_FILE" > /dev/null
     fi
 
+    if ! grep -q "^ClientAliveInterval" "$SSH_CONFIG_FILE"; then
+        echo "ClientAliveInterval 60" | $USE_SUDO tee -a "$SSH_CONFIG_FILE" > /dev/null
+    fi
+
+    if ! grep -q "^ClientAliveCountMax" "$SSH_CONFIG_FILE"; then
+        echo "ClientAliveCountMax 999" | $USE_SUDO tee -a "$SSH_CONFIG_FILE" > /dev/null
+    fi
+
+    if ! grep -q "^LoginGraceTime" "$SSH_CONFIG_FILE"; then
+        echo "LoginGraceTime 0" | $USE_SUDO tee -a "$SSH_CONFIG_FILE" > /dev/null
+    fi
+
+    if ! grep -q "^TCPKeepAlive" "$SSH_CONFIG_FILE"; then
+        echo "TCPKeepAlive yes" | $USE_SUDO tee -a "$SSH_CONFIG_FILE" > /dev/null
+    fi
+
     print_success_from_common_functions "SSH server configured successfully"
+    print_info_from_common_functions "Keep-alive settings: ClientAliveInterval=60s, ClientAliveCountMax=999"
+    print_info_from_common_functions "Login grace time: Unlimited (0)"
+    print_info_from_common_functions "TCP keep-alive: Enabled"
     return 0
 }
 
