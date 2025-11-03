@@ -13,6 +13,7 @@ export interface KeyboardShortcut {
   shift?: boolean;
   alt?: boolean;
   description: string;
+  category?: string;
   action: () => void;
 }
 
@@ -91,6 +92,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
       key: 'n',
       ctrl: true,
       description: 'Connect new device',
+      category: 'Device',
       action: callbacks.onConnectDevice
     });
   }
@@ -101,6 +103,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
       ctrl: true,
       shift: true,
       description: 'Disconnect all devices',
+      category: 'Device',
       action: callbacks.onDisconnectAll
     });
   }
@@ -110,6 +113,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
       key: 'q',
       ctrl: true,
       description: 'Toggle video quality',
+      category: 'Video',
       action: callbacks.onToggleQuality
     });
   }
@@ -118,6 +122,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
     shortcuts.push({
       key: ' ',
       description: 'Pause/Resume video',
+      category: 'Video',
       action: callbacks.onPauseResume
     });
   }
@@ -127,6 +132,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
       key: 'f',
       ctrl: true,
       description: 'Toggle fullscreen',
+      category: 'Video',
       action: callbacks.onToggleFullscreen
     });
   }
@@ -136,6 +142,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
       key: 'r',
       ctrl: true,
       description: 'Refresh device list',
+      category: 'Device',
       action: callbacks.onRefreshDevices
     });
   }
@@ -145,6 +152,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
       key: 'i',
       ctrl: true,
       description: 'Toggle device info',
+      category: 'Device',
       action: callbacks.onToggleInfo
     });
   }
@@ -154,6 +162,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
       key: 'ArrowRight',
       ctrl: true,
       description: 'Focus next device',
+      category: 'Navigation',
       action: callbacks.onNextDevice
     });
   }
@@ -163,6 +172,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
       key: 'ArrowLeft',
       ctrl: true,
       description: 'Focus previous device',
+      category: 'Navigation',
       action: callbacks.onPrevDevice
     });
   }

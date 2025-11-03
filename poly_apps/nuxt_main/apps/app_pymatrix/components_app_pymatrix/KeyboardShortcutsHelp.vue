@@ -2,7 +2,7 @@
   <div class="shortcuts-help-overlay" v-if="show" @click="emit('close')">
     <div class="shortcuts-help-panel" @click.stop>
       <div class="panel-header">
-        <h2 class="panel-title">Keyboard Shortcuts</h2>
+        <h2 class="panel-title">⌨️ Keyboard Shortcuts</h2>
         <button class="close-btn" @click="emit('close')" title="Close (Esc)">
           <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
             <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
@@ -10,10 +10,42 @@
         </button>
       </div>
 
+      <!-- Search Bar -->
+      <div class="search-container">
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="search-input"
+          placeholder="🔍 Search shortcuts..."
+          @keydown.esc="searchQuery = ''"
+        />
+        <span v-if="searchQuery" class="search-clear" @click="searchQuery = ''">✕</span>
+      </div>
+
+      <!-- Category Tabs -->
+      <div class="category-tabs">
+        <button
+          v-for="cat in availableCategories"
+          :key="cat"
+          class="category-tab"
+          :class="{ active: selectedCategory === cat }"
+          @click="selectedCategory = cat"
+        >
+          {{ getCategoryIcon(cat) }} {{ cat }}
+          <span class="category-count">{{ getCategoryCount(cat) }}</span>
+        </button>
+      </div>
+
       <div class="panel-content">
-        <div class="shortcuts-grid">
+        <div v-if="filteredShortcuts.length === 0" class="no-results">
+          <div class="no-results-icon">🔍</div>
+          <p class="no-results-text">No shortcuts found</p>
+          <p class="no-results-hint">Try different search terms or select another category</p>
+        </div>
+
+        <div v-else class="shortcuts-grid">
           <div
-            v-for="(shortcut, index) in shortcuts"
+            v-for="(shortcut, index) in filteredShortcuts"
             :key="index"
             class="shortcut-item"
           >
@@ -23,8 +55,11 @@
               <kbd v-if="shortcut.alt" class="key">Alt</kbd>
               <kbd class="key primary">{{ formatKey(shortcut.key) }}</kbd>
             </div>
-            <div class="shortcut-description">
-              {{ shortcut.description }}
+            <div class="shortcut-info">
+              <div class="shortcut-description">{{ shortcut.description }}</div>
+              <div v-if="shortcut.category" class="shortcut-category">
+                {{ getCategoryIcon(shortcut.category) }} {{ shortcut.category }}
+              </div>
             </div>
           </div>
         </div>
@@ -34,12 +69,16 @@
         <p class="footer-hint">
           Press <kbd class="key-inline">?</kbd> to toggle this help panel
         </p>
+        <p class="footer-stats">
+          Showing {{ filteredShortcuts.length }} of {{ shortcuts.length }} shortcuts
+        </p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue';
 import type { KeyboardShortcut } from '../composables_app_pymatrix/useKeyboardShortcuts';
 
 interface Props {
@@ -57,6 +96,59 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 
+const searchQuery = ref('');
+const selectedCategory = ref('All');
+
+const availableCategories = computed(() => {
+  const categories = new Set<string>(['All']);
+  props.shortcuts.forEach(s => {
+    if (s.category) categories.add(s.category);
+  });
+  return Array.from(categories);
+});
+
+const filteredShortcuts = computed(() => {
+  let filtered = props.shortcuts;
+
+  // Filter by category
+  if (selectedCategory.value !== 'All') {
+    filtered = filtered.filter(s => s.category === selectedCategory.value);
+  }
+
+  // Filter by search query
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(s =>
+      s.description.toLowerCase().includes(query) ||
+      s.key.toLowerCase().includes(query) ||
+      (s.category?.toLowerCase().includes(query))
+    );
+  }
+
+  return filtered;
+});
+
+function getCategoryCount(category: string): number {
+  if (category === 'All') return props.shortcuts.length;
+  return props.shortcuts.filter(s => s.category === category).length;
+}
+
+function getCategoryIcon(category: string): string {
+  const icons: Record<string, string> = {
+    'All': '📋',
+    'Device': '📱',
+    'Video': '🎬',
+    'Control': '🎮',
+    'File': '📁',
+    'Group': '👥',
+    'Navigation': '🧭',
+    'System': '⚙️',
+    'Recording': '⏺️',
+    'Screen': '📺'
+  };
+  return icons[category] || '⭐';
+}
+
 function formatKey(key: string): string {
   const keyMap: Record<string, string> = {
     ' ': 'Space',
@@ -67,7 +159,8 @@ function formatKey(key: string): string {
     'Enter': '⏎',
     'Escape': 'Esc',
     'Backspace': '⌫',
-    'Tab': '⇥'
+    'Tab': '⇥',
+    '/': '?'
   };
 
   return keyMap[key] || key.toUpperCase();
@@ -101,8 +194,8 @@ function formatKey(key: string): string {
 
 .shortcuts-help-panel {
   width: 90%;
-  max-width: 700px;
-  max-height: 80vh;
+  max-width: 800px;
+  max-height: 85vh;
   background: rgba(30, 30, 30, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 16px;
@@ -162,23 +255,130 @@ function formatKey(key: string): string {
   transform: scale(1.05);
 }
 
+/* Search Container */
+.search-container {
+  position: relative;
+  padding: 16px 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 40px 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.search-input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.search-clear {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.search-clear:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* Category Tabs */
+.category-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 16px 28px;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  scrollbar-width: none;
+}
+
+.category-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.category-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.category-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.category-tab.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  border-color: #3b82f6;
+  color: white;
+}
+
+.category-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .panel-content {
   flex: 1;
   overflow-y: auto;
-  padding: 28px;
+  padding: 20px 28px;
 }
 
 .shortcuts-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .shortcut-item {
   display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 16px 20px;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 18px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
@@ -197,6 +397,7 @@ function formatKey(key: string): string {
   gap: 6px;
   min-width: 180px;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .key {
@@ -224,15 +425,60 @@ function formatKey(key: string): string {
   color: white;
 }
 
-.shortcut-description {
+.shortcut-info {
   flex: 1;
-  color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shortcut-description {
+  color: rgba(255, 255, 255, 0.9);
   font-size: 14px;
   line-height: 1.5;
+  font-weight: 500;
+}
+
+.shortcut-category {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* No Results */
+.no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.no-results-icon {
+  font-size: 64px;
+  opacity: 0.3;
+  margin-bottom: 16px;
+}
+
+.no-results-text {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.no-results-hint {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .panel-footer {
-  padding: 20px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.02);
 }
@@ -241,7 +487,13 @@ function formatKey(key: string): string {
   margin: 0;
   color: rgba(255, 255, 255, 0.5);
   font-size: 13px;
-  text-align: center;
+}
+
+.footer-stats {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .key-inline {
@@ -295,6 +547,20 @@ function formatKey(key: string): string {
 
   .shortcut-keys {
     min-width: auto;
+  }
+
+  .panel-footer {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .category-tabs {
+    padding: 12px 20px;
+  }
+
+  .search-container {
+    padding: 12px 20px;
   }
 }
 </style>

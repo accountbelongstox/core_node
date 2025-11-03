@@ -29,6 +29,50 @@ else
     USE_SUDO=""
 fi
 
+# Function to check and install sudo if needed
+check_and_install_sudo() {
+    if command -v sudo >/dev/null 2>&1; then
+        USE_SUDO="sudo"
+        return 0
+    fi
+
+    echo "[INFO] sudo is not installed, attempting to install..."
+
+    # Try to install sudo as root (if we have root access)
+    if [ "$(id -u)" -eq 0 ]; then
+        if command -v apt-get >/dev/null 2>&1; then
+            apt-get update && apt-get install -y sudo
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y sudo
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y sudo
+        elif command -v zypper >/dev/null 2>&1; then
+            zypper install -y sudo
+        elif command -v pacman >/dev/null 2>&1; then
+            pacman -S --noconfirm sudo
+        else
+            echo "[ERROR] Package manager not found, cannot install sudo"
+            USE_SUDO=""
+            return 1
+        fi
+
+        if command -v sudo >/dev/null 2>&1; then
+            USE_SUDO="sudo"
+            echo "[OK] sudo installed successfully"
+            return 0
+        else
+            echo "[ERROR] Failed to install sudo"
+            USE_SUDO=""
+            return 1
+        fi
+    else
+        echo "[WARNING] Not running as root, cannot install sudo"
+        echo "[INFO] Please run as root or install sudo manually"
+        USE_SUDO=""
+        return 1
+    fi
+}
+
 # Core Node project root directory
 CORE_NODE_PROJECT_ROOT=""
 

@@ -15,16 +15,8 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_CURRENT_DIR")"
 SHELLS_DIR="$PARENT_DIR"
 
-# Source gvar_common.sh from parent directory
-if [ -f "${PARENT_DIR}/gvar_common.sh" ]; then
-source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
-else
-    echo "Error: gvar_common.sh not found in ${PARENT_DIR}"
-    exit 1
-fi
-
-# Source common variables
-source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
+# Source gvar_common.sh from parent directory - use relative path
+source "${PARENT_DIR}/common/gvar_common.sh"
 
 selector_common_file="${SHELLS_DIR}/common/selector_common.sh"
 INSTALL_SHELLS_DIR="${SCRIPT_CURRENT_DIR}/install_shells"

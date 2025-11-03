@@ -18,9 +18,8 @@ PARENT_DIR_LEVEL_3="$(dirname "$PARENT_DIR_LEVEL_2")"
 PARENT_DIR_LEVEL_4="$(dirname "$PARENT_DIR_LEVEL_3")"
 PARENT_DIR_LEVEL_5="$(dirname "$PARENT_DIR_LEVEL_4")"
 
-# Source global variables from the correct linux directory
-source "$PARENT_DIR_LEVEL_5/linux/LGar.sh"
-source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
+# Source global variables from the correct linux directory - use dynamic relative path
+source "$PARENT_DIR_LEVEL_5/linux/common/gvar_common.sh"
 
 # Declare variables
 CURRENT_USER=${USER:-$(whoami)}
