@@ -143,7 +143,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
             ),
             SizedBox(height: ThemeDimensions.spacing8),
             Text(
-              '守护你的未来',
+              LocalizationKeysAppWuy.wuyHistoryProtectFuture.tr(context),
               style: ThemeTextStyles.subhead.copyWith(
                 color: ThemeColors.white.withOpacity(0.9),
                 fontWeight: FontWeight.w500,
@@ -160,7 +160,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
                 ),
                 SizedBox(width: ThemeDimensions.spacing8),
                 Text(
-                  '轨迹 ${totalDistance.toStringAsFixed(1)}KM',
+                  '${LocalizationKeysAppWuy.wuyHistoryTrajectory.tr(context)} ${totalDistance.toStringAsFixed(1)}KM',
                   style: ThemeTextStyles.title1Bold.copyWith(
                     color: ThemeColors.white,
                     fontSize: 26,
@@ -188,7 +188,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
             ),
             SizedBox(height: ThemeDimensions.paddingSizeDefault),
             Text(
-              'No location history',
+              LocalizationKeysAppWuy.wuyHistoryNoLocationHistory.tr(context),
               style: ThemeTextStyles.body.copyWith(
                 color: ThemeColors.secondaryLabel,
               ),

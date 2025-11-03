@@ -121,6 +121,9 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyHistoryAction: '操作',
     LocalizationKeysAppWuy.wuyHistoryMessage: '消息',
     LocalizationKeysAppWuy.wuyHistoryUpdate: '更新',
+    LocalizationKeysAppWuy.wuyHistoryProtectFuture: '守护你的未来',
+    LocalizationKeysAppWuy.wuyHistoryNoLocationHistory: '暂无位置记录',
+    LocalizationKeysAppWuy.wuyHistoryTrajectory: '轨迹',
 
     // Network related
     LocalizationKeysAppWuy.wuyNetworkTitle: '网络记录',
@@ -128,6 +131,11 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyNetworkSuccess: '成功',
     LocalizationKeysAppWuy.wuyNetworkError: '错误',
     LocalizationKeysAppWuy.wuyNetworkPending: '等待中',
+    LocalizationKeysAppWuy.wuyNetworkConnectedWifi: '已连接 WiFi',
+    LocalizationKeysAppWuy.wuyNetworkConnectedWifiWith: '已连接 WiFi',
+    LocalizationKeysAppWuy.wuyNetworkConnectedMobile: '已连接移动网络',
+    LocalizationKeysAppWuy.wuyNetworkChange: '网络变更',
+    LocalizationKeysAppWuy.wuyNetworkNoRecords: '暂无网络记录',
 
     // Map related
     LocalizationKeysAppWuy.wuyMapTitle: '地图',

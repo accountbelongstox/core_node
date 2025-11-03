@@ -100,6 +100,9 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyHistoryAction: 'Action',
     LocalizationKeysAppWuy.wuyHistoryMessage: 'Message',
     LocalizationKeysAppWuy.wuyHistoryUpdate: 'Update',
+    LocalizationKeysAppWuy.wuyHistoryProtectFuture: 'Carefully Guarding Your Future',
+    LocalizationKeysAppWuy.wuyHistoryNoLocationHistory: 'No location history',
+    LocalizationKeysAppWuy.wuyHistoryTrajectory: 'Trajectory',
 
     // Network related
     LocalizationKeysAppWuy.wuyNetworkTitle: 'Network Records',
@@ -107,6 +110,11 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyNetworkSuccess: 'Success',
     LocalizationKeysAppWuy.wuyNetworkError: 'Error',
     LocalizationKeysAppWuy.wuyNetworkPending: 'Pending',
+    LocalizationKeysAppWuy.wuyNetworkConnectedWifi: 'Connected to WiFi',
+    LocalizationKeysAppWuy.wuyNetworkConnectedWifiWith: 'Connected WiFi',
+    LocalizationKeysAppWuy.wuyNetworkConnectedMobile: 'Connected to Mobile Network',
+    LocalizationKeysAppWuy.wuyNetworkChange: 'Network change',
+    LocalizationKeysAppWuy.wuyNetworkNoRecords: 'No network records',
 
     // Map related
     LocalizationKeysAppWuy.wuyMapTitle: 'Map',

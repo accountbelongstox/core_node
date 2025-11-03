@@ -1,119 +1,72 @@
 import 'package:flutter/material.dart';
-import '../widgets/my_itinerary_tab.dart';
-import '../widgets/all_orders_tab.dart';
+import '../../../models_app_travel/order_model.dart';
+import '../../../testdata/orders_data.dart';
 
-/// Journey Screen with Tab Navigation
-/// Displays "My Itinerary" and "All Orders" in separate tabs
-class JourneyScreen extends StatefulWidget {
-  const JourneyScreen({Key? key}) : super(key: key);
+/// Tab widget for displaying "All Orders"
+/// Includes order filtering, search, and list view
+class AllOrdersTab extends StatefulWidget {
+  const AllOrdersTab({Key? key}) : super(key: key);
 
   @override
-  State<JourneyScreen> createState() => _JourneyScreenState();
+  State<AllOrdersTab> createState() => _AllOrdersTabState();
 }
 
-class _JourneyScreenState extends State<JourneyScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _AllOrdersTabState extends State<AllOrdersTab>
+    with AutomaticKeepAliveClientMixin {
+  int _selectedFilterIndex = 0;
+  String _searchQuery = '';
+  List<OrderModel> _allOrders = [];
+  List<OrderModel> _filteredOrders = [];
+
+  final List<String> _filterTabs = ['全部', '待支付', '待出行', '退款/售后', '待点评'];
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _loadOrders();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void _loadOrders() {
+    _allOrders = TestOrdersData.getTestOrders();
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+    setState(() {
+      String currentFilter = _filterTabs[_selectedFilterIndex];
+      _filteredOrders = TestOrdersData.filterOrders(_allOrders, currentFilter);
+
+      // Apply search filter
+      if (_searchQuery.isNotEmpty) {
+        _filteredOrders = _filteredOrders.where((order) {
+          return order.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              order.subtitle.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              order.id.toLowerCase().contains(_searchQuery.toLowerCase());
+        }).toList();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: const [
-                  MyItineraryTab(),
-                  AllOrdersTab(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    super.build(context);
+    final orderCounts = TestOrdersData.getOrderCounts(_allOrders);
 
-  Widget _buildHeader() {
-    return Container(
-      color: Colors.white,
-      child: Column(
-        children: [
-          // Top bar with service button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    indicatorColor: const Color(0xFF00D0D8),
-                    indicatorWeight: 3.0,
-                    indicatorSize: TabBarIndicatorSize.label,
-                    labelColor: Colors.black87,
-                    labelStyle: const TextStyle(
-                      fontSize: 18.0,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    unselectedLabelColor: Colors.black54,
-                    unselectedLabelStyle: const TextStyle(
-                      fontSize: 15.0,
-                      fontWeight: FontWeight.normal,
-                    ),
-                    tabs: const [
-                      Tab(text: '我的行程'),
-                      Tab(text: '全部订单'),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16.0),
-                GestureDetector(
-                  onTap: () {
-                    debugPrint('Service tapped');
-                  },
-                  child: Column(
-                    children: const [
-                      Icon(
-                        Icons.headset_mic_outlined,
-                        size: 24.0,
-                        color: Colors.black54,
-                      ),
-                      SizedBox(height: 2.0),
-                      Text(
-                        '客服',
-                        style: TextStyle(
-                          fontSize: 11.0,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        _buildSearchBar(),
+        _buildFilterTabs(orderCounts),
+        Expanded(
+          child: _filteredOrders.isEmpty
+              ? _buildEmptyState()
+              : _buildOrderList(),
+        ),
+      ],
     );
   }
-}
 
   Widget _buildSearchBar() {
     return Container(
@@ -478,9 +431,9 @@ class _JourneyScreenState extends State<JourneyScreen>
   }
 
   Widget _buildEmptyState() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 40.0),
+    return Center(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Image.asset(
             'assets/apps/app_travel/images/empty_order_mascot.png',
@@ -504,305 +457,10 @@ class _JourneyScreenState extends State<JourneyScreen>
           ),
           const SizedBox(height: 16.0),
           const Text(
-            '您还没有订单哦～',
+            '暂无订单',
             style: TextStyle(
               fontSize: 15.0,
               color: Colors.black38,
-            ),
-          ),
-          const SizedBox(height: 60.0),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                '找不到订单，',
-                style: TextStyle(
-                  fontSize: 13.0,
-                  color: Colors.black38,
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  debugPrint('Check reason tapped');
-                },
-                child: const Text(
-                  '点击查看原因',
-                  style: TextStyle(
-                    fontSize: 13.0,
-                    color: Color(0xFF00D0D8),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8.0),
-          const Text(
-            '*根据铁路局规定，火车票仅展示近30天订单*',
-            style: TextStyle(
-              fontSize: 11.0,
-              color: Colors.black26,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTravelInspiration() {
-    return Container(
-      margin: const EdgeInsets.only(top: 12.0, bottom: 16.0),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '旅行灵感',
-            style: TextStyle(
-              fontSize: 17.0,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 12.0),
-          Container(
-            padding: const EdgeInsets.all(12.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8F8F8),
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48.0,
-                  height: 48.0,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: Image.asset(
-                      'assets/apps/app_travel/images/journey_inspiration_map.png',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: const Color(0xFF4A9F7C),
-                          child: const Icon(
-                            Icons.map_outlined,
-                            color: Colors.white,
-                            size: 28.0,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12.0),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        '趣玩地图🗺️',
-                        style: TextStyle(
-                          fontSize: 15.0,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      SizedBox(height: 4.0),
-                      Text(
-                        '北京精华景点地图·共43...',
-                        style: TextStyle(
-                          fontSize: 13.0,
-                          color: Colors.black45,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  size: 20.0,
-                  color: Colors.black26,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHotSelection() {
-    final List<Map<String, dynamic>> hotContents = [
-      {
-        'image': 'assets/apps/app_travel/images/hot_content_1.png',
-        'title': '北京本地人大实话',
-        'subtitle': '被xhs骗惨了😭终于有人把北京旅游说明白',
-        'author': '爱旅行',
-        'likes': 251,
-      },
-      {
-        'image': 'assets/apps/app_travel/images/hot_content_2.png',
-        'title': '北京正确游玩顺序',
-        'subtitle': '五天四晚 🎈 北京攻略已完善 👍 直接抄',
-        'author': '旅游小猪',
-        'likes': 27,
-      },
-      {
-        'image': 'assets/apps/app_travel/images/hot_content_3.png',
-        'title': '刚从北京回来',
-        'subtitle': '我的建议是 🤔🤔',
-        'author': '旅行达人',
-        'likes': 128,
-      },
-      {
-        'image': 'assets/apps/app_travel/images/hot_content_4.png',
-        'title': '10.10 北京已回',
-        'subtitle': '我的建议是。。😭😭',
-        'author': '旅游分享',
-        'likes': 89,
-      },
-    ];
-
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '热门精选',
-            style: TextStyle(
-              fontSize: 17.0,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16.0),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12.0,
-              mainAxisSpacing: 12.0,
-              childAspectRatio: 0.68,
-            ),
-            itemCount: hotContents.length,
-            itemBuilder: (context, index) {
-              return _buildHotContentCard(hotContents[index]);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHotContentCard(Map<String, dynamic> content) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8.0),
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4.0,
-            offset: const Offset(0, 2.0),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8.0)),
-              child: Image.asset(
-                content['image'],
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: const Color(0xFFF0F0F0),
-                    child: const Center(
-                      child: Icon(
-                        Icons.image,
-                        size: 48.0,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  content['title'],
-                  style: const TextStyle(
-                    fontSize: 13.0,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4.0),
-                Text(
-                  content['subtitle'],
-                  style: const TextStyle(
-                    fontSize: 12.0,
-                    color: Colors.black54,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8.0),
-                Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 10.0,
-                      backgroundColor: Color(0xFF00D0D8),
-                      child: Icon(
-                        Icons.person,
-                        size: 12.0,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 6.0),
-                    Expanded(
-                      child: Text(
-                        content['author'],
-                        style: const TextStyle(
-                          fontSize: 11.0,
-                          color: Colors.black45,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const Icon(
-                      Icons.favorite_border,
-                      size: 14.0,
-                      color: Colors.black38,
-                    ),
-                    const SizedBox(width: 4.0),
-                    Text(
-                      '${content['likes']}',
-                      style: const TextStyle(
-                        fontSize: 11.0,
-                        color: Colors.black45,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ),
           ),
         ],

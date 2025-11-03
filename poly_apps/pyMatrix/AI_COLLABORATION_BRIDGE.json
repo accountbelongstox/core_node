@@ -2,13 +2,13 @@
   "schemaVersion": "1.0.0",
   "documentType": "AI_COLLABORATION_BRIDGE",
   "purpose": "双AI协作联调桥接文件 - 协调前端AI与后端AI的开发进度和API对接",
-  "lastUpdate": "2025-11-03T15:30:00Z",
+  "lastUpdate": "2025-11-03T16:00:00Z",
   "lockInfo": {
     "isLocked": false,
     "lockedBy": null,
     "lockedAt": null,
     "lockReason": null,
-    "lockMessage": "🔓 File unlocked - Feature status alignment: Updated F008-F015 from frontend_ready to completed (74% aligned)"
+    "lockMessage": "🔓 File unlocked - Added F029 Configuration Management feature (83% aligned, 29 features total, 24 fully aligned)"
   },
   "aiParticipants": {
     "frontendAI": {
@@ -133,15 +133,15 @@
   },
   "featureAlignment": {
     "summary": {
-      "totalFeatures": 28,
-      "fullyAligned": 23,
+      "totalFeatures": 29,
+      "fullyAligned": 24,
       "partiallyAligned": 0,
       "frontendOnly": 4,
       "backendMissing": 1,
-      "readyForTesting": 28,
+      "readyForTesting": 29,
       "frontendCompletionRate": "100%",
-      "alignmentRate": "82%",
-      "notes": "✅ All frontend UI features completed! 28/28 features have frontend implementation (100%). 23 fully aligned with backend (82%), 4 frontend-only features (F023-F026), 1 waiting for backend (F022 Group Tree View). System Health Monitor (F028) added as latest feature. All frontend features ready for integration testing."
+      "alignmentRate": "83%",
+      "notes": "✅ All frontend UI features completed! 29/29 features have frontend implementation (100%). 24 fully aligned with backend (83%), 4 frontend-only features (F023-F026), 1 waiting for backend (F022 Group Tree View). Configuration Management (F029) added - complete global and device-specific config management with UI, Store, and API integration. All frontend features ready for integration testing."
     },
     "features": [
       {
@@ -831,6 +831,32 @@
         "testingStatus": "ready_for_testing",
         "alignment": "fully_aligned",
         "notes": "✅ 前后端已对齐，可以开始联调测试。功能：实时资源监控、颜色编码状态指示器、自动/手动刷新、性能指标显示、深色模式支持"
+      },
+      {
+        "id": "F029",
+        "name": "配置管理",
+        "category": "系统配置",
+        "priority": "P0",
+        "frontend": {
+          "status": "completed",
+          "component": "PyMatrixSettingsDialog.vue, configStore.ts, pymatrix-config-api.ts, deviceConfigFields.ts",
+          "apiCall": "GET /config, GET /config/global, PATCH /config/global, GET /config/device/{device_name}, PATCH /config/device/{device_name}, DELETE /config/device/{device_name}",
+          "implementedBy": "Frontend AI",
+          "completedAt": "2025-11-03T16:00:00Z",
+          "notes": "✅ 配置管理完成：全局默认配置管理，设备特定配置覆盖，配置字段包括max_size（120-4320），bit_rate（100000-20000000），max_fps（1-120），codec（h264/h265/av1），control（true/false），locked_video_orientation（-1到3）。UI支持表单验证，实时保存，设备配置增删改查，配置继承机制（设备配置覆盖全局配置）。"
+        },
+        "backend": {
+          "status": "completed",
+          "endpoint": "GET /config (API-035), GET /config/global (API-036), PATCH /config/global (API-037), GET /config/device/{device_name} (API-038), PATCH /config/device/{device_name} (API-039), DELETE /config/device/{device_name} (API-040)",
+          "file": "api/config_routes.py",
+          "service": "services/config_service.py",
+          "implementedBy": "Backend AI",
+          "completedAt": "2025-11-02",
+          "notes": "✅ 后端配置管理已完成，支持全局配置CRUD，设备特定配置CRUD，配置验证（Pydantic），配置继承逻辑（设备配置优先于全局配置）"
+        },
+        "testingStatus": "ready_for_testing",
+        "alignment": "fully_aligned",
+        "notes": "✅ 前后端已完全对齐，可以开始联调测试。功能：全局配置管理（应用于所有设备的默认设置），设备配置覆盖（针对特定设备名称的配置），配置参数验证（范围检查，枚举验证），UI表单（数字输入，选择框，开关），实时保存和加载，配置继承和优先级处理。配置影响设备连接和视频流参数。"
       }
     ]
   },
