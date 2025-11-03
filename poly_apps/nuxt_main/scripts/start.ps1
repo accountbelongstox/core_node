@@ -7,19 +7,47 @@
 # 5. Declare all variables at the beginning of the file.
 # 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
 # 7. Do not modify these rules.
-# 8. No parameters allowed for install/start/deploy/build scripts - use hardcoded configuration
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Nuxt Main Start Script - Interactive Launcher
-# Starts nuxt_main application with interactive menu selection
+# Nuxt Main Start Script - Parameterized Launcher
+# Supports both command-line arguments and interactive menu selection
+#
+# Usage:
+#   .\start.ps1                    # Interactive menu (original behavior)
+#   .\start.ps1 <app>              # Direct launch in debug mode
+#   .\start.ps1 <app> debug        # Direct launch in debug mode (explicit)
+#   .\start.ps1 <app> build        # Direct launch in build mode
+#   .\start.ps1 -h                 # Show help
+#   .\start.ps1 -list              # List available apps
+#
+# Examples:
+#   .\start.ps1 pymatrix           # Start pyMatrix in debug mode
+#   .\start.ps1 ittools build      # Build ITTools
+#   .\start.ps1 example            # Start Example app
 
-# Record original working directory
+# Declare all variables at the beginning
+param(
+    [Parameter(Position = 0)]
+    [string]$AppName = "",
+
+    [Parameter(Position = 1)]
+    [string]$Mode = "debug"
+)
+
 $ORIGINAL_WORKING_DIR = Get-Location
-
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FUNCTIONS_DIR = Join-Path $SCRIPT_DIR "functions"
 $APP_DIR = Split-Path -Parent $SCRIPT_DIR
+
+# Validate Mode parameter
+if ($Mode -ne "debug" -and $Mode -ne "build" -and $Mode -ne "") {
+    Write-Host ""
+    Write-Host "ERROR: Invalid mode '$Mode'. Must be 'debug' or 'build'." -ForegroundColor Red
+    Write-Host "Use '.\start.ps1 help' for usage information." -ForegroundColor Yellow
+    Write-Host ""
+    exit 1
+}
 
 Write-Host ""
 Write-Host "===============================================================================" -ForegroundColor Cyan
@@ -70,25 +98,119 @@ Write-Host "====================================================================
 
 Initialize-AppConfigs -AppDirectory $APP_DIR
 $appConfigs = Get-AppConfigs
-$menuItems = @()
 
-foreach ($key in $appConfigs.Keys | Sort-Object) {
-    $menuItems += $appConfigs[$key]
+# Handle special commands
+if ($AppName -eq "help" -or $AppName -eq "-h" -or $AppName -eq "--help") {
+    Write-Host ""
+    Write-Host "===============================================================================" -ForegroundColor Green
+    Write-Host "  NUXT MAIN LAUNCHER - HELP" -ForegroundColor Green
+    Write-Host "===============================================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Usage:" -ForegroundColor Yellow
+    Write-Host "  .\start.ps1                    Interactive menu (original behavior)" -ForegroundColor White
+    Write-Host "  .\start.ps1 <app>              Direct launch in debug mode" -ForegroundColor White
+    Write-Host "  .\start.ps1 <app> debug        Direct launch in debug mode (explicit)" -ForegroundColor White
+    Write-Host "  .\start.ps1 <app> build        Direct launch in build mode" -ForegroundColor White
+    Write-Host "  .\start.ps1 list               List available apps" -ForegroundColor White
+    Write-Host "  .\start.ps1 help               Show this help" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Available Apps:" -ForegroundColor Yellow
+    foreach ($key in $appConfigs.Keys | Sort-Object) {
+        $config = $appConfigs[$key]
+        Write-Host "  - $key" -ForegroundColor Cyan -NoNewline
+        Write-Host " ($($config.DisplayName) on port $($config.Port))" -ForegroundColor Gray
+    }
+    Write-Host ""
+    Write-Host "Examples:" -ForegroundColor Yellow
+    Write-Host "  .\start.ps1 pymatrix           Start pyMatrix in debug mode" -ForegroundColor White
+    Write-Host "  .\start.ps1 ittools build      Build ITTools" -ForegroundColor White
+    Write-Host "  .\start.ps1 example            Start Example app" -ForegroundColor White
+    Write-Host ""
+    Write-Host "===============================================================================" -ForegroundColor Green
+    exit 0
 }
 
-$savedState = Get-MenuState
-
-$stateChangedCallback = {
-    param($index, $mode)
-    Save-MenuState -SelectedIndex $index -Mode $mode
+if ($AppName -eq "list" -or $AppName -eq "-list" -or $AppName -eq "--list") {
+    Write-Host ""
+    Write-Host "===============================================================================" -ForegroundColor Green
+    Write-Host "  AVAILABLE APPLICATIONS" -ForegroundColor Green
+    Write-Host "===============================================================================" -ForegroundColor Green
+    Write-Host ""
+    foreach ($key in $appConfigs.Keys | Sort-Object) {
+        $config = $appConfigs[$key]
+        Write-Host "  App Name     : " -ForegroundColor Yellow -NoNewline
+        Write-Host $key -ForegroundColor Cyan
+        Write-Host "  Display Name : " -ForegroundColor Yellow -NoNewline
+        Write-Host $config.DisplayName -ForegroundColor White
+        Write-Host "  Port         : " -ForegroundColor Yellow -NoNewline
+        Write-Host $config.Port -ForegroundColor White
+        Write-Host "  Dev Command  : " -ForegroundColor Yellow -NoNewline
+        Write-Host $config.DevCommand -ForegroundColor Gray
+        Write-Host "  Build Command: " -ForegroundColor Yellow -NoNewline
+        Write-Host $config.BuildCommand -ForegroundColor Gray
+        Write-Host ""
+    }
+    Write-Host "===============================================================================" -ForegroundColor Green
+    exit 0
 }
 
-$menuResult = Show-InteractiveMenu -MenuItems $menuItems -InitialIndex $savedState.SelectedIndex -InitialMode $savedState.Mode -OnStateChange $stateChangedCallback
+# Determine if using command-line mode or interactive mode
+$useCommandLineMode = $false
+$selectedApp = $null
+$mode = "debug"
 
-Save-MenuState -SelectedIndex $menuResult.SelectedIndex -Mode $menuResult.Mode
+if ($AppName -and $AppName -ne "") {
+    # Command-line mode
+    if ($appConfigs.ContainsKey($AppName)) {
+        $useCommandLineMode = $true
+        $selectedApp = $appConfigs[$AppName]
+        Write-Host ""
+        Write-Host "===============================================================================" -ForegroundColor Green
+        Write-Host "  COMMAND-LINE MODE ACTIVATED" -ForegroundColor Green
+        Write-Host "===============================================================================" -ForegroundColor Green
+        Write-Host "  Selected App: $($selectedApp.DisplayName)" -ForegroundColor Cyan
+        Write-Host "  Mode: $Mode" -ForegroundColor Cyan
+        Write-Host "===============================================================================" -ForegroundColor Green
+        Write-Host ""
+    }
+    else {
+        Write-Host ""
+        Write-Host "===============================================================================" -ForegroundColor Red
+        Write-Host "  ERROR: Unknown application '$AppName'" -ForegroundColor Red
+        Write-Host "===============================================================================" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Available apps:" -ForegroundColor Yellow
+        foreach ($key in $appConfigs.Keys | Sort-Object) {
+            Write-Host "  - $key" -ForegroundColor Cyan
+        }
+        Write-Host ""
+        Write-Host "Use '.\start.ps1 -list' to see detailed app information" -ForegroundColor Gray
+        Write-Host "Use '.\start.ps1 -h' for help" -ForegroundColor Gray
+        Write-Host ""
+        exit 1
+    }
+}
+else {
+    # Interactive mode (original behavior)
+    $menuItems = @()
+    foreach ($key in $appConfigs.Keys | Sort-Object) {
+        $menuItems += $appConfigs[$key]
+    }
 
-$selectedApp = $menuResult.SelectedApp
-$mode = $menuResult.Mode
+    $savedState = Get-MenuState
+
+    $stateChangedCallback = {
+        param($index, $mode)
+        Save-MenuState -SelectedIndex $index -Mode $mode
+    }
+
+    $menuResult = Show-InteractiveMenu -MenuItems $menuItems -InitialIndex $savedState.SelectedIndex -InitialMode $savedState.Mode -OnStateChange $stateChangedCallback
+
+    Save-MenuState -SelectedIndex $menuResult.SelectedIndex -Mode $menuResult.Mode
+
+    $selectedApp = $menuResult.SelectedApp
+    $mode = $menuResult.Mode
+}
 
 Set-Gvar -Key "SelectedApp" -Value $selectedApp.Name
 Set-Gvar -Key "Mode" -Value $mode

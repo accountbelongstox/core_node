@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import { useScriptStore } from '../stores_app_pymatrix/scriptStore';
-import type { ScriptStep, ScriptStepType, ScriptStepData } from '../../../types/pymatrix';
+import type { ScriptStep, ScriptStepType, ScriptStepData } from '@/types/pymatrix';
 
 /**
  * Script Recorder Composable

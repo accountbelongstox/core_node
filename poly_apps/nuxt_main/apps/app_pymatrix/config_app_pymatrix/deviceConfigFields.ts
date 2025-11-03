@@ -1,4 +1,4 @@
-import type { DeviceConfig } from '../../../types/pymatrix';
+import type { DeviceConfig } from '@/types/pymatrix';
 
 export type DeviceConfigField =
   | { key: keyof DeviceConfig; label: string; type: 'number'; min: number; max: number; step?: number }

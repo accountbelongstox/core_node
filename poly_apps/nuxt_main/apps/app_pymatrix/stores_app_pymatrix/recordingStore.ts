@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { RecordingState, RecordingFormat, RecordingMode } from '../../../types/pymatrix';
+import type { RecordingState, RecordingFormat, RecordingMode } from '@/types/pymatrix';
 
 interface RecordingStoreState {
   recordings: Map<string, RecordingState>;

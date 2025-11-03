@@ -154,7 +154,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { Device, GroupState } from '../../../types/pymatrix';
+import type { Device, GroupState } from '@/types/pymatrix';
 
 interface Props {
   show?: boolean;

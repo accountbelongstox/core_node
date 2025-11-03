@@ -1,6 +1,6 @@
 import { useDeviceControl } from './useDeviceControl';
 import { useScriptRecorder } from './useScriptRecorder';
-import type { Device } from '../../../types/pymatrix';
+import type { Device } from '@/types/pymatrix';
 
 interface UseRecordableDeviceControlOptions {
   deviceSerial: string;

@@ -158,7 +158,7 @@ import { ref, computed, watch } from 'vue';
 import BasePanel from '@/common/components/ui/BasePanel.vue';
 import BaseButton from '@/common/components/ui/BaseButton.vue';
 import { useToast } from '../composables_app_pymatrix/useToast';
-import { PyMatrixFileAPI } from '../services_app_pymatrix/api/pymatrix-file-api';
+import { PyMatrixFileAPI } from '@/services/api/pymatrix/pymatrix-file-api';
 
 const props = defineProps<{
   visible: boolean;

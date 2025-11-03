@@ -59,7 +59,7 @@
 import { computed, ref, watch } from 'vue';
 import { useUIPreferencesStore } from '../stores_app_pymatrix/uiPreferencesStore';
 import VideoPlayer from './VideoPlayer.vue';
-import type { Device } from '../../../types/pymatrix';
+import type { Device } from '@/types/pymatrix';
 
 interface Props {
   devices: Device[];

@@ -1,7 +1,7 @@
 import { ref } from 'vue';
-import { useWSRPC } from '../../../composables/useWSRPC';
+import { useWSRPC } from '@/composables/useWSRPC';
 import { useGroupStore } from '../stores_app_pymatrix/groupStore';
-import type { GroupState, WSRPCMessage } from '../../../types/pymatrix';
+import type { GroupState, WSRPCMessage } from '@/types/pymatrix';
 
 interface UseGroupControlOptions {
   baseUrl: string;

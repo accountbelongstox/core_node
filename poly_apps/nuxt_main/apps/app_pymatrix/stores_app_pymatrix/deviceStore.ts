@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { Device } from '../../../types/pymatrix';
+import type { Device } from '@/types/pymatrix';
 
 interface DeviceFilterState {
   searchQuery: string;

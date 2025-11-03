@@ -314,7 +314,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import type { ScriptStep, ScriptStepType, ScriptStepData } from '../../../types/pymatrix';
+import type { ScriptStep, ScriptStepType, ScriptStepData } from '@/types/pymatrix';
 
 interface Props {
   show: boolean;

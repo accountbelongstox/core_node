@@ -62,81 +62,85 @@ class FrontendLauncher:
 
         return True
 
-    def create_batch_script(self) -> Path:
+    def get_start_script_path(self) -> Path:
         """
-        Create temporary Windows batch script to launch frontend
+        Get path to the start.ps1 script
 
         Returns:
-            Path to the created batch script
+            Path to the start.ps1 script
         """
-        # Create batch script content
-        batch_content = f"""@echo off
-cd /d "{self.nuxt_main_dir}"
-echo Starting pyMatrix frontend...
-echo Working directory: %CD%
-echo.
+        scripts_dir = self.nuxt_main_dir / "scripts"
+        start_script = scripts_dir / "start.ps1"
 
-REM Check if yarn is available
-where yarn >nul 2>nul
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] yarn is not installed or not in PATH
-    pause
-    exit /b 1
-)
+        if not start_script.exists():
+            ColorPrint.red(f"Start script not found: {start_script}")
+            return None
 
-REM Check if node_modules exists
-if not exist "node_modules" (
-    echo [WARNING] node_modules not found, running yarn install...
-    yarn install
-)
+        return start_script
 
-REM Launch dev:pymatrix
-echo Running: yarn dev:pymatrix
-yarn dev:pymatrix
-
-pause
-"""
-
-        # Create temporary batch file
-        temp_dir = Path(tempfile.gettempdir())
-        batch_file = temp_dir / "pymatrix_frontend_launcher.bat"
-
-        with open(batch_file, 'w', encoding='utf-8') as f:
-            f.write(batch_content)
-
-        self.batch_script = batch_file
-        ColorPrint.blue(f"Created batch script: {batch_file}")
-        return batch_file
-
-    def launch_frontend(self) -> bool:
+    def launch_frontend(self) -> subprocess.Popen:
         """
-        Launch frontend using Windows explorer (non-blocking)
+        Launch frontend using PowerShell start.ps1 script with direct output capture
 
         Returns:
-            True if launch successful
+            subprocess.Popen object or None
         """
         try:
             if not self.validate_paths():
-                return False
+                return None
 
-            # Create batch script
-            batch_file = self.create_batch_script()
+            # Get start.ps1 script path
+            start_script = self.get_start_script_path()
+            if not start_script:
+                return None
 
-            # Launch using explorer (opens in new window, non-blocking)
-            ColorPrint.blue("Launching frontend in new window...")
-            subprocess.Popen(['explorer', str(batch_file)], shell=False)
+            # Launch PowerShell with start.ps1 script (pymatrix in debug mode)
+            ColorPrint.blue("Starting frontend with PowerShell start.ps1...")
+            ColorPrint.blue(f"Command: powershell.exe -ExecutionPolicy Bypass -File {start_script} pymatrix debug")
 
-            ColorPrint.green(f"Frontend launcher started: {batch_file}")
-            ColorPrint.blue("Frontend will start in a new command window")
-            return True
+            process = subprocess.Popen(
+                [
+                    'powershell.exe',
+                    '-ExecutionPolicy', 'Bypass',
+                    '-File', str(start_script),
+                    'pymatrix',
+                    'debug'
+                ],
+                cwd=str(self.nuxt_main_dir),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                encoding='utf-8',
+                errors='replace'
+            )
+
+            # Start a thread to print output
+            def print_output():
+                try:
+                    for line in process.stdout:
+                        print(f"[Frontend] {line.rstrip()}")
+                except UnicodeDecodeError as e:
+                    ColorPrint.yellow(f"[Frontend] Warning: Unicode decode error: {e}")
+                except Exception as e:
+                    ColorPrint.red(f"[Frontend] Error reading output: {e}")
+
+            import threading
+            threading.Thread(target=print_output, daemon=True).start()
+
+            ColorPrint.green(f"Frontend process started (PID: {process.pid})")
+            self.batch_script = None  # No batch script used
+            return process
 
         except Exception as e:
             ColorPrint.red(f"Failed to launch frontend: {e}")
-            return False
+            import traceback
+            traceback.print_exc()
+            return None
 
     async def wait_for_frontend_connection(
         self,
-        frontend_url: str = "http://localhost:3000",
+        frontend_url: str = "http://localhost:3007",
         timeout: int = 120,
         check_interval: int = 2
     ) -> bool:
@@ -144,7 +148,7 @@ pause
         Wait for frontend to become available
 
         Args:
-            frontend_url: Frontend URL to check
+            frontend_url: Frontend URL to check (default: http://localhost:3007 for pymatrix)
             timeout: Maximum wait time in seconds
             check_interval: Time between checks in seconds
 
@@ -161,12 +165,13 @@ pause
 
         while elapsed < timeout:
             try:
+                # Try root path first (Nuxt dev server)
                 response = requests.get(
-                    f"{frontend_url}/pymatrix",
+                    frontend_url,
                     timeout=2
                 )
                 if response.status_code == 200:
-                    ColorPrint.green(f"\n✓ Frontend connected successfully at {frontend_url}/pymatrix")
+                    ColorPrint.green(f"\n✓ Frontend connected successfully at {frontend_url}")
                     return True
 
             except (requests.RequestException, Exception):
@@ -182,8 +187,8 @@ pause
 
         ColorPrint.red(f"\n✗ Frontend did not start within {timeout} seconds")
         ColorPrint.yellow("You can manually start the frontend:")
-        ColorPrint.yellow(f"  cd {self.nuxt_main_dir}")
-        ColorPrint.yellow("  yarn dev:pymatrix")
+        ColorPrint.yellow(f"  cd {self.nuxt_main_dir}\\scripts")
+        ColorPrint.yellow("  .\\start.ps1 pymatrix")
         return False
 
     def cleanup(self):
@@ -197,14 +202,14 @@ pause
 
     async def launch_and_wait(
         self,
-        frontend_url: str = "http://localhost:3000",
+        frontend_url: str = "http://localhost:3007",
         timeout: int = 120
     ) -> bool:
         """
         Launch frontend and wait for connection
 
         Args:
-            frontend_url: Frontend URL to check
+            frontend_url: Frontend URL to check (default: http://localhost:3007 for pymatrix)
             timeout: Maximum wait time in seconds
 
         Returns:
@@ -215,7 +220,8 @@ pause
         print("=" * 60)
 
         # Launch frontend
-        if not self.launch_frontend():
+        process = self.launch_frontend()
+        if not process:
             return False
 
         print()
@@ -231,7 +237,7 @@ pause
             print("=" * 60)
             ColorPrint.green("Frontend and Backend are ready!")
             print("=" * 60)
-            ColorPrint.blue(f"Frontend: {frontend_url}/pymatrix")
+            ColorPrint.blue(f"Frontend: {frontend_url}")
             ColorPrint.blue("Backend:  http://0.0.0.0:8000/api")
             ColorPrint.blue("API Docs: http://0.0.0.0:8000/docs")
             print("=" * 60)
@@ -241,7 +247,7 @@ pause
 
 async def launch_frontend_with_wait(
     project_root: Optional[Path] = None,
-    frontend_url: str = "http://localhost:3000",
+    frontend_url: str = "http://localhost:3007",
     timeout: int = 120
 ) -> bool:
     """
@@ -249,7 +255,7 @@ async def launch_frontend_with_wait(
 
     Args:
         project_root: Project root directory
-        frontend_url: Frontend URL to check
+        frontend_url: Frontend URL to check (default: http://localhost:3007 for pymatrix)
         timeout: Maximum wait time in seconds
 
     Returns:
