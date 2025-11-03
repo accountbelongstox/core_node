@@ -232,7 +232,7 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
               onTap: _countdown > 0 ? null : _sendVerificationCode,
               child: Center(
                 child: Text(
-                  _countdown > 0 ? '${_countdown}s' : 'Send',
+                  _countdown > 0 ? '${_countdown}s' : LocalizationKeysAppWuy.wuyRegisterSend.tr(context),
                   style: ThemeTextStyles.bodyMedium.copyWith(
                     color: Colors.white,
                     fontSize: 15,
@@ -252,8 +252,8 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
     return WuyModernInputField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      labelText: 'Password',
-      hintText: 'Enter your password',
+      labelText: LocalizationKeysAppWuy.wuyRegisterPassword.tr(context),
+      hintText: LocalizationKeysAppWuy.wuyRegisterPasswordHint.tr(context),
       prefixIcon: Icons.lock,
       suffixIcon: IconButton(
         icon: Icon(
@@ -268,10 +268,10 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter your password';
+          return LocalizationKeysAppWuy.wuyRegisterPasswordValidation.tr(context);
         }
         if (value.length < 6) {
-          return 'Password must be at least 6 characters';
+          return LocalizationKeysAppWuy.wuyRegisterPasswordLengthValidation.tr(context);
         }
         return null;
       },
@@ -282,8 +282,8 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
     return WuyModernInputField(
       controller: _confirmPasswordController,
       obscureText: _obscureConfirmPassword,
-      labelText: 'Confirm Password',
-      hintText: 'Confirm your password',
+      labelText: LocalizationKeysAppWuy.wuyRegisterConfirmPassword.tr(context),
+      hintText: LocalizationKeysAppWuy.wuyRegisterConfirmPasswordHint.tr(context),
       prefixIcon: Icons.lock_outline,
       suffixIcon: IconButton(
         icon: Icon(
@@ -298,10 +298,10 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please confirm your password';
+          return LocalizationKeysAppWuy.wuyRegisterConfirmPasswordValidation.tr(context);
         }
         if (value != _passwordController.text) {
-          return 'Passwords do not match';
+          return LocalizationKeysAppWuy.wuyRegisterPasswordMismatch.tr(context);
         }
         return null;
       },
@@ -328,7 +328,7 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
         ],
       ),
       child: WuyGradientButton(
-        text: 'Register',
+        text: LocalizationKeysAppWuy.wuyRegisterNow.tr(context),
         onPressed: _handleRegister,
         isLoading: _isLoading,
         height: 54,
@@ -344,7 +344,7 @@ class _WuyRegisterScreenState extends State<WuyRegisterScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          "Already have an account? ",
+          LocalizationKeysAppWuy.wuyRegisterHaveAccount.tr(context),
           style: ThemeTextStyles.bodyMedium.copyWith(
             fontSize: 14,
             color: ThemeColors.textSecondary.withOpacity(0.9),

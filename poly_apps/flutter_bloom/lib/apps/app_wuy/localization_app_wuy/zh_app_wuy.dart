@@ -509,6 +509,88 @@ class WuyZhTranslations {
     LocalizationKeysAppWuy.wuyButtonReset: '重置',
     LocalizationKeysAppWuy.wuyButtonSave: '保存',
     LocalizationKeysAppWuy.wuyButtonConfirm: '确认',
+    LocalizationKeysAppWuy.wuyButtonSend: '发送',
+    LocalizationKeysAppWuy.wuyButtonEdit: '编辑',
+
+    // Map view options
+    LocalizationKeysAppWuy.wuyMapViewStandard: '标准',
+    LocalizationKeysAppWuy.wuyMapViewSatellite: '卫星',
+    LocalizationKeysAppWuy.wuyMapViewHybrid: '混合',
+
+    // Cache size options
+    LocalizationKeysAppWuy.wuyCacheSize50MB: '50 MB',
+    LocalizationKeysAppWuy.wuyCacheSize100MB: '100 MB',
+    LocalizationKeysAppWuy.wuyCacheSize200MB: '200 MB',
+    LocalizationKeysAppWuy.wuyCacheSize500MB: '500 MB',
+
+    // Auto lock time options
+    LocalizationKeysAppWuy.wuyAutoLockNever: '从不',
+    LocalizationKeysAppWuy.wuyAutoLock1Min: '1分钟',
+    LocalizationKeysAppWuy.wuyAutoLock5Min: '5分钟',
+    LocalizationKeysAppWuy.wuyAutoLock15Min: '15分钟',
+    LocalizationKeysAppWuy.wuyAutoLock30Min: '30分钟',
+
+    // Login screen specific
+    LocalizationKeysAppWuy.wuyLoginWelcome: '欢迎使用乌语应用',
+    LocalizationKeysAppWuy.wuyLoginSignInToContinue: '登录以继续',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterEmail: '请输入邮箱',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterValidEmail: '请输入有效的邮箱地址',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterPassword: '请输入密码',
+    LocalizationKeysAppWuy.wuyLoginPasswordMinLength: '密码长度至少6个字符',
+    LocalizationKeysAppWuy.wuyLoginErrorMessage: '登录失败: {error}',
+
+    // Personal info screen specific
+    LocalizationKeysAppWuy.wuyPersonalInfoPleaseEnter: '请输入{label}',
+    LocalizationKeysAppWuy.wuyPersonalInfoGallery: '相册',
+    LocalizationKeysAppWuy.wuyPersonalInfoCamera: '相机',
+    LocalizationKeysAppWuy.wuyPersonalInfoAvatarUpdated: '头像更新成功',
+    LocalizationKeysAppWuy.wuyPersonalInfoNoUser: '未登录用户',
+    LocalizationKeysAppWuy.wuyPersonalInfoUpdateSuccess: '资料更新成功',
+    LocalizationKeysAppWuy.wuyPersonalInfoUpdateFailed: '更新资料失败: {error}',
+
+    // Phone login screen specific
+    LocalizationKeysAppWuy.wuyPhoneLoginSubtitle: '使用手机号登录',
+
+    // Register screen specific
+    LocalizationKeysAppWuy.wuyRegisterSend: '发送',
+    LocalizationKeysAppWuy.wuyRegisterPasswordHint: '请输入密码',
+    LocalizationKeysAppWuy.wuyRegisterPasswordValidation: '请输入您的密码',
+    LocalizationKeysAppWuy.wuyRegisterPasswordLengthValidation: '密码长度至少6个字符',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordHint: '确认密码',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordValidation: '请确认您的密码',
+    LocalizationKeysAppWuy.wuyRegisterPasswordMismatch: '两次输入的密码不一致',
+    LocalizationKeysAppWuy.wuyRegisterNow: '注册',
+    LocalizationKeysAppWuy.wuyRegisterHaveAccount: '已有账户？',
+
+    // Profile screen specific
+    LocalizationKeysAppWuy.wuyProfileLogoutConfirm: '确定要退出登录吗？',
+    LocalizationKeysAppWuy.wuyProfileLogoutCancel: '取消',
+    LocalizationKeysAppWuy.wuyProfileLogoutButton: '退出登录',
+
+    // Friend info screen specific
+    LocalizationKeysAppWuy.wuyFriendInfoHealth: 'TA的健康',
+    LocalizationKeysAppWuy.wuyFriendInfoPhoneReport: 'TA今天的手机报告',
+    LocalizationKeysAppWuy.wuyFriendInfoPlacesVisited: 'TA今天去过的地方',
+    LocalizationKeysAppWuy.wuyFriendInfoAchievements: 'TA今天的成就',
+    LocalizationKeysAppWuy.wuyFriendInfoRunningKm: '跑步公里',
+    LocalizationKeysAppWuy.wuyFriendInfoSteps: '步数',
+    LocalizationKeysAppWuy.wuyFriendInfoCalories: '卡路里',
+    LocalizationKeysAppWuy.wuyFriendInfoSleep: '睡眠',
+
+    // Friends list screen specific
+    LocalizationKeysAppWuy.wuyFriendsListMyFriends: '我的好友',
+    LocalizationKeysAppWuy.wuyFriendsListSearchFriends: '搜索好友...',
+    LocalizationKeysAppWuy.wuyFriendsListNoFriendsYet: '还没有好友',
+
+    // Chat screen specific
+    LocalizationKeysAppWuy.wuyChatNoMessages: '暂无消息',
+    LocalizationKeysAppWuy.wuyChatStartConversation: '开始对话',
+
+    // Search screen specific
+    LocalizationKeysAppWuy.wuySearchPlaceholder: '搜索...',
+
+    // Map screen specific
+    LocalizationKeysAppWuy.wuyMapNoLocation: '暂无位置信息',
   };
 }
 

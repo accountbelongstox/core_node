@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { pyMatrixConfigAPI } from '../../services/api/pymatrix/pymatrix-config-api';
+import { pyMatrixConfigAPI } from '~/services/api/pymatrix/pymatrix-config-api';
 import type { DeviceConfig } from '../../../types/pymatrix';
 
 interface ConfigState {
