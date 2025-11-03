@@ -71,7 +71,7 @@ show_main_menu() {
     while true; do
         clear
         echo -e "${COLOR_CYAN}╔════════════════════════════════════════════════════╗${COLOR_RESET}"
-        echo -e "${COLOR_CYAN}║  Special Software Environment Variables Manager  ║${COLOR_RESET}"
+        echo -e "${COLOR_CYAN}�? Special Software Environment Variables Manager  �?{COLOR_RESET}"
         echo -e "${COLOR_CYAN}╚════════════════════════════════════════════════════╝${COLOR_RESET}"
         echo ""
         echo -e "${COLOR_BLUE}Use Up/Down arrows to navigate, Enter to select${COLOR_RESET}"
