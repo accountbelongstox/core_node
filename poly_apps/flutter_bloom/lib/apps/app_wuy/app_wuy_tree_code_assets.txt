@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-31 17:44:33
+Generated: 2025-11-03 05:00:57
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -10,11 +10,17 @@ Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
 
 app_wuy [code_assets]
 ├── lib/apps/app_wuy/
-│   ├── .prompts
+│   ├── Claude_development_result.md
+│   ├── _prompts
+│   │   ├── AI_COLLABORATION_BRIDGE_WY.json
 │   │   ├── claude.prompt
 │   │   ├── cursor.prompt
-│   │   └── promize.txt
-│   ├── Claude_development_result.md
+│   │   ├── promize.txt
+│   │   ├── prompts.md
+│   │   ├── qy_bankend.txt
+│   │   ├── qy_frontend.txt
+│   │   ├── task.txt
+│   │   └── testapp.txt
 │   ├── app_wuy_tree_code_assets.txt
 │   ├── build_config.ini
 │   ├── config_app_wuy
@@ -190,14 +196,30 @@ app_wuy [code_assets]
 │       ├── wuy_gradient_button.dart
 │       └── wuy_modern_input_field.dart
 ├── lib/common/
+│   ├── README.md
 │   ├── app
 │   │   └── main_common.dart
 │   ├── assets
 │   │   ├── common_assets_icons.dart
 │   │   ├── common_assets_images.dart
 │   │   └── common_assets_launch.dart
+│   ├── auth_v2
+│   │   ├── README.md
+│   │   ├── auth_config.dart
+│   │   ├── auth_interface.dart
+│   │   ├── auth_manager.dart
+│   │   ├── auth_models.dart
+│   │   ├── auth_provider_factory.dart
+│   │   ├── auth_v2.dart
+│   │   └── providers
+│   │       ├── github_auth_provider.dart
+│   │       ├── google_auth_provider.dart
+│   │       ├── phone_auth_provider.dart
+│   │       ├── qq_auth_provider.dart
+│   │       └── wechat_auth_provider.dart
 │   ├── cache_manager
 │   │   └── cache_manager.dart
+│   ├── common.dart
 │   ├── common_tree.md
 │   ├── constants
 │   │   └── app_constants.dart
@@ -213,6 +235,9 @@ app_wuy [code_assets]
 │   │   │   └── base_model.dart
 │   │   └── sqlite
 │   │       └── sqlite_service.dart
+│   ├── i18n
+│   │   ├── i18n_service.dart
+│   │   └── translations.dart
 │   ├── iframe
 │   │   └── iframe_listner.dart
 │   ├── localization
@@ -359,6 +384,8 @@ app_wuy [code_assets]
 │   │       ├── tencent_maps_flutter_integration.dart
 │   │       ├── tencent_maps_sdk.dart
 │   │       └── tencent_maps_service.dart
+│   ├── services
+│   │   └── settings_service.dart
 │   ├── settings
 │   │   ├── configs
 │   │   │   └── base_settings.dart
@@ -431,10 +458,15 @@ app_wuy [code_assets]
 │   │   └── utils
 │   │       └── storage_utils.dart
 │   ├── theme
+│   │   ├── app_theme.dart
 │   │   ├── base
+│   │   │   ├── theme_animations.dart
 │   │   │   ├── theme_colors.dart
 │   │   │   ├── theme_constants.dart
 │   │   │   ├── theme_dimensions.dart
+│   │   │   ├── theme_effects.dart
+│   │   │   ├── theme_extensions.dart
+│   │   │   ├── theme_gradients.dart
 │   │   │   ├── theme_shadow.dart
 │   │   │   └── theme_text_styles.dart
 │   │   ├── compatibility
@@ -452,6 +484,7 @@ app_wuy [code_assets]
 │   │   │   └── web
 │   │   │       ├── web_dark_theme.dart
 │   │   │       └── web_light_theme.dart
+│   │   ├── theme.dart
 │   │   └── theme_manager.dart
 │   ├── utils
 │   │   ├── common
@@ -487,11 +520,21 @@ app_wuy [code_assets]
 │   │       ├── web_tools_web.dart
 │   │       └── webabs.dart
 │   └── widgets
+│       ├── README.md
 │       ├── action_bar.dart
 │       ├── animated_custom_dialog.dart
 │       ├── back_app_bar.dart
+│       ├── badges
+│       │   ├── badges_chips.dart
+│       │   └── premium_badges.dart
 │       ├── bank_bottom_navigation.dart
 │       ├── bank_scaffold.dart
+│       ├── buttons
+│       │   ├── premium_buttons.dart
+│       │   └── primary_button.dart
+│       ├── cards
+│       │   ├── custom_cards.dart
+│       │   └── premium_cards.dart
 │       ├── config.dart
 │       ├── confirmation_dialog.dart
 │       ├── country_picker.dart
@@ -520,12 +563,20 @@ app_wuy [code_assets]
 │       │   └── swipeable_widget.dart
 │       ├── custom_text_field.dart
 │       ├── custom_title.dart
+│       ├── dialogs
+│       │   └── custom_dialogs.dart
 │       ├── digital_payment_dialog.dart
 │       ├── enhanced_bottom_navigation.dart
 │       ├── enhanced_top_menu.dart
 │       ├── floating_avatar_header.dart
+│       ├── glassmorphism_card.dart
+│       ├── gradient_button.dart
 │       ├── image_dialog.dart
 │       ├── info_row_widget.dart
+│       ├── inputs
+│       │   └── custom_text_fields.dart
+│       ├── lists
+│       │   └── list_items.dart
 │       ├── navigation_widgets.dart
 │       ├── network_connection_dialog.dart
 │       ├── no_data_screen.dart
@@ -533,10 +584,15 @@ app_wuy [code_assets]
 │       ├── outelineborder.dart
 │       ├── paginated_list_view.dart
 │       ├── payment_item_info.dart
+│       ├── progress
+│       │   └── progress_indicators.dart
 │       ├── responsive_layout.dart
 │       ├── segmented_button.dart
 │       ├── settings_page_example.dart
-│       └── type_button_widget.dart
+│       ├── states
+│       │   └── empty_state.dart
+│       ├── type_button_widget.dart
+│       └── widgets.dart
 ├── assets/apps/app_wuy/
 │   ├── app_wuy_tree.md
 │   ├── fonts

@@ -151,70 +151,88 @@ class HomeGridNav extends StatelessWidget {
                 padding: isFirst
                     ? const EdgeInsets.only(left: 24.0)
                     : EdgeInsets.zero,
-                child: Text(
-                  item.title,
-                  style: TextStyle(
-                    color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
-                    fontSize: 16.0,
-                    fontWeight: FontWeight.normal,
-                  ),
-                  textAlign: isFirst ? TextAlign.left : TextAlign.center,
-                ),
+                child: item.hasSubtitle
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: isFirst ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            item.title,
+                            style: TextStyle(
+                              color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
+                              fontSize: 16.0,
+                              fontWeight: FontWeight.bold,
+                              height: 1.2,
+                            ),
+                            textAlign: isFirst ? TextAlign.left : TextAlign.center,
+                          ),
+                          const SizedBox(height: 2.0),
+                          Text(
+                            item.subtitle!,
+                            style: TextStyle(
+                              color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
+                              fontSize: 11.0,
+                              fontWeight: FontWeight.normal,
+                              height: 1.2,
+                            ),
+                            textAlign: isFirst ? TextAlign.left : TextAlign.center,
+                          ),
+                        ],
+                      )
+                    : Text(
+                        item.title,
+                        style: TextStyle(
+                          color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
+                          fontSize: 16.0,
+                          fontWeight: FontWeight.normal,
+                        ),
+                        textAlign: isFirst ? TextAlign.left : TextAlign.center,
+                      ),
               ),
               if (item.hasTag)
                 Positioned(
                   top: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(24.0, 2.0, 24.0, 2.0),
+                    padding: const EdgeInsets.fromLTRB(12.0, 2.0, 12.0, 2.0),
                     decoration: const BoxDecoration(
                       color: Color(0xFFFFF500),
                       borderRadius: BorderRadius.only(
-                        bottomLeft: Radius.circular(16.0),
+                        bottomLeft: Radius.circular(12.0),
                       ),
                     ),
                     child: Text(
                       item.tag!,
                       style: const TextStyle(
-                        fontSize: 24.0,
+                        fontSize: 11.0,
                         color: Color(0xFFF54C45),
+                        fontWeight: FontWeight.w500,
+                        height: 1.2,
                       ),
                     ),
                   ),
                 ),
               if (item.hasHot)
                 Positioned(
-                  left: 0,
+                  top: 0,
                   right: 0,
-                  bottom: 0,
-                  child: Transform.translate(
-                    offset: const Offset(0, -16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Transform.translate(
-                          offset: const Offset(35.0, 0),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF54C45),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(16.0),
-                                topRight: Radius.circular(16.0),
-                                bottomRight: Radius.circular(16.0),
-                              ),
-                            ),
-                            child: Text(
-                              item.hot!,
-                              style: const TextStyle(
-                                fontSize: 22.0,
-                                color: Colors.white,
-                                height: 1.0,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF54C45),
+                      borderRadius: BorderRadius.only(
+                        topRight: Radius.circular(8.0),
+                        bottomLeft: Radius.circular(12.0),
+                      ),
+                    ),
+                    child: Text(
+                      item.hot!,
+                      style: const TextStyle(
+                        fontSize: 10.0,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        height: 1.2,
+                      ),
                     ),
                   ),
                 ),

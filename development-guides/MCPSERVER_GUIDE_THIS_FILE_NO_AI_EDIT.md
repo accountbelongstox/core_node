@@ -21,9 +21,13 @@
 ### 1.2 工作流程
 1. 在 `$RootDir/ncore/mcp_server/` 下创建 MCP 服务目录
 2. 开发 MCP 服务（推荐使用 Python 3.13）
-3. **⚠️ 增量更新** `$RootDir/.prompt/mcpWindowsTemplate.json` and  `$RootDir/.prompt/mcpLinuxTemplate.json` 配置文件（严禁删除重建）
+3. **⚠️ 增量更新** `$RootDir/_prompt/mcpWindowsTemplate.json` and  `$RootDir/_prompt/mcpLinuxTemplate.json` 配置文件（严禁删除重建）
 
-**重要提醒**: `$RootDir/.prompt/mcpWindowsTemplate.json` and  `$RootDir/.prompt/mcpLinuxTemplate.json`  文件只能增量添加新服务配置，绝对不允许删除重建！
+**重要提醒**: `$RootDir/_prompt/mcpWindowsTemplate.json` and  `$RootDir/_prompt/mcpLinuxTemplate.json`  文件只能增量添加新服务配置，绝对不允许删除重建！
+
+**特殊MCP node .\main.js app=core_node，该MCP由 ../main.js启动并位于D:\programing\core_node\apps\core_node_init目录**
+特殊MCP不在`core_node/ncore/mcp_server`目录
+
 
 ### 1.3 技术要求
 - 使用绝对路径启动命令,无需安装步骤，直接启动运行

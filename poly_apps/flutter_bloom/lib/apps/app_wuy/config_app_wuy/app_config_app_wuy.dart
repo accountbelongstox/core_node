@@ -21,16 +21,26 @@ class AppConfigAppWuy {
   static const String packageName = 'com.example.wuy';
 
   // API Configuration
-  static const String apiVersion = 'v1';
+  static const String apiVersion = 'awy-v0'; // Updated to match backend API prefix
+  static const String legacyApiVersion = 'v1'; // Keep for backward compatibility
 
-  /// Base API URL for development
-  static const String apiBaseUrlDev = 'https://api.anwuyou.test/api/v1';
+  /// Base API URL for development (new API)
+  static const String apiBaseUrlDev = 'https://api.anwuyou.test/api/awy-v0';
 
-  /// Base API URL for staging
-  static const String apiBaseUrlStaging = 'https://api.anwuyou.test/api/v1';
+  /// Base API URL for staging (new API)
+  static const String apiBaseUrlStaging = 'https://api.anwuyou.test/api/awy-v0';
 
-  /// Base API URL for production
-  static const String apiBaseUrlProd = 'https://api.anwuyou.test/api/v1';
+  /// Base API URL for production (new API)
+  static const String apiBaseUrlProd = 'https://api.anwuyou.com/api/awy-v0';
+
+  /// Legacy API URL for development (fallback)
+  static const String legacyApiBaseUrlDev = 'https://api.anwuyou.test/api/v1';
+
+  /// Legacy API URL for staging (fallback)
+  static const String legacyApiBaseUrlStaging = 'https://api.anwuyou.test/api/v1';
+
+  /// Legacy API URL for production (fallback)
+  static const String legacyApiBaseUrlProd = 'https://api.anwuyou.test/api/v1';
 
   /// API timeout in seconds
   static const int apiTimeoutSeconds = 30;
@@ -147,6 +157,10 @@ class AppConfigAppWuy {
   static const bool enableDebugMode = true; // Set to true for development
   static const bool enableMockApi = true; // Enable mock API responses in debug mode
   static const bool enableNetworkLogging = true; // Enable network request logging
+
+  // API Integration Configuration
+  static const bool enableNewApiIntegration = true; // Enable awy-v0 API endpoints
+  static const bool forceLegacyApi = false; // Force use of legacy v1 API even when new API is available
   
   
   /// Local storage box name

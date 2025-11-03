@@ -4,6 +4,13 @@
 
 ```
 app_qy/
+├── _prompts/
+│   ├── AI_COLLABORATION_BRIDGE_QY.json
+│   ├── prompts.md
+│   ├── qy_bankend.txt
+│   ├── qy_frontend.txt
+│   ├── task.txt
+│   └── testapp.txt
 ├── config_app_qy/
 │   ├── api_config_app_qy.dart
 │   ├── api_data_models_app_qy.dart
@@ -19,6 +26,41 @@ app_qy/
 │   ├── profile_controller_app_qy.dart
 │   ├── settings_controller_app_qy.dart
 │   └── splash_controller_app_qy.dart
+├── docs/
+│   ├── about.jpg
+│   ├── account_settings.jpg
+│   ├── account_settings_1.jpg
+│   ├── certificate_center.jpg
+│   ├── checkin_challenge.jpg
+│   ├── course_ielts.jpg
+│   ├── course_ielts_1.jpg
+│   ├── course_ielts_2.jpg
+│   ├── course_ielts_3.jpg
+│   ├── course_ielts_4.jpg
+│   ├── course_plans.jpg
+│   ├── course_python.jpg
+│   ├── course_python_1.jpg
+│   ├── display_mode.jpg
+│   ├── home_search.jpg
+│   ├── home_study.jpg
+│   ├── image_001.jpg
+│   ├── login_phone.jpg
+│   ├── message_center.jpg
+│   ├── more_features.jpg
+│   ├── more_features_1.jpg
+│   ├── recommend_settings.jpg
+│   ├── reminder_settings.jpg
+│   ├── settings.jpg
+│   ├── word_book.jpg
+│   ├── word_listening.jpg
+│   ├── word_listening_1.jpg
+│   ├── word_listening_ai_explain.jpg
+│   ├── word_listening_dictation.jpg
+│   ├── word_listening_dictation_1.jpg
+│   ├── word_listening_dictation_2.jpg
+│   ├── word_listening_dictation_3.jpg
+│   ├── word_listening_free.jpg
+│   └── word_listening_sleep.jpg
 ├── features_app_qy/
 │   ├── about/
 │   │   ├── actions/
@@ -26,15 +68,24 @@ app_qy/
 │   ├── authentication/
 │   │   ├── actions/
 │   │   │   └── auth_actions.dart
-│   │   └── views/
-│   │       ├── congratulation_screen.dart
-│   │       ├── create_pin_screen.dart
-│   │       ├── forgot_screen.dart
-│   │       ├── resetpassword_screen.dart
-│   │       ├── select_country.dart
-│   │       ├── signin_up_screen.dart
-│   │       ├── verify_screen.dart
-│   │       └── welcom_screen.dart
+│   │   ├── views/
+│   │   │   ├── congratulation_screen.dart
+│   │   │   ├── create_pin_screen.dart
+│   │   │   ├── forgot_screen.dart
+│   │   │   ├── login_screen_app_qy.dart
+│   │   │   ├── login_screen_v2_app_qy.dart
+│   │   │   ├── resetpassword_screen.dart
+│   │   │   ├── select_country.dart
+│   │   │   ├── signin_up_screen.dart
+│   │   │   ├── verify_screen.dart
+│   │   │   └── welcom_screen.dart
+│   │   ├── widgets/
+│   │   │   ├── agreement_checkbox.dart
+│   │   │   ├── phone_login_button.dart
+│   │   │   └── wechat_login_button.dart
+│   │   ├── auth_config_app_qy.dart
+│   │   ├── auth_routes_app_qy.dart
+│   │   └── auth_service_app_qy.dart
 │   ├── bookmark/
 │   │   ├── actions/
 │   │   └── bookmark_screen.dart
@@ -120,32 +171,37 @@ app_qy/
 │   │   │       └── product_service.dart
 │   │   ├── views/
 │   │   │   ├── home_screen.dart
+│   │   │   ├── home_screen_app_qy.dart
 │   │   │   ├── play_video_screen.dart
 │   │   │   ├── prayer_screen.dart
 │   │   │   ├── urgent_fundraising.dart
 │   │   │   └── watch_impact.dart
-│   │   └── widget/
-│   │       ├── actions_widget.dart
-│   │       ├── all_screen.dart
-│   │       ├── banner_widget.dart
-│   │       ├── coming_list.dart
-│   │       ├── coming_widget.dart
-│   │       ├── disaster_screen.dart
-│   │       ├── education_screen.dart
-│   │       ├── fund_rising_listview.dart
-│   │       ├── fund_rising_widget.dart
-│   │       ├── health_screen.dart
-│   │       ├── home_title.dart
-│   │       ├── logined_func_widget.dart
-│   │       ├── logined_wordgroup_widget.dart
-│   │       ├── medical_screen.dart
-│   │       ├── prayer_listview.dart
-│   │       ├── prayer_widget.dart
-│   │       ├── prayerfrom_pepole.dart
-│   │       ├── urgent_fund_rising_widget.dart
-│   │       ├── urgentfunding_widget.dart
-│   │       ├── watch_impact_list.dart
-│   │       └── watch_impact_widget.dart
+│   │   ├── widget/
+│   │   │   ├── actions_widget.dart
+│   │   │   ├── all_screen.dart
+│   │   │   ├── banner_widget.dart
+│   │   │   ├── coming_list.dart
+│   │   │   ├── coming_widget.dart
+│   │   │   ├── disaster_screen.dart
+│   │   │   ├── education_screen.dart
+│   │   │   ├── fund_rising_listview.dart
+│   │   │   ├── fund_rising_widget.dart
+│   │   │   ├── health_screen.dart
+│   │   │   ├── home_title.dart
+│   │   │   ├── logined_func_widget.dart
+│   │   │   ├── logined_wordgroup_widget.dart
+│   │   │   ├── medical_screen.dart
+│   │   │   ├── prayer_listview.dart
+│   │   │   ├── prayer_widget.dart
+│   │   │   ├── prayerfrom_pepole.dart
+│   │   │   ├── urgent_fund_rising_widget.dart
+│   │   │   ├── urgentfunding_widget.dart
+│   │   │   ├── watch_impact_list.dart
+│   │   │   └── watch_impact_widget.dart
+│   │   └── widgets/
+│   │       ├── feature_grid.dart
+│   │       ├── study_progress_card.dart
+│   │       └── study_stats_card.dart
 │   ├── home_login/
 │   │   ├── views/
 │   │   │   └── home_login_view.dart
@@ -256,7 +312,6 @@ app_qy/
 │   │   │   └── word_card_controller.dart
 │   │   ├── models/
 │   │   │   ├── word_card_model.dart
-│   │   │   ├── word_card_model.g.dart
 │   │   │   └── word_model.dart
 │   │   └── views/
 │   │       ├── word_card_screen.dart
@@ -273,11 +328,14 @@ app_qy/
 │   └── zh_app_qy.dart
 ├── model_app_qy/
 │   └── user_model.dart
+├── provider_app_qy/
+│   └── user_provider_app_qy.dart
+├── providers_app_qy/
+│   └── qy_user_provider.dart
 ├── resources_app_qy/
 │   ├── assets_icons_app_qy.dart
 │   ├── assets_images_app_qy.dart
 │   ├── assets_launch_app_qy.dart
-│   ├── test_file.dart
 │   ├── text_styles_app_qy.dart
 │   └── theme_extensions_app_qy.dart
 ├── router_app_qy/
@@ -288,6 +346,7 @@ app_qy/
 ├── services_app_qy/
 │   ├── app_qy_service_manager.dart
 │   ├── auth_api_app_qy_service.dart
+│   ├── cache_service_app_qy.dart
 │   ├── product_api_app_qy_service.dart
 │   ├── service_app_qy.dart
 │   ├── services_app_qy.dart
@@ -296,8 +355,18 @@ app_qy/
 │   └── settings_app_qy.dart
 ├── utils_app_qy/
 │   └── utils_app_qy.dart
+├── DEVELOPMENT_ROADMAP.md
+├── IMPLEMENTATION_SUMMARY.md
+├── PROJECT_SUMMARY.md
+├── README.MD
+├── README_AUTHENTICATION.md
+├── TECHNICAL_ARCHITECTURE.md
+├── app_qy_tree.md
+├── app_qy_tree_code_assets.txt
 ├── build_config.ini
-└── main_app_qy.dart
+├── main.dart
+├── main_app_qy.dart
+└── pubspec.yaml
 ```
 
 ---

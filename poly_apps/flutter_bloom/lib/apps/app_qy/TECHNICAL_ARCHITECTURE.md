@@ -1,9 +1,11 @@
-# 单词学习 APP - 技术架构设计文档
+# Word Learning App - Technical Architecture Document
 
-**项目名称**: Word Learning App (app_qy)
-**技术栈**: Flutter + FastAPI + PostgreSQL
-**文档版本**: v1.0.0
-**创建日期**: 2025-11-02
+**Project Name**: Word Learning App (app_qy)
+**Technology Stack**: Flutter Bloom + Laravel 12 + MySQL/PostgreSQL
+**Framework Version**: Flutter Bloom v2.0, Laravel 12
+**Documentation Version**: v1.0.0
+**Created Date**: 2025-11-02
+**Last Updated**: 2025-11-03
 
 ---
 
@@ -87,65 +89,70 @@ device_info_plus: ^9.1.1      # 设备信息
 
 ---
 
-### 后端技术栈 (Python + FastAPI)
+### 后端技术栈 (Laravel 12 + PHP)
 
 #### **核心框架**
-```python
-fastapi==0.104.1              # Web框架
-uvicorn==0.24.0               # ASGI服务器
-pydantic==2.5.0               # 数据验证
+```php
+Laravel Framework: 12.0        # Web框架
+PHP: 8.2+                     # 编程语言
+Composer: Latest              # 依赖管理
 ```
 
 #### **数据库相关**
-```python
-sqlalchemy==2.0.23            # ORM
-asyncpg==0.29.0               # PostgreSQL异步驱动
-alembic==1.13.0               # 数据库迁移
-psycopg2-binary==2.9.9        # PostgreSQL同步驱动（备用）
+```php
+MySQL: 8.0+ / PostgreSQL: 15+  # 数据库
+Laravel Eloquent ORM          # ORM
+Laravel Migrations            # 数据库迁移
+Laravel Database Seeding       # 数据填充
 ```
 
 #### **认证与安全**
-```python
-python-jose[cryptography]==3.3.0   # JWT令牌
-passlib[bcrypt]==1.7.4             # 密码加密
-python-multipart==0.0.6            # 文件上传
+```php
+Laravel Sanctum: Latest        # API认证
+Laravel Password Hashing       # 密码加密
+Laravel CSRF Protection        # CSRF保护
+Laravel Rate Limiting          # API限流
 ```
 
 #### **任务队列**
-```python
-celery==5.3.4                 # 异步任务
-redis==5.0.1                  # 缓存和消息队列
+```php
+Laravel Queues: Latest         # 异步任务
+Laravel Horizon: Latest        # 队列监控
+Redis: Latest                  # 缓存和消息队列
 ```
 
 #### **文档处理**
-```python
-pypdf2==3.0.1                 # PDF解析
-python-docx==1.1.0            # Word解析
-nltk==3.8.1                   # 自然语言处理
-spacy==3.7.2                  # 词形还原和NLP
+```php
+Laravel File Storage           # 文件上传
+PDF Parser Library             # PDF解析
+PHPWord: Latest                # Word解析
+NLP PHP Libraries              # 自然语言处理
 ```
 
-#### **词典API**
-```python
-requests==2.31.0              # HTTP请求
-httpx==0.25.2                 # 异步HTTP客户端
+#### **API相关**
+```php
+Laravel API Resources          # API资源格式化
+Laravel HTTP Client            # HTTP客户端
+Laravel CORS                   # 跨域处理
 ```
 
 #### **日志和监控**
-```python
-loguru==0.7.2                 # 日志
-prometheus-client==0.19.0     # 监控指标
+```php
+Laravel Logging: Latest        # 日志系统
+Laravel Telescope: Latest      # 应用监控
+Laravel Clockwork: Latest      # 性能分析
 ```
 
 ---
 
 ## 🏗️ 系统架构设计
 
-### 整体架构图
+### Overall Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         客户端层 (Flutter)                       │
+│                    Flutter Bloom Framework                      │
+│                      Client Layer (Flutter)                      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
@@ -157,154 +164,196 @@ prometheus-client==0.19.0     # 监控指标
 │         └────────┬────────┴────────┬────────┘                  │
 │                  │                 │                           │
 │         ┌────────▼─────────────────▼────────┐                  │
-│         │   Local Database (Isar/Hive)      │                  │
-│         │   • 记忆库数据                      │                  │
-│         │   • 单词组数据                      │                  │
-│         │   • 缓存数据                        │                  │
+│         │   Flutter Common Database         │                  │
+│         │   • Memory bank data              │                  │
+│         │   • Word group data               │                  │
+│         │   • Cache data                    │                  │
 │         └────────┬──────────────────────────┘                  │
 │                  │                                             │
 └──────────────────┼─────────────────────────────────────────────┘
                    │ HTTP/WebSocket
 ┌──────────────────▼─────────────────────────────────────────────┐
-│                      服务端层 (FastAPI)                         │
+│                    Laravel 12 Backend                          │
+│                     Headless API Mode                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
 │  │  API Layer   │  │  Service     │  │  Data Access │         │
-│  │  (Routes)    │  │  Layer       │  │  Layer (ORM) │         │
+│  │ (Controllers)│  │  Layer       │  │  Layer (ORM) │         │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘         │
 │         │                 │                 │                  │
 │         └────────┬────────┴────────┬────────┘                  │
 │                  │                 │                           │
 │         ┌────────▼─────────────────▼────────┐                  │
-│         │       Redis (缓存 + 队列)          │                  │
+│         │       Redis (Cache + Queue)       │                  │
 │         └────────┬──────────────────────────┘                  │
 │                  │                                             │
 └──────────────────┼─────────────────────────────────────────────┘
                    │
 ┌──────────────────▼─────────────────────────────────────────────┐
-│                    数据层 (PostgreSQL)                          │
+│               Laravel Shared Database                           │
+│                  (MySQL/PostgreSQL)                            │
 ├─────────────────────────────────────────────────────────────────┤
-│  • 用户数据                                                      │
-│  • 词库数据                                                      │
-│  • 学习记录                                                      │
-│  • 文档数据                                                      │
+│  • app_qy_v1_users         • app_qy_v1_dictionary             │
+│  • app_qy_v1_word_groups   • app_qy_v1_learning_records       │
+│  • app_qy_v1_documents     • shared tables (users, etc.)      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Flutter 应用架构 (Clean Architecture)
+### Flutter Bloom App Architecture (app_qy)
 
 ```
-lib/
-├── apps/
-│   └── app_qy/                          # 单词学习APP
-│       ├── core/                        # 核心层
-│       │   ├── constants/               # 常量
-│       │   ├── utils/                   # 工具类
-│       │   ├── errors/                  # 错误处理
-│       │   └── theme/                   # 主题配置
-│       │
-│       ├── data/                        # 数据层
-│       │   ├── models/                  # 数据模型
-│       │   │   ├── word_model.dart
-│       │   │   ├── word_group_model.dart
-│       │   │   ├── memory_bank_model.dart
-│       │   │   └── user_model.dart
-│       │   │
-│       │   ├── datasources/             # 数据源
-│       │   │   ├── local/               # 本地数据源
-│       │   │   │   ├── word_local_ds.dart
-│       │   │   │   └── memory_bank_local_ds.dart
-│       │   │   └── remote/              # 远程数据源
-│       │   │       ├── word_remote_ds.dart
-│       │   │       └── dictionary_api.dart
-│       │   │
-│       │   └── repositories/            # 仓库实现
-│       │       ├── word_repository_impl.dart
-│       │       ├── memory_repository_impl.dart
-│       │       └── user_repository_impl.dart
-│       │
-│       ├── domain/                      # 业务逻辑层
-│       │   ├── entities/                # 领域实体
-│       │   │   ├── word.dart
-│       │   │   ├── word_group.dart
-│       │   │   ├── memory_record.dart
-│       │   │   └── review_task.dart
-│       │   │
-│       │   ├── repositories/            # 仓库接口
-│       │   │   ├── word_repository.dart
-│       │   │   └── memory_repository.dart
-│       │   │
-│       │   └── usecases/                # 用例
-│       │       ├── learning/
-│       │       │   ├── load_word_group_usecase.dart
-│       │       │   ├── update_memory_usecase.dart
-│       │       │   └── calculate_review_usecase.dart
-│       │       └── review/
-│       │           ├── ebbinghaus_algorithm.dart
-│       │           └── get_review_tasks_usecase.dart
-│       │
-│       ├── presentation/                # 表现层
-│       │   ├── providers/               # 状态管理
-│       │   │   ├── word_provider.dart
-│       │   │   ├── memory_provider.dart
-│       │   │   ├── settings_provider.dart
-│       │   │   └── reading_mode_provider.dart
-│       │   │
-│       │   ├── pages/                   # 页面
-│       │   │   ├── home/
-│       │   │   │   ├── home_page.dart
-│       │   │   │   └── widgets/
-│       │   │   ├── learning/
-│       │   │   │   ├── reading_mode_page.dart
-│       │   │   │   ├── card_mode_page.dart
-│       │   │   │   └── widgets/
-│       │   │   ├── review/
-│       │   │   │   ├── review_page.dart
-│       │   │   │   └── widgets/
-│       │   │   ├── word_groups/
-│       │   │   │   ├── word_groups_page.dart
-│       │   │   │   └── widgets/
-│       │   │   ├── statistics/
-│       │   │   │   ├── statistics_page.dart
-│       │   │   │   └── widgets/
-│       │   │   └── settings/
-│       │   │       ├── settings_page.dart
-│       │   │       └── widgets/
-│       │   │
-│       │   └── widgets/                 # 通用组件
-│       │       ├── word_card.dart
-│       │       ├── audio_player_widget.dart
-│       │       ├── progress_indicator.dart
-│       │       └── custom_buttons.dart
-│       │
-│       └── app.dart                     # 应用入口
+lib/apps/app_qy/                          # Word Learning App
+├── main_app_qy.dart                     # App Entry Point
+├── controller_app_qy/                   # App-specific Controllers
+│   ├── auth_controller_app_qy.dart
+│   ├── word_controller_app_qy.dart
+│   └── settings_controller_app_qy.dart
 │
-└── common/                              # 共享模块
-    ├── services/
-    │   ├── audio_service.dart           # 音频服务
-    │   ├── tts_service.dart             # TTS服务
-    │   └── notification_service.dart    # 通知服务
-    └── database/
-        └── isar_database.dart           # 数据库配置
+├── config_app_qy/                       # App Configuration
+│   ├── app_config_app_qy.dart
+│   ├── api_config_app_qy.dart
+│   ├── api_endpoints_app_qy.dart
+│   └── constants_app_qy.dart
+│
+├── models_app_qy/                       # App Data Models
+│   ├── user_model_app_qy.dart
+│   ├── word_model_app_qy.dart
+│   ├── word_group_model_app_qy.dart
+│   ├── memory_record_model_app_qy.dart
+│   └── review_task_model_app_qy.dart
+│
+├── features_app_qy/                     # Feature Modules
+│   ├── home/
+│   │   ├── views/home_page_app_qy.dart
+│   │   ├── widgets/
+│   │   └── controllers/
+│   ├── learning/
+│   │   ├── views/reading_mode_page_app_qy.dart
+│   │   ├── views/card_mode_page_app_qy.dart
+│   │   ├── widgets/
+│   │   └── controllers/
+│   ├── word_groups/
+│   │   ├── views/word_groups_page_app_qy.dart
+│   │   ├── widgets/
+│   │   └── controllers/
+│   ├── statistics/
+│   │   ├── views/statistics_page_app_qy.dart
+│   │   ├── widgets/
+│   │   └── controllers/
+│   └── settings/
+│       ├── views/settings_page_app_qy.dart
+│       ├── widgets/
+│       └── controllers/
+│
+├── services_app_qy/                      # App Services Layer
+│   ├── auth_api_service_app_qy.dart      # Authentication API
+│   ├── word_public_api_service_app_qy.dart # Public Word API
+│   ├── learning_api_service_app_qy.dart   # Learning API
+│   └── document_service_app_qy.dart       # Document Service
+│
+├── repositories_app_qy/                  # App Repositories
+│   ├── word_repository_app_qy.dart
+│   ├── memory_repository_app_qy.dart
+│   ├── user_repository_app_qy.dart
+│   └── document_repository_app_qy.dart
+│
+├── utils_app_qy/                        # App-specific Utils
+│   ├── app_utils_app_qy.dart
+│   └── learning_algorithm_app_qy.dart
+│
+├── localization_app_qy/                  # App Localization
+│   ├── en_app_qy.dart
+│   ├── zh_app_qy.dart
+│   └── localization_keys_app_qy.dart
+│
+├── resources_app_qy/                     # App Resources
+│   ├── assets_icons_app_qy.dart
+│   ├── assets_images_app_qy.dart
+│   └── assets_fonts_app_qy.dart
+│
+├── router_app_qy/                        # App Router
+│   └── router_app_qy.dart
+│
+└── tables_maps_app_qy/                   # Database Table Maps
+    ├── app_qy_v1_tables_map.php
+    └── app_qy_v1_global_tables_bridge.php
+```
+
+### Laravel 12 Backend Architecture (app_qy_v1)
+
+```
+poly_apps/laravel_main/
+├── app/Apps/AppQyV1/                     # AppQy V1 Namespace
+│   ├── Controllers/                      # API Controllers
+│   │   ├── Auth/
+│   │   │   ├── LoginController.php
+│   │   │   ├── RegisterController.php
+│   │   │   └── ProfileController.php
+│   │   ├── Word/
+│   │   │   ├── DictionaryController.php
+│   │   │   ├── WordGroupController.php
+│   │   │   └── LearningController.php
+│   │   └── Document/
+│   │       ├── DocumentController.php
+│   │       └── ProcessingController.php
+│   │
+│   ├── Models/                           # Eloquent Models
+│   │   ├── User.php
+│   │   ├── Dictionary.php
+│   │   ├── WordGroup.php
+│   │   ├── LearningRecord.php
+│   │   └── Document.php
+│   │
+│   ├── Services/                         # Business Logic
+│   │   ├── AuthService.php
+│   │   ├── WordLearningService.php
+│   │   ├── EbbinghausService.php
+│   │   └── DocumentProcessingService.php
+│   │
+│   ├── Repositories/                     # Data Access Layer
+│   │   ├── UserRepository.php
+│   │   ├── WordRepository.php
+│   │   └── LearningRepository.php
+│   │
+│   ├── Resources/                        # API Resources
+│   │   ├── UserResource.php
+│   │   ├── WordResource.php
+│   │   ├── WordGroupResource.php
+│   │   └── LearningRecordResource.php
+│   │
+│   └── Requests/                         # Form Requests
+│       ├── Auth/
+│       ├── Word/
+│       └── Document/
+│
+├── database/migrations/                  # Database Migrations
+│   ├── 2024_01_01_000001_create_global_tables.php
+│   ├── 2024_01_01_000002_create_app_qy_v1_users_table.php
+│   ├── 2024_01_01_000003_create_app_qy_v1_dictionary_table.php
+│   └── ...
+│
+└── routes/                              # API Routes
+    └── AppQyV1Router/
+        ├── api.php                      # AppQy V1 API Routes
+        └── web.php                      # Debug Routes (if needed)
 ```
 
 ---
 
 ## 🗄️ 数据库设计
 
-### 本地数据库 (Isar)
+### 本地数据库 (Flutter Common Database - SQLite)
 
 #### **1. MemoryRecord（记忆库记录）**
 ```dart
-@collection
+// Using Flutter common/database abstract interface
 class MemoryRecord {
-  Id id = Isar.autoIncrement;
+  int? id;
 
   // 单词基础信息
-  @Index(unique: true)
   late String word;                    // 原词
   late String lemma;                   // 词根形式
 
@@ -337,6 +386,9 @@ class MemoryRecord {
   // 元数据
   late DateTime createdAt;
   late DateTime updatedAt;
+
+  Map<String, dynamic> toJson() => { /* conversion logic */ };
+  factory MemoryRecord.fromJson(Map<String, dynamic> json) => { /* parsing logic */ };
 }
 ```
 
@@ -435,124 +487,131 @@ class UserSettings {
 
 ---
 
-### 后端数据库 (PostgreSQL)
+### Laravel 共享数据库 (MySQL/PostgreSQL)
+
+#### **表前缀规范**
+- 全局共享表：`global_` 前缀 (如 `global_users`)
+- 应用专属表：`app_qy_v1_` 前缀 (AppName + Version)
 
 #### **Schema 设计**
 
 ```sql
--- 用户表
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-- 全局用户表 (多应用共享)
+CREATE TABLE global_users (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
     email VARCHAR(255) UNIQUE NOT NULL,
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     is_active BOOLEAN DEFAULT true,
     is_verified BOOLEAN DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_global_users_email ON global_users(email);
+CREATE INDEX idx_global_users_username ON global_users(username);
 
 
--- 词库表
-CREATE TABLE dictionary (
-    id BIGSERIAL PRIMARY KEY,
+-- app_qy_v1_词库表
+CREATE TABLE app_qy_v1_dictionary (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
     word VARCHAR(100) NOT NULL,
     lemma VARCHAR(100) NOT NULL,
     phonetic_us VARCHAR(100),
     phonetic_uk VARCHAR(100),
-    definitions JSONB NOT NULL,          -- [{"pos": "n.", "meaning": "...", "examples": ["..."]}]
-    synonyms TEXT[],
+    definitions JSON NOT NULL,          -- [{"pos": "n.", "meaning": "...", "examples": ["..."]}]
+    synonyms TEXT[],                    -- MySQL 8.0+ JSON array
     antonyms TEXT[],
-    word_forms JSONB,                    -- {"plural": "...", "past": "...", ...}
+    word_forms JSON,                    -- {"plural": "...", "past": "...", ...}
     etymology TEXT,
     frequency_rank INT,
     cefr_level VARCHAR(10),              -- A1, A2, B1, B2, C1, C2
     difficulty INT CHECK (difficulty BETWEEN 1 AND 5),
-    standard_libraries TEXT[],           -- ['coco60000', 'toefl', ...]
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    standard_libraries JSON,             -- ["coco60000", "toefl", ...]
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_dictionary_word ON dictionary(word);
-CREATE INDEX idx_dictionary_lemma ON dictionary(lemma);
-CREATE INDEX idx_dictionary_frequency ON dictionary(frequency_rank);
-CREATE INDEX idx_dictionary_cefr ON dictionary(cefr_level);
-CREATE INDEX idx_dictionary_definitions ON dictionary USING GIN(definitions);
+CREATE INDEX idx_app_qy_v1_dictionary_word ON app_qy_v1_dictionary(word);
+CREATE INDEX idx_app_qy_v1_dictionary_lemma ON app_qy_v1_dictionary(lemma);
+CREATE INDEX idx_app_qy_v1_dictionary_frequency ON app_qy_v1_dictionary(frequency_rank);
+CREATE INDEX idx_app_qy_v1_dictionary_cefr ON app_qy_v1_dictionary(cefr_level);
 
 
--- 用户单词组表
-CREATE TABLE user_word_groups (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+-- app_qy_v1_用户单词组表
+CREATE TABLE app_qy_v1_word_groups (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
     name VARCHAR(200) NOT NULL,
     type VARCHAR(50) NOT NULL,           -- document/standard/custom
     description TEXT,
     word_count INT DEFAULT 0,
     source_document VARCHAR(500),
     standard_library VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_user_word_groups_user FOREIGN KEY (user_id) REFERENCES users(id)
+    CONSTRAINT fk_app_qy_v1_word_groups_user
+        FOREIGN KEY (user_id) REFERENCES global_users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_user_word_groups_user ON user_word_groups(user_id);
-CREATE INDEX idx_user_word_groups_type ON user_word_groups(type);
+CREATE INDEX idx_app_qy_v1_word_groups_user ON app_qy_v1_word_groups(user_id);
+CREATE INDEX idx_app_qy_v1_word_groups_type ON app_qy_v1_word_groups(type);
 
 
--- 单词组词表（关联表）
-CREATE TABLE word_group_words (
-    id BIGSERIAL PRIMARY KEY,
-    group_id UUID NOT NULL REFERENCES user_word_groups(id) ON DELETE CASCADE,
+-- app_qy_v1_单词组词表（关联表）
+CREATE TABLE app_qy_v1_word_group_words (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    group_id BIGINT NOT NULL,
     word VARCHAR(100) NOT NULL,
-    dictionary_id BIGINT REFERENCES dictionary(id),
+    dictionary_id BIGINT,
     sentence_context TEXT,
     position_in_doc INT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_word_group_words_group FOREIGN KEY (group_id) REFERENCES user_word_groups(id),
-    CONSTRAINT fk_word_group_words_dictionary FOREIGN KEY (dictionary_id) REFERENCES dictionary(id)
+    CONSTRAINT fk_app_qy_v1_wgw_group
+        FOREIGN KEY (group_id) REFERENCES app_qy_v1_word_groups(id) ON DELETE CASCADE,
+    CONSTRAINT fk_app_qy_v1_wgw_dictionary
+        FOREIGN KEY (dictionary_id) REFERENCES app_qy_v1_dictionary(id)
 );
 
-CREATE INDEX idx_word_group_words_group ON word_group_words(group_id);
-CREATE INDEX idx_word_group_words_word ON word_group_words(word);
+CREATE INDEX idx_app_qy_v1_wgw_group ON app_qy_v1_word_group_words(group_id);
+CREATE INDEX idx_app_qy_v1_wgw_word ON app_qy_v1_word_group_words(word);
 
 
--- 用户学习记录表（同步用）
-CREATE TABLE user_learning_records (
-    id BIGSERIAL PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+-- app_qy_v1_用户学习记录表
+CREATE TABLE app_qy_v1_learning_records (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
     word VARCHAR(100) NOT NULL,
     read_count INT DEFAULT 0,
     correct_count INT DEFAULT 0,
     incorrect_count INT DEFAULT 0,
     mastery_level DECIMAL(5,2) DEFAULT 0.00,
-    first_learned_at TIMESTAMP WITH TIME ZONE,
-    last_reviewed_at TIMESTAMP WITH TIME ZONE,
-    next_review_at TIMESTAMP WITH TIME ZONE,
+    first_learned_at TIMESTAMP NULL,
+    last_reviewed_at TIMESTAMP NULL,
+    next_review_at TIMESTAMP NULL,
     review_interval_days INT DEFAULT 0,
     review_stage INT DEFAULT 0,
     user_notes TEXT,
     is_favorite BOOLEAN DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_user_learning_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_app_qy_v1_lr_user
+        FOREIGN KEY (user_id) REFERENCES global_users(id) ON DELETE CASCADE,
     UNIQUE(user_id, word)
 );
 
-CREATE INDEX idx_user_learning_user ON user_learning_records(user_id);
-CREATE INDEX idx_user_learning_word ON user_learning_records(word);
-CREATE INDEX idx_user_learning_next_review ON user_learning_records(next_review_at);
+CREATE INDEX idx_app_qy_v1_lr_user ON app_qy_v1_learning_records(user_id);
+CREATE INDEX idx_app_qy_v1_lr_word ON app_qy_v1_learning_records(word);
+CREATE INDEX idx_app_qy_v1_lr_next_review ON app_qy_v1_learning_records(next_review_at);
 
 
--- 文档上传记录表
-CREATE TABLE user_documents (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+-- app_qy_v1_文档上传记录表
+CREATE TABLE app_qy_v1_documents (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
     filename VARCHAR(255) NOT NULL,
     file_type VARCHAR(50) NOT NULL,      -- pdf/doc/docx/txt
     file_size BIGINT,
@@ -560,13 +619,14 @@ CREATE TABLE user_documents (
     word_count INT DEFAULT 0,
     extracted_text TEXT,
     processing_status VARCHAR(50) DEFAULT 'pending',  -- pending/processing/completed/failed
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_user_documents_user FOREIGN KEY (user_id) REFERENCES users(id)
+    CONSTRAINT fk_app_qy_v1_documents_user
+        FOREIGN KEY (user_id) REFERENCES global_users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_user_documents_user ON user_documents(user_id);
-CREATE INDEX idx_user_documents_status ON user_documents(processing_status);
+CREATE INDEX idx_app_qy_v1_documents_user ON app_qy_v1_documents(user_id);
+CREATE INDEX idx_app_qy_v1_documents_status ON app_qy_v1_documents(processing_status);
 ```
 
 ---

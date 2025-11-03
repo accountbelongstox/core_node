@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // ### AI SPECIAL ATTENTION RULES START ###
 // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 // 1. Write all code in English only.
@@ -31,6 +31,8 @@ require_once 'AwyV0Router/AwyV0User.php';
 require_once 'AwyV0Router/AwyV0Friend.php';
 require_once 'AwyV0Router/AwyV0Device.php';
 require_once 'AwyV0Router/AwyV0Chat.php';
+require_once 'AwyV0Router/AwyV0Search.php';
+require_once 'AwyV0Router/AwyV0Dashboard.php';
 
 // ServerManagerV1 Routes
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1SystemInfoCtl;
@@ -104,3 +106,14 @@ Route::prefix('achat/v1')->group(function () {
 
 // VipClubV1 Routes
 require_once 'VipClubV1Router/api.php';
+
+
+// AppQyV1 routes - app_qy vocabulary learning app
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Words.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';
+
+// AppQyV1 routes - app_qy vocabulary learning app
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Words.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';

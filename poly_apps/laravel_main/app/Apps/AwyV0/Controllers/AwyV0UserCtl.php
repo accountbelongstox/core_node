@@ -17,219 +17,297 @@ namespace App\Apps\AwyV0\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
+use App\Http\Common\CommonAuthService;
 
 class AwyV0UserCtl extends Controller
 {
     /**
-     * Register a new user
-     * 
+     * Get user profile
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function register(Request $request)
+    public function profile(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'phone' => 'required|string|unique:users',
-            'password' => 'required|string|min:6',
-            'code' => 'required|string'
-        ]);
+        $user = $request->user();
 
-        if ($validator->fails()) {
-            return response()->json([
-                'code' => 400,
-                'msg' => 'Validation failed',
-                'data' => $validator->errors()
-            ], 400);
-        }
-
-        // TODO: Implement registration logic
         return response()->json([
-            'code' => 200,
-            'msg' => 'success',
+            'success' => true,
+            'message' => 'User profile retrieved successfully',
             'data' => [
-                'user' => [],
-                'token' => ''
+                'id' => $user->id,
+                'username' => $user->username,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'avatar' => $user->avatar,
+                'bio' => $user->bio ?? '',
+                'location' => $user->location ?? '',
+                'createdAt' => $user->created_at->toISOString(),
+                'updatedAt' => $user->updated_at->toISOString()
             ]
         ]);
     }
 
     /**
-     * User login
-     * 
+     * Update user profile
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function login(Request $request)
+    public function updateProfile(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string',
-            'password' => 'required|string'
+            'username' => 'string|min:3|max:50|unique:users,username,' . $request->user()->id,
+            'email' => 'email|unique:users,email,' . $request->user()->id,
+            'bio' => 'string|max:500',
+            'location' => 'string|max:100'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'code' => 400,
-                'msg' => 'Validation failed',
+                'success' => false,
+                'error' => 'Validation failed',
                 'data' => $validator->errors()
             ], 400);
         }
 
-        // TODO: Implement login logic
+        $user = $request->user();
+
+        // Update only provided fields
+        if ($request->has('username')) {
+            $user->username = $request->input('username');
+        }
+        if ($request->has('email')) {
+            $user->email = $request->input('email');
+        }
+        if ($request->has('bio')) {
+            $user->bio = $request->input('bio');
+        }
+        if ($request->has('location')) {
+            $user->location = $request->input('location');
+        }
+
+        $user->save();
+
         return response()->json([
-            'code' => 200,
-            'msg' => 'success',
+            'success' => true,
+            'message' => 'Profile updated successfully',
             'data' => [
-                'user' => [],
-                'token' => ''
+                'id' => $user->id,
+                'username' => $user->username,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'avatar' => $user->avatar,
+                'bio' => $user->bio ?? '',
+                'location' => $user->location ?? '',
+                'updatedAt' => $user->updated_at->toISOString()
             ]
-        ]);
-    }
-
-    /**
-     * User logout
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function logout(Request $request)
-    {
-        // TODO: Implement logout logic
-        return response()->json([
-            'code' => 200,
-            'msg' => 'success',
-            'data' => true
-        ]);
-    }
-
-    /**
-     * Get current user info
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function getUser(Request $request)
-    {
-        // TODO: Implement get user logic
-        return response()->json([
-            'code' => 200,
-            'msg' => 'success',
-            'data' => []
-        ]);
-    }
-
-    /**
-     * Update user info
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function updateUser(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'avatar' => 'nullable|string',
-            'nickname' => 'nullable|string'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'code' => 400,
-                'msg' => 'Validation failed',
-                'data' => $validator->errors()
-            ], 400);
-        }
-
-        // TODO: Implement update logic
-        return response()->json([
-            'code' => 200,
-            'msg' => 'success',
-            'data' => []
         ]);
     }
 
     /**
      * Change password
-     * 
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function changePassword(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'old_password' => 'required|string',
-            'new_password' => 'required|string|min:6'
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:6|confirmed'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'code' => 400,
-                'msg' => 'Validation failed',
+                'success' => false,
+                'error' => 'Validation failed',
                 'data' => $validator->errors()
             ], 400);
         }
 
-        // TODO: Implement password change logic
+        $user = $request->user();
+        $currentPassword = $request->input('current_password');
+        $newPassword = $request->input('new_password');
+
+        // Verify current password
+        if (!Hash::check($currentPassword, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'INVALID_CURRENT_PASSWORD',
+                'message' => 'Current password is incorrect',
+                'data' => null
+            ], 400);
+        }
+
+        // Update password
+        $user->password = Hash::make($newPassword);
+        $user->save();
+
+        // Revoke all existing tokens for security
+        $user->tokens()->delete();
+
         return response()->json([
-            'code' => 200,
-            'msg' => 'success',
+            'success' => true,
+            'message' => 'Password changed successfully',
             'data' => true
         ]);
     }
 
     /**
      * Bind phone number
-     * 
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function bindPhone(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string|unique:users',
-            'code' => 'required|string'
+            'phone' => 'required|string|unique:users,phone,' . $request->user()->id,
+            'verification_code' => 'required|string|size:6'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'code' => 400,
-                'msg' => 'Validation failed',
+                'success' => false,
+                'error' => 'Validation failed',
                 'data' => $validator->errors()
             ], 400);
         }
 
-        // TODO: Implement phone binding logic
+        $phone = $request->input('phone');
+        $verificationCode = $request->input('verification_code');
+
+        // Verify SMS code (simplified implementation)
+        if ($verificationCode !== '123456') { // Default code for testing
+            return response()->json([
+                'success' => false,
+                'error' => 'INVALID_VERIFICATION_CODE',
+                'message' => 'Invalid verification code',
+                'data' => null
+            ], 400);
+        }
+
+        $user = $request->user();
+        $user->phone = $phone;
+        $user->phone_verified_at = now();
+        $user->save();
+
         return response()->json([
-            'code' => 200,
-            'msg' => 'success',
+            'success' => true,
+            'message' => 'Phone number bound successfully',
             'data' => true
         ]);
     }
 
     /**
-     * Bind email
-     * 
+     * Bind email address
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function bindEmail(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email|unique:users',
-            'code' => 'required|string'
+            'email' => 'required|email|unique:users,email,' . $request->user()->id,
+            'verification_code' => 'required|string|size:6'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'code' => 400,
-                'msg' => 'Validation failed',
+                'success' => false,
+                'error' => 'Validation failed',
                 'data' => $validator->errors()
             ], 400);
         }
 
-        // TODO: Implement email binding logic
+        $email = $request->input('email');
+        $verificationCode = $request->input('verification_code');
+
+        // Verify email code (simplified implementation)
+        if ($verificationCode !== '123456') { // Default code for testing
+            return response()->json([
+                'success' => false,
+                'error' => 'INVALID_VERIFICATION_CODE',
+                'message' => 'Invalid verification code',
+                'data' => null
+            ], 400);
+        }
+
+        $user = $request->user();
+        $user->email = $email;
+        $user->email_verified_at = now();
+        $user->save();
+
         return response()->json([
-            'code' => 200,
-            'msg' => 'success',
+            'success' => true,
+            'message' => 'Email address bound successfully',
             'data' => true
         ]);
+    }
+
+    /**
+     * Upload avatar
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function uploadAvatar(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif|max:5120' // Max 5MB
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed',
+                'data' => $validator->errors()
+            ], 400);
+        }
+
+        if ($request->hasFile('avatar')) {
+            $file = $request->file('avatar');
+            $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+
+            // Store file (in production, use cloud storage)
+            $path = $file->storeAs('avatars', $filename, 'public');
+
+            if (!$path) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'UPLOAD_FAILED',
+                    'message' => 'Failed to upload avatar',
+                    'data' => null
+                ], 500);
+            }
+
+            $user = $request->user();
+
+            // Delete old avatar if exists
+            if ($user->avatar) {
+                // Delete old file logic here
+            }
+
+            $user->avatar = '/storage/' . $path;
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Avatar uploaded successfully',
+                'data' => [
+                    'avatarUrl' => $user->avatar
+                ]
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'error' => 'NO_FILE_UPLOADED',
+            'message' => 'No avatar file uploaded',
+            'data' => null
+        ], 400);
     }
 } 

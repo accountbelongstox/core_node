@@ -40,6 +40,7 @@ class GridNavModel {
 class GridNavChildModel {
   final int id;
   final String title;
+  final String? subtitle;
   final String? tag;
   final String? hot;
   final String? link;
@@ -47,6 +48,7 @@ class GridNavChildModel {
   GridNavChildModel({
     required this.id,
     required this.title,
+    this.subtitle,
     this.tag,
     this.hot,
     this.link,
@@ -60,4 +62,6 @@ class GridNavChildModel {
   bool get hasTag => tag != null && tag!.isNotEmpty;
 
   bool get hasHot => hot != null && hot!.isNotEmpty;
+
+  bool get hasSubtitle => subtitle != null && subtitle!.isNotEmpty;
 }

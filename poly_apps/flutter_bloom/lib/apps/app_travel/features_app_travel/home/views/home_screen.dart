@@ -83,9 +83,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: CustomScrollView(
             controller: _scrollController,
             slivers: [
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 44.0),
-              ),
           if (homeProvider.isLoading && !homeProvider.hasData)
             const SliverFillRemaining(
               child: Center(

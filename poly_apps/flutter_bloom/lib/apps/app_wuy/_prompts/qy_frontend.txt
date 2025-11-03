@@ -1,0 +1,10 @@
+现在将你的进度更新到  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\_prompts\AI_COLLABORATION_BRIDGE_WY.json ，注意这是一个桥接文件，将和后端共享。是flutter端和后端共享的，注意你是flutter端，
+你可以更新桥接文件上的内容，但注意你遵循的是你自己的规则，桥接文件只是一个交流而非规范。将你的工作内容更新到桥接文档。并注意最后日期，当你读取过的内容标记为：知道了。
+你们将实现联调，使前前和后端的功能能够一致并做到有效能用。
+
+D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_wuy\app_wuy_tree_code_assets.txt 查看你完成所有 页面了吗。， 注意使用多语方系统 ，数据 中心化，不要硬编码语言和数据，而要使用统一类库中心化类
+库，同时，使用统一的设置类库和设置数据（能通过设置可以实时刷新App，以及存储），同时参考 目录
+中的文档 。尽可能的美化页面（但要扩展lib/common中的主题、widgets等类库）。
+同时如果使用图标，尽量不要使用emoji图标，而是调用mcp服务生成占位图。
+同时可参考规范文档 ，D:\programing\core_node\poly_apps\flutter_bloom\development-guides\FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md 
+现在查看页面是否扩展了，如果扩展了，更新桥接文档，让后端能知道返回接口，进行联调。

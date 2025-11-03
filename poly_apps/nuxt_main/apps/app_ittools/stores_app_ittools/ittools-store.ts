@@ -2,8 +2,8 @@
 // Centralized state management for IT Tools application
 
 import { defineStore } from 'pinia';
-import type { Tool } from '../constants_app_ittools/tools';
-import { ALL_TOOLS, getToolsByCategory, searchTools } from '../constants_app_ittools/tools';
+import type { Tool } from '../types_app_ittools';
+import { ALL_TOOLS, getToolsByCategory, searchTools, TOOLS_BY_CATEGORY, type ToolCategory } from '../constants_app_ittools/complete-tools';
 
 export interface ItToolsState {
   // Tools data
@@ -97,13 +97,17 @@ export const useItToolsStore = defineStore('ittools', {
      */
     categoriesWithCounts: (state) => {
       const categories = [
-        { id: 'all', name: 'All Tools', icon: 'tools' },
-        { id: 'crypto', name: 'Crypto & Security', icon: 'lock' },
-        { id: 'converter', name: 'Converters', icon: 'convert' },
-        { id: 'web', name: 'Web Dev', icon: 'globe' },
-        { id: 'text', name: 'Text Processing', icon: 'text' },
-        { id: 'math', name: 'Math', icon: 'calculator' },
-        { id: 'network', name: 'Network', icon: 'network' }
+        { id: 'all', name: 'All Tools', icon: 'fas fa-tools' },
+        { id: 'crypto', name: 'Crypto & Security', icon: 'fas fa-lock' },
+        { id: 'converter', name: 'Converters', icon: 'fas fa-exchange-alt' },
+        { id: 'web', name: 'Web Dev', icon: 'fas fa-globe' },
+        { id: 'text', name: 'Text Processing', icon: 'fas fa-font' },
+        { id: 'math', name: 'Math', icon: 'fas fa-calculator' },
+        { id: 'network', name: 'Network', icon: 'fas fa-network-wired' },
+        { id: 'media', name: 'Media', icon: 'fas fa-photo-video' },
+        { id: 'development', name: 'Development', icon: 'fas fa-code' },
+        { id: 'measurement', name: 'Measurement', icon: 'fas fa-ruler' },
+        { id: 'data', name: 'Data', icon: 'fas fa-database' }
       ];
 
       return categories.map(cat => ({
@@ -140,7 +144,7 @@ export const useItToolsStore = defineStore('ittools', {
 
       // Filter by category
       if (this.selectedCategory !== 'all') {
-        filtered = getToolsByCategory(this.selectedCategory as any);
+        filtered = getToolsByCategory(this.selectedCategory as ToolCategory);
       }
 
       // Filter by search query

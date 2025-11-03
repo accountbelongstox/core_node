@@ -23,33 +23,36 @@ class HomeLocalNav extends StatelessWidget {
 
   Widget _buildSpriteIcon(int index) {
     const spriteImagePath = 'assets/apps/app_travel/images/home-fivemain-sprite2x@v7.15.png';
-    final yOffset = -40.0 * index;
+    const iconSize = 32.0;
+    final yOffset = -iconSize * index;
 
-    return Container(
-      width: 40.0,
-      height: 40.0,
-      margin: const EdgeInsets.only(bottom: 0),
+    return SizedBox(
+      width: iconSize,
+      height: iconSize,
       child: ClipRect(
         child: OverflowBox(
-          minHeight: 40.0,
-          maxHeight: 200.0,
+          minHeight: iconSize,
+          maxHeight: iconSize * 5,
           alignment: Alignment.topCenter,
           child: Transform.translate(
             offset: Offset(0, yOffset),
             child: Image.asset(
               spriteImagePath,
-              width: 40.0,
+              width: iconSize,
+              height: iconSize * 5,
               fit: BoxFit.none,
               alignment: Alignment.topCenter,
               errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: 40.0,
-                  height: 40.0,
-                  color: Colors.grey[300],
-                  child: const Icon(
-                    Icons.image_not_supported,
-                    size: 20,
-                    color: Colors.grey,
+                return SizedBox(
+                  width: iconSize,
+                  height: iconSize,
+                  child: Container(
+                    color: Colors.grey[300],
+                    child: const Icon(
+                      Icons.image_not_supported,
+                      size: 16,
+                      color: Colors.grey,
+                    ),
                   ),
                 );
               },
@@ -76,12 +79,12 @@ class HomeLocalNav extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            top: -52.0,
+            top: -68.0,
             left: 12.0,
             right: 12.0,
             child: Container(
-              height: 52.0,
-              padding: const EdgeInsets.symmetric(vertical: 6.0),
+              height: 68.0,
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8.0),
@@ -102,18 +105,23 @@ class HomeLocalNav extends StatelessWidget {
                         debugPrint('Local nav tapped: ${nav.title}');
                       },
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           _buildSpriteIcon(index),
-                          Text(
-                            nav.title,
-                            style: const TextStyle(
-                              fontSize: 12.0,
-                              color: Colors.black87,
+                          const SizedBox(height: 4.0),
+                          Flexible(
+                            child: Text(
+                              nav.title,
+                              style: const TextStyle(
+                                fontSize: 11.0,
+                                color: Colors.black87,
+                                height: 1.2,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),

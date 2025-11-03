@@ -33,6 +33,7 @@ class _HomeGridNavSectionState extends State<HomeGridNavSection> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8.0),
@@ -45,15 +46,19 @@ class _HomeGridNavSectionState extends State<HomeGridNavSection> {
                     _currentPage = index;
                   });
                 },
-                itemCount: 2, // Typically 2 pages for travel apps
+                itemCount: 2,
                 itemBuilder: (context, pageIndex) {
-                  return Column(
-                    children: widget.gridNavs.asMap().entries.map((entry) {
-                      return HomeGridNav(
-                        gridNav: entry.value,
-                        isFirst: entry.key == 0,
-                      );
-                    }).toList(),
+                  return SingleChildScrollView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: widget.gridNavs.asMap().entries.map((entry) {
+                        return HomeGridNav(
+                          gridNav: entry.value,
+                          isFirst: entry.key == 0,
+                        );
+                      }).toList(),
+                    ),
                   );
                 },
               ),
