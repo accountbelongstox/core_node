@@ -1,6 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue';
-import { useWSRPC } from '../../../composables/useWSRPC';
-import type { VideoMetadata, VideoInitMessage, WSRPCMessage } from '../../../types/pymatrix';
+import { useWSRPC } from '@/composables/useWSRPC';
+import type { VideoMetadata, VideoInitMessage, WSRPCMessage } from '@/types/pymatrix';
 
 interface UseVideoStreamOptions {
   deviceSerial: string;

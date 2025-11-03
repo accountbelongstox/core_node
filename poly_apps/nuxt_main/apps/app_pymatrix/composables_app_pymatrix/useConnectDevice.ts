@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { useDeviceStore } from '../stores_app_pymatrix/deviceStore';
-import { pyMatrixDeviceAPI } from '../../services/api/pymatrix/pymatrix-device-api';
-import type { Device, DeviceConfig } from '../../../types/pymatrix';
+import { pyMatrixDeviceAPI } from '@/services/api/pymatrix/pymatrix-device-api';
+import type { Device, DeviceConfig } from '@/types/pymatrix';
 
 export interface ConnectPayload {
   serial: string;

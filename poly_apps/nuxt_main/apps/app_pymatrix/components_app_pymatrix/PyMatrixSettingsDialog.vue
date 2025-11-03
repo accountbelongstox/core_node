@@ -183,7 +183,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useConfigStore } from '../stores_app_pymatrix/configStore';
 import { DEVICE_CONFIG_FIELDS, type DeviceConfigField } from '../config_app_pymatrix/deviceConfigFields';
-import type { DeviceConfig } from '../../../types/pymatrix';
+import type { DeviceConfig } from '@/types/pymatrix';
 
 interface Emits {
   (e: 'close'): void;

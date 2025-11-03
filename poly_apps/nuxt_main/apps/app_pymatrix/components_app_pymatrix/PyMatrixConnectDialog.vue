@@ -181,7 +181,7 @@ import { useConfigStore } from '../stores_app_pymatrix/configStore';
 import { useConnectionPresetsStore } from '../stores_app_pymatrix/connectionPresetsStore';
 import { DEVICE_CONFIG_FIELDS, type DeviceConfigField } from '../config_app_pymatrix/deviceConfigFields';
 import ConnectionPresetsPanel from './ConnectionPresetsPanel.vue';
-import type { Device, DeviceConfig } from '../../../types/pymatrix';
+import type { Device, DeviceConfig } from '@/types/pymatrix';
 
 interface Props {
   availableDevices?: Device[];

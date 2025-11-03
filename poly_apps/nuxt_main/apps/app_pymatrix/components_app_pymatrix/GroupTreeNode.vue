@@ -63,7 +63,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { GroupTreeNode as TreeNode } from '../../../types/pymatrix';
+import type { GroupTreeNode as TreeNode } from '@/types/pymatrix';
 
 interface Props {
   node: TreeNode;

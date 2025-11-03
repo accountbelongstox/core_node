@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { ClipboardSyncState, ClipboardData } from '../../../types/pymatrix';
+import type { ClipboardSyncState, ClipboardData } from '@/types/pymatrix';
 
 interface ClipboardStoreState {
   syncStates: Map<string, ClipboardSyncState>;

@@ -165,7 +165,7 @@ import { ref, computed, onMounted } from 'vue';
 import BasePanel from '~/common/components/ui/BasePanel.vue';
 import BaseButton from '~/common/components/ui/BaseButton.vue';
 import GroupTreeNode from './GroupTreeNode.vue';
-import type { GroupTreeNode as TreeNode } from '../../../types/pymatrix';
+import type { GroupTreeNode as TreeNode } from '@/types/pymatrix';
 
 interface Props {
   show?: boolean;

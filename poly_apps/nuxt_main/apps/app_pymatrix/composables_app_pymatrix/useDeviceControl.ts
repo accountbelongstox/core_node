@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import { useWSRPC } from '../../../composables/useWSRPC';
-import type { TouchEvent, KeyEvent, WSRPCMessage } from '../../../types/pymatrix';
+import { useWSRPC } from '@/composables/useWSRPC';
+import type { TouchEvent, KeyEvent, WSRPCMessage } from '@/types/pymatrix';
 
 interface UseDeviceControlOptions {
   deviceSerial: string;

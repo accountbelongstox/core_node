@@ -340,7 +340,7 @@ import BaseButton from '~/common/components/ui/BaseButton.vue';
 import BaseToggle from '~/common/components/ui/BaseToggle.vue';
 import { useConnectionPresetsStore, type ConnectionPreset } from '../stores_app_pymatrix/connectionPresetsStore';
 import { useToast } from '../composables_app_pymatrix/useToast';
-import type { DeviceConfig } from '../../../types/pymatrix';
+import type { DeviceConfig } from '@/types/pymatrix';
 
 interface Props {
   show?: boolean;

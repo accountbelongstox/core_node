@@ -4,7 +4,7 @@
  */
 
 import { defineStore } from 'pinia';
-import type { GroupTreeNode } from '../../../types/pymatrix';
+import type { GroupTreeNode } from '@/types/pymatrix';
 
 export interface GroupTreeState {
   tree: GroupTreeNode[];

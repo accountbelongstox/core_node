@@ -95,7 +95,7 @@ import { useDeviceControl } from '../composables_app_pymatrix/useDeviceControl';
 import { useConnectDevice } from '../composables_app_pymatrix/useConnectDevice';
 import { useToast } from '../composables_app_pymatrix/useToast';
 import type { KeyboardShortcut } from '../composables_app_pymatrix/useKeyboardShortcuts';
-import type { DeviceConfig } from '../../../types/pymatrix';
+import type { DeviceConfig } from '@/types/pymatrix';
 
 import PyMatrixTopBar from '../components_app_pymatrix/PyMatrixTopBar.vue';
 import PyMatrixLeftPanel from '../components_app_pymatrix/PyMatrixLeftPanel.vue';

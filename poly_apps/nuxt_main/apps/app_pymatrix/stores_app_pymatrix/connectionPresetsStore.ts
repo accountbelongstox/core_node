@@ -4,7 +4,7 @@
  */
 
 import { defineStore } from 'pinia';
-import type { DeviceConfig } from '../../../types/pymatrix';
+import type { DeviceConfig } from '@/types/pymatrix';
 
 export interface ConnectionPreset {
   id: string;

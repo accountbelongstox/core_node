@@ -155,7 +155,8 @@ def main():
 
         # Launch frontend and wait for connection
         async def launch():
-            frontend_url = f"http://localhost:3000"
+            # pyMatrix uses port 3007 (defined in app-config.json)
+            frontend_url = "http://localhost:3007"
             await launch_frontend_with_wait(
                 project_root=project_root,
                 frontend_url=frontend_url,

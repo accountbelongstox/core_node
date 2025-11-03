@@ -76,8 +76,8 @@
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { useToast } from '../composables_app_pymatrix/useToast';
 import { useRecordingStore } from '../stores_app_pymatrix/recordingStore';
-import { pyMatrixRecordingAPI } from '~/services/api/pymatrix/pymatrix-recording-api';
-import type { RecordingFormat, RecordingMode } from '../../../types/pymatrix';
+import { pyMatrixRecordingAPI } from '@/services/api/pymatrix/pymatrix-recording-api';
+import type { RecordingFormat, RecordingMode } from '@/types/pymatrix';
 
 const toast = useToast();
 

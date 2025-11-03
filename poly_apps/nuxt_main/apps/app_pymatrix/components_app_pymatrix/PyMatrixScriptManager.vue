@@ -586,11 +586,11 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useScriptStore } from '../stores_app_pymatrix/scriptStore';
 import { useScriptExecutor } from '../composables_app_pymatrix/useScriptExecutor';
-import BasePanel from '../../../common/components/ui/BasePanel.vue';
-import BaseButton from '../../../common/components/ui/BaseButton.vue';
-import BaseToggle from '../../../common/components/ui/BaseToggle.vue';
+import BasePanel from '@/common/components/ui/BasePanel.vue';
+import BaseButton from '@/common/components/ui/BaseButton.vue';
+import BaseToggle from '@/common/components/ui/BaseToggle.vue';
 import PyMatrixScriptStepEditor from './PyMatrixScriptStepEditor.vue';
-import type { Device, Script, ScriptStep, ScriptStepType } from '../../../types/pymatrix';
+import type { Device, Script, ScriptStep, ScriptStepType } from '@/types/pymatrix';
 
 interface Props {
   show: boolean;

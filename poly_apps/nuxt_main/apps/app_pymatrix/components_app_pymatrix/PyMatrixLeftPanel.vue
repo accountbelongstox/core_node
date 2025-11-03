@@ -57,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Device } from '../../../types/pymatrix';
+import type { Device } from '@/types/pymatrix';
 
 interface Props {
   devices: Device[];

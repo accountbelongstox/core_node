@@ -232,10 +232,10 @@ import FilePushPanel from './FilePushPanel.vue';
 import ApkInstallPanel from './ApkInstallPanel.vue';
 import PackageListPanel from './PackageListPanel.vue';
 import DeviceContextMenu from './DeviceContextMenu.vue';
-import DeviceTagBadge from '../../../common/components/ui/DeviceTagBadge.vue';
+import DeviceTagBadge from '@/common/components/ui/DeviceTagBadge.vue';
 import { useTagsStore } from '../stores_app_pymatrix/tagsStore';
 import { useToast } from '../composables_app_pymatrix/useToast';
-import type { Device } from '../../../types/pymatrix';
+import type { Device } from '@/types/pymatrix';
 
 interface Props {
   device: Device;
@@ -502,7 +502,7 @@ async function handleRefreshDeviceInfo() {
   console.log('[VideoPlayer] Refreshing device info for', props.device.serial);
 
   try {
-    const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+    const { pyMatrixDeviceAPI } = await import('@/services/api/pymatrix/pymatrix-device-api');
     const response = await pyMatrixDeviceAPI.getDeviceInfo(props.device.serial);
 
     if (response.device) {
@@ -563,7 +563,7 @@ async function handleContextMenuAction(action: string, serial: string) {
 
     case 'screenshot':
       try {
-        const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+        const { pyMatrixDeviceAPI } = await import('@/services/api/pymatrix/pymatrix-device-api');
         const response = await pyMatrixDeviceAPI.takeScreenshot(serial);
 
         if (response.success) {
@@ -628,7 +628,7 @@ async function handleContextMenuAction(action: string, serial: string) {
 
     case 'restart':
       try {
-        const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+        const { pyMatrixDeviceAPI } = await import('@/services/api/pymatrix/pymatrix-device-api');
         await pyMatrixDeviceAPI.restartDevice(serial);
         toast.success('Device restart initiated', 'Device Control');
       } catch (error) {
@@ -639,7 +639,7 @@ async function handleContextMenuAction(action: string, serial: string) {
 
     case 'disconnect':
       try {
-        const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+        const { pyMatrixDeviceAPI } = await import('@/services/api/pymatrix/pymatrix-device-api');
         await pyMatrixDeviceAPI.disconnectDevice(serial);
         deviceStore.removeDevice(serial);
         toast.success('Device disconnected', 'Device Control');

@@ -126,7 +126,7 @@
 import { computed } from 'vue';
 import { useDeviceStore } from '../stores_app_pymatrix/deviceStore';
 import { useTagsStore } from '../stores_app_pymatrix/tagsStore';
-import DeviceTagBadge from '../../../common/components/ui/DeviceTagBadge.vue';
+import DeviceTagBadge from '@/common/components/ui/DeviceTagBadge.vue';
 
 const deviceStore = useDeviceStore();
 const tagsStore = useTagsStore();

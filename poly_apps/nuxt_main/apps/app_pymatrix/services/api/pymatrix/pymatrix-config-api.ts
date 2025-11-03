@@ -3,7 +3,7 @@
  * Provides configuration management for global and device-specific settings
  */
 
-import type { DeviceConfig, PyMatrixConfigResponse } from '../../../../types/pymatrix';
+import type { DeviceConfig, PyMatrixConfigResponse } from '@/types/pymatrix';
 
 interface ConfigAPIResponse<T = any> {
   success: boolean;
