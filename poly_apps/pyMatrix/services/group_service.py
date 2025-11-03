@@ -20,6 +20,8 @@ class GroupService:
     def __init__(self):
         self.groups: Dict[str, GroupController] = {}  # groupId -> GroupController
         self.group_enabled: Dict[str, bool] = {}  # groupId -> enabled
+        self.group_tree: List[Dict] = []  # Hierarchical group tree structure
+        self._init_tree()
 
     @classmethod
     def instance(cls) -> 'GroupService':
@@ -526,6 +528,194 @@ class GroupService:
 
         except Exception as e:
             print(f"[GroupService] Failed batch screen control for group {group_id}: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def _init_tree(self):
+        """Initialize default tree structure with sample data"""
+        try:
+            # Try to load from config file
+            import os
+            import json
+            config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'group_tree.json')
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    self.group_tree = json.load(f)
+                    print(f"[GroupService] Loaded group tree from config: {len(self.group_tree)} root nodes")
+                    return
+        except Exception as e:
+            print(f"[GroupService] Failed to load group tree config: {e}")
+
+        # Default tree structure
+        self.group_tree = [
+            {
+                "id": "group-production",
+                "name": "Production Devices",
+                "type": "group",
+                "children": [
+                    {
+                        "id": "device-prod-001",
+                        "name": "Device-001",
+                        "type": "device",
+                        "deviceSerial": "device-001",
+                        "scriptPath": "/path/to/device-001",
+                        "exists": False
+                    },
+                    {
+                        "id": "device-prod-002",
+                        "name": "Device-002",
+                        "type": "device",
+                        "deviceSerial": "device-002",
+                        "scriptPath": "/path/to/device-002",
+                        "exists": False
+                    }
+                ]
+            },
+            {
+                "id": "group-testing",
+                "name": "Testing Devices",
+                "type": "group",
+                "children": [
+                    {
+                        "id": "group-testing-android",
+                        "name": "Android Test",
+                        "type": "group",
+                        "children": [
+                            {
+                                "id": "device-test-android-001",
+                                "name": "Android-Test-001",
+                                "type": "device",
+                                "deviceSerial": "test-android-001",
+                                "scriptPath": "/path/to/test-android-001",
+                                "exists": False
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+        print(f"[GroupService] Initialized default group tree: {len(self.group_tree)} root nodes")
+
+    async def get_tree(self) -> Dict:
+        """
+        Get hierarchical group tree structure
+
+        Returns:
+            {
+                "success": bool,
+                "tree": List[Dict] - Tree structure with groups and devices
+            }
+        """
+        try:
+            # Update device existence status from connected devices
+            from .device_service import DeviceService
+            device_service = DeviceService.instance()
+            connected_serials = {d.get('deviceName', '') for d in device_service.devices if d.get('connected')}
+
+            # Recursively update exists status
+            def update_exists(nodes: List[Dict]):
+                for node in nodes:
+                    if node.get('type') == 'device':
+                        serial = node.get('deviceSerial', '')
+                        node['exists'] = serial in connected_serials
+                    if node.get('children'):
+                        update_exists(node['children'])
+
+            update_exists(self.group_tree)
+
+            return {
+                "success": True,
+                "tree": self.group_tree
+            }
+        except Exception as e:
+            print(f"[GroupService] Failed to get tree: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "tree": []
+            }
+
+    async def update_tree(self, tree: List[Dict]) -> Dict:
+        """
+        Update entire group tree structure
+
+        Args:
+            tree: New tree structure
+
+        Returns:
+            {
+                "success": bool,
+                "message": str
+            }
+        """
+        try:
+            # Validate tree structure
+            def validate_node(node: Dict, path: str = "root") -> bool:
+                if not isinstance(node, dict):
+                    print(f"[GroupService] Invalid node at {path}: not a dict")
+                    return False
+
+                required_fields = ['id', 'name', 'type']
+                for field in required_fields:
+                    if field not in node:
+                        print(f"[GroupService] Invalid node at {path}: missing '{field}'")
+                        return False
+
+                if node['type'] not in ['group', 'device']:
+                    print(f"[GroupService] Invalid node at {path}: invalid type '{node['type']}'")
+                    return False
+
+                if node['type'] == 'device':
+                    if 'deviceSerial' not in node:
+                        print(f"[GroupService] Invalid device node at {path}: missing 'deviceSerial'")
+                        return False
+
+                # Validate children recursively
+                if 'children' in node:
+                    if not isinstance(node['children'], list):
+                        print(f"[GroupService] Invalid node at {path}: children is not a list")
+                        return False
+                    for i, child in enumerate(node['children']):
+                        if not validate_node(child, f"{path}/{node['name']}[{i}]"):
+                            return False
+
+                return True
+
+            # Validate all root nodes
+            for i, node in enumerate(tree):
+                if not validate_node(node, f"root[{i}]"):
+                    return {
+                        "success": False,
+                        "error": "Invalid tree structure"
+                    }
+
+            # Update tree
+            self.group_tree = tree
+            print(f"[GroupService] Tree updated: {len(tree)} root nodes")
+
+            # Save to config file
+            try:
+                import os
+                import json
+                config_dir = os.path.join(os.path.dirname(__file__), '..', 'config')
+                os.makedirs(config_dir, exist_ok=True)
+                config_file = os.path.join(config_dir, 'group_tree.json')
+                with open(config_file, 'w', encoding='utf-8') as f:
+                    json.dump(tree, f, indent=2, ensure_ascii=False)
+                print(f"[GroupService] Tree saved to {config_file}")
+            except Exception as e:
+                print(f"[GroupService] Failed to save tree config: {e}")
+
+            return {
+                "success": True,
+                "message": f"Tree updated successfully: {len(tree)} root nodes"
+            }
+        except Exception as e:
+            print(f"[GroupService] Failed to update tree: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 "success": False,
                 "error": str(e)

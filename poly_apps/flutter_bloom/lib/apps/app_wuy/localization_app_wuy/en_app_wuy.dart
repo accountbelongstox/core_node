@@ -545,6 +545,88 @@ class WuyEnTranslations {
     LocalizationKeysAppWuy.wuyButtonReset: 'Reset',
     LocalizationKeysAppWuy.wuyButtonSave: 'Save',
     LocalizationKeysAppWuy.wuyButtonConfirm: 'Confirm',
+    LocalizationKeysAppWuy.wuyButtonSend: 'Send',
+    LocalizationKeysAppWuy.wuyButtonEdit: 'Edit',
+
+    // Map view options
+    LocalizationKeysAppWuy.wuyMapViewStandard: 'Standard',
+    LocalizationKeysAppWuy.wuyMapViewSatellite: 'Satellite',
+    LocalizationKeysAppWuy.wuyMapViewHybrid: 'Hybrid',
+
+    // Cache size options
+    LocalizationKeysAppWuy.wuyCacheSize50MB: '50 MB',
+    LocalizationKeysAppWuy.wuyCacheSize100MB: '100 MB',
+    LocalizationKeysAppWuy.wuyCacheSize200MB: '200 MB',
+    LocalizationKeysAppWuy.wuyCacheSize500MB: '500 MB',
+
+    // Auto lock time options
+    LocalizationKeysAppWuy.wuyAutoLockNever: 'Never',
+    LocalizationKeysAppWuy.wuyAutoLock1Min: '1 minute',
+    LocalizationKeysAppWuy.wuyAutoLock5Min: '5 minutes',
+    LocalizationKeysAppWuy.wuyAutoLock15Min: '15 minutes',
+    LocalizationKeysAppWuy.wuyAutoLock30Min: '30 minutes',
+
+    // Login screen specific
+    LocalizationKeysAppWuy.wuyLoginWelcome: 'Welcome to Wuy App',
+    LocalizationKeysAppWuy.wuyLoginSignInToContinue: 'Sign in to continue',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterEmail: 'Please enter your email',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterValidEmail: 'Please enter a valid email',
+    LocalizationKeysAppWuy.wuyLoginPleaseEnterPassword: 'Please enter your password',
+    LocalizationKeysAppWuy.wuyLoginPasswordMinLength: 'Password must be at least 6 characters',
+    LocalizationKeysAppWuy.wuyLoginErrorMessage: 'Login failed: {error}',
+
+    // Personal info screen specific
+    LocalizationKeysAppWuy.wuyPersonalInfoPleaseEnter: 'Please enter {label}',
+    LocalizationKeysAppWuy.wuyPersonalInfoGallery: 'Gallery',
+    LocalizationKeysAppWuy.wuyPersonalInfoCamera: 'Camera',
+    LocalizationKeysAppWuy.wuyPersonalInfoAvatarUpdated: 'Avatar updated successfully',
+    LocalizationKeysAppWuy.wuyPersonalInfoNoUser: 'No user logged in',
+    LocalizationKeysAppWuy.wuyPersonalInfoUpdateSuccess: 'Profile updated successfully',
+    LocalizationKeysAppWuy.wuyPersonalInfoUpdateFailed: 'Failed to update profile: {error}',
+
+    // Phone login screen specific
+    LocalizationKeysAppWuy.wuyPhoneLoginSubtitle: 'Sign in with your phone number',
+
+    // Register screen specific
+    LocalizationKeysAppWuy.wuyRegisterSend: 'Send',
+    LocalizationKeysAppWuy.wuyRegisterPasswordHint: 'Enter your password',
+    LocalizationKeysAppWuy.wuyRegisterPasswordValidation: 'Please enter your password',
+    LocalizationKeysAppWuy.wuyRegisterPasswordLengthValidation: 'Password must be at least 6 characters',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordHint: 'Confirm your password',
+    LocalizationKeysAppWuy.wuyRegisterConfirmPasswordValidation: 'Please confirm your password',
+    LocalizationKeysAppWuy.wuyRegisterPasswordMismatch: 'Passwords do not match',
+    LocalizationKeysAppWuy.wuyRegisterNow: 'Register',
+    LocalizationKeysAppWuy.wuyRegisterHaveAccount: 'Already have an account? ',
+
+    // Profile screen specific
+    LocalizationKeysAppWuy.wuyProfileLogoutConfirm: 'Are you sure you want to logout?',
+    LocalizationKeysAppWuy.wuyProfileLogoutCancel: 'Cancel',
+    LocalizationKeysAppWuy.wuyProfileLogoutButton: 'Logout',
+
+    // Friend info screen specific
+    LocalizationKeysAppWuy.wuyFriendInfoHealth: 'Their Health',
+    LocalizationKeysAppWuy.wuyFriendInfoPhoneReport: 'Their Phone Report Today',
+    LocalizationKeysAppWuy.wuyFriendInfoPlacesVisited: 'Places Visited Today',
+    LocalizationKeysAppWuy.wuyFriendInfoAchievements: 'Their Achievements Today',
+    LocalizationKeysAppWuy.wuyFriendInfoRunningKm: 'Running km',
+    LocalizationKeysAppWuy.wuyFriendInfoSteps: 'Steps',
+    LocalizationKeysAppWuy.wuyFriendInfoCalories: 'Calories',
+    LocalizationKeysAppWuy.wuyFriendInfoSleep: 'Sleep',
+
+    // Friends list screen specific
+    LocalizationKeysAppWuy.wuyFriendsListMyFriends: 'My Friends',
+    LocalizationKeysAppWuy.wuyFriendsListSearchFriends: 'Search friends...',
+    LocalizationKeysAppWuy.wuyFriendsListNoFriendsYet: 'No friends yet',
+
+    // Chat screen specific
+    LocalizationKeysAppWuy.wuyChatNoMessages: 'No messages yet',
+    LocalizationKeysAppWuy.wuyChatStartConversation: 'Start a conversation',
+
+    // Search screen specific
+    LocalizationKeysAppWuy.wuySearchPlaceholder: 'Search...',
+
+    // Map screen specific
+    LocalizationKeysAppWuy.wuyMapNoLocation: 'No location available',
   };
 }
 

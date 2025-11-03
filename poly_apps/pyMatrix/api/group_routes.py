@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict
 
 # Setup path
 try:
@@ -34,6 +34,10 @@ class BatchSystemKeyRequest(BaseModel):
 class BatchScreenControlRequest(BaseModel):
     controlType: str  # power, brightness, rotation
     params: dict  # Control parameters
+
+
+class UpdateTreeRequest(BaseModel):
+    tree: List[Dict]  # New tree structure
 
 
 # API Routes
@@ -256,6 +260,55 @@ async def batch_screen_control(group_id: str, request: BatchScreenControlRequest
         raise HTTPException(
             status_code=400,
             detail=result.get("error", "Failed to batch screen control")
+        )
+
+    return result
+
+
+@router.get("/tree")
+async def get_group_tree():
+    """
+    Get hierarchical group tree structure
+
+    Returns:
+        {
+            "success": bool,
+            "tree": List[Dict] - Hierarchical tree with groups and devices
+        }
+    """
+    group_service = GroupService.instance()
+    result = await group_service.get_tree()
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("error", "Failed to get group tree")
+        )
+
+    return result
+
+
+@router.post("/tree/update")
+async def update_group_tree(request: UpdateTreeRequest):
+    """
+    Update entire group tree structure
+
+    Args:
+        request: New tree structure
+
+    Returns:
+        {
+            "success": bool,
+            "message": str
+        }
+    """
+    group_service = GroupService.instance()
+    result = await group_service.update_tree(request.tree)
+
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("error", "Failed to update group tree")
         )
 
     return result
