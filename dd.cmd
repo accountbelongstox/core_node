@@ -38,7 +38,7 @@ echo "> Script dir:   %script_dir%"
 
 if exist "%local_dd%" (
   echo "+ Found local dd.ps1; executing..."
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%local_dd%" -SkipInitialization
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%local_dd%"
   goto :restore
 )
 

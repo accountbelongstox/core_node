@@ -283,7 +283,7 @@ fix_all_super_launch_scripts() {
 
         # Check if corresponding executable exists in super_bin
         if [ ! -f "$super_bin_path" ]; then
-            $log_func "  âš  Skipping $script_name (no executable in super_bin)"
+            $log_func "  âš?Skipping $script_name (no executable in super_bin)"
             skipped_count=$((skipped_count + 1))
             continue
         fi
@@ -308,12 +308,12 @@ EOF
                 $USE_SUDO chmod 755 "$script_file"
 
                 fixed_count=$((fixed_count + 1))
-                $log_func "    âœ“ Fixed: $script_file"
+                $log_func "    âœ?Fixed: $script_file"
             else
-                $log_func "  âœ“ $script_name (already fixed)"
+                $log_func "  âœ?$script_name (already fixed)"
             fi
         else
-            $log_func "  âœ“ $script_name (no issues detected)"
+            $log_func "  âœ?$script_name (no issues detected)"
         fi
     done
 

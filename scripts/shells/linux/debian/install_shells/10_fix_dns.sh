@@ -467,10 +467,10 @@ main() {
             log_info "  - Tested sites: npm registry, Google, GitHub"
             echo ""
             log_info "Your system can now:"
-            log_info "  âœ“ Resolve domain names"
-            log_info "  âœ“ Download files from npm registry"
-            log_info "  âœ“ Access Ubuntu package repositories"
-            log_info "  âœ“ Connect to external services"
+            log_info "  âœ?Resolve domain names"
+            log_info "  âœ?Download files from npm registry"
+            log_info "  âœ?Access Ubuntu package repositories"
+            log_info "  âœ?Connect to external services"
             return 0
         else
             log_warning "DNS works but actual downloads failed"
