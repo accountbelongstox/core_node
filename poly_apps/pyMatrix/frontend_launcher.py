@@ -114,17 +114,24 @@ class FrontendLauncher:
             ColorPrint.blue("Starting frontend with temporary batch script in new window...")
             ColorPrint.blue(f"Temporary script: {temp_script}")
 
-            # Launch in new console window (Windows only)
-            # Using CREATE_NEW_CONSOLE to open in separate window
+            # ============================================================
+            # IMPORTANT: DO NOT MODIFY THIS PLATFORM-SPECIFIC LOGIC
+            #
+            # Windows: Launch .bat script in new console window using CREATE_NEW_CONSOLE
+            # Linux:   This code path is not used (see main.py for Linux threading approach)
+            #
+            # This ensures frontend runs in separate process without blocking main thread
+            # ============================================================
             import platform
             if platform.system() == 'Windows':
+                # Windows: Launch in new console window
                 subprocess.Popen(
                     str(temp_script),
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                     shell=True
                 )
             else:
-                # Fallback for non-Windows systems
+                # Fallback for non-Windows systems (if needed)
                 subprocess.Popen(
                     ['bash', str(temp_script)],
                     shell=False
