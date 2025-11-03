@@ -340,6 +340,8 @@ setup_production_python_venv() {
 
     if [ "$python_version_major" -eq 3 ] && [ "$python_version_minor" -le 11 ]; then
         print_info_from_common_functions "Python version $python_version_full is acceptable (<=3.11), skipping venv setup"
+        print_step_from_common_functions "Ensuring Python symlinks are correct for all versions..."
+        fix_python_links
         return 0
     fi
 
@@ -536,6 +538,10 @@ main() {
         if ! setup_production_python_venv; then
             print_warning_from_common_functions "Failed to setup production Python venv"
             print_warning_from_common_functions "Continuing with system Python..."
+            print_step_from_common_functions "Ensuring Python symlinks are correct for system Python..."
+            if ! fix_python_links; then
+                print_warning_from_common_functions "Failed to fix some Python symlinks"
+            fi
         fi
     else
         # Fix Python symlinks for non-production environments (always run to ensure correctness)
