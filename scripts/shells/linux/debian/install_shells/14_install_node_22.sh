@@ -182,36 +182,37 @@ configure_npm_settings() {
 
 check_node_installation() {
     echo "Checking Node.js installation..."
-    
+
     # First check if binaries exist in expected location
     local node_bin="$NODE_BIN_DIR/node"
     local npm_bin="$NODE_BIN_DIR/npm"
-    
+
     if [ ! -f "$node_bin" ] || [ ! -f "$npm_bin" ]; then
         echo "Node.js not found in expected location: $NODE_INSTALL_DIR"
-        
+
         # Try to find Node.js in system locations
         echo "Searching for existing Node.js installations..."
         local system_node=$(which node 2>/dev/null)
         local system_npm=$(which npm 2>/dev/null)
-        
+
         if [ -n "$system_node" ] && [ -n "$system_npm" ]; then
             echo "Found system Node.js at: $system_node"
             local system_version=$("$system_node" -v 2>/dev/null | sed 's/^v//')
             local system_major=$(echo "$system_version" | cut -d. -f1)
-            
-            if [ "$system_major" = "$NODE_SHORT_VERSION" ]; then
-                echo "System Node.js version $system_version matches required version $NODE_SHORT_VERSION"
+
+            if [ "$system_major" -ge "$NODE_SHORT_VERSION" ]; then
+                echo "System Node.js version $system_version is >= $NODE_SHORT_VERSION (required)"
                 echo "Will create proper symlinks and configuration..."
                 return 2  # Special return code for system installation found
             else
-                echo "System Node.js version $system_version does not match required version $NODE_SHORT_VERSION"
+                echo "System Node.js version $system_version is < $NODE_SHORT_VERSION (required)"
+                return 3  # Special return code for old version found
             fi
         fi
-        
+
         return 1
     fi
-    
+
     # Check version in target directory
     local current_version
     current_version=$("$node_bin" -v 2>/dev/null | sed 's/^v//')
@@ -219,15 +220,103 @@ check_node_installation() {
         echo "Failed to get Node.js version from $node_bin"
         return 1
     fi
-    
+
     local major_version
     major_version=$(echo "$current_version" | cut -d. -f1)
-    
-    if [ "$major_version" = "$NODE_SHORT_VERSION" ]; then
-        echo "Found Node.js $current_version in $NODE_INSTALL_DIR (matches required version $NODE_SHORT_VERSION)"
+
+    if [ "$major_version" -ge "$NODE_SHORT_VERSION" ]; then
+        echo "Found Node.js $current_version in $NODE_INSTALL_DIR (>= required version $NODE_SHORT_VERSION)"
         return 0
     else
-        echo "Node.js version mismatch. Found: $current_version, Required: $NODE_SHORT_VERSION.x"
+        echo "Node.js version too low. Found: $current_version, Required: >= $NODE_SHORT_VERSION.x"
+        return 3  # Old version found
+    fi
+}
+
+remove_old_node_installation() {
+    echo "=================================================="
+    echo "Old Node.js version detected"
+    echo "=================================================="
+    echo "Current Node.js needs to be removed to install version $NODE_SHORT_VERSION"
+    echo ""
+
+    # Find all Node.js installations
+    local locations_to_remove=()
+
+    # Check target directory
+    if [ -d "$NODE_INSTALL_DIR" ]; then
+        locations_to_remove+=("$NODE_INSTALL_DIR")
+    fi
+
+    # Check common installation locations
+    local common_locations=(
+        "/usr/local/node"
+        "/opt/node"
+        "/usr/lib/node"
+        "/usr/local/lib/node_modules"
+    )
+
+    for loc in "${common_locations[@]}"; do
+        if [ -d "$loc" ]; then
+            locations_to_remove+=("$loc")
+        fi
+    done
+
+    # Check symlinks
+    local symlinks_to_remove=()
+    for binary in node npm npx; do
+        local link_path="/usr/local/bin/$binary"
+        if [ -L "$link_path" ] || [ -f "$link_path" ]; then
+            symlinks_to_remove+=("$link_path")
+        fi
+    done
+
+    echo "Found Node.js installation(s) at:"
+    for loc in "${locations_to_remove[@]}"; do
+        echo "  - $loc"
+    done
+
+    if [ ${#symlinks_to_remove[@]} -gt 0 ]; then
+        echo ""
+        echo "Found Node.js symlinks:"
+        for link in "${symlinks_to_remove[@]}"; do
+            echo "  - $link"
+        done
+    fi
+
+    echo ""
+    echo "Remove old Node.js installation? [Y/n]"
+    read -r response
+
+    # Default to yes if user just presses Enter
+    if [ -z "$response" ] || [[ "$response" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "Removing old Node.js installation..."
+
+        # Remove symlinks first
+        for link in "${symlinks_to_remove[@]}"; do
+            echo "Removing: $link"
+            $USE_SUDO rm -f "$link"
+        done
+
+        # Remove directories
+        for loc in "${locations_to_remove[@]}"; do
+            echo "Removing: $loc"
+            $USE_SUDO rm -rf "$loc"
+        done
+
+        # Clean up environment variables
+        if [ -f /etc/environment ]; then
+            echo "Cleaning up environment variables..."
+            $USE_SUDO sed -i '/^NODE_HOME=/d' /etc/environment
+            $USE_SUDO sed -i '/^NODE_PATH=/d' /etc/environment
+            $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
+        fi
+
+        echo "Old Node.js installation removed successfully"
+        return 0
+    else
+        echo "Installation cancelled by user"
         return 1
     fi
 }
@@ -458,14 +547,41 @@ installation_result=$?
 
 case $installation_result in
     0)
-        echo "Node.js $NODE_VERSION is already installed in target directory."
+        echo "=================================================="
+        echo "Node.js $NODE_VERSION is already installed"
+        echo "=================================================="
+        echo "Skipping installation, Node.js version is already >= $NODE_SHORT_VERSION"
+        echo ""
         ;;
     2)
-        echo "Found compatible system Node.js installation."
+        echo "=================================================="
+        echo "Found compatible system Node.js installation"
+        echo "=================================================="
         echo "Will configure symlinks and environment for existing installation."
+        echo ""
+        ;;
+    3)
+        echo "=================================================="
+        echo "Old Node.js version found"
+        echo "=================================================="
+        echo ""
+        if ! remove_old_node_installation; then
+            echo "Installation cancelled"
+            exit 0
+        fi
+        echo ""
+        echo "Installing Node.js $NODE_VERSION..."
+        if ! install_node; then
+            echo "Node.js installation failed"
+            exit 1
+        fi
         ;;
     1)
+        echo "=================================================="
+        echo "No Node.js installation found"
+        echo "=================================================="
         echo "Installing Node.js $NODE_VERSION..."
+        echo ""
         if ! install_node; then
             echo "Node.js installation failed"
             exit 1

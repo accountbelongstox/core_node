@@ -62,34 +62,38 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
         appBar: AppBar(
           title: Text(
             LocalizationKeysAppWuy.wuyPhoneLoginTitle.tr(context),
-            style: WuyAppThemeConfig.wuyAppBarTitle,
+            style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           backgroundColor: Colors.transparent,
           elevation: 0,
+          centerTitle: true,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: WuyAppThemeConfig.wuyTextPrimary),
             onPressed: () => context.pop(),
           ),
         ),
         body: SingleChildScrollView(
-          padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(height: WuyAppThemeConfig.wuyLargePadding),
+                const SizedBox(height: 20),
                 _buildLogo(),
-                SizedBox(height: WuyAppThemeConfig.wuyLargePadding * 2),
+                const SizedBox(height: 48),
                 _buildPhoneField(),
-                SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
+                const SizedBox(height: 18),
                 _buildPasswordField(),
-                SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
+                const SizedBox(height: 32),
                 _buildLoginButton(),
-                SizedBox(height: WuyAppThemeConfig.wuyDefaultPadding),
+                const SizedBox(height: 16),
                 _buildRegisterButton(),
-                SizedBox(height: WuyAppThemeConfig.wuyLargePadding),
+                const SizedBox(height: 32),
                 _buildUserAgreement(),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -100,19 +104,61 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
 
   Widget _buildLogo() {
     return Center(
-      child: Container(
-        width: 80,
-        height: 80,
-        decoration: BoxDecoration(
-          color: WuyAppThemeConfig.wuyPrimaryColor,
-          borderRadius: BorderRadius.circular(WuyAppThemeConfig.wuyCardBorderRadius),
-          boxShadow: WuyAppThemeConfig.wuyCardShadow,
-        ),
-        child: Icon(
-          Icons.phone_android,
-          color: Colors.white,
-          size: 40,
-        ),
+      child: Column(
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  WuyAppThemeConfig.wuyPrimaryColor,
+                  WuyAppThemeConfig.wuyAccentColor,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                  spreadRadius: 0,
+                ),
+                BoxShadow(
+                  color: WuyAppThemeConfig.wuyAccentColor.withOpacity(0.2),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
+                  spreadRadius: -5,
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.phone_android,
+              color: Colors.white,
+              size: 48,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Phone Login',
+            style: ThemeTextStyles.displayMedium.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 26,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Sign in with your phone number',
+            style: ThemeTextStyles.bodyLarge.copyWith(
+              color: WuyAppThemeConfig.wuyTextSecondary.withOpacity(0.8),
+              fontSize: 15,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -167,37 +213,78 @@ class _WuyPhoneLoginScreenState extends State<WuyPhoneLoginScreen> {
   }
 
   Widget _buildLoginButton() {
-    return WuyGradientButton(
-      text: LocalizationKeysAppWuy.wuyLoginButton.tr(context),
-      onPressed: _isLoading ? null : _handleLogin,
-      isLoading: _isLoading,
-      height: 50,
-      borderRadius: 12.0,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: WuyAppThemeConfig.wuyAccentColor.withOpacity(0.15),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: WuyGradientButton(
+        text: LocalizationKeysAppWuy.wuyLoginButton.tr(context),
+        onPressed: _isLoading ? null : _handleLogin,
+        isLoading: _isLoading,
+        height: 54,
+        borderRadius: 28.0,
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 
   Widget _buildRegisterButton() {
-    return WuyGradientButton(
-      text: LocalizationKeysAppWuy.wuyRegisterButton.tr(context),
-      onPressed: _isLoading ? null : _handleRegister,
-      isLoading: false,
-      height: 50,
-      borderRadius: 12.0,
-      gradientColors: [
-        WuyAppThemeConfig.wuyGradientStart,
-        WuyAppThemeConfig.wuyGradientMiddle,
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: _isLoading ? null : _handleRegister,
+          child: Container(
+            height: 54,
+            alignment: Alignment.center,
+            child: Text(
+              LocalizationKeysAppWuy.wuyRegisterButton.tr(context),
+              style: ThemeTextStyles.bodyLarge.copyWith(
+                color: WuyAppThemeConfig.wuyPrimaryColor,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildUserAgreement() {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: WuyAppThemeConfig.wuyDefaultPadding),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Text(
         LocalizationKeysAppWuy.wuyUserAgreement.tr(context),
         style: ThemeTextStyles.caption1.copyWith(
-          color: WuyAppThemeConfig.wuyTextSecondary,
+          color: WuyAppThemeConfig.wuyTextSecondary.withOpacity(0.75),
           fontSize: 12,
+          height: 1.6,
+          letterSpacing: 0.2,
         ),
         textAlign: TextAlign.center,
       ),

@@ -147,9 +147,28 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
       appBar: AppBar(
         backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
         foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                WuyAppThemeConfig.wuyPrimaryColor,
+                WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         title: Text(
           LocalizationKeysAppWuy.wuySearchTitle.tr(context),
-          style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(color: Colors.white),
+          style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -240,7 +259,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
                 backgroundColor: Colors.grey[200],
                 textColor: WuyAppThemeConfig.wuyTextSecondary,
                 gradientColors: null,
-                height: 44,
+                height: 50,
+                borderRadius: 24.0,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(width: 12),
@@ -248,7 +270,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
               child: WuyGradientButton(
                 text: LocalizationKeysAppWuy.wuySearchTitle.tr(context),
                 onPressed: _performSearch,
-                height: 44,
+                height: 50,
+                borderRadius: 24.0,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -307,7 +332,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
                 backgroundColor: Colors.grey[200],
                 textColor: WuyAppThemeConfig.wuyTextSecondary,
                 gradientColors: null,
-                height: 44,
+                height: 50,
+                borderRadius: 24.0,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(width: 12),
@@ -315,7 +343,10 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
               child: WuyGradientButton(
                 text: LocalizationKeysAppWuy.wuySearchTitle.tr(context),
                 onPressed: _performSearch,
-                height: 44,
+                height: 50,
+                borderRadius: 24.0,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -406,9 +437,26 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
 
   Widget _buildFriendResult(FriendModelAppWuy friend) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(WuyAppThemeConfig.wuyDefaultPadding),
-      decoration: WuyAppThemeConfig.wuyCardDecoration,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Row(
         children: [
           CircleAvatar(

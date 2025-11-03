@@ -215,22 +215,24 @@ class WuyProfileScreen extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: ThemeColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: ThemeColors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: Offset(0, 4),
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
           ),
           BoxShadow(
             color: ThemeColors.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: Offset(0, 2),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Column(
           children: [
             _buildCompactInfoRow(context, LocalizationKeysAppWuy.wuyProfileName.tr(context), user?.displayName ?? ''),
@@ -307,12 +309,19 @@ class WuyProfileScreen extends StatelessWidget {
       children: [
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
                 color: ThemeColors.teal.withOpacity(0.3),
-                blurRadius: 8,
-                offset: Offset(0, 4),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+                spreadRadius: 0,
+              ),
+              BoxShadow(
+                color: ThemeColors.green.withOpacity(0.15),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+                spreadRadius: -4,
               ),
             ],
           ),
@@ -321,24 +330,34 @@ class WuyProfileScreen extends StatelessWidget {
             onPressed: () {
               context.go(WuyAppRouter.getEditProfileRoute());
             },
-            height: 48,
+            height: 54,
+            borderRadius: 28.0,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 16),
         Container(
-          height: 48,
+          height: 54,
           decoration: BoxDecoration(
             color: ThemeColors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(28),
             border: Border.all(
               color: ThemeColors.red.withOpacity(0.3),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: ThemeColors.red.withOpacity(0.1),
-                blurRadius: 8,
-                offset: Offset(0, 4),
+                color: ThemeColors.red.withOpacity(0.15),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+                spreadRadius: 0,
+              ),
+              BoxShadow(
+                color: ThemeColors.red.withOpacity(0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+                spreadRadius: -4,
               ),
             ],
           ),
@@ -383,22 +402,23 @@ class WuyProfileScreen extends StatelessWidget {
                   await AuthGuard.onLogout(context);
                 }
               },
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(28),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
                     Icons.logout,
                     color: ThemeColors.red,
-                    size: 18,
+                    size: 20,
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Text(
                     LocalizationKeysAppWuy.wuyProfileLogout.tr(context),
                     style: ThemeTextStyles.subhead.copyWith(
                       color: ThemeColors.red,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 17,
+                      letterSpacing: 0.2,
                     ),
                   ),
                 ],

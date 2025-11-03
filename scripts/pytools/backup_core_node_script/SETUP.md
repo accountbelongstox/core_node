@@ -1,73 +1,117 @@
 # File Sync Tool - Setup Guide
 
+## ⚡ TL;DR - Zero Setup Required
+
+```bash
+# Just run it - everything is automatic!
+./quick_start.sh           # Linux
+.\quick_start.ps1          # Windows
+
+# Or directly:
+python3 file_sync_tool.py server    # Linux
+python file_sync_tool.py server     # Windows
+```
+
+The tool automatically handles:
+- Virtual environment creation
+- Dependency installation
+- Server startup
+
+**No manual setup needed!**
+
+---
+
 ## Problem: externally-managed-environment
 
 Starting with Python 3.11+, some Linux distributions (Debian/Ubuntu) implement PEP 668, which prevents installing packages directly to system Python using pip. This is to protect the system from conflicts.
 
-## Solution: Virtual Environment
+## Solution: Auto-Initialization
 
-This tool now uses a Python virtual environment to isolate dependencies.
+This tool now **automatically creates and manages** a Python virtual environment when you first run it.
 
 ---
 
-## Quick Start
+## How It Works
 
-### 1. Initialize (First Time Only)
+### First Run
+1. You run: `./quick_start.sh` or `python3 file_sync_tool.py server`
+2. Tool detects no virtual environment exists
+3. Creates `.venv` directory automatically
+4. Installs client dependencies (requests, tqdm) in venv
+5. Restarts itself in the virtual environment
+6. Starts the server
 
-Run the initialization script to create a virtual environment and install dependencies:
+### Subsequent Runs
+1. You run: `./quick_start.sh` or `python3 file_sync_tool.py server`
+2. Tool detects venv exists
+3. Runs directly in venv
+4. Starts the server immediately
+
+**Total setup time: ~10 seconds on first run, instant on subsequent runs.**
+
+---
+
+## Architecture
+
+### Server (Zero External Dependencies)
+The server uses **ONLY Python standard library**:
+- `http.server` - HTTP server
+- `json` - JSON responses
+- `os`, `sys`, `pathlib` - File operations
+- `hashlib` - MD5 checksums
+- `threading` - Concurrent handling
+
+**Benefits:**
+- ✅ No pip install needed on server
+- ✅ Works on any Python 3.7+ installation
+- ✅ No dependency conflicts
+- ✅ Fast startup, small footprint
+- ✅ One file deployment
+
+### Client (Auto-Installed Dependencies)
+The client needs external packages:
+- `requests` - HTTP client
+- `tqdm` - Progress bars
+
+**Auto-Installation:**
+- Only installed when running client mode
+- Installed in isolated virtual environment
+- Never touches system Python
+
+---
+
+## Manual Usage (If You Want Control)
+
+### Server Mode
 
 ```bash
-# On Linux/Mac
-python3 init_env.py
+# Basic
+python3 file_sync_tool.py server
 
-# On Windows
-python init_env.py
+# Custom port
+python3 file_sync_tool.py server --port 9999
 ```
 
-This will:
-- Create a `.venv` directory with isolated Python environment
-- Install required packages (flask, requests, tqdm)
-- Generate convenience scripts for easy running
+### Client Mode
 
-### 2. Run the Server
-
-After initialization, use one of these methods:
-
-#### Method 1: Convenience Script (Recommended)
-
-**Linux/Mac:**
 ```bash
-./run_server.sh
+# Download from server
+python3 file_sync_tool.py client --server http://192.168.1.100:8888
 ```
 
-**Windows PowerShell:**
-```powershell
-.\run_server.ps1
-```
+---
 
-**Windows Command Prompt:**
-```cmd
-run_server.bat
-```
+## Configuration
 
-#### Method 2: Manual Activation
+Edit `file_sync_tool.py` to customize:
 
-**Linux/Mac:**
-```bash
-source activate.sh
-python file_sync_tool.py server
-```
-
-**Windows PowerShell:**
-```powershell
-.\activate.ps1
-python file_sync_tool.py server
-```
-
-**Windows Command Prompt:**
-```cmd
-activate.bat
-python file_sync_tool.py server
+```python
+class Config:
+    SERVER_ROOT = "/www/wwwroot"        # Linux server root
+    CLIENT_ROOT = r"D:\www\wwwroot"     # Windows client root
+    EXCLUDE_DIRS = ["core_node"]        # Directories to exclude
+    DEFAULT_PORT = 8888                 # Server port
+    MAX_CONCURRENT_DOWNLOADS = 20       # Download threads
 ```
 
 ---
@@ -76,144 +120,126 @@ python file_sync_tool.py server
 
 ### Issue: Permission Denied (Linux)
 
-If you get permission errors on Linux:
+Make scripts executable:
 
 ```bash
-chmod +x init_env.py
-chmod +x run_server.sh
-chmod +x activate.sh
+chmod +x quick_start.sh
 ```
 
 ### Issue: PowerShell Execution Policy (Windows)
 
-If PowerShell scripts are blocked:
+Allow script execution:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-Or use the batch file instead:
-```cmd
-run_server.bat
+Or just run directly:
+
+```powershell
+python file_sync_tool.py server
 ```
 
 ### Issue: python3-venv not installed (Debian/Ubuntu)
 
-If you get an error about missing `venv` module:
+Install venv module:
 
 ```bash
 sudo apt-get update
 sudo apt-get install python3-venv python3-full
 ```
 
-### Issue: Virtual Environment Already Exists
+### Issue: Want to Start Fresh
 
-If you want to recreate the environment:
+Delete virtual environment and restart:
 
 ```bash
-# Remove existing environment
 rm -rf .venv
-
-# Re-run initialization
-python3 init_env.py
+python3 file_sync_tool.py server
 ```
+
+The venv will be recreated automatically.
 
 ---
 
-## Server Configuration
+## File Structure
 
-Edit the `Config` class in `file_sync_tool.py`:
-
-```python
-class Config:
-    SERVER_ROOT = "/www/wwwroot"        # Linux server root
-    CLIENT_ROOT = r"D:\www\wwwroot"     # Windows client root
-    EXCLUDE_DIRS = ["core_node"]        # Directories to exclude
-    DEFAULT_PORT = 8888                 # Server port
 ```
+backup_core_node_script/
+├── file_sync_tool.py        # Main application
+│   ├── Auto-init logic      # Checks and creates venv
+│   ├── Server (native)      # http.server based
+│   └── Client (requests)    # With auto-installed deps
+├── quick_start.sh            # Simple launcher (Linux)
+├── quick_start.ps1           # Simple launcher (Windows)
+├── .venv/                    # Auto-created virtual env
+│   ├── bin/python (Linux)
+│   └── Scripts/python.exe (Windows)
+├── README_FILE_SYNC.md       # User guide
+└── SETUP.md                  # This file
+```
+
+**Note:** No separate `init_env.py`, `run_server.sh`, or `activate.sh` scripts needed!
 
 ---
 
 ## Usage Examples
 
-### Start Server (Linux Server)
+### Start Server on Linux
 
 ```bash
 cd /www/wwwroot/core_node/scripts/pytools/backup_core_node_script
-python3 init_env.py  # First time only
-./run_server.sh
+./quick_start.sh
 ```
 
-Server will start at: http://server_ip:8888
+Server starts at: `http://server_ip:8888`
 
-### Run Client (Windows)
+### Download Files on Windows
 
 ```powershell
 cd D:\programing\core_node\scripts\pytools\backup_core_node_script
-python init_env.py  # First time only
-.\run_server.ps1 client --server http://server_ip:8888
-```
-
----
-
-## Manual Installation (Alternative)
-
-If you prefer to use system Python (not recommended):
-
-### On Systems Allowing System Packages
-
-```bash
-pip install --user flask requests tqdm
-python file_sync_tool.py server
-```
-
-### With --break-system-packages (Not Recommended)
-
-```bash
-pip install --break-system-packages flask requests tqdm
-python file_sync_tool.py server
-```
-
-**Warning:** This can break your system Python. Use virtual environment instead.
-
----
-
-## File Structure After Setup
-
-```
-backup_core_node_script/
-├── file_sync_tool.py        # Main script
-├── init_env.py               # Environment initializer
-├── .venv/                    # Virtual environment (created)
-├── activate.sh               # Linux activation script (created)
-├── activate.ps1              # Windows activation script (created)
-├── activate.bat              # Windows batch activation (created)
-├── run_server.sh             # Linux run script (created)
-├── run_server.ps1            # Windows run script (created)
-├── run_server.bat            # Windows batch run script (created)
-└── SETUP.md                  # This file
+python file_sync_tool.py client --server http://server_ip:8888
 ```
 
 ---
 
 ## Verification
 
-After initialization, verify the setup:
+After first run, check the virtual environment:
 
 ```bash
-# Activate virtual environment
-source activate.sh  # Linux/Mac
-.\activate.ps1      # Windows
+# Check venv exists
+ls -la .venv/
 
-# Check Python
-which python        # Should show .venv/bin/python
-python --version
-
-# Check packages
-pip list | grep flask
-pip list | grep requests
-pip list | grep tqdm
+# Check Python location
+.venv/bin/python --version    # Linux
+.venv\Scripts\python.exe --version    # Windows
 ```
+
+---
+
+## Why This Architecture?
+
+### 1. PEP 668 Compliance
+✅ Uses virtual environment to comply with modern Python standards
+✅ No system Python modifications
+✅ Safe and isolated
+
+### 2. Zero Server Dependencies
+✅ Server uses only standard library
+✅ No pip install needed on server
+✅ Works on any Python 3.7+ installation
+✅ No dependency hell
+
+### 3. Auto-Initialization
+✅ No manual setup steps
+✅ Just run and go
+✅ Handles everything automatically
+
+### 4. Client Dependencies Isolated
+✅ Client needs requests and tqdm
+✅ Auto-installed in venv on first client run
+✅ Never affects system Python
 
 ---
 
@@ -222,45 +248,78 @@ pip list | grep tqdm
 ### 1. Check Python Version
 
 ```bash
-python --version  # Should be 3.7+
+python3 --version  # Should be 3.7+
 ```
 
 ### 2. Check Virtual Environment
 
 ```bash
-ls -la .venv/  # Should exist with bin/ or Scripts/ directory
+ls -la .venv/  # Should exist with bin/ or Scripts/
 ```
 
-### 3. Reinstall Dependencies
-
-```bash
-source activate.sh  # or .\activate.ps1
-pip install --upgrade flask requests tqdm
-```
-
-### 4. Clean Start
+### 3. Manual venv Recreation
 
 ```bash
 rm -rf .venv
-python3 init_env.py
+python3 file_sync_tool.py server
+```
+
+### 4. Check Permissions (Linux)
+
+```bash
+ls -l quick_start.sh  # Should be executable
+chmod +x quick_start.sh  # Make executable
 ```
 
 ---
 
-## Why Virtual Environment?
+## Advanced: Manual Virtual Environment
 
-### Benefits:
-✅ Isolated dependencies (no system conflicts)
-✅ Different Python versions per project
-✅ Easy to recreate/share environment
-✅ Compliant with PEP 668
-✅ Safe and recommended approach
+If you want to create venv manually:
 
-### Without Virtual Environment:
-❌ Can break system Python
-❌ Package conflicts
-❌ Hard to manage dependencies
-❌ Violates PEP 668 on modern systems
+```bash
+# Create venv
+python3 -m venv .venv
+
+# Activate (Linux)
+source .venv/bin/activate
+
+# Activate (Windows PowerShell)
+.\.venv\Scripts\Activate.ps1
+
+# Install client dependencies (optional, for client mode)
+pip install requests tqdm
+
+# Run server
+python file_sync_tool.py server
+
+# Run client
+python file_sync_tool.py client --server http://192.168.1.100:8888
+```
+
+**But this is unnecessary** - the tool does all this automatically!
+
+---
+
+## Comparison: Old vs New
+
+### Old Approach (Complex)
+```bash
+# Step 1: Initialize
+python3 init_env.py
+
+# Step 2: Activate
+source activate.sh
+
+# Step 3: Run
+python file_sync_tool.py server
+```
+
+### New Approach (Simple)
+```bash
+# One step - everything automatic!
+./quick_start.sh
+```
 
 ---
 
@@ -270,13 +329,17 @@ If you encounter issues:
 
 1. Ensure Python 3.7+ is installed: `python3 --version`
 2. On Debian/Ubuntu, install venv: `sudo apt install python3-venv python3-full`
-3. Delete `.venv` and re-run `init_env.py`
+3. Delete `.venv` and rerun: `rm -rf .venv && python3 file_sync_tool.py server`
 4. Check error messages in terminal output
 
 ---
 
 ## References
 
-- [PEP 668 - Marking Python base environments as "externally managed"](https://peps.python.org/pep-0668/)
-- [Python venv documentation](https://docs.python.org/3/library/venv.html)
-- [Python Virtual Environments Guide](https://realpython.com/python-virtual-environments-a-primer/)
+- [PEP 668](https://peps.python.org/pep-0668/) - Why virtual environment is needed
+- [Python venv](https://docs.python.org/3/library/venv.html) - Official documentation
+- [Python http.server](https://docs.python.org/3/library/http.server.html) - Native HTTP server
+
+---
+
+**Remember**: You don't need to do anything manually. Just run `./quick_start.sh` and the tool handles everything! 🚀

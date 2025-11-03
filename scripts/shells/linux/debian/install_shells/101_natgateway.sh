@@ -1658,6 +1658,18 @@ install_natgateway() {
 
 # Main entry point
 main() {
+    # Check if running on production server
+    if [ "$IS_PRODUCTION" = true ]; then
+        log_header "NAT Gateway - Production Server Detected"
+        log_info "Production server environment detected"
+        log_warning "NAT Gateway is not applicable for production servers"
+        log_info "This tool is designed for systems with multiple network interfaces"
+        log_info "and is typically used for development or routing scenarios"
+        echo ""
+        log_info "Skipping installation automatically"
+        return 0
+    fi
+
     # Check if already installed
     if check_installation; then
         # If installed, show status first

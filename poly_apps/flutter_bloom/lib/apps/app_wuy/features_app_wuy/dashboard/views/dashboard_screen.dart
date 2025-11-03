@@ -36,10 +36,27 @@ class WuyDashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           LocalizationKeysAppWuy.wuyDashboardTitle.tr(context),
-          style: ThemeTextStyles.displayMedium,
+          style: ThemeTextStyles.displayMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
@@ -69,41 +86,53 @@ class WuyDashboardScreen extends StatelessWidget {
 
   Widget _buildWelcomeCard() {
     return Builder(
-      builder: (context) => Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        ),
-        child: Container(
-          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-          decoration: BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-            gradient: LinearGradient(
-              colors: [ThemeColors.primary, ThemeColors.primaryDark],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [ThemeColors.primary, ThemeColors.primaryDark],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: ThemeColors.primary.withOpacity(0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+              spreadRadius: 0,
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                LocalizationKeysAppWuy.wuyDashboardWelcome.tr(context),
-                style: ThemeTextStyles.displayMedium.copyWith(
-                  color: ThemeColors.white,
-                ),
+            BoxShadow(
+              color: ThemeColors.primaryDark.withOpacity(0.2),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+              spreadRadius: -4,
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              LocalizationKeysAppWuy.wuyDashboardWelcome.tr(context),
+              style: ThemeTextStyles.displayMedium.copyWith(
+                color: ThemeColors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 24,
+                letterSpacing: -0.5,
               ),
-              SizedBox(height: ThemeDimensions.spacingSmall),
-              Text(
-                LocalizationKeysAppWuy.wuyDashboardOverviewText.tr(context),
-                style: ThemeTextStyles.bodyLarge.copyWith(
-                  color: ThemeColors.white.withOpacity(0.9),
-                ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              LocalizationKeysAppWuy.wuyDashboardOverviewText.tr(context),
+              style: ThemeTextStyles.bodyLarge.copyWith(
+                color: ThemeColors.white.withOpacity(0.9),
+                fontSize: 15,
+                height: 1.5,
+                letterSpacing: 0.2,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -152,41 +181,57 @@ class WuyDashboardScreen extends StatelessWidget {
     IconData icon,
     Color color,
   ) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
       ),
-      child: Padding(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(
-                  icon,
-                  color: color,
-                  size: 24,
-                ),
-                Text(
-                  value,
-                  style: ThemeTextStyles.displaySmall.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            Text(
-              title,
-              style: ThemeTextStyles.bodyMedium.copyWith(
-                color: ThemeColors.textSecondary,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(
+                icon,
+                color: color,
+                size: 28,
               ),
+              Text(
+                value,
+                style: ThemeTextStyles.displaySmall.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 24,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            title,
+            style: ThemeTextStyles.bodyMedium.copyWith(
+              color: ThemeColors.textSecondary,
+              fontSize: 13,
+              letterSpacing: 0.1,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -229,35 +274,60 @@ class WuyDashboardScreen extends StatelessWidget {
       },
     ];
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
       ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: NeverScrollableScrollPhysics(),
-        itemCount: activities.length,
-        separatorBuilder: (context, index) => Divider(height: 1),
-        itemBuilder: (context, index) {
-          final activity = activities[index];
-          return ListTile(
-            leading: Icon(
-              activity['icon'] as IconData,
-              color: ThemeColors.primary,
-            ),
-            title: Text(
-              activity['title'] as String,
-              style: ThemeTextStyles.bodyLarge,
-            ),
-            subtitle: Text(
-              activity['time'] as String,
-              style: ThemeTextStyles.bodySmall.copyWith(
-                color: ThemeColors.textSecondary,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: activities.length,
+          separatorBuilder: (context, index) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final activity = activities[index];
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              leading: Icon(
+                activity['icon'] as IconData,
+                color: ThemeColors.primary,
+                size: 24,
               ),
-            ),
-          );
-        },
+              title: Text(
+                activity['title'] as String,
+                style: ThemeTextStyles.bodyLarge.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.1,
+                ),
+              ),
+              subtitle: Text(
+                activity['time'] as String,
+                style: ThemeTextStyles.bodySmall.copyWith(
+                  color: ThemeColors.textSecondary,
+                  fontSize: 13,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
