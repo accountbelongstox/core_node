@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models_app_travel/hot_content_model.dart';
 import '../../../models_app_travel/travel_inspiration_model.dart';
-import '../../../services_app_travel/journey_service.dart';
+import '../../../testdata/journey_data.dart';
 
 /// Tab widget for displaying "My Itinerary" content
 /// Includes travel inspiration, fun maps, and hot picks sections
@@ -14,10 +14,8 @@ class MyItineraryTab extends StatefulWidget {
 
 class _MyItineraryTabState extends State<MyItineraryTab>
     with AutomaticKeepAliveClientMixin {
-  final JourneyService _journeyService = JourneyService();
   List<TravelInspirationModel> _inspirations = [];
   List<HotContentModel> _hotContents = [];
-  bool _isLoading = true;
 
   @override
   bool get wantKeepAlive => true;
@@ -28,52 +26,24 @@ class _MyItineraryTabState extends State<MyItineraryTab>
     _loadData();
   }
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final inspirations = await _journeyService.fetchTravelInspirations();
-      final hotContents = await _journeyService.fetchHotContents();
-
-      if (mounted) {
-        setState(() {
-          _inspirations = inspirations;
-          _hotContents = hotContents;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-      debugPrint('Error loading journey data: $e');
-    }
+  void _loadData() {
+    // Load data from testdata (similar to orders_data.dart pattern)
+    _inspirations = TestJourneyData.getTravelInspirations();
+    _hotContents = TestJourneyData.getHotContents();
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
 
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00D0D8)),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      color: const Color(0xFF00D0D8),
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          children: [
-            _buildEmptyState(),
-            if (_inspirations.isNotEmpty) _buildTravelInspiration(),
-            if (_hotContents.isNotEmpty) _buildHotSelection(),
-          ],
-        ),
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Column(
+        children: [
+          _buildEmptyState(),
+          if (_inspirations.isNotEmpty) _buildTravelInspiration(),
+          if (_hotContents.isNotEmpty) _buildHotSelection(),
+        ],
       ),
     );
   }

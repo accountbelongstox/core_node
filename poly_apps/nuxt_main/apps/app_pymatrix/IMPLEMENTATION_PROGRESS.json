@@ -1,8 +1,8 @@
 {
   "project": "pyMatrix UI Enhancement",
-  "version": "2.9.0",
+  "version": "2.9.1",
   "startDate": "2025-11-02",
-  "lastUpdate": "2025-11-03T16:00:00Z",
+  "lastUpdate": "2025-11-03T16:30:00Z",
   "totalFeatures": 48,
   "completedFeatures": 33,
   "progressPercentage": 69,
@@ -1579,6 +1579,28 @@
         "Responsive layout with scrollable content",
         "Dark mode support",
         "Integrated into pages/pymatrix.vue with Ctrl+H shortcut"
+      ]
+    },
+    {
+      "name": "DeviceInfoPanel.vue",
+      "path": "apps/app_pymatrix/components_app_pymatrix/DeviceInfoPanel.vue",
+      "type": "app-specific",
+      "features": [
+        "Device detail information panel with floating design",
+        "Basic info section (serial, model, connection state)",
+        "Display info section (resolution, DPI)",
+        "System info section (Android version, SDK version)",
+        "Status info section (streaming, controllable)",
+        "Group role info section (host badge)",
+        "Refresh button for real-time updates",
+        "Close button with keyboard support",
+        "Styled scrollbar for content overflow",
+        "Color-coded connection states (green, red, orange)",
+        "Status badges for streaming and controllable states",
+        "Monospace font for serial numbers",
+        "Dark mode with glassmorphism effect",
+        "Integrated into VideoPlayer.vue",
+        "Accessible via DeviceContextMenu (shortcut: I)"
       ]
     },
     {

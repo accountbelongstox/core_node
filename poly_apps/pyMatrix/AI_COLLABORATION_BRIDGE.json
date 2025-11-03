@@ -2,13 +2,13 @@
   "schemaVersion": "1.0.0",
   "documentType": "AI_COLLABORATION_BRIDGE",
   "purpose": "双AI协作联调桥接文件 - 协调前端AI与后端AI的开发进度和API对接",
-  "lastUpdate": "2025-11-03T16:00:00Z",
+  "lastUpdate": "2025-11-03T16:30:00Z",
   "lockInfo": {
     "isLocked": false,
     "lockedBy": null,
     "lockedAt": null,
     "lockReason": null,
-    "lockMessage": "🔓 File unlocked - Added F029 Configuration Management feature (83% aligned, 29 features total, 24 fully aligned)"
+    "lockMessage": "🔓 File unlocked - Added F029 Configuration Management & F030 Device Detail Info (83% aligned, 30 features total, 25 fully aligned)"
   },
   "aiParticipants": {
     "frontendAI": {
@@ -133,15 +133,15 @@
   },
   "featureAlignment": {
     "summary": {
-      "totalFeatures": 29,
-      "fullyAligned": 24,
+      "totalFeatures": 30,
+      "fullyAligned": 25,
       "partiallyAligned": 0,
       "frontendOnly": 4,
       "backendMissing": 1,
-      "readyForTesting": 29,
+      "readyForTesting": 30,
       "frontendCompletionRate": "100%",
       "alignmentRate": "83%",
-      "notes": "✅ All frontend UI features completed! 29/29 features have frontend implementation (100%). 24 fully aligned with backend (83%), 4 frontend-only features (F023-F026), 1 waiting for backend (F022 Group Tree View). Configuration Management (F029) added - complete global and device-specific config management with UI, Store, and API integration. All frontend features ready for integration testing."
+      "notes": "✅ All frontend UI features completed! 30/30 features have frontend implementation (100%). 25 fully aligned with backend (83%), 4 frontend-only features (F023-F026), 1 waiting for backend (F022 Group Tree View). Latest additions: Configuration Management (F029) - complete global and device-specific config management, Device Detail Info (F030) - comprehensive device information panel. All frontend features ready for integration testing."
     },
     "features": [
       {
@@ -857,6 +857,32 @@
         "testingStatus": "ready_for_testing",
         "alignment": "fully_aligned",
         "notes": "✅ 前后端已完全对齐，可以开始联调测试。功能：全局配置管理（应用于所有设备的默认设置），设备配置覆盖（针对特定设备名称的配置），配置参数验证（范围检查，枚举验证），UI表单（数字输入，选择框，开关），实时保存和加载，配置继承和优先级处理。配置影响设备连接和视频流参数。"
+      },
+      {
+        "id": "F030",
+        "name": "设备详细信息查看",
+        "category": "设备管理",
+        "priority": "P0",
+        "frontend": {
+          "status": "completed",
+          "component": "DeviceInfoPanel.vue, pymatrix-device-api.ts (getDeviceInfo method)",
+          "apiCall": "GET /api/devices/{serial}/info",
+          "implementedBy": "Frontend AI",
+          "completedAt": "2025-11-03",
+          "notes": "✅ 设备详细信息面板已完成：显示设备序列号、型号、连接状态、分辨率、DPI、Android版本、SDK版本、串流状态、控制能力、组角色。支持刷新功能，悬浮面板设计，深色模式。集成在VideoPlayer.vue中，通过DeviceContextMenu访问（快捷键I）或工具栏图标打开。"
+        },
+        "backend": {
+          "status": "completed",
+          "endpoint": "GET /api/devices/{serial}/info (API-002)",
+          "file": "api/device_routes.py:56",
+          "service": "services/device_service.py (get_device_info)",
+          "implementedBy": "Backend AI",
+          "completedAt": "2025-11-02",
+          "notes": "✅ 后端设备详细信息API已完成，返回设备序列号、型号、产品名、分辨率（宽度、高度）、DPI、Android版本、SDK版本等详细信息"
+        },
+        "testingStatus": "ready_for_testing",
+        "alignment": "fully_aligned",
+        "notes": "✅ 前后端已完全对齐，可以开始联调测试。功能：获取设备详细信息，包括基本信息（序列号、型号、状态）、显示信息（分辨率、DPI）、系统信息（Android版本、SDK版本）、状态信息（串流、可控制）、组角色信息。UI面板支持实时刷新，优雅的悬浮设计，分类展示各类信息。"
       }
     ]
   },

@@ -561,6 +561,38 @@ class LocalizationKeysAppWuy {
   static const String wuySettingsResetSuccess = "wuy.settings.reset_success";
   static const String wuySettingsResetToDefaults = "wuy.settings.reset_to_defaults";
 
+  // Settings items localization
+  static const String wuySettingsLocationSharing = "wuy.settings.location_sharing";
+  static const String wuySettingsLocationSharingDesc = "wuy.settings.location_sharing_desc";
+  static const String wuySettingsLocationHistory = "wuy.settings.location_history";
+  static const String wuySettingsLocationHistoryDesc = "wuy.settings.location_history_desc";
+  static const String wuySettingsShowOnlineStatus = "wuy.settings.show_online_status";
+  static const String wuySettingsShowOnlineStatusDesc = "wuy.settings.show_online_status_desc";
+  static const String wuySettingsFriendRequestNotif = "wuy.settings.friend_request_notif";
+  static const String wuySettingsFriendRequestNotifDesc = "wuy.settings.friend_request_notif_desc";
+  static const String wuySettingsDefaultMapView = "wuy.settings.default_map_view";
+  static const String wuySettingsDefaultMapViewDesc = "wuy.settings.default_map_view_desc";
+  static const String wuySettingsEnableAnimations = "wuy.settings.enable_animations";
+  static const String wuySettingsEnableAnimationsDesc = "wuy.settings.enable_animations_desc";
+  static const String wuySettingsDataSaverMode = "wuy.settings.data_saver_mode";
+  static const String wuySettingsDataSaverModeDesc = "wuy.settings.data_saver_mode_desc";
+  static const String wuySettingsCacheSize = "wuy.settings.cache_size";
+  static const String wuySettingsCacheSizeDesc = "wuy.settings.cache_size_desc";
+  static const String wuySettingsRefreshInterval = "wuy.settings.refresh_interval";
+  static const String wuySettingsRefreshIntervalDesc = "wuy.settings.refresh_interval_desc";
+  static const String wuySettingsBiometricAuthName = "wuy.settings.biometric_auth_name";
+  static const String wuySettingsBiometricAuthDesc = "wuy.settings.biometric_auth_desc";
+  static const String wuySettingsAutoLockTime = "wuy.settings.auto_lock_time";
+  static const String wuySettingsAutoLockTimeDesc = "wuy.settings.auto_lock_time_desc";
+  static const String wuySettingsRequireAuthStartup = "wuy.settings.require_auth_startup";
+  static const String wuySettingsRequireAuthStartupDesc = "wuy.settings.require_auth_startup_desc";
+  static const String wuySettingsMessagePreview = "wuy.settings.message_preview";
+  static const String wuySettingsMessagePreviewDesc = "wuy.settings.message_preview_desc";
+  static const String wuySettingsTypingIndicators = "wuy.settings.typing_indicators";
+  static const String wuySettingsTypingIndicatorsDesc = "wuy.settings.typing_indicators_desc";
+  static const String wuySettingsReadReceipts = "wuy.settings.read_receipts";
+  static const String wuySettingsReadReceiptsDesc = "wuy.settings.read_receipts_desc";
+
   // Common buttons
   static const String wuyButtonCancel = "wuy.button.cancel";
   static const String wuyButtonReset = "wuy.button.reset";
