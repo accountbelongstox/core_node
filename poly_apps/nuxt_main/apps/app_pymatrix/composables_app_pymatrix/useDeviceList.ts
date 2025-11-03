@@ -5,13 +5,8 @@
  */
 
 import { ref, onMounted, onUnmounted } from 'vue';
-<<<<<<< HEAD
 import { pyMatrixDeviceAPI } from '@/services/api/pymatrix/pymatrix-device-api';
 import type { Device } from '@/types/pymatrix';
-=======
-import { pyMatrixDeviceAPI } from '~/services/api/pymatrix/pymatrix-device-api';
-import type { Device } from '../../../types/pymatrix';
->>>>>>> 69335e7eef0a6931b106b558e8f7443958785c84
 
 export interface UseDeviceListOptions {
   autoRefresh?: boolean;
