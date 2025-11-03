@@ -136,7 +136,9 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
               userName,
               style: ThemeTextStyles.title1.copyWith(
                 color: ThemeColors.white,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
+                fontSize: 28,
+                letterSpacing: -0.7,
               ),
             ),
             SizedBox(height: ThemeDimensions.spacing8),
@@ -144,6 +146,7 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
               '守护你的未来',
               style: ThemeTextStyles.subhead.copyWith(
                 color: ThemeColors.white.withOpacity(0.9),
+                fontWeight: FontWeight.w500,
               ),
             ),
             SizedBox(height: ThemeDimensions.paddingSizeDefault),
@@ -160,6 +163,8 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
                   '轨迹 ${totalDistance.toStringAsFixed(1)}KM',
                   style: ThemeTextStyles.title1Bold.copyWith(
                     color: ThemeColors.white,
+                    fontSize: 26,
+                    letterSpacing: -0.6,
                   ),
                 ),
               ],
