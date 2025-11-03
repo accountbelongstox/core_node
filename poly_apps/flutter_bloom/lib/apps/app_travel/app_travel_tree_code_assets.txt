@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-03 05:44:29
+Generated: 2025-11-03 21:36:29
 App: app_travel
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -16,6 +16,7 @@ app_travel [code_assets]
 │   ├── MODEL_CENTRALIZATION_ANALYSIS.md
 │   ├── PROJECT_STATUS.md
 │   ├── app_travel_tree.md
+│   ├── app_travel_tree_code_assets.txt
 │   ├── config_app_travel
 │   │   ├── app_config_app_travel.dart
 │   │   ├── constants_app_travel.dart
@@ -475,6 +476,8 @@ app_travel [code_assets]
 │       ├── README.md
 │       ├── action_bar.dart
 │       ├── animated_custom_dialog.dart
+│       ├── animations
+│       │   └── animation_utils.dart
 │       ├── back_app_bar.dart
 │       ├── badges
 │       │   ├── badges_chips.dart
