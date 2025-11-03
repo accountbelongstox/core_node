@@ -262,14 +262,66 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        friend.displayName,
-                        style: WuyAppThemeConfig.wuyFriendName.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              friend.displayName,
+                              style: WuyAppThemeConfig.wuyFriendName.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (friend.isMonitoring) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: WuyAppThemeConfig.wuyPrimaryColor
+                                    .withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.visibility,
+                                    size: 12,
+                                    color: WuyAppThemeConfig.wuyPrimaryColor,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Monitoring',
+                                    style: ThemeTextStyles.caption.copyWith(
+                                      color: WuyAppThemeConfig.wuyPrimaryColor,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      if (friend.username != null) ...[
+                      if (friend.lastMessage != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          friend.lastMessage!,
+                          style: ThemeTextStyles.bodyText2.copyWith(
+                            color: WuyAppThemeConfig.wuyTextSecondary,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ] else if (friend.username != null) ...[
                         const SizedBox(height: 4),
                         Text(
                           '@${friend.username}',
@@ -303,6 +355,16 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                          if (friend.lastMessageTime != null) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              '• ${_formatLastMessageTime(friend.lastMessageTime!)}',
+                              style: ThemeTextStyles.caption.copyWith(
+                                color: WuyAppThemeConfig.wuyTextSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -404,5 +466,22 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
         ),
       ),
     );
+  }
+
+  String _formatLastMessageTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return '${time.month}/${time.day}';
+    }
   }
 }

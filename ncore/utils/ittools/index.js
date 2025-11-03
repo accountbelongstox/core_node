@@ -19,6 +19,10 @@ const WebTools = require('./tools/web');
 const TextTools = require('./tools/text');
 const MathTools = require('./tools/math');
 const NetworkTools = require('./tools/network');
+const MediaTools = require('./tools/media');
+const DevelopmentTools = require('./tools/development');
+const MeasurementTools = require('./tools/measurement');
+const DataTools = require('./tools/data');
 
 class EnhancedItTools {
     constructor() {
@@ -30,6 +34,10 @@ class EnhancedItTools {
         this.text = null;
         this.math = null;
         this.network = null;
+        this.media = null;
+        this.development = null;
+        this.measurement = null;
+        this.data = null;
         this.httpServer = null;
         this.wsRpcServer = null;
         this.routes = new Map();
@@ -64,6 +72,10 @@ class EnhancedItTools {
             this.text = new TextTools();
             this.math = new MathTools();
             this.network = new NetworkTools();
+            this.media = new MediaTools();
+            this.development = new DevelopmentTools();
+            this.measurement = new MeasurementTools();
+            this.data = new DataTools();
 
             this.initialized = true;
             logger.info('EnhancedItTools initialized successfully');
@@ -351,6 +363,10 @@ class EnhancedItTools {
         const textTools = this.text.getToolList();
         const mathTools = this.math.getToolList();
         const networkTools = this.network.getToolList();
+        const mediaTools = this.media.getToolList();
+        const developmentTools = this.development.getToolList();
+        const measurementTools = this.measurement.getToolList();
+        const dataTools = this.data.getToolList();
 
         return [
             ...cryptoTools,
@@ -358,7 +374,11 @@ class EnhancedItTools {
             ...webTools,
             ...textTools,
             ...mathTools,
-            ...networkTools
+            ...networkTools,
+            ...mediaTools,
+            ...developmentTools,
+            ...measurementTools,
+            ...dataTools
         ];
     }
 
@@ -369,7 +389,11 @@ class EnhancedItTools {
             'web': this.web,
             'text': this.text,
             'math': this.math,
-            'network': this.network
+            'network': this.network,
+            'media': this.media,
+            'development': this.development,
+            'measurement': this.measurement,
+            'data': this.data
         };
 
         const toolHandler = categoryMap[category];
@@ -398,20 +422,46 @@ class EnhancedItTools {
         let error = null;
 
         try {
-            if (toolId.startsWith('hash_') || toolId.startsWith('uuid_') || toolId.startsWith('token_')) {
-                result = await this.crypto.execute(toolId, params);
-            } else if (toolId.startsWith('base64_') || toolId.startsWith('url_')) {
-                result = await this.converter.execute(toolId, params);
-            } else if (toolId.startsWith('json_')) {
-                result = await this.web.execute(toolId, params);
-            } else if (toolId.startsWith('text_') || toolId.startsWith('regex_')) {
-                result = await this.text.execute(toolId, params);
-            } else if (toolId.startsWith('expression_')) {
-                result = await this.math.execute(toolId, params);
-            } else if (toolId.startsWith('ipv4_')) {
-                result = await this.network.execute(toolId, params);
-            } else {
+            const tool = this.getAllTools().find(t => t.id === toolId);
+            if (!tool) {
                 throw new Error(`Unknown tool: ${toolId}`);
+            }
+
+            const category = tool.category;
+
+            switch (category) {
+                case 'crypto':
+                    result = await this.crypto.execute(toolId, params);
+                    break;
+                case 'converter':
+                    result = await this.converter.execute(toolId, params);
+                    break;
+                case 'web':
+                    result = await this.web.execute(toolId, params);
+                    break;
+                case 'text':
+                    result = await this.text.execute(toolId, params);
+                    break;
+                case 'math':
+                    result = await this.math.execute(toolId, params);
+                    break;
+                case 'network':
+                    result = await this.network.execute(toolId, params);
+                    break;
+                case 'media':
+                    result = await this.media.execute(toolId, params);
+                    break;
+                case 'development':
+                    result = await this.development.execute(toolId, params);
+                    break;
+                case 'measurement':
+                    result = await this.measurement.execute(toolId, params);
+                    break;
+                case 'data':
+                    result = await this.data.execute(toolId, params);
+                    break;
+                default:
+                    throw new Error(`Unknown category: ${category}`);
             }
         } catch (err) {
             error = err.message;

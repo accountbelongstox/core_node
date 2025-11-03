@@ -190,8 +190,16 @@
         :device-serial="device.serial"
         @close="showApkInstall = false"
         @success="handleApkInstallSuccess"
+        @view-packages="handleViewPackagesFromApk"
       />
     </div>
+
+    <PackageListPanel
+      :visible="showPackageList"
+      :device-serial="device.serial"
+      @close="showPackageList = false"
+      @package-uninstalled="handlePackageUninstalled"
+    />
 
     <DeviceContextMenu
       :show="showContextMenu"
@@ -222,6 +230,7 @@ import ClipboardSyncPanel from './ClipboardSyncPanel.vue';
 import ScreenControlPanel from './ScreenControlPanel.vue';
 import FilePushPanel from './FilePushPanel.vue';
 import ApkInstallPanel from './ApkInstallPanel.vue';
+import PackageListPanel from './PackageListPanel.vue';
 import DeviceContextMenu from './DeviceContextMenu.vue';
 import DeviceTagBadge from '../../../common/components/ui/DeviceTagBadge.vue';
 import { useTagsStore } from '../stores_app_pymatrix/tagsStore';
@@ -257,6 +266,7 @@ const showClipboard = ref(false);
 const showScreenControl = ref(false);
 const showFilePush = ref(false);
 const showApkInstall = ref(false);
+const showPackageList = ref(false);
 const showContextMenu = ref(false);
 const contextMenuX = ref(0);
 const contextMenuY = ref(0);
@@ -470,7 +480,17 @@ function handleFilePushSuccess(filePath: string) {
 
 function handleApkInstallSuccess(packageName: string) {
   console.log('[VideoPlayer] APK installed successfully:', packageName);
-  // Could show a toast notification here
+  toast.success(`APK installed: ${packageName}`, 'Installation');
+}
+
+function handlePackageUninstalled(packageName: string) {
+  console.log('[VideoPlayer] Package uninstalled:', packageName);
+  toast.success(`Package uninstalled: ${packageName}`, 'Uninstall');
+}
+
+function handleViewPackagesFromApk() {
+  console.log('[VideoPlayer] Opening package list from APK install');
+  showPackageList.value = true;
 }
 
 function toggleDeviceInfo() {
@@ -576,6 +596,10 @@ async function handleContextMenuAction(action: string, serial: string) {
 
     case 'install-apk':
       showApkInstall.value = true;
+      break;
+
+    case 'view-packages':
+      showPackageList.value = true;
       break;
 
     case 'add-to-group':

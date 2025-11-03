@@ -23,6 +23,8 @@ import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../providers_app_wuy/wu_user_provider.dart';
 import '../../../config_app_wuy/app_config_app_wuy.dart';
 import '../../../theme_app_wuy/theme_config_app_wuy.dart';
+import '../../../models_app_wuy/friend_model_app_wuy.dart';
+import '../../../services_app_wuy/wuy_fake_data_generator.dart';
 
 /// Map Screen for Wuy App
 ///
@@ -43,6 +45,7 @@ class WuyMapScreen extends StatefulWidget {
 class _WuyMapScreenState extends State<WuyMapScreen> {
   late TencentMapController _mapController;
   late TencentMapsService _mapService;
+  FriendModelAppWuy? selectedFriend;
 
   @override
   void initState() {
@@ -61,7 +64,15 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
       initialLongitude: 116.397470,
     );
 
+    _loadSelectedFriend();
     _addSampleMarkers();
+  }
+
+  void _loadSelectedFriend() {
+    final friends = WuyFakeDataGenerator.generateFakeFriends();
+    if (friends.isNotEmpty) {
+      selectedFriend = friends.first;
+    }
   }
 
   @override
@@ -184,103 +195,131 @@ class _WuyMapScreenState extends State<WuyMapScreen> {
   }
 
   Widget _buildFloatingProfileCard() {
-    return Consumer<WuUserProvider>(
-      builder: (context, userProvider, child) {
-        final user = userProvider.appProfile;
+    if (selectedFriend == null) {
+      return const SizedBox.shrink();
+    }
 
-        return Positioned(
-          top: 100,
-          left: 20,
-          right: 20,
-          child: Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-              child: Column(
+    final friend = selectedFriend!;
+
+    return Positioned(
+      top: 100,
+      left: 20,
+      right: 20,
+      child: Card(
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          child: Column(
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundColor: ThemeColors.primary,
-                        child: Icon(
-                          Icons.person,
-                          size: 30,
-                          color: ThemeColors.white,
-                        ),
-                      ),
-                      SizedBox(width: ThemeDimensions.spacingMedium),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: ThemeColors.primary,
+                    child: Icon(
+                      Icons.person,
+                      size: 30,
+                      color: ThemeColors.white,
+                    ),
+                  ),
+                  SizedBox(width: ThemeDimensions.spacingMedium),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
                             Text(
-                              user?.displayName ?? '',
-                              style: ThemeTextStyles.title3,
+                              friend.displayName,
+                              style: ThemeTextStyles.title3Bold,
                             ),
-                            Text(
-                              user?.about ?? '',
-                              style: ThemeTextStyles.bodyMedium.copyWith(
-                                color: ThemeColors.textSecondary,
+                            if (friend.daysTogether != null) ...[
+                              SizedBox(width: ThemeDimensions.spacing8),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: ThemeDimensions.spacing8,
+                                  vertical: ThemeDimensions.spacing4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: ThemeColors.orange.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${friend.daysTogether} days',
+                                  style: ThemeTextStyles.caption1.copyWith(
+                                    color: ThemeColors.orange,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        SizedBox(height: ThemeDimensions.spacing4),
+                        Row(
+                          children: [
+                            if (friend.relationship != null) ...[
+                              Icon(
+                                _getRelationshipIcon(friend.relationship!),
+                                size: 14,
+                                color: ThemeColors.primary,
+                              ),
+                              SizedBox(width: ThemeDimensions.spacing4),
+                              Text(
+                                friend.relationship!,
+                                style: ThemeTextStyles.subhead.copyWith(
+                                  color: ThemeColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(width: ThemeDimensions.spacing8),
+                            ],
+                            Expanded(
+                              child: Text(
+                                friend.bio ?? '',
+                                style: ThemeTextStyles.footnote.copyWith(
+                                  color: ThemeColors.secondaryLabel,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.info_outline,
-                            color: ThemeColors.primary),
-                        onPressed: () {
-                          context.go(WuyAppRouter.getFriendInfoRoute('1'));
-                        },
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: ThemeDimensions.spacingMedium),
-                  Container(
-                    padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
-                    decoration: BoxDecoration(
-                      color: ThemeColors.blue05,
-                      borderRadius: BorderRadius.circular(
-                          ThemeDimensions.borderRadiusMedium),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildInfoItem(
-                          Icons.directions_walk,
-                          LocalizationKeysAppWuy.wuyMapSteps.tr(context),
-                          '8,432',
-                        ),
-                        _buildInfoItem(
-                          Icons.favorite,
-                          LocalizationKeysAppWuy.wuyMapHeartRate.tr(context),
-                          '72',
-                        ),
-                        _buildInfoItem(
-                          Icons.thermostat,
-                          LocalizationKeysAppWuy.wuyMapTemperature.tr(context),
-                          '36.5°C',
-                        ),
-                        _buildInfoItem(
-                          Icons.local_fire_department,
-                          LocalizationKeysAppWuy.wuyMapCalories.tr(context),
-                          '245',
-                        ),
                       ],
                     ),
                   ),
+                  IconButton(
+                    icon: Icon(Icons.info_outline, color: ThemeColors.primary),
+                    onPressed: () {
+                      context.go(WuyAppRouter.getFriendInfoRoute(friend.id));
+                    },
+                  ),
                 ],
               ),
-            ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
+  }
+
+  IconData _getRelationshipIcon(String relationship) {
+    switch (relationship.toLowerCase()) {
+      case 'partner':
+      case 'boyfriend':
+      case 'girlfriend':
+        return Icons.favorite;
+      case 'family':
+        return Icons.family_restroom;
+      case 'colleague':
+        return Icons.work;
+      default:
+        return Icons.people;
+    }
   }
 
   Widget _buildInfoItem(IconData icon, String label, String value) {

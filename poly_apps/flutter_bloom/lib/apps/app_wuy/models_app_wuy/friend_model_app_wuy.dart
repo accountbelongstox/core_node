@@ -25,6 +25,12 @@ class FriendModelAppWuy {
   final bool isBlocked;
   final bool isFavorite;
   final String? relationship;
+  final int? daysTogether;
+  final String? lastMessage;
+  final DateTime? lastMessageTime;
+  final bool isMonitoring;
+  final Map<String, dynamic>? healthData;
+  final Map<String, dynamic>? phoneReport;
   final Map<String, dynamic>? metadata;
 
   const FriendModelAppWuy({
@@ -42,6 +48,12 @@ class FriendModelAppWuy {
     this.isBlocked = false,
     this.isFavorite = false,
     this.relationship,
+    this.daysTogether,
+    this.lastMessage,
+    this.lastMessageTime,
+    this.isMonitoring = false,
+    this.healthData,
+    this.phoneReport,
     this.metadata,
   });
 
@@ -78,6 +90,16 @@ class FriendModelAppWuy {
       isFavorite:
           json['is_favorite'] as bool? ?? json['isFavorite'] as bool? ?? false,
       relationship: json['relationship'] as String?,
+      daysTogether: json['days_together'] as int? ?? json['daysTogether'] as int?,
+      lastMessage: json['last_message'] as String? ?? json['lastMessage'] as String?,
+      lastMessageTime: json['last_message_time'] != null
+          ? DateTime.parse(json['last_message_time'] as String)
+          : json['lastMessageTime'] != null
+              ? DateTime.parse(json['lastMessageTime'] as String)
+              : null,
+      isMonitoring: json['is_monitoring'] as bool? ?? json['isMonitoring'] as bool? ?? false,
+      healthData: json['health_data'] as Map<String, dynamic>? ?? json['healthData'] as Map<String, dynamic>?,
+      phoneReport: json['phone_report'] as Map<String, dynamic>? ?? json['phoneReport'] as Map<String, dynamic>?,
       metadata: json['metadata'] as Map<String, dynamic>?,
     );
   }
@@ -98,6 +120,12 @@ class FriendModelAppWuy {
       'is_blocked': isBlocked,
       'is_favorite': isFavorite,
       'relationship': relationship,
+      'days_together': daysTogether,
+      'last_message': lastMessage,
+      'last_message_time': lastMessageTime?.toIso8601String(),
+      'is_monitoring': isMonitoring,
+      'health_data': healthData,
+      'phone_report': phoneReport,
       'metadata': metadata,
     };
   }
@@ -117,6 +145,12 @@ class FriendModelAppWuy {
     bool? isBlocked,
     bool? isFavorite,
     String? relationship,
+    int? daysTogether,
+    String? lastMessage,
+    DateTime? lastMessageTime,
+    bool? isMonitoring,
+    Map<String, dynamic>? healthData,
+    Map<String, dynamic>? phoneReport,
     Map<String, dynamic>? metadata,
   }) {
     return FriendModelAppWuy(
@@ -134,6 +168,12 @@ class FriendModelAppWuy {
       isBlocked: isBlocked ?? this.isBlocked,
       isFavorite: isFavorite ?? this.isFavorite,
       relationship: relationship ?? this.relationship,
+      daysTogether: daysTogether ?? this.daysTogether,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessageTime: lastMessageTime ?? this.lastMessageTime,
+      isMonitoring: isMonitoring ?? this.isMonitoring,
+      healthData: healthData ?? this.healthData,
+      phoneReport: phoneReport ?? this.phoneReport,
       metadata: metadata ?? this.metadata,
     );
   }

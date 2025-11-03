@@ -19,6 +19,7 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../services_app_wuy/wuy_unified_service.dart';
+import '../../../models_app_wuy/network_record_model_app_wuy.dart';
 
 /// Network Records Screen for Wuy App
 ///
@@ -38,7 +39,7 @@ class WuyNetworkRecordsScreen extends StatefulWidget {
 }
 
 class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
-  List<NetworkRecord> _networkRecords = [];
+  List<NetworkRecordModelAppWuy> networkRecords = [];
 
   @override
   void initState() {
@@ -47,54 +48,11 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
   }
 
   void _loadNetworkRecords() async {
-    // Try to load from data manager first
     final dataManager = WuyUnifiedService();
 
-    // TODO: Implement real network records loading from data manager
-    // For now, use mock data with localized strings
     setState(() {
-      _networkRecords = _generateMockNetworkRecords();
+      networkRecords = [];
     });
-  }
-
-  List<NetworkRecord> _generateMockNetworkRecords() {
-    return [
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '20:00',
-        descriptionKey: LocalizationKeysAppWuy.wuyNetworkLoginAccount,
-        type: NetworkType.login,
-        status: NetworkStatus.success,
-      ),
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '20:00',
-        descriptionKey: LocalizationKeysAppWuy.wuyNetworkLoginSuccess,
-        type: NetworkType.success,
-        status: NetworkStatus.success,
-      ),
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '19:45',
-        descriptionKey: LocalizationKeysAppWuy.wuyNetworkConnectWifi,
-        type: NetworkType.wifi,
-        status: NetworkStatus.success,
-      ),
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '19:30',
-        descriptionKey: LocalizationKeysAppWuy.wuyNetworkMobileConnection,
-        type: NetworkType.mobile,
-        status: NetworkStatus.success,
-      ),
-      NetworkRecord(
-        date: '2025-10-21',
-        time: '19:15',
-        descriptionKey: LocalizationKeysAppWuy.wuyNetworkRequestTimeout,
-        type: NetworkType.error,
-        status: NetworkStatus.error,
-      ),
-    ];
   }
 
   @override
@@ -182,56 +140,112 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
   }
 
   Widget _buildNetworkRecordsList() {
+    if (networkRecords.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.network_check,
+              size: 64,
+              color: ThemeColors.secondaryLabel,
+            ),
+            SizedBox(height: ThemeDimensions.paddingSizeDefault),
+            Text(
+              'No network records',
+              style: ThemeTextStyles.body.copyWith(
+                color: ThemeColors.secondaryLabel,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       color: ThemeColors.green05,
       padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
       child: ListView.builder(
-        itemCount: _networkRecords.length,
+        itemCount: networkRecords.length,
         itemBuilder: (context, index) {
-          final record = _networkRecords[index];
+          final record = networkRecords[index];
           return _buildNetworkRecordItem(record);
         },
       ),
     );
   }
 
-  Widget _buildNetworkRecordItem(NetworkRecord record) {
+  Widget _buildNetworkRecordItem(NetworkRecordModelAppWuy record) {
+    IconData icon;
+    Color iconColor;
+    String description;
+
+    switch (record.type) {
+      case NetworkType.wifi:
+        icon = Icons.wifi;
+        iconColor = ThemeColors.blue;
+        description = record.wifiSsid != null
+            ? 'Connected WiFi: ${record.wifiSsid}'
+            : 'Connected to WiFi';
+        break;
+      case NetworkType.mobile:
+        icon = Icons.signal_cellular_alt;
+        iconColor = ThemeColors.green;
+        description = 'Connected to Mobile Network';
+        break;
+      default:
+        icon = Icons.network_check;
+        iconColor = ThemeColors.grey500;
+        description = 'Network change';
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
-      padding: EdgeInsets.all(ThemeDimensions.spacingMedium),
+      padding: EdgeInsets.all(ThemeDimensions.paddingSizeDefault),
       decoration: BoxDecoration(
         color: ThemeColors.white,
         borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
         boxShadow: [
           BoxShadow(
-            color: ThemeColors.black.withOpacity(0.1),
-            blurRadius: 5,
+            color: ThemeColors.black.withOpacity(0.06),
+            blurRadius: 8,
             offset: Offset(0, 2),
           ),
         ],
       ),
       child: Row(
         children: [
-          _buildNetworkIcon(record.type, record.status),
-          SizedBox(width: ThemeDimensions.spacingMedium),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 24,
+            ),
+          ),
+          SizedBox(width: ThemeDimensions.paddingSizeDefault),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${record.date} ${record.time}',
-                  style: ThemeTextStyles.bodySmall.copyWith(
-                    color: ThemeColors.textSecondary,
-                    fontWeight: FontWeight.w500,
+                  '${record.formattedDate} ${record.formattedTime}',
+                  style: ThemeTextStyles.caption1.copyWith(
+                    color: ThemeColors.secondaryLabel,
                   ),
                 ),
-                SizedBox(height: ThemeDimensions.spacingSmall),
+                SizedBox(height: ThemeDimensions.spacing4),
                 Text(
-                  record.descriptionKey.tr(context),
-                  style: ThemeTextStyles.bodyMedium,
+                  description,
+                  style: ThemeTextStyles.subhead.copyWith(
+                    color: ThemeColors.label,
+                  ),
                 ),
-                SizedBox(height: ThemeDimensions.spacingSmall),
-                _buildStatusIndicator(record.status),
               ],
             ),
           ),
@@ -239,114 +253,4 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
       ),
     );
   }
-
-  Widget _buildNetworkIcon(NetworkType type, NetworkStatus status) {
-    IconData iconData;
-    Color iconColor;
-
-    switch (type) {
-      case NetworkType.login:
-        iconData = Icons.login;
-        iconColor = ThemeColors.blue60;
-        break;
-      case NetworkType.success:
-        iconData = Icons.check_circle;
-        iconColor = ThemeColors.green60;
-        break;
-      case NetworkType.wifi:
-        iconData = Icons.wifi;
-        iconColor = ThemeColors.orange60;
-        break;
-      case NetworkType.mobile:
-        iconData = Icons.signal_cellular_alt;
-        iconColor = ThemeColors.purple60;
-        break;
-      case NetworkType.error:
-        iconData = Icons.error;
-        iconColor = ThemeColors.red60;
-        break;
-    }
-
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: iconColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Icon(
-        iconData,
-        color: iconColor,
-        size: 20,
-      ),
-    );
-  }
-
-  Widget _buildStatusIndicator(NetworkStatus status) {
-    Color statusColor;
-    String statusTextKey;
-
-    switch (status) {
-      case NetworkStatus.success:
-        statusColor = ThemeColors.green60;
-        statusTextKey = LocalizationKeysAppWuy.wuyNetworkSuccess;
-        break;
-      case NetworkStatus.error:
-        statusColor = ThemeColors.red60;
-        statusTextKey = LocalizationKeysAppWuy.wuyNetworkError;
-        break;
-      case NetworkStatus.pending:
-        statusColor = ThemeColors.orange60;
-        statusTextKey = LocalizationKeysAppWuy.wuyNetworkPending;
-        break;
-    }
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: ThemeDimensions.spacingSmall,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        statusTextKey.tr(context),
-        style: ThemeTextStyles.bodySmall.copyWith(
-          color: statusColor,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-}
-
-class NetworkRecord {
-  final String date;
-  final String time;
-  final String descriptionKey;
-  final NetworkType type;
-  final NetworkStatus status;
-
-  NetworkRecord({
-    required this.date,
-    required this.time,
-    required this.descriptionKey,
-    required this.type,
-    required this.status,
-  });
-}
-
-enum NetworkType {
-  login,
-  success,
-  wifi,
-  mobile,
-  error,
-}
-
-enum NetworkStatus {
-  success,
-  error,
-  pending,
 }

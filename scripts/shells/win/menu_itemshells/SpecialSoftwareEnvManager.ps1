@@ -30,6 +30,7 @@ $script:COMMON_MENU_PATH = Join-Path $script:MENU_FUNC_DIR "spacial_common_menu.
 $script:CLAUDE_MENU_PATH = Join-Path $script:MENU_FUNC_DIR "ai_claude_menu.ps1"
 $script:OPENAI_MENU_PATH = Join-Path $script:MENU_FUNC_DIR "ai_openai_menu.ps1"
 $script:DROID_MENU_PATH = Join-Path $script:MENU_FUNC_DIR "ai_droid_menu.ps1"
+$script:SSH_MENU_PATH = Join-Path $script:MENU_FUNC_DIR "ssh_menu.ps1"
 
 # Global variables for file management
 $script:SelectedFileAction = $null
@@ -67,10 +68,14 @@ $script:EnvironmentConfigs = @{}
 . $script:OPENAI_MENU_PATH
 . $script:DROID_MENU_PATH
 
+# Load SSH menu module
+. $script:SSH_MENU_PATH
+
 # Initialize configurations from modules
 $script:EnvironmentConfigs["Claude AI"] = Get-ClaudeConfig
 $script:EnvironmentConfigs["OpenAI"] = Get-OpenAIConfig
 $script:EnvironmentConfigs["Factory AI Droid"] = Get-DroidConfig
+$script:EnvironmentConfigs["SSH Connection"] = Get-SSHConfig
 
 #endregion
 
@@ -79,6 +84,7 @@ $script:ActionToConfigMapping = @{
     'claude' = 'Claude AI'
     'droid' = 'Factory AI Droid'
     'openai' = 'OpenAI'
+    'ssh' = 'SSH Connection'
 }
 
 function Get-FullConfigName {
@@ -154,6 +160,7 @@ function Show-SpecialSoftwareEnvMenu {
                         'claude' { Show-ClaudeSubMenu }
                         'openai' { Show-OpenAISubMenu }
                         'droid' { Show-DroidSubMenu }
+                        'ssh' { Show-SSHSubMenu }
                         default {
                             Write-ColorMessage -Message "Unknown menu action: $action" -Type "Error"
                             Write-ColorMessage -Message "Press any key to continue..." -Type "Info"

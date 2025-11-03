@@ -119,6 +119,13 @@ const menuItems = computed<ContextMenuItem[]>(() => {
     action: () => emit('action', 'install-apk', props.deviceSerial)
   });
 
+  items.push({
+    label: 'View Installed Packages',
+    icon: '📋',
+    shortcut: 'P',
+    action: () => emit('action', 'view-packages', props.deviceSerial)
+  });
+
   items.push({ type: 'divider' });
 
   // Group Operations (conditional)

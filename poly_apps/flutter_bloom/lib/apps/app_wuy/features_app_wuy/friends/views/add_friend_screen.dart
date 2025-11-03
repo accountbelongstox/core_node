@@ -40,20 +40,25 @@ class WuyAddFriendScreen extends StatefulWidget {
 
 class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nicknameController = TextEditingController();
-  final _genderController = TextEditingController();
-  final _ageController = TextEditingController();
-  final _heightController = TextEditingController();
-  final _weightController = TextEditingController();
+  final _greetingController = TextEditingController(text: 'Hello');
+  final _remarkController = TextEditingController();
+  final _relationshipController = TextEditingController();
   bool _isLoading = false;
+  String _selectedRelationship = 'Friend';
+
+  final List<String> _relationshipOptions = [
+    'Friend',
+    'Family',
+    'Partner',
+    'Colleague',
+    'Other',
+  ];
 
   @override
   void dispose() {
-    _nicknameController.dispose();
-    _genderController.dispose();
-    _ageController.dispose();
-    _heightController.dispose();
-    _weightController.dispose();
+    _greetingController.dispose();
+    _remarkController.dispose();
+    _relationshipController.dispose();
     super.dispose();
   }
 
@@ -159,109 +164,114 @@ class _WuyAddFriendScreenState extends State<WuyAddFriendScreen> {
               style: ThemeTextStyles.title3,
             ),
             SizedBox(height: ThemeDimensions.spacingLarge),
-            _buildNicknameField(),
+            _buildGreetingField(),
             SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildGenderField(),
+            _buildRemarkField(),
             SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildAgeField(),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildHeightField(),
-            SizedBox(height: ThemeDimensions.spacingMedium),
-            _buildWeightField(),
+            _buildRelationshipField(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNicknameField() {
+  Widget _buildGreetingField() {
     return WuyModernInputField(
-      controller: _nicknameController,
-      labelText: 'Nickname',
-      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterNickname.tr(context),
-      prefixIcon: Icons.person_outline,
+      controller: _greetingController,
+      labelText: 'Greeting Message',
+      hintText: 'Enter your greeting message',
+      prefixIcon: Icons.chat_bubble_outline,
+      maxLines: 3,
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter a nickname';
+          return 'Please enter a greeting message';
         }
         return null;
       },
     );
   }
 
-  Widget _buildGenderField() {
+  Widget _buildRemarkField() {
     return WuyModernInputField(
-      controller: _genderController,
-      labelText: 'Gender',
-      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterGender.tr(context),
-      prefixIcon: Icons.wc,
+      controller: _remarkController,
+      labelText: 'Remark',
+      hintText: 'Enter friend remark',
+      prefixIcon: Icons.note_outlined,
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter gender';
+          return 'Please enter a remark';
         }
         return null;
       },
     );
   }
 
-  Widget _buildAgeField() {
-    return WuyModernInputField(
-      controller: _ageController,
-      keyboardType: TextInputType.number,
-      labelText: 'Age',
-      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterAge.tr(context),
-      prefixIcon: Icons.cake,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter age';
-        }
-        final age = int.tryParse(value);
-        if (age == null || age < 1 || age > 120) {
-          return 'Please enter a valid age';
-        }
-        return null;
-      },
+  Widget _buildRelationshipField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Relationship',
+          style: ThemeTextStyles.subhead.copyWith(
+            color: ThemeColors.label,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: ThemeDimensions.spacing8),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: ThemeDimensions.paddingSizeDefault,
+            vertical: ThemeDimensions.spacing4,
+          ),
+          decoration: BoxDecoration(
+            color: ThemeColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ThemeColors.grey300),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedRelationship,
+              isExpanded: true,
+              icon: Icon(Icons.keyboard_arrow_down, color: ThemeColors.primary),
+              items: _relationshipOptions.map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Row(
+                    children: [
+                      Icon(_getRelationshipIcon(value), size: 20, color: ThemeColors.primary),
+                      SizedBox(width: ThemeDimensions.spacing8),
+                      Text(value, style: ThemeTextStyles.body),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedRelationship = newValue;
+                  });
+                }
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildHeightField() {
-    return WuyModernInputField(
-      controller: _heightController,
-      keyboardType: TextInputType.number,
-      labelText: 'Height (cm)',
-      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterHeight.tr(context),
-      prefixIcon: Icons.height,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter height';
-        }
-        final height = double.tryParse(value);
-        if (height == null || height < 50 || height > 250) {
-          return 'Please enter a valid height';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildWeightField() {
-    return WuyModernInputField(
-      controller: _weightController,
-      keyboardType: TextInputType.number,
-      labelText: 'Weight (kg)',
-      hintText: LocalizationKeysAppWuy.wuyAddFriendEnterWeight.tr(context),
-      prefixIcon: Icons.monitor_weight,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter weight';
-        }
-        final weight = double.tryParse(value);
-        if (weight == null || weight < 20 || weight > 300) {
-          return 'Please enter a valid weight';
-        }
-        return null;
-      },
-    );
+  IconData _getRelationshipIcon(String relationship) {
+    switch (relationship) {
+      case 'Friend':
+        return Icons.people;
+      case 'Family':
+        return Icons.family_restroom;
+      case 'Partner':
+        return Icons.favorite;
+      case 'Colleague':
+        return Icons.work;
+      default:
+        return Icons.person;
+    }
   }
 
   Widget _buildAddButton() {
