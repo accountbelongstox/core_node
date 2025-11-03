@@ -41,9 +41,14 @@
         <span>Settings</span>
       </button>
 
-      <button class="topbar-btn" @click="openHelp">
-        <span class="btn-icon">❓</span>
-        <span>Help</span>
+      <button class="topbar-btn" @click="$emit('show-history')" title="Connection history (Ctrl+H)">
+        <span class="btn-icon">📜</span>
+        <span>History</span>
+      </button>
+
+      <button class="topbar-btn" @click="$emit('show-help')" title="Show keyboard shortcuts (Press /)">
+        <span class="btn-icon">⌨️</span>
+        <span>Shortcuts</span>
       </button>
     </div>
   </header>
@@ -59,14 +64,12 @@ interface Emits {
   (e: 'connect-device'): void;
   (e: 'toggle-group'): void;
   (e: 'open-settings'): void;
+  (e: 'show-help'): void;
+  (e: 'show-history'): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
-
-function openHelp() {
-  window.open('https://github.com/your-org/pymatrix', '_blank');
-}
 </script>
 
 <style scoped>

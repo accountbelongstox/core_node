@@ -20,7 +20,7 @@ PARENT_DIR_LEVEL_5="$(dirname "$PARENT_DIR_LEVEL_4")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_5/linux/LGar.sh"
-source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_5/linux/common/gvar_common.sh"
 
 # Check if AI tools installation is enabled
 INSTALL_AI_TOOLS=$(get_var "INSTALL_AI_TOOLS")

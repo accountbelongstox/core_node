@@ -484,12 +484,11 @@ perform_repository_cleanup() {
     # Get configuration variables
     local INSTALL_MYSQL=$(get_var "INSTALL_MYSQL" "false")
     local INSTALL_EDGE=$(get_var "INSTALL_EDGE" "false")
-    local INSTALL_PHP=$(get_var "INSTALL_PHP" "false")
-    
+
     echo "MySQL Status: $INSTALL_MYSQL"
     echo "Edge Status: $INSTALL_EDGE"
-    echo "PHP Status: $INSTALL_PHP"
-    
+    echo "PHP Status: ALWAYS INSTALLED (required)"
+
     # Handle MySQL cleanup
     if [ "$INSTALL_MYSQL" = "false" ]; then
         echo "MySQL is disabled - cleaning up..."
@@ -509,13 +508,8 @@ perform_repository_cleanup() {
         echo "Edge is enabled - keeping repositories"
     fi
 
-    # Handle PHP cleanup
-    if [ "$INSTALL_PHP" = "false" ]; then
-        echo "PHP is disabled - cleaning up..."
-        remove_php_repository
-    else
-        echo "PHP is enabled - keeping repositories"
-    fi
+    # PHP is ALWAYS required - never clean up PHP repositories
+    echo "PHP is ALWAYS required - keeping PHP repositories"
     
     echo "Repository cleanup completed"
 }

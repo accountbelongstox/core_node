@@ -22,8 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 COMMON_DIR="$PARENT_DIR/common"
 
-# Source common functions
-source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
+# Source common functions - use dynamic relative path
+source "$COMMON_DIR/gvar_common.sh"
 
 selected_option=""
 current_system=""

@@ -18,7 +18,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2$PARENT_DIR_LEVEL_2/linux/LGar.sh"
-source "/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_5/linux/common/gvar_common.sh"
 
 echo "CLOUD_PROVIDER: $CLOUD_PROVIDER"
 echo "ENV_LOCAL: $ENV_LOCAL"
