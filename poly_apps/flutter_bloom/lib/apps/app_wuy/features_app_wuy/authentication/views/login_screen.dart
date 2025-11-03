@@ -61,30 +61,34 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
         appBar: AppBar(
           title: Text(
             LocalizationKeysAppWuy.wuyLoginTitle.tr(context),
-            style: ThemeTextStyles.displayMedium,
+            style: ThemeTextStyles.displayMedium.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           backgroundColor: ThemeColors.primary,
           elevation: 0,
+          centerTitle: true,
         ),
         body: SingleChildScrollView(
-          padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(height: ThemeDimensions.spacingLarge),
+                const SizedBox(height: 20),
                 _buildLogo(),
-                SizedBox(height: ThemeDimensions.spacingXLarge),
+                const SizedBox(height: 40),
                 _buildEmailField(),
-                SizedBox(height: ThemeDimensions.spacingMedium),
+                const SizedBox(height: 18),
                 _buildPasswordField(),
-                SizedBox(height: ThemeDimensions.spacingSmall),
+                const SizedBox(height: 8),
                 _buildForgotPassword(),
-                SizedBox(height: ThemeDimensions.spacingLarge),
+                const SizedBox(height: 32),
                 _buildSignInButton(),
-                SizedBox(height: ThemeDimensions.spacingMedium),
+                const SizedBox(height: 24),
                 _buildSignUpLink(),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -97,15 +101,22 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
     return Column(
       children: [
         const WuyCommonLogo(),
-        SizedBox(height: ThemeDimensions.spacingMedium),
+        const SizedBox(height: 20),
         Text(
           'Welcome to Wuy App',
-          style: ThemeTextStyles.displayMedium,
+          style: ThemeTextStyles.displayMedium.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 26,
+            letterSpacing: -0.5,
+          ),
         ),
+        const SizedBox(height: 8),
         Text(
           'Sign in to continue',
           style: ThemeTextStyles.bodyLarge.copyWith(
-            color: ThemeColors.textSecondary,
+            color: ThemeColors.textSecondary.withOpacity(0.8),
+            fontSize: 15,
+            letterSpacing: 0.2,
           ),
         ),
       ],
@@ -168,10 +179,18 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
         onPressed: () {
           // Handle forgot password
         },
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
         child: Text(
           'Forgot Password?',
           style: ThemeTextStyles.bodyMedium.copyWith(
             color: ThemeColors.primary,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
           ),
         ),
       ),
@@ -179,11 +198,33 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
   }
 
   Widget _buildSignInButton() {
-    return WuyGradientButton(
-      text: LocalizationKeysAppWuy.wuyLoginSignIn.tr(context),
-      onPressed: _handleSignIn,
-      isLoading: _isLoading,
-      height: 50,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.primary.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.accent.withOpacity(0.15),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: WuyGradientButton(
+        text: LocalizationKeysAppWuy.wuyLoginSignIn.tr(context),
+        onPressed: _handleSignIn,
+        isLoading: _isLoading,
+        height: 54,
+        borderRadius: 28,
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 
@@ -193,17 +234,28 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       children: [
         Text(
           LocalizationKeysAppWuy.wuyLoginDontHaveAccount.tr(context),
-          style: ThemeTextStyles.bodyMedium,
+          style: ThemeTextStyles.bodyMedium.copyWith(
+            fontSize: 14,
+            color: ThemeColors.textSecondary.withOpacity(0.9),
+            letterSpacing: 0.1,
+          ),
         ),
         TextButton(
           onPressed: () {
             // Navigate to sign up
           },
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
           child: Text(
             LocalizationKeysAppWuy.wuyLoginSignUp.tr(context),
             style: ThemeTextStyles.bodyMedium.copyWith(
               color: ThemeColors.primary,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              letterSpacing: 0.1,
             ),
           ),
         ),

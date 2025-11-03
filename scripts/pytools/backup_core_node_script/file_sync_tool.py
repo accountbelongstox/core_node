@@ -21,13 +21,23 @@ try:
     from flask import Flask, jsonify, send_file, request, render_template_string
     import requests
     from tqdm import tqdm
-except ImportError:
-    print("Missing required packages. Installing...")
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "flask", "requests", "tqdm"])
-    from flask import Flask, jsonify, send_file, request, render_template_string
-    import requests
-    from tqdm import tqdm
+except ImportError as e:
+    print("=" * 70)
+    print("ERROR: Missing required packages")
+    print("=" * 70)
+    print(f"\nImport error: {e}")
+    print("\nThis script requires: flask, requests, tqdm")
+    print("\nTo fix this issue, run the initialization script first:")
+    print("\n  python init_env.py")
+    print("\nThen use one of these methods to run:")
+    if sys.platform.startswith('win'):
+        print("\n  Method 1: .\\run_server.ps1")
+        print("  Method 2: .\\activate.ps1 && python file_sync_tool.py server")
+    else:
+        print("\n  Method 1: ./run_server.sh")
+        print("  Method 2: source ./activate.sh && python file_sync_tool.py server")
+    print("\n" + "=" * 70)
+    sys.exit(1)
 
 
 # =============================================================================
