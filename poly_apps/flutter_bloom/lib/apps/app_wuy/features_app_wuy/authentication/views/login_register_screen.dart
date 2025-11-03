@@ -68,9 +68,21 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  WuyAppThemeConfig.wuyPrimaryColor,
+                  WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.9),
+                ],
+              ),
+            ),
+          ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back,
-                color: WuyAppThemeConfig.wuyTextPrimary),
+                color: Colors.white),
             onPressed: () => context.pop(),
           ),
         ),
@@ -110,8 +122,9 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
       LocalizationKeysAppWuy.wuyPhoneLoginTitle.tr(context),
       style: ThemeTextStyles.title1Bold.copyWith(
         color: WuyAppThemeConfig.wuyTextPrimary,
-        fontSize: 28,
-        fontWeight: FontWeight.bold,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.8,
       ),
       textAlign: TextAlign.center,
     );
@@ -126,7 +139,7 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
       controller: _phoneController,
       keyboardType: TextInputType.phone,
       hintText: LocalizationKeysAppWuy.wuyEnterPhoneNumber.tr(context),
-      borderRadius: 12.0,
+      borderRadius: 14.0,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return LocalizationKeysAppWuy.wuyValidationPhoneRequired.tr(context);
@@ -149,7 +162,7 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
       controller: _verificationController,
       keyboardType: TextInputType.number,
       hintText: LocalizationKeysAppWuy.wuyVerificationCode.tr(context),
-      borderRadius: 12.0,
+      borderRadius: 14.0,
       suffixIcon: TextButton(
         onPressed: (_isLoading || !_canSendCode || _countdown > 0)
             ? null
@@ -187,8 +200,8 @@ class _WuyLoginRegisterScreenState extends State<WuyLoginRegisterScreen> {
           : LocalizationKeysAppWuy.wuyLogin.tr(context),
       onPressed: _isLoading ? null : _handleAction,
       isLoading: _isLoading,
-      height: 50,
-      borderRadius: 25.0, // 50% of height (50/2 = 25)
+      height: 54,
+      borderRadius: 27.0,
       textColor: Colors.white,
     );
   }
