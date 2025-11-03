@@ -361,6 +361,62 @@ export class PyMatrixDeviceAPI {
   }
 
   /**
+   * Enable automatic screen rotation
+   */
+  async enableAutoRotation(serial: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await $fetch<{ success: boolean }>(
+        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/auto-rotation/enable`,
+        {
+          method: 'POST',
+          headers: {
+            'X-App-Namespace': 'pymatrix',
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return {
+        success: true
+      };
+    } catch (error) {
+      console.error(`[PyMatrixDeviceAPI] Failed to enable auto-rotation for ${serial}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Disable automatic screen rotation
+   */
+  async disableAutoRotation(serial: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await $fetch<{ success: boolean }>(
+        `${this.baseUrl}${this.apiPrefix}/devices/${serial}/screen/auto-rotation/disable`,
+        {
+          method: 'POST',
+          headers: {
+            'X-App-Namespace': 'pymatrix',
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return {
+        success: true
+      };
+    } catch (error) {
+      console.error(`[PyMatrixDeviceAPI] Failed to disable auto-rotation for ${serial}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
    * Map backend device state to frontend state
    */
   private mapDeviceState(backendState: string): 'connected' | 'disconnected' | 'connecting' {

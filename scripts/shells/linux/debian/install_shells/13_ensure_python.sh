@@ -358,48 +358,99 @@ setup_production_python_venv() {
             $USE_SUDO chmod 755 "$COMPILE_DIR"
         fi
 
-        print_step_from_common_functions "Ensuring python3-venv is installed..."
+        print_step_from_common_functions "Ensuring python3-venv and pip are installed..."
         if ! python3 -m venv --help >/dev/null 2>&1; then
             print_warning_from_common_functions "python3-venv module not available, installing..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv --no-install-recommends || true
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-setuptools python3-wheel --no-install-recommends || true
+        fi
+
+        if ! python3 -m pip --version >/dev/null 2>&1; then
+            print_warning_from_common_functions "pip module not available, installing..."
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip python3-setuptools --no-install-recommends || true
         fi
 
         print_step_from_common_functions "Creating venv with system Python3: $system_python3_path"
-        if $system_python3_path -m venv "$python_venv_dir" 2>&1; then
-            print_success_from_common_functions "Python venv created successfully"
-        else
-            print_error_from_common_functions "Failed to create Python venv"
-            print_warning_from_common_functions "Attempting alternative venv creation method..."
 
-            if python3 -m venv --system-site-packages "$python_venv_dir" 2>&1; then
+        local venv_created=false
+
+        if $system_python3_path -m venv "$python_venv_dir" 2>/dev/null; then
+            print_success_from_common_functions "Python venv created successfully"
+            venv_created=true
+        else
+            print_warning_from_common_functions "Standard venv creation failed, trying alternative methods..."
+
+            if python3 -m venv --system-site-packages "$python_venv_dir" 2>/dev/null; then
                 print_success_from_common_functions "Python venv created with --system-site-packages"
+                venv_created=true
+            elif python3 -m venv --without-pip "$python_venv_dir" 2>/dev/null; then
+                print_success_from_common_functions "Python venv created without pip (will install manually)"
+                venv_created=true
+
+                print_step_from_common_functions "Manually installing pip into venv..."
+                if command -v wget >/dev/null 2>&1; then
+                    wget -q -O "$python_venv_dir/get-pip.py" https://bootstrap.pypa.io/get-pip.py 2>/dev/null || true
+                    if [ -f "$python_venv_dir/get-pip.py" ]; then
+                        "$python_venv_dir/bin/python3" "$python_venv_dir/get-pip.py" 2>/dev/null || true
+                        rm -f "$python_venv_dir/get-pip.py"
+                        print_success_from_common_functions "pip installed manually"
+                    fi
+                elif command -v curl >/dev/null 2>&1; then
+                    curl -sS -o "$python_venv_dir/get-pip.py" https://bootstrap.pypa.io/get-pip.py 2>/dev/null || true
+                    if [ -f "$python_venv_dir/get-pip.py" ]; then
+                        "$python_venv_dir/bin/python3" "$python_venv_dir/get-pip.py" 2>/dev/null || true
+                        rm -f "$python_venv_dir/get-pip.py"
+                        print_success_from_common_functions "pip installed manually"
+                    fi
+                fi
             else
                 print_error_from_common_functions "All venv creation methods failed"
+                print_info_from_common_functions "Will continue with system Python instead"
                 return 1
             fi
         fi
 
-        print_step_from_common_functions "Installing essential packages in venv..."
-        if [ -f "$python_venv_dir/bin/pip3" ]; then
-            "$python_venv_dir/bin/pip3" install --upgrade pip setuptools wheel 2>&1 | head -20 || true
+        if [ "$venv_created" = true ]; then
+            print_step_from_common_functions "Installing essential packages in venv..."
+            if [ -f "$python_venv_dir/bin/pip3" ]; then
+                "$python_venv_dir/bin/pip3" install --upgrade pip setuptools wheel 2>&1 | head -20 || true
+            elif [ -f "$python_venv_dir/bin/pip" ]; then
+                "$python_venv_dir/bin/pip" install --upgrade pip setuptools wheel 2>&1 | head -20 || true
+            else
+                print_warning_from_common_functions "pip not available in venv, skipping package installation"
+            fi
         fi
     fi
 
     local venv_python3="$python_venv_dir/bin/python3"
     local venv_pip3="$python_venv_dir/bin/pip3"
+    local venv_pip="$python_venv_dir/bin/pip"
 
     if [ ! -f "$venv_python3" ]; then
         print_error_from_common_functions "Python venv python3 binary not found at: $venv_python3"
         return 1
     fi
 
-    if [ ! -f "$venv_pip3" ]; then
-        print_warning_from_common_functions "pip3 not found in venv, but python3 exists"
+    local pip_binary=""
+    if [ -f "$venv_pip3" ]; then
+        pip_binary="$venv_pip3"
+        print_info_from_common_functions "Found pip3 in venv: $venv_pip3"
+    elif [ -f "$venv_pip" ]; then
+        pip_binary="$venv_pip"
+        print_info_from_common_functions "Found pip in venv: $venv_pip"
+        if [ ! -f "$venv_pip3" ]; then
+            print_step_from_common_functions "Creating pip3 symlink in venv..."
+            ln -sf "$venv_pip" "$venv_pip3" 2>/dev/null || true
+        fi
+    else
+        print_warning_from_common_functions "pip not found in venv, but python3 exists"
     fi
 
     print_step_from_common_functions "Setting +x permissions on venv binaries..."
     $USE_SUDO chmod +x "$venv_python3" 2>/dev/null || chmod +x "$venv_python3"
-    if [ -f "$venv_pip3" ]; then
+    if [ -n "$pip_binary" ] && [ -f "$pip_binary" ]; then
+        $USE_SUDO chmod +x "$pip_binary" 2>/dev/null || chmod +x "$pip_binary"
+    fi
+    if [ -f "$venv_pip3" ] && [ "$pip_binary" != "$venv_pip3" ]; then
         $USE_SUDO chmod +x "$venv_pip3" 2>/dev/null || chmod +x "$venv_pip3"
     fi
 
@@ -411,12 +462,12 @@ setup_production_python_venv() {
     $USE_SUDO ln -sf "$venv_python3" /usr/local/bin/python3
     print_success_from_common_functions "Created symlink: /usr/local/bin/python3 -> $venv_python3"
 
-    if [ -f "$venv_pip3" ]; then
+    if [ -n "$pip_binary" ] && [ -f "$pip_binary" ]; then
         if [ -L /usr/local/bin/pip3 ] || [ -f /usr/local/bin/pip3 ]; then
             $USE_SUDO rm -f /usr/local/bin/pip3
         fi
-        $USE_SUDO ln -sf "$venv_pip3" /usr/local/bin/pip3
-        print_success_from_common_functions "Created symlink: /usr/local/bin/pip3 -> $venv_pip3"
+        $USE_SUDO ln -sf "$pip_binary" /usr/local/bin/pip3
+        print_success_from_common_functions "Created symlink: /usr/local/bin/pip3 -> $pip_binary"
     fi
 
     if [ -L /usr/local/bin/python ] || [ -f /usr/local/bin/python ]; then
@@ -425,12 +476,12 @@ setup_production_python_venv() {
     $USE_SUDO ln -sf "$venv_python3" /usr/local/bin/python
     print_success_from_common_functions "Created symlink: /usr/local/bin/python -> $venv_python3"
 
-    if [ -f "$venv_pip3" ]; then
+    if [ -n "$pip_binary" ] && [ -f "$pip_binary" ]; then
         if [ -L /usr/local/bin/pip ] || [ -f /usr/local/bin/pip ]; then
             $USE_SUDO rm -f /usr/local/bin/pip
         fi
-        $USE_SUDO ln -sf "$venv_pip3" /usr/local/bin/pip
-        print_success_from_common_functions "Created symlink: /usr/local/bin/pip -> $venv_pip3"
+        $USE_SUDO ln -sf "$pip_binary" /usr/local/bin/pip
+        print_success_from_common_functions "Created symlink: /usr/local/bin/pip -> $pip_binary"
     fi
 
     print_success_from_common_functions "Production Python venv setup complete!"

@@ -89,6 +89,18 @@
             <span class="rotation-label">{{ rotation.label }}</span>
           </button>
         </div>
+
+        <div class="auto-rotation-toggle">
+          <BaseToggle
+            v-model="autoRotation"
+            label="Auto Rotation"
+            label-icon="🔄"
+            description="Enable automatic screen rotation based on device orientation"
+            size="md"
+            variant="warning"
+            @change="handleAutoRotationChange"
+          />
+        </div>
       </div>
 
       <!-- Power Options -->
@@ -163,6 +175,7 @@ const emit = defineEmits<Emits>();
 const isOpen = ref(props.show);
 const brightness = ref(128);
 const currentRotation = ref<0 | 90 | 180 | 270>(0);
+const autoRotation = ref(false);
 const keepAwake = ref(false);
 const autoSleep = ref(false);
 const processing = ref(false);
@@ -257,6 +270,40 @@ async function handleRotationChange(rotation: 0 | 90 | 180 | 270) {
   } catch (error) {
     console.error('[ScreenControlPanel] Error setting rotation:', error);
     toast.error('Failed to set rotation', 'Screen Rotation Error');
+  } finally {
+    processing.value = false;
+  }
+}
+
+async function handleAutoRotationChange(value: boolean) {
+  if (!props.deviceSerial || processing.value) return;
+
+  processing.value = true;
+
+  try {
+    console.log('[ScreenControlPanel] Auto rotation changed:', value);
+
+    const result = value
+      ? await pyMatrixDeviceAPI.enableAutoRotation(props.deviceSerial)
+      : await pyMatrixDeviceAPI.disableAutoRotation(props.deviceSerial);
+
+    if (result.success) {
+      console.log('[ScreenControlPanel] Auto rotation changed successfully');
+      toast.success(
+        `Auto rotation ${value ? 'enabled' : 'disabled'}`,
+        'Auto Rotation'
+      );
+    } else {
+      console.error('[ScreenControlPanel] Failed to change auto rotation:', result.error);
+      toast.error(`Failed to ${value ? 'enable' : 'disable'} auto rotation: ${result.error}`, 'Auto Rotation Error');
+      // Revert the toggle on failure
+      autoRotation.value = !value;
+    }
+  } catch (error) {
+    console.error('[ScreenControlPanel] Error changing auto rotation:', error);
+    toast.error(`Failed to ${value ? 'enable' : 'disable'} auto rotation`, 'Auto Rotation Error');
+    // Revert the toggle on failure
+    autoRotation.value = !value;
   } finally {
     processing.value = false;
   }
@@ -376,5 +423,11 @@ function handleAutoSleepChange(value: boolean) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.auto-rotation-toggle {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
 }
 </style>
