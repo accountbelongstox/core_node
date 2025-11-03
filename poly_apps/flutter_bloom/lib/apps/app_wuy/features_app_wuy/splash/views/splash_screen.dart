@@ -56,28 +56,63 @@ class _WuySplashScreenState extends State<WuySplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ThemeColors.primary,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.apps,
-              size: 100,
-              color: ThemeColors.white,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              LocalizationKeysAppWuy.wuySplashTitle.tr(context),
-              style: ThemeTextStyles.displayLarge.copyWith(
-                color: ThemeColors.white,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              ThemeColors.primary,
+              ThemeColors.primaryDark,
+              ThemeColors.accent,
+            ],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: ThemeColors.white.withOpacity(0.3),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
+                      spreadRadius: 5,
+                    ),
+                    BoxShadow(
+                      color: ThemeColors.white.withOpacity(0.15),
+                      blurRadius: 50,
+                      offset: const Offset(0, 20),
+                      spreadRadius: 10,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.apps,
+                  size: 120,
+                  color: ThemeColors.white,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
-            ),
-          ],
+              const SizedBox(height: 32),
+              Text(
+                LocalizationKeysAppWuy.wuySplashTitle.tr(context),
+                style: ThemeTextStyles.displayLarge.copyWith(
+                  color: ThemeColors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 32,
+                  letterSpacing: -0.8,
+                ),
+              ),
+              const SizedBox(height: 40),
+              CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
+              ),
+            ],
+          ),
         ),
       ),
     );

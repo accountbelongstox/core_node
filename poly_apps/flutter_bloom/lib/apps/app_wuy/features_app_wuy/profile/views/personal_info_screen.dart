@@ -175,15 +175,27 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
   }
 
   Widget _buildFormSection() {
-    return Card(
-      elevation: 0.5,
-      shadowColor: ThemeColors.black.withOpacity(0.05),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusLarge),
+    return Container(
+      decoration: BoxDecoration(
+        color: ThemeColors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
       ),
-      color: ThemeColors.white,
       child: Padding(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+        padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
           child: Column(
@@ -238,38 +250,43 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
     final fieldColor = fieldColors[colorIndex];
 
     return Padding(
-      padding: EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Container(
-        height: 52,
+        height: 56,
         child: TextFormField(
           controller: controller,
           enabled: _isEditing,
-          style: ThemeTextStyles.callout,
+          style: ThemeTextStyles.callout.copyWith(
+            fontSize: 15,
+            letterSpacing: 0.1,
+          ),
           decoration: InputDecoration(
             labelText: label,
             labelStyle: ThemeTextStyles.footnote.copyWith(
               color: _isEditing ? fieldColor : ThemeColors.grey600,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
             ),
             prefixIcon: Icon(
               icon,
               color: _isEditing ? fieldColor : ThemeColors.grey500,
-              size: 20,
+              size: 22,
             ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: ThemeColors.grey300, width: 1),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: ThemeColors.grey300, width: 1),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: fieldColor, width: 1.5),
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: fieldColor, width: 2),
             ),
             disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: ThemeColors.grey200, width: 1),
             ),
             filled: true,
@@ -450,39 +467,107 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
   Widget _buildActionButtons() {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultPadding),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
           if (_isEditing) ...[
             Expanded(
-              child: OutlinedButton(
-                onPressed: _isSaving
-                    ? null
-                    : () {
-                        _initializeFormData();
-                        setState(() => _isEditing = false);
-                      },
-                child: Text('Cancel'),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: ThemeColors.grey400.withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                child: OutlinedButton(
+                  onPressed: _isSaving
+                      ? null
+                      : () {
+                          _initializeFormData();
+                          setState(() => _isEditing = false);
+                        },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 54),
+                    side: BorderSide(
+                      color: ThemeColors.grey400.withOpacity(0.4),
+                      width: 1.5,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: ThemeTextStyles.bodyMedium.copyWith(
+                      color: ThemeColors.grey700,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 16),
           ],
           Expanded(
-            child: ElevatedButton(
-              onPressed: _isSaving ? null : _toggleEditMode,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isEditing ? ThemeColors.green : ThemeColors.blue,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: (_isEditing ? ThemeColors.green : ThemeColors.blue)
+                        .withOpacity(0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                    spreadRadius: 0,
+                  ),
+                  BoxShadow(
+                    color: (_isEditing ? ThemeColors.green : ThemeColors.blue)
+                        .withOpacity(0.15),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                    spreadRadius: -4,
+                  ),
+                ],
               ),
-              child: _isSaving
-                  ? SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(ThemeColors.white),
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _toggleEditMode,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      _isEditing ? ThemeColors.green : ThemeColors.blue,
+                  foregroundColor: ThemeColors.white,
+                  minimumSize: const Size(double.infinity, 54),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  elevation: 0,
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(ThemeColors.white),
+                        ),
+                      )
+                    : Text(
+                        _isEditing ? 'Save' : 'Edit',
+                        style: ThemeTextStyles.bodyMedium.copyWith(
+                          color: ThemeColors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
                       ),
-                    )
-                  : Text(_isEditing ? 'Save' : 'Edit'),
+              ),
             ),
           ),
         ],

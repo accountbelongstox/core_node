@@ -40,10 +40,27 @@ class WuyAboutScreen extends StatelessWidget {
         appBar: AppBar(
           title: Text(
             LocalizationKeysAppWuy.wuyAboutTitle.tr(context),
-            style: ThemeTextStyles.displayMedium,
+            style: ThemeTextStyles.displayMedium.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 22,
+              letterSpacing: -0.5,
+            ),
           ),
           backgroundColor: ThemeColors.primary,
           elevation: 0,
+          centerTitle: true,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  ThemeColors.primary,
+                  ThemeColors.primary.withOpacity(0.9),
+                ],
+              ),
+            ),
+          ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
             onPressed: () => context.go(WuyAppRouter.routeProfile),
@@ -133,12 +150,28 @@ class WuyAboutScreen extends StatelessWidget {
   }
 
   Widget _buildMenuCard(BuildContext context) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
       ),
-      child: Column(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Column(
         children: [
           _buildMenuItem(
             icon: Icons.info_outline,
@@ -158,6 +191,7 @@ class WuyAboutScreen extends StatelessWidget {
             },
           ),
         ],
+        ),
       ),
     );
   }
@@ -188,13 +222,27 @@ class WuyAboutScreen extends StatelessWidget {
   }
 
   Widget _buildAppInfoCard(BuildContext context) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
+          ),
+        ],
       ),
       child: Padding(
-        padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

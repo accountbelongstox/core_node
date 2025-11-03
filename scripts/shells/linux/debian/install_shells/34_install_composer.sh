@@ -237,21 +237,41 @@ if [ "$1" = "--force" ] || [ "$1" = "-f" ]; then
     FORCE_REINSTALL=true
     echo -e "${YELLOW}$SCRIPT_INDEX Force reinstall requested${NC}"
 elif [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-    echo -e "${CYAN}$SCRIPT_INDEX Composer Installation Script for PHP 8.4${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Composer Installation Script for PHP 8.4 (Server Edition)${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Version: 2.0 - With Strong Auto-Correction${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
     echo -e "${CYAN}Usage: $0 [options]${NC}"
+    echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Options:${NC}"
     echo -e "${CYAN}  --force, -f    Force reinstall and recreate all wrappers${NC}"
     echo -e "${CYAN}  --help, -h     Show this help message${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}This script will:${NC}"
-    echo -e "${CYAN}  1. Install/update Composer for PHP 8.4${NC}"
+    echo -e "${CYAN}  1. Install/update Composer >= $MIN_COMPOSER_VERSION for PHP 8.4${NC}"
     echo -e "${CYAN}  2. Create wrapper scripts to handle root warnings and open_basedir${NC}"
     echo -e "${CYAN}  3. Verify all components are working correctly${NC}"
+    echo -e "${CYAN}  4. Track PHP version for automatic correction${NC}"
+    echo -e "${CYAN}${NC}"
+    echo -e "${CYAN}Auto-Correction Features:${NC}"
+    echo -e "${CYAN}  • Detects old/incompatible Composer versions${NC}"
+    echo -e "${CYAN}  • Reinstalls if PHP version changes${NC}"
+    echo -e "${CYAN}  • Fixes missing/broken wrapper scripts${NC}"
+    echo -e "${CYAN}  • Checks for deprecation warnings${NC}"
+    echo -e "${CYAN}  • Validates installation completeness${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Created files:${NC}"
-    echo -e "${CYAN}  /usr/local/bin/composer          (main wrapper)${NC}"
-    echo -e "${CYAN}  /usr/local/bin/composer-safe     (explicit safe wrapper)${NC}"
-    echo -e "${CYAN}  /usr/local/bin/composer.original (original Composer binary)${NC}"
+    echo -e "${CYAN}  /usr/local/bin/composer            (main wrapper)${NC}"
+    echo -e "${CYAN}  /usr/local/bin/composer-safe       (explicit safe wrapper)${NC}"
+    echo -e "${CYAN}  /usr/local/bin/composer.original   (original Composer binary)${NC}"
+    echo -e "${CYAN}  /usr/local/etc/.composer_php_version (PHP version tracking)${NC}"
+    echo -e "${CYAN}${NC}"
+    echo -e "${CYAN}Server-Optimized Features:${NC}"
+    echo -e "${CYAN}  • Automatic retry on download failures${NC}"
+    echo -e "${CYAN}  • Non-interactive mode by default${NC}"
+    echo -e "${CYAN}  • Root user handling without prompts${NC}"
+    echo -e "${CYAN}  • Comprehensive error detection${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
     exit 0
 fi
 
@@ -396,13 +416,18 @@ main() {
     rm -rf "$temp_dir"
 
     # Ensure we have the original composer binary
+    echo -e "${CYAN}============================================================================${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX [WRAPPER CREATION] Setting up wrapper scripts...${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
+
     if [ ! -f "${COMPOSER_TARGET_PATH}.original" ]; then
         echo -e "${CYAN}$SCRIPT_INDEX Moving Composer to original location...${NC}"
         $USE_SUDO mv "$COMPOSER_TARGET_PATH" "${COMPOSER_TARGET_PATH}.original"
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Original binary saved${NC}"
     fi
 
     # Create global wrapper to handle root warnings and open_basedir
-    echo -e "${CYAN}$SCRIPT_INDEX Creating global Composer wrapper...${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Creating composer-safe wrapper...${NC}"
     $USE_SUDO tee /usr/local/bin/composer-safe > /dev/null << 'EOF'
 #!/bin/bash
 # Global Composer wrapper that handles root warnings and open_basedir restrictions
@@ -438,47 +463,77 @@ EOF
     $USE_SUDO chmod +x "$COMPOSER_TARGET_PATH"
 
     # Verify all wrappers are working correctly
-    echo -e "${CYAN}$SCRIPT_INDEX Verifying all Composer wrappers...${NC}"
-    
+    echo -e "${CYAN}============================================================================${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX [VERIFICATION] Testing all components...${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
+
+    local all_checks_passed=true
+
     # Test main composer wrapper
+    echo -e "${CYAN}$SCRIPT_INDEX Testing main composer wrapper...${NC}"
     if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" --version >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX [OK] Main composer wrapper working${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Main composer wrapper: OK${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX [FAIL] Main composer wrapper failed${NC}"
-        exit 1
+        echo -e "${RED}$SCRIPT_INDEX ✗ Main composer wrapper: FAILED${NC}"
+        all_checks_passed=false
     fi
-    
+
     # Test composer-safe wrapper
+    echo -e "${CYAN}$SCRIPT_INDEX Testing composer-safe wrapper...${NC}"
     if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 /usr/local/bin/composer-safe --version >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX [OK] Composer-safe wrapper working${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Composer-safe wrapper: OK${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX [FAIL] Composer-safe wrapper failed${NC}"
-        exit 1
+        echo -e "${RED}$SCRIPT_INDEX ✗ Composer-safe wrapper: FAILED${NC}"
+        all_checks_passed=false
     fi
-    
+
     # Test original composer binary
+    echo -e "${CYAN}$SCRIPT_INDEX Testing original composer binary...${NC}"
     if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d open_basedir= "${COMPOSER_TARGET_PATH}.original" --version >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX [OK] Original composer binary working${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Original composer binary: OK${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX [FAIL] Original composer binary failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ✗ Original composer binary: FAILED${NC}"
+        all_checks_passed=false
+    fi
+
+    # Check for deprecation warnings
+    echo -e "${CYAN}$SCRIPT_INDEX Checking for deprecation warnings...${NC}"
+    if check_composer_errors; then
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ No deprecation warnings detected${NC}"
+    else
+        echo -e "${YELLOW}$SCRIPT_INDEX ! Deprecation warnings present (may need newer Composer version)${NC}"
+    fi
+
+    if [ "$all_checks_passed" = false ]; then
+        echo -e "${RED}$SCRIPT_INDEX [FAIL] Some verification checks failed${NC}"
         exit 1
     fi
 
+    # Store PHP version for future correction checks
+    store_php_version
+
     # Final verification with environment variables
     local final_version=$(get_composer_version)
-    if [ "$final_version" != "not_installed" ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX [OK] Composer $final_version installed successfully${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX [OK] Location: $COMPOSER_TARGET_PATH${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX [OK] Safe wrapper: /usr/local/bin/composer-safe${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX [OK] Original binary: ${COMPOSER_TARGET_PATH}.original${NC}"
-               echo -e "${CYAN}$SCRIPT_INDEX Enhanced Composer Commands:${NC}"
-               echo -e "${CYAN}$SCRIPT_INDEX   composer --version         (auto-handles root warnings + open_basedir=none)${NC}"
-               echo -e "${CYAN}$SCRIPT_INDEX   composer-safe --version    (explicit safe wrapper)${NC}"
-               echo -e "${YELLOW}$SCRIPT_INDEX Note: All wrappers automatically handle root warnings and have open_basedir=none for maximum compatibility${NC}"
-    else
-        echo -e "${RED}$SCRIPT_INDEX [FAIL] Composer installation verification failed${NC}"
-        exit 1
-    fi
+    echo -e "${CYAN}============================================================================${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ✓✓✓ INSTALLATION SUCCESSFUL ✓✓✓${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ✓ Composer Version: $final_version${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ✓ PHP Version: $(get_current_php_version)${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ✓ Main wrapper: $COMPOSER_TARGET_PATH${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ✓ Safe wrapper: /usr/local/bin/composer-safe${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ✓ Original binary: ${COMPOSER_TARGET_PATH}.original${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ✓ PHP tracking file: $PHP_VERSION_TRACK_FILE${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Usage:${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX   composer --version         (auto-handles root + open_basedir)${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX   composer-safe --version    (explicit safe wrapper)${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX Features:${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   • Automatic root warning suppression${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   • open_basedir=none for maximum compatibility${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   • PHP version tracking for auto-correction${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   • Automatic reinstall on version/error detection${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
 }
 
 # Execute main function
