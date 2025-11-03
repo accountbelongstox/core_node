@@ -89,6 +89,52 @@ backup_resolv_conf() {
     fi
 }
 
+# Function to check if configuration line exists in resolved.conf
+check_resolved_conf_line() {
+    local key="$1"
+    local config_file="/etc/systemd/resolved.conf"
+
+    if [ ! -f "$config_file" ]; then
+        return 1
+    fi
+
+    if grep -q "^${key}=" "$config_file" 2>/dev/null; then
+        return 0
+    elif grep -q "^#${key}=" "$config_file" 2>/dev/null; then
+        return 2
+    else
+        return 1
+    fi
+}
+
+# Function to add or update line in resolved.conf
+update_resolved_conf_line() {
+    local key="$1"
+    local value="$2"
+    local config_file="/etc/systemd/resolved.conf"
+
+    check_resolved_conf_line "$key"
+    local status=$?
+
+    if [ $status -eq 0 ]; then
+        log_info "  $key already configured, skipping"
+        return 0
+    elif [ $status -eq 2 ]; then
+        log_info "  Uncommenting and updating $key"
+        $USE_SUDO sed -i "s/^#${key}=.*/${key}=${value}/" "$config_file"
+        return 0
+    else
+        log_info "  Adding $key to configuration"
+        if grep -q "^\[Resolve\]" "$config_file" 2>/dev/null; then
+            $USE_SUDO sed -i "/^\[Resolve\]/a ${key}=${value}" "$config_file"
+        else
+            echo "[Resolve]" | $USE_SUDO tee -a "$config_file" > /dev/null
+            echo "${key}=${value}" | $USE_SUDO tee -a "$config_file" > /dev/null
+        fi
+        return 0
+    fi
+}
+
 # Function to fix systemd-resolved
 fix_systemd_resolved() {
     log_info "Checking systemd-resolved service..."
@@ -102,41 +148,51 @@ fix_systemd_resolved() {
     # Check if systemd-resolved is running
     if systemctl is-active --quiet systemd-resolved; then
         log_info "systemd-resolved is running"
-
-        # Configure systemd-resolved to use public DNS
-        log_info "Configuring systemd-resolved with fallback DNS servers..."
-
-        $USE_SUDO mkdir -p /etc/systemd/resolved.conf.d
-
-        # Create fallback DNS configuration
-        $USE_SUDO tee /etc/systemd/resolved.conf.d/dns_servers.conf > /dev/null << 'EOF'
-[Resolve]
-DNS=8.8.8.8 1.1.1.1 8.8.4.4 1.0.0.1
-FallbackDNS=223.5.5.5 223.6.6.6 114.114.114.114
-DNSSEC=no
-DNSOverTLS=no
-EOF
-
-        # Restart systemd-resolved
-        log_info "Restarting systemd-resolved..."
-        if $USE_SUDO systemctl restart systemd-resolved; then
-            log_info "systemd-resolved restarted successfully"
-            sleep 2
-            return 0
-        else
-            log_error "Failed to restart systemd-resolved"
-            return 1
-        fi
     else
         log_warning "systemd-resolved is not running, trying to start it..."
-        if $USE_SUDO systemctl start systemd-resolved; then
-            log_info "systemd-resolved started successfully"
-            fix_systemd_resolved
-            return 0
-        else
+        if ! $USE_SUDO systemctl start systemd-resolved; then
             log_warning "Failed to start systemd-resolved, will use static /etc/resolv.conf"
             return 1
         fi
+        log_info "systemd-resolved started successfully"
+    fi
+
+    # Configure systemd-resolved to use public DNS
+    log_info "Configuring /etc/systemd/resolved.conf with DNS servers..."
+
+    local config_file="/etc/systemd/resolved.conf"
+
+    # Backup original configuration
+    if [ -f "$config_file" ]; then
+        log_info "Backing up $config_file"
+        $USE_SUDO cp "$config_file" "${config_file}.backup.$(date +%Y%m%d_%H%M%S)"
+    else
+        log_info "Creating new $config_file"
+        $USE_SUDO touch "$config_file"
+    fi
+
+    # Ensure [Resolve] section exists
+    if ! grep -q "^\[Resolve\]" "$config_file" 2>/dev/null; then
+        log_info "Adding [Resolve] section to $config_file"
+        echo "[Resolve]" | $USE_SUDO tee -a "$config_file" > /dev/null
+    fi
+
+    # Update or add DNS configurations
+    log_info "Updating DNS configuration entries:"
+    update_resolved_conf_line "DNS" "8.8.8.8 8.8.4.4"
+    update_resolved_conf_line "FallbackDNS" "1.1.1.1 1.0.0.1"
+    update_resolved_conf_line "DNSSEC" "no"
+    update_resolved_conf_line "DNSOverTLS" "no"
+
+    # Restart systemd-resolved
+    log_info "Restarting systemd-resolved to apply changes..."
+    if $USE_SUDO systemctl restart systemd-resolved; then
+        log_info "systemd-resolved restarted successfully"
+        sleep 2
+        return 0
+    else
+        log_error "Failed to restart systemd-resolved"
+        return 1
     fi
 }
 
@@ -206,6 +262,78 @@ test_dns_servers() {
     fi
 }
 
+# Function to test actual network download
+test_network_download() {
+    log_info "Testing actual network connectivity with file downloads..."
+
+    local temp_dir="${CORE_NODE_DATA_DIR}/tmp"
+    $USE_SUDO mkdir -p "$temp_dir" 2>/dev/null || temp_dir="/tmp"
+    $USE_SUDO chmod 777 "$temp_dir" 2>/dev/null || true
+
+    local test_files=(
+        "https://registry.npmjs.org/express/latest|npm-registry-test.json"
+        "https://www.google.com/robots.txt|google-robots.txt"
+        "https://raw.githubusercontent.com/nodejs/node/main/README.md|nodejs-readme.md"
+    )
+
+    local download_success=0
+    local download_fail=0
+
+    for test_item in "${test_files[@]}"; do
+        local url="${test_item%%|*}"
+        local filename="${test_item##*|}"
+        local temp_file="${temp_dir}/${filename}"
+
+        log_info "Testing download from: $url"
+
+        if command -v wget >/dev/null 2>&1; then
+            if wget --timeout=10 --tries=2 -q -O "$temp_file" "$url" 2>/dev/null; then
+                if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                    local file_size=$(stat -c%s "$temp_file" 2>/dev/null || stat -f%z "$temp_file" 2>/dev/null || echo "0")
+                    log_info "  Download successful (${file_size} bytes)"
+                    download_success=$((download_success + 1))
+                    rm -f "$temp_file" 2>/dev/null
+                else
+                    log_warning "  Download failed (empty file)"
+                    download_fail=$((download_fail + 1))
+                fi
+            else
+                log_warning "  Download failed (wget error)"
+                download_fail=$((download_fail + 1))
+            fi
+        elif command -v curl >/dev/null 2>&1; then
+            if curl --max-time 10 --retry 2 -sS -o "$temp_file" "$url" 2>/dev/null; then
+                if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+                    local file_size=$(stat -c%s "$temp_file" 2>/dev/null || stat -f%z "$temp_file" 2>/dev/null || echo "0")
+                    log_info "  Download successful (${file_size} bytes)"
+                    download_success=$((download_success + 1))
+                    rm -f "$temp_file" 2>/dev/null
+                else
+                    log_warning "  Download failed (empty file)"
+                    download_fail=$((download_fail + 1))
+                fi
+            else
+                log_warning "  Download failed (curl error)"
+                download_fail=$((download_fail + 1))
+            fi
+        else
+            log_warning "Neither wget nor curl available, skipping download test"
+            return 1
+        fi
+    done
+
+    if [ $download_success -eq ${#test_files[@]} ]; then
+        log_info "Network download test: ALL PASSED ($download_success/${#test_files[@]})"
+        return 0
+    elif [ $download_success -gt 0 ]; then
+        log_warning "Network download test: PARTIALLY PASSED ($download_success/${#test_files[@]})"
+        return 0
+    else
+        log_error "Network download test: ALL FAILED ($download_success/${#test_files[@]})"
+        return 1
+    fi
+}
+
 # Function to verify DNS resolution
 verify_dns() {
     log_info "Verifying DNS resolution..."
@@ -213,8 +341,10 @@ verify_dns() {
     local test_domains=(
         "archive.ubuntu.com"
         "security.ubuntu.com"
+        "registry.npmjs.org"
         "google.com"
         "cloudflare.com"
+        "github.com"
     )
 
     local success_count=0
