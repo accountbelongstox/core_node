@@ -41,11 +41,28 @@ class WuySettingsScreen extends StatelessWidget {
         appBar: AppBar(
           title: Text(
             LocalizationKeysAppWuy.wuySettingsTitle.tr(context),
-            style: WuyAppThemeConfig.wuyAppBarTitle,
+            style: WuyAppThemeConfig.wuyAppBarTitle.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 22,
+              letterSpacing: -0.5,
+            ),
           ),
           backgroundColor: WuyAppThemeConfig.wuyPrimaryColor,
           foregroundColor: ThemeColors.white,
           elevation: 0,
+          centerTitle: true,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  WuyAppThemeConfig.wuyPrimaryColor,
+                  WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.9),
+                ],
+              ),
+            ),
+          ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
             onPressed: () => context.pop(),
@@ -178,22 +195,24 @@ class WuySettingsScreen extends StatelessWidget {
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 12,
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 14,
                 offset: const Offset(0, 4),
+                spreadRadius: 0,
               ),
               BoxShadow(
                 color: Colors.black.withOpacity(0.02),
-                blurRadius: 4,
+                blurRadius: 6,
                 offset: const Offset(0, 2),
+                spreadRadius: 0,
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             child: Column(
               children: settings.asMap().entries.map((entry) {
                 final index = entry.key;
@@ -583,12 +602,19 @@ class WuySettingsScreen extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultPadding),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: ThemeColors.error.withOpacity(0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              color: ThemeColors.error.withOpacity(0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: ThemeColors.error.withOpacity(0.12),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+              spreadRadius: -4,
             ),
           ],
         ),
@@ -654,20 +680,22 @@ class WuySettingsScreen extends StatelessWidget {
               }
             }
           },
-          icon: const Icon(Icons.restore, size: 20),
+          icon: const Icon(Icons.restore, size: 22),
           label: Text(
             LocalizationKeysAppWuy.wuySettingsResetToDefaults.tr(context),
             style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
             ),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: ThemeColors.error,
             foregroundColor: ThemeColors.white,
-            padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
+            minimumSize: const Size(double.infinity, 54),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(28),
             ),
             elevation: 0,
           ),

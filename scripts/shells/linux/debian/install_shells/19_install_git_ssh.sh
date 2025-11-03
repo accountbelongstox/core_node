@@ -24,13 +24,14 @@ TIMEOUT_SECONDS=120
 SSH_PUB_PATH=""
 SSH_KEY_PATH=""
 NODE_PATH=""
-# Use global temporary directory structure
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "19_install_git_ssh")
-SSH_INSTALLED_FLAG="$SCRIPT_TEMP_DIR/ssh_keys_installed_step19.flag"
 
-# Source common functions and variables
+# Source common functions and variables FIRST
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+
+# Use global temporary directory structure (AFTER sourcing common functions)
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "19_install_git_ssh")
+SSH_INSTALLED_FLAG="$SCRIPT_TEMP_DIR/ssh_keys_installed_step19.flag"
 
 # Check if Node.js installation is enabled (Git SSH is often used with Node.js development)
 INSTALL_NODE=$(get_var "INSTALL_NODE")
