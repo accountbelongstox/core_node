@@ -38,10 +38,10 @@ class TravelAppConstants {
   static const String keyOfflineData = 'travel_offline_data';
 
   // Data File Paths
-  static const String dataPathHome = 'assets/apps/app_travel/data/home.json';
-  static const String dataPathCity = 'assets/apps/app_travel/data/city.json';
-  static const String dataPathSight0 = 'assets/apps/app_travel/data/sight0.json';
-  static const String dataPathSight1 = 'assets/apps/app_travel/data/sight1.json';
+  static const String dataPathHome = 'assets/apps/app_travel/innerdata/home.json';
+  static const String dataPathCity = 'assets/apps/app_travel/innerdata/city.json';
+  static const String dataPathSight0 = 'assets/apps/app_travel/innerdata/sight0.json';
+  static const String dataPathSight1 = 'assets/apps/app_travel/innerdata/sight1.json';
 
   // Asset Paths
   static const String assetPathImages = 'assets/apps/app_travel/images';

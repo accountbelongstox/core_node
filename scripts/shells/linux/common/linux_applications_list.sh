@@ -83,17 +83,6 @@ declare -gA BASE_PACKAGES=(
     ["vim_verify_command"]="--version"
     ["vim_launch_command"]=""
 
-    # RustDesk Remote Desktop
-    ["rustdesk_name"]="RustDesk"
-    ["rustdesk_exec"]="rustdesk"
-    ["rustdesk_package_id"]="rustdesk"
-    ["rustdesk_install_method"]="$METHOD_FLATPAK"
-    ["rustdesk_category"]="$CATEGORY_SYSTEM_UTILITIES"
-    ["rustdesk_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
-    ["rustdesk_description"]="Remote desktop application"
-    ["rustdesk_verify_command"]="--version"
-    ["rustdesk_launch_command"]="which rustdesk && $USE_SUDO rustdesk"
-
     # CMake Build System
     ["cmake_name"]="CMake"
     ["cmake_exec"]="cmake"
@@ -104,22 +93,21 @@ declare -gA BASE_PACKAGES=(
     ["cmake_description"]="Cross-platform build system"
     ["cmake_verify_command"]="--version"
     ["cmake_launch_command"]=""
-
-    # PowerShell
-    ["powershell_name"]="PowerShell"
-    ["powershell_exec"]="pwsh"
-    ["powershell_package_id"]="powershell"
-    ["powershell_install_method"]="$METHOD_APT"
-    ["powershell_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["powershell_groups"]="$GROUP_ESSENTIAL $GROUP_DEVELOPMENT $GROUP_ALL"
-    ["powershell_description"]="PowerShell cross-platform shell and scripting language"
-    ["powershell_verify_command"]="--version"
-    ["powershell_launch_command"]="which pwsh && $USE_SUDO pwsh"
 )
 
 # Development Tools - Programming environments and development utilities
 declare -gA DEV_PACKAGES=(
-
+    # PowerShell
+    ["powershell_name"]="PowerShell"
+    ["powershell_exec"]="pwsh"
+    ["powershell_package_id"]="powershell"
+    ["powershell_install_method"]="$METHOD_SNAP"
+    ["powershell_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
+    ["powershell_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
+    ["powershell_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
+    ["powershell_description"]="PowerShell cross-platform shell and scripting language"
+    ["powershell_verify_command"]="--version"
+    ["powershell_launch_command"]="which pwsh && $USE_SUDO pwsh"
 
     # Postman API Testing
     ["postman_name"]="Postman"
@@ -263,6 +251,18 @@ declare -gA DEV_PACKAGES=(
 
 # Application Software - End-user applications (can be skipped via variable)
 declare -gA APP_PACKAGES=(
+    # RustDesk Remote Desktop
+    ["rustdesk_name"]="RustDesk"
+    ["rustdesk_exec"]="rustdesk"
+    ["rustdesk_package_id"]="rustdesk"
+    ["rustdesk_install_method"]="$METHOD_FLATPAK"
+    ["rustdesk_category"]="$CATEGORY_SYSTEM_UTILITIES"
+    ["rustdesk_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
+    ["rustdesk_description"]="Remote desktop application"
+    ["rustdesk_verify_command"]="--version"
+    ["rustdesk_launch_command"]="which rustdesk && $USE_SUDO rustdesk"
+    ["rustdesk_requires_desktop"]="true"
+
     # Firefox Browser
     ["firefox_name"]="Firefox"
     ["firefox_exec"]="firefox"
@@ -434,17 +434,17 @@ declare -gA MCP_PACKAGES=(
 
 # Package group lists for iteration
 BASE_PACKAGE_LIST=(
-    "chrome" "vim" "rustdesk" "cmake" "powershell"
+    "chrome" "vim" "cmake"
 )
 
 DEV_PACKAGE_LIST=(
-    "postman" "termius" "android_studio"
+    "powershell" "postman" "termius" "android_studio"
     "intellij" "pycharm" "clion" "sublime" "insomnia" "beekeeper"
     "code_insiders" "text_editor"
 )
 
 APP_PACKAGE_LIST=(
-    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop" "wechat"
+    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop" "wechat" "rustdesk"
 )
 
 AI_PACKAGE_LIST=(

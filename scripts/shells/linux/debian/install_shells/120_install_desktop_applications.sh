@@ -178,20 +178,32 @@ install_via_flatpak() {
         
         # Add flathub repository
         log_message "Adding flathub repository..."
-        if timeout 120 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
+        if timeout 120 $USE_SUDO flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
             log_message "Flathub repository added successfully"
         else
-            log_message "Warning: Failed to add flathub repository"
+            log_message "Warning: Failed to add flathub repository, trying alternative method..."
+            if timeout 120 $USE_SUDO flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
+                log_message "Flathub repository added successfully (user mode)"
+            else
+                log_message "Error: Failed to add flathub repository"
+                return 1
+            fi
         fi
     fi
     
     log_message "Installing $app_name via flatpak: $package_id"
-    if flatpak install -y flathub "$package_id"; then
+    if $USE_SUDO flatpak install -y flathub "$package_id"; then
         log_message "Successfully installed $app_name via flatpak"
         return 0
     else
-        log_message "Failed to install $app_name via flatpak"
-        return 1
+        log_message "Failed to install $app_name via flatpak (system), trying user mode..."
+        if flatpak install --user -y flathub "$package_id"; then
+            log_message "Successfully installed $app_name via flatpak (user mode)"
+            return 0
+        else
+            log_message "Failed to install $app_name via flatpak"
+            return 1
+        fi
     fi
 }
 
