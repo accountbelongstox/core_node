@@ -326,44 +326,74 @@ main() {
 
     echo -e "${GREEN}$SCRIPT_INDEX ✓ Cleanup completed${NC}"
 
-    # Only download and install Composer if original binary doesn't exist
-    if ! is_original_composer_working; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Composer not found, downloading and installing...${NC}"
-        
-        # Create temp directory
-        local temp_dir=$(mktemp -d)
-        local original_dir=$(pwd)
-        cd "$temp_dir"
+    # Download and install Composer
+    echo -e "${CYAN}============================================================================${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX [INSTALLATION] Downloading latest Composer (>= $MIN_COMPOSER_VERSION)${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
 
-        # Download installer
-        echo -e "${CYAN}$SCRIPT_INDEX Downloading Composer installer...${NC}"
-        if ! curl -fsSL "$COMPOSER_DOWNLOAD_URL" -o composer-setup.php; then
-            echo -e "${RED}$SCRIPT_INDEX Failed to download Composer installer${NC}"
-            cd "$original_dir"
-            rm -rf "$temp_dir"
-            exit 1
-        fi
+    # Create temp directory
+    local temp_dir=$(mktemp -d)
+    local original_dir=$(pwd)
+    cd "$temp_dir"
 
-    # Install with open_basedir disabled and environment variables set
-    echo -e "${CYAN}$SCRIPT_INDEX Installing Composer...${NC}"
-    if $USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d "open_basedir=none" composer-setup.php --install-dir=/usr/local/bin --filename=composer; then
-            echo -e "${GREEN}$SCRIPT_INDEX Composer installed successfully${NC}"
+    # Download installer with retry logic
+    local download_attempts=0
+    local max_attempts=3
+    local download_success=false
+
+    while [ $download_attempts -lt $max_attempts ]; do
+        download_attempts=$((download_attempts + 1))
+        echo -e "${CYAN}$SCRIPT_INDEX Downloading Composer installer (attempt $download_attempts/$max_attempts)...${NC}"
+
+        if curl -fsSL "$COMPOSER_DOWNLOAD_URL" -o composer-setup.php 2>/dev/null; then
+            download_success=true
+            echo -e "${GREEN}$SCRIPT_INDEX ✓ Download successful${NC}"
+            break
         else
-            echo -e "${RED}$SCRIPT_INDEX Composer installation failed${NC}"
-            cd "$original_dir"
-            rm -rf "$temp_dir"
-            exit 1
+            echo -e "${YELLOW}$SCRIPT_INDEX Download attempt $download_attempts failed${NC}"
+            sleep 2
         fi
+    done
 
-        # Make executable
-        $USE_SUDO chmod +x "$COMPOSER_TARGET_PATH"
-        
-        # Clean up temp directory
+    if [ "$download_success" = false ]; then
+        echo -e "${RED}$SCRIPT_INDEX Failed to download Composer installer after $max_attempts attempts${NC}"
         cd "$original_dir"
         rm -rf "$temp_dir"
-    else
-        echo -e "${GREEN}$SCRIPT_INDEX Original Composer binary already exists, skipping download${NC}"
+        exit 1
     fi
+
+    # Install with open_basedir disabled and environment variables set
+    echo -e "${CYAN}$SCRIPT_INDEX Installing Composer with PHP 8.4 compatibility...${NC}"
+    local install_output
+    install_output=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d "open_basedir=none" composer-setup.php --install-dir=/usr/local/bin --filename=composer 2>&1)
+    local install_status=$?
+
+    if [ $install_status -eq 0 ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Composer installed successfully${NC}"
+
+        # Show installed version
+        local installed_version=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 "$PHP_BINARY" -d "open_basedir=none" /usr/local/bin/composer --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        echo -e "${GREEN}$SCRIPT_INDEX ✓ Installed version: $installed_version${NC}"
+
+        if ! version_compare "$installed_version" "$MIN_COMPOSER_VERSION"; then
+            echo -e "${RED}$SCRIPT_INDEX WARNING: Installed version $installed_version may be too old for PHP 8.4${NC}"
+            echo -e "${YELLOW}$SCRIPT_INDEX Minimum recommended: $MIN_COMPOSER_VERSION${NC}"
+        fi
+    else
+        echo -e "${RED}$SCRIPT_INDEX Composer installation failed${NC}"
+        echo -e "${RED}$SCRIPT_INDEX Error output:${NC}"
+        echo "$install_output"
+        cd "$original_dir"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+
+    # Make executable
+    $USE_SUDO chmod +x "$COMPOSER_TARGET_PATH"
+
+    # Clean up temp directory
+    cd "$original_dir"
+    rm -rf "$temp_dir"
 
     # Ensure we have the original composer binary
     if [ ! -f "${COMPOSER_TARGET_PATH}.original" ]; then
