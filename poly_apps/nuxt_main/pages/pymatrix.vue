@@ -25,6 +25,7 @@ import DeviceSearchBar from '../apps/app_pymatrix/components_app_pymatrix/Device
 import DeviceFilterPanel from '../apps/app_pymatrix/components_app_pymatrix/DeviceFilterPanel.vue';
 import PyMatrixFullscreenPlayer from '../apps/app_pymatrix/components_app_pymatrix/PyMatrixFullscreenPlayer.vue';
 import PyMatrixScriptManager from '../apps/app_pymatrix/components_app_pymatrix/PyMatrixScriptManager.vue';
+import SystemHealthMonitor from '../apps/app_pymatrix/components_app_pymatrix/SystemHealthMonitor.vue';
 import { useGroupControl } from '../apps/app_pymatrix/composables_app_pymatrix/useGroupControl';
 import { useUIPreferencesStore } from '../apps/app_pymatrix/stores_app_pymatrix/uiPreferencesStore';
 import { useGroupTreeStore } from '../apps/app_pymatrix/stores_app_pymatrix/groupTreeStore';
@@ -74,6 +75,7 @@ const showFullscreen = ref(false);
 const fullscreenDevices = ref<Device[]>([]);
 const dragEnabled = ref(false);
 const showScriptManager = ref(false);
+const showHealthMonitor = ref(false);
 
 const { connect: connectDevice } = useConnectDevice();
 
@@ -177,6 +179,15 @@ shortcuts.push({
   description: 'Open script manager',
   action: () => {
     showScriptManager.value = !showScriptManager.value;
+  }
+});
+
+shortcuts.push({
+  key: 'h',
+  ctrl: true,
+  description: 'Open system health monitor',
+  action: () => {
+    showHealthMonitor.value = !showHealthMonitor.value;
   }
 });
 
@@ -431,6 +442,12 @@ function handleFullscreenDeviceChange(device: Device) {
       :show="showScriptManager"
       :available-devices="devices"
       @close="showScriptManager = false"
+    />
+
+    <!-- System Health Monitor -->
+    <SystemHealthMonitor
+      :show="showHealthMonitor"
+      @close="showHealthMonitor = false"
     />
   </div>
 </template>

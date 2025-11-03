@@ -841,6 +841,32 @@
         "testingStatus": "ready_for_testing",
         "alignment": "fully_aligned",
         "notes": "✅ 前后端已对齐，可以开始联调测试。功能：查看已安装包、实时搜索、系统包保护、批量卸载、剪贴板复制、上下文菜单集成"
+      },
+      {
+        "id": "F028",
+        "name": "系统健康监控",
+        "category": "系统监控",
+        "priority": "P2",
+        "frontend": {
+          "status": "completed",
+          "component": "SystemHealthMonitor.vue, pymatrix-health-api.ts",
+          "apiCall": "GET /api/health, GET /api/health/detailed",
+          "implementedBy": "Frontend AI",
+          "completedAt": "2025-11-03T14:00:00Z",
+          "notes": "✅ 系统健康监控完成：实时CPU/内存/磁盘使用率监控，服务状态显示，系统信息展示，性能指标显示，自动刷新（5秒），格式化的运行时间显示。集成到pages/pymatrix.vue（Ctrl+H快捷键）。"
+        },
+        "backend": {
+          "status": "completed",
+          "endpoint": "GET /api/health (API-019), GET /api/health/detailed (API-020)",
+          "file": "api/health_routes.py",
+          "service": "N/A (direct endpoint)",
+          "implementedBy": "Backend AI",
+          "completedAt": "2025-11-02T23:30:00Z",
+          "notes": "✅ 后端健康检查端点已完成，支持基础健康检查和详细系统信息（CPU、内存、磁盘使用率，性能指标等）"
+        },
+        "testingStatus": "ready_for_testing",
+        "alignment": "fully_aligned",
+        "notes": "✅ 前后端已对齐，可以开始联调测试。功能：实时资源监控、颜色编码状态指示器、自动/手动刷新、性能指标显示、深色模式支持"
       }
     ]
   },
