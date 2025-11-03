@@ -68,10 +68,28 @@ class _WuyHistoryTrackingScreenState extends State<WuyHistoryTrackingScreen> {
       appBar: AppBar(
         title: Text(
           LocalizationKeysAppWuy.wuyHistoryTitle.tr(context),
-          style: ThemeTextStyles.title2.copyWith(color: ThemeColors.white),
+          style: ThemeTextStyles.displayMedium.copyWith(
+            color: ThemeColors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
           onPressed: () => context.go(WuyAppRouter.routeHome),

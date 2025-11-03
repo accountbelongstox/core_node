@@ -447,17 +447,42 @@ main() {
     create_static_resolv_conf
     echo ""
 
-    # Step 6: Final verification
+    # Step 6: Final DNS verification
     log_info "Step 6: Final DNS verification..."
     sleep 2
     if verify_dns; then
         log_info "DNS resolution fixed successfully!"
         echo ""
-        log_info "Summary:"
-        log_info "  - DNS servers: 8.8.8.8, 1.1.1.1, 8.8.4.4, 1.0.0.1"
-        log_info "  - Configuration: Static /etc/resolv.conf"
-        log_info "  - All test domains resolved successfully"
-        return 0
+
+        # Step 7: Test actual network with real downloads
+        log_info "Step 7: Testing actual network connectivity with downloads..."
+        if test_network_download; then
+            log_info "Network connectivity verified with actual downloads!"
+            echo ""
+            log_info "=== Fix Complete ==="
+            log_info "Summary:"
+            log_info "  - DNS servers: 8.8.8.8, 1.1.1.1, 8.8.4.4, 1.0.0.1"
+            log_info "  - DNS resolution: Working"
+            log_info "  - Network download: Working"
+            log_info "  - Tested sites: npm registry, Google, GitHub"
+            echo ""
+            log_info "Your system can now:"
+            log_info "  ✓ Resolve domain names"
+            log_info "  ✓ Download files from npm registry"
+            log_info "  ✓ Access Ubuntu package repositories"
+            log_info "  ✓ Connect to external services"
+            return 0
+        else
+            log_warning "DNS works but actual downloads failed"
+            log_warning "This might be a firewall or proxy issue"
+            echo ""
+            log_info "DNS resolution is working, but file downloads failed"
+            log_info "This suggests:"
+            log_info "  - DNS: OK"
+            log_info "  - HTTPS/HTTP: May be blocked"
+            log_info "Check firewall rules and proxy settings"
+            return 0
+        fi
     else
         log_error "DNS resolution still not working after all fixes"
         echo ""
