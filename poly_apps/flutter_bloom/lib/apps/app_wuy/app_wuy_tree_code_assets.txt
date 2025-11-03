@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-03 05:00:57
+Generated: 2025-11-03 21:39:44
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -32,6 +32,7 @@ app_wuy [code_assets]
 │   ├── controller_app_wuy
 │   │   └── settings_controller_app_wuy.dart
 │   ├── doc
+│   │   ├── Task.md
 │   │   ├── app_wuy_review_20251008_codex.txt
 │   │   ├── awuy.base64.txt
 │   │   ├── claude_development_analysis_report.md
@@ -54,6 +55,7 @@ app_wuy [code_assets]
 │   │   │   ├── 12_network_records_page.png
 │   │   │   ├── 13_chat_page.png
 │   │   │   ├── 14_search_functionality.png
+│   │   │   ├── OCR_RECOGNITION_REPORT.md
 │   │   │   ├── bg.png
 │   │   │   ├── create_composite_image.py
 │   │   │   ├── login.html
@@ -86,24 +88,25 @@ app_wuy [code_assets]
 │   │   │   ├── register.html
 │   │   │   ├── search-friend.html
 │   │   │   └── settings.html
-│   │   └── pageviewshtmlcodex
-│   │       ├── 01_homepage_main_view.full.html
-│   │       ├── 02_bottom_navigation.full.html
-│   │       ├── 03_menu_drawer_open.full.html
-│   │       ├── 04_settings_page.full.html
-│   │       ├── 05_account_settings.full.html
-│   │       ├── 06_display_settings.full.html
-│   │       ├── 07_notification_settings.full.html
-│   │       ├── 08_privacy_settings.full.html
-│   │       ├── 09_data_storage_settings.full.html
-│   │       ├── 10_help_feedback_page.full.html
-│   │       ├── 11_about_page.full.html
-│   │       ├── 12_theme_selection_dialog.full.html
-│   │       ├── 13_font_size_adjustment.full.html
-│   │       ├── 14_language_settings.full.html
-│   │       ├── 15_search_functionality.full.html
-│   │       ├── 16_app_info_details.full.html
-│   │       └── index.full.html
+│   │   ├── pageviewshtmlcodex
+│   │   │   ├── 01_homepage_main_view.full.html
+│   │   │   ├── 02_bottom_navigation.full.html
+│   │   │   ├── 03_menu_drawer_open.full.html
+│   │   │   ├── 04_settings_page.full.html
+│   │   │   ├── 05_account_settings.full.html
+│   │   │   ├── 06_display_settings.full.html
+│   │   │   ├── 07_notification_settings.full.html
+│   │   │   ├── 08_privacy_settings.full.html
+│   │   │   ├── 09_data_storage_settings.full.html
+│   │   │   ├── 10_help_feedback_page.full.html
+│   │   │   ├── 11_about_page.full.html
+│   │   │   ├── 12_theme_selection_dialog.full.html
+│   │   │   ├── 13_font_size_adjustment.full.html
+│   │   │   ├── 14_language_settings.full.html
+│   │   │   ├── 15_search_functionality.full.html
+│   │   │   ├── 16_app_info_details.full.html
+│   │   │   └── index.full.html
+│   │   └── ui.md
 │   ├── error.txt
 │   ├── features_app_wuy
 │   │   ├── about
@@ -159,9 +162,14 @@ app_wuy [code_assets]
 │   │   └── zh_app_wuy.dart
 │   ├── main_app_wuy.dart
 │   ├── models_app_wuy
+│   │   ├── auth_models_app_wuy.dart
 │   │   ├── chat_message_model_app_wuy.dart
 │   │   ├── friend_model_app_wuy.dart
+│   │   ├── health_data_model_app_wuy.dart
+│   │   ├── history_record_model_app_wuy.dart
 │   │   ├── location_model_app_wuy.dart
+│   │   ├── network_record_model_app_wuy.dart
+│   │   ├── phone_report_model_app_wuy.dart
 │   │   ├── search_filter_model_app_wuy.dart
 │   │   └── user_model_app_wuy.dart
 │   ├── providers_app_wuy
@@ -174,11 +182,17 @@ app_wuy [code_assets]
 │   ├── router_app_wuy
 │   │   └── router_app_wuy.dart
 │   ├── services_app_wuy
+│   │   ├── wuy_api_client.dart
+│   │   ├── wuy_api_integration_test.dart
+│   │   ├── wuy_api_service_manager.dart
+│   │   ├── wuy_auth_api_service.dart
 │   │   ├── wuy_auth_state_manager.dart
 │   │   ├── wuy_avatar_service.dart
 │   │   ├── wuy_fake_data_generator.dart
+│   │   ├── wuy_friends_api_service.dart
 │   │   ├── wuy_sqlite_storage_service.dart
-│   │   └── wuy_unified_service.dart
+│   │   ├── wuy_unified_service.dart
+│   │   └── wuy_user_api_service.dart
 │   ├── settings_app_wuy
 │   │   └── settings_app_wuy.dart
 │   ├── task.txt
@@ -194,7 +208,11 @@ app_wuy [code_assets]
 │       ├── wuy_common_background.dart
 │       ├── wuy_common_logo.dart
 │       ├── wuy_gradient_button.dart
-│       └── wuy_modern_input_field.dart
+│       ├── wuy_health_data_card.dart
+│       ├── wuy_location_history_item.dart
+│       ├── wuy_modern_input_field.dart
+│       ├── wuy_phone_report_card.dart
+│       └── wuy_system_message_bubble.dart
 ├── lib/common/
 │   ├── README.md
 │   ├── app
@@ -523,6 +541,8 @@ app_wuy [code_assets]
 │       ├── README.md
 │       ├── action_bar.dart
 │       ├── animated_custom_dialog.dart
+│       ├── animations
+│       │   └── animation_utils.dart
 │       ├── back_app_bar.dart
 │       ├── badges
 │       │   ├── badges_chips.dart

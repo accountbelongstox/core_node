@@ -62,10 +62,28 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
       appBar: AppBar(
         title: Text(
           LocalizationKeysAppWuy.wuyNetworkTitle.tr(context),
-          style: ThemeTextStyles.displayMedium,
+          style: ThemeTextStyles.displayMedium.copyWith(
+            color: ThemeColors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         backgroundColor: ThemeColors.primary,
         elevation: 0,
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                ThemeColors.primary,
+                ThemeColors.primary.withOpacity(0.9),
+              ],
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: ThemeColors.white),
           onPressed: () => context.go(WuyAppRouter.routeHome),
@@ -121,13 +139,16 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
                     WuyUnifiedService().currentUser?.displayName ?? 'User',
                     style: ThemeTextStyles.title2.copyWith(
                       color: ThemeColors.white,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 26,
+                      letterSpacing: -0.6,
                     ),
                   ),
                   Text(
                     LocalizationKeysAppWuy.wuyNetworkActivity.tr(context),
                     style: ThemeTextStyles.bodyLarge.copyWith(
                       color: ThemeColors.white.withOpacity(0.9),
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -204,12 +225,19 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
       padding: EdgeInsets.all(ThemeDimensions.paddingSizeDefault),
       decoration: BoxDecoration(
         color: ThemeColors.white,
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: ThemeColors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: Offset(0, 2),
+            color: ThemeColors.black.withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: ThemeColors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
