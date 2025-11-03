@@ -129,7 +129,7 @@ def main():
     else:
         # Start frontend launcher, then start API service
         import asyncio
-        import threading
+        import platform
         from poly_apps.pyMatrix.frontend_launcher import launch_frontend_with_wait
 
         print("\n" + "=" * 60)
@@ -137,36 +137,75 @@ def main():
         print("=" * 60)
         print()
 
-        # Start backend server in a separate thread
-        def start_backend():
+        # ============================================================
+        # IMPORTANT: DO NOT MODIFY THIS PLATFORM-SPECIFIC LOGIC
+        #
+        # On Windows: Use temporary script + subprocess (no threading)
+        # On Linux:   Use threading to run backend and frontend concurrently
+        #
+        # This is intentionally designed for different behaviors:
+        # - Windows: Frontend runs in separate console via temp .bat script
+        # - Linux:   Frontend runs in background thread with output capture
+        # ============================================================
+
+        if platform.system() == 'Windows':
+            # Windows: Launch frontend in separate console, then run backend in main thread
+            print("[Windows Mode] Starting frontend in separate console window...")
+
+            # Launch frontend first (in separate console via temp script)
+            async def launch():
+                frontend_url = "http://localhost:3007"
+                await launch_frontend_with_wait(
+                    project_root=project_root,
+                    frontend_url=frontend_url,
+                    timeout=120
+                )
+
+            asyncio.run(launch())
+
+            # Now run backend in main thread (blocking)
+            print("\n[Windows Mode] Starting backend in main thread...")
             uvicorn.run(
                 "poly_apps.pyMatrix.main:app",
                 host=args.host,
                 port=args.port,
                 reload=args.reload
             )
+        else:
+            # Linux/Other: Use threading (original behavior)
+            import threading
 
-        backend_thread = threading.Thread(target=start_backend, daemon=False)
-        backend_thread.start()
+            print("[Linux Mode] Using threading for backend and frontend...")
 
-        # Give backend a moment to start
-        import time
-        time.sleep(2)
+            # Start backend server in a separate thread
+            def start_backend():
+                uvicorn.run(
+                    "poly_apps.pyMatrix.main:app",
+                    host=args.host,
+                    port=args.port,
+                    reload=args.reload
+                )
 
-        # Launch frontend and wait for connection
-        async def launch():
-            # pyMatrix uses port 3007 (defined in app-config.json)
-            frontend_url = "http://localhost:3007"
-            await launch_frontend_with_wait(
-                project_root=project_root,
-                frontend_url=frontend_url,
-                timeout=120
-            )
+            backend_thread = threading.Thread(target=start_backend, daemon=False)
+            backend_thread.start()
 
-        asyncio.run(launch())
+            # Give backend a moment to start
+            import time
+            time.sleep(2)
 
-        # Keep backend running
-        backend_thread.join()
+            # Launch frontend and wait for connection
+            async def launch():
+                frontend_url = "http://localhost:3007"
+                await launch_frontend_with_wait(
+                    project_root=project_root,
+                    frontend_url=frontend_url,
+                    timeout=120
+                )
+
+            asyncio.run(launch())
+
+            # Keep backend running
+            backend_thread.join()
 
 
 if __name__ == '__main__':
