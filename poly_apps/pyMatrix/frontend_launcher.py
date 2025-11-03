@@ -78,12 +78,15 @@ class FrontendLauncher:
 
         return start_script
 
-    def launch_frontend(self) -> subprocess.Popen:
+    def launch_frontend(self) -> Optional[Path]:
         """
-        Launch frontend using PowerShell start.ps1 script with direct output capture
+        Launch frontend using temporary batch script in new console window
+
+        On Windows, creates a temporary .bat script with the frontend launch command,
+        then opens it in a new console window using subprocess without threading.
 
         Returns:
-            subprocess.Popen object or None
+            Path to temporary batch script or None
         """
         try:
             if not self.validate_paths():
@@ -94,43 +97,42 @@ class FrontendLauncher:
             if not start_script:
                 return None
 
-            # Launch PowerShell with start.ps1 script (pymatrix in debug mode)
-            ColorPrint.blue("Starting frontend with PowerShell start.ps1...")
-            ColorPrint.blue(f"Command: powershell.exe -ExecutionPolicy Bypass -File {start_script} pymatrix debug")
+            # Create temporary batch script
+            fd, temp_script_path = tempfile.mkstemp(suffix='.bat', text=True)
+            temp_script = Path(temp_script_path)
 
-            process = subprocess.Popen(
-                [
-                    'powershell.exe',
-                    '-ExecutionPolicy', 'Bypass',
-                    '-File', str(start_script),
-                    'pymatrix',
-                    'debug'
-                ],
-                cwd=str(self.nuxt_main_dir),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                encoding='utf-8',
-                errors='replace'
-            )
+            # Write PowerShell command to batch script
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                f.write('@echo off\n')
+                f.write('title pyMatrix Frontend\n')
+                f.write(f'cd /d "{self.nuxt_main_dir}"\n')
+                f.write(f'powershell.exe -ExecutionPolicy Bypass -File "{start_script}" pymatrix debug\n')
+                f.write('echo.\n')
+                f.write('echo Frontend process ended. Press any key to close this window...\n')
+                f.write('pause > nul\n')
 
-            # Start a thread to print output
-            def print_output():
-                try:
-                    for line in process.stdout:
-                        print(f"[Frontend] {line.rstrip()}")
-                except UnicodeDecodeError as e:
-                    ColorPrint.yellow(f"[Frontend] Warning: Unicode decode error: {e}")
-                except Exception as e:
-                    ColorPrint.red(f"[Frontend] Error reading output: {e}")
+            ColorPrint.blue("Starting frontend with temporary batch script in new window...")
+            ColorPrint.blue(f"Temporary script: {temp_script}")
 
-            import threading
-            threading.Thread(target=print_output, daemon=True).start()
+            # Launch in new console window (Windows only)
+            # Using CREATE_NEW_CONSOLE to open in separate window
+            import platform
+            if platform.system() == 'Windows':
+                subprocess.Popen(
+                    str(temp_script),
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,
+                    shell=True
+                )
+            else:
+                # Fallback for non-Windows systems
+                subprocess.Popen(
+                    ['bash', str(temp_script)],
+                    shell=False
+                )
 
-            ColorPrint.green(f"Frontend process started (PID: {process.pid})")
-            self.batch_script = None  # No batch script used
-            return process
+            ColorPrint.green("Frontend launched in new console window")
+            self.batch_script = temp_script
+            return temp_script
 
         except Exception as e:
             ColorPrint.red(f"Failed to launch frontend: {e}")
@@ -219,9 +221,9 @@ class FrontendLauncher:
         ColorPrint.blue("pyMatrix Frontend Launcher")
         print("=" * 60)
 
-        # Launch frontend
-        process = self.launch_frontend()
-        if not process:
+        # Launch frontend (returns temporary script path)
+        script_path = self.launch_frontend()
+        if not script_path:
             return False
 
         print()
