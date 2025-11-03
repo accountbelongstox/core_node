@@ -138,26 +138,39 @@ prevent_apache2_conflicts_from_php_common() {
 set_directory_permissions_from_php_common() {
     local target_dir="${1:-$(map_web_path "wwwroot")}"
     local script_index="${2:-[PERMISSIONS]}"
-    
+
     print_step_from_common_functions "$script_index Setting directory permissions for: $target_dir"
-    
+
     # Create directory if it doesn't exist
     if [ ! -d "$target_dir" ]; then
         print_step_from_common_functions "$script_index Creating directory: $target_dir"
         $USE_SUDO mkdir -p "$target_dir"
     fi
-    
+
+    # Check if this is a production server
+    if [ "$IS_PRODUCTION" = true ]; then
+        print_info_from_common_functions "$script_index Production server detected - skipping default directory permission changes"
+        print_info_from_common_functions "$script_index To manually set full permissions (777), run the following commands:"
+        echo ""
+        echo "    $USE_SUDO chown -R www-data:www-data \"$target_dir\""
+        echo "    $USE_SUDO find \"$target_dir\" -type d -exec chmod 777 {} \\;"
+        echo "    $USE_SUDO find \"$target_dir\" -type f -exec chmod 777 {} \\;"
+        echo ""
+        return 0
+    fi
+
+    # For non-production environments (WSL/Desktop), set standard permissions
     # Set ownership to www-data
     print_step_from_common_functions "$script_index Setting ownership to www-data:www-data"
     $USE_SUDO chown -R www-data:www-data "$target_dir" 2>/dev/null || true
-    
+
     # Set permissions
     print_step_from_common_functions "$script_index Setting directory permissions (755)"
     $USE_SUDO find "$target_dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
-    
+
     print_step_from_common_functions "$script_index Setting file permissions (644)"
     $USE_SUDO find "$target_dir" -type f -exec chmod 644 {} \; 2>/dev/null || true
-    
+
     print_success_from_common_functions "$script_index Directory permissions set successfully"
     return 0
 }

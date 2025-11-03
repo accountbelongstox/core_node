@@ -98,7 +98,7 @@ install_via_snap() {
         fi
 
         log_message "Installing snapd..."
-        if timeout 600 $USE_SUDO apt install -y snapd; then
+        if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" snapd; then
             log_message "snapd installed successfully"
         else
             log_message "Error: Failed to install snapd"
@@ -145,7 +145,7 @@ install_via_apt() {
     fi
     
     log_message "Installing package with timeout..."
-    if timeout 600 $USE_SUDO apt install -y "$package_id"; then
+    if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$package_id"; then
         log_message "Successfully installed $app_name via apt"
         return 0
     else
@@ -167,9 +167,9 @@ install_via_flatpak() {
         else
             log_message "Warning: Package update timed out or failed, continuing anyway"
         fi
-        
+
         log_message "Installing flatpak..."
-        if timeout 600 $USE_SUDO apt install -y flatpak; then
+        if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" flatpak; then
             log_message "flatpak installed successfully"
         else
             log_message "Error: Failed to install flatpak"
@@ -178,20 +178,32 @@ install_via_flatpak() {
         
         # Add flathub repository
         log_message "Adding flathub repository..."
-        if timeout 120 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
+        if timeout 120 $USE_SUDO flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
             log_message "Flathub repository added successfully"
         else
-            log_message "Warning: Failed to add flathub repository"
+            log_message "Warning: Failed to add flathub repository, trying alternative method..."
+            if timeout 120 $USE_SUDO flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
+                log_message "Flathub repository added successfully (user mode)"
+            else
+                log_message "Error: Failed to add flathub repository"
+                return 1
+            fi
         fi
     fi
     
     log_message "Installing $app_name via flatpak: $package_id"
-    if flatpak install -y flathub "$package_id"; then
+    if $USE_SUDO flatpak install -y flathub "$package_id"; then
         log_message "Successfully installed $app_name via flatpak"
         return 0
     else
-        log_message "Failed to install $app_name via flatpak"
-        return 1
+        log_message "Failed to install $app_name via flatpak (system), trying user mode..."
+        if flatpak install --user -y flathub "$package_id"; then
+            log_message "Successfully installed $app_name via flatpak (user mode)"
+            return 0
+        else
+            log_message "Failed to install $app_name via flatpak"
+            return 1
+        fi
     fi
 }
 
@@ -214,7 +226,7 @@ install_via_appimage() {
     if ! dpkg -l | grep -q "^ii.*libfuse2"; then
         log_message "Installing libfuse2 (required for AppImage)..."
         $USE_SUDO apt-get update -qq
-        $USE_SUDO apt-get install -y libfuse2 2>&1 | tee -a "$LOG_FILE" || log_message "Warning: Failed to install libfuse2"
+        $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" libfuse2 2>&1 | tee -a "$LOG_FILE" || log_message "Warning: Failed to install libfuse2"
     fi
 
     # Create AppImage directory structure
@@ -391,12 +403,12 @@ install_via_web() {
         if $USE_SUDO dpkg -i "$temp_file"; then
             log_message "Successfully installed $app_name from web"
             # Fix any dependency issues
-            $USE_SUDO apt-get install -f -y 2>/dev/null || true
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" 2>/dev/null || true
             return 0
         else
             log_message "Failed to install $app_name deb package"
             # Try to fix dependencies and retry
-            $USE_SUDO apt-get install -f -y
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
             if $USE_SUDO dpkg -i "$temp_file"; then
                 log_message "Successfully installed $app_name after fixing dependencies"
                 return 0
@@ -509,7 +521,7 @@ install_via_curl() {
 
     if ! command_exists curl; then
         log_message "curl is not installed. Installing curl..."
-        if ! $USE_SUDO apt update && $USE_SUDO apt install -y curl; then
+        if ! $USE_SUDO apt update && $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl; then
             log_message "Failed to install curl. Cannot install $app_name"
             return 1
         fi
@@ -1405,7 +1417,7 @@ main() {
 
         # Install essential packages first
         log_message "Installing essential system packages with timeout..."
-        if timeout 600 $USE_SUDO apt install -y curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
+        if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
             log_message "Essential packages installed successfully"
         else
             log_message "Warning: Some essential packages failed to install, continuing anyway"
@@ -1439,7 +1451,7 @@ main() {
 
     # Install essential packages first
     log_message "Installing essential system packages with timeout..."
-    if timeout 600 $USE_SUDO apt install -y curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
+    if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
         log_message "Essential packages installed successfully"
     else
         log_message "Warning: Some essential packages failed to install, continuing anyway"
