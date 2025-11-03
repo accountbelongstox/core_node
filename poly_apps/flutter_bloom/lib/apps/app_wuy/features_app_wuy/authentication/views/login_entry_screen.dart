@@ -44,33 +44,31 @@ class WuyLoginEntryScreen extends StatelessWidget {
         body: SafeArea(
           child: Stack(
             children: [
-              // Header positioned at top left
               Positioned(
-                top: 32, // Increased from 12 to 32 for better spacing
-                left: 16,
+                top: 40,
+                left: 24,
+                right: 24,
                 child: _buildHeader(context),
               ),
-              // Center content (logo, button, agreement)
               Center(
                 child: Container(
                   width: double.infinity,
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _buildLogo(context),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 48),
                       _buildMainButton(context),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       _buildUserAgreement(context),
                     ],
                   ),
                 ),
               ),
-              // Other login methods positioned at bottom
               Positioned(
-                bottom: 24,
+                bottom: 32,
                 left: 0,
                 right: 0,
                 child: _buildOtherLoginMethods(context),
@@ -83,36 +81,34 @@ class WuyLoginEntryScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // App name - positioned at top left
-          Text(
-            LocalizationKeysAppWuy.wuyAppName.tr(context),
-            style: ThemeTextStyles.displayLarge.copyWith(
-              fontSize: 40, // Doubled from 20px to 40px
-              fontWeight: FontWeight.w800,
-              color: WuyAppThemeConfig.wuyTextMain,
-              letterSpacing: 0.5,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          LocalizationKeysAppWuy.wuyAppName.tr(context),
+          style: ThemeTextStyles.displayLarge.copyWith(
+            fontSize: 42,
+            fontWeight: FontWeight.w800,
+            color: WuyAppThemeConfig.wuyTextMain,
+            letterSpacing: -0.5,
+            height: 1.1,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 2),
+          child: Text(
+            LocalizationKeysAppWuy.wuyAppSlogan.tr(context),
+            style: ThemeTextStyles.bodyLarge.copyWith(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: WuyAppThemeConfig.wuyTextSub.withOpacity(0.85),
+              letterSpacing: 0.3,
+              height: 1.4,
             ),
           ),
-          const SizedBox(height: 4), // Reduced spacing
-          // App slogan - with indentation
-          Padding(
-            padding: const EdgeInsets.only(left: 16), // Indent second line
-            child: Text(
-              LocalizationKeysAppWuy.wuyAppSlogan.tr(context),
-              style: ThemeTextStyles.bodyLarge.copyWith(
-                fontSize: 32, // Doubled from 16px to 32px
-                fontWeight: FontWeight.w500,
-                color: WuyAppThemeConfig.wuyTextSub,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -124,16 +120,33 @@ class WuyLoginEntryScreen extends StatelessWidget {
     return Container(
       width: double.infinity,
       constraints: const BoxConstraints(maxWidth: 360),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: WuyAppThemeConfig.wuyPrimaryColor.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: WuyAppThemeConfig.wuyAccentColor.withOpacity(0.2),
+            blurRadius: 30,
+            offset: const Offset(0, 12),
+            spreadRadius: -5,
+          ),
+        ],
+      ),
       child: WuyGradientButton(
         text: LocalizationKeysAppWuy.wuyPhoneLoginRegister.tr(context),
         onPressed: () {
           context.go(WuyAppRouter.routeLoginRegister);
         },
-        height: 50,
-        borderRadius: 25.0, // 50% of height (50/2 = 25)
+        height: 56,
+        borderRadius: 28.0,
         gradientColors: WuyAppThemeConfig.wuyLoginButtonGradient.colors,
         textColor: ThemeColors.white,
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: FontWeight.w700,
       ),
     );
@@ -141,7 +154,7 @@ class WuyLoginEntryScreen extends StatelessWidget {
 
   Widget _buildUserAgreement(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(top: 12), // Match HTML margin-top: 12px
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GestureDetector(
         onTap: () {
           // Handle user agreement tap
@@ -149,10 +162,12 @@ class WuyLoginEntryScreen extends StatelessWidget {
         child: Text(
           LocalizationKeysAppWuy.wuyUserAgreement.tr(context),
           style: ThemeTextStyles.bodySmall.copyWith(
-            color: WuyAppThemeConfig.wuyMuted, // Match HTML color: var(--muted)
-            fontSize: 12, // Match HTML font-size: 12px
+            color: WuyAppThemeConfig.wuyMuted.withOpacity(0.75),
+            fontSize: 12,
+            height: 1.6,
+            letterSpacing: 0.2,
           ),
-          textAlign: TextAlign.center, // Match HTML text-align: center
+          textAlign: TextAlign.center,
         ),
       ),
     );
@@ -162,14 +177,16 @@ class WuyLoginEntryScreen extends StatelessWidget {
     return Column(
       children: [
         Container(
-          margin: const EdgeInsets.only(top: 28, bottom: 14), // Match HTML margin: 28px 0 14px
+          margin: const EdgeInsets.only(bottom: 20),
           child: Text(
             LocalizationKeysAppWuy.wuyOtherLoginMethods.tr(context),
             style: ThemeTextStyles.bodyMedium.copyWith(
-              color: WuyAppThemeConfig.wuyTextSub, // Match HTML color: var(--text-sub)
-              fontSize: 14, // Match HTML font-size: 14px
+              color: WuyAppThemeConfig.wuyTextSub.withOpacity(0.8),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.3,
             ),
-            textAlign: TextAlign.center, // Match HTML text-align: center
+            textAlign: TextAlign.center,
           ),
         ),
         Row(
@@ -179,19 +196,18 @@ class WuyLoginEntryScreen extends StatelessWidget {
               icon: FontAwesomeIcons.weixin,
               onTap: () => _handleWeChatLogin(context),
             ),
-            const SizedBox(width: 16), // Match HTML gap: 16px
+            const SizedBox(width: 20),
             _buildSocialLoginButton(
               icon: FontAwesomeIcons.qq,
               onTap: () => _handleQQLogin(context),
             ),
-            const SizedBox(width: 16), // Match HTML gap: 16px
+            const SizedBox(width: 20),
             _buildSocialLoginButton(
               icon: FontAwesomeIcons.mobileScreen,
               onTap: () => _handleDingTalkLogin(context),
             ),
           ],
         ),
-        const SizedBox(height: 24), // Match HTML margin-bottom: 24px
       ],
     );
   }
@@ -204,29 +220,43 @@ class WuyLoginEntryScreen extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 48, // Match HTML width: 48px
-        height: 48, // Match HTML height: 48px
+        width: 54,
+        height: 54,
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F9FC), // Match HTML background: #f7f9fc
+          color: ThemeColors.white,
           shape: BoxShape.circle,
           border: Border.all(
-            color: WuyAppThemeConfig.wuyBorder, // Match HTML border: 1px solid var(--border)
-            width: 1,
+            color: WuyAppThemeConfig.wuyBorder.withOpacity(0.3),
+            width: 1.5,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: ThemeColors.black.withOpacity(0.02),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+              spreadRadius: 0,
+            ),
+          ],
         ),
         child: Center(
           child: icon != null
               ? FaIcon(
                   icon,
-                  size: 20,
-                  color: const Color(0xFFA0AFC2),
+                  size: 22,
+                  color: WuyAppThemeConfig.wuyTextSub,
                 )
               : Text(
                   text ?? '',
                   style: ThemeTextStyles.bodyMedium.copyWith(
-                    color: const Color(0xFFA0AFC2), // Match HTML color: #a0afc2
+                    color: WuyAppThemeConfig.wuyTextSub,
                     fontSize: 16,
-                    fontWeight: FontWeight.w700, // Match HTML font-weight: 700
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
         ),

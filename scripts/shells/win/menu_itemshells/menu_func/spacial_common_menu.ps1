@@ -1373,16 +1373,21 @@ function Generate-GlobalCommand {
     if (-not (Test-Path $commandDir)) {
         New-Item -ItemType Directory -Path $commandDir -Force | Out-Null
     }
-    
-    & $script:WINDOWS_PATH_FUNCTION_PATH "addscript" $script:CurrentBatchContent $script:CurrentFileName
-    
-    Write-ColorMessage -Message "Global command generated successfully: $TargetCommandPath" -Type "Success"
-    Write-ColorMessage -Message "File written to .winenvs directory using addscript method" -Type "Success"
-    
-    if (Test-Path $TargetCommandPath) {
-        Write-ColorMessage -Message "File verification: SUCCESS" -Type "Success"
-    } else {
-        Write-ColorMessage -Message "File verification: FAILED" -Type "Error"
+
+    try {
+        $script:CurrentBatchContent | Out-File -FilePath $TargetCommandPath -Encoding ASCII -Force
+        Write-ColorMessage -Message "Global command generated successfully: $TargetCommandPath" -Type "Success"
+        Write-ColorMessage -Message "File written to inline winenvs directory" -Type "Success"
+
+        if (Test-Path $TargetCommandPath) {
+            $fileSize = (Get-Item $TargetCommandPath).Length
+            Write-ColorMessage -Message "File verification: SUCCESS - Size: $fileSize bytes" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "File verification: FAILED" -Type "Error"
+        }
+    } catch {
+        Write-ColorMessage -Message "Failed to write file: $($_.Exception.Message)" -Type "Error"
+        return $false
     }
     
     Generate-ListScript -ConfigName $script:CurrentConfigName | Out-Null
@@ -2237,15 +2242,22 @@ function Restore-ConfigurationAndGenerate {
         New-Item -ItemType Directory -Path $commandDir -Force | Out-Null
     }
 
-    & $script:WINDOWS_PATH_FUNCTION_PATH "addscript" $script:CurrentBatchContent $script:CurrentFileName
+    try {
+        $script:CurrentBatchContent | Out-File -FilePath $TargetCommandPath -Encoding ASCII -Force
+        Write-ColorMessage -Message "Configuration restored and command generated successfully: $TargetCommandPath" -Type "Success"
+        Write-ColorMessage -Message "File written to inline winenvs directory" -Type "Success"
 
-    Write-ColorMessage -Message "Configuration restored and command generated successfully: $TargetCommandPath" -Type "Success"
-    Write-ColorMessage -Message "File written to .winenvs directory using addscript method" -Type "Success"
-
-    if (Test-Path $TargetCommandPath) {
-        Write-ColorMessage -Message "File verification: SUCCESS" -Type "Success"
-    } else {
-        Write-ColorMessage -Message "File verification: FAILED" -Type "Error"
+        if (Test-Path $TargetCommandPath) {
+            $fileSize = (Get-Item $TargetCommandPath).Length
+            Write-ColorMessage -Message "File verification: SUCCESS - Size: $fileSize bytes" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "File verification: FAILED" -Type "Error"
+        }
+    } catch {
+        Write-ColorMessage -Message "Failed to write file: $($_.Exception.Message)" -Type "Error"
+        Write-ColorMessage -Message "Press any key to continue..." -Type "Info"
+        $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        return
     }
 
     Generate-ListScript -ConfigName $script:CurrentConfigName | Out-Null
