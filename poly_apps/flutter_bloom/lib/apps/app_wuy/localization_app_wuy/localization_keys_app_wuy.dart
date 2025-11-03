@@ -117,6 +117,9 @@ class LocalizationKeysAppWuy {
   static const String wuyHistoryAction = "wuy.history.action";
   static const String wuyHistoryMessage = "wuy.history.message";
   static const String wuyHistoryUpdate = "wuy.history.update";
+  static const String wuyHistoryProtectFuture = "wuy.history.protect_future";
+  static const String wuyHistoryNoLocationHistory = "wuy.history.no_location_history";
+  static const String wuyHistoryTrajectory = "wuy.history.trajectory";
 
   // Network related
   static const String wuyNetworkTitle = "wuy.network.title";
@@ -523,6 +526,11 @@ class LocalizationKeysAppWuy {
   static const String wuyNetworkConnectWifi = "wuy.network.connect_wifi";
   static const String wuyNetworkMobileConnection = "wuy.network.mobile_connection";
   static const String wuyNetworkRequestTimeout = "wuy.network.request_timeout";
+  static const String wuyNetworkConnectedWifi = "wuy.network.connected_wifi";
+  static const String wuyNetworkConnectedWifiWith = "wuy.network.connected_wifi_with";
+  static const String wuyNetworkConnectedMobile = "wuy.network.connected_mobile";
+  static const String wuyNetworkChange = "wuy.network.change";
+  static const String wuyNetworkNoRecords = "wuy.network.no_records";
 
   // Dashboard screen specific
   static const String wuyDashboardWelcome = "wuy.dashboard.welcome";

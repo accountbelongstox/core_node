@@ -173,7 +173,7 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
             ),
             SizedBox(height: ThemeDimensions.paddingSizeDefault),
             Text(
-              'No network records',
+              LocalizationKeysAppWuy.wuyNetworkNoRecords.tr(context),
               style: ThemeTextStyles.body.copyWith(
                 color: ThemeColors.secondaryLabel,
               ),
@@ -197,27 +197,27 @@ class _WuyNetworkRecordsScreenState extends State<WuyNetworkRecordsScreen> {
   }
 
   Widget _buildNetworkRecordItem(NetworkRecordModelAppWuy record) {
-    IconData icon;
-    Color iconColor;
-    String description;
+    final IconData icon;
+    final Color iconColor;
+    final String description;
 
     switch (record.type) {
       case NetworkType.wifi:
         icon = Icons.wifi;
         iconColor = ThemeColors.blue;
         description = record.wifiSsid != null
-            ? 'Connected WiFi: ${record.wifiSsid}'
-            : 'Connected to WiFi';
+            ? '${LocalizationKeysAppWuy.wuyNetworkConnectedWifiWith.tr(context)}: ${record.wifiSsid}'
+            : LocalizationKeysAppWuy.wuyNetworkConnectedWifi.tr(context);
         break;
       case NetworkType.mobile:
         icon = Icons.signal_cellular_alt;
         iconColor = ThemeColors.green;
-        description = 'Connected to Mobile Network';
+        description = LocalizationKeysAppWuy.wuyNetworkConnectedMobile.tr(context);
         break;
       default:
         icon = Icons.network_check;
         iconColor = ThemeColors.grey500;
-        description = 'Network change';
+        description = LocalizationKeysAppWuy.wuyNetworkChange.tr(context);
     }
 
     return Container(
