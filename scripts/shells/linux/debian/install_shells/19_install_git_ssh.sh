@@ -36,12 +36,16 @@ SCRIPT_TEMP_DIR=$(create_script_temp_dir "19_install_git_ssh")
 LOCAL_SSH_PUB_JS="$PROJECT_ROOT/scripts/git/git.ssh.id.ed.pub.js"
 LOCAL_SSH_KEY_JS="$PROJECT_ROOT/scripts/git/git.ssh.id.ed.js"
 
-# Multiple SSH installation locations
+# Multiple SSH installation locations (deduplicated)
 SSH_LOCATIONS=(
     "$HOME/.ssh"
     "/etc/ssh/keys"
-    "/root/.ssh"
 )
+
+# Add /root/.ssh only if different from $HOME/.ssh
+if [[ "$HOME/.ssh" != "/root/.ssh" && -d "/root" ]]; then
+    SSH_LOCATIONS+=("/root/.ssh")
+fi
 
 # SSH key filenames
 SSH_KEY_NAME="id_ed25519"
@@ -86,6 +90,76 @@ setup_git_environment() {
     fi
 }
 
+# Function to validate SSH key file content
+validate_ssh_key_content() {
+    local pub_file="$1"
+    local priv_file="$2"
+    local location="$3"
+
+    print_step_from_common_functions "Validating SSH keys in $location:"
+
+    # Check public key
+    print_step_from_common_functions "  Public key: $pub_file"
+    if [[ ! -f "$pub_file" ]]; then
+        print_error_from_common_functions "    ✗ File does not exist"
+        return 1
+    fi
+
+    if [[ ! -s "$pub_file" ]]; then
+        print_error_from_common_functions "    ✗ File is empty"
+        return 1
+    fi
+
+    local pub_content=$(head -n 1 "$pub_file" 2>/dev/null)
+    if [[ "$pub_content" =~ ^ssh-(rsa|dss|ed25519|ecdsa) ]]; then
+        local key_type=$(echo "$pub_content" | awk '{print $1}')
+        local key_comment=$(echo "$pub_content" | awk '{print $3}')
+        print_success_from_common_functions "    ✓ Valid format: $key_type"
+        if [[ -n "$key_comment" ]]; then
+            print_step_from_common_functions "    Comment: $key_comment"
+        fi
+        print_step_from_common_functions "    Preview: ${pub_content:0:50}..."
+    else
+        print_error_from_common_functions "    ✗ Invalid SSH public key format"
+        return 1
+    fi
+
+    # Check private key
+    print_step_from_common_functions "  Private key: $priv_file"
+    if [[ ! -f "$priv_file" ]]; then
+        print_error_from_common_functions "    ✗ File does not exist"
+        return 1
+    fi
+
+    if [[ ! -s "$priv_file" ]]; then
+        print_error_from_common_functions "    ✗ File is empty"
+        return 1
+    fi
+
+    local priv_header=$(head -n 1 "$priv_file" 2>/dev/null)
+    if [[ "$priv_header" =~ ^-----BEGIN.*PRIVATE\ KEY----- ]]; then
+        print_success_from_common_functions "    ✓ Valid format: $priv_header"
+    else
+        print_error_from_common_functions "    ✗ Invalid private key format"
+        print_step_from_common_functions "    Header: $priv_header"
+        return 1
+    fi
+
+    # Check permissions
+    local pub_perms=$(stat -c "%a" "$pub_file" 2>/dev/null)
+    local priv_perms=$(stat -c "%a" "$priv_file" 2>/dev/null)
+
+    print_step_from_common_functions "  Permissions:"
+    print_step_from_common_functions "    Public key: $pub_perms (should be 644 or 600)"
+    print_step_from_common_functions "    Private key: $priv_perms (should be 600)"
+
+    if [[ "$priv_perms" != "600" && "$priv_perms" != "400" ]]; then
+        print_error_from_common_functions "    ✗ Private key permissions too open (should be 600)"
+    fi
+
+    return 0
+}
+
 # Function to test if SSH key pair exists and is valid in any location
 # Matches PowerShell Test-SSHKeyPairExists logic
 test_ssh_key_pair_exists() {
@@ -111,6 +185,10 @@ test_ssh_key_pair_exists() {
                     local pub_name=$(basename "$pub_file")
                     local priv_name=$(basename "$priv_file")
                     print_success_from_common_functions "Found SSH key pair: $pub_name / $priv_name in $ssh_location"
+
+                    # Validate and show key content
+                    validate_ssh_key_content "$pub_file" "$priv_file" "$ssh_location"
+
                     found_valid_pair=true
                 fi
             fi
