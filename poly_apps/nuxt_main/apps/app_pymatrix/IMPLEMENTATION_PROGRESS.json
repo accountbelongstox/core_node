@@ -1,11 +1,12 @@
 {
   "project": "pyMatrix UI Enhancement",
-  "version": "2.9.1",
+  "version": "2.10.0",
   "startDate": "2025-11-02",
-  "lastUpdate": "2025-11-03T16:30:00Z",
+  "lastUpdate": "2025-11-03T17:00:00Z",
   "totalFeatures": 48,
-  "completedFeatures": 33,
-  "progressPercentage": 69,
+  "completedFeatures": 34,
+  "progressPercentage": 71,
+  "milestone": "🎉 100% Backend API Coverage Achieved! All 36 backend endpoints have frontend implementations.",
 
   "architectureImprovements": {
     "description": "Implementation of Nuxt multi-app architecture principles",
@@ -187,13 +188,15 @@
           "apiEndpoints": [
             "POST /api/devices/{serial}/screen/power",
             "POST /api/devices/{serial}/screen/brightness",
-            "POST /api/devices/{serial}/screen/rotation"
+            "POST /api/devices/{serial}/screen/rotation",
+            "POST /api/devices/{serial}/screen/auto-rotation/enable",
+            "POST /api/devices/{serial}/screen/auto-rotation/disable"
           ],
           "status": "completed",
           "estimatedHours": 6,
-          "completedHours": 12,
-          "completedDate": "2025-11-02T21:00:00Z",
-          "notes": "Fully integrated with backend API. Power control (on/off), brightness slider (0-255) with 5 presets, rotation control (0/90/180/270), keep awake and auto sleep toggles. Integrated into VideoPlayer.vue"
+          "completedHours": 12.5,
+          "completedDate": "2025-11-03T17:00:00Z",
+          "notes": "Fully integrated with backend API. Power control (on/off), brightness slider (0-255) with 5 presets, rotation control (0/90/180/270), auto-rotation toggle (enable/disable automatic rotation), keep awake and auto sleep toggles. Integrated into VideoPlayer.vue. Auto-rotation feature completed 2025-11-03, achieving 100% backend API coverage."
         }
       ]
     },
@@ -772,6 +775,7 @@
         "Brightness slider (0-255) with percentage display",
         "Brightness presets (0%, 25%, 50%, 75%, 100%)",
         "Rotation control (0°, 90°, 180°, 270°)",
+        "Auto rotation toggle (enable/disable automatic screen rotation)",
         "Keep awake toggle",
         "Auto sleep toggle"
       ]
