@@ -57,12 +57,12 @@
             <button
               v-for="tab in mainTabs"
               :key="tab.id"
-              @click="activeMainTab = tab.id"
+              @click.stop="switchTab(tab.id)"
               :class="[
-                'px-4 py-2 rounded-lg text-sm font-medium transition',
+                'px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer',
                 activeMainTab === tab.id
-                  ? 'bg-blue-100 text-blue-700 border-blue-300'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border border-transparent'
               ]"
             >
               <i :class="tab.icon" class="mr-2"></i>
@@ -385,6 +385,20 @@ const toggleSidebar = () => {
   const sidebar = document.querySelector('aside');
   if (sidebar) {
     sidebar.classList.toggle('hidden');
+  }
+};
+
+// Switch main tab with proper state management
+const switchTab = (tabId: string) => {
+  console.log('Switching tab to:', tabId, 'Current:', activeMainTab.value);
+  activeMainTab.value = tabId;
+
+  // Reset sub-tab states when switching main tabs
+  if (tabId === 'browser') {
+    activeBrowserSection.value = 'quick-actions';
+  } else if (tabId === 'windows') {
+    activeWindowsSection.value = 'system-info';
+    activePythonSection.value = 'installation';
   }
 };
 

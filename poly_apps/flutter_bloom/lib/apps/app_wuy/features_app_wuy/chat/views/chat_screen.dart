@@ -19,6 +19,7 @@ import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/chat_message_model_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../services_app_wuy/wuy_unified_service.dart';
+import '../../../widgets_app_wuy/wuy_system_message_bubble.dart';
 
 /// Chat Screen for Wuy App
 ///
@@ -199,6 +200,10 @@ class _WuyChatScreenState extends State<WuyChatScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessageModelAppWuy message) {
+    if (message.isSystemMessage) {
+      return WuySystemMessageBubble(message: message);
+    }
+
     final isFromCurrentUser = message.senderId == _currentUserId;
 
     return Container(

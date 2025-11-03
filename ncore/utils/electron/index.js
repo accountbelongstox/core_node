@@ -97,17 +97,23 @@ class ElectronManager {
         try {
             logger.info('Electron app is ready');
 
-            // Create system tray if enabled
-            if (this.config.enableTray) {
+            const trayEnabled = this.config.tray?.enabled ?? this.config.enableTray ?? true;
+            const windowEnabled = this.config.window?.enabled ?? true;
+            const showWindowOnStart = this.config.window?.showOnStart ?? this.config.showWindowOnStart ?? false;
+            const trayOnly = this.config.mode?.trayOnly ?? false;
+
+            if (trayEnabled) {
                 this.createTray();
+                logger.info('System tray created');
             }
 
-            // Create main window if configured
-            if (this.config.showWindowOnStart) {
+            if (!trayOnly && windowEnabled && showWindowOnStart) {
                 this.createMainWindow();
+                logger.info('Main window created');
+            } else {
+                logger.info('Running in tray-only mode, window not created');
             }
 
-            // Start service monitoring
             this.startServiceMonitoring();
 
             logger.info('Electron app setup completed');
@@ -118,79 +124,39 @@ class ElectronManager {
 
     createTray() {
         try {
-            // Get tray icon path
-            const iconPath = this.config.trayIcon || path.join(__dirname, 'assets', 'tray-icon.png');
+            const trayConfig = this.config.tray || {};
+            const iconPath = trayConfig.icon || this.config.trayIcon || path.join(__dirname, 'assets', 'tray-icon.png');
+            const tooltip = trayConfig.tooltip || this.config.appTitle || 'Core Node MCP Server';
 
-            // Create tray
             this.tray = new Tray(iconPath);
-            this.tray.setToolTip(this.config.appTitle);
+            this.tray.setToolTip(tooltip);
 
-            // Create context menu
-            const contextMenu = Menu.buildFromTemplate([
-                {
-                    label: 'Open Frontend',
-                    click: () => {
-                        this.openFrontend();
-                    }
-                },
-                {
-                    label: 'Open Backend Status',
-                    click: () => {
+            if (trayConfig.title) {
+                this.tray.setTitle(trayConfig.title);
+            }
+
+            this.updateTrayMenu();
+
+            const doubleClickAction = trayConfig.doubleClickAction || 'openFrontend';
+            this.tray.on('double-click', () => {
+                if (doubleClickAction === 'openFrontend') {
+                    this.openFrontend();
+                } else if (doubleClickAction === 'openWindow') {
+                    this.showMainWindow();
+                } else if (doubleClickAction === 'openBackend') {
+                    this.openBackendStatus();
+                }
+            });
+
+            if (trayConfig.middleClickAction && trayConfig.middleClickAction !== 'none') {
+                this.tray.on('middle-click', () => {
+                    if (trayConfig.middleClickAction === 'openBackend') {
                         this.openBackendStatus();
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: 'Restart Services',
-                    click: () => {
+                    } else if (trayConfig.middleClickAction === 'restartServices') {
                         this.restartServices();
                     }
-                },
-                {
-                    label: 'Service Status',
-                    submenu: [
-                        {
-                            label: 'Frontend',
-                            type: 'checkbox',
-                            checked: this.serviceStatus.frontend,
-                            enabled: false
-                        },
-                        {
-                            label: 'Backend',
-                            type: 'checkbox',
-                            checked: this.serviceStatus.backend,
-                            enabled: false
-                        }
-                    ]
-                },
-                { type: 'separator' },
-                {
-                    label: 'Settings',
-                    click: () => {
-                        this.openSettings();
-                    }
-                },
-                {
-                    label: 'About',
-                    click: () => {
-                        this.showAboutDialog();
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: 'Quit',
-                    click: () => {
-                        app.quit();
-                    }
-                }
-            ]);
-
-            this.tray.setContextMenu(contextMenu);
-
-            // Double click handler
-            this.tray.on('double-click', () => {
-                this.openFrontend();
-            });
+                });
+            }
 
             logger.info('System tray created successfully');
         } catch (error) {
@@ -200,34 +166,59 @@ class ElectronManager {
 
     createMainWindow() {
         try {
-            // Create the browser window
+            const windowConfig = this.config.window || {};
+            const securityConfig = this.config.security || {};
+            const modeConfig = this.config.mode || {};
+
             this.mainWindow = new BrowserWindow({
-                width: 1200,
-                height: 800,
+                width: windowConfig.width || 1200,
+                height: windowConfig.height || 800,
+                minWidth: windowConfig.minWidth || 800,
+                minHeight: windowConfig.minHeight || 600,
+                maxWidth: windowConfig.maxWidth,
+                maxHeight: windowConfig.maxHeight,
+                center: windowConfig.center !== false,
+                resizable: windowConfig.resizable !== false,
+                frame: windowConfig.frame !== false,
+                transparent: windowConfig.transparent === true,
+                alwaysOnTop: windowConfig.alwaysOnTop === true,
+                skipTaskbar: windowConfig.skipTaskbar === true,
+                show: windowConfig.show === true,
+                backgroundColor: windowConfig.backgroundColor || '#ffffff',
+                title: windowConfig.title || this.config.appTitle || 'Core Node MCP Server',
+                icon: windowConfig.icon || this.config.trayIcon,
                 webPreferences: {
-                    nodeIntegration: false,
-                    contextIsolation: true,
-                    enableRemoteModule: false,
+                    nodeIntegration: securityConfig.nodeIntegration === true,
+                    contextIsolation: securityConfig.contextIsolation !== false,
+                    enableRemoteModule: securityConfig.enableRemoteModule === true,
+                    sandbox: securityConfig.sandbox !== false,
+                    webSecurity: securityConfig.webSecurity !== false,
                     preload: path.join(__dirname, 'preload.js')
-                },
-                icon: this.config.trayIcon,
-                show: false // Don't show immediately
+                }
             });
 
-            // Load the app URL
-            this.mainWindow.loadURL(this.config.frontendUrl);
+            this.loadWindowContent();
 
-            // Show window when ready to prevent visual flash
             this.mainWindow.once('ready-to-show', () => {
-                this.mainWindow.show();
+                if (!modeConfig.hideOnStart && windowConfig.showOnStart) {
+                    this.mainWindow.show();
+                }
             });
 
-            // Handle window closed
+            this.mainWindow.on('close', (event) => {
+                if (modeConfig.hideOnClose || modeConfig.minimizeToTray) {
+                    if (!this.isQuitting) {
+                        event.preventDefault();
+                        this.mainWindow.hide();
+                        logger.info('Window hidden to tray');
+                    }
+                }
+            });
+
             this.mainWindow.on('closed', () => {
                 this.mainWindow = null;
             });
 
-            // Handle navigation errors
             this.mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
                 logger.error(`Failed to load frontend: ${errorCode} - ${errorDescription}`);
                 this.handleLoadError(errorCode, errorDescription);
@@ -236,6 +227,64 @@ class ElectronManager {
             logger.info('Main window created successfully');
         } catch (error) {
             logger.error(`Failed to create main window: ${error.message}`);
+        }
+    }
+
+    loadWindowContent() {
+        try {
+            if (!this.mainWindow) {
+                logger.warn('Cannot load content: main window not created');
+                return;
+            }
+
+            const windowConfig = this.config.window || {};
+            const contentConfig = windowConfig.content || {};
+            const contentType = contentConfig.type || 'url';
+            const contentSource = contentConfig.source || this.config.services?.frontend?.url || this.config.frontendUrl || 'http://localhost:7096';
+            const loadOptions = contentConfig.loadOptions || {};
+
+            switch (contentType) {
+                case 'url':
+                    logger.info(`Loading URL: ${contentSource}`);
+                    this.mainWindow.loadURL(contentSource, loadOptions);
+                    break;
+
+                case 'file':
+                    const filePath = path.isAbsolute(contentSource) ? contentSource : path.join(process.cwd(), contentSource);
+                    logger.info(`Loading file: ${filePath}`);
+                    this.mainWindow.loadFile(filePath);
+                    break;
+
+                case 'html':
+                    logger.info('Loading HTML content');
+                    this.mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(contentSource)}`);
+                    break;
+
+                default:
+                    logger.warn(`Unknown content type: ${contentType}, falling back to URL`);
+                    this.mainWindow.loadURL(contentSource, loadOptions);
+            }
+
+            logger.info('Window content loaded successfully');
+        } catch (error) {
+            logger.error(`Failed to load window content: ${error.message}`);
+        }
+    }
+
+    showMainWindow() {
+        try {
+            if (!this.mainWindow) {
+                this.createMainWindow();
+            } else {
+                if (this.mainWindow.isMinimized()) {
+                    this.mainWindow.restore();
+                }
+                this.mainWindow.show();
+                this.mainWindow.focus();
+            }
+            logger.info('Main window shown');
+        } catch (error) {
+            logger.error(`Failed to show main window: ${error.message}`);
         }
     }
 
@@ -444,27 +493,43 @@ class ElectronManager {
     updateTrayMenu() {
         if (!this.tray) return;
 
-        const contextMenu = Menu.buildFromTemplate([
-            {
+        const menuConfig = this.config.tray?.contextMenu || {};
+        const menuItems = menuConfig.items || {};
+        const menuTemplate = [];
+
+        if (menuItems.openFrontend !== false) {
+            menuTemplate.push({
                 label: 'Open Frontend',
                 click: () => {
                     this.openFrontend();
                 }
-            },
-            {
+            });
+        }
+
+        if (menuItems.openBackend !== false) {
+            menuTemplate.push({
                 label: 'Open Backend Status',
                 click: () => {
                     this.openBackendStatus();
                 }
-            },
-            { type: 'separator' },
-            {
+            });
+        }
+
+        if (menuItems.separator !== false && menuTemplate.length > 0) {
+            menuTemplate.push({ type: 'separator' });
+        }
+
+        if (menuItems.restartServices !== false) {
+            menuTemplate.push({
                 label: 'Restart Services',
                 click: () => {
                     this.restartServices();
                 }
-            },
-            {
+            });
+        }
+
+        if (menuItems.serviceStatus !== false) {
+            menuTemplate.push({
                 label: 'Service Status',
                 submenu: [
                     {
@@ -480,29 +545,45 @@ class ElectronManager {
                         enabled: false
                     }
                 ]
-            },
-            { type: 'separator' },
-            {
+            });
+        }
+
+        if (menuItems.separator !== false) {
+            menuTemplate.push({ type: 'separator' });
+        }
+
+        if (menuItems.settings !== false) {
+            menuTemplate.push({
                 label: 'Settings',
                 click: () => {
                     this.openSettings();
                 }
-            },
-            {
+            });
+        }
+
+        if (menuItems.about !== false) {
+            menuTemplate.push({
                 label: 'About',
                 click: () => {
                     this.showAboutDialog();
                 }
-            },
-            { type: 'separator' },
-            {
+            });
+        }
+
+        if (menuItems.separator !== false) {
+            menuTemplate.push({ type: 'separator' });
+        }
+
+        if (menuItems.quit !== false) {
+            menuTemplate.push({
                 label: 'Quit',
                 click: () => {
                     app.quit();
                 }
-            }
-        ]);
+            });
+        }
 
+        const contextMenu = Menu.buildFromTemplate(menuTemplate);
         this.tray.setContextMenu(contextMenu);
     }
 

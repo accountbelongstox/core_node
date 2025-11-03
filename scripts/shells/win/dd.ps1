@@ -1173,6 +1173,24 @@ if (-not $SkipInitialization) {
     Store-GlobalPaths
     Make-PsExecutable
     Create-Symlink
+    
+    # Check and ensure desktop shortcut exists
+    $shortcutCheckScript = Join-Path $Global:CORE_NODE_DIR "pycore\pyutils\launcher\shortcut_check.ps1"
+    if (Test-Path $shortcutCheckScript) {
+        Write-ColorMessage -Message "Checking desktop shortcut..." -Type "Info"
+        try {
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $shortcutCheckScript
+            if ($LASTEXITCODE -eq 0) {
+                Write-ColorMessage -Message "Desktop shortcut check completed" -Type "Success"
+            } else {
+                Write-ColorMessage -Message "Desktop shortcut check completed with warnings" -Type "Warning"
+            }
+        } catch {
+            Write-ColorMessage -Message "Failed to check desktop shortcut: $($_.Exception.Message)" -Type "Warning"
+        }
+    } else {
+        Write-ColorMessage -Message "Shortcut check script not found: $shortcutCheckScript" -Type "Warning"
+    }
 } else {
     Write-ColorMessage -Message "Skipping initialization operations (returning from sub-menu)..." -Type "Info"
 }

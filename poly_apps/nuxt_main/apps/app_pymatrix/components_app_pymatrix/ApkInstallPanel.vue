@@ -99,6 +99,14 @@
           Cancel
         </BaseButton>
         <BaseButton
+          v-if="resultType === 'success' && resultMessage"
+          variant="primary"
+          icon="fas fa-list"
+          @click="handleViewPackages"
+        >
+          View Installed Packages
+        </BaseButton>
+        <BaseButton
           variant="success"
           :loading="installing"
           :disabled="!selectedApk || installing"
@@ -126,6 +134,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   success: [packageName: string];
+  viewPackages: [];
 }>();
 
 const fileInput = ref<HTMLInputElement>();
@@ -257,6 +266,11 @@ async function handleInstall() {
   } finally {
     installing.value = false;
   }
+}
+
+function handleViewPackages() {
+  emit('viewPackages');
+  handleClose();
 }
 
 function handleClose() {

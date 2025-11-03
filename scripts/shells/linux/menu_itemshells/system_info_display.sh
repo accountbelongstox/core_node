@@ -55,8 +55,29 @@ show_complete_system_info() {
     echo ""
     echo "System Resources:"
     echo "  Memory: $(free -h | grep Mem: | awk '{print $2}')"
-    echo "  Disk: $(df -h / | tail -1 | awk '{print $2}')"
     echo "  CPU: $(nproc) cores"
+    echo ""
+
+    echo "--- Disk Usage Information ---"
+    echo ""
+
+    echo "All Mounted Filesystems:"
+    df -h --output=source,fstype,size,used,avail,pcent,target | awk '
+    BEGIN {
+        printf "%-25s %-10s %8s %8s %8s %6s  %s\n", "Filesystem", "Type", "Size", "Used", "Avail", "Use%", "Mounted on"
+        printf "%-25s %-10s %8s %8s %8s %6s  %s\n", "----------", "----", "----", "----", "-----", "----", "----------"
+    }
+    NR>1 {
+        printf "%-25s %-10s %8s %8s %8s %6s  %s\n", $1, $2, $3, $4, $5, $6, $7
+    }'
+
+    echo ""
+    echo "Main Physical Disks:"
+    df -h | grep -E '^/dev/(sd|nvme|vd|hd)' | awk '{printf "  %s: %s / %s used (%s)\n", $6, $3, $2, $5}'
+
+    echo ""
+    echo "Total Disk Summary:"
+    df -h --total | tail -1 | awk '{printf "  Total: %s / %s used (%s available)\n", $3, $2, $4}'
     echo ""
 
     # Basic System Information

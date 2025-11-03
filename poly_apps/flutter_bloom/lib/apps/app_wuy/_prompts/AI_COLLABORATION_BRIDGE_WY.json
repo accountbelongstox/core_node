@@ -1,7 +1,7 @@
 {
   "project": "app_wuy - Social Networking App",
-  "lastUpdate": "2025-11-03 23:55",
-  "version": "1.0.2",
+  "lastUpdate": "2025-11-03 25:00",
+  "version": "1.0.4",
   "readStatus": {
     "backend": "✅ Known - Backend completed full feature set implementation",
     "frontend": "✅ Known - Frontend completed API client library integration"
@@ -196,6 +196,181 @@
             "App initialization",
             "Loading states"
           ]
+        }
+      }
+    },
+    "recentEnhancements": {
+      "updateDate": "2025-11-03 25:00",
+      "completionAnalysis": {
+        "status": "✅ ALL P0 & P1 TASKS COMPLETED",
+        "totalProgress": "100%",
+        "completedTasks": {
+          "P0Critical": [
+            {
+              "task": "Friend Info Page - Phone Report Module",
+              "status": "✅ Completed",
+              "implementation": [
+                "Added WuyPhoneReportCard widget integration",
+                "Displays network records with WiFi SSID",
+                "Shows unlock count, screen time, battery level",
+                "Uses centralized PhoneReportModelAppWuy",
+                "Replaced hardcoded health data with WuyHealthDataCard"
+              ],
+              "files": [
+                "lib/apps/app_wuy/features_app_wuy/friends/views/friend_info_screen.dart"
+              ]
+            },
+            {
+              "task": "History Tracking Page - Distance/Location/Duration",
+              "status": "✅ Completed",
+              "implementation": [
+                "Complete rewrite to show location-based history",
+                "Displays total travel distance in header",
+                "Shows location names and stay duration",
+                "Uses HistoryRecordModelAppWuy and WuyLocationHistoryItem",
+                "Removed generic history records, replaced with location tracking"
+              ],
+              "files": [
+                "lib/apps/app_wuy/features_app_wuy/history/views/history_tracking_screen.dart"
+              ]
+            },
+            {
+              "task": "Chat Page - System Message Functionality",
+              "status": "✅ Completed",
+              "implementation": [
+                "Integrated WuySystemMessageBubble widget",
+                "Checks message.isSystemMessage flag",
+                "Displays system events with appropriate icons/colors",
+                "Supports 7 system message types (battery, appOpened, screenshot, locationChanged, networkChanged, deviceUnlock, appUsage)"
+              ],
+              "files": [
+                "lib/apps/app_wuy/features_app_wuy/chat/views/chat_screen.dart"
+              ]
+            }
+          ],
+          "P1Important": [
+            {
+              "task": "Network Records Page - WiFi Name Display",
+              "status": "✅ Completed",
+              "implementation": [
+                "Replaced local NetworkRecord with NetworkRecordModelAppWuy",
+                "Displays WiFi SSID when available (record.wifiSsid)",
+                "Shows 'Connected WiFi: [SSID]' format",
+                "Fallback to 'Connected to WiFi' when SSID is null"
+              ],
+              "files": [
+                "lib/apps/app_wuy/features_app_wuy/network/views/network_records_screen.dart"
+              ]
+            },
+            {
+              "task": "Friend List Page - Monitoring Status/Last Message",
+              "status": "✅ Completed",
+              "implementation": [
+                "Added monitoring badge with eye icon (friend.isMonitoring)",
+                "Displays last message text (friend.lastMessage)",
+                "Shows formatted last message time (e.g., '5m ago', '2h ago')",
+                "Integrated time formatting helper method"
+              ],
+              "files": [
+                "lib/apps/app_wuy/features_app_wuy/friends/views/friends_list_screen.dart"
+              ]
+            },
+            {
+              "task": "Add Friend Page - Field Adjustments",
+              "status": "✅ Completed",
+              "implementation": [
+                "Replaced nickname/gender/age/height/weight fields with greeting/remark/relationship",
+                "Added WuyModernInputField for greeting message (3 lines)",
+                "Added WuyModernInputField for remark (single line)",
+                "Created relationship dropdown with 5 options (Friend, Family, Partner, Colleague, Other)",
+                "Added icon mapping for each relationship type",
+                "Integrated with form validation"
+              ],
+              "files": [
+                "lib/apps/app_wuy/features_app_wuy/friends/views/add_friend_screen.dart"
+              ]
+            },
+            {
+              "task": "Map Page - Relationship Information Display",
+              "status": "✅ Completed",
+              "implementation": [
+                "Added selectedFriend property to map screen state",
+                "Loaded friend data from fake data generator",
+                "Enhanced floating profile card with days together badge",
+                "Added relationship type display with appropriate icon",
+                "Shows friend bio/description below relationship",
+                "Implemented _getRelationshipIcon helper (partner/family/colleague/default)"
+              ],
+              "files": [
+                "lib/apps/app_wuy/features_app_wuy/map/views/map_screen.dart"
+              ]
+            }
+          ]
+        },
+        "dataModelEnhancements": {
+          "status": "✅ Centralized Models Extended",
+          "newModels": [
+            {
+              "model": "HistoryRecordModelAppWuy",
+              "file": "lib/apps/app_wuy/models_app_wuy/history_record_model_app_wuy.dart",
+              "fields": ["locationName", "stayDuration", "totalDistance", "type (arrival/departure/staying/moving)"]
+            },
+            {
+              "model": "NetworkRecordModelAppWuy",
+              "file": "lib/apps/app_wuy/models_app_wuy/network_record_model_app_wuy.dart",
+              "fields": ["wifiSsid", "type (wifi/mobile)", "networkStatus"]
+            },
+            {
+              "model": "HealthDataModelAppWuy",
+              "file": "lib/apps/app_wuy/models_app_wuy/health_data_model_app_wuy.dart",
+              "fields": ["steps", "heartRate", "temperature", "calories", "bloodOxygen"]
+            },
+            {
+              "model": "PhoneReportModelAppWuy",
+              "file": "lib/apps/app_wuy/models_app_wuy/phone_report_model_app_wuy.dart",
+              "fields": ["unlockCount", "totalScreenTime", "networkRecords", "appUsageRecords", "batteryLevel"]
+            }
+          ],
+          "extendedModels": [
+            {
+              "model": "FriendModelAppWuy",
+              "newFields": ["daysTogether", "lastMessage", "lastMessageTime", "isMonitoring", "healthData", "phoneReport"]
+            },
+            {
+              "model": "ChatMessageModelAppWuy",
+              "newFields": ["isSystemMessage", "systemMessageType", "SystemMessageType enum"]
+            }
+          ]
+        },
+        "newWidgets": {
+          "status": "✅ Centralized Widgets Created",
+          "widgets": [
+            {
+              "widget": "WuyHealthDataCard",
+              "file": "lib/apps/app_wuy/widgets_app_wuy/wuy_health_data_card.dart",
+              "purpose": "Display health data (steps, heart rate, temperature, calories, blood oxygen)",
+              "usesTheme": true
+            },
+            {
+              "widget": "WuyPhoneReportCard",
+              "file": "lib/apps/app_wuy/widgets_app_wuy/wuy_phone_report_card.dart",
+              "purpose": "Display phone usage report (network records, unlock count, screen time, battery)",
+              "usesTheme": true
+            },
+            {
+              "widget": "WuySystemMessageBubble",
+              "file": "lib/apps/app_wuy/widgets_app_wuy/wuy_system_message_bubble.dart",
+              "purpose": "Display system messages in chat with icons/colors",
+              "usesTheme": true
+            },
+            {
+              "widget": "WuyLocationHistoryItem",
+              "file": "lib/apps/app_wuy/widgets_app_wuy/wuy_location_history_item.dart",
+              "purpose": "Display location history records with stay duration",
+              "usesTheme": true
+            }
+          ],
+          "designPrinciple": "All widgets use ThemeColors, ThemeTextStyles, and ThemeDimensions from lib/common"
         }
       }
     },

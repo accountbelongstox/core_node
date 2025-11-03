@@ -19,7 +19,11 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
+import '../../../models_app_wuy/health_data_model_app_wuy.dart';
+import '../../../models_app_wuy/phone_report_model_app_wuy.dart';
 import '../../../services_app_wuy/wuy_fake_data_generator.dart';
+import '../../../widgets_app_wuy/wuy_health_data_card.dart';
+import '../../../widgets_app_wuy/wuy_phone_report_card.dart';
 import 'package:qyflutter/common/widgets/floating_avatar_header.dart';
 import 'package:qyflutter/common/assets/common_assets_images.dart';
 
@@ -84,6 +88,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
           children: [
             _buildHeaderSection(),
             _buildHealthSection(),
+            _buildPhoneReportSection(),
             _buildLocationsSection(),
             _buildAchievementsSection(),
             _buildActionsSection(),
@@ -116,60 +121,31 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
   }
 
   Widget _buildHealthSection() {
-    return Container(
-      margin: EdgeInsets.all(ThemeDimensions.defaultPadding),
+    HealthDataModelAppWuy? healthData;
+    if (friend?.healthData != null) {
+      healthData = HealthDataModelAppWuy.fromJson(friend!.healthData!);
+    }
+
+    return WuyHealthDataCard(
+      healthData: healthData,
+      title: 'TA的健康',
       padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(ThemeDimensions.borderRadiusMedium),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'TA的健康',
-            style: ThemeTextStyles.title3,
-          ),
-          SizedBox(height: ThemeDimensions.spacingMedium),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildHealthItem(Icons.directions_walk, 'Steps', '8,432'),
-              _buildHealthItem(Icons.thermostat, 'Temperature', '36.5°C'),
-              _buildHealthItem(Icons.favorite, 'Heart Rate', '72'),
-              _buildHealthItem(Icons.local_fire_department, 'Calories', '245'),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildHealthItem(IconData icon, String label, String value) {
-    return Column(
-      children: [
-        Icon(icon, color: ThemeColors.primary, size: 30),
-        SizedBox(height: ThemeDimensions.spacingSmall),
-        Text(
-          value,
-          style: ThemeTextStyles.bodyLarge.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: ThemeTextStyles.bodySmall.copyWith(
-            color: ThemeColors.textSecondary,
-          ),
-        ),
-      ],
+  Widget _buildPhoneReportSection() {
+    PhoneReportModelAppWuy? phoneReport;
+    if (friend?.phoneReport != null) {
+      phoneReport = PhoneReportModelAppWuy.fromJson(friend!.phoneReport!);
+    }
+
+    return WuyPhoneReportCard(
+      phoneReport: phoneReport,
+      title: 'TA今天的手机报告',
+      padding: EdgeInsets.symmetric(
+        horizontal: ThemeDimensions.defaultPadding,
+        vertical: ThemeDimensions.spacingSmall,
+      ),
     );
   }
 
