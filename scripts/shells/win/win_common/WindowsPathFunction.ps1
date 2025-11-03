@@ -680,6 +680,17 @@ try {
     Write-Log "Failed to add .winenvs to PATH: $($_.Exception.Message)" -color "Red"
 }
 
+# Ensure inline winenvs exists in Machine PATH before executing any action (after all functions are defined)
+try {
+    $inlineWinEnvsDirGuard = $Global:INLINE_WINENVS_DIR
+    $inlineWinEnvsNormGuard = Normalize-WindowsPath $inlineWinEnvsDirGuard
+    if ($inlineWinEnvsNormGuard) {
+        Add-Path -newPath $inlineWinEnvsNormGuard
+    }
+} catch {
+    Write-Log "Failed to add inline winenvs to PATH: $($_.Exception.Message)" -color "Red"
+}
+
 # Main logic
 switch ($action) {
     "add" {

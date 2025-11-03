@@ -16,9 +16,10 @@ use App\Apps\AwyV0\Controllers\AwyV0FriendCtl;
 
 // AwyV0 Friend Management Routes
 Route::prefix('awy-v0/friend')->middleware('auth:sanctum')->group(function () {
-    Route::get('/list', [AwyV0FriendCtl::class, 'getFriends']);
-    Route::post('/add', [AwyV0FriendCtl::class, 'addFriend']);
-    Route::delete('/remove', [AwyV0FriendCtl::class, 'removeFriend']);
-    Route::get('/info', [AwyV0FriendCtl::class, 'getFriendInfo']);
-    Route::get('/health', [AwyV0FriendCtl::class, 'getFriendHealth']);
+    Route::get('/list', [AwyV0FriendCtl::class, 'list']);
+    Route::post('/add', [AwyV0FriendCtl::class, 'add']);
+    Route::delete('/remove', [AwyV0FriendCtl::class, 'remove']);
+    Route::get('/info', [AwyV0FriendCtl::class, 'info']);
+    Route::get('/health', [AwyV0FriendCtl::class, 'health']);
+    Route::get('/search', [AwyV0FriendCtl::class, 'search']);
 });

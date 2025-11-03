@@ -21,4 +21,6 @@ Route::prefix('awy-v0/auth')->group(function () {
     Route::post('/verify-email', [App\Apps\AwyV0\Controllers\AwyV0AuthCtl::class, 'verifyEmail']);
     Route::post('/forgot-password', [App\Apps\AwyV0\Controllers\AwyV0AuthCtl::class, 'forgotPassword']);
     Route::post('/reset-password', [App\Apps\AwyV0\Controllers\AwyV0AuthCtl::class, 'resetPassword']);
+    Route::post('/send-sms', [App\Apps\AwyV0\Controllers\AwyV0AuthCtl::class, 'sendSms']);
+    Route::post('/phone-login', [App\Apps\AwyV0\Controllers\AwyV0AuthCtl::class, 'phoneLogin']);
 });

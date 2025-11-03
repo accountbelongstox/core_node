@@ -1,23 +1,32 @@
-# 单词学习 APP - 项目总结
+# Word Learning App - Project Summary
 
-**项目名称**: Word Learning App (app_qy)
-**项目类型**: Flutter 跨平台移动应用
-**文档版本**: v1.0.0
-**创建日期**: 2025-11-02
+**Project Name**: Word Learning App (app_qy)
+**Project Type**: Flutter Cross-Platform Multi-App Application
+**Backend**: Laravel 12 Headless API
+**Framework**: Flutter Bloom Multi-App Architecture
+**Documentation Version**: v1.0.0
+**Created Date**: 2025-11-02
+**Last Updated**: 2025-11-03
 
 ---
 
-## 📋 项目概述
+## 📋 Project Overview
 
-### 🎯 项目愿景
-打造一款基于艾宾浩斯遗忘曲线的智能单词学习应用，帮助用户高效记忆单词，支持文档导入、多单词组管理、智能复习调度等功能。
+### 🎯 Project Vision
+Building an intelligent word learning application based on the Ebbinghaus forgetting curve to help users efficiently memorize words, supporting document import, multi-word group management, and intelligent review scheduling.
 
-### 🌟 核心特色
-1. **智能记忆系统** - 基于艾宾浩斯遗忘曲线的复习调度
-2. **阅读模式** - 独特的阅读学习模式，支持瞬时复习功能
-3. **文档导入** - 支持上传 PDF/Word 文档，自动提取单词和句子
-4. **总记忆库** - 跨单词组的统一记忆管理
-5. **多语言支持** - 9 种界面语言，5 种英语发音方言
+### 🌟 Core Features
+1. **Smart Memory System** - Review scheduling based on Ebbinghaus forgetting curve
+2. **Reading Mode** - Unique reading learning mode with instant review functionality
+3. **Document Import** - Support for uploading PDF/Word documents with automatic word and sentence extraction
+4. **Central Memory Bank** - Unified memory management across word groups
+5. **Multi-language Support** - 9 interface languages, 5 English pronunciation dialects
+
+### 🏗️ Architecture Integration
+- **Flutter Bloom Framework**: Multi-app aggregation architecture following Flutter Bloom standards
+- **Laravel 12 Backend**: Headless API mode with shared database and multi-app support
+- **Clean Architecture**: Separation of concerns with domain-driven design
+- **State Management**: Provider-based state management with persistence
 
 ---
 
@@ -60,34 +69,35 @@ dio: ^5.4.0               # 网络请求
 flutter_tts: ^3.8.0       # 语音播放
 ```
 
-**后端**:
-```python
-fastapi==0.104.1          # Web 框架
-sqlalchemy==2.0.23        # ORM
-asyncpg==0.29.0           # PostgreSQL
-redis==5.0.1              # 缓存
-celery==5.3.4             # 异步任务
+**Backend**:
+```php
+Laravel Framework: 12.0   # PHP Web Framework
+MySQL/PostgreSQL: Latest   # Database
+Redis: Latest              # Cache & Queue
+ Sanctum: Latest           # Authentication
 ```
 
-#### 系统架构
-- ✅ Clean Architecture 分层架构
-- ✅ 完整的目录结构设计
-- ✅ 数据流设计图
+#### System Architecture
+- ✅ Clean Architecture layered architecture
+- ✅ Complete directory structure design
+- ✅ Data flow design diagram
+- ✅ Laravel 12 Headless API integration
+- ✅ Multi-app shared database architecture
 
-#### 数据库设计
-**本地数据库** (Isar):
-- MemoryRecord（记忆库记录）- 23 个字段
-- WordGroup（单词组）- 18 个字段
-- ReviewTask（复习任务）- 8 个字段
-- UserSettings（用户设置）- 16 个字段
+#### Database Design
+**Local Database** (SQLite via Flutter common/database):
+- MemoryRecord (memory bank records) - 23 fields
+- WordGroup (word groups) - 18 fields
+- ReviewTask (review tasks) - 8 fields
+- UserSettings (user settings) - 16 fields
 
-**远程数据库** (PostgreSQL):
-- users（用户表）
-- dictionary（词库表）
-- user_word_groups（用户单词组）
-- word_group_words（单词组词表）
-- user_learning_records（学习记录）
-- user_documents（文档记录）
+**Remote Database** (Laravel shared database):
+- app_qy_v1_users (user table)
+- app_qy_v1_dictionary (dictionary table)
+- app_qy_v1_word_groups (user word groups)
+- app_qy_v1_word_group_words (word group word list)
+- app_qy_v1_learning_records (learning records)
+- app_qy_v1_documents (document records)
 
 #### 核心功能实现
 - ✅ 艾宾浩斯遗忘曲线算法（完整代码）

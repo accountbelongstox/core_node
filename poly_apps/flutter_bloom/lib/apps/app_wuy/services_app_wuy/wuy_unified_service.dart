@@ -25,10 +25,14 @@ import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
 import '../models_app_wuy/chat_message_model_app_wuy.dart';
 import '../models_app_wuy/location_model_app_wuy.dart';
+import '../models_app_wuy/auth_models_app_wuy.dart';
 import '../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../providers_app_wuy/wu_user_provider.dart';
 import 'wuy_fake_data_generator.dart';
 import 'wuy_auth_state_manager.dart';
+import 'wuy_api_client.dart';
+import 'wuy_api_service_manager.dart';
+import 'wuy_auth_api_service.dart';
 
 /// Unified Wuy Service
 /// Consolidates WuyApiCenter, WuyAuthService, and WuyService functionality
@@ -41,6 +45,10 @@ class WuyUnifiedService extends AdvancedNetworkService {
   UnifiedNetworkClient? _networkClient;
   WuUserProvider? _userProvider;
   final WuyAuthStateManager _authStateManager = WuyAuthStateManager.instance;
+
+  // New API service manager
+  WuyApiServiceManager? _apiServiceManager;
+  bool _useNewApi = false; // Flag to switch between old and new API
 
   @override
   String get serviceName => AppConfigAppWuy.appId;
@@ -56,6 +64,19 @@ class WuyUnifiedService extends AdvancedNetworkService {
   @override
   Future<void> initialize() async {
     await super.initialize();
+
+    // Initialize new API service manager if enabled
+    if (AppConfigAppWuy.enableNewApiIntegration) {
+      try {
+        _apiServiceManager = WuyApiServiceManager();
+        await _apiServiceManager!.initialize();
+        _useNewApi = true;
+        debugPrint('WuyUnifiedService: New API integration enabled');
+      } catch (e) {
+        debugPrint('WuyUnifiedService: Failed to initialize new API, falling back to legacy: $e');
+        _useNewApi = false;
+      }
+    }
 
     // Storage will be initialized by runCommonApp
     // No need to initialize storage here to avoid binding issues
@@ -209,6 +230,11 @@ class WuyUnifiedService extends AdvancedNetworkService {
   }) async {
     if (!PhoneChecker.isValidPhone(phone)) {
       return AuthResult.error('Invalid phone number format');
+    }
+
+    // Use new API if enabled and available
+    if (_useNewApi && _apiServiceManager != null) {
+      return _newApiLoginWithPhone(phone, verificationCode);
     }
 
     if (AppConfigAppWuy.enableMockApi) {
@@ -423,6 +449,124 @@ class WuyUnifiedService extends AdvancedNetworkService {
       await _networkClient!.request<Map<String, dynamic>>(request);
     } catch (e) {
       debugPrint('${LocalizationKeysAppWuy.wuyDebugRealLogoutFailed.tr()}: $e');
+    } finally {
+      await logout();
+    }
+  }
+
+  // ==================== NEW API METHODS ====================
+
+  /// Login with phone using new API
+  Future<AuthResult> _newApiLoginWithPhone(String phone, String verificationCode) async {
+    try {
+      final response = await _apiServiceManager!.auth.loginWithPhone(
+        phone: phone,
+        verificationCode: verificationCode,
+      );
+
+      if (response.success && response.data != null) {
+        final authResponse = response.data!;
+
+        // Update auth state manager
+        await _authStateManager.setAuthenticatedUser(authResponse.user);
+
+        // Sync user provider state immediately
+        _userProvider?.syncWithAuthStateManager();
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        return AuthResult.success(authResponse.user, 'Login successful');
+      } else {
+        return AuthResult.error(response.message ?? 'Login failed');
+      }
+    } catch (e) {
+      return AuthResult.error('Login failed: ${e.toString()}');
+    }
+  }
+
+  /// Register with phone using new API
+  Future<AuthResult> _newApiRegisterWithPhone(String phone, String verificationCode) async {
+    try {
+      // For phone registration, we need to generate username and email
+      final username = 'user_${phone.substring(phone.length - 4)}';
+      final email = 'user_${phone.substring(phone.length - 4)}@anwuyou.test';
+      final password = 'defaultPassword123'; // This should be provided by user
+
+      final response = await _apiServiceManager!.auth.register(
+        username: username,
+        email: email,
+        password: password,
+        phone: phone,
+      );
+
+      if (response.success && response.data != null) {
+        final authResponse = response.data!;
+
+        // Update auth state manager
+        await _authStateManager.setAuthenticatedUser(authResponse.user);
+
+        // Sync user provider state immediately
+        _userProvider?.syncWithAuthStateManager();
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        return AuthResult.success(authResponse.user, 'Registration successful');
+      } else {
+        return AuthResult.error(response.message ?? 'Registration failed');
+      }
+    } catch (e) {
+      return AuthResult.error('Registration failed: ${e.toString()}');
+    }
+  }
+
+  /// Send verification code using new API
+  Future<AuthResult> _newApiSendVerificationCode(String phone) async {
+    try {
+      final response = await _apiServiceManager!.auth.sendSmsCode(phone: phone);
+
+      if (response.success) {
+        return AuthResult.success(null, response.message ?? 'Verification code sent successfully');
+      } else {
+        return AuthResult.error(response.message ?? 'Failed to send verification code');
+      }
+    } catch (e) {
+      return AuthResult.error('Failed to send verification code: ${e.toString()}');
+    }
+  }
+
+  /// Login with username/password using new API
+  Future<AuthResult> _newApiLoginWithPassword(String username, String password) async {
+    try {
+      final response = await _apiServiceManager!.auth.login(username: username, password: password);
+
+      if (response.success && response.data != null) {
+        final authResponse = response.data!;
+
+        // Update auth state manager
+        await _authStateManager.setAuthenticatedUser(authResponse.user);
+
+        // Sync user provider state immediately
+        _userProvider?.syncWithAuthStateManager();
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        return AuthResult.success(authResponse.user, 'Login successful');
+      } else {
+        return AuthResult.error(response.message ?? 'Login failed');
+      }
+    } catch (e) {
+      return AuthResult.error('Login failed: ${e.toString()}');
+    }
+  }
+
+  /// Logout using new API
+  Future<void> _newApiLogout() async {
+    try {
+      final user = _authStateManager.currentUser;
+      if (user != null) {
+        // We would need the access token, but it's not stored in the user model
+        // This is a placeholder for future implementation
+        await _apiServiceManager!.auth.logout(accessToken: 'placeholder_token');
+      }
+    } catch (e) {
+      debugPrint('New API logout failed: $e');
     } finally {
       await logout();
     }

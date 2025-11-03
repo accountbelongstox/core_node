@@ -1,9 +1,12 @@
-# 单词学习 APP - 开发路线图
+# Word Learning App - Development Roadmap
 
-**项目名称**: Word Learning App (app_qy)
-**预计开发周期**: 12-16 周
-**团队配置**: 2 前端 + 1 后端 + 1 测试
-**文档版本**: v1.0.0
+**Project Name**: Word Learning App (app_qy)
+**Development Framework**: Flutter Bloom Multi-App Architecture
+**Backend**: Laravel 12 Headless API
+**Estimated Development Period**: 12-16 weeks
+**Team Configuration**: 2 Frontend + 1 Backend + 1 QA
+**Documentation Version**: v1.0.0
+**Last Updated**: 2025-11-03
 
 ---
 
@@ -12,34 +15,34 @@
 ### **Phase 0: 项目初始化（Week 1）**
 **目标**: 搭建项目基础架构
 
-#### 前端任务
-- [ ] 创建 Flutter 项目结构
-- [ ] 配置 Clean Architecture 目录结构
-- [ ] 集成核心依赖包
-  - [ ] riverpod (状态管理)
-  - [ ] isar (本地数据库)
-  - [ ] dio (网络请求)
-  - [ ] flutter_tts (语音播放)
-- [ ] 创建基础 UI 组件库
-- [ ] 配置主题系统
-- [ ] 配置多语言支持 (i18n)
-- [ ] 创建路由系统
+#### Frontend Tasks (Flutter Bloom Framework)
+- [ ] Configure app_qy structure within Flutter Bloom framework
+- [ ] Set up Clean Architecture directory structure under lib/apps/app_qy/
+- [ ] Integrate core Flutter Bloom dependencies
+  - [ ] Provider (state management - following Flutter Bloom standards)
+  - [ ] Flutter common/database (SQLite)
+  - [ ] Flutter common/network (HTTP requests)
+  - [ ] flutter_tts (voice playback)
+- [ ] Create basic UI components using Flutter Bloom common widgets
+- [ ] Configure theme system using Flutter Bloom theme manager
+- [ ] Configure multi-language support using Flutter Bloom localization
+- [ ] Create router system using Flutter Bloom routing standards
 
-#### 后端任务
-- [ ] 创建 FastAPI 项目结构
-- [ ] 配置 PostgreSQL 数据库
-- [ ] 配置 Redis
-- [ ] 创建数据库表结构
-- [ ] 配置 Alembic 数据库迁移
-- [ ] 创建基础 API 响应模型
-- [ ] 配置 JWT 认证中间件
-- [ ] 配置日志系统
+#### Backend Tasks (Laravel 12)
+- [ ] Create Laravel application structure under poly_apps/laravel_main/
+- [ ] Configure database (MySQL/PostgreSQL) with multi-app shared schema
+- [ ] Configure Redis for caching and queues
+- [ ] Create database migrations with app_qy_v1_ table prefix
+- [ ] Set up Laravel Sanctum for authentication
+- [ ] Create API resources and controllers in app/Apps/AppQyV1/
+- [ ] Configure middleware for headless API mode
+- [ ] Set up Laravel logging system
 
-#### DevOps 任务
-- [ ] 配置 Docker 开发环境
-- [ ] 配置 docker-compose
-- [ ] 配置 Git 工作流
-- [ ] 配置 CI/CD 基础
+#### DevOps Tasks
+- [ ] Configure development environment following Flutter Bloom compilation flow
+- [ ] Set up build scripts using Flutter Bloom build system
+- [ ] Configure Git workflow with branch strategy
+- [ ] Set up CI/CD pipeline following project standards
 
 **交付物**:
 - 可运行的前后端项目框架

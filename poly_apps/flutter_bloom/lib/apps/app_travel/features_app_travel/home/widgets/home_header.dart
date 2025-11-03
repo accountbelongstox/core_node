@@ -55,25 +55,24 @@ class HomeHeader extends StatelessWidget {
     final boxShadow = _calculateBoxShadow();
 
     return Container(
-      height: 44.0,
+      height: 60.0,
       decoration: BoxDecoration(
-        color: headerBg,
-        boxShadow: boxShadow != null ? [boxShadow] : null,
+        color: Colors.transparent,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10.5),
+        padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 8.0),
         child: Row(
           children: [
             Expanded(
               child: Container(
-                height: 36.0,
+                height: 44.0,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(18.0),
+                  borderRadius: BorderRadius.circular(22.0),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 4.0,
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 8.0,
                       offset: const Offset(0, 2.0),
                     ),
                   ],
@@ -86,7 +85,7 @@ class HomeHeader extends StatelessWidget {
                           context.push(TravelAppRoutesProvider.routeSearch);
                         },
                         child: Container(
-                          padding: const EdgeInsets.only(left: 16.0),
+                          padding: const EdgeInsets.only(left: 18.0),
                           alignment: Alignment.centerLeft,
                           child: Text(
                             '新人大礼包',
@@ -103,14 +102,14 @@ class HomeHeader extends StatelessWidget {
                         context.push(TravelAppRoutesProvider.routeSearch);
                       },
                       child: Container(
-                        margin: const EdgeInsets.all(4.0),
+                        margin: const EdgeInsets.all(6.0),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20.0,
-                          vertical: 6.0,
+                          vertical: 8.0,
                         ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF00D0D8),
-                          borderRadius: BorderRadius.circular(14.0),
+                          borderRadius: BorderRadius.circular(16.0),
                         ),
                         child: const Text(
                           '搜索',
@@ -126,26 +125,26 @@ class HomeHeader extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 8.0),
+            const SizedBox(width: 10.0),
             GestureDetector(
               onTap: onMenuTap,
               child: Container(
-                width: 32.0,
-                height: 32.0,
+                width: 40.0,
+                height: 40.0,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16.0),
+                  borderRadius: BorderRadius.circular(20.0),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 4.0,
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 8.0,
                       offset: const Offset(0, 2.0),
                     ),
                   ],
                 ),
                 child: Icon(
                   TravelIcons.scan,
-                  size: 18.0,
+                  size: 20.0,
                   color: const Color(0xFF00D0D8),
                 ),
               ),

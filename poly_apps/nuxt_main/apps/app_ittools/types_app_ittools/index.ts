@@ -1,6 +1,6 @@
 // IT Tools TypeScript Type Definitions
 
-export type ToolCategory = 'crypto' | 'converter' | 'web' | 'text' | 'math' | 'network' | 'media';
+export type ToolCategory = 'crypto' | 'converter' | 'web' | 'text' | 'math' | 'network' | 'media' | 'development' | 'measurement' | 'data';
 
 export type ParamType = 'string' | 'number' | 'boolean' | 'integer' | 'email' | 'url' | 'textarea' | 'select';
 
@@ -25,8 +25,8 @@ export interface Tool {
   description: string;
   category: ToolCategory;
   icon: string;
-  endpoint: string;
-  method: HttpMethod;
+  endpoint?: string;
+  method?: HttpMethod;
   params: Record<string, ToolParam>;
   keywords: string[];
   tags?: string[];
@@ -34,6 +34,7 @@ export interface Tool {
   documentation?: string;
   createdAt?: string;
   updatedAt?: string;
+  isNew?: boolean;
 }
 
 export interface ToolExample {
