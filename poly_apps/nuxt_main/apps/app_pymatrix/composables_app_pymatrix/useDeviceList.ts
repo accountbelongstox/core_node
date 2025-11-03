@@ -5,7 +5,7 @@
  */
 
 import { ref, onMounted, onUnmounted } from 'vue';
-import { pyMatrixDeviceAPI } from '../../services/api/pymatrix/pymatrix-device-api';
+import { pyMatrixDeviceAPI } from '~/services/api/pymatrix/pymatrix-device-api';
 import type { Device } from '../../../types/pymatrix';
 
 export interface UseDeviceListOptions {
