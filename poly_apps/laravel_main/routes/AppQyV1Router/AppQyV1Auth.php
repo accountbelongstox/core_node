@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // ### AI SPECIAL ATTENTION RULES START ###
 // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 // 1. Write all code in English only.
@@ -11,15 +11,14 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Apps\AppQyV1\Controllers\AppQyV1AuthenticationLoginController as DictloginController;
-use App\Apps\AppQyV1\Controllers\AppQyV1AuthenticationEmailVerificationNotificationController as EmailVerificationNotificationController;
-use App\Apps\AppQyV1\Controllers\AppQyV1AuthenticationPasswordResetController as NewPasswordController;
-use App\Apps\AppQyV1\Controllers\AppQyV1AuthenticationPasswordResetLinkController as PasswordResetLinkController;
-use App\Apps\AppQyV1\Controllers\AppQyV1AuthenticationRegistrationController as DictregisteredUserController;
-use App\Apps\AppQyV1\Controllers\AppQyV1AuthenticationEmailVerificationController as VerifyEmailController;
+use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationLoginController as DictloginController;
+use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationEmailVerificationNotificationController as EmailVerificationNotificationController;
+use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationPasswordResetController as NewPasswordController;
+use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationPasswordResetLinkController as PasswordResetLinkController;
+use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationRegistrationController as DictregisteredUserController;
+use App\Apps\AppQyV1\Controllers\AppQyV1UserAuth\AppQyV1AuthenticationEmailVerificationController as VerifyEmailController;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'dict/' . $version;
