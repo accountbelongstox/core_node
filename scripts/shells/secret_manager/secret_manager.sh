@@ -196,8 +196,8 @@ secret_decrypt_all() {
             echo "[SECRET_DECRYPT_ALL]   SUCCESS: $key_name" >&2
             ((success_count++))
         else
-            echo "[SECRET_DECRYPT_ALL]   FAILED: $key_name" >&2
-            echo "[SECRET_DECRYPT_ALL]   Error: $result" >&2
+            echo "[SECRET_DECRYPT_ALL]   FAILED: $key_name (exit code: $exit_code)" >&2
+            echo "[SECRET_DECRYPT_ALL]   Node output: $result" >&2
             ((fail_count++))
         fi
     done
@@ -381,23 +381,44 @@ secret_get_key() {
         # Display decryption command (hide password)
         echo "[SECRET_GET_KEY] Executing: node \"$encrypted_file\" pwd \"********\" \"$temp_output_dir\"" >&2
 
+        # Check if node is available
+        if ! command -v node &>/dev/null; then
+            echo "[SECRET_GET_KEY] ERROR: node command not found" >&2
+            rm -rf "$temp_output_dir"
+            return 1
+        fi
+
         # Decrypt to temporary directory
         local result
         result=$(node "$encrypted_file" pwd "$password" "$temp_output_dir" 2>&1)
         local exit_code=$?
 
-        if [ $exit_code -eq 0 ] && [ -f "$temp_raw_file" ]; then
-            local content=$(cat "$temp_raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+        # Show detailed error if decryption failed
+        if [ $exit_code -ne 0 ]; then
+            echo "[SECRET_GET_KEY] ERROR: Decryption command failed (exit code: $exit_code)" >&2
+            echo "[SECRET_GET_KEY] Node output: $result" >&2
             rm -rf "$temp_output_dir"
-
-            if [ -n "$content" ]; then
-                echo "$content"
-                return 0
-            fi
+            return 1
         fi
 
+        # Check if output file was created
+        if [ ! -f "$temp_raw_file" ]; then
+            echo "[SECRET_GET_KEY] ERROR: Decrypted file not created: $temp_raw_file" >&2
+            echo "[SECRET_GET_KEY] Node output: $result" >&2
+            rm -rf "$temp_output_dir"
+            return 1
+        fi
+
+        # Read decrypted content
+        local content=$(cat "$temp_raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
         rm -rf "$temp_output_dir"
-        echo "[SECRET_GET_KEY] ERROR: Failed to decrypt $key_name (incorrect password?)" >&2
+
+        if [ -n "$content" ]; then
+            echo "$content"
+            return 0
+        fi
+
+        echo "[SECRET_GET_KEY] ERROR: Decrypted file is empty" >&2
         return 1
     fi
 
