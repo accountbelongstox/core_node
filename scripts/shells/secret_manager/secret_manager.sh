@@ -101,12 +101,14 @@ secret_decrypt_all() {
     fi
 
     local encrypted_files=()
+    # Find both .js and .JS files (case-insensitive)
     while IFS= read -r -d '' enc_file; do
         encrypted_files+=("$enc_file")
-    done < <(find "$ENCRYPTED_DIR" -name "*.js" -type f -print0 2>/dev/null)
+    done < <(find "$ENCRYPTED_DIR" \( -name "*.js" -o -name "*.JS" \) -type f -print0 2>/dev/null)
 
     if [ ${#encrypted_files[@]} -eq 0 ]; then
         echo "[SECRET_DECRYPT_ALL] No encrypted files found in: $ENCRYPTED_DIR" >&2
+        echo "[SECRET_DECRYPT_ALL] Checked for both .js and .JS extensions" >&2
         return 0
     fi
 
@@ -134,7 +136,9 @@ secret_decrypt_all() {
     local fail_count=0
     for encrypted_file in "${encrypted_files[@]}"; do
         local file_name=$(basename "$encrypted_file")
-        local key_name=$(basename "$encrypted_file" .js)
+        # Remove extension (.js or .JS)
+        local key_name="${file_name%.js}"
+        key_name="${key_name%.JS}"
         echo "[SECRET_DECRYPT_ALL] Decrypting: $file_name -> $key_name" >&2
         local result
         result=$(node "$encrypted_file" pwd "$password" "$output_dir" 2>&1)
@@ -287,10 +291,18 @@ secret_get_key() {
     local raw_file="$RAW_DIR/$key_name"
     local encrypted_file="$ENCRYPTED_DIR/$key_name.js"
 
+    # Check for case-insensitive file extension (.js or .JS)
     if [ ! -f "$encrypted_file" ]; then
-        echo "[SECRET_GET_KEY] ERROR: Key not found: $key_name" >&2
-        echo "[SECRET_GET_KEY] Encrypted file missing: $encrypted_file" >&2
-        return 1
+        local encrypted_file_upper="$ENCRYPTED_DIR/$key_name.JS"
+        if [ -f "$encrypted_file_upper" ]; then
+            encrypted_file="$encrypted_file_upper"
+            echo "[SECRET_GET_KEY] Found encrypted file with uppercase extension: $encrypted_file" >&2
+        else
+            echo "[SECRET_GET_KEY] ERROR: Key not found: $key_name" >&2
+            echo "[SECRET_GET_KEY] Encrypted file missing: $encrypted_file" >&2
+            echo "[SECRET_GET_KEY] Also checked: $encrypted_file_upper" >&2
+            return 1
+        fi
     fi
 
     # Server environment: always decrypt on-demand, never cache
