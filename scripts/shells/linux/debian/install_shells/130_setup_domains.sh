@@ -33,6 +33,7 @@ DNSPOD_API_TOKEN=""
 DOMAINS_LISTS_CONTENT=""
 DOMAIN_PREFIXES=""
 SELECTED_PREFIXES=""
+DIAGNOSTICS_SCRIPT="$SCRIPT_CURRENT_DIR/../callbacks/post_domain_setup_diagnostics.sh"
 
 echo "[$SCRIPT_INDEX] Domain Setup Script - Adding domains to nginx and certbot"
 
@@ -1694,12 +1695,11 @@ if [ $success_count -eq $total_count ] && [ $total_count -gt 0 ]; then
     echo "[$SCRIPT_INDEX] RUNNING POST-SETUP DIAGNOSTICS"
     echo "[$SCRIPT_INDEX] =================================="
 
-    diagnostics_script="$SCRIPT_CURRENT_DIR/../callbacks/post_domain_setup_diagnostics.sh"
-    if [ -f "$diagnostics_script" ]; then
+    if [ -f "$DIAGNOSTICS_SCRIPT" ]; then
         echo "[$SCRIPT_INDEX] Executing diagnostics script..."
-        bash "$diagnostics_script"
+        bash "$DIAGNOSTICS_SCRIPT"
     else
-        echo "[$SCRIPT_INDEX] Diagnostics script not found: $diagnostics_script"
+        echo "[$SCRIPT_INDEX] Diagnostics script not found: $DIAGNOSTICS_SCRIPT"
         echo "[$SCRIPT_INDEX] Skipping diagnostics"
     fi
 
@@ -1713,12 +1713,11 @@ else
     echo "[$SCRIPT_INDEX] RUNNING POST-SETUP DIAGNOSTICS"
     echo "[$SCRIPT_INDEX] =================================="
 
-    diagnostics_script="$SCRIPT_CURRENT_DIR/../callbacks/post_domain_setup_diagnostics.sh"
-    if [ -f "$diagnostics_script" ]; then
+    if [ -f "$DIAGNOSTICS_SCRIPT" ]; then
         echo "[$SCRIPT_INDEX] Executing diagnostics script..."
-        bash "$diagnostics_script"
+        bash "$DIAGNOSTICS_SCRIPT"
     else
-        echo "[$SCRIPT_INDEX] Diagnostics script not found: $diagnostics_script"
+        echo "[$SCRIPT_INDEX] Diagnostics script not found: $DIAGNOSTICS_SCRIPT"
         echo "[$SCRIPT_INDEX] Skipping diagnostics"
     fi
 
