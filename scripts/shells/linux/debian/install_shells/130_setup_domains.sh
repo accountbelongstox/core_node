@@ -31,11 +31,74 @@ SECRET_PASSWORD=""
 DNSPOD_EMAIL=""
 DNSPOD_API_TOKEN=""
 DOMAINS_LISTS_CONTENT=""
+DOMAIN_PREFIXES=""
+SELECTED_PREFIXES=""
 
 echo "[$SCRIPT_INDEX] Domain Setup Script - Adding domains to nginx and certbot"
 
 # USE_SUDO is already defined in gvar_common.sh
 echo "[$SCRIPT_INDEX] Using sudo configuration from gvar_common.sh: ${USE_SUDO:-'(none)'}"
+
+# Function to select domain prefixes for WSL/Desktop environments
+select_domain_prefixes() {
+    # Only prompt for prefixes on non-production environments
+    if [ "$IS_PRODUCTION" = true ]; then
+        # Production: use all default prefixes
+        SELECTED_PREFIXES="local,si,sz,sh,api"
+        echo "[$SCRIPT_INDEX] Production environment: Using all default prefixes (local,si,sz,sh,api)"
+        return 0
+    fi
+
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] DOMAIN PREFIX SELECTION"
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] Current platform: $([ "$IS_WSL" = true ] && echo 'WSL' || echo 'Desktop')"
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Select domain prefixes for local development:"
+    echo "[$SCRIPT_INDEX] This determines which subdomains will be created for each domain."
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Default prefixes available:"
+    echo "[$SCRIPT_INDEX]   - local: For local development (local.domain.com, local.api.domain.com)"
+    echo "[$SCRIPT_INDEX]   - si:    For si region (si.domain.com, si.api.domain.com)"
+    echo "[$SCRIPT_INDEX]   - sz:    For sz region (sz.domain.com, sz.api.domain.com)"
+    echo "[$SCRIPT_INDEX]   - sh:    For sh region (sh.domain.com, sh.api.domain.com)"
+    echo "[$SCRIPT_INDEX]   - api:   For API endpoints (api.domain.com)"
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Enter prefixes (comma-separated), or press Enter for default (local,si,sz,sh,api):"
+    echo -n "[$SCRIPT_INDEX] Prefixes: " >&2
+
+    read -r user_input
+
+    if [ -z "$user_input" ]; then
+        SELECTED_PREFIXES="local,si,sz,sh,api"
+        echo "[$SCRIPT_INDEX] Using default prefixes: local,si,sz,sh,api"
+    else
+        # Trim whitespace and validate input
+        SELECTED_PREFIXES=$(echo "$user_input" | tr -d ' ')
+        echo "[$SCRIPT_INDEX] Selected prefixes: $SELECTED_PREFIXES"
+    fi
+
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Domains will be created with these patterns:"
+
+    # Parse selected prefixes and show what will be created
+    IFS=',' read -ra PREFIX_ARRAY <<< "$SELECTED_PREFIXES"
+    for prefix in "${PREFIX_ARRAY[@]}"; do
+        if [ "$prefix" = "api" ]; then
+            echo "[$SCRIPT_INDEX]   - api.domain.com (API endpoint)"
+        else
+            echo "[$SCRIPT_INDEX]   - $prefix.domain.com (static HTML)"
+            echo "[$SCRIPT_INDEX]   - $prefix.api.domain.com (API endpoint)"
+            echo "[$SCRIPT_INDEX]   - *.$prefix.domain.com (wildcard)"
+            echo "[$SCRIPT_INDEX]   - *.$prefix.api.domain.com (wildcard)"
+        fi
+    done
+
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX]"
+
+    return 0
+}
 
 # Function to initialize secrets with password prompt
 initialize_secrets() {
@@ -873,11 +936,14 @@ setup_domain() {
     # Use new Laravel commands instead of deploy
     echo "[$SCRIPT_INDEX] Setting up SSL certificate and website for: $domain"
 
-    # Step 1: Add SSL certificate
-    echo "[$SCRIPT_INDEX] Adding SSL certificate..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:certificate add \"$domain\" --prefixes=si,sz,local,api --provider=dnspod"
+    # Use selected prefixes or default
+    local cert_prefixes="${SELECTED_PREFIXES:-local,si,sz,sh,api}"
+
+    # Step 1: Add SSL certificate with selected prefixes
+    echo "[$SCRIPT_INDEX] Adding SSL certificate with prefixes: $cert_prefixes..."
+    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:certificate add \"$domain\" --prefixes=$cert_prefixes --provider=dnspod"
     local ssl_output
-    ssl_output=$(php artisan servermanager:certificate add "$domain" --prefixes=si,sz,local,api --provider=dnspod 2>&1)
+    ssl_output=$(php artisan servermanager:certificate add "$domain" --prefixes="$cert_prefixes" --provider=dnspod 2>&1)
     local ssl_result=$?
 
     echo "[$SCRIPT_INDEX] SSL certificate result:"
@@ -885,57 +951,79 @@ setup_domain() {
         echo "[$SCRIPT_INDEX]   $line"
     done
 
-    # PHP version is already set in global variable declaration
+    # Parse selected prefixes and create websites dynamically
+    IFS=',' read -ra PREFIX_ARRAY <<< "$cert_prefixes"
 
-    # Step 2: Add local website (HTML - static content)
-    echo "[$SCRIPT_INDEX] Adding local website..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"local.$domain\" --type=html --ssl=auto --php-version=$php_version"
-    local local_website_output
-    local_website_output=$(php artisan servermanager:website add "local.$domain" --type=html --ssl=auto --php-version=$php_version 2>&1)
-    local local_result=$?
-
-    echo "[$SCRIPT_INDEX] Local website setup result:"
-    echo "$local_website_output" | while IFS= read -r line; do
-        echo "[$SCRIPT_INDEX]   $line"
-    done
-
-    # Step 3: Add API website (Poly - bind to Laravel main)
-    echo "[$SCRIPT_INDEX] Adding API website..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
-    local api_website_output
-    api_website_output=$(php artisan servermanager:website add "api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
-    local api_result=$?
-
-    echo "[$SCRIPT_INDEX] API website setup result:"
-    echo "$api_website_output" | while IFS= read -r line; do
-        echo "[$SCRIPT_INDEX]   $line"
-    done
-
-    # Step 4: Add local.api website (Poly - for local testing with API)
-    echo "[$SCRIPT_INDEX] Adding local.api website..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"local.api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
-    local local_api_website_output
-    local_api_website_output=$(php artisan servermanager:website add "local.api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
-    local local_api_result=$?
-
-    echo "[$SCRIPT_INDEX] Local.api website setup result:"
-    echo "$local_api_website_output" | while IFS= read -r line; do
-        echo "[$SCRIPT_INDEX]   $line"
-    done
-
-    # Combine results
+    # Track results for each website
+    local website_results=()
+    local website_names=()
     local deploy_result=0
-    if [ $ssl_result -ne 0 ] || [ $local_result -ne 0 ] || [ $api_result -ne 0 ] || [ $local_api_result -ne 0 ]; then
-        deploy_result=1
-    fi
+
+    # Create websites for each prefix
+    for prefix in "${PREFIX_ARRAY[@]}"; do
+        if [ "$prefix" = "api" ]; then
+            # Create api.domain.com (Poly - API endpoint)
+            echo "[$SCRIPT_INDEX] Adding API website: api.$domain..."
+            echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
+            local output
+            output=$(php artisan servermanager:website add "api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
+            local result=$?
+
+            echo "[$SCRIPT_INDEX] API website (api.$domain) result:"
+            echo "$output" | while IFS= read -r line; do
+                echo "[$SCRIPT_INDEX]   $line"
+            done
+
+            website_names+=("api.$domain")
+            website_results+=($result)
+            [ $result -ne 0 ] && deploy_result=1
+        else
+            # Create prefix.domain.com (HTML - static content)
+            echo "[$SCRIPT_INDEX] Adding $prefix website: $prefix.$domain..."
+            echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"$prefix.$domain\" --type=html --ssl=auto --php-version=$php_version"
+            local output
+            output=$(php artisan servermanager:website add "$prefix.$domain" --type=html --ssl=auto --php-version=$php_version 2>&1)
+            local result=$?
+
+            echo "[$SCRIPT_INDEX] $prefix website ($prefix.$domain) result:"
+            echo "$output" | while IFS= read -r line; do
+                echo "[$SCRIPT_INDEX]   $line"
+            done
+
+            website_names+=("$prefix.$domain")
+            website_results+=($result)
+            [ $result -ne 0 ] && deploy_result=1
+
+            # Create prefix.api.domain.com (Poly - API endpoint for this prefix)
+            echo "[$SCRIPT_INDEX] Adding $prefix.api website: $prefix.api.$domain..."
+            echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"$prefix.api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
+            output=$(php artisan servermanager:website add "$prefix.api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
+            result=$?
+
+            echo "[$SCRIPT_INDEX] $prefix.api website ($prefix.api.$domain) result:"
+            echo "$output" | while IFS= read -r line; do
+                echo "[$SCRIPT_INDEX]   $line"
+            done
+
+            website_names+=("$prefix.api.$domain")
+            website_results+=($result)
+            [ $result -ne 0 ] && deploy_result=1
+        fi
+    done
+
+    # Combine SSL result with website results
+    [ $ssl_result -ne 0 ] && deploy_result=1
 
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX] Domain Setup Summary for: $domain"
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX] SSL Certificate Result: $([ $ssl_result -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
-    echo "[$SCRIPT_INDEX] Local Website Result: $([ $local_result -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
-    echo "[$SCRIPT_INDEX] API Website Result: $([ $api_result -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
-    echo "[$SCRIPT_INDEX] Local.API Website Result: $([ $local_api_result -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
+
+    # Display results for each website
+    for i in "${!website_names[@]}"; do
+        echo "[$SCRIPT_INDEX] Website ${website_names[$i]}: $([ ${website_results[$i]} -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
+    done
+
     echo "[$SCRIPT_INDEX] =================================="
 
     if [ $deploy_result -eq 0 ]; then
@@ -1386,6 +1474,12 @@ fi
 # Initialize secrets (prompt for password on server environments)
 if ! initialize_secrets; then
     echo "[$SCRIPT_INDEX] Failed to initialize secrets. Cannot continue."
+    exit 1
+fi
+
+# Select domain prefixes (prompt for prefix selection on WSL/Desktop environments)
+if ! select_domain_prefixes; then
+    echo "[$SCRIPT_INDEX] Failed to select domain prefixes. Cannot continue."
     exit 1
 fi
 
