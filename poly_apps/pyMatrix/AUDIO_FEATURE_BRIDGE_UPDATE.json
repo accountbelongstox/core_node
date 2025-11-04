@@ -1,0 +1,262 @@
+{
+  "updateType": "NEW_FEATURE_ADDITION",
+  "featureId": "F062",
+  "featureName": "Audio Streaming (sndcpy)",
+  "updateDate": "2025-11-04T18:00:00Z",
+  "category": "audio_streaming",
+  "priority": "P1",
+
+  "frontend": {
+    "status": "completed",
+    "implementation": {
+      "components": [
+        {
+          "name": "AudioStreamingPanel.vue",
+          "path": "apps/app_pymatrix/components_app_pymatrix/AudioStreamingPanel.vue",
+          "lines": 350,
+          "description": "Audio streaming control panel with install, start, stop functionality"
+        }
+      ],
+      "composables": [
+        {
+          "name": "useAudioStream.ts",
+          "path": "apps/app_pymatrix/composables_app_pymatrix/useAudioStream.ts",
+          "lines": 180,
+          "description": "Audio streaming logic and API integration"
+        }
+      ],
+      "stores": [
+        {
+          "name": "audioStore.ts",
+          "path": "apps/app_pymatrix/stores_app_pymatrix/audioStore.ts",
+          "lines": 130,
+          "description": "Audio streaming state management"
+        }
+      ],
+      "types": [
+        "AudioStreamingState",
+        "AudioStreamStatus",
+        "AudioInstallProgress",
+        "AudioStreamMetadata"
+      ],
+      "integration": {
+        "integratedInto": "VideoPlayer.vue",
+        "triggerButton": "🎵 Audio Streaming button",
+        "panelOverlay": "audio-streaming-panel-overlay"
+      }
+    },
+    "features": [
+      {
+        "id": "F062-1",
+        "name": "Install sndcpy",
+        "description": "Install sndcpy audio streaming tool to device",
+        "status": "implemented",
+        "uiLocation": "AudioStreamingPanel - Install button",
+        "api": "POST /audio/install/{serial}"
+      },
+      {
+        "id": "F062-2",
+        "name": "Start audio streaming",
+        "description": "Start audio transmission from device to computer",
+        "status": "implemented",
+        "uiLocation": "AudioStreamingPanel - Start button",
+        "api": "POST /audio/start/{serial}"
+      },
+      {
+        "id": "F062-3",
+        "name": "Stop audio streaming",
+        "description": "Stop audio transmission",
+        "status": "implemented",
+        "uiLocation": "AudioStreamingPanel - Stop button",
+        "api": "POST /audio/stop/{serial}"
+      },
+      {
+        "id": "F062-4",
+        "name": "Check install status",
+        "description": "Check if sndcpy is installed on device",
+        "status": "implemented",
+        "uiLocation": "AudioStreamingPanel - Auto-check on mount",
+        "api": "GET /audio/status/{serial}"
+      },
+      {
+        "id": "F062-5",
+        "name": "Installation progress tracking",
+        "description": "Track sndcpy installation progress",
+        "status": "implemented",
+        "uiLocation": "AudioStreamingPanel - Progress bar"
+      },
+      {
+        "id": "F062-6",
+        "name": "Stream duration display",
+        "description": "Show how long audio has been streaming",
+        "status": "implemented",
+        "uiLocation": "AudioStreamingPanel - Duration timer"
+      },
+      {
+        "id": "F062-7",
+        "name": "Audio metadata display",
+        "description": "Show sample rate, channels, bit depth, codec",
+        "status": "implemented",
+        "uiLocation": "AudioStreamingPanel - Metadata section"
+      }
+    ]
+  },
+
+  "backend": {
+    "status": "pending",
+    "requiredAPIs": [
+      {
+        "endpoint": "POST /audio/install/{serial}",
+        "description": "Install sndcpy on the device",
+        "request": {
+          "params": {
+            "serial": "string - Device serial number"
+          }
+        },
+        "response": {
+          "success": "boolean",
+          "message": "string - Installation result message"
+        },
+        "priority": "P1"
+      },
+      {
+        "endpoint": "POST /audio/start/{serial}",
+        "description": "Start audio streaming from device",
+        "request": {
+          "params": {
+            "serial": "string - Device serial number"
+          }
+        },
+        "response": {
+          "success": "boolean",
+          "message": "string"
+        },
+        "priority": "P1"
+      },
+      {
+        "endpoint": "POST /audio/stop/{serial}",
+        "description": "Stop audio streaming",
+        "request": {
+          "params": {
+            "serial": "string - Device serial number"
+          }
+        },
+        "response": {
+          "success": "boolean",
+          "message": "string"
+        },
+        "priority": "P1"
+      },
+      {
+        "endpoint": "GET /audio/status/{serial}",
+        "description": "Get audio streaming status",
+        "request": {
+          "params": {
+            "serial": "string - Device serial number"
+          }
+        },
+        "response": {
+          "success": "boolean",
+          "installed": "boolean - Whether sndcpy is installed",
+          "streaming": "boolean - Whether currently streaming"
+        },
+        "priority": "P1"
+      }
+    ],
+    "implementation": {
+      "service": "audio_service.py",
+      "routes": "audio_routes.py",
+      "dependencies": [
+        "sndcpy binary",
+        "ADB commands for installation",
+        "Audio forwarding logic"
+      ]
+    }
+  },
+
+  "testing": {
+    "frontendTests": [
+      "Open AudioStreamingPanel from VideoPlayer",
+      "Check install status on panel open",
+      "Click Install button and verify progress",
+      "Click Start button after installation",
+      "Verify streaming state updates",
+      "Click Stop button to end streaming",
+      "Verify duration tracking",
+      "Test error handling"
+    ],
+    "integrationTests": [
+      {
+        "test": "Install sndcpy on device",
+        "steps": [
+          "Click Install sndcpy button",
+          "Wait for installation completion",
+          "Verify installed status shows 'Installed'"
+        ]
+      },
+      {
+        "test": "Start audio streaming",
+        "steps": [
+          "Ensure sndcpy is installed",
+          "Click Start Audio Streaming",
+          "Verify audio plays on computer",
+          "Verify streaming state shows 'Streaming'"
+        ]
+      },
+      {
+        "test": "Stop audio streaming",
+        "steps": [
+          "While streaming, click Stop",
+          "Verify audio stops playing",
+          "Verify state returns to 'Idle'"
+        ]
+      }
+    ]
+  },
+
+  "documentation": {
+    "userGuide": "Audio streaming forwards device audio to computer using sndcpy. Works over USB or WiFi. Android 10+ required, no root needed.",
+    "technicalNotes": [
+      "Uses sndcpy for audio forwarding",
+      "Installation downloads sndcpy binary to device",
+      "Audio forwarded via ADB or network",
+      "Low latency streaming",
+      "Supports mono and stereo audio"
+    ]
+  },
+
+  "updates": {
+    "codebaseStatistics": {
+      "before": {
+        "totalFiles": 64,
+        "vueComponents": 37,
+        "composables": 11,
+        "stores": 13
+      },
+      "after": {
+        "totalFiles": 67,
+        "vueComponents": 38,
+        "composables": 12,
+        "stores": 14
+      },
+      "changes": {
+        "newFiles": 3,
+        "modifiedFiles": 2
+      }
+    },
+    "featureCount": {
+      "before": 61,
+      "after": 68,
+      "added": 7
+    }
+  },
+
+  "nextSteps": [
+    "Backend: Implement audio_service.py with sndcpy integration",
+    "Backend: Create audio_routes.py with 4 endpoints",
+    "Backend: Test sndcpy installation and audio forwarding",
+    "Integration: Test end-to-end audio streaming",
+    "Documentation: Update API documentation",
+    "Bridge: Merge this update into main bridge file"
+  ]
+}

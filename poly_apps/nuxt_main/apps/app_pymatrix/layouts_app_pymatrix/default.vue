@@ -496,29 +496,70 @@ onUnmounted(() => {
 /* Import PyMatrix Theme */
 @import '@/assets/css/apps/app_pymatrix_theme.css';
 
-/* Layout-specific overrides for fullscreen mode */
+/* Layout-specific scaffolding */
 .pm-app--fullscreen {
   width: 100vw;
-  height: 100vh;
+  min-height: 100vh;
   overflow: hidden;
-  background: var(--pm-bg-main);
+  background: transparent;
+  display: flex;
+  justify-content: center;
 }
 
 .pm-app__container {
+  width: 100%;
+  max-width: 1920px;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  gap: var(--pm-space-xl);
+  padding: var(--pm-space-xl);
+  box-sizing: border-box;
 }
 
 .pm-app__main {
-  display: flex;
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 320px;
+  gap: var(--pm-space-xl);
+  align-items: stretch;
 }
 
 .pm-app__content {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--pm-space-lg);
+  border-radius: var(--pm-radius-xl);
+  overflow: hidden;
+}
+
+@media (max-width: 1536px) {
+  .pm-app__container {
+    padding: var(--pm-space-lg);
+  }
+
+  .pm-app__main {
+    grid-template-columns: 280px minmax(0, 1fr) 300px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .pm-app__main {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .pm-app__container {
+    gap: var(--pm-space-lg);
+  }
+
+  .pm-app__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .pm-app__container {
+    padding: var(--pm-space-md);
+  }
 }
 </style>

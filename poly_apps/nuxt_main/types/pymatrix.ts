@@ -274,3 +274,30 @@ export interface ScriptCategory {
   color: string;
   scriptCount: number;
 }
+
+export type AudioStreamingState = 'idle' | 'installing' | 'starting' | 'streaming' | 'stopping' | 'error';
+
+export interface AudioStreamStatus {
+  deviceSerial: string;
+  state: AudioStreamingState;
+  isInstalled: boolean;
+  isStreaming: boolean;
+  error?: string;
+  startTime?: number;
+  duration?: number;
+}
+
+export interface AudioInstallProgress {
+  deviceSerial: string;
+  progress: number;
+  status: string;
+  error?: string;
+}
+
+export interface AudioStreamMetadata {
+  deviceSerial: string;
+  sampleRate: number;
+  channels: number;
+  bitDepth: number;
+  codec: string;
+}
