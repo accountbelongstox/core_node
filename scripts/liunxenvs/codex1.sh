@@ -105,7 +105,7 @@ echo "============================================================"
 read -r
 
 echo ""
-echo "Executing: codex"
+echo "Executing: sudo codex --yolo"
 echo ""
 echo "Environment variables are set:"
 echo "  OPENAI_API_KEY=$OPENAI_API_KEY"
@@ -113,7 +113,7 @@ echo "  OPENAI_BASE_URL=$OPENAI_BASE_URL"
 echo ""
 
 # Execute codex command directly (environment variables are already exported)
-codex --yolo
+sudo codex --yolo
 
 echo ""
 echo "Session ended"
