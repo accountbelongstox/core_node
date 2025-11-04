@@ -167,6 +167,14 @@
       📦
     </button>
 
+    <button
+      class="pm-video-btn pm-video-btn--audio-streaming"
+      @click="showAudioStreaming = !showAudioStreaming"
+      title="Audio Streaming (sndcpy)"
+    >
+      🎵
+    </button>
+
     <div v-if="showScreenControl" class="screen-control-panel-overlay">
       <ScreenControlPanel
         :show="showScreenControl"
@@ -191,6 +199,14 @@
         @close="showApkInstall = false"
         @success="handleApkInstallSuccess"
         @view-packages="handleViewPackagesFromApk"
+      />
+    </div>
+
+    <div v-if="showAudioStreaming" class="audio-streaming-panel-overlay">
+      <AudioStreamingPanel
+        :show="showAudioStreaming"
+        :device-serial="device.serial"
+        @close="showAudioStreaming = false"
       />
     </div>
 
@@ -231,6 +247,7 @@ import ScreenControlPanel from './ScreenControlPanel.vue';
 import FilePushPanel from './FilePushPanel.vue';
 import ApkInstallPanel from './ApkInstallPanel.vue';
 import PackageListPanel from './PackageListPanel.vue';
+import AudioStreamingPanel from './AudioStreamingPanel.vue';
 import DeviceContextMenu from './DeviceContextMenu.vue';
 import DeviceTagBadge from '@/common/components/ui/DeviceTagBadge.vue';
 import { useTagsStore } from '../stores_app_pymatrix/tagsStore';
@@ -266,6 +283,7 @@ const showClipboard = ref(false);
 const showScreenControl = ref(false);
 const showFilePush = ref(false);
 const showApkInstall = ref(false);
+const showAudioStreaming = ref(false);
 const showPackageList = ref(false);
 const showContextMenu = ref(false);
 const contextMenuX = ref(0);
