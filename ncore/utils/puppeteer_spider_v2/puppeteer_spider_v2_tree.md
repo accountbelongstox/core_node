@@ -51,6 +51,12 @@ puppeteer_spider_v2/
 │       │   └── BaseUtils.js
 │       ├── control/
 │       │   └── BrowserControlUtils.js
+│       ├── download/
+│       │   ├── DomResourceMapper.js
+│       │   ├── EnhancedResourceCollector.js
+│       │   ├── ResourceDownloadUtils.js
+│       │   ├── ResourceInterceptor.js
+│       │   └── ResourceProxyServer.js
 │       ├── events/
 │       │   └── EventUtils.js
 │       ├── extraction/
@@ -58,11 +64,15 @@ puppeteer_spider_v2/
 │       ├── finder/
 │       │   └── ElementFinderUtils.js
 │       ├── iframe/
+│       │   ├── IframeRecursiveCrawler.js
 │       │   └── IframeUtils.js
 │       ├── navigation/
 │       │   └── NavigationUtils.js
 │       ├── operations/
 │       │   └── PageOperationUtils.js
+│       ├── tampermonkey/
+│       │   ├── DocumentOffline_Crawler.user.js
+│       │   └── TampermonkeyServer.js
 │       ├── BrowserUtils.js
 │       ├── CacheManager.js
 │       ├── Logger.js
@@ -72,6 +82,8 @@ puppeteer_spider_v2/
 ├── README.md
 ├── REFACTORING_SUMMARY.md
 ├── example.js
+├── example_iframe_recursive.js
+├── example_resource_collection.js
 ├── fetcher.js
 ├── main.js
 ├── puppeteer_spider_v2_tree.md
