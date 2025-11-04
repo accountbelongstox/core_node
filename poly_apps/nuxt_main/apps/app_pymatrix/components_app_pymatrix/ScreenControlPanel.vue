@@ -1,12 +1,16 @@
 <template>
-  <BasePanel
-    v-model="isOpen"
-    title="Screen Control"
-    header-icon="📱"
-    size="md"
-    variant="warning"
-    @close="handleClose"
-  >
+  <div class="pm-panel pm-panel--cyan" v-if="isOpen">
+    <div class="panel-header">
+      <h3 class="panel-title">📱 Screen Control</h3>
+      <button
+        class="close-btn"
+        @click="handleClose"
+        title="Close"
+      >
+        ×
+      </button>
+    </div>
+
     <div class="control-sections">
       <!-- Power Control -->
       <div class="control-section">
@@ -16,22 +20,18 @@
         </div>
 
         <div class="button-grid">
-          <BaseButton
-            variant="default"
-            size="md"
-            icon="🔆"
+          <button
+            class="pm-button pm-button--electric-blue"
             @click="handlePowerControl('on')"
           >
-            Screen On
-          </BaseButton>
-          <BaseButton
-            variant="default"
-            size="md"
-            icon="🌙"
+            🔆 Screen On
+          </button>
+          <button
+            class="pm-button pm-button--electric-blue"
             @click="handlePowerControl('off')"
           >
-            Screen Off
-          </BaseButton>
+            🌙 Screen Off
+          </button>
         </div>
       </div>
 
@@ -54,16 +54,15 @@
         />
 
         <div class="preset-buttons">
-          <BaseButton
+          <button
             v-for="preset in brightnessPresets"
             :key="preset.value"
-            variant="ghost"
-            size="sm"
+            class="pm-button pm-button--electric-blue"
             :class="{ active: brightness === preset.value }"
             @click="setBrightness(preset.value)"
           >
             {{ preset.label }}
-          </BaseButton>
+          </button>
         </div>
       </div>
 
@@ -133,16 +132,12 @@
         </div>
       </div>
     </div>
-  </BasePanel>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useToast } from '../composables_app_pymatrix/useToast';
-import BasePanel from '~/common/components/ui/BasePanel.vue';
-import BaseButton from '~/common/components/ui/BaseButton.vue';
-import BaseSlider from '~/common/components/ui/BaseSlider.vue';
-import BaseToggle from '~/common/components/ui/BaseToggle.vue';
 import { pyMatrixDeviceAPI } from '~/services/api/pymatrix/pymatrix-device-api';
 
 const toast = useToast();
@@ -319,115 +314,3 @@ function handleAutoSleepChange(value: boolean) {
   // TODO: Implement auto sleep API call when backend supports it
 }
 </script>
-
-<style scoped>
-.control-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.control-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.control-section:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.section-icon {
-  font-size: 20px;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.button-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.preset-buttons {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.preset-buttons .base-button.active {
-  background: #f59e0b;
-  color: white;
-}
-
-.rotation-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-
-.rotation-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 8px;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.rotation-btn:hover {
-  background: #f3f4f6;
-  border-color: #d1d5db;
-}
-
-.rotation-btn.active {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  border-color: #f59e0b;
-  color: white;
-}
-
-.rotation-icon {
-  font-size: 24px;
-  transition: transform 0.3s ease;
-}
-
-.rotation-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.rotation-btn.active .rotation-label {
-  color: white;
-}
-
-.toggle-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.auto-rotation-toggle {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #e5e7eb;
-}
-</style>

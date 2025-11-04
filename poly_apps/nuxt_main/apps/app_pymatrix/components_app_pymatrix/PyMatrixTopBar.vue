@@ -1,55 +1,59 @@
 <template>
-  <header class="pymatrix-topbar">
-    <div class="topbar-left">
-      <h1 class="topbar-title">
-        <span class="title-icon">📱</span>
-        pyMatrix
-      </h1>
-      <span class="topbar-subtitle">Android Device Control</span>
-    </div>
-
-    <div class="topbar-center">
-      <div class="status-indicator">
-        <span class="status-dot" :class="{ active: deviceCount > 0 }"></span>
-        <span class="status-text">{{ deviceCount }} Device{{ deviceCount !== 1 ? 's' : '' }}</span>
-      </div>
-
-      <div v-if="groupEnabled" class="group-indicator">
-        <span class="group-icon">👥</span>
-        <span class="group-text">Group Control Active</span>
+  <header class="pm-topbar">
+    <div class="pm-topbar__left">
+      <div class="pm-topbar__logo">
+        <span class="pm-topbar__logo-icon">📱</span>
+        <h1 class="pm-topbar__logo-title">pyMatrix</h1>
       </div>
     </div>
 
-    <div class="topbar-right">
-      <button class="topbar-btn primary" @click="$emit('connect-device')">
-        <span class="btn-icon">+</span>
+    <div class="pm-topbar__center">
+      <div class="pm-topbar__status">
+        <span class="pm-topbar__status-dot" :class="{ active: deviceCount > 0 }"></span>
+        <span>{{ deviceCount }} Device{{ deviceCount !== 1 ? 's' : '' }}</span>
+      </div>
+
+      <div v-if="groupEnabled" class="pm-topbar__status pm-topbar__status--group">
+        <span>👥</span>
+        <span>Group Control Active</span>
+      </div>
+    </div>
+
+    <div class="pm-topbar__right">
+      <button class="pm-topbar__action-btn pm-topbar__action-btn--primary" @click="$emit('connect-device')">
+        <span>+</span>
         <span>Connect Device</span>
       </button>
 
       <button
-        class="topbar-btn"
-        :class="{ active: groupEnabled }"
+        class="pm-topbar__action-btn"
+        :class="{ 'pm-topbar__action-btn--active': groupEnabled }"
         @click="$emit('toggle-group')"
         :title="groupEnabled ? 'Disable Group Control' : 'Enable Group Control'"
       >
-        <span class="btn-icon">👥</span>
+        <span>👥</span>
         <span>{{ groupEnabled ? 'Group ON' : 'Group OFF' }}</span>
       </button>
 
-      <button class="topbar-btn" @click="$emit('open-settings')">
-        <span class="btn-icon">⚙️</span>
+      <button class="pm-topbar__action-btn" @click="$emit('open-settings')">
+        <span>⚙️</span>
         <span>Settings</span>
       </button>
 
-      <button class="topbar-btn" @click="$emit('show-history')" title="Connection history (Ctrl+H)">
-        <span class="btn-icon">📜</span>
+      <button class="pm-topbar__action-btn" @click="$emit('show-history')" title="Connection history (Ctrl+H)">
+        <span>📜</span>
         <span>History</span>
       </button>
 
-      <button class="topbar-btn" @click="$emit('show-help')" title="Show keyboard shortcuts (Press /)">
-        <span class="btn-icon">⌨️</span>
+      <button class="pm-topbar__action-btn" @click="$emit('show-help')" title="Show keyboard shortcuts (Press /)">
+        <span>⌨️</span>
         <span>Shortcuts</span>
       </button>
+
+      <div class="pm-topbar__user">
+        <div class="pm-topbar__user-avatar">👤</div>
+        <span class="pm-topbar__user-name">User</span>
+      </div>
     </div>
   </header>
 </template>
@@ -73,175 +77,244 @@ const emit = defineEmits<Emits>();
 </script>
 
 <style scoped>
-.pymatrix-topbar {
+/* TopBar Styles with NFTMax Theme */
+.pm-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5000;
+  background: var(--pm-bg-purple-lighter);
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid var(--pm-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 24px;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
-  border-bottom: 1px solid #3a3a3a;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  min-height: 64px;
+  gap: var(--pm-space-lg);
+  height: 100px;
+  padding: 0 var(--pm-space-lg);
+  transition: var(--pm-transition-fast);
 }
 
-.topbar-left {
+/* Left Section - Logo */
+.pm-topbar__left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--pm-space-md);
 }
 
-.topbar-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.title-icon {
-  font-size: 28px;
-}
-
-.topbar-subtitle {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 500;
-}
-
-.topbar-center {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #ef4444;
-  animation: pulse-red 2s infinite;
-}
-
-.status-dot.active {
-  background: #10b981;
-  animation: pulse-green 2s infinite;
-}
-
-.status-text {
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.group-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  border-radius: 20px;
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
-}
-
-.group-icon {
-  font-size: 16px;
-}
-
-.group-text {
-  font-size: 14px;
-  font-weight: 600;
-  color: white;
-}
-
-.topbar-right {
+.pm-topbar__logo {
   display: flex;
   align-items: center;
   gap: 12px;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: var(--pm-radius-md);
+  transition: var(--pm-transition-fast);
 }
 
-.topbar-btn {
+.pm-topbar__logo:hover {
+  background: rgba(83, 86, 251, 0.1);
+}
+
+.pm-topbar__logo-icon {
+  font-size: 32px;
+  animation: pm-fadeIn 0.5s ease;
+}
+
+.pm-topbar__logo-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+  background: var(--pm-gradient-primary);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+
+/* Center Section - Status */
+.pm-topbar__center {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  color: white;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  gap: var(--pm-space-lg);
+  flex: 1;
+  justify-content: center;
+}
+
+.pm-topbar__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: #ffffff;
+  border-radius: var(--pm-radius-full);
+  font-size: var(--pm-font-size-base);
+  font-weight: 500;
+  color: var(--pm-text-primary);
+  box-shadow: var(--pm-shadow-sm);
+  transition: var(--pm-transition-fast);
+}
+
+.pm-topbar__status:hover {
+  box-shadow: var(--pm-shadow-md);
+  transform: translateY(-2px);
+}
+
+.pm-topbar__status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--pm-radius-circle);
+  background: var(--pm-text-muted);
+  transition: var(--pm-transition-fast);
+}
+
+.pm-topbar__status-dot.active {
+  background: var(--pm-success);
+  box-shadow: 0 0 12px rgba(39, 174, 96, 0.5);
+  animation: pm-pulse 2s ease-in-out infinite;
+}
+
+@keyframes pm-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pm-topbar__status--group {
+  background: var(--pm-gradient-primary);
+  color: #ffffff;
+}
+
+/* Right Section - Actions */
+.pm-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--pm-space-md);
+}
+
+.pm-topbar__action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  font-size: var(--pm-font-size-sm);
+  font-weight: 500;
+  color: var(--pm-text-primary);
+  background: #ffffff;
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-full);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--pm-transition-fast);
+  outline: none;
   white-space: nowrap;
 }
 
-.topbar-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
+.pm-topbar__action-btn:hover {
+  border-color: var(--pm-primary);
+  color: var(--pm-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(83, 86, 251, 0.2);
 }
 
-.topbar-btn.primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  border-color: #3b82f6;
+.pm-topbar__action-btn--primary {
+  background: var(--pm-primary);
+  color: #ffffff;
+  border-color: var(--pm-primary);
+  font-weight: 600;
 }
 
-.topbar-btn.primary:hover {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+.pm-topbar__action-btn--primary:hover {
+  background: var(--pm-secondary);
+  border-color: var(--pm-secondary);
+  box-shadow: 0 4px 16px rgba(243, 57, 248, 0.4);
 }
 
-.topbar-btn.active {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border-color: #10b981;
+.pm-topbar__action-btn--active {
+  background: var(--pm-gradient-primary);
+  color: #ffffff;
+  border-color: transparent;
 }
 
-.btn-icon {
-  font-size: 16px;
+.pm-topbar__action-btn--active:hover {
+  background: var(--pm-gradient-primary-reverse);
+  transform: translateY(-2px) scale(1.02);
 }
 
-@keyframes pulse-red {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+/* User Section */
+.pm-topbar__user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #ffffff;
+  border-radius: var(--pm-radius-full);
+  cursor: pointer;
+  transition: var(--pm-transition-fast);
+  border: 1px solid var(--pm-border);
+}
+
+.pm-topbar__user:hover {
+  border-color: var(--pm-primary);
+  box-shadow: 0 4px 12px rgba(83, 86, 251, 0.2);
+  transform: translateY(-2px);
+}
+
+.pm-topbar__user-avatar {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pm-bg-light);
+  border-radius: var(--pm-radius-circle);
+  font-size: 20px;
+  transition: var(--pm-transition-fast);
+}
+
+.pm-topbar__user:hover .pm-topbar__user-avatar {
+  background: var(--pm-primary);
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.pm-topbar__user-name {
+  font-size: var(--pm-font-size-base);
+  font-weight: 500;
+  color: var(--pm-text-primary);
+}
+
+/* Responsive */
+@media (max-width: 1278px) {
+  .pm-topbar {
+    height: 70px;
+    padding: 0 var(--pm-space-md);
   }
-  50% {
-    opacity: 0.8;
-    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
-  }
-}
 
-@keyframes pulse-green {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-  }
-  50% {
-    opacity: 0.8;
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
-  }
-}
-
-@media (max-width: 1280px) {
-  .topbar-subtitle {
+  .pm-topbar__action-btn span:last-child {
     display: none;
   }
 
-  .topbar-btn span:not(.btn-icon) {
+  .pm-topbar__action-btn {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    font-size: 20px;
+  }
+
+  .pm-topbar__logo-title {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 767px) {
+  .pm-topbar__center {
+    display: none;
+  }
+
+  .pm-topbar__user-name {
     display: none;
   }
 }

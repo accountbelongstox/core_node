@@ -10,19 +10,19 @@
     @close="handleClose"
   >
     <!-- Configuration Content -->
-    <div class="batch-config-container">
+    <div class="pm-panel pm-panel--sunset">
       <!-- Device Selection -->
-      <div class="section">
-        <h4 class="section-title">
-          <span class="section-icon">📱</span>
+      <div class="pm-section">
+        <h4 class="pm-section-title">
+          <span class="pm-section-icon">📱</span>
           Select Devices
-          <span class="device-count">({{ selectedDevices.length }} selected)</span>
+          <span class="pm-device-count">({{ selectedDevices.length }} selected)</span>
         </h4>
-        <div class="device-selection">
-          <div class="device-actions">
-            <button class="btn btn-sm" @click="selectAllDevices">Select All</button>
-            <button class="btn btn-sm" @click="deselectAllDevices">Deselect All</button>
-            <button class="btn btn-sm" @click="selectOnlineOnly">Online Only</button>
+        <div class="pm-device-selection">
+          <div class="pm-device-actions">
+            <button class="pm-button pm-button--sm" @click="selectAllDevices">Select All</button>
+            <button class="pm-button pm-button--sm" @click="deselectAllDevices">Deselect All</button>
+            <button class="pm-button pm-button--sm" @click="selectOnlineOnly">Online Only</button>
           </div>
           <div class="device-list">
             <div
@@ -45,9 +45,9 @@
       </div>
 
       <!-- Template Selection -->
-      <div class="section">
-        <h4 class="section-title">
-          <span class="section-icon">📋</span>
+      <div class="pm-section">
+        <h4 class="pm-section-title">
+          <span class="pm-section-icon">📋</span>
           Configuration Template
         </h4>
         <div class="template-selection">
@@ -66,45 +66,45 @@
       </div>
 
       <!-- Configuration Options -->
-      <div class="section">
-        <h4 class="section-title">
-          <span class="section-icon">🎛️</span>
+      <div class="pm-section">
+        <h4 class="pm-section-title">
+          <span class="pm-section-icon">🎛️</span>
           Configuration Options
-          <button class="btn-link" @click="toggleSelectAllOptions">
+          <button class="pm-button pm-button--link" @click="toggleSelectAllOptions">
             {{ allOptionsSelected ? 'Deselect All' : 'Select All' }}
           </button>
         </h4>
-        <div class="config-options">
+        <div class="pm-config-options">
           <div
             v-for="option in configOptions"
             :key="option.key"
-            class="config-option"
-            :class="{ disabled: !option.applicable }"
+            class="pm-form-group"
+            :class="{ 'pm-form-group--disabled': !option.applicable }"
           >
-            <label class="option-label">
+            <label class="pm-form-label">
               <input
                 type="checkbox"
                 v-model="option.enabled"
                 :disabled="!option.applicable"
               />
-              <div class="option-info">
-                <span class="option-name">{{ option.name }}</span>
-                <span class="option-desc">{{ option.description }}</span>
+              <div class="pm-option-info">
+                <span class="pm-option-name">{{ option.name }}</span>
+                <span class="pm-option-desc">{{ option.description }}</span>
               </div>
             </label>
-            <div v-if="option.enabled && option.hasValue" class="option-value">
+            <div v-if="option.enabled && option.hasValue" class="pm-option-value">
               <input
                 v-if="option.type === 'number'"
                 type="number"
                 v-model.number="option.value"
                 :min="option.min"
                 :max="option.max"
-                class="input-field"
+                class="pm-input"
               />
               <select
                 v-else-if="option.type === 'select'"
                 v-model="option.value"
-                class="select-field"
+                class="pm-select"
               >
                 <option v-for="choice in option.choices" :key="choice" :value="choice">
                   {{ choice }}
@@ -114,7 +114,7 @@
                 v-else
                 type="text"
                 v-model="option.value"
-                class="input-field"
+                class="pm-input"
               />
             </div>
           </div>
@@ -167,10 +167,10 @@
 
     <!-- Footer Actions -->
     <template #footer>
-      <div class="footer-actions">
-        <button class="btn btn-secondary" @click="handleClose">Cancel</button>
-        <button class="btn btn-success" @click="applyConfiguration" :disabled="!canApply">
-          <span v-if="isApplying" class="spinner"></span>
+      <div class="pm-footer-actions">
+        <button class="pm-button pm-button--secondary" @click="handleClose">Cancel</button>
+        <button class="pm-button pm-button--success" @click="applyConfiguration" :disabled="!canApply">
+          <span v-if="isApplying" class="pm-spinner"></span>
           <span>{{ isApplying ? 'Applying...' : 'Apply Configuration' }}</span>
         </button>
       </div>
@@ -531,388 +531,3 @@ watch(selectedTemplate, (newTemplate) => {
 });
 </script>
 
-<style scoped>
-.batch-config-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.section {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1rem;
-  background: #ffffff;
-}
-
-.section-warning {
-  border-color: #fbbf24;
-  background: #fef3c7;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 1rem 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #111827;
-}
-
-.section-icon {
-  font-size: 1.25rem;
-}
-
-.device-count {
-  margin-left: auto;
-  font-size: 0.875rem;
-  font-weight: normal;
-  color: #6b7280;
-}
-
-/* Device Selection */
-.device-selection {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.device-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.device-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 0.5rem;
-  max-height: 200px;
-  overflow-y: auto;
-  padding: 0.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: #f9fafb;
-}
-
-.device-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.device-item:hover {
-  border-color: #3b82f6;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.device-item.selected {
-  border-color: #3b82f6;
-  background: #eff6ff;
-}
-
-.device-item.offline {
-  opacity: 0.6;
-}
-
-.device-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
-}
-
-.device-name {
-  font-weight: 500;
-  color: #111827;
-  font-size: 0.875rem;
-}
-
-.device-serial {
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-
-.device-status {
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.device-status.online {
-  color: #10b981;
-}
-
-.device-status.offline {
-  color: #ef4444;
-}
-
-/* Template Selection */
-.template-selection {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.template-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  background: white;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.template-btn:hover {
-  border-color: #3b82f6;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.template-btn.active {
-  border-color: #3b82f6;
-  background: #eff6ff;
-}
-
-.template-icon {
-  font-size: 2rem;
-}
-
-.template-name {
-  font-weight: 600;
-  color: #111827;
-}
-
-.template-desc {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #6b7280;
-  text-align: center;
-}
-
-/* Config Options */
-.config-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.config-option {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: white;
-}
-
-.config-option.disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.option-label {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex: 1;
-  cursor: pointer;
-}
-
-.option-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.option-name {
-  font-weight: 500;
-  color: #111827;
-}
-
-.option-desc {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.option-value {
-  min-width: 150px;
-}
-
-.input-field,
-.select-field {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 0.875rem;
-}
-
-.input-field:focus,
-.select-field:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-/* Conflicts */
-.conflicts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.conflict-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem;
-  border: 1px solid #f59e0b;
-  border-radius: 4px;
-  background: white;
-}
-
-.conflict-message {
-  color: #92400e;
-  font-size: 0.875rem;
-}
-
-/* Preview */
-.config-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.preview-summary {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-}
-
-.summary-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.75rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: #f9fafb;
-}
-
-.summary-item .label {
-  font-size: 0.875rem;
-  color: #6b7280;
-}
-
-.summary-item .value {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #111827;
-}
-
-.preview-code {
-  max-height: 200px;
-  overflow-y: auto;
-  padding: 1rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: #1f2937;
-}
-
-.preview-code pre {
-  margin: 0;
-  color: #e5e7eb;
-  font-family: 'Courier New', monospace;
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-/* Footer */
-.footer-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: flex-end;
-}
-
-/* Buttons */
-.btn {
-  padding: 0.625rem 1.25rem;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-sm {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.8125rem;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.btn-success {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-}
-
-.btn-success:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
-}
-
-.btn-link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: #3b82f6;
-  font-size: 0.875rem;
-  cursor: pointer;
-  margin-left: auto;
-}
-
-.btn-link:hover {
-  text-decoration: underline;
-}
-
-.spinner {
-  display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-  margin-right: 0.5rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-</style>

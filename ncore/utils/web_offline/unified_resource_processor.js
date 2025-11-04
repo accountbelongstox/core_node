@@ -13,6 +13,7 @@
 const path = require('path');
 const fs = require('fs');
 const cheerio = require('cheerio');
+const PathResolver = require('./path_resolver');
 
 class UnifiedResourceProcessor {
   constructor(domainContext, fileMapper, downloader, logger) {
@@ -20,6 +21,10 @@ class UnifiedResourceProcessor {
     this.fileMapper = fileMapper;
     this.downloader = downloader;
     this.logger = logger;
+    this.pathResolver = new PathResolver(fileMapper);
+    this.proxyServer = null;
+    this.resourceDownloadUtils = null;
+    this.page = null;
 
     this.urlPattern = /url\s*\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
     this.importPattern = /@import\s+(['"])([^'"]+)\1/gi;
@@ -443,7 +448,7 @@ class UnifiedResourceProcessor {
 
     for (const url of allResourceUrls) {
       if (!this.downloaded.has(url)) {
-        const localPath = this.getLocalPathForUrl(url);
+        const localPath = this.getLocalPathForUrl(url, currentUrl);
         if (localPath) {
           downloadMap.set(url, localPath);
         }
@@ -453,7 +458,7 @@ class UnifiedResourceProcessor {
     this.logger.info(`[PROCESS-RESOURCES] Downloading ${downloadMap.size} resources...`);
 
     for (const [url, localPath] of downloadMap) {
-      const result = await this.downloadResource(url, baseDir);
+      const result = await this.downloadResource(url, baseDir, currentUrl);
 
       if (result.success) {
         this.logger.info(`[PROCESS-RESOURCES] Downloaded: ${url}`);
@@ -466,7 +471,7 @@ class UnifiedResourceProcessor {
           const cssUrls = this.extractCssUrls(result.content, url);
           for (const cssUrl of cssUrls) {
             if (!this.downloaded.has(cssUrl)) {
-              const cssLocalPath = this.getLocalPathForUrl(cssUrl);
+              const cssLocalPath = this.getLocalPathForUrl(cssUrl, url);
               if (cssLocalPath && !downloadMap.has(cssUrl)) {
                 downloadMap.set(cssUrl, cssLocalPath);
               }
@@ -487,8 +492,9 @@ class UnifiedResourceProcessor {
 
   processAndRewriteHtml(html, currentUrl, baseDir) {
     const $ = cheerio.load(html, { decodeEntities: false });
-    const currentLocalPath = this.getLocalPathForUrl(currentUrl);
-    const currentDir = currentLocalPath ? path.posix.dirname(currentLocalPath) : 'index.html';
+    const currentUrlObj = new URL(currentUrl);
+    const currentHostPath = path.posix.join(currentUrlObj.hostname, currentUrlObj.pathname);
+    const currentDir = path.posix.dirname(currentHostPath);
 
     const rewriteUrl = (url) => {
       if (!url || url.startsWith('data:') || url.startsWith('javascript:') ||
@@ -499,7 +505,14 @@ class UnifiedResourceProcessor {
 
       try {
         const absoluteUrl = new URL(url, currentUrl);
-        const localPath = this.getLocalPathForUrl(absoluteUrl.href);
+        const resourceUrlObj = new URL(absoluteUrl);
+
+        let localPath;
+        if (this.pathResolver.isSameOrigin(absoluteUrl.href, currentUrl)) {
+          localPath = path.posix.join(resourceUrlObj.hostname, resourceUrlObj.pathname);
+        } else {
+          localPath = this.getLocalPathForUrl(absoluteUrl.href, currentUrl);
+        }
 
         if (localPath) {
           const relativePath = path.posix.relative(currentDir, localPath);
@@ -597,10 +610,10 @@ class UnifiedResourceProcessor {
 
       try {
         const absoluteUrl = new URL(url, currentUrl);
-        const localPath = this.getLocalPathForUrl(absoluteUrl.href);
+        const localPath = this.getLocalPathForUrl(absoluteUrl.href, currentUrl);
         if (localPath) {
           const currentUrlObj = new URL(currentUrl);
-          const relativePath = this.calculateRelativePathForRewrite(currentUrlObj, localPath);
+          const relativePath = this.calculateRelativePathForRewrite(currentUrlObj, localPath, currentUrl);
           return descriptor ? `${relativePath} ${descriptor}` : relativePath;
         }
       } catch (e) {
@@ -613,8 +626,8 @@ class UnifiedResourceProcessor {
     return rewritten.join(', ');
   }
 
-  calculateRelativePathForRewrite(currentUrlObj, localPath) {
-    const currentDir = path.posix.dirname(this.getLocalPathForUrl(currentUrlObj.href) || 'index.html');
+  calculateRelativePathForRewrite(currentUrlObj, localPath, currentUrl = null) {
+    const currentDir = path.posix.dirname(this.getLocalPathForUrl(currentUrlObj.href, currentUrl) || 'index.html');
     const relativePath = path.posix.relative(currentDir, localPath);
 
     if (!relativePath || relativePath === '.') {
@@ -626,7 +639,7 @@ class UnifiedResourceProcessor {
 
   rewriteCss(cssContent, currentUrl) {
     const currentUrlObj = new URL(currentUrl);
-    const currentLocalPath = this.getLocalPathForUrl(currentUrl);
+    const currentLocalPath = this.getLocalPathForUrl(currentUrl, currentUrl);
     const currentDir = currentLocalPath ? path.posix.dirname(currentLocalPath) : 'index.html';
 
     const rewriteUrl = (url) => {
@@ -636,7 +649,7 @@ class UnifiedResourceProcessor {
 
       try {
         const absoluteUrl = new URL(url, currentUrl);
-        const localPath = this.getLocalPathForUrl(absoluteUrl.href);
+        const localPath = this.getLocalPathForUrl(absoluteUrl.href, currentUrl);
 
         if (localPath) {
           const relativePath = path.posix.relative(currentDir, localPath);
@@ -733,14 +746,15 @@ class UnifiedResourceProcessor {
 
     try {
       const absoluteUrl = new URL(url, currentUrlObj.href);
+      const isSameOrigin = this.pathResolver.isSameOrigin(absoluteUrl.href, currentUrlObj.href);
       const isInternal = this.domainContext.isInternalLink(absoluteUrl);
 
-      if (!isInternal) {
+      if (!isSameOrigin && !isInternal) {
         const domain = absoluteUrl.hostname;
         const pathname = absoluteUrl.pathname;
         const localPath = path.posix.join('src', domain, pathname);
 
-        const currentUrlPath = this.getLocalPathForUrl(currentUrlObj.href);
+        const currentUrlPath = this.getLocalPathForUrl(currentUrlObj.href, currentUrlObj.href);
         if (!currentUrlPath) {
           return url;
         }
@@ -783,9 +797,14 @@ class UnifiedResourceProcessor {
     return relativePath || './';
   }
 
-  getLocalPathForUrl(url) {
+  getLocalPathForUrl(url, currentUrl = null) {
     try {
       const urlObj = new URL(url);
+
+      if (currentUrl && this.pathResolver.isSameOrigin(url, currentUrl)) {
+        return this.fileMapper.mapPath(urlObj);
+      }
+
       const isInternal = this.domainContext.isInternalLink(urlObj);
 
       if (isInternal) {
@@ -844,7 +863,7 @@ class UnifiedResourceProcessor {
     return { downloaded, skipped, failed };
   }
 
-  async downloadResource(url, baseDir) {
+  async downloadResource(url, baseDir, currentUrl = null) {
     const canonical = url;
 
     if (this.downloaded.has(canonical)) {
@@ -852,7 +871,7 @@ class UnifiedResourceProcessor {
     }
 
     try {
-      const relativePath = this.getLocalPathForUrl(url);
+      const relativePath = this.getLocalPathForUrl(url, currentUrl);
       if (!relativePath) {
         return { success: false, error: 'invalid_url' };
       }
@@ -868,7 +887,40 @@ class UnifiedResourceProcessor {
       this.ensureDirectory(directory);
 
       let contentType = null;
-      const downloadedPath = await this.downloader.HTTPDownload(url, finalPath, {
+      let downloadedPath = null;
+
+      if (this.resourceDownloadUtils && this.proxyServer && this.proxyServer.isRunning) {
+        this.logger.debug(`[PROXY-DOWNLOAD] Attempting proxy download: ${url}`);
+        const proxyResult = await this.resourceDownloadUtils.downloadResourceViaProxy(url, finalPath, {
+          timeout: 30000
+        });
+
+        if (proxyResult.success) {
+          this.downloaded.add(canonical);
+          downloadedPath = proxyResult.targetPath;
+
+          const stats = fs.statSync(downloadedPath);
+          const isTextContent = this.isTextContentType(contentType);
+          const content = isTextContent
+            ? await fs.promises.readFile(downloadedPath, 'utf8')
+            : await fs.promises.readFile(downloadedPath);
+
+          this.logger.success(`[PROXY-DOWNLOAD] Success: ${url}`);
+          return {
+            success: true,
+            path: downloadedPath,
+            content: content,
+            contentType: contentType,
+            isText: isTextContent,
+            isBinary: !isTextContent,
+            method: 'proxy'
+          };
+        } else {
+          this.logger.warn(`[PROXY-DOWNLOAD] Failed, falling back to HTTP: ${url}`);
+        }
+      }
+
+      downloadedPath = await this.downloader.HTTPDownload(url, finalPath, {
         onProgress: () => {},
         onHeaders: (headers) => {
           contentType = headers['content-type'] || null;
@@ -892,7 +944,8 @@ class UnifiedResourceProcessor {
         content: content,
         contentType: contentType,
         isText: isTextContent,
-        isBinary: !isTextContent
+        isBinary: !isTextContent,
+        method: 'http'
       };
 
     } catch (error) {
@@ -1003,6 +1056,21 @@ class UnifiedResourceProcessor {
 
   delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  setProxyServer(proxyServer, page) {
+    this.proxyServer = proxyServer;
+    this.page = page;
+
+    if (this.proxyServer && this.proxyServer.isRunning && this.page) {
+      const { ResourceDownloadUtils } = require('#@ncore/utils/puppeteer_spider_v2/main.js');
+      this.resourceDownloadUtils = new ResourceDownloadUtils(this.page, {
+        downloadPath: this.proxyServer.tempDir || path.join(require('os').tmpdir(), 'spider_downloads'),
+        proxyServer: this.proxyServer,
+        useProxy: true
+      });
+      this.logger.info('[PROXY-INTEGRATION] ResourceDownloadUtils initialized with proxy server');
+    }
   }
 
   reset() {

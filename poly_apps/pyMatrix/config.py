@@ -19,9 +19,20 @@ class Config:
     # ==================== ADB 配置 ====================
     @staticmethod
     def get_adb_path() -> str:
-        """获取 ADB 可执行文件路径"""
+        """
+        获取 ADB 可执行文件路径
+
+        优先级:
+        1. 本地 resources/adb/{platform}/adb
+        2. 系统 PATH 中的 adb
+        3. 返回 "adb" (fallback)
+
+        Returns:
+            ADB 可执行文件路径
+        """
         system = platform.system()
 
+        # 1. 检查本地 ADB
         if system == 'Windows':
             adb_path = Config.RESOURCES_DIR / "adb" / "windows" / "adb.exe"
         elif system == 'Darwin':  # macOS
@@ -32,7 +43,14 @@ class Config:
         if adb_path.exists():
             return str(adb_path)
 
-        # 如果本地ADB不存在，尝试使用系统ADB
+        # 2. 检查系统 PATH
+        import shutil
+        adb_exe = "adb.exe" if system == 'Windows' else "adb"
+        adb_in_path = shutil.which(adb_exe)
+        if adb_in_path:
+            return adb_in_path
+
+        # 3. Fallback
         return "adb"
 
     # scrcpy-server 配置
@@ -95,10 +113,14 @@ class Config:
     }
 
     # ==================== CORS 配置 ====================
+    # pyMatrix frontend runs on port 3007 (defined in app-config.json)
+    # Also allow default Nuxt ports for compatibility
     CORS_ALLOW_ORIGINS = [
         f"http://localhost:{FRONTEND_PORT}",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3007",  # pyMatrix app port
+        "http://127.0.0.1:3007",
     ]
     CORS_ALLOW_CREDENTIALS = True
     CORS_ALLOW_METHODS = ["*"]

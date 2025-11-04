@@ -18,6 +18,13 @@ from .universal_gui_launcher import (
     set_menu_labels
 )
 
+from .webview_launcher import (
+    WebviewGUILauncher,
+    create_webview_launcher,
+    get_webview_launcher,
+    launch_pymatrix_gui
+)
+
 __all__ = [
     'HTTPBridgeServer',
     'get_http_bridge',
@@ -25,5 +32,9 @@ __all__ = [
     'UniversalGUILauncher',
     'SystemTrayManager',
     'get_universal_gui_launcher',
-    'set_menu_labels'
+    'set_menu_labels',
+    'WebviewGUILauncher',
+    'create_webview_launcher',
+    'get_webview_launcher',
+    'launch_pymatrix_gui'
 ]

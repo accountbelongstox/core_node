@@ -1,14 +1,9 @@
 # Directory Tree: puppeteer_spider_v2
 
-**Path:** `/mnt/dev_sdb3/programing/core_node/ncore/utils/puppeteer_spider_v2`
+**Path:** `D:\programing\core_node\ncore\utils\puppeteer_spider_v2`
 
 ```
 puppeteer_spider_v2/
-├── config/
-├── docs/
-│   ├── api/
-│   ├── examples/
-│   └── guides/
 ├── src/
 │   ├── compat/
 │   │   └── LegacyAdapter.js
@@ -34,8 +29,8 @@ puppeteer_spider_v2/
 │   │   │   ├── ChromeInstaller.js
 │   │   │   ├── EdgeFinder.js
 │   │   │   └── EdgeInstaller.js
-│   │   ├── downloaders/
 │   │   └── pages/
+│   │       ├── EnhancedPage.js
 │   │       └── StandardPage.js
 │   ├── interfaces/
 │   │   ├── IBrowser.js
@@ -46,7 +41,8 @@ puppeteer_spider_v2/
 │   │   ├── core/
 │   │   │   ├── AutomationPlugin.js
 │   │   │   ├── ContentPlugin.js
-│   │   │   └── DownloadPlugin.js
+│   │   │   ├── DownloadPlugin.js
+│   │   │   └── EnhancedDownloadPlugin.js
 │   │   └── extensions/
 │   │       ├── FormPlugin.js
 │   │       └── ScreenshotPlugin.js
@@ -61,6 +57,8 @@ puppeteer_spider_v2/
 │       │   └── DataExtractionUtils.js
 │       ├── finder/
 │       │   └── ElementFinderUtils.js
+│       ├── iframe/
+│       │   └── IframeUtils.js
 │       ├── navigation/
 │       │   └── NavigationUtils.js
 │       ├── operations/
@@ -69,15 +67,12 @@ puppeteer_spider_v2/
 │       ├── CacheManager.js
 │       ├── Logger.js
 │       └── PageUtils.js
-├── tests/
-│   ├── e2e/
-│   ├── integration/
-│   └── unit/
 ├── COMPLETE_REFACTORING_PLAN.md
 ├── IMPLEMENTATION_COMPARISON.md
 ├── README.md
 ├── REFACTORING_SUMMARY.md
 ├── example.js
+├── fetcher.js
 ├── main.js
 ├── puppeteer_spider_v2_tree.md
 └── test.js
