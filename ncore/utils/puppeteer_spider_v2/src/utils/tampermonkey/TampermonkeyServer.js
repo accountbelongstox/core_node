@@ -29,7 +29,11 @@ class TampermonkeyServer {
             totalPages: 0,
             totalBytes: 0,
             startTime: null,
-            endTime: null
+            endTime: null,
+            sourceCount: {
+                page: 0,
+                iframe: 0
+            }
         };
     }
 
@@ -116,11 +120,16 @@ class TampermonkeyServer {
         req.on('end', async () => {
             try {
                 const pageData = JSON.parse(body);
+                const sourceType = (pageData.sourceType || 'page').toLowerCase();
+                if (!this.statistics.sourceCount[sourceType]) {
+                    this.statistics.sourceCount[sourceType] = 0;
+                }
+                this.statistics.sourceCount[sourceType]++;
                 this.statistics.totalPages++;
                 this.statistics.totalBytes += pageData.contentLength || 0;
 
                 logger.info(`[TAMPERMONKEY-SERVER] Received page: ${pageData.url}`);
-                logger.info(`  Depth: ${pageData.depth}, Content length: ${pageData.contentLength}`);
+                logger.info(`  Source: ${sourceType}, Depth: ${pageData.depth}, Content length: ${pageData.contentLength}`);
 
                 this.receivedPages.push(pageData);
 
@@ -132,7 +141,8 @@ class TampermonkeyServer {
                 res.end(JSON.stringify({
                     success: true,
                     message: 'Page received',
-                    totalPages: this.statistics.totalPages
+                    totalPages: this.statistics.totalPages,
+                    sourceType: sourceType
                 }));
             } catch (error) {
                 logger.error('[TAMPERMONKEY-SERVER] Failed to process page:', error);
@@ -156,7 +166,9 @@ class TampermonkeyServer {
         req.on('end', async () => {
             try {
                 const completeData = JSON.parse(body);
+                const completionSource = (completeData.sourceType || 'page').toLowerCase();
                 logger.success(`[TAMPERMONKEY-SERVER] Crawl completed!`);
+                logger.info(`  Mode: ${completionSource}`);
                 logger.info(`  Total pages: ${completeData.totalPages}`);
                 logger.info(`  Failed URLs: ${completeData.failedUrls?.length || 0}`);
 
@@ -167,7 +179,8 @@ class TampermonkeyServer {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     success: true,
-                    message: 'Completion acknowledged'
+                    message: 'Completion acknowledged',
+                    sourceType: completionSource
                 }));
             } catch (error) {
                 logger.error('[TAMPERMONKEY-SERVER] Failed to process completion:', error);
@@ -193,7 +206,8 @@ class TampermonkeyServer {
             statistics: {
                 ...this.statistics,
                 uptime: uptime,
-                receivedPagesCount: this.receivedPages.length
+                receivedPagesCount: this.receivedPages.length,
+                sourceCount: this.statistics.sourceCount
             }
         }));
     }
