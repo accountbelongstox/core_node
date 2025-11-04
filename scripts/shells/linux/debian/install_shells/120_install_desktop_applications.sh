@@ -1482,8 +1482,8 @@ main() {
             ;;
         server)
             log_message "Detected: Server Environment"
-            log_message "Will install: BASE packages only"
-            packages_to_install=("BASE")
+            log_message "Will install: BASE, AI, and MCP packages (skipping DEV and APP)"
+            packages_to_install=("BASE" "AI" "MCP")
             ;;
     esac
 
