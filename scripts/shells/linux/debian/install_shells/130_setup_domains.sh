@@ -1688,8 +1688,39 @@ if [ $success_count -eq $total_count ] && [ $total_count -gt 0 ]; then
         echo "[$SCRIPT_INDEX] Skipping local testing mode setup"
     fi
 
+    # Run post-domain setup diagnostics
+    echo ""
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] RUNNING POST-SETUP DIAGNOSTICS"
+    echo "[$SCRIPT_INDEX] =================================="
+
+    diagnostics_script="$SCRIPT_CURRENT_DIR/../callbacks/post_domain_setup_diagnostics.sh"
+    if [ -f "$diagnostics_script" ]; then
+        echo "[$SCRIPT_INDEX] Executing diagnostics script..."
+        bash "$diagnostics_script"
+    else
+        echo "[$SCRIPT_INDEX] Diagnostics script not found: $diagnostics_script"
+        echo "[$SCRIPT_INDEX] Skipping diagnostics"
+    fi
+
     exit 0
 else
     echo "[$SCRIPT_INDEX] Some domains failed to configure. Check the logs above."
+
+    # Run diagnostics even if some domains failed
+    echo ""
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] RUNNING POST-SETUP DIAGNOSTICS"
+    echo "[$SCRIPT_INDEX] =================================="
+
+    diagnostics_script="$SCRIPT_CURRENT_DIR/../callbacks/post_domain_setup_diagnostics.sh"
+    if [ -f "$diagnostics_script" ]; then
+        echo "[$SCRIPT_INDEX] Executing diagnostics script..."
+        bash "$diagnostics_script"
+    else
+        echo "[$SCRIPT_INDEX] Diagnostics script not found: $diagnostics_script"
+        echo "[$SCRIPT_INDEX] Skipping diagnostics"
+    fi
+
     exit 1
 fi
