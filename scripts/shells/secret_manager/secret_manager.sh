@@ -76,6 +76,56 @@ _secret_find_disguise_tool() {
 }
 
 #=============================================================================
+# Helper function: Read password with visual feedback
+#=============================================================================
+# Modes: "asterisk" (show *), "visible" (show plaintext), "silent" (no feedback)
+_secret_read_password() {
+    local prompt="${1:-Enter password: }"
+    local mode="${2:-asterisk}"
+    local password=""
+    local char=""
+
+    echo -n "$prompt" >&2
+
+    if [ "$mode" = "visible" ]; then
+        # Visible mode: show plaintext
+        read password
+        echo "$password"
+        return 0
+    elif [ "$mode" = "silent" ]; then
+        # Silent mode: traditional behavior
+        read -s password
+        echo "" >&2
+        echo "$password"
+        return 0
+    fi
+
+    # Asterisk mode: show * for each character
+    stty -echo 2>/dev/null
+    while IFS= read -r -n1 char; do
+        if [[ $char == $'\0' ]]; then
+            break
+        fi
+        if [[ $char == $'\177' ]] || [[ $char == $'\b' ]]; then
+            # Backspace
+            if [ ${#password} -gt 0 ]; then
+                password="${password%?}"
+                echo -ne "\b \b" >&2
+            fi
+        elif [[ $char == $'\n' ]] || [[ $char == $'\r' ]]; then
+            # Enter key
+            break
+        else
+            password+="$char"
+            echo -n "*" >&2
+        fi
+    done
+    stty echo 2>/dev/null
+    echo "" >&2
+    echo "$password"
+}
+
+#=============================================================================
 # Function 1: Decrypt all encrypted files
 #=============================================================================
 secret_decrypt_all() {
@@ -122,9 +172,7 @@ secret_decrypt_all() {
     echo "[SECRET_DECRYPT_ALL] Using decryption tool: $disguise_js" >&2
 
     if [ -z "$password" ]; then
-        echo -n "[SECRET_DECRYPT_ALL] Enter decryption password: " >&2
-        read -s password
-        echo "" >&2
+        password=$(_secret_read_password "[SECRET_DECRYPT_ALL] Enter decryption password: " "asterisk")
     fi
 
     if [ -z "$password" ]; then
@@ -140,6 +188,7 @@ secret_decrypt_all() {
         local key_name="${file_name%.js}"
         key_name="${key_name%.JS}"
         echo "[SECRET_DECRYPT_ALL] Decrypting: $file_name -> $key_name" >&2
+        echo "[SECRET_DECRYPT_ALL]   Executing: node \"$encrypted_file\" pwd \"********\" \"$output_dir\"" >&2
         local result
         result=$(node "$encrypted_file" pwd "$password" "$output_dir" 2>&1)
         local exit_code=$?
@@ -320,9 +369,7 @@ secret_get_key() {
 
         # Prompt for password if not provided
         if [ -z "$password" ]; then
-            echo -n "[SECRET_GET_KEY] Enter password for $key_name: " >&2
-            read -s password
-            echo "" >&2
+            password=$(_secret_read_password "[SECRET_GET_KEY] Enter password for $key_name: " "asterisk")
         fi
 
         if [ -z "$password" ]; then
@@ -330,6 +377,9 @@ secret_get_key() {
             rm -rf "$temp_output_dir"
             return 1
         fi
+
+        # Display decryption command (hide password)
+        echo "[SECRET_GET_KEY] Executing: node \"$encrypted_file\" pwd \"********\" \"$temp_output_dir\"" >&2
 
         # Decrypt to temporary directory
         local result
@@ -429,6 +479,7 @@ export -f secret_get_key
 export -f secret_get_all_keys
 export -f _secret_get_directories
 export -f _secret_find_disguise_tool
+export -f _secret_read_password
 
 echo "[SECRET_MANAGER] Library loaded successfully" >&2
 

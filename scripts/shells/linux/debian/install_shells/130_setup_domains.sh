@@ -56,18 +56,27 @@ initialize_secrets() {
     local password2=""
 
     while true; do
-        echo -n "[$SCRIPT_INDEX] Enter decryption password: " >&2
-        read -s password1
-        echo "" >&2
+        # Check if _secret_read_password function exists
+        if type _secret_read_password >/dev/null 2>&1; then
+            password1=$(_secret_read_password "[$SCRIPT_INDEX] Enter decryption password: " "asterisk")
+        else
+            echo -n "[$SCRIPT_INDEX] Enter decryption password: " >&2
+            read password1
+            echo "" >&2
+        fi
 
         if [ -z "$password1" ]; then
             echo "[$SCRIPT_INDEX] ERROR: Password cannot be empty" >&2
             continue
         fi
 
-        echo -n "[$SCRIPT_INDEX] Confirm password: " >&2
-        read -s password2
-        echo "" >&2
+        if type _secret_read_password >/dev/null 2>&1; then
+            password2=$(_secret_read_password "[$SCRIPT_INDEX] Confirm password: " "asterisk")
+        else
+            echo -n "[$SCRIPT_INDEX] Confirm password: " >&2
+            read password2
+            echo "" >&2
+        fi
 
         if [ "$password1" = "$password2" ]; then
             SECRET_PASSWORD="$password1"
