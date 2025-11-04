@@ -104,9 +104,38 @@ class ServerManagerV1DomainManager
      */
     public static function addDomain(string $domain, array $config): bool
     {
+        // Validate domain name format
+        if (!self::validateDomainName($domain)) {
+            Log::error('Invalid domain name format', ['domain' => $domain]);
+            return false;
+        }
+
         $domains = self::loadDomains();
 
         $wwwDir = $config['www_dir'] ?? "/www/wwwroot/$domain";
+
+        // Validate and ensure www directory exists
+        if (!is_dir($wwwDir)) {
+            if (!mkdir($wwwDir, 0755, true)) {
+                Log::error('Failed to create www directory', [
+                    'domain' => $domain,
+                    'www_dir' => $wwwDir,
+                    'error' => error_get_last()
+                ]);
+                return false;
+            }
+            Log::info('Created www directory', ['domain' => $domain, 'www_dir' => $wwwDir]);
+        }
+
+        // Verify www directory is writable
+        if (!is_writable($wwwDir)) {
+            Log::error('WWW directory is not writable', [
+                'domain' => $domain,
+                'www_dir' => $wwwDir,
+                'permissions' => substr(sprintf('%o', fileperms($wwwDir)), -4)
+            ]);
+            return false;
+        }
 
         $domainConfig = [
             'domain' => $domain,
@@ -131,22 +160,60 @@ class ServerManagerV1DomainManager
         if (!$domainConfig['index_file_created']) {
             $indexCreated = self::createIndexFile($domain, $wwwDir);
             $domainConfig['index_file_created'] = $indexCreated;
+
+            if (!$indexCreated) {
+                Log::warning('Failed to create index file, continuing anyway', ['domain' => $domain]);
+            }
         }
 
         // Generate nginx configuration file
         if ($config['nginx_enabled'] ?? false) {
-            self::generateNginxConfig($domain, $domainConfig);
+            $nginxResult = self::generateNginxConfig($domain, $domainConfig);
+            if (!$nginxResult) {
+                Log::error('Failed to generate nginx configuration', ['domain' => $domain]);
+                return false;
+            }
         }
 
         // Add or update domain
         $domains[$domain] = $domainConfig;
 
         if (self::saveDomains($domains)) {
-            Log::info('Domain added/updated successfully', ['domain' => $domain]);
+            Log::info('Domain added/updated successfully', [
+                'domain' => $domain,
+                'type' => $domainConfig['type'],
+                'www_dir' => $wwwDir,
+                'ssl_enabled' => $domainConfig['ssl_enabled']
+            ]);
             return true;
         }
 
+        Log::error('Failed to save domains database', ['domain' => $domain]);
         return false;
+    }
+
+    /**
+     * Validate domain name format
+     */
+    private static function validateDomainName(string $domain): bool
+    {
+        // Check if domain is not empty
+        if (empty($domain)) {
+            return false;
+        }
+
+        // Check length
+        if (strlen($domain) > 253) {
+            return false;
+        }
+
+        // Basic domain format validation
+        // Allow letters, numbers, hyphens, dots, and wildcards
+        if (!preg_match('/^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/', $domain)) {
+            return false;
+        }
+
+        return true;
     }
     
     /**
@@ -510,10 +577,22 @@ class ServerManagerV1DomainManager
 
         // Create directories if they don't exist
         if (!is_dir($nginxConfigDir)) {
-            mkdir($nginxConfigDir, 0755, true);
+            if (!mkdir($nginxConfigDir, 0755, true)) {
+                Log::error('Failed to create nginx config directory', [
+                    'domain' => $domain,
+                    'directory' => $nginxConfigDir
+                ]);
+                return false;
+            }
         }
         if (!is_dir($nginxEnabledDir)) {
-            mkdir($nginxEnabledDir, 0755, true);
+            if (!mkdir($nginxEnabledDir, 0755, true)) {
+                Log::error('Failed to create nginx enabled directory', [
+                    'domain' => $domain,
+                    'directory' => $nginxEnabledDir
+                ]);
+                return false;
+            }
         }
 
         $configFile = ServerManagerV1PathConfig::getNginxSiteConfig($domain, false);
@@ -547,6 +626,19 @@ class ServerManagerV1DomainManager
             } else {
                 // Fallback to domain-based path using PathConfig
                 $certDir = ServerManagerV1PathConfig::getSslCertDir($domain);
+            }
+
+            // Validate SSL certificate files exist
+            $fullchainPath = "$certDir/fullchain.pem";
+            $privkeyPath = "$certDir/privkey.pem";
+
+            if (!file_exists($fullchainPath) || !file_exists($privkeyPath)) {
+                Log::warning('SSL certificate files not found, they should be created before nginx restart', [
+                    'domain' => $domain,
+                    'cert_dir' => $certDir,
+                    'fullchain_exists' => file_exists($fullchainPath),
+                    'privkey_exists' => file_exists($privkeyPath)
+                ]);
             }
         }
 
@@ -696,12 +788,20 @@ server {
             // Write HTTP redirect configuration to main config file
             $httpResult = file_put_contents($configFile, $httpRedirectConfig);
             if ($httpResult === false) {
+                Log::error('Failed to write HTTP redirect config file', [
+                    'domain' => $domain,
+                    'config_file' => $configFile
+                ]);
                 return false;
             }
 
             // Write SSL configuration file
             $sslResult = file_put_contents($sslConfigFile, $sslConfig);
             if ($sslResult === false) {
+                Log::error('Failed to write SSL config file', [
+                    'domain' => $domain,
+                    'ssl_config_file' => $sslConfigFile
+                ]);
                 return false;
             }
 
@@ -714,6 +814,14 @@ server {
                 @unlink($httpEnabledFile);
             }
             $httpSymlinkResult = symlink($configFile, $httpEnabledFile);
+            if (!$httpSymlinkResult) {
+                Log::error('Failed to create HTTP symlink', [
+                    'domain' => $domain,
+                    'source' => $configFile,
+                    'target' => $httpEnabledFile
+                ]);
+                return false;
+            }
 
             // HTTPS link (for port 443)
             $sslEnabledFile = "$enabledFile-ssl";  // e.g., /sites-enabled/domain.com-ssl
@@ -723,12 +831,24 @@ server {
                 @unlink($sslEnabledFile);
             }
             $sslSymlinkResult = symlink($sslConfigFile, $sslEnabledFile);
+            if (!$sslSymlinkResult) {
+                Log::error('Failed to create SSL symlink', [
+                    'domain' => $domain,
+                    'source' => $sslConfigFile,
+                    'target' => $sslEnabledFile
+                ]);
+                return false;
+            }
 
-            return $httpSymlinkResult && $sslSymlinkResult;
+            return true;
         } else {
             // Write HTTP configuration file
             $httpResult = file_put_contents($configFile, $httpConfig);
             if ($httpResult === false) {
+                Log::error('Failed to write HTTP config file', [
+                    'domain' => $domain,
+                    'config_file' => $configFile
+                ]);
                 return false;
             }
 
@@ -738,7 +858,17 @@ server {
             }
 
             // Create symbolic link to enable HTTP configuration
-            return symlink($configFile, $enabledFile);
+            $symlinkResult = symlink($configFile, $enabledFile);
+            if (!$symlinkResult) {
+                Log::error('Failed to create HTTP symlink', [
+                    'domain' => $domain,
+                    'source' => $configFile,
+                    'target' => $enabledFile
+                ]);
+                return false;
+            }
+
+            return true;
         }
     }
 

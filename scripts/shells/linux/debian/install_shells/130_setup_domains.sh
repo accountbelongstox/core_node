@@ -341,8 +341,21 @@ initialize_system_directories() {
 # Function to install certbot-dns-dnspod plugin
 install_certbot_dnspod() {
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] CHECKING CERTBOT-DNS-DNSPOD PLUGIN"
+    echo "[$SCRIPT_INDEX] CHECKING CERTBOT DEPENDENCIES"
     echo "[$SCRIPT_INDEX] =================================="
+
+    # Check if certbot is installed
+    if ! command -v certbot >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] certbot not found, installing..."
+        $USE_SUDO apt-get update >/dev/null 2>&1
+        $USE_SUDO apt-get install -y certbot >/dev/null 2>&1 || {
+            echo "[$SCRIPT_INDEX] [FAIL] Failed to install certbot"
+            return 1
+        }
+        echo "[$SCRIPT_INDEX] [OK] certbot installed"
+    else
+        echo "[$SCRIPT_INDEX] [OK] certbot is available: $(which certbot)"
+    fi
 
     # Check if pip3 is available
     if ! command -v pip3 >/dev/null 2>&1; then
@@ -352,14 +365,48 @@ install_certbot_dnspod() {
             echo "[$SCRIPT_INDEX] [FAIL] Failed to install python3-pip"
             return 1
         }
-        echo "[$SCRIPT_INDEX] [OK]python3-pip installed"
+        echo "[$SCRIPT_INDEX] [OK] python3-pip installed"
     else
-        echo "[$SCRIPT_INDEX] [OK]pip3 is available"
+        echo "[$SCRIPT_INDEX] [OK] pip3 is available"
+    fi
+
+    # Check for zope.interface module
+    echo "[$SCRIPT_INDEX] Checking zope.interface module..."
+    if python3 -c "import zope.interface" 2>/dev/null; then
+        echo "[$SCRIPT_INDEX] [OK] zope.interface is available"
+    else
+        echo "[$SCRIPT_INDEX] zope.interface not found, installing..."
+
+        # Try multiple installation methods
+        local zope_installed=false
+
+        # Method 1: Try apt-get first
+        if $USE_SUDO apt-get install -y python3-zope.interface >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] [OK] zope.interface installed via apt-get"
+            zope_installed=true
+        # Method 2: Try pip3
+        elif $USE_SUDO pip3 install zope.interface --break-system-packages 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] [OK] zope.interface installed via pip3"
+            zope_installed=true
+        fi
+
+        # Verify installation
+        if [ "$zope_installed" = true ]; then
+            if python3 -c "import zope.interface" 2>/dev/null; then
+                echo "[$SCRIPT_INDEX] [OK] zope.interface verification successful"
+            else
+                echo "[$SCRIPT_INDEX] [FAIL] zope.interface installed but not importable"
+                echo "[$SCRIPT_INDEX] Self-signed certificates will be used as fallback"
+            fi
+        else
+            echo "[$SCRIPT_INDEX] [FAIL] Failed to install zope.interface"
+            echo "[$SCRIPT_INDEX] Self-signed certificates will be used as fallback"
+        fi
     fi
 
     # Check if certbot-dns-dnspod is installed
     if pip3 list 2>/dev/null | grep -qi "certbot-dns-dnspod"; then
-        echo "[$SCRIPT_INDEX] [OK]certbot-dns-dnspod already installed"
+        echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod already installed"
         local version=$(pip3 show certbot-dns-dnspod 2>/dev/null | grep "Version:" | cut -d' ' -f2)
         echo "[$SCRIPT_INDEX]   Version: ${version:-unknown}"
         return 0
@@ -371,9 +418,17 @@ install_certbot_dnspod() {
     done
 
     if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] [OK]certbot-dns-dnspod installed successfully"
+        echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod installed successfully"
+
+        # Final verification
+        if pip3 list 2>/dev/null | grep -qi "certbot-dns-dnspod"; then
+            echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod verification successful"
+        else
+            echo "[$SCRIPT_INDEX] [FAIL] certbot-dns-dnspod verification failed"
+        fi
     else
-        echo "[$SCRIPT_INDEX] [OK]certbot-dns-dnspod installation had issues, but continuing..."
+        echo "[$SCRIPT_INDEX] [FAIL] certbot-dns-dnspod installation had issues"
+        echo "[$SCRIPT_INDEX] Self-signed certificates will be used as fallback"
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
