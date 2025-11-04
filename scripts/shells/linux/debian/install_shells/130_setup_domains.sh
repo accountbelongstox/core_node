@@ -30,6 +30,7 @@ total_count=0
 SECRET_PASSWORD=""
 DNSPOD_EMAIL=""
 DNSPOD_API_TOKEN=""
+DOMAINS_LISTS_CONTENT=""
 
 echo "[$SCRIPT_INDEX] Domain Setup Script - Adding domains to nginx and certbot"
 
@@ -38,9 +39,39 @@ echo "[$SCRIPT_INDEX] Using sudo configuration from gvar_common.sh: ${USE_SUDO:-
 
 # Function to initialize secrets with password prompt
 initialize_secrets() {
-    # Only prompt for password on production servers
+    # Check if secret_get_key function exists
+    if ! type secret_get_key >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] WARNING: secret_get_key function not found, using get_secret_content" >&2
+        DNSPOD_EMAIL=$(get_secret_content "DNS_DNSPOD_EMAILS")
+        DNSPOD_API_TOKEN=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
+        DOMAINS_LISTS_CONTENT=$(get_secret_content "DOMAINS_LISTS")
+        return 0
+    fi
+
+    # In non-production environment (WSL/Desktop), try to use cached secrets
     if [ "$IS_PRODUCTION" != true ]; then
-        echo "[$SCRIPT_INDEX] Desktop/WSL environment detected - secrets will be cached locally"
+        echo "[$SCRIPT_INDEX] Desktop/WSL environment detected - checking for cached secrets"
+
+        # Try to load from cache (will prompt once if cache doesn't exist)
+        DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "")
+        if [ $? -ne 0 ] || [ -z "$DNSPOD_EMAIL" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to load DNS_DNSPOD_EMAILS" >&2
+            return 1
+        fi
+
+        DNSPOD_API_TOKEN=$(secret_get_key "DNS_DNSPOD_API_TOKENS" "")
+        if [ $? -ne 0 ] || [ -z "$DNSPOD_API_TOKEN" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to load DNS_DNSPOD_API_TOKENS" >&2
+            return 1
+        fi
+
+        DOMAINS_LISTS_CONTENT=$(secret_get_key "DOMAINS_LISTS" "")
+        if [ $? -ne 0 ] || [ -z "$DOMAINS_LISTS_CONTENT" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to load DOMAINS_LISTS" >&2
+            return 1
+        fi
+
+        echo "[$SCRIPT_INDEX] [OK]All secrets loaded from cache" >&2
         return 0
     fi
 
@@ -95,6 +126,7 @@ initialize_secrets() {
         echo "[$SCRIPT_INDEX] WARNING: secret_get_key function not found, using get_secret_content" >&2
         DNSPOD_EMAIL=$(get_secret_content "DNS_DNSPOD_EMAILS")
         DNSPOD_API_TOKEN=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
+        DOMAINS_LISTS_CONTENT=$(get_secret_content "DOMAINS_LISTS")
     else
         # Use secret_get_key with password parameter
         DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "$SECRET_PASSWORD")
@@ -110,6 +142,13 @@ initialize_secrets() {
             echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DNS_DNSPOD_API_TOKENS (incorrect password?)" >&2
             return 1
         fi
+
+        DOMAINS_LISTS_CONTENT=$(secret_get_key "DOMAINS_LISTS" "$SECRET_PASSWORD")
+        exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DOMAINS_LISTS (incorrect password?)" >&2
+            return 1
+        fi
     fi
 
     # Validate decrypted content
@@ -118,9 +157,15 @@ initialize_secrets() {
         return 1
     fi
 
+    if [ -z "$DOMAINS_LISTS_CONTENT" ]; then
+        echo "[$SCRIPT_INDEX] ERROR: Failed to load domains list" >&2
+        return 1
+    fi
+
     echo "[$SCRIPT_INDEX] [OK]All secrets decrypted successfully" >&2
     echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAILS: ${DNSPOD_EMAIL:0:3}***@${DNSPOD_EMAIL##*@}" >&2
     echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKENS: [LOADED]" >&2
+    echo "[$SCRIPT_INDEX]   - DOMAINS_LISTS: [LOADED]" >&2
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX]"
 
@@ -694,7 +739,15 @@ check_laravel_available() {
 read_domains() {
     echo "[$SCRIPT_INDEX] Reading domains from secret storage..."
 
-    domains_content=$(get_secret_content "DOMAINS_LISTS")
+    # Use cached content if available (from initialize_secrets)
+    if [ -n "$DOMAINS_LISTS_CONTENT" ]; then
+        domains_content="$DOMAINS_LISTS_CONTENT"
+    elif type secret_get_key >/dev/null 2>&1; then
+        domains_content=$(secret_get_key "DOMAINS_LISTS" "$SECRET_PASSWORD")
+    else
+        domains_content=$(get_secret_content "DOMAINS_LISTS")
+    fi
+
     if [ -z "$domains_content" ]; then
         echo "[$SCRIPT_INDEX] No domains found in secret storage"
         return 1
@@ -712,7 +765,14 @@ read_domains() {
 
 # Function to get domains list (without debug output)
 get_domains_list() {
-    get_secret_content "DOMAINS_LISTS" | tr -d '\r' | sed '/^$/d'
+    # Use cached content if available (from initialize_secrets)
+    if [ -n "$DOMAINS_LISTS_CONTENT" ]; then
+        echo "$DOMAINS_LISTS_CONTENT" | tr -d '\r' | sed '/^$/d'
+    elif type secret_get_key >/dev/null 2>&1; then
+        secret_get_key "DOMAINS_LISTS" "$SECRET_PASSWORD" | tr -d '\r' | sed '/^$/d'
+    else
+        get_secret_content "DOMAINS_LISTS" | tr -d '\r' | sed '/^$/d'
+    fi
 }
 
 # Function to read DNSPod configuration
