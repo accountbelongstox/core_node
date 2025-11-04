@@ -23,7 +23,7 @@ const ENCRYPTED_DATA = Buffer.from('fo3RMPUi270LVzV8NOms/qyuQoDXG47Wh5M8cxy+j3Nm
 const OBFUSCATED_PARAMS = Buffer.from('2BTCjHvSh68R1r8qOl3fp4CJ+NJ62VjcMVzuY/5DNPIHtUht2lcSToJTp8BliKK5iPWb/HvlsCYF0QZbXs17JgGtRrwq7zcMgSwoYzvbLHOa+ZZyPHsB4Q7JDei4hKcWWX6JltnCMjmIoQOcSnuIDX8X5Dbm4y1c6X4eGFhWN7N9vqTG0RNUNDBItHqGHtX2pAfpI4tr2hhWIwMPxMVh+r4PCqKnWzdiJ152VvUSTdfU8/BY7KxAhD8b9UxPGb0iwMnH30ztc30vIEgu2gWbWbruHGIOGWNhKCl9KljaYvIFOMqeYuR5bGDuTgKk16nGAstiAkau50D7gYHAsZwI6w9+phbDrxv02NieC/3YcxSLowUxG0Fkuh2KvsjpDZSNjlFORp2wiKvVHH1yljzQhMiYcL7CvLSchAzKTHTAnRe3nY6EyHND1683SSWN4TJ7D2+E1senALEONlMZpcA0Pe0syewpbZ1NRKm3LDDUBkcxkBYnG3cSYjAQqpa+m7gE', 'base64');
 const PARAMS_KEY = Buffer.from('OMfNbxTEBUXMpnrPK4yJzXs9oesqpKOS4Ga62Snuk2U=', 'base64');
 const PARAMS_IV = Buffer.from('LxVLiu9XXI3BbN+F87pTxg==', 'base64');
-const ORIGINAL_FILENAME = 'dns_dnspod_emails';
+const ORIGINAL_FILENAME = 'DNS_DNSPOD_EMAILS';
 
 // Function to deobfuscate parameters
 function deobfuscateParams() {
