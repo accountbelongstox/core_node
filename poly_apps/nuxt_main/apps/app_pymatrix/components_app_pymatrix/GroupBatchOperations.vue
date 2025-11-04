@@ -1,15 +1,15 @@
 <template>
-  <div class="group-batch-operations" v-if="groupStore.hasGroup && groupStore.enabled">
-    <div class="batch-toolbar">
-      <div class="toolbar-header">
-        <div class="header-icon">⚡</div>
-        <h3 class="header-title">Batch Operations</h3>
-        <div class="device-count">
+  <div class="pm-panel pm-panel--purple" v-if="groupStore.hasGroup && groupStore.enabled" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3); animation: slideInUp 0.3s ease-out;">
+    <div class="pm-panel__body" style="display: flex; flex-direction: column; gap: 12px; padding: 12px 16px;">
+      <div class="pm-panel__header" style="display: flex; align-items: center; gap: 12px;">
+        <div style="font-size: 24px;">⚡</div>
+        <h3 style="margin: 0; font-size: 18px; font-weight: 700; flex: 1; color: white;">Batch Operations</h3>
+        <div style="padding: 4px 12px; background: rgba(255, 255, 255, 0.2); border-radius: 12px; font-size: 12px; font-weight: 600; color: white;">
           {{ groupStore.slaveDevices.length + 1 }} devices
         </div>
       </div>
 
-      <div class="toolbar-actions">
+      <div class="pm-button-group">
         <!-- Screenshot -->
         <BaseButton
           variant="info"
@@ -50,7 +50,7 @@
         </BaseButton>
 
         <!-- System Keys -->
-        <div class="system-keys-group">
+        <div style="display: flex; gap: 4px; align-items: center; padding: 4px 8px; background: rgba(255, 255, 255, 0.1); border-radius: 8px;">
           <BaseButton
             variant="ghost"
             size="sm"
@@ -81,7 +81,7 @@
         </div>
 
         <!-- Screen Power -->
-        <div class="screen-power-group">
+        <div style="display: flex; gap: 4px; align-items: center; padding: 4px 8px; background: rgba(255, 255, 255, 0.1); border-radius: 8px;">
           <BaseButton
             variant="success"
             size="sm"
@@ -103,8 +103,8 @@
         </div>
 
         <!-- Brightness Presets -->
-        <div class="brightness-group">
-          <span class="group-label">💡</span>
+        <div style="display: flex; gap: 4px; align-items: center; padding: 4px 8px; background: rgba(255, 255, 255, 0.1); border-radius: 8px;">
+          <span style="font-size: 14px; margin-right: 4px;">💡</span>
           <BaseButton
             v-for="preset in brightnessPresets"
             :key="preset.value"
@@ -122,17 +122,17 @@
     </div>
 
     <!-- Results Panel -->
-    <div v-if="lastResult" class="result-panel" :class="{ success: lastResult.success }">
-      <div class="result-header">
-        <span class="result-icon">{{ lastResult.success ? '✅' : '⚠️' }}</span>
-        <span class="result-summary">
+    <div v-if="lastResult" style="margin-top: 8px; padding: 12px 16px; border-top: 2px solid rgba(239, 68, 68, 0.5);" :style="{ background: lastResult.success ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)', borderColor: lastResult.success ? 'rgba(34, 197, 94, 0.5)' : 'rgba(239, 68, 68, 0.5)' }">
+      <div style="display: flex; align-items: center; gap: 8px; color: white; font-weight: 600;">
+        <span style="font-size: 18px;">{{ lastResult.success ? '✅' : '⚠️' }}</span>
+        <span>
           {{ lastResult.successfulDevices }}/{{ lastResult.totalDevices }} devices succeeded
         </span>
       </div>
-      <div v-if="lastResult.failedDevices > 0" class="result-details">
-        <div v-for="result in failedResults" :key="result.serial" class="failed-device">
-          <span class="device-serial">{{ result.serial }}</span>
-          <span class="error-message">{{ result.error }}</span>
+      <div v-if="lastResult.failedDevices > 0" style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px;">
+        <div v-for="result in failedResults" :key="result.serial" style="display: flex; gap: 8px; padding: 4px 8px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; font-size: 12px; color: rgba(255, 255, 255, 0.9);">
+          <span style="font-weight: 600; min-width: 120px;">{{ result.serial }}</span>
+          <span style="color: rgba(255, 255, 255, 0.7);">{{ result.error }}</span>
         </div>
       </div>
     </div>
@@ -315,123 +315,6 @@ async function handleBatchBrightness(level: number) {
 </script>
 
 <style scoped>
-.group-batch-operations {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-  animation: slideInUp 0.3s ease-out;
-}
-
-.batch-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 16px;
-}
-
-.toolbar-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: white;
-}
-
-.header-icon {
-  font-size: 24px;
-}
-
-.header-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  flex: 1;
-}
-
-.device-count {
-  padding: 4px 12px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.system-keys-group,
-.screen-power-group,
-.brightness-group {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-}
-
-.group-label {
-  font-size: 14px;
-  margin-right: 4px;
-}
-
-.result-panel {
-  margin-top: 8px;
-  padding: 12px 16px;
-  background: rgba(239, 68, 68, 0.2);
-  border-top: 2px solid rgba(239, 68, 68, 0.5);
-}
-
-.result-panel.success {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: rgba(34, 197, 94, 0.5);
-}
-
-.result-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: white;
-  font-weight: 600;
-}
-
-.result-icon {
-  font-size: 18px;
-}
-
-.result-details {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.failed-device {
-  display: flex;
-  gap: 8px;
-  padding: 4px 8px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.device-serial {
-  font-weight: 600;
-  min-width: 120px;
-}
-
-.error-message {
-  color: rgba(255, 255, 255, 0.7);
-}
-
 @keyframes slideInUp {
   from {
     opacity: 0;

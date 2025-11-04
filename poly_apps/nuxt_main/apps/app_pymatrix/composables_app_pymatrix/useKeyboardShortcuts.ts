@@ -73,6 +73,13 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions) {
 /**
  * Default pymatrix keyboard shortcuts
  * pymatrix默认键盘快捷键配置
+ *
+ * ⚠️ IMPORTANT: Using Alt key combinations to avoid conflicts with browser/system shortcuts
+ * - Ctrl+N = New window (browser)
+ * - Ctrl+R = Refresh (browser)
+ * - Ctrl+F = Find (browser)
+ * - Ctrl+Q = Quit (browser)
+ * - Ctrl+I = Developer tools (browser)
  */
 export function createDefaultPyMatrixShortcuts(callbacks: {
   onConnectDevice?: () => void;
@@ -84,13 +91,16 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
   onToggleInfo?: () => void;
   onNextDevice?: () => void;
   onPrevDevice?: () => void;
+  onScreenshot?: () => void;
+  onStartRecording?: () => void;
+  onStopRecording?: () => void;
 }): KeyboardShortcut[] {
   const shortcuts: KeyboardShortcut[] = [];
 
   if (callbacks.onConnectDevice) {
     shortcuts.push({
       key: 'n',
-      ctrl: true,
+      alt: true,
       description: 'Connect new device',
       category: 'Device',
       action: callbacks.onConnectDevice
@@ -100,7 +110,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
   if (callbacks.onDisconnectAll) {
     shortcuts.push({
       key: 'd',
-      ctrl: true,
+      alt: true,
       shift: true,
       description: 'Disconnect all devices',
       category: 'Device',
@@ -111,7 +121,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
   if (callbacks.onToggleQuality) {
     shortcuts.push({
       key: 'q',
-      ctrl: true,
+      alt: true,
       description: 'Toggle video quality',
       category: 'Video',
       action: callbacks.onToggleQuality
@@ -130,7 +140,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
   if (callbacks.onToggleFullscreen) {
     shortcuts.push({
       key: 'f',
-      ctrl: true,
+      alt: true,
       description: 'Toggle fullscreen',
       category: 'Video',
       action: callbacks.onToggleFullscreen
@@ -140,7 +150,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
   if (callbacks.onRefreshDevices) {
     shortcuts.push({
       key: 'r',
-      ctrl: true,
+      alt: true,
       description: 'Refresh device list',
       category: 'Device',
       action: callbacks.onRefreshDevices
@@ -150,7 +160,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
   if (callbacks.onToggleInfo) {
     shortcuts.push({
       key: 'i',
-      ctrl: true,
+      alt: true,
       description: 'Toggle device info',
       category: 'Device',
       action: callbacks.onToggleInfo
@@ -160,7 +170,7 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
   if (callbacks.onNextDevice) {
     shortcuts.push({
       key: 'ArrowRight',
-      ctrl: true,
+      alt: true,
       description: 'Focus next device',
       category: 'Navigation',
       action: callbacks.onNextDevice
@@ -170,10 +180,42 @@ export function createDefaultPyMatrixShortcuts(callbacks: {
   if (callbacks.onPrevDevice) {
     shortcuts.push({
       key: 'ArrowLeft',
-      ctrl: true,
+      alt: true,
       description: 'Focus previous device',
       category: 'Navigation',
       action: callbacks.onPrevDevice
+    });
+  }
+
+  // New shortcuts for recording
+  if (callbacks.onScreenshot) {
+    shortcuts.push({
+      key: 's',
+      alt: true,
+      description: 'Take screenshot',
+      category: 'Recording',
+      action: callbacks.onScreenshot
+    });
+  }
+
+  if (callbacks.onStartRecording) {
+    shortcuts.push({
+      key: 'r',
+      alt: true,
+      shift: true,
+      description: 'Start recording',
+      category: 'Recording',
+      action: callbacks.onStartRecording
+    });
+  }
+
+  if (callbacks.onStopRecording) {
+    shortcuts.push({
+      key: 'x',
+      alt: true,
+      description: 'Stop recording',
+      category: 'Recording',
+      action: callbacks.onStopRecording
     });
   }
 

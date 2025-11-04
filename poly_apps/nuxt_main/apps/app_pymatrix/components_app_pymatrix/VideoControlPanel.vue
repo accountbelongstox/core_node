@@ -1,5 +1,5 @@
 <template>
-  <div class="video-control-panel" v-if="show">
+  <div class="pm-panel pm-panel--blue" v-if="show">
     <!-- Quality Selector -->
     <div class="control-section">
       <div class="section-label">Quality</div>
@@ -7,7 +7,7 @@
         <button
           v-for="q in qualities"
           :key="q.value"
-          :class="['quality-btn', { active: quality === q.value }]"
+          :class="['pm-button', 'pm-button--electric-blue', { active: quality === q.value }]"
           @click="handleQualityChange(q.value)"
           :title="q.label"
         >
@@ -21,7 +21,7 @@
       <div class="section-label">Playback</div>
       <div class="playback-buttons">
         <button
-          class="control-btn"
+          class="pm-button pm-button--fire"
           @click="handlePause"
           :disabled="isPaused"
           title="Pause video stream"
@@ -32,7 +32,7 @@
           </svg>
         </button>
         <button
-          class="control-btn"
+          class="pm-button pm-button--golden"
           @click="handleResume"
           :disabled="!isPaused"
           title="Resume video stream"
@@ -58,7 +58,7 @@
         </div>
         <div class="metric-item">
           <span class="metric-label">Dropped</span>
-          <span class="metric-value" :class="{ warning: metrics.droppedFrames > 10 }">
+          <span class="metric-value pm-status-dot" :class="{ warning: metrics.droppedFrames > 10 }">
             {{ metrics.droppedFrames }}
           </span>
         </div>
@@ -114,149 +114,3 @@ function handleResume() {
   emit('resume');
 }
 </script>
-
-<style scoped>
-.video-control-panel {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 5;
-  min-width: 200px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.video-control-panel:hover,
-.video-control-panel:focus-within {
-  opacity: 1;
-}
-
-/* Always show on mobile/touch devices */
-@media (hover: none) {
-  .video-control-panel {
-    opacity: 0.9;
-  }
-}
-
-.control-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.section-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.6);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.quality-buttons,
-.playback-buttons {
-  display: flex;
-  gap: 6px;
-}
-
-.quality-btn {
-  flex: 1;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.quality-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.quality-btn.active {
-  background: rgba(59, 130, 246, 0.8);
-  border-color: rgba(59, 130, 246, 1);
-  color: white;
-}
-
-.control-btn {
-  flex: 1;
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.control-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-
-.control-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.metrics-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 8px;
-}
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
-.metric-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.metric-label {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.metric-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
-  font-variant-numeric: tabular-nums;
-}
-
-.metric-value.warning {
-  color: #ef4444;
-  animation: pulse-warning 2s ease-in-out infinite;
-}
-
-@keyframes pulse-warning {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-</style>

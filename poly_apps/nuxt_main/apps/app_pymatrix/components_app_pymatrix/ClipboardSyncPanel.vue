@@ -1,148 +1,131 @@
 <template>
-  <BasePanel
-    v-model="isOpen"
-    title="Clipboard Sync"
-    header-icon="📋"
-    size="lg"
-    variant="info"
-    custom-header-color="linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)"
-    @close="handleClose"
-  >
-    <template #header>
-      <h3 class="panel-custom-title">Clipboard Sync</h3>
-      <BaseToggle
-        v-model="autoSync"
-        label="Auto"
-        size="sm"
-        variant="info"
-        @change="handleAutoSyncChange"
-      />
-    </template>
+  <div class="pm-panel pm-panel--blue">
+    <div class="pm-panel-header">
+      <h3 class="pm-panel-title">📋 Clipboard Sync</h3>
+      <button class="pm-panel-close" @click="handleClose">×</button>
+    </div>
 
-    <div class="clipboard-sync-content">
-      <!-- Sync Status -->
-      <div class="sync-status">
-        <div class="status-indicator" :class="{ active: syncEnabled }">
-          <span class="status-dot"></span>
-          <span class="status-text">{{ syncEnabled ? 'Sync Active' : 'Sync Disabled' }}</span>
-        </div>
-        <BaseButton
-          :variant="syncEnabled ? 'success' : 'default'"
+    <div class="pm-panel-content">
+      <!-- Header Controls -->
+      <div class="pm-form-group">
+        <BaseToggle
+          v-model="autoSync"
+          label="Auto Sync"
           size="sm"
-          @click="toggleSync"
-        >
-          {{ syncEnabled ? 'Disable' : 'Enable' }}
-        </BaseButton>
+          variant="info"
+          @change="handleAutoSyncChange"
+        />
+      </div>
+
+      <!-- Sync Status -->
+      <div class="pm-form-group">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="pm-status-dot" :class="syncEnabled ? 'pm-status-dot--online' : 'pm-status-dot--offline'"></span>
+            <span class="pm-form-label">{{ syncEnabled ? 'Sync Active' : 'Sync Disabled' }}</span>
+          </div>
+          <button
+            class="pm-button"
+            :class="syncEnabled ? 'pm-button--forest' : 'pm-button--electric-blue'"
+            @click="toggleSync"
+          >
+            {{ syncEnabled ? 'Disable' : 'Enable' }}
+          </button>
+        </div>
       </div>
 
       <!-- Clipboard Sections -->
-      <div class="clipboard-sections">
+      <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: start;">
         <!-- PC Clipboard -->
-        <div class="clipboard-section pc-section">
-          <div class="section-header">
-            <div class="section-icon">💻</div>
-            <h4 class="section-title">PC Clipboard</h4>
-          </div>
-
-          <div class="clipboard-content">
-            <textarea
-              v-model="pcClipboard"
-              class="clipboard-text"
-              placeholder="PC clipboard content..."
-              rows="4"
-              readonly
-            />
-          </div>
-
-          <div class="section-actions">
-            <BaseButton
-              variant="info"
-              size="sm"
-              icon="⬇"
+        <div class="pm-form-group">
+          <label class="pm-form-label">
+            <span style="font-size: 20px; margin-right: 8px;">💻</span>
+            PC Clipboard
+          </label>
+          <textarea
+            v-model="pcClipboard"
+            class="pm-textarea"
+            placeholder="PC clipboard content..."
+            rows="4"
+            readonly
+          ></textarea>
+          <div style="display: flex; gap: 6px; margin-top: 8px;">
+            <button
+              class="pm-button pm-button--electric-blue"
               :disabled="!deviceClipboard || syncing"
-              :loading="syncing"
               @click="sendToPc"
             >
-              From Device
-            </BaseButton>
-            <BaseButton
-              variant="ghost"
-              size="sm"
-              icon="🔄"
+              ⬇ From Device
+            </button>
+            <button
+              class="pm-button pm-button--electric-blue"
               :disabled="syncing"
               @click="refreshPcClipboard"
-            />
+            >
+              🔄
+            </button>
           </div>
         </div>
 
         <!-- Sync Direction -->
-        <div class="sync-direction">
-          <div class="direction-arrows">
-            <svg width="20" height="40" viewBox="0 0 20 40" fill="currentColor">
-              <path d="M10 5 L15 10 L5 10 Z" opacity="0.6"/>
-              <path d="M10 35 L15 30 L5 30 Z" opacity="0.6"/>
-            </svg>
-          </div>
+        <div style="display: flex; align-items: center; justify-content: center; padding-top: 40px;">
+          <svg width="20" height="40" viewBox="0 0 20 40" fill="currentColor">
+            <path d="M10 5 L15 10 L5 10 Z" opacity="0.6"/>
+            <path d="M10 35 L15 30 L5 30 Z" opacity="0.6"/>
+          </svg>
         </div>
 
         <!-- Device Clipboard -->
-        <div class="clipboard-section device-section">
-          <div class="section-header">
-            <div class="section-icon">📱</div>
-            <h4 class="section-title">Device Clipboard</h4>
-          </div>
-
-          <div class="clipboard-content">
-            <textarea
-              v-model="deviceClipboard"
-              class="clipboard-text"
-              placeholder="Device clipboard content..."
-              rows="4"
-              readonly
-            />
-          </div>
-
-          <div class="section-actions">
-            <BaseButton
-              variant="info"
-              size="sm"
-              icon="⬆"
+        <div class="pm-form-group">
+          <label class="pm-form-label">
+            <span style="font-size: 20px; margin-right: 8px;">📱</span>
+            Device Clipboard
+          </label>
+          <textarea
+            v-model="deviceClipboard"
+            class="pm-textarea"
+            placeholder="Device clipboard content..."
+            rows="4"
+            readonly
+          ></textarea>
+          <div style="display: flex; gap: 6px; margin-top: 8px;">
+            <button
+              class="pm-button pm-button--electric-blue"
               :disabled="!pcClipboard || syncing"
-              :loading="syncing"
               @click="sendToDevice"
             >
-              To Device
-            </BaseButton>
-            <BaseButton
-              variant="ghost"
-              size="sm"
-              icon="🔄"
+              ⬆ To Device
+            </button>
+            <button
+              class="pm-button pm-button--electric-blue"
               :disabled="syncing"
               @click="refreshDeviceClipboard"
-            />
+            >
+              🔄
+            </button>
           </div>
         </div>
       </div>
 
       <!-- Last Sync Info -->
-      <div v-if="lastSync" class="last-sync-info">
-        <div class="last-sync-icon">
-          {{ lastSync.source === 'pc' ? '💻→📱' : '📱→💻' }}
-        </div>
-        <div class="last-sync-details">
-          <div class="last-sync-label">Last sync:</div>
-          <div class="last-sync-time">{{ formatTime(lastSync.timestamp) }}</div>
+      <div v-if="lastSync" class="pm-form-group">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+          <div style="font-size: 24px;">
+            {{ lastSync.source === 'pc' ? '💻→📱' : '📱→💻' }}
+          </div>
+          <div>
+            <div class="pm-form-label" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Last sync:</div>
+            <div style="font-size: 13px; font-weight: 500;">{{ formatTime(lastSync.timestamp) }}</div>
+          </div>
         </div>
       </div>
     </div>
-  </BasePanel>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useToast } from '../composables_app_pymatrix/useToast';
-import BasePanel from '~/common/components/ui/BasePanel.vue';
-import BaseButton from '~/common/components/ui/BaseButton.vue';
 import BaseToggle from '~/common/components/ui/BaseToggle.vue';
 import { pyMatrixDeviceAPI } from '~/services/api/pymatrix/pymatrix-device-api';
 
@@ -357,190 +340,3 @@ defineExpose({
   }
 });
 </script>
-
-<style scoped>
-.panel-custom-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: white;
-  flex: 1;
-}
-
-.clipboard-sync-content {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.sync-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-}
-
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #ef4444;
-  animation: pulse-inactive 2s infinite;
-}
-
-.status-indicator.active .status-dot {
-  background: #10b981;
-  animation: pulse-active 2s infinite;
-}
-
-.status-text {
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.clipboard-sections {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 16px;
-  align-items: start;
-}
-
-.clipboard-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.section-icon {
-  font-size: 20px;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.clipboard-content {
-  flex: 1;
-}
-
-.clipboard-text {
-  width: 100%;
-  padding: 12px;
-  font-size: 13px;
-  font-family: 'Consolas', 'Monaco', monospace;
-  color: #1f2937;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  resize: vertical;
-  min-height: 100px;
-}
-
-.clipboard-text:focus {
-  outline: none;
-  border-color: #8b5cf6;
-  background: white;
-}
-
-.section-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.sync-direction {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-top: 40px;
-}
-
-.direction-arrows {
-  color: #8b5cf6;
-}
-
-.last-sync-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 8px;
-}
-
-.last-sync-icon {
-  font-size: 24px;
-}
-
-.last-sync-details {
-  flex: 1;
-}
-
-.last-sync-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #15803d;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.last-sync-time {
-  font-size: 13px;
-  color: #166534;
-  font-weight: 500;
-}
-
-@keyframes pulse-active {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-  }
-  50% {
-    opacity: 0.8;
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
-  }
-}
-
-@keyframes pulse-inactive {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-@media (max-width: 768px) {
-  .clipboard-sections {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-  }
-
-  .sync-direction {
-    padding: 8px 0;
-  }
-
-  .direction-arrows {
-    transform: rotate(90deg);
-  }
-}
-</style>

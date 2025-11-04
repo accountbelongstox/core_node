@@ -1,14 +1,14 @@
 <template>
-  <div class="pymatrix-dialog-overlay" @click="$emit('close')">
-    <div class="pymatrix-dialog" @click.stop>
-      <div class="pymatrix-dialog__header">
-        <h3 class="pymatrix-dialog__title">Configuration</h3>
-        <button class="pymatrix-dialog__close-btn" @click="$emit('close')">×</button>
+  <div class="pm-modal-backdrop" @click="$emit('close')">
+    <div class="pm-modal" @click.stop>
+      <div class="pm-modal__header">
+        <h3>Configuration</h3>
+        <button @click="$emit('close')">×</button>
       </div>
 
-      <div class="pymatrix-dialog__body">
-        <div v-if="configStore.loading" class="pymatrix-dialog__loading">
-          <div class="pymatrix-dialog__spinner"></div>
+      <div class="pm-modal__body">
+        <div v-if="configStore.loading" class="loading">
+          <div class="spinner"></div>
           <span>Loading configuration...</span>
         </div>
 
@@ -23,13 +23,13 @@
               <div
                 v-for="field in configFields"
                 :key="`global-${field.key}`"
-                class="pymatrix-dialog__form-group"
+                class="pm-form-group"
               >
-                <label class="pymatrix-dialog__form-label">{{ field.label }}</label>
+                <label>{{ field.label }}</label>
                 <template v-if="field.type === 'number'">
                   <input
                     v-model.number="globalForm[field.key]"
-                    class="pymatrix-dialog__form-input"
+                    class="pm-input"
                     type="number"
                     :min="field.min"
                     :max="field.max"
@@ -40,7 +40,7 @@
                   <select
                     v-if="'valueType' in field && field.valueType === 'number'"
                     v-model.number="globalForm[field.key]"
-                    class="pymatrix-dialog__form-input"
+                    class="pm-select"
                   >
                     <option v-for="option in field.options" :key="option.value" :value="option.value">
                       {{ option.label }}
@@ -49,7 +49,7 @@
                   <select
                     v-else
                     v-model="globalForm[field.key]"
-                    class="pymatrix-dialog__form-input"
+                    class="pm-select"
                   >
                     <option v-for="option in field.options" :key="option.value" :value="option.value">
                       {{ option.label }}
@@ -57,7 +57,7 @@
                   </select>
                 </template>
                 <template v-else-if="field.type === 'toggle'">
-                  <label class="pymatrix-dialog__switch">
+                  <label class="pm-switch">
                     <input type="checkbox" v-model="globalForm[field.key]" />
                     <span class="slider"></span>
                   </label>
@@ -65,7 +65,7 @@
               </div>
 
               <div class="form-actions">
-                <button class="pymatrix-dialog__button pymatrix-dialog__button--primary" type="submit" :disabled="savingGlobal">
+                <button class="pm-button pm-button--primary" type="submit" :disabled="savingGlobal">
                   {{ savingGlobal ? 'Saving...' : 'Save Global Settings' }}
                 </button>
               </div>
@@ -79,8 +79,8 @@
             </div>
 
             <div class="device-selector">
-              <label class="pymatrix-dialog__form-label">Select existing override</label>
-              <select v-model="selectedDeviceKey" class="pymatrix-dialog__form-input">
+              <label>Select existing override</label>
+              <select v-model="selectedDeviceKey" class="pm-select">
                 <option value="">— None —</option>
                 <option v-for="name in deviceNames" :key="name" :value="name">
                   {{ name }}
@@ -89,11 +89,11 @@
             </div>
 
             <form class="form-grid" @submit.prevent="saveDevice">
-              <div class="pymatrix-dialog__form-group full-width">
-                <label class="pymatrix-dialog__form-label">Device Name</label>
+              <div class="pm-form-group full-width">
+                <label>Device Name</label>
                 <input
                   v-model="deviceNameInput"
-                  class="pymatrix-dialog__form-input"
+                  class="pm-input"
                   type="text"
                   placeholder="e.g. Samsung S23"
                   required
@@ -103,13 +103,13 @@
               <div
                 v-for="field in configFields"
                 :key="`device-${field.key}`"
-                class="pymatrix-dialog__form-group"
+                class="pm-form-group"
               >
-                <label class="pymatrix-dialog__form-label">{{ field.label }}</label>
+                <label>{{ field.label }}</label>
                 <template v-if="field.type === 'number'">
                   <input
                     v-model.number="deviceForm[field.key]"
-                    class="pymatrix-dialog__form-input"
+                    class="pm-input"
                     type="number"
                     :min="field.min"
                     :max="field.max"
@@ -120,7 +120,7 @@
                   <select
                     v-if="'valueType' in field && field.valueType === 'number'"
                     v-model.number="deviceForm[field.key]"
-                    class="pymatrix-dialog__form-input"
+                    class="pm-select"
                   >
                     <option v-for="option in field.options" :key="option.value" :value="option.value">
                       {{ option.label }}
@@ -129,7 +129,7 @@
                   <select
                     v-else
                     v-model="deviceForm[field.key]"
-                    class="pymatrix-dialog__form-input"
+                    class="pm-select"
                   >
                     <option v-for="option in field.options" :key="option.value" :value="option.value">
                       {{ option.label }}
@@ -137,7 +137,7 @@
                   </select>
                 </template>
                 <template v-else-if="field.type === 'toggle'">
-                  <label class="pymatrix-dialog__switch">
+                  <label class="pm-switch">
                     <input type="checkbox" v-model="deviceForm[field.key]" />
                     <span class="slider"></span>
                   </label>
@@ -146,14 +146,14 @@
 
               <div class="form-actions grouped">
                 <button
-                  class="pymatrix-dialog__button pymatrix-dialog__button--primary"
+                  class="pm-button pm-button--success"
                   type="submit"
                   :disabled="savingDevice || !deviceNameInput.trim()"
                 >
                   {{ savingDevice ? 'Saving...' : 'Save Override' }}
                 </button>
                 <button
-                  class="pymatrix-dialog__button pymatrix-dialog__button--danger"
+                  class="pm-button pm-button--danger"
                   type="button"
                   :disabled="!selectedDeviceKey"
                   @click="deleteDevice"
@@ -164,14 +164,14 @@
             </form>
           </section>
 
-          <p v-if="configStore.error" class="pymatrix-dialog__error">
+          <p v-if="configStore.error" class="pm-error">
             {{ configStore.error }}
           </p>
         </template>
       </div>
 
-      <div class="pymatrix-dialog__footer">
-        <button class="pymatrix-dialog__button" @click="$emit('close')">
+      <div class="pm-modal__footer">
+        <button class="pm-button pm-button--default" @click="$emit('close')">
           Close
         </button>
       </div>
@@ -278,60 +278,556 @@ async function deleteDevice() {
 }
 </script>
 
-<style scoped src="../assets/css/dialog.css"></style>
 <style scoped>
-.settings-section {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 20px;
+/* SettingsDialog Styles with NFTMax Theme */
+
+/* Modal Backdrop */
+.pm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: var(--pm-space-lg);
+  animation: pm-fadeIn 0.3s ease;
+}
+
+/* Modal Container */
+.pm-modal {
+  background: var(--pm-bg-card);
+  border-radius: var(--pm-radius-xl);
+  box-shadow: var(--pm-shadow-lg);
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  overflow: hidden;
+  animation: pm-scaleUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Modal Header */
+.pm-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--pm-space-xl);
+  border-bottom: 1px solid var(--pm-border);
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.03) 0%, rgba(243, 57, 248, 0.03) 100%);
+}
+
+.pm-modal__header h3 {
+  margin: 0;
+  font-size: var(--pm-font-size-xl);
+  font-weight: 700;
+  background: var(--pm-gradient-primary);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.pm-modal__header button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(235, 87, 87, 0.1);
+  border: 1px solid rgba(235, 87, 87, 0.2);
+  border-radius: var(--pm-radius-circle);
+  color: var(--pm-danger);
+  font-size: 28px;
+  font-weight: 300;
+  cursor: pointer;
+  transition: var(--pm-transition-fast);
+  line-height: 1;
+}
+
+.pm-modal__header button:hover {
+  background: var(--pm-danger);
+  color: #ffffff;
+  border-color: var(--pm-danger);
+  transform: rotate(90deg) scale(1.1);
+  box-shadow: 0 4px 16px rgba(235, 87, 87, 0.4);
+}
+
+/* Modal Body */
+.pm-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--pm-space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-space-lg);
+}
+
+/* Settings Section */
+.settings-section {
+  background: var(--pm-bg-main);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-lg);
+  padding: var(--pm-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-space-md);
+  transition: var(--pm-transition-fast);
+  animation: pm-fadeUp 0.4s ease;
+}
+
+.settings-section:hover {
+  box-shadow: var(--pm-shadow-md);
+  transform: translateY(-2px);
+}
+
+.settings-section:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+/* Section Header */
+.section-header {
+  padding-bottom: 12px;
+  border-bottom: 2px solid transparent;
+  border-image: var(--pm-gradient-primary) 1;
+  border-image-slice: 1;
+  margin-bottom: 8px;
 }
 
 .section-header h4 {
-  margin: 0;
-  font-size: 16px;
+  margin: 0 0 8px 0;
+  font-size: var(--pm-font-size-lg);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--pm-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-header h4::before {
+  content: '⚙️';
+  font-size: 20px;
 }
 
 .section-header p {
-  margin: 4px 0 0 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-secondary);
+  line-height: 1.5;
 }
 
+/* Form Grid */
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--pm-space-md);
 }
 
-.pymatrix-dialog__form-group.full-width {
+/* Form Group */
+.pm-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: pm-fadeIn 0.3s ease;
+}
+
+.pm-form-group.full-width {
   grid-column: 1 / -1;
 }
 
+.pm-form-group label {
+  font-size: var(--pm-font-size-sm);
+  font-weight: 500;
+  color: var(--pm-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pm-form-group label::before {
+  content: '◆';
+  font-size: 8px;
+  color: var(--pm-primary);
+}
+
+/* Input Styles */
+.pm-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 18px;
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-primary);
+  background: #ffffff;
+  border: 1.5px solid var(--pm-border);
+  border-radius: var(--pm-radius-xl);
+  outline: none;
+  transition: var(--pm-transition-fast);
+}
+
+.pm-input:hover {
+  border-color: var(--pm-primary);
+}
+
+.pm-input:focus {
+  border-color: var(--pm-primary);
+  box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.1);
+  background: #ffffff;
+}
+
+.pm-input::placeholder {
+  color: var(--pm-text-muted);
+}
+
+/* Select Styles */
+.pm-select {
+  width: 100%;
+  height: 44px;
+  padding: 0 40px 0 18px;
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-primary);
+  background: #ffffff;
+  border: 1.5px solid var(--pm-border);
+  border-radius: var(--pm-radius-xl);
+  outline: none;
+  cursor: pointer;
+  transition: var(--pm-transition-fast);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%235356FB' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+}
+
+.pm-select:hover {
+  border-color: var(--pm-primary);
+  background-color: rgba(83, 86, 251, 0.02);
+}
+
+.pm-select:focus {
+  border-color: var(--pm-primary);
+  box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.1);
+  background-color: #ffffff;
+}
+
+/* Toggle Switch */
+.pm-switch {
+  position: relative;
+  display: inline-block;
+  width: 54px;
+  height: 30px;
+  cursor: pointer;
+}
+
+.pm-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pm-switch .slider {
+  position: absolute;
+  inset: 0;
+  background: var(--pm-border);
+  border-radius: var(--pm-radius-full);
+  transition: var(--pm-transition-fast);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.pm-switch .slider::before {
+  content: '';
+  position: absolute;
+  height: 24px;
+  width: 24px;
+  left: 3px;
+  bottom: 3px;
+  background: #ffffff;
+  border-radius: var(--pm-radius-circle);
+  transition: var(--pm-transition-fast);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.pm-switch input:checked + .slider {
+  background: var(--pm-gradient-primary);
+}
+
+.pm-switch input:checked + .slider::before {
+  transform: translateX(24px);
+}
+
+.pm-switch:hover .slider {
+  box-shadow: 0 0 8px rgba(83, 86, 251, 0.3);
+}
+
+/* Device Selector */
+.device-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.05) 0%, rgba(243, 57, 248, 0.05) 100%);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-md);
+}
+
+.device-selector label {
+  font-size: var(--pm-font-size-sm);
+  font-weight: 600;
+  color: var(--pm-text-primary);
+}
+
+/* Form Actions */
 .form-actions {
   grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 8px;
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--pm-border);
 }
 
 .form-actions.grouped {
   justify-content: space-between;
 }
 
-.device-selector {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* Buttons */
+.pm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  font-size: var(--pm-font-size-sm);
+  font-weight: 600;
+  border-radius: var(--pm-radius-full);
+  cursor: pointer;
+  transition: var(--pm-transition-fast);
+  border: none;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
-.settings-section .pymatrix-dialog__form-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+.pm-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: var(--pm-transition-fast);
+}
+
+.pm-button:hover {
+  transform: translateY(-2px);
+}
+
+.pm-button:active {
+  transform: translateY(0);
+}
+
+.pm-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Primary Button */
+.pm-button--primary {
+  background: var(--pm-gradient-primary);
+  color: #ffffff;
+}
+
+.pm-button--primary::before {
+  background: var(--pm-gradient-primary-reverse);
+  opacity: 1;
+}
+
+.pm-button--primary:hover {
+  box-shadow: 0 8px 20px rgba(243, 57, 248, 0.4);
+}
+
+.pm-button--primary:hover::before {
+  opacity: 0;
+}
+
+/* Success Button */
+.pm-button--success {
+  background: var(--pm-success);
+  color: #ffffff;
+}
+
+.pm-button--success::before {
+  background: linear-gradient(135deg, #27AE60 0%, #229954 100%);
+  opacity: 1;
+}
+
+.pm-button--success:hover {
+  box-shadow: 0 8px 20px rgba(39, 174, 96, 0.4);
+}
+
+.pm-button--success:hover::before {
+  opacity: 0;
+}
+
+/* Danger Button */
+.pm-button--danger {
+  background: var(--pm-danger);
+  color: #ffffff;
+}
+
+.pm-button--danger::before {
+  background: linear-gradient(135deg, #EB5757 0%, #E74C3C 100%);
+  opacity: 1;
+}
+
+.pm-button--danger:hover {
+  box-shadow: 0 8px 20px rgba(235, 87, 87, 0.4);
+}
+
+.pm-button--danger:hover::before {
+  opacity: 0;
+}
+
+/* Default Button */
+.pm-button--default {
+  background: #ffffff;
+  color: var(--pm-text-primary);
+  border: 1px solid var(--pm-border);
+}
+
+.pm-button--default:hover {
+  border-color: var(--pm-primary);
+  color: var(--pm-primary);
+  box-shadow: 0 4px 12px rgba(83, 86, 251, 0.2);
+}
+
+/* Modal Footer */
+.pm-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: var(--pm-space-lg) var(--pm-space-xl);
+  border-top: 1px solid var(--pm-border);
+  background: var(--pm-bg-main);
+}
+
+/* Loading State */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 60px 40px;
+}
+
+.loading span {
+  font-size: var(--pm-font-size-base);
+  color: var(--pm-text-secondary);
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--pm-border);
+  border-top-color: var(--pm-primary);
+  border-radius: var(--pm-radius-circle);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error Message */
+.pm-error {
+  padding: 16px 20px;
+  background: rgba(235, 87, 87, 0.1);
+  border: 1px solid rgba(235, 87, 87, 0.3);
+  border-radius: var(--pm-radius-md);
+  color: var(--pm-danger);
+  font-size: var(--pm-font-size-sm);
+  margin: 0;
+  animation: pm-fadeIn 0.3s ease;
+}
+
+/* Animations */
+@keyframes pm-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pm-scaleUp {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pm-fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar Styling */
+.pm-modal__body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pm-modal__body::-webkit-scrollbar-track {
+  background: var(--pm-bg-main);
+  border-radius: 10px;
+}
+
+.pm-modal__body::-webkit-scrollbar-thumb {
+  background: var(--pm-border);
+  border-radius: 10px;
+  transition: var(--pm-transition-fast);
+}
+
+.pm-modal__body::-webkit-scrollbar-thumb:hover {
+  background: var(--pm-primary);
+}
+
+/* Responsive */
+@media (max-width: 767px) {
+  .pm-modal-backdrop {
+    padding: var(--pm-space-md);
+  }
+
+  .pm-modal {
+    max-width: 100%;
+  }
+
+  .pm-modal__header,
+  .pm-modal__body,
+  .pm-modal__footer {
+    padding: var(--pm-space-md);
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions.grouped {
+    flex-direction: column-reverse;
+  }
+
+  .pm-button {
+    width: 100%;
+  }
 }
 </style>

@@ -14,6 +14,7 @@
 
 const logger = require('#@logger');
 const StandardPage = require('./StandardPage');
+const EnhancedResourceCollector = require('../../utils/download/EnhancedResourceCollector');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -26,6 +27,8 @@ class EnhancedPage extends StandardPage {
         this.pages = [];
         this.downloadPath = options.downloadPath || path.join(os.homedir(), 'Downloads');
         this.urlComparisonStrict = options.urlComparisonStrict || false;
+        this.enableResourceCollection = options.enableResourceCollection !== false;
+        this.resourceCollector = null;
         this.metrics = {
             ...this.metrics,
             blankPageReuses: 0,
@@ -39,7 +42,47 @@ class EnhancedPage extends StandardPage {
         await super.initialize();
         await this.setupDownloadDirectory();
         await this.setupEventListeners();
+
+        if (this.enableResourceCollection) {
+            await this.setupResourceCollection();
+        }
+
         this.isInitialized = true;
+    }
+
+    async setupResourceCollection() {
+        try {
+            this.resourceCollector = new EnhancedResourceCollector(this.page, {
+                resourceTypes: ['image', 'stylesheet', 'font', 'media'],
+                includeFailedRequests: true,
+                computeHash: true
+            });
+
+            await this.resourceCollector.enable();
+            logger.success('[EnhancedPage] Resource collection enabled for this page');
+        } catch (error) {
+            logger.error('[EnhancedPage] Failed to setup resource collection:', error);
+        }
+    }
+
+    async collectResources(options = {}) {
+        if (!this.resourceCollector) {
+            logger.warn('[EnhancedPage] Resource collector not initialized');
+            return null;
+        }
+
+        try {
+            const result = await this.resourceCollector.collectResources(options);
+            logger.success(`[EnhancedPage] Collected ${result.stats.total} resources (${result.stats.matched} matched)`);
+            return result;
+        } catch (error) {
+            logger.error('[EnhancedPage] Failed to collect resources:', error);
+            return null;
+        }
+    }
+
+    getResourceCollector() {
+        return this.resourceCollector;
     }
 
     async setupDownloadDirectory() {
