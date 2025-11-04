@@ -5,7 +5,7 @@ import type {
   ScriptExecutionState,
   ScriptCategory,
   ScriptStepType
-} from '../../../types/pymatrix';
+} from '@/types/pymatrix';
 
 interface ScriptStoreState {
   scripts: Script[];

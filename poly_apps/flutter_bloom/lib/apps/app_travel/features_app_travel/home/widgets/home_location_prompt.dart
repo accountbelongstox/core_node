@@ -30,7 +30,7 @@ class _HomeLocationPromptState extends State<HomeLocationPrompt> {
     return Positioned(
       left: 0,
       right: 0,
-      bottom: 60.0,
+      bottom: 12.0,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),

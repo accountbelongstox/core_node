@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { FileTransferProgress, ApkInstallProgress } from '../../../types/pymatrix';
+import type { FileTransferProgress, ApkInstallProgress } from '@/types/pymatrix';
 
 interface FileTransferStoreState {
   fileTransfers: Map<string, FileTransferProgress>;

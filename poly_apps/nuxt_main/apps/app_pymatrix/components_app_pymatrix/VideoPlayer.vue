@@ -1,12 +1,12 @@
 <template>
   <div
-    class="video-player-container"
+    class="pm-video-container"
     ref="containerRef"
     @contextmenu="handleContextMenu"
   >
     <video
       ref="videoElement"
-      class="video-element"
+      class="pm-video"
       autoplay
       playsinline
       muted
@@ -18,8 +18,8 @@
 
     <canvas ref="touchCanvas" class="touch-overlay" />
 
-    <div class="video-overlay" v-if="showOverlay">
-      <div class="video-info">
+    <div class="pm-video-overlay" v-if="showOverlay">
+      <div class="pm-video-info">
         <div class="info-item">
           <span class="info-label">Device:</span>
           <span class="info-value">{{ device?.name || device?.serial }}</span>
@@ -38,12 +38,12 @@
         </div>
       </div>
 
-      <div class="connection-status" :class="{ connected: videoConnected && controlConnected }">
+      <div class="pm-video-status" :class="videoConnected && controlConnected ? 'pm-video-status--connected' : 'pm-video-status--disconnected'">
         <span class="status-dot"></span>
         <span>{{ videoConnected && controlConnected ? 'Connected' : 'Disconnected' }}</span>
       </div>
 
-      <button class="info-toggle-btn" @click="toggleDeviceInfo" title="Toggle device info">
+      <button class="pm-video-btn pm-video-btn--info" @click="toggleDeviceInfo" title="Toggle device info">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
           <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
@@ -93,7 +93,7 @@
 
     <button
       v-if="!fullscreenMode"
-      class="fullscreen-toggle-btn"
+      class="pm-video-btn pm-video-btn--fullscreen"
       @click="$emit('toggle-fullscreen', device)"
       title="Fullscreen (F)"
     >
@@ -103,7 +103,7 @@
     </button>
 
     <button
-      class="system-key-toggle-btn"
+      class="pm-video-btn pm-video-btn--system-keys"
       @click="showSystemKeys = !showSystemKeys"
       title="System Keys"
     >
@@ -122,7 +122,7 @@
     </div>
 
     <button
-      class="clipboard-toggle-btn"
+      class="pm-video-btn pm-video-btn--clipboard"
       @click="showClipboard = !showClipboard"
       title="Clipboard Sync"
     >
@@ -141,7 +141,7 @@
     </div>
 
     <button
-      class="screen-control-toggle-btn"
+      class="pm-video-btn pm-video-btn--screen-control"
       @click="showScreenControl = !showScreenControl"
       title="Screen Control"
     >
@@ -152,7 +152,7 @@
     </button>
 
     <button
-      class="file-push-toggle-btn"
+      class="pm-video-btn pm-video-btn--file-push"
       @click="showFilePush = !showFilePush"
       title="Push File"
     >
@@ -160,11 +160,19 @@
     </button>
 
     <button
-      class="apk-install-toggle-btn"
+      class="pm-video-btn pm-video-btn--apk-install"
       @click="showApkInstall = !showApkInstall"
       title="Install APK"
     >
       📦
+    </button>
+
+    <button
+      class="pm-video-btn pm-video-btn--audio-streaming"
+      @click="showAudioStreaming = !showAudioStreaming"
+      title="Audio Streaming (sndcpy)"
+    >
+      🎵
     </button>
 
     <div v-if="showScreenControl" class="screen-control-panel-overlay">
@@ -191,6 +199,14 @@
         @close="showApkInstall = false"
         @success="handleApkInstallSuccess"
         @view-packages="handleViewPackagesFromApk"
+      />
+    </div>
+
+    <div v-if="showAudioStreaming" class="audio-streaming-panel-overlay">
+      <AudioStreamingPanel
+        :show="showAudioStreaming"
+        :device-serial="device.serial"
+        @close="showAudioStreaming = false"
       />
     </div>
 
@@ -231,11 +247,12 @@ import ScreenControlPanel from './ScreenControlPanel.vue';
 import FilePushPanel from './FilePushPanel.vue';
 import ApkInstallPanel from './ApkInstallPanel.vue';
 import PackageListPanel from './PackageListPanel.vue';
+import AudioStreamingPanel from './AudioStreamingPanel.vue';
 import DeviceContextMenu from './DeviceContextMenu.vue';
-import DeviceTagBadge from '../../../common/components/ui/DeviceTagBadge.vue';
+import DeviceTagBadge from '@/common/components/ui/DeviceTagBadge.vue';
 import { useTagsStore } from '../stores_app_pymatrix/tagsStore';
 import { useToast } from '../composables_app_pymatrix/useToast';
-import type { Device } from '../../../types/pymatrix';
+import type { Device } from '@/types/pymatrix';
 
 interface Props {
   device: Device;
@@ -266,6 +283,7 @@ const showClipboard = ref(false);
 const showScreenControl = ref(false);
 const showFilePush = ref(false);
 const showApkInstall = ref(false);
+const showAudioStreaming = ref(false);
 const showPackageList = ref(false);
 const showContextMenu = ref(false);
 const contextMenuX = ref(0);
@@ -502,7 +520,7 @@ async function handleRefreshDeviceInfo() {
   console.log('[VideoPlayer] Refreshing device info for', props.device.serial);
 
   try {
-    const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+    const { pyMatrixDeviceAPI } = await import('@/services/api/pymatrix/pymatrix-device-api');
     const response = await pyMatrixDeviceAPI.getDeviceInfo(props.device.serial);
 
     if (response.device) {
@@ -563,7 +581,7 @@ async function handleContextMenuAction(action: string, serial: string) {
 
     case 'screenshot':
       try {
-        const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+        const { pyMatrixDeviceAPI } = await import('@/services/api/pymatrix/pymatrix-device-api');
         const response = await pyMatrixDeviceAPI.takeScreenshot(serial);
 
         if (response.success) {
@@ -628,7 +646,7 @@ async function handleContextMenuAction(action: string, serial: string) {
 
     case 'restart':
       try {
-        const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+        const { pyMatrixDeviceAPI } = await import('@/services/api/pymatrix/pymatrix-device-api');
         await pyMatrixDeviceAPI.restartDevice(serial);
         toast.success('Device restart initiated', 'Device Control');
       } catch (error) {
@@ -639,7 +657,7 @@ async function handleContextMenuAction(action: string, serial: string) {
 
     case 'disconnect':
       try {
-        const { pyMatrixDeviceAPI } = await import('~/services/api/pymatrix/pymatrix-device-api');
+        const { pyMatrixDeviceAPI } = await import('@/services/api/pymatrix/pymatrix-device-api');
         await pyMatrixDeviceAPI.disconnectDevice(serial);
         deviceStore.removeDevice(serial);
         toast.success('Device disconnected', 'Device Control');
@@ -679,22 +697,29 @@ watch(() => videoElement.value, () => {
 </script>
 
 <style scoped>
-.video-player-container {
+/* VideoPlayer Styles with NFTMax Theme */
+.pm-video-container {
   position: relative;
   width: 100%;
   height: 100%;
-  background: #000;
-  border-radius: 8px;
+  min-height: 300px;
+  background: var(--pm-bg-main);
+  border-radius: var(--pm-radius-lg);
   overflow: hidden;
+  box-shadow: var(--pm-shadow-sm);
 }
 
-.video-element {
+/* Video Element */
+.pm-video {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  cursor: pointer;
+  background: #000;
+  cursor: crosshair;
+  transition: var(--pm-transition-fast);
 }
 
+/* Touch Canvas Overlay */
 .touch-overlay {
   position: absolute;
   top: 0;
@@ -702,355 +727,506 @@ watch(() => videoElement.value, () => {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1;
+  z-index: 10;
 }
 
-.video-overlay {
+/* Video Overlay - Info Panel */
+.pm-video-overlay {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  padding: 12px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, transparent 100%);
-  z-index: 2;
+  padding: 12px 16px;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.8) 0%,
+    rgba(0, 0, 0, 0.4) 70%,
+    transparent 100%
+  );
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: var(--pm-transition-fast);
+  z-index: 20;
 }
 
-.video-info {
+.pm-video-container:hover .pm-video-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Video Info */
+.pm-video-info {
+  flex: 1;
   display: flex;
-  gap: 16px;
   flex-wrap: wrap;
+  gap: 8px 16px;
 }
 
 .info-item {
   display: flex;
-  gap: 4px;
-  font-size: 12px;
-  color: white;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  border-radius: var(--pm-radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: var(--pm-transition-fast);
+  animation: pm-fadeIn 0.5s ease;
+}
+
+.info-item:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
 }
 
 .info-label {
+  font-size: var(--pm-font-size-xs);
+  color: rgba(255, 255, 255, 0.8);
   font-weight: 600;
-  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .info-value {
-  font-weight: 400;
+  font-size: var(--pm-font-size-xs);
+  color: #ffffff;
+  font-weight: 700;
 }
 
-.connection-status {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+/* Video Status */
+.pm-video-status {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: rgba(239, 68, 68, 0.9);
-  border-radius: 12px;
-  font-size: 12px;
+  gap: 8px;
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  border-radius: var(--pm-radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: var(--pm-font-size-xs);
   font-weight: 600;
-  color: white;
-}
-
-.connection-status.connected {
-  background: rgba(34, 197, 94, 0.9);
+  color: #ffffff;
+  transition: var(--pm-transition-fast);
+  animation: pm-fadeIn 0.5s ease 0.1s backwards;
 }
 
 .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: white;
-  animation: pulse 2s infinite;
+  background: var(--pm-text-secondary);
+  transition: var(--pm-transition-fast);
 }
 
+.pm-video-status--connected {
+  background: rgba(39, 174, 96, 0.2);
+  border-color: rgba(39, 174, 96, 0.4);
+}
+
+.pm-video-status--connected .status-dot {
+  background: var(--pm-success);
+  box-shadow: 0 0 8px var(--pm-success);
+  animation: pm-pulse 2s ease-in-out infinite;
+}
+
+.pm-video-status--disconnected {
+  background: rgba(235, 87, 87, 0.2);
+  border-color: rgba(235, 87, 87, 0.4);
+}
+
+.pm-video-status--disconnected .status-dot {
+  background: var(--pm-danger);
+}
+
+/* Video Buttons - Base Style */
+.pm-video-btn {
+  position: absolute;
+  z-index: 30;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--pm-radius-circle);
+  color: #ffffff;
+  cursor: pointer;
+  transition: var(--pm-transition-fast);
+  opacity: 0;
+  transform: scale(0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.pm-video-container:hover .pm-video-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.pm-video-btn:hover {
+  background: var(--pm-primary);
+  border-color: var(--pm-primary);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(83, 86, 251, 0.4);
+}
+
+.pm-video-btn:active {
+  transform: scale(1);
+}
+
+.pm-video-btn svg {
+  transition: var(--pm-transition-fast);
+}
+
+.pm-video-btn:hover svg {
+  transform: scale(1.1);
+}
+
+/* Video Button Positions */
+.pm-video-btn--info {
+  top: 16px;
+  right: 16px;
+  animation: pm-fadeIn 0.4s ease 0.2s backwards;
+}
+
+.pm-video-btn--fullscreen {
+  bottom: 16px;
+  right: 16px;
+  animation: pm-fadeIn 0.4s ease 0.3s backwards;
+}
+
+.pm-video-btn--system-keys {
+  bottom: 16px;
+  right: 68px;
+  animation: pm-fadeIn 0.4s ease 0.35s backwards;
+}
+
+.pm-video-btn--clipboard {
+  bottom: 16px;
+  right: 120px;
+  animation: pm-fadeIn 0.4s ease 0.4s backwards;
+}
+
+.pm-video-btn--screen-control {
+  bottom: 16px;
+  right: 172px;
+  animation: pm-fadeIn 0.4s ease 0.45s backwards;
+}
+
+.pm-video-btn--file-push {
+  bottom: 16px;
+  right: 224px;
+  font-size: 18px;
+  animation: pm-fadeIn 0.4s ease 0.5s backwards;
+}
+
+.pm-video-btn--apk-install {
+  bottom: 16px;
+  right: 276px;
+  font-size: 18px;
+  animation: pm-fadeIn 0.4s ease 0.55s backwards;
+}
+
+/* Group Role Badge */
 .group-role-badge {
   position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
+  top: 16px;
+  left: 16px;
+  z-index: 25;
+  animation: pm-fadeIn 0.5s ease 0.15s backwards;
 }
 
+/* Device Tags Display */
 .device-tags-display {
   position: absolute;
-  top: 48px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
+  bottom: 68px;
+  left: 16px;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  max-width: 90%;
-  justify-content: center;
+  gap: 6px;
+  max-width: calc(100% - 340px);
+  z-index: 25;
+  animation: pm-fadeIn 0.5s ease 0.2s backwards;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.info-toggle-btn {
-  position: absolute;
-  top: 12px;
-  right: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.8);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 4;
-}
-
-.info-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-  border-color: rgba(255, 255, 255, 0.4);
-  color: white;
-  transform: scale(1.05);
-}
-
-.info-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-.fullscreen-toggle-btn {
-  position: absolute;
-  top: 12px;
-  right: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.8);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 4;
-}
-
-.fullscreen-toggle-btn:hover {
-  background: rgba(59, 130, 246, 0.8);
-  border-color: #3b82f6;
-  color: white;
-  transform: scale(1.05);
-}
-
-.fullscreen-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-.system-key-toggle-btn {
-  position: absolute;
-  top: 12px;
-  right: 100px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.8);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 4;
-}
-
-.system-key-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-  border-color: rgba(255, 255, 255, 0.4);
-  color: white;
-  transform: scale(1.05);
-}
-
-.system-key-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-.system-key-panel-overlay {
-  position: absolute;
-  top: 50px;
-  right: 12px;
-  z-index: 5;
-  animation: slideInDown 0.2s ease-out;
-}
-
-.clipboard-toggle-btn {
-  position: absolute;
-  top: 12px;
-  right: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.8);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 4;
-}
-
-.clipboard-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-  border-color: rgba(255, 255, 255, 0.4);
-  color: white;
-  transform: scale(1.05);
-}
-
-.clipboard-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-.clipboard-panel-overlay {
-  position: absolute;
-  top: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 6;
-  animation: slideInDown 0.2s ease-out;
-}
-
-.screen-control-toggle-btn {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.8);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 4;
-}
-
-.screen-control-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-  border-color: rgba(255, 255, 255, 0.4);
-  color: white;
-  transform: scale(1.05);
-}
-
-.screen-control-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-.screen-control-panel-overlay {
-  position: absolute;
-  bottom: 50px;
-  right: 12px;
-  z-index: 6;
-  animation: slideInUp 0.2s ease-out;
-}
-
-.file-push-toggle-btn {
-  position: absolute;
-  bottom: 12px;
-  right: 56px;
-  padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 4;
-}
-
-.file-push-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-  border-color: rgba(59, 130, 246, 0.6);
-  color: white;
-  transform: scale(1.05);
-}
-
-.file-push-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-.file-push-panel-overlay {
-  position: absolute;
-  bottom: 50px;
-  right: 56px;
-  z-index: 6;
-  animation: slideInUp 0.2s ease-out;
-}
-
-.apk-install-toggle-btn {
-  position: absolute;
-  bottom: 12px;
-  right: 100px;
-  padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 4;
-}
-
-.apk-install-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-  border-color: rgba(34, 197, 94, 0.6);
-  color: white;
-  transform: scale(1.05);
-}
-
-.apk-install-toggle-btn:active {
-  transform: scale(0.95);
-}
-
+/* Panel Overlays - Common Style */
+.system-key-panel-overlay,
+.clipboard-panel-overlay,
+.screen-control-panel-overlay,
+.file-push-panel-overlay,
 .apk-install-panel-overlay {
   position: absolute;
-  bottom: 50px;
-  right: 100px;
-  z-index: 6;
-  animation: slideInUp 0.2s ease-out;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pm-fadeIn 0.3s ease;
 }
 
-@keyframes slideInDown {
+/* Animations */
+@keyframes pm-fadeIn {
   from {
     opacity: 0;
-    transform: translateY(-10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
+@keyframes pm-pulse {
+  0%, 100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: scale(1);
   }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 1278px) {
+  .pm-video-container {
+    min-height: 250px;
+  }
+
+  .pm-video-overlay {
+    padding: 10px 12px;
+  }
+
+  .pm-video-info {
+    gap: 6px 12px;
+  }
+
+  .info-item {
+    padding: 3px 10px;
+  }
+
+  .info-label,
+  .info-value {
+    font-size: 10px;
+  }
+
+  .pm-video-status {
+    padding: 4px 12px;
+    font-size: 10px;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .pm-video-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .pm-video-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .pm-video-btn--info {
+    top: 12px;
+    right: 12px;
+  }
+
+  .pm-video-btn--fullscreen {
+    bottom: 12px;
+    right: 12px;
+  }
+
+  .pm-video-btn--system-keys {
+    right: 56px;
+  }
+
+  .pm-video-btn--clipboard {
+    right: 100px;
+  }
+
+  .pm-video-btn--screen-control {
+    right: 144px;
+  }
+
+  .pm-video-btn--file-push {
+    right: 188px;
+  }
+
+  .pm-video-btn--apk-install {
+    right: 232px;
+  }
+
+  .group-role-badge {
+    top: 12px;
+    left: 12px;
+  }
+
+  .device-tags-display {
+    bottom: 56px;
+    left: 12px;
+    max-width: calc(100% - 280px);
+  }
+}
+
+@media (max-width: 767px) {
+  .pm-video-container {
+    min-height: 200px;
+    border-radius: var(--pm-radius-md);
+  }
+
+  .pm-video-overlay {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px 10px;
+  }
+
+  .pm-video-info {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .info-item {
+    padding: 2px 8px;
+  }
+
+  .pm-video-status {
+    align-self: flex-start;
+  }
+
+  .pm-video-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .pm-video-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .pm-video-btn--info {
+    top: 8px;
+    right: 8px;
+  }
+
+  .pm-video-btn--fullscreen {
+    bottom: 8px;
+    right: 8px;
+  }
+
+  .pm-video-btn--system-keys {
+    bottom: 8px;
+    right: 48px;
+  }
+
+  .pm-video-btn--clipboard {
+    bottom: 48px;
+    right: 8px;
+  }
+
+  .pm-video-btn--screen-control {
+    bottom: 48px;
+    right: 48px;
+  }
+
+  .pm-video-btn--file-push {
+    bottom: 88px;
+    right: 8px;
+  }
+
+  .pm-video-btn--apk-install {
+    bottom: 88px;
+    right: 48px;
+  }
+
+  .group-role-badge {
+    top: 8px;
+    left: 8px;
+  }
+
+  .device-tags-display {
+    bottom: auto;
+    top: 48px;
+    left: 8px;
+    right: 48px;
+    max-width: none;
+  }
+}
+
+/* Touch Feedback */
+.pm-video:active {
+  cursor: grabbing;
+}
+
+/* Loading State */
+.pm-video-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--pm-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.pm-video-container.loading::before {
+  opacity: 1;
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Hover Effects Enhancement */
+.pm-video-btn--info:hover {
+  background: linear-gradient(135deg, var(--pm-primary) 0%, var(--pm-secondary) 100%);
+  border-color: transparent;
+}
+
+.pm-video-btn--fullscreen:hover {
+  background: var(--pm-gradient-primary);
+  border-color: transparent;
+}
+
+/* Button Group Effect */
+.pm-video-btn--system-keys:hover,
+.pm-video-btn--clipboard:hover,
+.pm-video-btn--screen-control:hover,
+.pm-video-btn--file-push:hover,
+.pm-video-btn--apk-install:hover {
+  background: linear-gradient(135deg, var(--pm-secondary) 0%, var(--pm-accent) 100%);
+  border-color: transparent;
+}
+
+/* Focus States */
+.pm-video-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.3);
+}
+
+.pm-video-btn:focus:not(:hover) {
+  background: rgba(255, 255, 255, 0.25);
 }
 </style>

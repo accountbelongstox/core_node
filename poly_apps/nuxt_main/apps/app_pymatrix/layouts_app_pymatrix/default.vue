@@ -11,8 +11,8 @@
   This ensures NO duplicate navigation elements.
 -->
 <template>
-  <div class="pymatrix-layout">
-    <div class="pymatrix-app">
+  <div class="pm-app pm-app--fullscreen">
+    <div class="pm-app__container">
       <!-- ✅ PyMatrix uses ITS OWN top bar (NOT layout-header) -->
       <PyMatrixTopBar
         :device-count="deviceStore.deviceCount"
@@ -24,7 +24,7 @@
         @show-history="showConnectionHistory = true"
       />
 
-      <div class="pymatrix-main">
+      <div class="pm-app__main">
         <!-- ✅ PyMatrix uses ITS OWN left panel (NOT layout-sidebar) -->
         <PyMatrixLeftPanel
           :devices="deviceStore.deviceList"
@@ -37,7 +37,7 @@
         />
 
         <!-- Main content area - pages go here -->
-        <div class="pymatrix-screen-area">
+        <div class="pm-app__content">
           <NuxtPage />
         </div>
 
@@ -95,7 +95,7 @@ import { useDeviceControl } from '../composables_app_pymatrix/useDeviceControl';
 import { useConnectDevice } from '../composables_app_pymatrix/useConnectDevice';
 import { useToast } from '../composables_app_pymatrix/useToast';
 import type { KeyboardShortcut } from '../composables_app_pymatrix/useKeyboardShortcuts';
-import type { DeviceConfig } from '../../../types/pymatrix';
+import type { DeviceConfig } from '@/types/pymatrix';
 
 import PyMatrixTopBar from '../components_app_pymatrix/PyMatrixTopBar.vue';
 import PyMatrixLeftPanel from '../components_app_pymatrix/PyMatrixLeftPanel.vue';
@@ -493,29 +493,73 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.pymatrix-layout {
+/* Import PyMatrix Theme */
+@import '@/assets/css/apps/app_pymatrix_theme.css';
+
+/* Layout-specific scaffolding */
+.pm-app--fullscreen {
   width: 100vw;
-  height: 100vh;
+  min-height: 100vh;
   overflow: hidden;
-  background: #0a0a0a;
+  background: transparent;
+  display: flex;
+  justify-content: center;
 }
 
-.pymatrix-app {
+.pm-app__container {
+  width: 100%;
+  max-width: 1920px;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  color: white;
+  gap: var(--pm-space-xl);
+  padding: var(--pm-space-xl);
+  box-sizing: border-box;
 }
 
-.pymatrix-main {
-  display: flex;
+.pm-app__main {
   flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 320px;
+  gap: var(--pm-space-xl);
+  align-items: stretch;
+}
+
+.pm-app__content {
+  border-radius: var(--pm-radius-xl);
   overflow: hidden;
 }
 
-.pymatrix-screen-area {
-  flex: 1;
-  overflow: auto;
-  background: #0a0a0a;
+@media (max-width: 1536px) {
+  .pm-app__container {
+    padding: var(--pm-space-lg);
+  }
+
+  .pm-app__main {
+    grid-template-columns: 280px minmax(0, 1fr) 300px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .pm-app__main {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .pm-app__container {
+    gap: var(--pm-space-lg);
+  }
+
+  .pm-app__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .pm-app__container {
+    padding: var(--pm-space-md);
+  }
 }
 </style>

@@ -30,6 +30,48 @@ class AssetsImagesAppTravel {
   static const String travelNoResult = '$_baseNav/no-result.png';
   static const String travelAjaxLoader = '$_baseNav/ajax-loader.gif';
 
+  // Local Navigation Icons (split from sprite sheet)
+  static const String travelLocalNav0 = '$_baseNav/local_nav_0@2x.png';
+  static const String travelLocalNav1 = '$_baseNav/local_nav_1@2x.png';
+  static const String travelLocalNav2 = '$_baseNav/local_nav_2@2x.png';
+  static const String travelLocalNav3 = '$_baseNav/local_nav_3@2x.png';
+  static const String travelLocalNav4 = '$_baseNav/local_nav_4@2x.png';
+
+  // Local Navigation Icons List
+  static const List<String> travelLocalNavIcons = [
+    travelLocalNav0,
+    travelLocalNav1,
+    travelLocalNav2,
+    travelLocalNav3,
+    travelLocalNav4,
+  ];
+
+  // Sub Navigation Icons (split from sprite sheet)
+  static const String travelSubnav0 = '$_baseNav/subnav_0@2x.png';
+  static const String travelSubnav1 = '$_baseNav/subnav_1@2x.png';
+  static const String travelSubnav2 = '$_baseNav/subnav_2@2x.png';
+  static const String travelSubnav3 = '$_baseNav/subnav_3@2x.png';
+  static const String travelSubnav4 = '$_baseNav/subnav_4@2x.png';
+  static const String travelSubnav5 = '$_baseNav/subnav_5@2x.png';
+  static const String travelSubnav6 = '$_baseNav/subnav_6@2x.png';
+  static const String travelSubnav7 = '$_baseNav/subnav_7@2x.png';
+  static const String travelSubnav8 = '$_baseNav/subnav_8@2x.png';
+  static const String travelSubnav9 = '$_baseNav/subnav_9@2x.png';
+
+  // Sub Navigation Icons List
+  static const List<String> travelSubnavIcons = [
+    travelSubnav0,
+    travelSubnav1,
+    travelSubnav2,
+    travelSubnav3,
+    travelSubnav4,
+    travelSubnav5,
+    travelSubnav6,
+    travelSubnav7,
+    travelSubnav8,
+    travelSubnav9,
+  ];
+
   // Swiper Banner Images
   static const String travelSwiper1 = '$_baseUpload/zg0516000000zifq4FC3C.jpg';
   static const String travelSwiper2 = '$_baseUpload/zg0a15000000ypf1tBC70.jpg';

@@ -73,7 +73,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
       backgroundColor: ThemeColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'Friend Info',
+          LocalizationKeysAppWuy.wuyFriendInfoTitle.tr(context),
           style: ThemeTextStyles.displayMedium.copyWith(
             fontWeight: FontWeight.w700,
             fontSize: 22,
@@ -145,7 +145,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
 
     return WuyHealthDataCard(
       healthData: healthData,
-      title: 'TA的健康',
+      title: LocalizationKeysAppWuy.wuyFriendInfoHealth.tr(context),
       padding: EdgeInsets.all(ThemeDimensions.defaultPadding),
     );
   }
@@ -158,7 +158,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
 
     return WuyPhoneReportCard(
       phoneReport: phoneReport,
-      title: 'TA今天的手机报告',
+      title: LocalizationKeysAppWuy.wuyFriendInfoPhoneReport.tr(context),
       padding: EdgeInsets.symmetric(
         horizontal: ThemeDimensions.defaultPadding,
         vertical: ThemeDimensions.spacingSmall,
@@ -192,7 +192,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'TA今天去过的地方',
+            LocalizationKeysAppWuy.wuyFriendInfoPlacesVisited.tr(context),
             style: ThemeTextStyles.title3.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 19,
@@ -272,7 +272,7 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'TA今天的成就',
+            LocalizationKeysAppWuy.wuyFriendInfoAchievements.tr(context),
             style: ThemeTextStyles.title3.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 19,
@@ -280,10 +280,10 @@ class _WuyFriendInfoScreenState extends State<WuyFriendInfoScreen> {
             ),
           ),
           SizedBox(height: 16),
-          _buildAchievementItem('跑步公里', '5.2 km'),
-          _buildAchievementItem('步数', '8,432'),
-          _buildAchievementItem('卡路里', '245 cal'),
-          _buildAchievementItem('睡眠', '7.5 hours'),
+          _buildAchievementItem(LocalizationKeysAppWuy.wuyFriendInfoRunningKm.tr(context), '5.2 km'),
+          _buildAchievementItem(LocalizationKeysAppWuy.wuyFriendInfoSteps.tr(context), '8,432'),
+          _buildAchievementItem(LocalizationKeysAppWuy.wuyFriendInfoCalories.tr(context), '245 cal'),
+          _buildAchievementItem(LocalizationKeysAppWuy.wuyFriendInfoSleep.tr(context), '7.5 hours'),
         ],
       ),
     );

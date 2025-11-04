@@ -1,23 +1,14 @@
 """
 Baidu Netdisk Media File Compression Tool
 Features: Scan, compress images/videos/audios, support resume and safe replacement
+
+Main entry point and menu interface
 """
 
-import os
-import json
 import shutil
-import hashlib
-import re
-import socket
-import threading
 from pathlib import Path
-from datetime import datetime
-from typing import Dict, List, Tuple
-import subprocess
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import unquote, quote
-import time
 
+<<<<<<< HEAD
 # ANSI Color codes
 class Colors:
     """Terminal color codes"""
@@ -41,21 +32,18 @@ except ImportError:
     UNIFIED_COMPRESSOR_AVAILABLE = False
     UnifiedMediaCompressor = None
     CompressionStats = None
+=======
+# Import file transfer modules
+from file_transfer_server import FileTransferServer
+from file_transfer_client import FileTransferClient
+>>>>>>> d836372f485d15a5ddbfbb0b442e908ab873bfb6
 
-try:
-    from PIL import Image
-except ImportError:
-    print("Warning: PIL/Pillow not installed, image compression will be disabled")
-    print("Please run: pip install Pillow")
-    Image = None
+# Import media compressor modules
+from media_compressor_core import MediaCompressor as MediaCompressorCore
+from media_compressor_batch import MediaCompressorBatch
 
-try:
-    import requests
-except ImportError:
-    print("Warning: requests not installed, client mode will be disabled")
-    print("Please run: pip install requests")
-    requests = None
 
+<<<<<<< HEAD
 
 class FileTransferRequestHandler(BaseHTTPRequestHandler):
     """HTTP Request Handler for file transfer"""
@@ -2429,6 +2417,14 @@ class MediaCompressor:
         self._update_cache_file(clear_failed_status)
         print(f"\n✓ Cleared {len(failed_files)} failed status")
         print("Run option 1 to reprocess these files")
+=======
+class MediaCompressor(MediaCompressorCore, MediaCompressorBatch):
+    """
+    Combined MediaCompressor class
+    Inherits from both core and batch processing modules
+    """
+    pass
+>>>>>>> d836372f485d15a5ddbfbb0b442e908ab873bfb6
 
     def scan_and_deduplicate_progressive(self):
         """

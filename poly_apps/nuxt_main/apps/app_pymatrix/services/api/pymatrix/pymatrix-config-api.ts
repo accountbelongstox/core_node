@@ -3,7 +3,8 @@
  * Provides configuration management for global and device-specific settings
  */
 
-import type { DeviceConfig, PyMatrixConfigResponse } from '../../../../types/pymatrix';
+import { buildApiUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+import type { DeviceConfig, PyMatrixConfigResponse } from '@/types/pymatrix';
 
 interface ConfigAPIResponse<T = any> {
   success: boolean;
@@ -25,10 +26,9 @@ export const pyMatrixConfigAPI = {
    * Get full configuration (global + all device configs)
    */
   async getConfig(): Promise<PyMatrixConfigResponse> {
-    const config = useRuntimeConfig();
-    const baseURL = config.public.pyMatrixAPI || 'http://localhost:8889';
+    const url = buildApiUrl('/config');
 
-    const response = await $fetch<ConfigAPIResponse>(`${baseURL}/config`, {
+    const response = await $fetch<ConfigAPIResponse>(url, {
       method: 'GET',
     });
 
@@ -46,10 +46,9 @@ export const pyMatrixConfigAPI = {
    * Get global configuration
    */
   async getGlobal(): Promise<DeviceConfig> {
-    const config = useRuntimeConfig();
-    const baseURL = config.public.pyMatrixAPI || 'http://localhost:8889';
+    const url = buildApiUrl('/config/global');
 
-    const response = await $fetch<ConfigAPIResponse<DeviceConfig>>(`${baseURL}/config/global`, {
+    const response = await $fetch<ConfigAPIResponse<DeviceConfig>>(url, {
       method: 'GET',
     });
 
@@ -64,10 +63,9 @@ export const pyMatrixConfigAPI = {
    * Update global configuration
    */
   async updateGlobal(payload: Partial<DeviceConfig>): Promise<DeviceConfig> {
-    const config = useRuntimeConfig();
-    const baseURL = config.public.pyMatrixAPI || 'http://localhost:8889';
+    const url = buildApiUrl('/config/global');
 
-    const response = await $fetch<ConfigAPIResponse<DeviceConfig>>(`${baseURL}/config/global`, {
+    const response = await $fetch<ConfigAPIResponse<DeviceConfig>>(url, {
       method: 'PATCH',
       body: payload,
     });
@@ -83,10 +81,9 @@ export const pyMatrixConfigAPI = {
    * Get device-specific configuration
    */
   async getDevice(deviceName: string): Promise<DeviceConfig> {
-    const config = useRuntimeConfig();
-    const baseURL = config.public.pyMatrixAPI || 'http://localhost:8889';
+    const url = buildApiUrl(`/config/device/${encodeURIComponent(deviceName)}`);
 
-    const response = await $fetch<DeviceConfigResponse>(`${baseURL}/config/device/${encodeURIComponent(deviceName)}`, {
+    const response = await $fetch<DeviceConfigResponse>(url, {
       method: 'GET',
     });
 
@@ -101,10 +98,9 @@ export const pyMatrixConfigAPI = {
    * Update device-specific configuration
    */
   async updateDevice(deviceName: string, payload: Partial<DeviceConfig>): Promise<DeviceConfig> {
-    const config = useRuntimeConfig();
-    const baseURL = config.public.pyMatrixAPI || 'http://localhost:8889';
+    const url = buildApiUrl(`/config/device/${encodeURIComponent(deviceName)}`);
 
-    const response = await $fetch<DeviceConfigResponse>(`${baseURL}/config/device/${encodeURIComponent(deviceName)}`, {
+    const response = await $fetch<DeviceConfigResponse>(url, {
       method: 'PATCH',
       body: payload,
     });
@@ -120,10 +116,9 @@ export const pyMatrixConfigAPI = {
    * Delete device-specific configuration
    */
   async deleteDevice(deviceName: string): Promise<void> {
-    const config = useRuntimeConfig();
-    const baseURL = config.public.pyMatrixAPI || 'http://localhost:8889';
+    const url = buildApiUrl(`/config/device/${encodeURIComponent(deviceName)}`);
 
-    const response = await $fetch<{ success: boolean; device: string }>(`${baseURL}/config/device/${encodeURIComponent(deviceName)}`, {
+    const response = await $fetch<{ success: boolean; device: string }>(url, {
       method: 'DELETE',
     });
 

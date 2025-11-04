@@ -70,18 +70,41 @@ async def startup_event():
     print(f"  Frontend: {Config.FRONTEND_URL}")
     print("=" * 60)
 
-    # 检查 ADB
-    from pycore.pyutils.adb import ADBManager
+    # ============================================================
+    # ADB Auto Setup - DO NOT REMOVE THIS LOGIC
+    #
+    # This will automatically:
+    # 1. Check local ADB in resources directory
+    # 2. Scan system for existing ADB installations
+    # 3. Auto-download and install if not found
+    # 4. Provide manual installation instructions if auto-install fails
+    # ============================================================
+    print("\nChecking ADB availability...")
 
-    adb_path = Config.get_adb_path()
-    try:
-        devices = ADBManager.list_devices(adb_path)
-        print(f"✓ ADB 可用: {adb_path}")
-        print(f"✓ 发现 {len(devices)} 个设备")
-    except Exception as e:
-        print(f"✗ ADB 检查失败: {e}")
+    from poly_apps.pyMatrix.adb_manager import ADBManager
 
-    print("✓ pyMatrix API Server 启动完成")
+    # Try auto setup
+    manager = ADBManager(Config.RESOURCES_DIR)
+    success, message, adb_path = manager.auto_setup_adb()
+
+    if success and adb_path:
+        # ADB available, check for devices
+        try:
+            devices = ADBManager.list_devices(adb_path)
+            print(f"\n✓ ADB is ready: {adb_path}")
+            print(f"✓ Connected devices: {len(devices)}")
+            if devices:
+                for i, device in enumerate(devices, 1):
+                    print(f"  {i}. {device}")
+        except Exception as e:
+            print(f"\n✓ ADB is available: {adb_path}")
+            print(f"⚠ Warning: Could not list devices: {e}")
+    else:
+        print(f"\n✗ ADB is not available: {message}")
+        print("⚠ pyMatrix will start but device features will be unavailable")
+        print("⚠ Please install ADB manually and restart")
+
+    print("\n✓ pyMatrix API Server startup complete")
     print("=" * 60)
 
 
@@ -115,6 +138,11 @@ def main():
         action="store_true",
         help="不启动 UI 启动器（仅启动 API 服务）"
     )
+    parser.add_argument(
+        "--webview",
+        action="store_true",
+        help="使用 webview 窗口模式（桌面应用模拟）"
+    )
 
     args = parser.parse_args()
 
@@ -126,18 +154,26 @@ def main():
             port=args.port,
             reload=args.reload
         )
-    else:
-        # Start frontend launcher, then start API service
-        import asyncio
-        import threading
-        from poly_apps.pyMatrix.frontend_launcher import launch_frontend_with_wait
-
-        print("\n" + "=" * 60)
-        print(" pyMatrix - Full Stack Launcher")
+    elif args.webview:
+        # ============================================================
+        # Webview Mode - Desktop Application Simulation
+        #
+        # Uses pycore's webview launcher to create a native desktop window
+        # - System tray icon in taskbar
+        # - Native window with embedded webview
+        # - Backend runs in separate thread
+        # - Frontend displays in webview (not browser)
+        # ============================================================
+        print("\\n" + "=" * 60)
+        print(" pyMatrix - Webview Desktop Mode")
         print("=" * 60)
         print()
 
-        # Start backend server in a separate thread
+        import threading
+        import time
+        from pycore.pyutils.web import launch_pymatrix_gui
+
+        # Start backend server in separate thread
         def start_backend():
             uvicorn.run(
                 "poly_apps.pyMatrix.main:app",
@@ -150,22 +186,121 @@ def main():
         backend_thread.start()
 
         # Give backend a moment to start
-        import time
+        print("[Webview Mode] Starting backend server...")
         time.sleep(2)
 
-        # Launch frontend and wait for connection
-        async def launch():
-            frontend_url = f"http://localhost:3000"
-            await launch_frontend_with_wait(
-                project_root=project_root,
+        # Launch webview GUI
+        print("[Webview Mode] Launching webview GUI...")
+        frontend_url = "http://localhost:3007"
+
+        try:
+            launcher = launch_pymatrix_gui(
+                backend_host=args.host,
+                backend_port=args.port,
                 frontend_url=frontend_url,
-                timeout=120
+                bridge_port=8765,
+                window_title="pyMatrix - Android Device Control",
+                window_width=1400,
+                window_height=900,
+                resizable=True
             )
 
-        asyncio.run(launch())
+            # Keep running
+            print("\\n[Webview Mode] pyMatrix is running. Close the window or press Ctrl+C to exit.")
+            launcher.run_forever()
 
-        # Keep backend running
-        backend_thread.join()
+        except KeyboardInterrupt:
+            print("\\n[Webview Mode] Shutting down...")
+            if 'launcher' in locals():
+                launcher.stop()
+
+        except Exception as e:
+            print(f"\\n[Webview Mode] Error: {e}")
+            print("[Webview Mode] Falling back to normal mode...")
+
+            # Fallback: run without webview
+            backend_thread.join()
+
+    else:
+        # Start frontend launcher, then start API service
+        import asyncio
+        import platform
+        from poly_apps.pyMatrix.frontend_launcher import launch_frontend_with_wait
+
+        print("\n" + "=" * 60)
+        print(" pyMatrix - Full Stack Launcher")
+        print("=" * 60)
+        print()
+
+        # ============================================================
+        # IMPORTANT: DO NOT MODIFY THIS PLATFORM-SPECIFIC LOGIC
+        #
+        # On Windows: Use temporary script + subprocess (no threading)
+        # On Linux:   Use threading to run backend and frontend concurrently
+        #
+        # This is intentionally designed for different behaviors:
+        # - Windows: Frontend runs in separate console via temp .bat script
+        # - Linux:   Frontend runs in background thread with output capture
+        # ============================================================
+
+        if platform.system() == 'Windows':
+            # Windows: Launch frontend in separate console, then run backend in main thread
+            print("[Windows Mode] Starting frontend in separate console window...")
+
+            # Launch frontend first (in separate console via temp script)
+            async def launch():
+                frontend_url = "http://localhost:3007"
+                await launch_frontend_with_wait(
+                    project_root=project_root,
+                    frontend_url=frontend_url,
+                    timeout=120
+                )
+
+            asyncio.run(launch())
+
+            # Now run backend in main thread (blocking)
+            print("\n[Windows Mode] Starting backend in main thread...")
+            uvicorn.run(
+                "poly_apps.pyMatrix.main:app",
+                host=args.host,
+                port=args.port,
+                reload=args.reload
+            )
+        else:
+            # Linux/Other: Use threading (original behavior)
+            import threading
+
+            print("[Linux Mode] Using threading for backend and frontend...")
+
+            # Start backend server in a separate thread
+            def start_backend():
+                uvicorn.run(
+                    "poly_apps.pyMatrix.main:app",
+                    host=args.host,
+                    port=args.port,
+                    reload=args.reload
+                )
+
+            backend_thread = threading.Thread(target=start_backend, daemon=False)
+            backend_thread.start()
+
+            # Give backend a moment to start
+            import time
+            time.sleep(2)
+
+            # Launch frontend and wait for connection
+            async def launch():
+                frontend_url = "http://localhost:3007"
+                await launch_frontend_with_wait(
+                    project_root=project_root,
+                    frontend_url=frontend_url,
+                    timeout=120
+                )
+
+            asyncio.run(launch())
+
+            # Keep backend running
+            backend_thread.join()
 
 
 if __name__ == '__main__':

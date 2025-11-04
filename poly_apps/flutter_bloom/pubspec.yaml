@@ -92,7 +92,7 @@ flutter:
     - assets/apps/app_travel/images/nav/
     - assets/apps/app_travel/images/upload/
     - assets/apps/app_travel/fonts/
-    - assets/apps/app_travel/data/
+    - assets/apps/app_travel/innerdata/
 
   fonts:
     - family: Roboto

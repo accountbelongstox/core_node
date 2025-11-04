@@ -263,8 +263,8 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
     {
         try {
             if ($provider === 'dnspod') {
-                $email = ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_EMAIL');
-                $apiToken = ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_API_TOKEN');
+                $email = ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
+                $apiToken = ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
 
                 if ($email && $apiToken) {
                     // Parse DNSPod API token format: "id,token"

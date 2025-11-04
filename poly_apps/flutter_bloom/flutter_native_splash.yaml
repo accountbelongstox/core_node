@@ -2,10 +2,10 @@ flutter_native_splash:
   # Basic splash screen configuration
   # Either color or background_image is required
   color: #667eea
-  background_image: assets/common/launch/splash_bg.png
+  background_image: assets/common/icons/splash.png
   
   # Splash screen logo/image
-  #image: "assets/common/launch/splash_logo.png"
+  #image: assets/common/icons/logo.png
   
   # Branding image (appears at bottom)
   #branding: "assets/common/launch/branding.png"
@@ -15,7 +15,7 @@ flutter_native_splash:
   # Dark mode variants
   color_dark: #121212
   background_image_dark: assets/common/launch/dark_launch.jpg
-  #image_dark: "assets/common/launch/splash_logo_dark.png"
+  #image_dark: assets/common/icons/logo.png
   #branding_dark: "assets/common/launch/branding_dark.png"
   
   # Android 12+ specific configuration
@@ -24,8 +24,8 @@ flutter_native_splash:
     color_dark: #121212
     icon_background_color: #667eea
     icon_background_color_dark: #121212
-    #image: "assets/common/launch/splash_logo.png"
-    #image_dark: "assets/common/launch/splash_logo_dark.png"
+    #image: assets/common/icons/logo.png
+    #image_dark: assets/common/icons/logo.png
     #branding: "assets/common/launch/branding.png"
   
   # Platform toggles

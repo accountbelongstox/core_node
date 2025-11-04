@@ -1,17 +1,16 @@
 <template>
   <BasePanel
-    :show="show"
+    :model-value="show"
     title="Install APK"
-    icon="📦"
+    header-icon="📦"
     size="md"
     variant="success"
     @close="handleClose"
   >
-    <template #body>
-      <div class="apk-install-panel">
+    <div class="pm-panel pm-panel--green">
         <!-- APK Selection Area -->
         <div
-          class="drop-zone"
+          class="pm-file-upload"
           :class="{ 'drop-zone-active': isDragging }"
           @dragover.prevent="handleDragOver"
           @dragleave.prevent="handleDragLeave"
@@ -88,32 +87,29 @@
           </div>
         </div>
       </div>
-    </template>
 
     <template #footer>
       <div class="panel-actions">
-        <BaseButton
-          variant="default"
+        <button
+          class="pm-button pm-button--default"
           @click="handleClose"
         >
           Cancel
-        </BaseButton>
-        <BaseButton
+        </button>
+        <button
           v-if="resultType === 'success' && resultMessage"
-          variant="primary"
-          icon="fas fa-list"
+          class="pm-button pm-button--primary"
           @click="handleViewPackages"
         >
           View Installed Packages
-        </BaseButton>
-        <BaseButton
-          variant="success"
-          :loading="installing"
+        </button>
+        <button
+          class="pm-button pm-button--forest"
           :disabled="!selectedApk || installing"
           @click="handleInstall"
         >
           {{ installing ? 'Installing...' : 'Install APK' }}
-        </BaseButton>
+        </button>
       </div>
     </template>
   </BasePanel>
@@ -288,30 +284,6 @@ function handleClose() {
 </script>
 
 <style scoped>
-.apk-install-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 400px;
-}
-
-/* Drop Zone */
-.drop-zone {
-  border: 2px dashed rgba(34, 197, 94, 0.3);
-  border-radius: 8px;
-  padding: 32px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: rgba(34, 197, 94, 0.05);
-}
-
-.drop-zone:hover,
-.drop-zone-active {
-  border-color: #22c55e;
-  background: rgba(34, 197, 94, 0.1);
-}
-
 .file-input {
   display: none;
 }
@@ -338,14 +310,12 @@ function handleClose() {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Install Options */
 .install-options {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-/* Install Progress */
 .install-progress {
   display: flex;
   flex-direction: column;
@@ -407,7 +377,6 @@ function handleClose() {
   text-align: center;
 }
 
-/* Result Message */
 .result-message {
   display: flex;
   align-items: flex-start;
@@ -465,7 +434,6 @@ function handleClose() {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Panel Actions */
 .panel-actions {
   display: flex;
   gap: 8px;

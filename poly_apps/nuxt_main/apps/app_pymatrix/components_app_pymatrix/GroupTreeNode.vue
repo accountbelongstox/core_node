@@ -1,7 +1,8 @@
 <template>
-  <div class="tree-node" :class="{ 'is-selected': node.selected, 'is-group': node.type === 'group' }">
+  <div class="pm-tree-node" :class="{ 'pm-tree-node--selected': node.selected, 'pm-tree-node--group': node.type === 'group' }">
     <div
-      class="node-content"
+      class="pm-tree-node__header"
+      :class="{ 'pm-tree-node__header--selected': node.selected }"
       :style="{ paddingLeft: `${depth * 20}px` }"
       @click="handleClick"
       @contextmenu.prevent="handleContextMenu"
@@ -12,33 +13,33 @@
       <!-- Expand/Collapse Button -->
       <button
         v-if="node.type === 'group' && hasChildren"
-        class="expand-btn"
+        class="pm-tree-node__toggle"
         @click.stop="toggleExpand"
       >
-        <span class="expand-icon" :class="{ expanded }">▶</span>
+        <span class="pm-tree-node__toggle-icon" :class="{ 'pm-tree-node__toggle-icon--expanded': expanded }">▶</span>
       </button>
-      <span v-else class="expand-spacer"></span>
+      <span v-else class="pm-tree-node__spacer"></span>
 
       <!-- Node Icon -->
-      <span class="node-icon">{{ node.type === 'group' ? '📁' : '📱' }}</span>
+      <span class="pm-tree-node__icon">{{ node.type === 'group' ? '📁' : '📱' }}</span>
 
       <!-- Node Name -->
-      <span class="node-name">{{ node.name }}</span>
+      <span class="pm-tree-node__text">{{ node.name }}</span>
 
       <!-- Device Serial (for devices) -->
-      <span v-if="node.type === 'device' && node.deviceSerial" class="node-serial">
+      <span v-if="node.type === 'device' && node.deviceSerial" class="pm-tree-node__serial">
         {{ node.deviceSerial.substring(0, 8) }}
       </span>
 
       <!-- Exists Status -->
-      <span v-if="node.type === 'device'" class="node-status" :class="{ online: node.exists }">
+      <span v-if="node.type === 'device'" class="pm-tree-node__status" :class="{ 'pm-tree-node__status--online': node.exists }">
         {{ node.exists ? '●' : '○' }}
       </span>
 
       <!-- Selection Checkbox -->
       <input
         type="checkbox"
-        class="node-checkbox"
+        class="pm-tree-node__checkbox"
         :checked="node.selected"
         @click.stop
         @change="handleSelect"
@@ -46,7 +47,7 @@
     </div>
 
     <!-- Children (recursive) -->
-    <div v-if="node.type === 'group' && expanded && hasChildren" class="node-children">
+    <div v-if="node.type === 'group' && expanded && hasChildren" class="pm-tree-node__children">
       <GroupTreeNode
         v-for="child in node.children"
         :key="child.id"
@@ -63,7 +64,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { GroupTreeNode as TreeNode } from '../../../types/pymatrix';
+import type { GroupTreeNode as TreeNode } from '@/types/pymatrix';
 
 interface Props {
   node: TreeNode;
@@ -147,127 +148,3 @@ function handleDrop(event: DragEvent) {
 }
 </script>
 
-<style scoped>
-.tree-node {
-  user-select: none;
-}
-
-.node-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  padding-right: 12px;
-  min-height: 36px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.node-content:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.tree-node.is-selected > .node-content {
-  background: rgba(59, 130, 246, 0.15);
-  border-left: 3px solid #3b82f6;
-}
-
-.tree-node.is-group > .node-content {
-  font-weight: 600;
-}
-
-.expand-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: rgba(255, 255, 255, 0.6);
-  transition: all 0.2s ease;
-}
-
-.expand-btn:hover {
-  color: rgba(255, 255, 255, 0.9);
-  transform: scale(1.2);
-}
-
-.expand-icon {
-  font-size: 10px;
-  transition: transform 0.2s ease;
-  display: inline-block;
-}
-
-.expand-icon.expanded {
-  transform: rotate(90deg);
-}
-
-.expand-spacer {
-  width: 20px;
-}
-
-.node-icon {
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-.node-name {
-  flex: 1;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.9);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.node-serial {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
-  font-family: monospace;
-  padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-}
-
-.node-status {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.3);
-  flex-shrink: 0;
-}
-
-.node-status.online {
-  color: #22c55e;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.node-checkbox {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: #3b82f6;
-  flex-shrink: 0;
-}
-
-.node-children {
-  margin-left: 0;
-}
-
-/* Drag and drop styles */
-.node-content.drag-over {
-  background: rgba(34, 197, 94, 0.15);
-  border: 2px dashed #22c55e;
-}
-</style>

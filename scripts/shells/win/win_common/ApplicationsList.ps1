@@ -727,10 +727,10 @@ $Global:APPLICATIONS_PACKAGES = @{
             @{
                 Type = "context_menu"
                 Operation = "add_file_context"
-                FileExtensions = @("py", "js", "ts", "html", "css", "json", "xml", "yaml", "yml", "md", "txt", "log", "ini", "cfg", "conf", "php", "java", "cpp", "c", "h", "cs", "vb", "sql", "sh", "bat", "ps1", "go", "rs", "rb", "pl", "lua", "r", "scala", "kt", "swift", "dart", "vue", "jsx", "tsx", "svelte")
+                FileExtensions = @("*")
                 MenuText = "Open with VSCode"
                 IconPath = "EXECUTABLE_PATH"
-                Description = "Add VSCode to file context menu for development file types"
+                Description = "Add VSCode to file context menu for all file types"
             }
             @{
                 Type = "context_menu"
