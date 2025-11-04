@@ -1,11 +1,11 @@
 <template>
-  <aside class="pymatrix-left-panel">
-    <div class="panel-header">
-      <h3 class="panel-title">Device List</h3>
-      <span class="device-count">{{ devices.length }}</span>
+  <aside class="pm-left-sidebar">
+    <div class="pm-left-sidebar__header">
+      <h3 class="pm-left-sidebar__title">Device List</h3>
+      <span class="pm-count-badge">{{ devices.length }}</span>
     </div>
 
-    <div class="panel-body">
+    <div class="pm-left-sidebar__body">
       <div v-if="devices.length === 0" class="empty-message">
         <span class="empty-icon">📱</span>
         <p>No devices connected</p>
@@ -15,9 +15,9 @@
         <div
           v-for="device in devices"
           :key="device.serial"
-          class="device-item"
+          class="pm-sidebar-item"
           :class="{
-            'is-selected': device.serial === selectedSerial,
+            'pm-sidebar-item--active': device.serial === selectedSerial,
             'is-host': device.serial === hostSerial
           }"
           @click="$emit('select-device', device.serial)"
@@ -47,7 +47,7 @@
             </button>
           </div>
 
-          <div v-if="device.serial === hostSerial" class="host-badge">
+          <div v-if="device.serial === hostSerial" class="pm-sidebar-item__badge">
             <span>★ HOST</span>
           </div>
         </div>
@@ -57,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Device } from '../../../types/pymatrix';
+import type { Device } from '@/types/pymatrix';
 
 interface Props {
   devices: Device[];
@@ -77,43 +77,76 @@ const emit = defineEmits<Emits>();
 </script>
 
 <style scoped>
-.pymatrix-left-panel {
-  width: 300px;
-  background: #1a1a1a;
-  border-right: 1px solid #2a2a2a;
+.pm-left-sidebar {
+  width: 100%;
+  max-width: 300px;
+  background: var(--pm-color-surface-raised);
+  border: 1px solid var(--pm-color-border-soft);
+  border-radius: var(--pm-radius-xl);
+  box-shadow: var(--pm-shadow-sm);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
-.panel-header {
+.pm-left-sidebar__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
-  border-bottom: 1px solid #2a2a2a;
+  gap: var(--pm-space-md);
+  padding: var(--pm-space-lg);
+  background: rgba(12, 18, 38, 0.75);
+  border-bottom: 1px solid var(--pm-color-border-soft);
 }
 
-.panel-title {
+.pm-left-sidebar__title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: white;
+  font-size: var(--pm-font-size-lg);
+  font-weight: 700;
+  color: var(--pm-text-strong);
+  letter-spacing: 0.3px;
 }
 
-.device-count {
-  padding: 4px 12px;
-  background: rgba(59, 130, 246, 0.2);
-  border-radius: 12px;
-  font-size: 14px;
+.pm-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 var(--pm-space-sm);
+  border-radius: var(--pm-radius-pill);
+  background: var(--pm-gradient-main);
+  color: var(--pm-text-strong);
+  font-size: var(--pm-font-size-xs);
   font-weight: 600;
-  color: #3b82f6;
+  box-shadow: 0 8px 18px rgba(124, 92, 255, 0.28);
 }
 
-.panel-body {
+.pm-left-sidebar__body {
   flex: 1;
+  padding: var(--pm-space-md);
+  overflow: hidden;
+}
+
+.pm-left-sidebar__body > .device-list,
+.pm-left-sidebar__body > .empty-message {
+  height: 100%;
   overflow-y: auto;
-  padding: 8px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 92, 255, 0.35) transparent;
+}
+
+.pm-left-sidebar__body > .device-list::-webkit-scrollbar,
+.pm-left-sidebar__body > .empty-message::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pm-left-sidebar__body > .device-list::-webkit-scrollbar-thumb,
+.pm-left-sidebar__body > .empty-message::-webkit-scrollbar-thumb {
+  background: rgba(124, 92, 255, 0.35);
+  border-radius: var(--pm-radius-pill);
 }
 
 .empty-message {
@@ -121,118 +154,179 @@ const emit = defineEmits<Emits>();
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 16px;
+  gap: var(--pm-space-sm);
+  padding: var(--pm-space-2xl) var(--pm-space-lg);
   text-align: center;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--pm-text-muted);
 }
 
 .empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.5;
+  font-size: 42px;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--pm-radius-pill);
+  display: grid;
+  place-items: center;
+  background: rgba(124, 92, 255, 0.16);
+  color: var(--pm-text-default);
 }
 
 .device-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pm-space-md);
+  padding-bottom: var(--pm-space-sm);
 }
 
-.device-item {
+.pm-sidebar-item {
   position: relative;
-  padding: 12px;
-  background: #2a2a2a;
-  border: 2px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--pm-radius-lg);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(14, 20, 40, 0.85);
+  padding: var(--pm-space-md) var(--pm-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-space-sm);
+  transition: var(--pm-transition-fast);
   cursor: pointer;
-  transition: all 0.2s ease;
+  box-shadow: var(--pm-shadow-xs);
 }
 
-.device-item:hover {
-  background: #3a3a3a;
-  border-color: #3b82f6;
+.pm-sidebar-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid transparent;
+  transition: var(--pm-transition-fast);
 }
 
-.device-item.is-selected {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
+.pm-sidebar-item:hover {
+  transform: translateX(4px);
+  border-color: var(--pm-color-border);
+  box-shadow: var(--pm-shadow-sm);
 }
 
-.device-item.is-host {
-  border-color: #8b5cf6;
-  background: rgba(139, 92, 246, 0.1);
+.pm-sidebar-item--active {
+  border-color: var(--pm-color-border);
+  background: rgba(124, 92, 255, 0.14);
+}
+
+.pm-sidebar-item--active::before {
+  border-color: rgba(124, 92, 255, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.45);
+}
+
+.pm-sidebar-item.is-host {
+  background: rgba(124, 92, 255, 0.18);
+  border-color: rgba(124, 92, 255, 0.5);
+}
+
+.pm-sidebar-item__badge {
+  position: absolute;
+  top: var(--pm-space-sm);
+  right: var(--pm-space-sm);
+  padding: var(--pm-space-xs) var(--pm-space-md);
+  border-radius: var(--pm-radius-pill);
+  background: rgba(124, 92, 255, 0.3);
+  color: var(--pm-text-strong);
+  font-size: var(--pm-font-size-2xs);
+  font-weight: 700;
+  letter-spacing: 0.4px;
 }
 
 .device-info {
-  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-space-xs);
+  color: var(--pm-text-muted);
 }
 
 .device-name {
-  font-size: 14px;
+  font-size: var(--pm-font-size-sm);
   font-weight: 600;
-  color: white;
-  margin-bottom: 4px;
+  color: var(--pm-text-default);
 }
 
 .device-serial {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-  font-family: monospace;
+  font-size: var(--pm-font-size-2xs);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .device-resolution {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 4px;
+  font-size: var(--pm-font-size-2xs);
+  color: var(--pm-text-low);
 }
 
 .device-actions {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: var(--pm-space-xs);
 }
 
 .action-btn {
-  padding: 4px 8px;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pm-space-xs);
+  padding: var(--pm-space-xs) var(--pm-space-sm);
+  border-radius: var(--pm-radius-pill);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(16, 20, 40, 0.65);
+  color: var(--pm-text-muted);
+  font-size: var(--pm-font-size-2xs);
   font-weight: 600;
-  color: white;
-  background: rgba(59, 130, 246, 0.2);
-  border: 1px solid rgba(59, 130, 246, 0.4);
-  border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--pm-transition-fast);
 }
 
 .action-btn:hover {
-  background: rgba(59, 130, 246, 0.3);
-  border-color: rgba(59, 130, 246, 0.6);
+  color: var(--pm-text-default);
+  border-color: var(--pm-color-border);
 }
 
 .action-btn.active {
-  background: rgba(139, 92, 246, 0.3);
-  border-color: rgba(139, 92, 246, 0.6);
-  animation: pulse 2s infinite;
+  background: var(--pm-gradient-main);
+  border-color: transparent;
+  color: var(--pm-text-strong);
 }
 
-.host-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 2px 8px;
-  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  color: white;
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+.action-btn.small {
+  padding: var(--pm-space-2xs) var(--pm-space-sm);
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
+@media (max-width: 1280px) {
+  .pm-left-sidebar {
+    max-width: none;
+    flex-direction: row;
+    align-items: stretch;
+    border-radius: var(--pm-radius-lg);
   }
-  50% {
-    opacity: 0.7;
+
+  .pm-left-sidebar__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--pm-space-xs);
+  }
+
+  .pm-left-sidebar__body {
+    flex: 1;
+  }
+}
+
+@media (max-width: 1100px) {
+  .pm-left-sidebar {
+    max-width: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .pm-left-sidebar {
+    border-radius: var(--pm-radius-md);
+  }
+
+  .pm-left-sidebar__body {
+    padding: var(--pm-space-sm);
   }
 }
 </style>

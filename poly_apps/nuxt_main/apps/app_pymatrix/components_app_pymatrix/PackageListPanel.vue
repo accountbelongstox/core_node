@@ -1,12 +1,18 @@
 <template>
-  <BasePanel
-    v-if="visible"
-    :title="`Installed Packages - ${deviceSerial}`"
-    size="xl"
-    icon="fas fa-list"
-    @close="close"
-  >
-    <template #default>
+  <div class="pm-panel pm-panel--blue">
+    <!-- Header -->
+    <div class="pm-panel__header">
+      <h3 class="pm-panel__title">
+        <i class="pm-panel__title-icon fas fa-list"></i>
+        Installed Packages - {{ deviceSerial }}
+      </h3>
+      <button class="pm-button pm-button--ghost" @click="close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="pm-panel__body">
       <div class="space-y-4">
         <!-- Search and Filter -->
         <div class="flex gap-3">
@@ -15,36 +21,33 @@
               v-model="searchQuery"
               type="text"
               placeholder="Search packages (e.g., com.android.chrome)..."
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
-                     bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-                     focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                     transition-colors"
+              class="pm-input"
               @input="debouncedSearch"
             />
           </div>
-          <BaseButton
-            color="primary"
-            icon="fas fa-sync"
-            :loading="loading"
+          <button
+            class="pm-button pm-button--electric-blue"
+            :disabled="loading"
             @click="loadPackages"
           >
+            <i class="fas fa-sync" :class="{ 'fa-spin': loading }"></i>
             Refresh
-          </BaseButton>
+          </button>
         </div>
 
         <!-- Loading State -->
         <div v-if="loading && packages.length === 0" class="text-center py-8">
           <i class="fas fa-spinner fa-spin text-3xl text-blue-500 mb-3"></i>
-          <p class="text-gray-600 dark:text-gray-400">Loading packages...</p>
+          <p class="text-gray-400">Loading packages...</p>
         </div>
 
         <!-- Error State -->
-        <div v-else-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <div v-else-if="error" class="pm-panel pm-panel--red p-4">
           <div class="flex items-start gap-3">
             <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
             <div>
-              <h4 class="font-semibold text-red-800 dark:text-red-300">Failed to load packages</h4>
-              <p class="text-sm text-red-600 dark:text-red-400 mt-1">{{ error }}</p>
+              <h4 class="font-semibold text-red-300">Failed to load packages</h4>
+              <p class="text-sm text-red-400 mt-1">{{ error }}</p>
             </div>
           </div>
         </div>
@@ -52,7 +55,7 @@
         <!-- Empty State -->
         <div v-else-if="filteredPackages.length === 0 && !loading" class="text-center py-8">
           <i class="fas fa-inbox text-4xl text-gray-400 mb-3"></i>
-          <p class="text-gray-600 dark:text-gray-400">
+          <p class="text-gray-400">
             {{ searchQuery ? 'No packages match your search' : 'No packages found' }}
           </p>
         </div>
@@ -60,11 +63,11 @@
         <!-- Package List -->
         <div v-else class="space-y-2 max-h-96 overflow-y-auto">
           <!-- Stats -->
-          <div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 px-2 py-1 bg-gray-50 dark:bg-gray-800 rounded">
+          <div class="flex items-center justify-between text-sm text-gray-400 px-2 py-1 bg-gray-800/50 rounded">
             <span>
               Showing {{ filteredPackages.length }} of {{ packages.length }} packages
             </span>
-            <span v-if="selectedPackages.length > 0" class="text-blue-600 dark:text-blue-400">
+            <span v-if="selectedPackages.length > 0" class="text-blue-400">
               {{ selectedPackages.length }} selected
             </span>
           </div>
@@ -73,9 +76,8 @@
           <div
             v-for="pkg in filteredPackages"
             :key="pkg"
-            class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg
-                   hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-            :class="{ 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700': selectedPackages.includes(pkg) }"
+            class="pm-device-card"
+            :class="{ 'border-blue-500': selectedPackages.includes(pkg) }"
             @click="togglePackageSelection(pkg)"
           >
             <!-- Checkbox -->
@@ -93,14 +95,14 @@
 
             <!-- Package Info -->
             <div class="flex-1 min-w-0">
-              <div class="font-mono text-sm text-gray-900 dark:text-gray-100 truncate">
+              <div class="font-mono text-sm text-gray-100 truncate">
                 {{ pkg }}
               </div>
-              <div class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-0.5">
-                <span v-if="isSystemPackage(pkg)" class="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">
+              <div class="text-xs text-gray-400 flex items-center gap-2 mt-0.5">
+                <span v-if="isSystemPackage(pkg)" class="pm-badge pm-badge--warning">
                   System
                 </span>
-                <span v-else class="px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-xs">
+                <span v-else class="pm-badge pm-badge--success">
                   User
                 </span>
               </div>
@@ -108,49 +110,50 @@
 
             <!-- Actions -->
             <div class="flex items-center gap-2">
-              <BaseButton
-                size="xs"
-                color="danger"
-                icon="fas fa-trash"
+              <button
+                class="pm-button pm-button--fire"
+                style="font-size: 0.75rem; padding: 0.25rem 0.75rem;"
                 :disabled="isSystemPackage(pkg)"
                 :title="isSystemPackage(pkg) ? 'Cannot uninstall system apps' : 'Uninstall'"
                 @click.stop="uninstallPackage(pkg)"
               >
+                <i class="fas fa-trash"></i>
                 Uninstall
-              </BaseButton>
-              <BaseButton
-                size="xs"
-                color="default"
-                icon="fas fa-copy"
+              </button>
+              <button
+                class="pm-button pm-button--ghost"
+                style="font-size: 0.75rem; padding: 0.25rem 0.5rem;"
                 title="Copy package name"
                 @click.stop="copyPackageName(pkg)"
               >
-              </BaseButton>
+                <i class="fas fa-copy"></i>
+              </button>
             </div>
           </div>
         </div>
       </div>
-    </template>
+    </div>
 
-    <template #footer>
-      <div class="flex items-center justify-between">
+    <!-- Footer -->
+    <div class="pm-panel__footer">
+      <div class="flex items-center justify-between w-full">
         <div class="flex items-center gap-2">
-          <BaseButton
+          <button
             v-if="selectedPackages.length > 0"
-            color="danger"
-            icon="fas fa-trash"
+            class="pm-button pm-button--fire"
             :disabled="selectedPackages.some(isSystemPackage)"
             @click="uninstallSelectedPackages"
           >
+            <i class="fas fa-trash"></i>
             Uninstall Selected ({{ selectedPackages.length }})
-          </BaseButton>
+          </button>
         </div>
-        <BaseButton color="default" @click="close">
+        <button class="pm-button pm-button--ghost" @click="close">
           Close
-        </BaseButton>
+        </button>
       </div>
-    </template>
-  </BasePanel>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -158,7 +161,7 @@ import { ref, computed, watch } from 'vue';
 import BasePanel from '@/common/components/ui/BasePanel.vue';
 import BaseButton from '@/common/components/ui/BaseButton.vue';
 import { useToast } from '../composables_app_pymatrix/useToast';
-import { PyMatrixFileAPI } from '../services_app_pymatrix/api/pymatrix-file-api';
+import { PyMatrixFileAPI } from '@/services/api/pymatrix/pymatrix-file-api';
 
 const props = defineProps<{
   visible: boolean;

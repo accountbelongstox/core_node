@@ -1,15 +1,15 @@
 <template>
-  <div class="device-grid" :class="gridClass" :style="gridStyle">
+  <div class="pm-device-grid" :class="gridClass" :style="gridStyle">
     <div
       v-for="(device, index) in orderedDevices"
       :key="device.serial"
-      class="device-item"
+      class="pm-grid-item"
       :class="{
-        'is-host': device.isHost,
-        'is-selected': selectedSerial === device.serial,
-        'is-dragging': draggedIndex === index,
-        'is-drag-over': dragOverIndex === index,
-        'drag-enabled': dragEnabled
+        'pm-grid-item--host': device.isHost,
+        'pm-grid-item--selected': selectedSerial === device.serial,
+        'pm-grid-item--dragging': draggedIndex === index,
+        'pm-grid-item--drag-over': dragOverIndex === index,
+        'pm-grid-item--drag-enabled': dragEnabled
       }"
       :draggable="dragEnabled"
       @dragstart="handleDragStart($event, index)"
@@ -18,8 +18,8 @@
       @dragleave="handleDragLeave"
       @drop.prevent="handleDrop($event, index)"
     >
-      <div v-if="dragEnabled" class="drag-handle" title="Drag to reorder">
-        <span class="drag-icon">⋮⋮</span>
+      <div v-if="dragEnabled" class="pm-drag-handle" title="Drag to reorder">
+        <span class="pm-drag-icon">⋮⋮</span>
       </div>
 
       <VideoPlayer
@@ -29,23 +29,23 @@
         @toggle-fullscreen="emit('toggle-fullscreen', $event)"
       />
 
-      <div class="device-actions">
+      <div class="pm-device-actions">
         <button
           v-if="!device.isHost && groupEnabled"
-          class="action-btn primary"
+          class="pm-action-btn pm-action-btn--primary"
           @click="emit('setHost', device.serial)"
         >
           Set as Host
         </button>
         <button
           v-if="device.isHost && groupEnabled"
-          class="action-btn danger"
+          class="pm-action-btn pm-action-btn--danger"
           @click="emit('removeHost', device.serial)"
         >
           Remove Host
         </button>
         <button
-          class="action-btn"
+          class="pm-action-btn"
           @click="emit('disconnect', device.serial)"
         >
           Disconnect
@@ -59,7 +59,7 @@
 import { computed, ref, watch } from 'vue';
 import { useUIPreferencesStore } from '../stores_app_pymatrix/uiPreferencesStore';
 import VideoPlayer from './VideoPlayer.vue';
-import type { Device } from '../../../types/pymatrix';
+import type { Device } from '@/types/pymatrix';
 
 interface Props {
   devices: Device[];
@@ -218,145 +218,320 @@ function handleDrop(event: DragEvent, toIndex: number) {
 </script>
 
 <style scoped>
-.device-grid {
+/* DeviceGrid Styles with NFTMax Theme */
+.pm-device-grid {
   display: grid;
-  gap: 16px;
-  padding: 16px;
-  height: 100%;
+  gap: var(--pm-space-lg);
+  padding: var(--pm-space-lg);
   width: 100%;
-  grid-auto-rows: 1fr;
+  height: 100%;
+  overflow-y: auto;
+  animation: pm-fadeIn 0.5s ease;
 }
 
-.device-item {
+/* Grid Item */
+.pm-grid-item {
   position: relative;
-  background: #1a1a1a;
-  border-radius: 8px;
+  background: var(--pm-bg-card);
+  border-radius: var(--pm-radius-lg);
   overflow: hidden;
-  border: 2px solid transparent;
-  transition: all 0.3s ease;
+  box-shadow: var(--pm-shadow-sm);
+  transition: var(--pm-transition-fast);
+  animation: pm-scaleUp 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
-.device-item:hover {
-  border-color: #3b82f6;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+.pm-grid-item:hover {
+  box-shadow: var(--pm-shadow-md);
+  transform: translateY(-4px);
 }
 
-.device-item.is-host {
-  border-color: #8b5cf6;
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
-}
-
-.device-item.is-selected {
-  border-color: #10b981;
-}
-
-/* Drag and Drop Styles */
-.device-item.drag-enabled {
-  cursor: grab;
-}
-
-.device-item.drag-enabled:active {
-  cursor: grabbing;
-}
-
-.device-item.is-dragging {
-  opacity: 0.5;
-  border-color: #6366f1;
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
-  transform: scale(0.95);
-}
-
-.device-item.is-drag-over {
-  border-color: #22c55e;
-  box-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
-  background: rgba(34, 197, 94, 0.05);
-}
-
-.drag-handle {
+/* Drag Handle */
+.pm-drag-handle {
   position: absolute;
   top: 12px;
   left: 12px;
-  z-index: 20;
+  z-index: 100;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  cursor: grab;
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(8px);
-  transition: all 0.2s ease;
-}
-
-.drag-handle:hover {
-  background: rgba(0, 0, 0, 0.85);
-  border-color: rgba(255, 255, 255, 0.4);
-  transform: scale(1.1);
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-  transform: scale(0.95);
-}
-
-.drag-icon {
-  font-size: 16px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.8);
-  letter-spacing: -2px;
-}
-
-.device-actions {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  display: flex;
-  gap: 8px;
+  border-radius: var(--pm-radius-circle);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  cursor: grab;
   opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 10;
+  transition: var(--pm-transition-fast);
 }
 
-.device-item:hover .device-actions {
+.pm-grid-item:hover .pm-drag-handle {
   opacity: 1;
 }
 
-.action-btn {
-  padding: 6px 12px;
-  font-size: 12px;
+.pm-drag-handle:active {
+  cursor: grabbing;
+}
+
+.pm-drag-icon {
+  font-size: 16px;
+  color: var(--pm-text-secondary);
+  font-weight: bold;
+  letter-spacing: -2px;
+}
+
+/* Drag States */
+.pm-grid-item--drag-enabled {
+  cursor: move;
+}
+
+.pm-grid-item--dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  box-shadow: var(--pm-shadow-lg);
+}
+
+.pm-grid-item--drag-over {
+  border: 2px dashed var(--pm-primary);
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.05) 0%, rgba(243, 57, 248, 0.05) 100%);
+}
+
+/* Host Device */
+.pm-grid-item--host {
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+}
+
+.pm-grid-item--host::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: var(--pm-gradient-primary);
+  border-radius: var(--pm-radius-lg);
+  z-index: -1;
+  opacity: 0.8;
+  animation: pm-pulse 2s ease-in-out infinite;
+}
+
+.pm-grid-item--host::after {
+  content: '★ HOST';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 6px 16px;
+  background: var(--pm-gradient-primary);
+  color: #ffffff;
+  font-size: var(--pm-font-size-xs);
+  font-weight: 700;
+  border-radius: var(--pm-radius-full);
+  box-shadow: 0 2px 8px rgba(243, 57, 248, 0.4);
+  z-index: 100;
+  letter-spacing: 0.5px;
+}
+
+/* Selected Device */
+.pm-grid-item--selected {
+  border: 2px solid var(--pm-primary);
+  box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.15);
+}
+
+/* Device Actions */
+.pm-device-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: var(--pm-transition-fast);
+  z-index: 50;
+}
+
+.pm-grid-item:hover .pm-device-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.pm-action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  font-size: var(--pm-font-size-xs);
   font-weight: 600;
-  color: white;
-  background: rgba(0, 0, 0, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--pm-radius-full);
   cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(4px);
+  transition: var(--pm-transition-fast);
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
 }
 
-.action-btn:hover {
-  background: rgba(0, 0, 0, 0.9);
-  border-color: rgba(255, 255, 255, 0.4);
-  transform: translateY(-1px);
+.pm-action-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+  transition: var(--pm-transition-fast);
 }
 
-.action-btn.primary {
-  background: rgba(59, 130, 246, 0.9);
-  border-color: rgba(59, 130, 246, 1);
+.pm-action-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.action-btn.primary:hover {
-  background: rgba(59, 130, 246, 1);
+.pm-action-btn:hover::before {
+  opacity: 0.2;
 }
 
-.action-btn.danger {
-  background: rgba(239, 68, 68, 0.9);
-  border-color: rgba(239, 68, 68, 1);
+/* Primary Action Button */
+.pm-action-btn--primary {
+  background: var(--pm-gradient-primary);
+  border-color: transparent;
 }
 
-.action-btn.danger:hover {
-  background: rgba(239, 68, 68, 1);
+.pm-action-btn--primary::before {
+  background: var(--pm-gradient-primary-reverse);
+  opacity: 1;
+}
+
+.pm-action-btn--primary:hover {
+  box-shadow: 0 4px 16px rgba(243, 57, 248, 0.5);
+}
+
+/* Danger Action Button */
+.pm-action-btn--danger {
+  background: var(--pm-danger);
+  border-color: transparent;
+}
+
+.pm-action-btn--danger::before {
+  background: linear-gradient(135deg, #EB5757 0%, #E74C3C 100%);
+  opacity: 1;
+}
+
+.pm-action-btn--danger:hover {
+  box-shadow: 0 4px 16px rgba(235, 87, 87, 0.5);
+}
+
+/* Animations */
+@keyframes pm-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pm-scaleUp {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pm-pulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Scrollbar Styling */
+.pm-device-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pm-device-grid::-webkit-scrollbar-track {
+  background: var(--pm-bg-main);
+  border-radius: 10px;
+}
+
+.pm-device-grid::-webkit-scrollbar-thumb {
+  background: var(--pm-border);
+  border-radius: 10px;
+  transition: var(--pm-transition-fast);
+}
+
+.pm-device-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--pm-primary);
+}
+
+/* Responsive Grid */
+@media (max-width: 1920px) {
+  .pm-device-grid {
+    gap: var(--pm-space-md);
+    padding: var(--pm-space-md);
+  }
+}
+
+@media (max-width: 1278px) {
+  .pm-device-grid {
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .pm-grid-item {
+    min-height: 300px;
+  }
+
+  .pm-action-btn {
+    font-size: 10px;
+    padding: 6px 12px;
+  }
+
+  .pm-drag-handle {
+    width: 28px;
+    height: 28px;
+    top: 8px;
+    left: 8px;
+  }
+}
+
+@media (max-width: 767px) {
+  .pm-device-grid {
+    gap: 12px;
+    padding: 12px;
+    grid-template-columns: 1fr !important;
+  }
+
+  .pm-grid-item {
+    min-height: 250px;
+  }
+
+  .pm-device-actions {
+    position: static;
+    opacity: 1;
+    transform: none;
+    background: var(--pm-bg-main);
+    border-top: 1px solid var(--pm-border);
+  }
+
+  .pm-action-btn {
+    font-size: var(--pm-font-size-xs);
+    padding: 8px 12px;
+  }
 }
 </style>

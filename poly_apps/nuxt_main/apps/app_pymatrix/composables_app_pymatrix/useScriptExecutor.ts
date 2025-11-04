@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue';
 import { useScriptStore } from '../stores_app_pymatrix/scriptStore';
 import { useRecordableDeviceControl } from './useRecordableDeviceControl';
-import type { Script, ScriptStep, ScriptStepType } from '../../../types/pymatrix';
+import type { Script, ScriptStep, ScriptStepType } from '@/types/pymatrix';
 
 /**
  * Script Executor Composable

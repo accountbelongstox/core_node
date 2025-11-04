@@ -211,28 +211,46 @@ function Invoke-ContextMenuProcessor {
                 $fileExtensions = $ContextMenuCallback["FileExtensions"]
                 $menuText = $ContextMenuCallback["MenuText"]
                 $iconPath = $ContextMenuCallback["IconPath"]
-                
+
                 if (-not $fileExtensions -or -not $menuText) {
                     Write-Warning "$LogPrefix Missing required parameters for add_file_context operation"
                     return $false
+                }
+
+                # Check if wildcard pattern is used
+                if ($fileExtensions -contains "*") {
+                    Write-Host "$LogPrefix Detected wildcard pattern, using all_files_context template" -ForegroundColor Cyan
+                    $actualIconPath = if ($iconPath) { $iconPath -replace "{{EXECUTABLE_PATH}}", $ExecutablePath } else { $ExecutablePath }
+
+                    $replacements = @{
+                        "{{MENU_TEXT}}" = $menuText
+                        "{{ICON_PATH}}" = $actualIconPath
+                        "{{EXECUTABLE_PATH}}" = $ExecutablePath
+                    }
+
+                    $result = Invoke-RegistryTemplateApplier -TemplateName "all_files_context.reg" -Replacements $replacements -LogPrefix "$LogPrefix [WILDCARD]"
+                    if (-not $result) { return $false }
+
+                    Write-Host "$LogPrefix Successfully processed wildcard file context" -ForegroundColor Green
+                    return $true
                 }
 
                 # Process each file extension
                 foreach ($extension in $fileExtensions) {
                     $extension = $extension.TrimStart('.')
                     $actualIconPath = if ($iconPath) { $iconPath -replace "{{EXECUTABLE_PATH}}", $ExecutablePath } else { $ExecutablePath }
-                    
+
                     $replacements = @{
                         "{{EXTENSION}}" = $extension
                         "{{MENU_TEXT}}" = $menuText
                         "{{ICON_PATH}}" = $actualIconPath
                         "{{EXECUTABLE_PATH}}" = $ExecutablePath
                     }
-                    
+
                     $result = Invoke-RegistryTemplateApplier -TemplateName "file_context.reg" -Replacements $replacements -LogPrefix "$LogPrefix [EXT:$extension]"
                     if (-not $result) { return $false }
                 }
-                
+
                 Write-Host "$LogPrefix Successfully processed all file extensions: $($fileExtensions -join ', ')" -ForegroundColor Green
             }
             

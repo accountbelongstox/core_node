@@ -27,11 +27,214 @@ ssl_dir=""
 php_version="8.4"
 success_count=0
 total_count=0
+SECRET_PASSWORD=""
+DNSPOD_EMAIL=""
+DNSPOD_API_TOKEN=""
+DOMAINS_LISTS_CONTENT=""
+DOMAIN_PREFIXES=""
+SELECTED_PREFIXES=""
+DIAGNOSTICS_SCRIPT="$SCRIPT_CURRENT_DIR/../callbacks/post_domain_setup_diagnostics.sh"
 
 echo "[$SCRIPT_INDEX] Domain Setup Script - Adding domains to nginx and certbot"
 
 # USE_SUDO is already defined in gvar_common.sh
 echo "[$SCRIPT_INDEX] Using sudo configuration from gvar_common.sh: ${USE_SUDO:-'(none)'}"
+
+# Function to select domain prefixes for WSL/Desktop environments
+select_domain_prefixes() {
+    # Only prompt for prefixes on non-production environments
+    if [ "$IS_PRODUCTION" = true ]; then
+        # Production: use all default prefixes
+        SELECTED_PREFIXES="local,si,sz,sh,api"
+        echo "[$SCRIPT_INDEX] Production environment: Using all default prefixes (local,si,sz,sh,api)"
+        return 0
+    fi
+
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] DOMAIN PREFIX SELECTION"
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] Current platform: $([ "$IS_WSL" = true ] && echo 'WSL' || echo 'Desktop')"
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Select domain prefixes for local development:"
+    echo "[$SCRIPT_INDEX] This determines which subdomains will be created for each domain."
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Default prefixes available:"
+    echo "[$SCRIPT_INDEX]   - local: For local development (local.domain.com, local.api.domain.com)"
+    echo "[$SCRIPT_INDEX]   - si:    For si region (si.domain.com, si.api.domain.com)"
+    echo "[$SCRIPT_INDEX]   - sz:    For sz region (sz.domain.com, sz.api.domain.com)"
+    echo "[$SCRIPT_INDEX]   - sh:    For sh region (sh.domain.com, sh.api.domain.com)"
+    echo "[$SCRIPT_INDEX]   - api:   For API endpoints (api.domain.com)"
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Enter prefixes (comma-separated), or press Enter for default (local,si,sz,sh,api):"
+    echo -n "[$SCRIPT_INDEX] Prefixes: " >&2
+
+    read -r user_input
+
+    if [ -z "$user_input" ]; then
+        SELECTED_PREFIXES="local,si,sz,sh,api"
+        echo "[$SCRIPT_INDEX] Using default prefixes: local,si,sz,sh,api"
+    else
+        # Trim whitespace and validate input
+        SELECTED_PREFIXES=$(echo "$user_input" | tr -d ' ')
+        echo "[$SCRIPT_INDEX] Selected prefixes: $SELECTED_PREFIXES"
+    fi
+
+    echo "[$SCRIPT_INDEX]"
+    echo "[$SCRIPT_INDEX] Domains will be created with these patterns:"
+
+    # Parse selected prefixes and show what will be created
+    IFS=',' read -ra PREFIX_ARRAY <<< "$SELECTED_PREFIXES"
+    for prefix in "${PREFIX_ARRAY[@]}"; do
+        if [ "$prefix" = "api" ]; then
+            echo "[$SCRIPT_INDEX]   - api.domain.com (API endpoint)"
+        else
+            echo "[$SCRIPT_INDEX]   - $prefix.domain.com (static HTML)"
+            echo "[$SCRIPT_INDEX]   - $prefix.api.domain.com (API endpoint)"
+            echo "[$SCRIPT_INDEX]   - *.$prefix.domain.com (wildcard)"
+            echo "[$SCRIPT_INDEX]   - *.$prefix.api.domain.com (wildcard)"
+        fi
+    done
+
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX]"
+
+    return 0
+}
+
+# Function to initialize secrets with password prompt
+initialize_secrets() {
+    # Check if secret_get_key function exists
+    if ! type secret_get_key >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] WARNING: secret_get_key function not found, using get_secret_content" >&2
+        DNSPOD_EMAIL=$(get_secret_content "DNS_DNSPOD_EMAILS")
+        DNSPOD_API_TOKEN=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
+        DOMAINS_LISTS_CONTENT=$(get_secret_content "DOMAINS_LISTS")
+        return 0
+    fi
+
+    # In non-production environment (WSL/Desktop), try to use cached secrets
+    if [ "$IS_PRODUCTION" != true ]; then
+        echo "[$SCRIPT_INDEX] Desktop/WSL environment detected - checking for cached secrets"
+
+        # Try to load from cache (will prompt once if cache doesn't exist)
+        DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "")
+        if [ $? -ne 0 ] || [ -z "$DNSPOD_EMAIL" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to load DNS_DNSPOD_EMAILS" >&2
+            return 1
+        fi
+
+        DNSPOD_API_TOKEN=$(secret_get_key "DNS_DNSPOD_API_TOKENS" "")
+        if [ $? -ne 0 ] || [ -z "$DNSPOD_API_TOKEN" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to load DNS_DNSPOD_API_TOKENS" >&2
+            return 1
+        fi
+
+        DOMAINS_LISTS_CONTENT=$(secret_get_key "DOMAINS_LISTS" "")
+        if [ $? -ne 0 ] || [ -z "$DOMAINS_LISTS_CONTENT" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to load DOMAINS_LISTS" >&2
+            return 1
+        fi
+
+        echo "[$SCRIPT_INDEX] [OK]All secrets loaded from cache" >&2
+        return 0
+    fi
+
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] SERVER ENVIRONMENT DETECTED"
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] For security, encrypted secrets require password authentication."
+    echo "[$SCRIPT_INDEX] The password will be used to decrypt all required secrets at once."
+    echo "[$SCRIPT_INDEX]"
+
+    # Prompt for password with confirmation
+    local password1=""
+    local password2=""
+
+    while true; do
+        # Check if _secret_read_password function exists
+        if type _secret_read_password >/dev/null 2>&1; then
+            password1=$(_secret_read_password "[$SCRIPT_INDEX] Enter decryption password: " "asterisk")
+        else
+            echo -n "[$SCRIPT_INDEX] Enter decryption password: " >&2
+            read password1
+            echo "" >&2
+        fi
+
+        if [ -z "$password1" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Password cannot be empty" >&2
+            continue
+        fi
+
+        if type _secret_read_password >/dev/null 2>&1; then
+            password2=$(_secret_read_password "[$SCRIPT_INDEX] Confirm password: " "asterisk")
+        else
+            echo -n "[$SCRIPT_INDEX] Confirm password: " >&2
+            read password2
+            echo "" >&2
+        fi
+
+        if [ "$password1" = "$password2" ]; then
+            SECRET_PASSWORD="$password1"
+            echo "[$SCRIPT_INDEX] Password confirmed successfully" >&2
+            break
+        else
+            echo "[$SCRIPT_INDEX] ERROR: Passwords do not match. Please try again." >&2
+        fi
+    done
+
+    # Preload required secrets
+    echo "[$SCRIPT_INDEX] Decrypting required secrets..." >&2
+
+    # Check if secret_get_key function exists
+    if ! type secret_get_key >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] WARNING: secret_get_key function not found, using get_secret_content" >&2
+        DNSPOD_EMAIL=$(get_secret_content "DNS_DNSPOD_EMAILS")
+        DNSPOD_API_TOKEN=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
+        DOMAINS_LISTS_CONTENT=$(get_secret_content "DOMAINS_LISTS")
+    else
+        # Use secret_get_key with password parameter
+        DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "$SECRET_PASSWORD")
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DNS_DNSPOD_EMAILS (incorrect password?)" >&2
+            return 1
+        fi
+
+        DNSPOD_API_TOKEN=$(secret_get_key "DNS_DNSPOD_API_TOKENS" "$SECRET_PASSWORD")
+        exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DNS_DNSPOD_API_TOKENS (incorrect password?)" >&2
+            return 1
+        fi
+
+        DOMAINS_LISTS_CONTENT=$(secret_get_key "DOMAINS_LISTS" "$SECRET_PASSWORD")
+        exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DOMAINS_LISTS (incorrect password?)" >&2
+            return 1
+        fi
+    fi
+
+    # Validate decrypted content
+    if [ -z "$DNSPOD_EMAIL" ] || [ -z "$DNSPOD_API_TOKEN" ]; then
+        echo "[$SCRIPT_INDEX] ERROR: Failed to load DNSPod credentials" >&2
+        return 1
+    fi
+
+    if [ -z "$DOMAINS_LISTS_CONTENT" ]; then
+        echo "[$SCRIPT_INDEX] ERROR: Failed to load domains list" >&2
+        return 1
+    fi
+
+    echo "[$SCRIPT_INDEX] [OK]All secrets decrypted successfully" >&2
+    echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAILS: ${DNSPOD_EMAIL:0:3}***@${DNSPOD_EMAIL##*@}" >&2
+    echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKENS: [LOADED]" >&2
+    echo "[$SCRIPT_INDEX]   - DOMAINS_LISTS: [LOADED]" >&2
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX]"
+
+    return 0
+}
 
 # Function to initialize system directories
 initialize_system_directories() {
@@ -76,14 +279,14 @@ initialize_system_directories() {
         if [ ! -d "$dir" ]; then
             echo "[$SCRIPT_INDEX]   Creating: $dir"
             $USE_SUDO mkdir -p "$dir" 2>/dev/null || {
-                echo "[$SCRIPT_INDEX]   ✗ Failed to create $dir"
+                echo "[$SCRIPT_INDEX]   [FAIL] Failed to create $dir"
                 return 1
             }
             # Set appropriate permissions
             $USE_SUDO chmod 755 "$dir" 2>/dev/null || true
-            echo "[$SCRIPT_INDEX]   ✓ Created: $dir"
+            echo "[$SCRIPT_INDEX]   [OK]Created: $dir"
         else
-            echo "[$SCRIPT_INDEX]   ✓ Exists: $dir"
+            echo "[$SCRIPT_INDEX]   [OK]Exists: $dir"
         fi
     done
 
@@ -95,16 +298,16 @@ initialize_system_directories() {
             if [ "$IS_WSL" = true ]; then
                 # WSL doesn't support chown properly, just set permissions
                 $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
-                echo "[$SCRIPT_INDEX]   ✓ Set WSL permissions: $dir"
+                echo "[$SCRIPT_INDEX]   [OK]Set WSL permissions: $dir"
             else
                 # Linux: Set ownership and group
                 $USE_SUDO chown -R $USER:www-data "$dir" 2>/dev/null || {
-                    echo "[$SCRIPT_INDEX]   ⚠ Could not set user:www-data, trying 777..."
+                    echo "[$SCRIPT_INDEX]   [FAIL] Could not set user:www-data, trying 777..."
                     $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
                 }
                 # Set group write permissions
                 $USE_SUDO chmod -R 775 "$dir" 2>/dev/null || true
-                echo "[$SCRIPT_INDEX]   ✓ Set ownership: $dir"
+                echo "[$SCRIPT_INDEX]   [OK]Set ownership: $dir"
             fi
         fi
     done
@@ -115,22 +318,22 @@ initialize_system_directories() {
     local permission_errors=0
     for dir in "${test_dirs[@]}"; do
         if [ -d "$dir" ] && [ ! -w "$dir" ]; then
-            echo "[$SCRIPT_INDEX]   ✗ Not writable: $dir"
+            echo "[$SCRIPT_INDEX]   [FAIL] Not writable: $dir"
             permission_errors=$((permission_errors + 1))
         elif [ -d "$dir" ]; then
-            echo "[$SCRIPT_INDEX]   ✓ Writable: $dir"
+            echo "[$SCRIPT_INDEX]   [OK]Writable: $dir"
         else
-            echo "[$SCRIPT_INDEX]   ⚠ Directory not found: $dir"
+            echo "[$SCRIPT_INDEX]   [FAIL] Directory not found: $dir"
         fi
     done
 
     if [ $permission_errors -gt 0 ]; then
-        echo "[$SCRIPT_INDEX] ⚠ Warning: $permission_errors directories are not writable"
+        echo "[$SCRIPT_INDEX] [WARN] Warning: $permission_errors directories are not writable"
         echo "[$SCRIPT_INDEX]   This may cause Laravel commands to fail"
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] ✓ System directories initialized"
+    echo "[$SCRIPT_INDEX] [OK]System directories initialized"
     echo "[$SCRIPT_INDEX] =================================="
     return 0
 }
@@ -138,25 +341,72 @@ initialize_system_directories() {
 # Function to install certbot-dns-dnspod plugin
 install_certbot_dnspod() {
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] CHECKING CERTBOT-DNS-DNSPOD PLUGIN"
+    echo "[$SCRIPT_INDEX] CHECKING CERTBOT DEPENDENCIES"
     echo "[$SCRIPT_INDEX] =================================="
+
+    # Check if certbot is installed
+    if ! command -v certbot >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] certbot not found, installing..."
+        $USE_SUDO apt-get update >/dev/null 2>&1
+        $USE_SUDO apt-get install -y certbot >/dev/null 2>&1 || {
+            echo "[$SCRIPT_INDEX] [FAIL] Failed to install certbot"
+            return 1
+        }
+        echo "[$SCRIPT_INDEX] [OK] certbot installed"
+    else
+        echo "[$SCRIPT_INDEX] [OK] certbot is available: $(which certbot)"
+    fi
 
     # Check if pip3 is available
     if ! command -v pip3 >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] pip3 not found, installing python3-pip..."
         $USE_SUDO apt-get update >/dev/null 2>&1
         $USE_SUDO apt-get install -y python3-pip >/dev/null 2>&1 || {
-            echo "[$SCRIPT_INDEX] ✗ Failed to install python3-pip"
+            echo "[$SCRIPT_INDEX] [FAIL] Failed to install python3-pip"
             return 1
         }
-        echo "[$SCRIPT_INDEX] ✓ python3-pip installed"
+        echo "[$SCRIPT_INDEX] [OK] python3-pip installed"
     else
-        echo "[$SCRIPT_INDEX] ✓ pip3 is available"
+        echo "[$SCRIPT_INDEX] [OK] pip3 is available"
+    fi
+
+    # Check for zope.interface module
+    echo "[$SCRIPT_INDEX] Checking zope.interface module..."
+    if python3 -c "import zope.interface" 2>/dev/null; then
+        echo "[$SCRIPT_INDEX] [OK] zope.interface is available"
+    else
+        echo "[$SCRIPT_INDEX] zope.interface not found, installing..."
+
+        # Try multiple installation methods
+        local zope_installed=false
+
+        # Method 1: Try apt-get first
+        if $USE_SUDO apt-get install -y python3-zope.interface >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] [OK] zope.interface installed via apt-get"
+            zope_installed=true
+        # Method 2: Try pip3
+        elif $USE_SUDO pip3 install zope.interface --break-system-packages 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] [OK] zope.interface installed via pip3"
+            zope_installed=true
+        fi
+
+        # Verify installation
+        if [ "$zope_installed" = true ]; then
+            if python3 -c "import zope.interface" 2>/dev/null; then
+                echo "[$SCRIPT_INDEX] [OK] zope.interface verification successful"
+            else
+                echo "[$SCRIPT_INDEX] [FAIL] zope.interface installed but not importable"
+                echo "[$SCRIPT_INDEX] Self-signed certificates will be used as fallback"
+            fi
+        else
+            echo "[$SCRIPT_INDEX] [FAIL] Failed to install zope.interface"
+            echo "[$SCRIPT_INDEX] Self-signed certificates will be used as fallback"
+        fi
     fi
 
     # Check if certbot-dns-dnspod is installed
     if pip3 list 2>/dev/null | grep -qi "certbot-dns-dnspod"; then
-        echo "[$SCRIPT_INDEX] ✓ certbot-dns-dnspod already installed"
+        echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod already installed"
         local version=$(pip3 show certbot-dns-dnspod 2>/dev/null | grep "Version:" | cut -d' ' -f2)
         echo "[$SCRIPT_INDEX]   Version: ${version:-unknown}"
         return 0
@@ -168,9 +418,17 @@ install_certbot_dnspod() {
     done
 
     if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] ✓ certbot-dns-dnspod installed successfully"
+        echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod installed successfully"
+
+        # Final verification
+        if pip3 list 2>/dev/null | grep -qi "certbot-dns-dnspod"; then
+            echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod verification successful"
+        else
+            echo "[$SCRIPT_INDEX] [FAIL] certbot-dns-dnspod verification failed"
+        fi
     else
-        echo "[$SCRIPT_INDEX] ⚠ certbot-dns-dnspod installation had issues, but continuing..."
+        echo "[$SCRIPT_INDEX] [FAIL] certbot-dns-dnspod installation had issues"
+        echo "[$SCRIPT_INDEX] Self-signed certificates will be used as fallback"
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
@@ -187,7 +445,7 @@ check_environment() {
     echo "[$SCRIPT_INDEX] Checking PHP..."
     if command -v php >/dev/null 2>&1; then
         local php_version=$(php -v 2>&1 | head -n 1)
-        echo "[$SCRIPT_INDEX]   ✓ PHP installed: $php_version"
+        echo "[$SCRIPT_INDEX]   [OK]PHP installed: $php_version"
 
         # Check PHP CLI SAPI
         local php_sapi=$(php -r "echo PHP_SAPI;" 2>/dev/null)
@@ -198,13 +456,13 @@ check_environment() {
         local required_extensions=("mbstring" "json" "pdo" "openssl" "tokenizer" "xml" "ctype" "fileinfo")
         for ext in "${required_extensions[@]}"; do
             if php -m 2>/dev/null | grep -qi "^$ext$"; then
-                echo "[$SCRIPT_INDEX]     ✓ $ext"
+                echo "[$SCRIPT_INDEX]     [OK]$ext"
             else
-                echo "[$SCRIPT_INDEX]     ✗ $ext (MISSING)"
+                echo "[$SCRIPT_INDEX]     [OK]$ext (MISSING)"
             fi
         done
     else
-        echo "[$SCRIPT_INDEX]   ✗ PHP not found in PATH"
+        echo "[$SCRIPT_INDEX]   [OK]PHP not found in PATH"
         echo "[$SCRIPT_INDEX]   Please install PHP first"
         return 1
     fi
@@ -213,9 +471,9 @@ check_environment() {
     echo "[$SCRIPT_INDEX] Checking Composer..."
     if command -v composer >/dev/null 2>&1; then
         local composer_version=$(composer --version 2>&1 | head -n 1)
-        echo "[$SCRIPT_INDEX]   ✓ Composer installed: $composer_version"
+        echo "[$SCRIPT_INDEX]   [OK]Composer installed: $composer_version"
     else
-        echo "[$SCRIPT_INDEX]   ✗ Composer not found in PATH"
+        echo "[$SCRIPT_INDEX]   [OK]Composer not found in PATH"
         echo "[$SCRIPT_INDEX]   Please install Composer first"
         return 1
     fi
@@ -224,43 +482,43 @@ check_environment() {
     echo "[$SCRIPT_INDEX] Checking Node.js (optional)..."
     if command -v node >/dev/null 2>&1; then
         local node_version=$(node --version 2>&1)
-        echo "[$SCRIPT_INDEX]   ✓ Node.js installed: $node_version"
+        echo "[$SCRIPT_INDEX]   [OK]Node.js installed: $node_version"
     else
-        echo "[$SCRIPT_INDEX]   ℹ Node.js not found (not required for headless Laravel)"
+        echo "[$SCRIPT_INDEX]   [OK]Node.js not found (not required for headless Laravel)"
     fi
 
     # Check Git
     echo "[$SCRIPT_INDEX] Checking Git..."
     if command -v git >/dev/null 2>&1; then
         local git_version=$(git --version 2>&1)
-        echo "[$SCRIPT_INDEX]   ✓ Git installed: $git_version"
+        echo "[$SCRIPT_INDEX]   [OK]Git installed: $git_version"
     else
-        echo "[$SCRIPT_INDEX]   ✗ Git not found"
+        echo "[$SCRIPT_INDEX]   [OK]Git not found"
     fi
 
     # Check Nginx
     echo "[$SCRIPT_INDEX] Checking Nginx..."
     if command -v nginx >/dev/null 2>&1; then
         local nginx_version=$(nginx -v 2>&1)
-        echo "[$SCRIPT_INDEX]   ✓ Nginx installed: $nginx_version"
+        echo "[$SCRIPT_INDEX]   [OK]Nginx installed: $nginx_version"
 
         # Check if nginx is running
         if pgrep nginx >/dev/null 2>&1; then
-            echo "[$SCRIPT_INDEX]   ✓ Nginx is running"
+            echo "[$SCRIPT_INDEX]   [OK]Nginx is running"
         else
-            echo "[$SCRIPT_INDEX]   ⚠ Nginx is installed but not running"
+            echo "[$SCRIPT_INDEX]   [OK]Nginx is installed but not running"
         fi
     else
-        echo "[$SCRIPT_INDEX]   ✗ Nginx not found"
+        echo "[$SCRIPT_INDEX]   [OK]Nginx not found"
     fi
 
     # Check Certbot
     echo "[$SCRIPT_INDEX] Checking Certbot..."
     if command -v certbot >/dev/null 2>&1; then
         local certbot_version=$(certbot --version 2>&1)
-        echo "[$SCRIPT_INDEX]   ✓ Certbot installed: $certbot_version"
+        echo "[$SCRIPT_INDEX]   [OK]Certbot installed: $certbot_version"
     else
-        echo "[$SCRIPT_INDEX]   ✗ Certbot not found"
+        echo "[$SCRIPT_INDEX]   [OK]Certbot not found"
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
@@ -298,14 +556,14 @@ initialize_laravel_directories() {
         if [ ! -d "$dir" ]; then
             echo "[$SCRIPT_INDEX]   Creating: $dir"
             mkdir -p "$dir" 2>/dev/null || {
-                echo "[$SCRIPT_INDEX]   ⚠ Failed to create $dir, trying with sudo..."
+                echo "[$SCRIPT_INDEX]   [FAIL] Failed to create $dir, trying with sudo..."
                 $USE_SUDO mkdir -p "$dir" || {
-                    echo "[$SCRIPT_INDEX]   ✗ Failed to create $dir even with sudo"
+                    echo "[$SCRIPT_INDEX]   [FAIL] Failed to create $dir even with sudo"
                     return 1
                 }
             }
         else
-            echo "[$SCRIPT_INDEX]   ✓ Exists: $dir"
+            echo "[$SCRIPT_INDEX]   [OK]Exists: $dir"
         fi
     done
 
@@ -315,12 +573,12 @@ initialize_laravel_directories() {
     # Critical directories need 777 for Laravel to write
     echo "[$SCRIPT_INDEX]   Setting 777 for storage..."
     chmod -R 777 storage 2>/dev/null || $USE_SUDO chmod -R 777 storage || {
-        echo "[$SCRIPT_INDEX]   ⚠ Could not set storage permissions"
+        echo "[$SCRIPT_INDEX]   [FAIL] Could not set storage permissions"
     }
 
     echo "[$SCRIPT_INDEX]   Setting 777 for bootstrap/cache..."
     chmod -R 777 bootstrap/cache 2>/dev/null || $USE_SUDO chmod -R 777 bootstrap/cache || {
-        echo "[$SCRIPT_INDEX]   ⚠ Could not set bootstrap/cache permissions"
+        echo "[$SCRIPT_INDEX]   [FAIL] Could not set bootstrap/cache permissions"
     }
 
     # Make artisan executable
@@ -332,27 +590,27 @@ initialize_laravel_directories() {
     local permission_errors=0
 
     if [ ! -w "storage" ]; then
-        echo "[$SCRIPT_INDEX]   ✗ storage directory is not writable"
+        echo "[$SCRIPT_INDEX]   [OK]storage directory is not writable"
         permission_errors=$((permission_errors + 1))
     else
-        echo "[$SCRIPT_INDEX]   ✓ storage directory is writable"
+        echo "[$SCRIPT_INDEX]   [OK]storage directory is writable"
     fi
 
     if [ ! -w "bootstrap/cache" ]; then
-        echo "[$SCRIPT_INDEX]   ✗ bootstrap/cache directory is not writable"
+        echo "[$SCRIPT_INDEX]   [OK]bootstrap/cache directory is not writable"
         permission_errors=$((permission_errors + 1))
     else
-        echo "[$SCRIPT_INDEX]   ✓ bootstrap/cache directory is writable"
+        echo "[$SCRIPT_INDEX]   [OK]bootstrap/cache directory is writable"
     fi
 
     if [ $permission_errors -gt 0 ]; then
-        echo "[$SCRIPT_INDEX] ⚠ Warning: $permission_errors permission issues remain"
+        echo "[$SCRIPT_INDEX] [WARN] Warning: $permission_errors permission issues remain"
         echo "[$SCRIPT_INDEX] Attempting to use deploy.sh for complete initialization..."
         return 2  # Signal that we should try deploy.sh
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] ✓ Laravel directories initialized"
+    echo "[$SCRIPT_INDEX] [OK]Laravel directories initialized"
     echo "[$SCRIPT_INDEX] =================================="
     return 0
 }
@@ -387,13 +645,13 @@ run_laravel_deploy_init() {
     bash "$deploy_script" || {
         local exit_code=$?
         echo "[$SCRIPT_INDEX] =================================="
-        echo "[$SCRIPT_INDEX] ⚠ deploy.sh exited with code: $exit_code"
+        echo "[$SCRIPT_INDEX] [OK]deploy.sh exited with code: $exit_code"
         echo "[$SCRIPT_INDEX] Continuing anyway..."
         return 0  # Don't fail completely
     }
 
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] ✓ Deploy script completed"
+    echo "[$SCRIPT_INDEX] [OK]Deploy script completed"
     echo "[$SCRIPT_INDEX] =================================="
     return 0
 }
@@ -492,20 +750,20 @@ check_laravel_available() {
 
         # Check .env file
         if [ ! -f ".env" ]; then
-            echo "[$SCRIPT_INDEX] ⚠ .env file not found!"
+            echo "[$SCRIPT_INDEX] [FAIL] .env file not found!"
             if [ -f ".env.example" ]; then
-                echo "[$SCRIPT_INDEX] ℹ .env.example exists. You may need to copy it:"
+                echo "[$SCRIPT_INDEX] [OK].env.example exists. You may need to copy it:"
                 echo "[$SCRIPT_INDEX]   cp .env.example .env"
                 echo "[$SCRIPT_INDEX]   php artisan key:generate"
             fi
         else
-            echo "[$SCRIPT_INDEX] ✓ .env file exists"
+            echo "[$SCRIPT_INDEX] [OK].env file exists"
 
             # Check APP_KEY
             if grep -q "^APP_KEY=base64:" .env; then
-                echo "[$SCRIPT_INDEX] ✓ APP_KEY is set"
+                echo "[$SCRIPT_INDEX] [OK]APP_KEY is set"
             else
-                echo "[$SCRIPT_INDEX] ⚠ APP_KEY not set. Run: php artisan key:generate"
+                echo "[$SCRIPT_INDEX] [WARN] APP_KEY not set. Run: php artisan key:generate"
             fi
         fi
 
@@ -515,7 +773,7 @@ check_laravel_available() {
             local storage_writable=$([ -w "storage" ] && echo "YES" || echo "NO")
             echo "[$SCRIPT_INDEX] Storage writable: $storage_writable"
         else
-            echo "[$SCRIPT_INDEX] ⚠ storage directory not found"
+            echo "[$SCRIPT_INDEX] [FAIL] storage directory not found"
         fi
 
         # Check bootstrap/cache
@@ -524,12 +782,12 @@ check_laravel_available() {
             local cache_writable=$([ -w "bootstrap/cache" ] && echo "YES" || echo "NO")
             echo "[$SCRIPT_INDEX] bootstrap/cache writable: $cache_writable"
         else
-            echo "[$SCRIPT_INDEX] ⚠ bootstrap/cache directory not found"
+            echo "[$SCRIPT_INDEX] [FAIL] bootstrap/cache directory not found"
         fi
 
         return 1
     else
-        echo "[$SCRIPT_INDEX] ✓ Artisan command successful: $artisan_output"
+        echo "[$SCRIPT_INDEX] [OK]Artisan command successful: $artisan_output"
     fi
 
     # Check database configuration
@@ -545,9 +803,9 @@ check_laravel_available() {
         local db_test_output
         db_test_output=$(php artisan db:show 2>&1 | head -n 5)
         if [ $? -eq 0 ]; then
-            echo "[$SCRIPT_INDEX] ✓ Database connection successful"
+            echo "[$SCRIPT_INDEX] [OK]Database connection successful"
         else
-            echo "[$SCRIPT_INDEX] ⚠ Database connection test output:"
+            echo "[$SCRIPT_INDEX] [INFO] Database connection test output:"
             echo "$db_test_output" | while IFS= read -r line; do
                 echo "[$SCRIPT_INDEX]   $line"
             done
@@ -559,7 +817,7 @@ check_laravel_available() {
     local available_commands=$(php artisan list 2>/dev/null | grep -i servermanager || true)
 
     if [ -z "$available_commands" ]; then
-        echo "[$SCRIPT_INDEX] ⚠ No servermanager commands found"
+        echo "[$SCRIPT_INDEX] [WARN] No servermanager commands found"
         echo "[$SCRIPT_INDEX] Listing all available artisan commands:"
         php artisan list 2>/dev/null | head -n 30 | while IFS= read -r line; do
             echo "[$SCRIPT_INDEX]   $line"
@@ -585,13 +843,13 @@ check_laravel_available() {
         return 1
     fi
 
-    echo "[$SCRIPT_INDEX] ✓ ServerManagerV1 commands verified:"
+    echo "[$SCRIPT_INDEX] [OK]ServerManagerV1 commands verified:"
     echo "$available_commands" | while IFS= read -r line; do
         echo "[$SCRIPT_INDEX]   $line"
     done
 
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] ✓ Laravel is ready for use"
+    echo "[$SCRIPT_INDEX] [OK]Laravel is ready for use"
     echo "[$SCRIPT_INDEX] =================================="
     return 0
 }
@@ -600,7 +858,15 @@ check_laravel_available() {
 read_domains() {
     echo "[$SCRIPT_INDEX] Reading domains from secret storage..."
 
-    domains_content=$(get_secret_content "DOMAINS_LIST")
+    # Use cached content if available (from initialize_secrets)
+    if [ -n "$DOMAINS_LISTS_CONTENT" ]; then
+        domains_content="$DOMAINS_LISTS_CONTENT"
+    elif type secret_get_key >/dev/null 2>&1; then
+        domains_content=$(secret_get_key "DOMAINS_LISTS" "$SECRET_PASSWORD")
+    else
+        domains_content=$(get_secret_content "DOMAINS_LISTS")
+    fi
+
     if [ -z "$domains_content" ]; then
         echo "[$SCRIPT_INDEX] No domains found in secret storage"
         return 1
@@ -618,22 +884,37 @@ read_domains() {
 
 # Function to get domains list (without debug output)
 get_domains_list() {
-    get_secret_content "DOMAINS_LIST" | tr -d '\r' | sed '/^$/d'
+    # Use cached content if available (from initialize_secrets)
+    if [ -n "$DOMAINS_LISTS_CONTENT" ]; then
+        echo "$DOMAINS_LISTS_CONTENT" | tr -d '\r' | sed '/^$/d'
+    elif type secret_get_key >/dev/null 2>&1; then
+        secret_get_key "DOMAINS_LISTS" "$SECRET_PASSWORD" | tr -d '\r' | sed '/^$/d'
+    else
+        get_secret_content "DOMAINS_LISTS" | tr -d '\r' | sed '/^$/d'
+    fi
 }
 
 # Function to read DNSPod configuration
 read_dnspod_config() {
     echo "[$SCRIPT_INDEX] Reading DNSPod configuration..."
 
-    # Check if get_secret_content function exists
-    if ! type get_secret_content >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] Error: get_secret_content function not found"
-        echo "[$SCRIPT_INDEX] Please ensure common_functions.sh is properly sourced"
-        return 1
-    fi
+    # Use cached values if already loaded by initialize_secrets
+    local email="$DNSPOD_EMAIL"
+    local api_token="$DNSPOD_API_TOKEN"
 
-    local email=$(get_secret_content "DNS_DNSPOD_EMAIL")
-    local api_token=$(get_secret_content "DNS_DNSPOD_API_TOKEN")
+    # If not cached, try to load (for non-production environments)
+    if [ -z "$email" ] || [ -z "$api_token" ]; then
+        if type secret_get_key >/dev/null 2>&1; then
+            email=$(secret_get_key "DNS_DNSPOD_EMAILS" "$SECRET_PASSWORD")
+            api_token=$(secret_get_key "DNS_DNSPOD_API_TOKENS" "$SECRET_PASSWORD")
+        elif type get_secret_content >/dev/null 2>&1; then
+            email=$(get_secret_content "DNS_DNSPOD_EMAILS")
+            api_token=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
+        else
+            echo "[$SCRIPT_INDEX] Error: No secret management function available"
+            return 1
+        fi
+    fi
 
     if [ -z "$email" ] || [ -z "$api_token" ]; then
         echo "[$SCRIPT_INDEX] DNSPod configuration not found or incomplete"
@@ -641,8 +922,8 @@ read_dnspod_config() {
         echo "[$SCRIPT_INDEX]   API Token: ${api_token:+FOUND}"
         echo "[$SCRIPT_INDEX]"
         echo "[$SCRIPT_INDEX] Please configure DNSPod credentials in secret storage:"
-        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAIL"
-        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKEN"
+        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAILS"
+        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKENS"
         return 1
     fi
 
@@ -711,11 +992,14 @@ setup_domain() {
     # Use new Laravel commands instead of deploy
     echo "[$SCRIPT_INDEX] Setting up SSL certificate and website for: $domain"
 
-    # Step 1: Add SSL certificate
-    echo "[$SCRIPT_INDEX] Adding SSL certificate..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:certificate add \"$domain\" --prefixes=si,sz,local,api --provider=dnspod"
+    # Use selected prefixes or default
+    local cert_prefixes="${SELECTED_PREFIXES:-local,si,sz,sh,api}"
+
+    # Step 1: Add SSL certificate with selected prefixes
+    echo "[$SCRIPT_INDEX] Adding SSL certificate with prefixes: $cert_prefixes..."
+    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:certificate add \"$domain\" --prefixes=$cert_prefixes --provider=dnspod"
     local ssl_output
-    ssl_output=$(php artisan servermanager:certificate add "$domain" --prefixes=si,sz,local,api --provider=dnspod 2>&1)
+    ssl_output=$(php artisan servermanager:certificate add "$domain" --prefixes="$cert_prefixes" --provider=dnspod 2>&1)
     local ssl_result=$?
 
     echo "[$SCRIPT_INDEX] SSL certificate result:"
@@ -723,57 +1007,79 @@ setup_domain() {
         echo "[$SCRIPT_INDEX]   $line"
     done
 
-    # PHP version is already set in global variable declaration
+    # Parse selected prefixes and create websites dynamically
+    IFS=',' read -ra PREFIX_ARRAY <<< "$cert_prefixes"
 
-    # Step 2: Add local website (HTML - static content)
-    echo "[$SCRIPT_INDEX] Adding local website..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"local.$domain\" --type=html --ssl=auto --php-version=$php_version"
-    local local_website_output
-    local_website_output=$(php artisan servermanager:website add "local.$domain" --type=html --ssl=auto --php-version=$php_version 2>&1)
-    local local_result=$?
-
-    echo "[$SCRIPT_INDEX] Local website setup result:"
-    echo "$local_website_output" | while IFS= read -r line; do
-        echo "[$SCRIPT_INDEX]   $line"
-    done
-
-    # Step 3: Add API website (Poly - bind to Laravel main)
-    echo "[$SCRIPT_INDEX] Adding API website..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
-    local api_website_output
-    api_website_output=$(php artisan servermanager:website add "api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
-    local api_result=$?
-
-    echo "[$SCRIPT_INDEX] API website setup result:"
-    echo "$api_website_output" | while IFS= read -r line; do
-        echo "[$SCRIPT_INDEX]   $line"
-    done
-
-    # Step 4: Add local.api website (Poly - for local testing with API)
-    echo "[$SCRIPT_INDEX] Adding local.api website..."
-    echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"local.api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
-    local local_api_website_output
-    local_api_website_output=$(php artisan servermanager:website add "local.api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
-    local local_api_result=$?
-
-    echo "[$SCRIPT_INDEX] Local.api website setup result:"
-    echo "$local_api_website_output" | while IFS= read -r line; do
-        echo "[$SCRIPT_INDEX]   $line"
-    done
-
-    # Combine results
+    # Track results for each website
+    local website_results=()
+    local website_names=()
     local deploy_result=0
-    if [ $ssl_result -ne 0 ] || [ $local_result -ne 0 ] || [ $api_result -ne 0 ] || [ $local_api_result -ne 0 ]; then
-        deploy_result=1
-    fi
+
+    # Create websites for each prefix
+    for prefix in "${PREFIX_ARRAY[@]}"; do
+        if [ "$prefix" = "api" ]; then
+            # Create api.domain.com (Poly - API endpoint)
+            echo "[$SCRIPT_INDEX] Adding API website: api.$domain..."
+            echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
+            local output
+            output=$(php artisan servermanager:website add "api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
+            local result=$?
+
+            echo "[$SCRIPT_INDEX] API website (api.$domain) result:"
+            echo "$output" | while IFS= read -r line; do
+                echo "[$SCRIPT_INDEX]   $line"
+            done
+
+            website_names+=("api.$domain")
+            website_results+=($result)
+            [ $result -ne 0 ] && deploy_result=1
+        else
+            # Create prefix.domain.com (HTML - static content)
+            echo "[$SCRIPT_INDEX] Adding $prefix website: $prefix.$domain..."
+            echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"$prefix.$domain\" --type=html --ssl=auto --php-version=$php_version"
+            local output
+            output=$(php artisan servermanager:website add "$prefix.$domain" --type=html --ssl=auto --php-version=$php_version 2>&1)
+            local result=$?
+
+            echo "[$SCRIPT_INDEX] $prefix website ($prefix.$domain) result:"
+            echo "$output" | while IFS= read -r line; do
+                echo "[$SCRIPT_INDEX]   $line"
+            done
+
+            website_names+=("$prefix.$domain")
+            website_results+=($result)
+            [ $result -ne 0 ] && deploy_result=1
+
+            # Create prefix.api.domain.com (Poly - API endpoint for this prefix)
+            echo "[$SCRIPT_INDEX] Adding $prefix.api website: $prefix.api.$domain..."
+            echo "[$SCRIPT_INDEX] Executing: php artisan servermanager:website add \"$prefix.api.$domain\" --type=poly --ssl=auto --php-version=$php_version"
+            output=$(php artisan servermanager:website add "$prefix.api.$domain" --type=poly --ssl=auto --php-version=$php_version 2>&1)
+            result=$?
+
+            echo "[$SCRIPT_INDEX] $prefix.api website ($prefix.api.$domain) result:"
+            echo "$output" | while IFS= read -r line; do
+                echo "[$SCRIPT_INDEX]   $line"
+            done
+
+            website_names+=("$prefix.api.$domain")
+            website_results+=($result)
+            [ $result -ne 0 ] && deploy_result=1
+        fi
+    done
+
+    # Combine SSL result with website results
+    [ $ssl_result -ne 0 ] && deploy_result=1
 
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX] Domain Setup Summary for: $domain"
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX] SSL Certificate Result: $([ $ssl_result -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
-    echo "[$SCRIPT_INDEX] Local Website Result: $([ $local_result -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
-    echo "[$SCRIPT_INDEX] API Website Result: $([ $api_result -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
-    echo "[$SCRIPT_INDEX] Local.API Website Result: $([ $local_api_result -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
+
+    # Display results for each website
+    for i in "${!website_names[@]}"; do
+        echo "[$SCRIPT_INDEX] Website ${website_names[$i]}: $([ ${website_results[$i]} -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
+    done
+
     echo "[$SCRIPT_INDEX] =================================="
 
     if [ $deploy_result -eq 0 ]; then
@@ -861,7 +1167,7 @@ test_nginx_config() {
     echo "[$SCRIPT_INDEX] =================================="
 
     if ! command -v nginx >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] ✗ Nginx command not found"
+        echo "[$SCRIPT_INDEX] [FAIL] Nginx command not found"
         return 1
     fi
 
@@ -875,10 +1181,10 @@ test_nginx_config() {
     done
 
     if [ $test_result -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] ✓ Nginx configuration test PASSED"
+        echo "[$SCRIPT_INDEX] [OK]Nginx configuration test PASSED"
         return 0
     else
-        echo "[$SCRIPT_INDEX] ✗ Nginx configuration test FAILED"
+        echo "[$SCRIPT_INDEX] [OK]Nginx configuration test FAILED"
         return 1
     fi
 }
@@ -890,7 +1196,7 @@ reload_nginx() {
     echo "[$SCRIPT_INDEX] =================================="
 
     if ! command -v nginx >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] ✗ Nginx command not found"
+        echo "[$SCRIPT_INDEX] [FAIL] Nginx command not found"
         return 1
     fi
 
@@ -899,16 +1205,16 @@ reload_nginx() {
     local reload_result=$?
 
     if [ $reload_result -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] ✓ Nginx reloaded successfully"
+        echo "[$SCRIPT_INDEX] [OK]Nginx reloaded successfully"
     else
-        echo "[$SCRIPT_INDEX] ⚠ Nginx reload failed, trying restart..."
+        echo "[$SCRIPT_INDEX] [FAIL] Nginx reload failed, trying restart..."
         reload_output=$($USE_SUDO systemctl restart nginx 2>&1)
         reload_result=$?
 
         if [ $reload_result -eq 0 ]; then
-            echo "[$SCRIPT_INDEX] ✓ Nginx restarted successfully"
+            echo "[$SCRIPT_INDEX] [OK]Nginx restarted successfully"
         else
-            echo "[$SCRIPT_INDEX] ✗ Nginx restart failed"
+            echo "[$SCRIPT_INDEX] [FAIL] Nginx restart failed"
             echo "$reload_output" | while IFS= read -r line; do
                 echo "[$SCRIPT_INDEX]   $line"
             done
@@ -926,7 +1232,7 @@ get_nginx_status() {
     echo "[$SCRIPT_INDEX] =================================="
 
     if ! command -v nginx >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] ✗ Nginx command not found"
+        echo "[$SCRIPT_INDEX] [FAIL] Nginx command not found"
         return 1
     fi
 
@@ -940,7 +1246,7 @@ get_nginx_status() {
     echo "[$SCRIPT_INDEX]"
 
     if [ "$is_active" = "active" ]; then
-        echo "[$SCRIPT_INDEX] ✓ Nginx is running"
+        echo "[$SCRIPT_INDEX] [OK]Nginx is running"
 
         local nginx_pid=$(pgrep -o nginx 2>/dev/null)
         if [ -n "$nginx_pid" ]; then
@@ -950,7 +1256,7 @@ get_nginx_status() {
         local worker_count=$(pgrep nginx | wc -l)
         echo "[$SCRIPT_INDEX] Worker processes: $worker_count"
     else
-        echo "[$SCRIPT_INDEX] ✗ Nginx is not running"
+        echo "[$SCRIPT_INDEX] [WARN] Nginx is not running"
     fi
 
     return 0
@@ -967,7 +1273,7 @@ show_nginx_configs() {
     local sites_enabled="$nginx_config_dir/sites-enabled"
 
     if [ ! -d "$sites_available" ]; then
-        echo "[$SCRIPT_INDEX] ⚠ sites-available directory not found: $sites_available"
+        echo "[$SCRIPT_INDEX] [FAIL] sites-available directory not found: $sites_available"
         return 1
     fi
 
@@ -1000,10 +1306,10 @@ show_nginx_configs() {
                 local filename=$(basename "$config_file")
                 local filesize=$(stat -f%z "$config_file" 2>/dev/null || stat -c%s "$config_file" 2>/dev/null || echo "unknown")
 
-                local is_enabled="✗"
+                local is_enabled="X"
                 local link_path="$sites_enabled/$filename"
                 if [ -L "$link_path" ]; then
-                    is_enabled="✓"
+                    is_enabled="*"
                 fi
 
                 echo "[$SCRIPT_INDEX]   [$is_enabled] $filename ($filesize bytes)"
@@ -1030,7 +1336,7 @@ show_config_content() {
     local config_file="$sites_available/$config_name"
 
     if [ ! -f "$config_file" ]; then
-        echo "[$SCRIPT_INDEX] ✗ Configuration file not found: $config_file"
+        echo "[$SCRIPT_INDEX] [FAIL] Configuration file not found: $config_file"
         return 1
     fi
 
@@ -1120,7 +1426,7 @@ print_summary() {
         # Get nginx status after reload
         get_nginx_status
     else
-        echo "[$SCRIPT_INDEX] ⚠ Skipping nginx reload due to configuration errors"
+        echo "[$SCRIPT_INDEX] [WARN] Skipping nginx reload due to configuration errors"
     fi
 
     echo "[$SCRIPT_INDEX] =================================="
@@ -1205,11 +1511,11 @@ local actual_laravel_db=$(map_web_path "wwwroot")/laravel_main/laravel_db
 
 for check_dir in "$ssl_dir" "$www_root" "$actual_laravel_db"; do
     if [ -d "$check_dir" ] && [ -w "$check_dir" ]; then
-        echo "[$SCRIPT_INDEX]   ✓ $check_dir (writable)"
+        echo "[$SCRIPT_INDEX]   [OK]$check_dir (writable)"
     elif [ -d "$check_dir" ]; then
-        echo "[$SCRIPT_INDEX]   ⚠ $check_dir (exists but NOT writable)"
+        echo "[$SCRIPT_INDEX]   [OK]$check_dir (exists but NOT writable)"
     else
-        echo "[$SCRIPT_INDEX]   ✗ $check_dir (does not exist)"
+        echo "[$SCRIPT_INDEX]   [OK]$check_dir (does not exist)"
     fi
 done
 echo "[$SCRIPT_INDEX] =================================="
@@ -1218,6 +1524,18 @@ echo "[$SCRIPT_INDEX]"
 # Check prerequisites
 if ! check_laravel_available; then
     echo "[$SCRIPT_INDEX] Laravel is not available. Please install Laravel first."
+    exit 1
+fi
+
+# Initialize secrets (prompt for password on server environments)
+if ! initialize_secrets; then
+    echo "[$SCRIPT_INDEX] Failed to initialize secrets. Cannot continue."
+    exit 1
+fi
+
+# Select domain prefixes (prompt for prefix selection on WSL/Desktop environments)
+if ! select_domain_prefixes; then
+    echo "[$SCRIPT_INDEX] Failed to select domain prefixes. Cannot continue."
     exit 1
 fi
 
@@ -1295,7 +1613,7 @@ setup_local_testing_mode() {
 
     echo "[$SCRIPT_INDEX] Test domains to configure:"
     for test_domain in "${test_domains[@]}"; do
-        echo "[$SCRIPT_INDEX]   - $test_domain → 127.0.0.1"
+        echo "[$SCRIPT_INDEX]   - $test_domain [OK]127.0.0.1"
     done
 
     # Determine Windows hosts file path
@@ -1307,7 +1625,7 @@ setup_local_testing_mode() {
         # Git Bash or similar
         windows_hosts_file="/c/Windows/System32/drivers/etc/hosts"
     else
-        echo "[$SCRIPT_INDEX] ⚠ Warning: Not in WSL/Windows environment"
+        echo "[$SCRIPT_INDEX] [WARN] Warning: Not in WSL/Windows environment"
         echo "[$SCRIPT_INDEX] You need to manually add entries to your hosts file:"
         echo ""
         for test_domain in "${test_domains[@]}"; do
@@ -1317,7 +1635,7 @@ setup_local_testing_mode() {
     fi
 
     if [ ! -f "$windows_hosts_file" ]; then
-        echo "[$SCRIPT_INDEX] ✗ Windows hosts file not found: $windows_hosts_file"
+        echo "[$SCRIPT_INDEX] [FAIL] Windows hosts file not found: $windows_hosts_file"
         echo "[$SCRIPT_INDEX] You need to manually add entries to your hosts file"
         return 1
     fi
@@ -1329,7 +1647,7 @@ setup_local_testing_mode() {
     local backup_file="${windows_hosts_file}.backup.$(date +%Y%m%d_%H%M%S)"
     echo "[$SCRIPT_INDEX] Creating backup: $backup_file"
     cp "$windows_hosts_file" "$backup_file" 2>/dev/null || {
-        echo "[$SCRIPT_INDEX] ⚠ Warning: Could not create backup (may need admin rights)"
+        echo "[$SCRIPT_INDEX] [WARN] Warning: Could not create backup (may need admin rights)"
     }
 
     # Generate hosts entries
@@ -1344,12 +1662,12 @@ setup_local_testing_mode() {
     local marker_found=false
     if grep -q "Auto-generated by 130_setup_domains.sh" "$windows_hosts_file" 2>/dev/null; then
         marker_found=true
-        echo "[$SCRIPT_INDEX] ⚠ Auto-generated entries already exist in hosts file"
+        echo "[$SCRIPT_INDEX] [OK]Auto-generated entries already exist in hosts file"
         echo "[$SCRIPT_INDEX] Removing old entries..."
 
         # Remove old auto-generated entries
         sed -i '/# Auto-generated by 130_setup_domains.sh/,/# End of auto-generated entries/d' "$windows_hosts_file" 2>/dev/null || {
-            echo "[$SCRIPT_INDEX] ✗ Failed to remove old entries (may need admin rights)"
+            echo "[$SCRIPT_INDEX] [FAIL] Failed to remove old entries (may need admin rights)"
             echo "[$SCRIPT_INDEX] Please manually edit: $windows_hosts_file"
             return 1
         }
@@ -1358,14 +1676,14 @@ setup_local_testing_mode() {
     # Append new entries
     echo "[$SCRIPT_INDEX] Adding new test domain entries..."
     echo -e "$hosts_entries" >> "$windows_hosts_file" 2>/dev/null || {
-        echo "[$SCRIPT_INDEX] ✗ Failed to add entries (need admin/sudo rights)"
+        echo "[$SCRIPT_INDEX] [FAIL] Failed to add entries (need admin/sudo rights)"
         echo "[$SCRIPT_INDEX] Please run PowerShell as Administrator and add:"
         echo ""
         echo -e "$hosts_entries"
         return 1
     }
 
-    echo "[$SCRIPT_INDEX] ✓ Local testing mode configured successfully!"
+    echo "[$SCRIPT_INDEX] [OK]Local testing mode configured successfully!"
     echo "[$SCRIPT_INDEX]"
     echo "[$SCRIPT_INDEX] You can now access:"
     for test_domain in "${test_domains[@]}"; do
@@ -1390,7 +1708,7 @@ if [ $success_count -eq $total_count ] && [ $total_count -gt 0 ]; then
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX] Do you want to enable local testing mode?"
     echo "[$SCRIPT_INDEX] This will automatically add test domains to your Windows hosts file"
-    echo "[$SCRIPT_INDEX] (local.*, api.*, local.api.* → 127.0.0.1)"
+    echo "[$SCRIPT_INDEX] (local.*, api.*, local.api.* [OK]127.0.0.1)"
     echo ""
     read -p "[$SCRIPT_INDEX] Enable local testing mode? (y/N): " -n 1 -r
     echo ""
@@ -1426,8 +1744,37 @@ if [ $success_count -eq $total_count ] && [ $total_count -gt 0 ]; then
         echo "[$SCRIPT_INDEX] Skipping local testing mode setup"
     fi
 
+    # Run post-domain setup diagnostics
+    echo ""
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] RUNNING POST-SETUP DIAGNOSTICS"
+    echo "[$SCRIPT_INDEX] =================================="
+
+    if [ -f "$DIAGNOSTICS_SCRIPT" ]; then
+        echo "[$SCRIPT_INDEX] Executing diagnostics script..."
+        bash "$DIAGNOSTICS_SCRIPT"
+    else
+        echo "[$SCRIPT_INDEX] Diagnostics script not found: $DIAGNOSTICS_SCRIPT"
+        echo "[$SCRIPT_INDEX] Skipping diagnostics"
+    fi
+
     exit 0
 else
     echo "[$SCRIPT_INDEX] Some domains failed to configure. Check the logs above."
+
+    # Run diagnostics even if some domains failed
+    echo ""
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] RUNNING POST-SETUP DIAGNOSTICS"
+    echo "[$SCRIPT_INDEX] =================================="
+
+    if [ -f "$DIAGNOSTICS_SCRIPT" ]; then
+        echo "[$SCRIPT_INDEX] Executing diagnostics script..."
+        bash "$DIAGNOSTICS_SCRIPT"
+    else
+        echo "[$SCRIPT_INDEX] Diagnostics script not found: $DIAGNOSTICS_SCRIPT"
+        echo "[$SCRIPT_INDEX] Skipping diagnostics"
+    fi
+
     exit 1
 fi

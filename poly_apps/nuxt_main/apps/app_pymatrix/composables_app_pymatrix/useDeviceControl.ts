@@ -1,17 +1,18 @@
 import { ref } from 'vue';
-import { useWSRPC } from '../../../composables/useWSRPC';
-import type { TouchEvent, KeyEvent, WSRPCMessage } from '../../../types/pymatrix';
+import { useWSRPC } from '@/composables/useWSRPC';
+import { buildControlWsUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+import type { TouchEvent, KeyEvent, WSRPCMessage } from '@/types/pymatrix';
 
 interface UseDeviceControlOptions {
   deviceSerial: string;
-  baseUrl: string;
+  baseUrl?: string;
 }
 
 export function useDeviceControl(options: UseDeviceControlOptions) {
   const connected = ref(false);
   const lastAck = ref<any>(null);
 
-  const wsUrl = `${options.baseUrl}/ws/control/${options.deviceSerial}`;
+  const wsUrl = buildControlWsUrl(options.deviceSerial, options.baseUrl);
 
   const { connect: connectWS, disconnect: disconnectWS, sendMessage, connected: wsConnected } = useWSRPC({
     url: wsUrl,

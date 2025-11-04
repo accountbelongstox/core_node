@@ -51,7 +51,10 @@ export default defineNuxtConfig({
 
         // Public keys (exposed to client-side)
         public: {
-            appEntry: process.env.APP_ENTRY || 'example'
+            appEntry: process.env.APP_ENTRY || 'example',
+            // PyMatrix API configuration
+            pyMatrixAPI: process.env.NUXT_PUBLIC_PYMATRIX_API || '',
+            pyMatrixWSBase: process.env.NUXT_PUBLIC_PYMATRIX_WS_BASE || ''
         }
     },
     app: {
@@ -80,7 +83,10 @@ export default defineNuxtConfig({
         },
     },
 
-    css: ['~/assets/css/app.css'],
+    css: [
+        '~/assets/css/app.css',
+        '~/assets/css/apps/pymatrix/pymatrix-theme.css'
+    ],
     modules: ['@pinia/nuxt', '@nuxtjs/i18n'],
 
     // ========================================================================

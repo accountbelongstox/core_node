@@ -1,10 +1,14 @@
 import { ref, onMounted, onUnmounted } from 'vue';
-import { useWSRPC } from '../../../composables/useWSRPC';
-import type { VideoMetadata, VideoInitMessage, WSRPCMessage } from '../../../types/pymatrix';
+import { useWSRPC } from '@/composables/useWSRPC';
+import { buildVideoWsUrl } from '@/apps/app_pymatrix/utils_app_pymatrix/api-urls';
+import type { VideoMetadata, VideoInitMessage, WSRPCMessage } from '@/types/pymatrix';
 
 interface UseVideoStreamOptions {
   deviceSerial: string;
-  baseUrl: string;
+  baseUrl?: string;
+  quality?: string;
+  fps?: number;
+  bitrate?: number;
 }
 
 export function useVideoStream(options: UseVideoStreamOptions) {
@@ -21,7 +25,12 @@ export function useVideoStream(options: UseVideoStreamOptions) {
   const bufferQueue: ArrayBuffer[] = [];
   let isAppending = false;
 
-  const wsUrl = `${options.baseUrl}/ws/video/${options.deviceSerial}`;
+  const wsUrl = buildVideoWsUrl(options.deviceSerial, {
+    quality: options.quality,
+    fps: options.fps,
+    bitrate: options.bitrate,
+    baseUrl: options.baseUrl,
+  });
 
   const { connect: connectWS, disconnect: disconnectWS, sendMessage, connected: wsConnected } = useWSRPC({
     url: wsUrl,

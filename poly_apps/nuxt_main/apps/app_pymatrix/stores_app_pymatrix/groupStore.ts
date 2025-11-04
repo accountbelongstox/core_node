@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { Device, GroupState } from '../../../types/pymatrix';
+import type { Device, GroupState } from '@/types/pymatrix';
 
 interface GroupControlState {
   groupId: string | null;

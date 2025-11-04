@@ -12,6 +12,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../models_app_travel/local_nav_model.dart';
+import '../../../resources_app_travel/assets_images_app_travel.dart';
 
 class HomeLocalNav extends StatelessWidget {
   final List<LocalNavModel> localNavs;
@@ -21,44 +22,45 @@ class HomeLocalNav extends StatelessWidget {
     required this.localNavs,
   }) : super(key: key);
 
-  Widget _buildSpriteIcon(int index) {
-    const spriteImagePath = 'assets/apps/app_travel/images/home-fivemain-sprite2x@v7.15.png';
+  Widget _buildIcon(int index) {
     const iconSize = 32.0;
-    final yOffset = -iconSize * index;
+    final iconPath = index < AssetsImagesAppTravel.travelLocalNavIcons.length
+        ? AssetsImagesAppTravel.travelLocalNavIcons[index]
+        : null;
+
+    if (iconPath == null) {
+      return SizedBox(
+        width: iconSize,
+        height: iconSize,
+        child: Container(
+          color: Colors.grey[300],
+          child: const Icon(
+            Icons.image_not_supported,
+            size: 16,
+            color: Colors.grey,
+          ),
+        ),
+      );
+    }
 
     return SizedBox(
       width: iconSize,
       height: iconSize,
-      child: ClipRect(
-        child: OverflowBox(
-          minHeight: iconSize,
-          maxHeight: iconSize * 5,
-          alignment: Alignment.topCenter,
-          child: Transform.translate(
-            offset: Offset(0, yOffset),
-            child: Image.asset(
-              spriteImagePath,
-              width: iconSize,
-              height: iconSize * 5,
-              fit: BoxFit.none,
-              alignment: Alignment.topCenter,
-              errorBuilder: (context, error, stackTrace) {
-                return SizedBox(
-                  width: iconSize,
-                  height: iconSize,
-                  child: Container(
-                    color: Colors.grey[300],
-                    child: const Icon(
-                      Icons.image_not_supported,
-                      size: 16,
-                      color: Colors.grey,
-                    ),
-                  ),
-                );
-              },
+      child: Image.asset(
+        iconPath,
+        width: iconSize,
+        height: iconSize,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(
+              Icons.image_not_supported,
+              size: 16,
+              color: Colors.grey,
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -108,7 +110,7 @@ class HomeLocalNav extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildSpriteIcon(index),
+                          _buildIcon(index),
                           const SizedBox(height: 4.0),
                           Flexible(
                             child: Text(

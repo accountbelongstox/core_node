@@ -2191,6 +2191,207 @@ def get_ocr_system_status() -> Dict[str, Any]:
     except Exception as e:
         return {"error": str(e)}
 
+@mcp.tool()
+def scan_directory_and_ocr(
+    directory_path: str,
+    max_depth: int = 3,
+    ocr_engine: str = "auto",
+    language: str = "chs",
+    recursive: bool = True,
+    image_extensions: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    Scan directory for images and perform OCR on all found images.
+
+    This method scans a directory (with configurable depth) for image files,
+    then performs OCR recognition on each image and returns a map of results.
+
+    Args:
+        directory_path: Directory path to scan for images
+        max_depth: Maximum directory depth to scan (default: 3, set to 0 for unlimited)
+        ocr_engine: OCR engine to use (free, tencent, auto) - default: auto
+        language: Language for OCR (chs=Chinese, eng=English, auto=Auto-detect) - default: chs
+        recursive: Whether to scan subdirectories (default: True)
+        image_extensions: List of image extensions to scan (default: ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'])
+
+    Returns:
+        Dictionary containing:
+        - success: bool
+        - scanned_files: int (total image files found)
+        - ocr_results: Dict[str, Dict] (map of filepath -> OCR result)
+        - errors: List[Dict] (list of files that failed)
+        - summary: Dict (statistics)
+    """
+    try:
+        if not OCR_AVAILABLE or not ocr_manager:
+            return {
+                "success": False,
+                "error": "OCR system not available",
+                "scanned_files": 0,
+                "ocr_results": {},
+                "errors": []
+            }
+
+        # Normalize directory path
+        dir_path = Path(directory_path)
+        if not dir_path.exists():
+            return {
+                "success": False,
+                "error": f"Directory not found: {directory_path}",
+                "scanned_files": 0,
+                "ocr_results": {},
+                "errors": []
+            }
+
+        if not dir_path.is_dir():
+            return {
+                "success": False,
+                "error": f"Path is not a directory: {directory_path}",
+                "scanned_files": 0,
+                "ocr_results": {},
+                "errors": []
+            }
+
+        # Default image extensions
+        if image_extensions is None:
+            image_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff', '.tif']
+
+        # Normalize extensions to lowercase
+        image_extensions = [ext.lower() if ext.startswith('.') else f'.{ext.lower()}' for ext in image_extensions]
+
+        # Scan directory for images
+        logger.info(f"Scanning directory: {dir_path} (max_depth={max_depth}, recursive={recursive})")
+        found_images = []
+
+        def scan_dir(current_path: Path, current_depth: int = 0):
+            """Recursively scan directory with depth limit"""
+            try:
+                # Check depth limit (0 means unlimited)
+                if max_depth > 0 and current_depth >= max_depth:
+                    return
+
+                for item in current_path.iterdir():
+                    try:
+                        if item.is_file():
+                            # Check if file has image extension
+                            if item.suffix.lower() in image_extensions:
+                                found_images.append(str(item.resolve()))
+
+                        elif item.is_dir() and recursive:
+                            # Recursively scan subdirectories
+                            scan_dir(item, current_depth + 1)
+
+                    except Exception as e:
+                        logger.warning(f"Error processing {item}: {e}")
+                        continue
+
+            except Exception as e:
+                logger.warning(f"Error scanning directory {current_path}: {e}")
+
+        # Start scanning from root directory
+        scan_dir(dir_path, 0)
+
+        logger.info(f"Found {len(found_images)} image files")
+
+        if len(found_images) == 0:
+            return {
+                "success": True,
+                "scanned_files": 0,
+                "ocr_results": {},
+                "errors": [],
+                "summary": {
+                    "total_files": 0,
+                    "successful": 0,
+                    "failed": 0,
+                    "scan_path": str(dir_path),
+                    "max_depth": max_depth,
+                    "recursive": recursive
+                }
+            }
+
+        # Perform OCR on each image
+        ocr_results = {}
+        errors = []
+        successful_count = 0
+
+        for idx, image_path in enumerate(found_images, 1):
+            try:
+                logger.info(f"Processing {idx}/{len(found_images)}: {image_path}")
+
+                # Normalize file path
+                normalized_path = _normalize_file_path(image_path)
+
+                # Perform OCR
+                result = ocr_manager.recognize_image(
+                    image_path=normalized_path,
+                    engine=ocr_engine,
+                    language=language,
+                    use_fallback=True
+                )
+
+                if result and result.success:
+                    ocr_results[image_path] = {
+                        "success": True,
+                        "text": result.text,
+                        "confidence": result.confidence,
+                        "provider": result.provider,
+                        "word_count": len(result.text.split()) if result.text else 0,
+                        "processing_time": result.processing_time
+                    }
+                    successful_count += 1
+                else:
+                    error_msg = result.error_message if result else "Unknown error"
+                    ocr_results[image_path] = {
+                        "success": False,
+                        "error": error_msg
+                    }
+                    errors.append({
+                        "file": image_path,
+                        "error": error_msg
+                    })
+
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Error processing {image_path}: {error_msg}")
+                ocr_results[image_path] = {
+                    "success": False,
+                    "error": error_msg
+                }
+                errors.append({
+                    "file": image_path,
+                    "error": error_msg
+                })
+
+        # Generate summary
+        summary = {
+            "total_files": len(found_images),
+            "successful": successful_count,
+            "failed": len(errors),
+            "scan_path": str(dir_path),
+            "max_depth": max_depth,
+            "recursive": recursive,
+            "ocr_engine": ocr_engine,
+            "language": language
+        }
+
+        return {
+            "success": True,
+            "scanned_files": len(found_images),
+            "ocr_results": ocr_results,
+            "errors": errors,
+            "summary": summary
+        }
+
+    except Exception as e:
+        logger.error(f"Error in scan_directory_and_ocr: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "scanned_files": 0,
+            "ocr_results": {},
+            "errors": []
+        }
+
 # Helper functions for waiting on task completion
 def _wait_for_task_completion(task_id: str, timeout: int) -> Dict[str, Any]:
     """Wait for single task completion"""
@@ -2877,6 +3078,445 @@ def analyze_image_pixels(
         error_msg = f"Image pixel analysis failed: {str(e)}"
         logger.error(error_msg)
         return {"error": error_msg}
+
+# ==================== IMAGE PROCESSING TOOLS ====================
+
+@mcp.tool()
+def split_image_equal(
+    image_path: str,
+    count: int,
+    direction: str = "vertical",
+    output_dir: Optional[str] = None,
+    name_pattern: str = "part_{index}"
+) -> Dict[str, Any]:
+    """
+    Split image into equal parts (auto-calculate part size)
+
+    Args:
+        image_path: Input image path
+        count: Number of equal parts
+        direction: Split direction ('horizontal' or 'vertical', default: 'vertical')
+        output_dir: Output directory (default: same as input)
+        name_pattern: Naming pattern with {index} placeholder
+
+    Returns:
+        Result dictionary with output files list
+
+    Example:
+        Split a 56x560 image into 10 equal parts vertically:
+        split_image_equal("sprite.png", 10, "vertical")
+        Result: 10 images of 56x56 each
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.split_image_equal(
+            image_path, count, direction, output_dir, name_pattern
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def split_image_custom(
+    image_path: str,
+    split_points: List[int],
+    direction: str = "vertical",
+    output_dir: Optional[str] = None,
+    name_pattern: str = "part_{index}"
+) -> Dict[str, Any]:
+    """
+    Split image at custom pixel positions
+
+    Args:
+        image_path: Input image path
+        split_points: List of split positions in pixels
+        direction: Split direction ('horizontal' or 'vertical', default: 'vertical')
+        output_dir: Output directory (default: same as input)
+        name_pattern: Naming pattern with {index} placeholder
+
+    Returns:
+        Result dictionary with output files list
+
+    Example:
+        split_points=[100, 250, 400] creates parts at:
+        Part 0: 0-100px, Part 1: 100-250px, Part 2: 250-400px, Part 3: 400-end
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.split_image_custom(
+            image_path, split_points, direction, output_dir, name_pattern
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def create_image_grid(
+    image_paths: List[str],
+    cols: int,
+    output_path: str,
+    spacing: int = 0,
+    background_color: str = "white",
+    cell_width: Optional[int] = None,
+    cell_height: Optional[int] = None,
+    resize_mode: str = "fit"
+) -> Dict[str, Any]:
+    """
+    Create image grid/collage from multiple images
+
+    Args:
+        image_paths: List of image paths to arrange
+        cols: Number of columns
+        output_path: Output path for the grid image
+        spacing: Space between images in pixels (default: 0)
+        background_color: Background color (default: "white")
+        cell_width: Fixed cell width (optional, auto-detect from images if not set)
+        cell_height: Fixed cell height (optional, auto-detect from images if not set)
+        resize_mode: How to resize images in cells:
+            - 'fit': Fit inside cell, maintain aspect (default)
+            - 'fill': Fill cell, crop if needed, maintain aspect
+            - 'stretch': Stretch to fill cell exactly
+
+    Returns:
+        Result dictionary with grid info
+
+    Example:
+        Create 3-column grid from 9 images:
+        create_image_grid(["img1.png", "img2.png", ...], 3, "grid.png")
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.create_image_grid(
+            image_paths, cols, output_path, spacing,
+            background_color, cell_width, cell_height, resize_mode
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def crop_image(
+    image_path: str,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    output_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Crop image to specified rectangle
+
+    Args:
+        image_path: Input image path
+        x: Left coordinate
+        y: Top coordinate
+        width: Crop width
+        height: Crop height
+        output_path: Output path (optional)
+
+    Returns:
+        Result dictionary with output path and metadata
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.crop_image(image_path, x, y, width, height, output_path)
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def split_sprite_sheet(
+    image_path: str,
+    sprite_width: int,
+    sprite_height: int,
+    output_dir: Optional[str] = None,
+    name_pattern: str = "sprite_{index}",
+    direction: str = "vertical"
+) -> Dict[str, Any]:
+    """
+    Split sprite sheet into individual sprites
+
+    Args:
+        image_path: Input sprite sheet path
+        sprite_width: Width of each sprite
+        sprite_height: Height of each sprite
+        output_dir: Output directory (default: same as input)
+        name_pattern: Naming pattern with {index} placeholder
+        direction: Split direction ('horizontal' or 'vertical', default: 'vertical')
+
+    Returns:
+        Result dictionary with sprite files list
+
+    Example:
+        Split a 80x400 vertical sprite sheet (5 sprites of 80x80 each):
+        split_sprite_sheet("sprite.png", 80, 80, direction="vertical")
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.split_sprite_sheet(
+            image_path, sprite_width, sprite_height,
+            output_dir, name_pattern, direction
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def split_image_grid(
+    image_path: str,
+    rows: int,
+    cols: int,
+    output_dir: Optional[str] = None,
+    name_pattern: str = "tile_{row}_{col}"
+) -> Dict[str, Any]:
+    """
+    Split image into grid (rows x cols)
+
+    Args:
+        image_path: Input image path
+        rows: Number of rows
+        cols: Number of columns
+        output_dir: Output directory (default: same as input)
+        name_pattern: Naming pattern with {row} and {col} placeholders
+
+    Returns:
+        Result dictionary with output files list
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.split_image_grid(image_path, rows, cols, output_dir, name_pattern)
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def resize_image(
+    image_path: str,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    max_size: Optional[int] = None,
+    keep_aspect: bool = True,
+    resample: str = "LANCZOS",
+    output_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Resize image with various options
+
+    Args:
+        image_path: Input image path
+        width: Target width
+        height: Target height
+        max_size: Max dimension (used if width/height not specified)
+        keep_aspect: Keep aspect ratio (default: True)
+        resample: Resampling method (LANCZOS, BILINEAR, BICUBIC, NEAREST)
+        output_path: Output path (optional)
+
+    Returns:
+        Result dictionary
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.resize_image(
+            image_path, width, height, max_size,
+            keep_aspect, resample, output_path
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def rotate_image(
+    image_path: str,
+    angle: float,
+    expand: bool = True,
+    fill_color: str = "white",
+    output_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Rotate image by angle
+
+    Args:
+        image_path: Input image path
+        angle: Rotation angle in degrees (counter-clockwise)
+        expand: Expand canvas to fit rotated image (default: True)
+        fill_color: Background color for expanded area
+        output_path: Output path (optional)
+
+    Returns:
+        Result dictionary
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.rotate_image(image_path, angle, expand, fill_color, output_path)
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def flip_image(
+    image_path: str,
+    direction: str = "horizontal",
+    output_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Flip image horizontally or vertically
+
+    Args:
+        image_path: Input image path
+        direction: 'horizontal' or 'vertical'
+        output_path: Output path (optional)
+
+    Returns:
+        Result dictionary
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.flip_image(image_path, direction, output_path)
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def compress_image(
+    image_path: str,
+    quality: int = 85,
+    max_width: Optional[int] = None,
+    max_height: Optional[int] = None,
+    output_format: Optional[str] = None,
+    output_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Compress image with quality and size control
+
+    Args:
+        image_path: Input image path
+        quality: JPEG quality (1-100, default: 85)
+        max_width: Maximum width (optional)
+        max_height: Maximum height (optional)
+        output_format: Output format (JPEG, PNG, WEBP, optional)
+        output_path: Output path (optional)
+
+    Returns:
+        Result dictionary with compression ratio
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.compress_image(
+            image_path, quality, max_width, max_height,
+            output_format, output_path
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def merge_images_horizontal(
+    image_paths: List[str],
+    output_path: str,
+    spacing: int = 0,
+    align: str = "center"
+) -> Dict[str, Any]:
+    """
+    Merge images horizontally
+
+    Args:
+        image_paths: List of image paths to merge
+        output_path: Output path for merged image
+        spacing: Space between images in pixels (default: 0)
+        align: Vertical alignment ('top', 'center', 'bottom', default: 'center')
+
+    Returns:
+        Result dictionary
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.merge_images_horizontal(image_paths, output_path, spacing, align)
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def merge_images_vertical(
+    image_paths: List[str],
+    output_path: str,
+    spacing: int = 0,
+    align: str = "center"
+) -> Dict[str, Any]:
+    """
+    Merge images vertically
+
+    Args:
+        image_paths: List of image paths to merge
+        output_path: Output path for merged image
+        spacing: Space between images in pixels (default: 0)
+        align: Horizontal alignment ('left', 'center', 'right', default: 'center')
+
+    Returns:
+        Result dictionary
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.merge_images_vertical(image_paths, output_path, spacing, align)
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def add_text_to_image(
+    image_path: str,
+    text: str,
+    position: Tuple[int, int] = (10, 10),
+    font_size: int = 24,
+    font_color: str = "black",
+    font_path: Optional[str] = None,
+    background_color: Optional[str] = None,
+    output_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Add text overlay to image
+
+    Args:
+        image_path: Input image path
+        text: Text to add
+        position: (x, y) position tuple (default: (10, 10))
+        font_size: Font size in pixels (default: 24)
+        font_color: Text color (default: "black")
+        font_path: Custom font file path (TTF, optional)
+        background_color: Text background color (optional)
+        output_path: Output path (optional)
+
+    Returns:
+        Result dictionary
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.add_text_to_image(
+            image_path, text, position, font_size,
+            font_color, font_path, background_color, output_path
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def apply_image_filter(
+    image_path: str,
+    filter_type: str,
+    intensity: float = 1.0,
+    output_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Apply image filter/effect
+
+    Args:
+        image_path: Input image path
+        filter_type: Filter type (blur, sharpen, brightness, contrast, grayscale, sepia)
+        intensity: Filter intensity (0.0 - 2.0, default: 1.0)
+        output_path: Output path (optional)
+
+    Returns:
+        Result dictionary
+
+    Example filters:
+        - blur: Gaussian blur
+        - sharpen: Sharpen image
+        - brightness: Adjust brightness
+        - contrast: Adjust contrast
+        - grayscale: Convert to grayscale
+        - sepia: Sepia tone effect
+    """
+    try:
+        from image_tools import image_tools
+        return image_tools.apply_filter(image_path, filter_type, intensity, output_path)
+    except Exception as e:
+        return {"error": str(e)}
 
 @mcp.tool()
 def health_check() -> Dict[str, Any]:

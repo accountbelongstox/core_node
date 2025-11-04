@@ -1,14 +1,14 @@
 <template>
-  <div class="device-filter-panel">
+  <div class="pm-panel pm-panel--purple">
     <!-- Filter Header -->
-    <div class="filter-header">
-      <h3 class="filter-title">
-        <span class="filter-icon">🎛️</span>
+    <div class="pm-panel__header">
+      <h3 class="pm-panel__title">
+        <span class="pm-panel__title-icon">🎛️</span>
         Filters
       </h3>
       <button
         v-if="deviceStore.hasActiveFilters"
-        class="clear-all-button"
+        class="pm-button pm-button--sm pm-button--danger pm-button--outline"
         type="button"
         @click="handleClearAll"
       >
@@ -17,106 +17,107 @@
     </div>
 
     <!-- Connection State Filter -->
-    <div class="filter-section">
-      <h4 class="filter-section-title">Connection State</h4>
-      <div class="filter-options">
-        <label
-          v-for="state in connectionStates"
-          :key="state.value"
-          class="filter-checkbox-label"
-        >
-          <input
-            type="checkbox"
-            class="filter-checkbox"
-            :checked="deviceStore.filters.stateFilter.includes(state.value)"
-            @change="handleStateToggle(state.value)"
+    <div class="pm-panel__body">
+      <div class="pm-form-group">
+        <label class="pm-form-label">Connection State</label>
+        <div class="pm-flex pm-flex-col pm-gap-2">
+          <label
+            v-for="state in connectionStates"
+            :key="state.value"
+            class="pm-checkbox"
+          >
+            <input
+              type="checkbox"
+              class="pm-checkbox__input"
+              :checked="deviceStore.filters.stateFilter.includes(state.value)"
+              @change="handleStateToggle(state.value)"
+            />
+            <span class="pm-checkbox__box"></span>
+            <span class="pm-checkbox__label pm-flex pm-items-center pm-gap-2">
+              <span :class="['pm-status-dot', `pm-status-dot--${state.value === 'connected' ? 'online' : state.value === 'connecting' ? 'connecting' : 'offline'}`]"></span>
+              {{ state.label }}
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Model Filter -->
+      <div v-if="availableModels.length > 0" class="pm-form-group">
+        <label class="pm-form-label">Device Model</label>
+        <div class="pm-flex pm-flex-col pm-gap-2">
+          <label
+            v-for="model in availableModels"
+            :key="model"
+            class="pm-checkbox"
+          >
+            <input
+              type="checkbox"
+              class="pm-checkbox__input"
+              :checked="deviceStore.filters.modelFilter.includes(model)"
+              @change="handleModelToggle(model)"
+            />
+            <span class="pm-checkbox__box"></span>
+            <span class="pm-checkbox__label">{{ model }}</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Streaming Filter -->
+      <div class="pm-form-group">
+        <label class="pm-form-label">Streaming Status</label>
+        <div class="pm-flex pm-flex-col pm-gap-2">
+          <label
+            v-for="option in streamingOptions"
+            :key="option.value"
+            class="pm-radio"
+          >
+            <input
+              type="radio"
+              class="pm-radio__input"
+              name="streaming-filter"
+              :checked="deviceStore.filters.streamingFilter === option.value"
+              @change="handleStreamingChange(option.value)"
+            />
+            <span class="pm-radio__circle"></span>
+            <span class="pm-radio__label">{{ option.label }}</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Tag Filter -->
+      <div v-if="tagsStore.allTags.length > 0" class="pm-form-group">
+        <label class="pm-form-label">Tags</label>
+        <div class="pm-flex pm-flex-row pm-gap-2" style="flex-wrap: wrap;">
+          <DeviceTagBadge
+            v-for="tag in tagsStore.allTags"
+            :key="tag.id"
+            :label="tag.name"
+            :color="tag.color"
+            size="sm"
+            :clickable="true"
+            @click="handleTagToggle(tag.id)"
+            :class="{ 'pm-tag-badge--selected': deviceStore.filters.tagFilter.includes(tag.id) }"
           />
-          <span class="filter-label-text">
-            <span :class="['state-indicator', `state-${state.value}`]"></span>
-            {{ state.label }}
+        </div>
+        <div v-if="deviceStore.filters.tagFilter.length > 0" class="pm-form-help">
+          Showing devices with all selected tags
+        </div>
+      </div>
+
+      <!-- Active Filters Summary -->
+      <div v-if="activeFilterCount > 0" class="pm-panel pm-panel--blue pm-p-4">
+        <div class="pm-text-base pm-font-semibold pm-mb-2">
+          {{ activeFilterCount }} active filter{{ activeFilterCount !== 1 ? 's' : '' }}
+        </div>
+        <div class="pm-flex pm-gap-2" style="flex-wrap: wrap;">
+          <span
+            v-for="tag in activeFilterTags"
+            :key="tag"
+            class="pm-badge pm-badge--info"
+          >
+            {{ tag }}
           </span>
-        </label>
-      </div>
-    </div>
-
-    <!-- Model Filter -->
-    <div v-if="availableModels.length > 0" class="filter-section">
-      <h4 class="filter-section-title">Device Model</h4>
-      <div class="filter-options">
-        <label
-          v-for="model in availableModels"
-          :key="model"
-          class="filter-checkbox-label"
-        >
-          <input
-            type="checkbox"
-            class="filter-checkbox"
-            :checked="deviceStore.filters.modelFilter.includes(model)"
-            @change="handleModelToggle(model)"
-          />
-          <span class="filter-label-text">
-            {{ model }}
-          </span>
-        </label>
-      </div>
-    </div>
-
-    <!-- Streaming Filter -->
-    <div class="filter-section">
-      <h4 class="filter-section-title">Streaming Status</h4>
-      <div class="filter-options">
-        <label
-          v-for="option in streamingOptions"
-          :key="option.value"
-          class="filter-radio-label"
-        >
-          <input
-            type="radio"
-            class="filter-radio"
-            name="streaming-filter"
-            :checked="deviceStore.filters.streamingFilter === option.value"
-            @change="handleStreamingChange(option.value)"
-          />
-          <span class="filter-label-text">
-            {{ option.label }}
-          </span>
-        </label>
-      </div>
-    </div>
-
-    <!-- Tag Filter -->
-    <div v-if="tagsStore.allTags.length > 0" class="filter-section">
-      <h4 class="filter-section-title">Tags</h4>
-      <div class="tag-filter-grid">
-        <DeviceTagBadge
-          v-for="tag in tagsStore.allTags"
-          :key="tag.id"
-          :label="tag.name"
-          :color="tag.color"
-          size="sm"
-          :clickable="true"
-          @click="handleTagToggle(tag.id)"
-          :class="{ 'tag-selected': deviceStore.filters.tagFilter.includes(tag.id) }"
-        />
-      </div>
-      <div v-if="deviceStore.filters.tagFilter.length > 0" class="tag-filter-hint">
-        Showing devices with all selected tags
-      </div>
-    </div>
-
-    <!-- Active Filters Summary -->
-    <div v-if="activeFilterCount > 0" class="active-filters-summary">
-      <div class="summary-text">
-        {{ activeFilterCount }} active filter{{ activeFilterCount !== 1 ? 's' : '' }}
-      </div>
-      <div class="summary-tags">
-        <span
-          v-for="tag in activeFilterTags"
-          :key="tag"
-          class="filter-tag"
-        >
-          {{ tag }}
-        </span>
+        </div>
       </div>
     </div>
   </div>
@@ -126,7 +127,7 @@
 import { computed } from 'vue';
 import { useDeviceStore } from '../stores_app_pymatrix/deviceStore';
 import { useTagsStore } from '../stores_app_pymatrix/tagsStore';
-import DeviceTagBadge from '../../../common/components/ui/DeviceTagBadge.vue';
+import DeviceTagBadge from '@/common/components/ui/DeviceTagBadge.vue';
 
 const deviceStore = useDeviceStore();
 const tagsStore = useTagsStore();
@@ -240,246 +241,3 @@ const activeFilterTags = computed(() => {
   return tags;
 });
 </script>
-
-<style scoped>
-.device-filter-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  padding: 1.5rem;
-  background-color: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.filter-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.filter-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.filter-icon {
-  font-size: 1.25rem;
-}
-
-.clear-all-button {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #ef4444;
-  background-color: transparent;
-  border: 1px solid #fecaca;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.clear-all-button:hover {
-  color: #ffffff;
-  background-color: #ef4444;
-  border-color: #ef4444;
-}
-
-.filter-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.filter-section-title {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.filter-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.filter-checkbox-label,
-.filter-radio-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.filter-checkbox-label:hover,
-.filter-radio-label:hover {
-  background-color: #f9fafb;
-}
-
-.filter-checkbox,
-.filter-radio {
-  width: 1rem;
-  height: 1rem;
-  cursor: pointer;
-}
-
-.filter-label-text {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  color: #374151;
-}
-
-.state-indicator {
-  display: inline-block;
-  width: 0.625rem;
-  height: 0.625rem;
-  border-radius: 50%;
-}
-
-.state-indicator.state-connected {
-  background-color: #10b981;
-}
-
-.state-indicator.state-disconnected {
-  background-color: #ef4444;
-}
-
-.state-indicator.state-connecting {
-  background-color: #f59e0b;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.active-filters-summary {
-  padding: 1rem;
-  background-color: #eff6ff;
-  border: 1px solid #dbeafe;
-  border-radius: 0.5rem;
-}
-
-.summary-text {
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #1e40af;
-}
-
-.summary-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.filter-tag {
-  padding: 0.25rem 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #1e40af;
-  background-color: #dbeafe;
-  border-radius: 0.375rem;
-}
-
-/* Tag Filter Grid */
-.tag-filter-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.tag-selected {
-  position: relative;
-  outline: 2px solid #3b82f6;
-  outline-offset: 2px;
-}
-
-.tag-filter-hint {
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  font-size: 0.75rem;
-  color: #6b7280;
-  background-color: #f9fafb;
-  border-radius: 0.375rem;
-  text-align: center;
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .device-filter-panel {
-    background-color: #1f2937;
-    border-color: #374151;
-  }
-
-  .filter-title {
-    color: #f9fafb;
-  }
-
-  .clear-all-button {
-    color: #f87171;
-    border-color: #7f1d1d;
-  }
-
-  .clear-all-button:hover {
-    color: #ffffff;
-    background-color: #dc2626;
-    border-color: #dc2626;
-  }
-
-  .filter-section-title {
-    color: #9ca3af;
-  }
-
-  .filter-checkbox-label:hover,
-  .filter-radio-label:hover {
-    background-color: #374151;
-  }
-
-  .filter-label-text {
-    color: #d1d5db;
-  }
-
-  .active-filters-summary {
-    background-color: #1e3a8a;
-    border-color: #1e40af;
-  }
-
-  .summary-text {
-    color: #93c5fd;
-  }
-
-  .filter-tag {
-    color: #dbeafe;
-    background-color: #1e40af;
-  }
-
-  .tag-selected {
-    outline-color: #60a5fa;
-  }
-
-  .tag-filter-hint {
-    color: #9ca3af;
-    background-color: #374151;
-  }
-}
-</style>

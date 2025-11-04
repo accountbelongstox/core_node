@@ -103,7 +103,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
         const WuyCommonLogo(),
         const SizedBox(height: 20),
         Text(
-          'Welcome to Wuy App',
+          LocalizationKeysAppWuy.wuyLoginWelcome.tr(context),
           style: ThemeTextStyles.displayMedium.copyWith(
             fontWeight: FontWeight.w700,
             fontSize: 26,
@@ -112,7 +112,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Sign in to continue',
+          LocalizationKeysAppWuy.wuyLoginSignInToContinue.tr(context),
           style: ThemeTextStyles.bodyLarge.copyWith(
             color: ThemeColors.textSecondary.withOpacity(0.8),
             fontSize: 15,
@@ -132,10 +132,10 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       prefixIcon: Icons.email,
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter your email';
+          return LocalizationKeysAppWuy.wuyLoginPleaseEnterEmail.tr(context);
         }
         if (!value.contains('@')) {
-          return 'Please enter a valid email';
+          return LocalizationKeysAppWuy.wuyLoginPleaseEnterValidEmail.tr(context);
         }
         return null;
       },
@@ -162,10 +162,10 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter your password';
+          return LocalizationKeysAppWuy.wuyLoginPleaseEnterPassword.tr(context);
         }
         if (value.length < 6) {
-          return 'Password must be at least 6 characters';
+          return LocalizationKeysAppWuy.wuyLoginPasswordMinLength.tr(context);
         }
         return null;
       },
@@ -185,7 +185,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         child: Text(
-          'Forgot Password?',
+          LocalizationKeysAppWuy.wuyAuthForgotPassword.tr(context),
           style: ThemeTextStyles.bodyMedium.copyWith(
             color: ThemeColors.primary,
             fontSize: 14,
@@ -306,7 +306,7 @@ class _WuyLoginScreenState extends State<WuyLoginScreen> {
           // Show error message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Login failed: ${e.toString()}'),
+              content: Text(LocalizationKeysAppWuy.wuyLoginErrorMessage.tr(context).replaceAll('{error}', e.toString())),
               backgroundColor: ThemeColors.error,
             ),
           );
