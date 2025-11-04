@@ -272,37 +272,74 @@ secret_encrypt_all() {
 }
 
 #=============================================================================
-# Function 3: Get single secret key value
+# Function 3: Get single secret key value (with server-aware logic)
 #=============================================================================
 secret_get_key() {
     local key_name="$1"
+    local password="$2"
+
     if [ -z "$key_name" ]; then
         echo "[SECRET_GET_KEY] ERROR: key_name parameter is required" >&2
         return 1
     fi
+
     eval $(_secret_get_directories)
     local raw_file="$RAW_DIR/$key_name"
     local encrypted_file="$ENCRYPTED_DIR/$key_name.js"
-    if [ -f "$raw_file" ]; then
-        local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
-        if [ -n "$content" ]; then
-            echo "$content"
-            return 0
-        fi
-    fi
+
     if [ ! -f "$encrypted_file" ]; then
         echo "[SECRET_GET_KEY] ERROR: Key not found: $key_name" >&2
         echo "[SECRET_GET_KEY] Encrypted file missing: $encrypted_file" >&2
         return 1
     fi
-    if [ "$BATCH_DECRYPTION_COMPLETED" = false ]; then
-        echo "[SECRET_GET_KEY] Raw file not found, triggering batch decryption..." >&2
-        if secret_decrypt_all "$RAW_DIR"; then
-            BATCH_DECRYPTION_COMPLETED=true
-        else
-            echo "[SECRET_GET_KEY] WARNING: Batch decryption failed or incomplete" >&2
+
+    # Server environment: always decrypt on-demand, never cache
+    if [ "$IS_PRODUCTION" = true ]; then
+        # Remove .secret_ignore directory on servers to prevent caching
+        if [ -d "$RAW_DIR" ]; then
+            echo "[SECRET_GET_KEY] Server environment detected - clearing .secret_ignore" >&2
+            echo "[SECRET_GET_KEY] Reason: Security policy requires on-demand decryption without disk caching" >&2
+            rm -rf "$RAW_DIR" 2>/dev/null
         fi
+
+        # Create temporary directory for this single decryption
+        local temp_output_dir=$(mktemp -d)
+        local temp_raw_file="$temp_output_dir/$key_name"
+
+        # Prompt for password if not provided
+        if [ -z "$password" ]; then
+            echo -n "[SECRET_GET_KEY] Enter password for $key_name: " >&2
+            read -s password
+            echo "" >&2
+        fi
+
+        if [ -z "$password" ]; then
+            echo "[SECRET_GET_KEY] ERROR: Password is required" >&2
+            rm -rf "$temp_output_dir"
+            return 1
+        fi
+
+        # Decrypt to temporary directory
+        local result
+        result=$(node "$encrypted_file" pwd "$password" "$temp_output_dir" 2>&1)
+        local exit_code=$?
+
+        if [ $exit_code -eq 0 ] && [ -f "$temp_raw_file" ]; then
+            local content=$(cat "$temp_raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+            rm -rf "$temp_output_dir"
+
+            if [ -n "$content" ]; then
+                echo "$content"
+                return 0
+            fi
+        fi
+
+        rm -rf "$temp_output_dir"
+        echo "[SECRET_GET_KEY] ERROR: Failed to decrypt $key_name (incorrect password?)" >&2
+        return 1
     fi
+
+    # Desktop/WSL environment: use cached file if available
     if [ -f "$raw_file" ]; then
         local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
         if [ -n "$content" ]; then
@@ -310,6 +347,26 @@ secret_get_key() {
             return 0
         fi
     fi
+
+    # If .secret_ignore is empty, trigger batch decryption once
+    if [ "$BATCH_DECRYPTION_COMPLETED" = false ]; then
+        echo "[SECRET_GET_KEY] Raw file not found, triggering batch decryption..." >&2
+        if secret_decrypt_all "$RAW_DIR" "$password"; then
+            BATCH_DECRYPTION_COMPLETED=true
+        else
+            echo "[SECRET_GET_KEY] WARNING: Batch decryption failed or incomplete" >&2
+        fi
+    fi
+
+    # Try to read from decrypted file
+    if [ -f "$raw_file" ]; then
+        local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+        if [ -n "$content" ]; then
+            echo "$content"
+            return 0
+        fi
+    fi
+
     echo "[SECRET_GET_KEY] ERROR: Failed to retrieve key: $key_name" >&2
     return 1
 }

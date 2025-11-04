@@ -632,8 +632,8 @@ read_dnspod_config() {
         return 1
     fi
 
-    local email=$(get_secret_content "DNS_DNSPOD_EMAILS")
-    local api_token=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
+    local email=$(get_secret_content "DNS_DNSPOD_EMAIL")
+    local api_token=$(get_secret_content "DNS_DNSPOD_API_TOKEN")
 
     if [ -z "$email" ] || [ -z "$api_token" ]; then
         echo "[$SCRIPT_INDEX] DNSPod configuration not found or incomplete"
@@ -641,8 +641,8 @@ read_dnspod_config() {
         echo "[$SCRIPT_INDEX]   API Token: ${api_token:+FOUND}"
         echo "[$SCRIPT_INDEX]"
         echo "[$SCRIPT_INDEX] Please configure DNSPod credentials in secret storage:"
-        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAILS"
-        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKENS"
+        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAIL"
+        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKEN"
         return 1
     fi
 
