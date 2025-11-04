@@ -51,7 +51,10 @@ export default defineNuxtConfig({
 
         // Public keys (exposed to client-side)
         public: {
-            appEntry: process.env.APP_ENTRY || 'example'
+            appEntry: process.env.APP_ENTRY || 'example',
+            // PyMatrix API configuration
+            pyMatrixAPI: process.env.NUXT_PUBLIC_PYMATRIX_API || '',
+            pyMatrixWSBase: process.env.NUXT_PUBLIC_PYMATRIX_WS_BASE || ''
         }
     },
     app: {
