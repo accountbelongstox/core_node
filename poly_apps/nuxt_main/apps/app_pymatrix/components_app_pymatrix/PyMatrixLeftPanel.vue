@@ -1,11 +1,11 @@
 <template>
-  <aside class="pymatrix-left-panel">
-    <div class="panel-header">
-      <h3 class="panel-title">Device List</h3>
-      <span class="device-count">{{ devices.length }}</span>
+  <aside class="pm-left-sidebar">
+    <div class="pm-left-sidebar__header">
+      <h3 class="pm-left-sidebar__title">Device List</h3>
+      <span class="pm-count-badge">{{ devices.length }}</span>
     </div>
 
-    <div class="panel-body">
+    <div class="pm-left-sidebar__body">
       <div v-if="devices.length === 0" class="empty-message">
         <span class="empty-icon">📱</span>
         <p>No devices connected</p>
@@ -15,9 +15,9 @@
         <div
           v-for="device in devices"
           :key="device.serial"
-          class="device-item"
+          class="pm-sidebar-item"
           :class="{
-            'is-selected': device.serial === selectedSerial,
+            'pm-sidebar-item--active': device.serial === selectedSerial,
             'is-host': device.serial === hostSerial
           }"
           @click="$emit('select-device', device.serial)"
@@ -47,7 +47,7 @@
             </button>
           </div>
 
-          <div v-if="device.serial === hostSerial" class="host-badge">
+          <div v-if="device.serial === hostSerial" class="pm-sidebar-item__badge">
             <span>★ HOST</span>
           </div>
         </div>
@@ -77,162 +77,331 @@ const emit = defineEmits<Emits>();
 </script>
 
 <style scoped>
-.pymatrix-left-panel {
-  width: 300px;
-  background: #1a1a1a;
-  border-right: 1px solid #2a2a2a;
+/* LeftPanel Styles with NFTMax Theme */
+.pm-left-sidebar {
+  width: 320px;
+  min-width: 320px;
+  background: var(--pm-bg-card);
+  border-right: 1px solid var(--pm-border);
   display: flex;
   flex-direction: column;
+  height: 100%;
   overflow: hidden;
 }
 
-.panel-header {
+.pm-left-sidebar__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
-  border-bottom: 1px solid #2a2a2a;
+  padding: var(--pm-space-lg);
+  border-bottom: 1px solid var(--pm-border);
+  background: var(--pm-bg-card);
 }
 
-.panel-title {
+.pm-left-sidebar__title {
+  font-size: var(--pm-font-size-lg);
+  font-weight: 700;
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: white;
+  background: var(--pm-gradient-primary);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.device-count {
-  padding: 4px 12px;
-  background: rgba(59, 130, 246, 0.2);
-  border-radius: 12px;
-  font-size: 14px;
+.pm-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: var(--pm-font-size-sm);
   font-weight: 600;
-  color: #3b82f6;
+  background: var(--pm-gradient-primary);
+  color: #ffffff;
+  border-radius: var(--pm-radius-full);
+  box-shadow: var(--pm-shadow-sm);
+  animation: pm-fadeIn 0.3s ease;
 }
 
-.panel-body {
+.pm-left-sidebar__body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: var(--pm-space-md);
 }
 
+/* Empty State */
 .empty-message {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 16px;
+  padding: var(--pm-space-xl) var(--pm-space-lg);
   text-align: center;
-  color: rgba(255, 255, 255, 0.5);
 }
 
 .empty-icon {
-  font-size: 48px;
+  font-size: 64px;
   margin-bottom: 16px;
-  opacity: 0.5;
+  opacity: 0.3;
+  animation: pm-pulse 2s ease-in-out infinite;
 }
 
+.empty-message p {
+  margin: 0;
+  color: var(--pm-text-muted);
+  font-size: var(--pm-font-size-base);
+}
+
+/* Device List */
 .device-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.device-item {
+/* Device Item */
+.pm-sidebar-item {
   position: relative;
-  padding: 12px;
-  background: #2a2a2a;
-  border: 2px solid transparent;
-  border-radius: 8px;
+  background: var(--pm-bg-main);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-lg);
+  padding: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--pm-transition-fast);
+  overflow: hidden;
 }
 
-.device-item:hover {
-  background: #3a3a3a;
-  border-color: #3b82f6;
+.pm-sidebar-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: transparent;
+  transition: var(--pm-transition-fast);
 }
 
-.device-item.is-selected {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
+.pm-sidebar-item:hover {
+  border-color: var(--pm-primary);
+  transform: translateX(4px);
+  box-shadow: var(--pm-shadow-md);
 }
 
-.device-item.is-host {
-  border-color: #8b5cf6;
-  background: rgba(139, 92, 246, 0.1);
+.pm-sidebar-item:hover::before {
+  background: var(--pm-gradient-primary);
 }
 
+/* Active State */
+.pm-sidebar-item--active {
+  background: var(--pm-bg-light);
+  border-color: var(--pm-primary);
+  box-shadow: var(--pm-shadow-sm);
+}
+
+.pm-sidebar-item--active::before {
+  background: var(--pm-gradient-primary);
+}
+
+.pm-sidebar-item--active:hover {
+  transform: translateX(4px);
+  box-shadow: var(--pm-shadow-md);
+}
+
+/* Host Device */
+.pm-sidebar-item.is-host {
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.05) 0%, rgba(243, 57, 248, 0.05) 100%);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+}
+
+.pm-sidebar-item.is-host::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: var(--pm-gradient-primary);
+  border-radius: var(--pm-radius-lg);
+  z-index: -1;
+}
+
+/* Device Info */
 .device-info {
-  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .device-name {
-  font-size: 14px;
+  font-size: var(--pm-font-size-md);
   font-weight: 600;
-  color: white;
-  margin-bottom: 4px;
+  color: var(--pm-text-primary);
+  transition: var(--pm-transition-fast);
+}
+
+.pm-sidebar-item:hover .device-name {
+  color: var(--pm-primary);
+}
+
+.pm-sidebar-item--active .device-name {
+  background: var(--pm-gradient-primary);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .device-serial {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-  font-family: monospace;
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-secondary);
+  font-family: 'Courier New', monospace;
 }
 
 .device-resolution {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 4px;
-}
-
-.device-actions {
-  display: flex;
+  font-size: var(--pm-font-size-xs);
+  color: var(--pm-text-muted);
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
 }
 
+.device-resolution::before {
+  content: '📐';
+  font-size: 12px;
+}
+
+/* Device Actions */
+.device-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .action-btn {
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: white;
-  background: rgba(59, 130, 246, 0.2);
-  border: 1px solid rgba(59, 130, 246, 0.4);
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: var(--pm-font-size-sm);
+  font-weight: 500;
+  background: #ffffff;
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-full);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--pm-transition-fast);
+  color: var(--pm-text-primary);
+}
+
+.action-btn.small {
+  padding: 6px 12px;
+  font-size: var(--pm-font-size-xs);
 }
 
 .action-btn:hover {
-  background: rgba(59, 130, 246, 0.3);
-  border-color: rgba(59, 130, 246, 0.6);
+  background: var(--pm-primary);
+  color: #ffffff;
+  border-color: var(--pm-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(83, 86, 251, 0.3);
 }
 
 .action-btn.active {
-  background: rgba(139, 92, 246, 0.3);
-  border-color: rgba(139, 92, 246, 0.6);
-  animation: pulse 2s infinite;
+  background: var(--pm-gradient-primary);
+  color: #ffffff;
+  border-color: transparent;
+  font-weight: 600;
 }
 
-.host-badge {
+.action-btn.active:hover {
+  background: var(--pm-gradient-primary-reverse);
+  transform: translateY(-2px) scale(1.05);
+}
+
+/* Host Badge */
+.pm-sidebar-item__badge {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 2px 8px;
-  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
-  border-radius: 8px;
-  font-size: 10px;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  background: var(--pm-gradient-primary);
+  color: #ffffff;
+  font-size: var(--pm-font-size-xs);
   font-weight: 700;
-  color: white;
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+  border-radius: var(--pm-radius-full);
+  box-shadow: 0 2px 8px rgba(243, 57, 248, 0.4);
+  animation: pm-pulse 2s ease-in-out infinite;
+  letter-spacing: 0.5px;
 }
 
-@keyframes pulse {
+/* Animations */
+@keyframes pm-pulse {
   0%, 100% {
     opacity: 1;
+    transform: scale(1);
   }
   50% {
-    opacity: 0.7;
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+/* Scrollbar Styling */
+.pm-left-sidebar__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pm-left-sidebar__body::-webkit-scrollbar-track {
+  background: var(--pm-bg-main);
+  border-radius: 10px;
+}
+
+.pm-left-sidebar__body::-webkit-scrollbar-thumb {
+  background: var(--pm-border);
+  border-radius: 10px;
+  transition: var(--pm-transition-fast);
+}
+
+.pm-left-sidebar__body::-webkit-scrollbar-thumb:hover {
+  background: var(--pm-primary);
+}
+
+/* Responsive */
+@media (max-width: 1278px) {
+  .pm-left-sidebar {
+    width: 280px;
+    min-width: 280px;
+  }
+
+  .pm-left-sidebar__header {
+    padding: var(--pm-space-md);
+  }
+
+  .pm-sidebar-item {
+    padding: 12px;
+  }
+
+  .device-name {
+    font-size: var(--pm-font-size-base);
+  }
+}
+
+@media (max-width: 767px) {
+  .pm-left-sidebar {
+    width: 100%;
+    min-width: unset;
+    border-right: none;
+    border-bottom: 1px solid var(--pm-border);
+  }
+
+  .device-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
   }
 }
 </style>

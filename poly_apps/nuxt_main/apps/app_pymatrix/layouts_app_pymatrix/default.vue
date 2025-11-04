@@ -11,8 +11,8 @@
   This ensures NO duplicate navigation elements.
 -->
 <template>
-  <div class="pymatrix-layout">
-    <div class="pymatrix-app">
+  <div class="pm-app pm-app--fullscreen">
+    <div class="pm-app__container">
       <!-- ✅ PyMatrix uses ITS OWN top bar (NOT layout-header) -->
       <PyMatrixTopBar
         :device-count="deviceStore.deviceCount"
@@ -24,7 +24,7 @@
         @show-history="showConnectionHistory = true"
       />
 
-      <div class="pymatrix-main">
+      <div class="pm-app__main">
         <!-- ✅ PyMatrix uses ITS OWN left panel (NOT layout-sidebar) -->
         <PyMatrixLeftPanel
           :devices="deviceStore.deviceList"
@@ -37,7 +37,7 @@
         />
 
         <!-- Main content area - pages go here -->
-        <div class="pymatrix-screen-area">
+        <div class="pm-app__content">
           <NuxtPage />
         </div>
 
@@ -493,29 +493,32 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.pymatrix-layout {
+/* Import PyMatrix Theme */
+@import '@/assets/css/apps/app_pymatrix_theme.css';
+
+/* Layout-specific overrides for fullscreen mode */
+.pm-app--fullscreen {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: #0a0a0a;
+  background: var(--pm-bg-main);
 }
 
-.pymatrix-app {
+.pm-app__container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  color: white;
 }
 
-.pymatrix-main {
+.pm-app__main {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
-.pymatrix-screen-area {
+.pm-app__content {
   flex: 1;
-  overflow: auto;
-  background: #0a0a0a;
+  overflow-y: auto;
+  padding: var(--pm-space-lg);
 }
 </style>

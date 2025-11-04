@@ -4,7 +4,7 @@
       <div
         v-if="show"
         ref="menuRef"
-        class="base-context-menu"
+        class="pm-dropdown"
         :style="menuStyle"
         @click.stop
         @contextmenu.prevent
@@ -14,24 +14,23 @@
           <span class="title-text">{{ title }}</span>
         </div>
 
-        <div class="context-menu-items">
+        <div class="pm-menu">
           <div
             v-for="(item, index) in items"
             :key="index"
-            class="context-menu-item"
-            :class="{
-              'is-divider': item.type === 'divider',
-              'is-disabled': item.disabled,
-              'is-danger': item.danger
-            }"
+            :class="[
+              item.type === 'divider' ? 'pm-divider' : 'pm-menu__item',
+              { 'pm-menu__item--danger': item.danger && item.type !== 'divider' },
+              { 'is-disabled': item.disabled }
+            ]"
             @click="handleItemClick(item)"
           >
             <template v-if="item.type === 'divider'">
-              <div class="divider-line" />
+              <!-- Divider styling handled by pm-divider class -->
             </template>
             <template v-else>
-              <span v-if="item.icon" class="item-icon">{{ item.icon }}</span>
-              <span class="item-label">{{ item.label }}</span>
+              <span v-if="item.icon" class="pm-menu__icon">{{ item.icon }}</span>
+              <span class="pm-menu__text">{{ item.label }}</span>
               <span v-if="item.shortcut" class="item-shortcut">{{ item.shortcut }}</span>
               <span v-if="item.badge" class="item-badge" :class="`badge-${item.badgeType || 'default'}`">
                 {{ item.badge }}
@@ -153,20 +152,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.base-context-menu {
-  position: fixed;
-  z-index: 10000;
-  min-width: 200px;
-  background: linear-gradient(135deg, rgba(20, 20, 20, 0.98) 0%, rgba(30, 30, 30, 0.98) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
-              0 2px 8px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(16px);
-  padding: 4px;
-  color: white;
-}
-
+/* Overlay for click capture */
 .context-menu-overlay {
   position: fixed;
   top: 0;
@@ -176,6 +162,7 @@ onBeforeUnmount(() => {
   z-index: 9999;
 }
 
+/* Title section (not part of gradient system) */
 .context-menu-title {
   display: flex;
   align-items: center;
@@ -196,65 +183,7 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 
-.context-menu-items {
-  padding: 0;
-}
-
-.context-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.9);
-  cursor: pointer;
-  border-radius: 4px;
-  margin: 2px 0;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.context-menu-item:not(.is-divider):not(.is-disabled):hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.context-menu-item.is-disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.context-menu-item.is-danger {
-  color: #ef4444;
-}
-
-.context-menu-item.is-danger:hover {
-  background: rgba(239, 68, 68, 0.15);
-}
-
-.context-menu-item.is-divider {
-  padding: 0;
-  margin: 4px 0;
-  cursor: default;
-}
-
-.divider-line {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 0 8px;
-}
-
-.item-icon {
-  font-size: 16px;
-  width: 20px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.item-label {
-  flex: 1;
-  white-space: nowrap;
-}
-
+/* Non-gradient styles for shortcuts and badges */
 .item-shortcut {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.5);
@@ -290,6 +219,12 @@ onBeforeUnmount(() => {
 .item-badge.badge-danger {
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
+}
+
+/* Disabled state */
+.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Transitions */

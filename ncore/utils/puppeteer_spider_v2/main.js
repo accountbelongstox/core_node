@@ -60,9 +60,17 @@ const NavigationUtils = require('./src/utils/navigation/NavigationUtils');
 const DataExtractionUtils = require('./src/utils/extraction/DataExtractionUtils');
 const BrowserControlUtils = require('./src/utils/control/BrowserControlUtils');
 const EventUtils = require('./src/utils/events/EventUtils');
+const IframeUtils = require('./src/utils/iframe/IframeUtils');
+const IframeRecursiveCrawler = require('./src/utils/iframe/IframeRecursiveCrawler');
+const ResourceDownloadUtils = require('./src/utils/download/ResourceDownloadUtils');
+const ResourceProxyServer = require('./src/utils/download/ResourceProxyServer');
+const ResourceInterceptor = require('./src/utils/download/ResourceInterceptor');
+const DomResourceMapper = require('./src/utils/download/DomResourceMapper');
+const EnhancedResourceCollector = require('./src/utils/download/EnhancedResourceCollector');
 
 // Compatibility
 const { LegacyAdapter, MigrationTool } = require('./src/compat/LegacyAdapter');
+const Fetcher = require('./fetcher');
 
 // Create default engine instance
 let defaultEngine = null;
@@ -162,11 +170,19 @@ module.exports = {
     DataExtractionUtils,
     BrowserControlUtils,
     EventUtils,
-    
+    IframeUtils,
+    IframeRecursiveCrawler,
+    ResourceDownloadUtils,
+    ResourceProxyServer,
+    ResourceInterceptor,
+    DomResourceMapper,
+    EnhancedResourceCollector,
+
     // Compatibility
     LegacyAdapter,
     MigrationTool,
-    
+    Fetcher,
+
     // Convenience functions
     createSpiderEngine,
     getDefaultEngine,
@@ -174,13 +190,13 @@ module.exports = {
     getSession,
     closeSession,
     shutdown,
-    
+
     // Legacy compatibility (will be deprecated)
     PuppeteerSpider: SpiderEngine,
     PuppeteerInstanceManager: SessionManager,
     ConfigManager: ConfigManager,
     BrowserDetector: BrowserFactory,
-    
+
     // Version info
     version: '2.0.0',
     name: 'puppeteer-spider-v2'

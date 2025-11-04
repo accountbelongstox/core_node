@@ -7,69 +7,69 @@
     variant="info"
     @close="handleClose"
   >
-    <div class="history-content">
+    <div class="pm-panel__body">
       <!-- Statistics Overview -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon">📊</div>
-          <div class="stat-info">
-            <div class="stat-value">{{ connectionHistoryStore.totalConnections }}</div>
-            <div class="stat-label">Total Connections</div>
+      <div class="pm-stats-grid">
+        <div class="pm-stat-card">
+          <div class="pm-stat-card__icon">📊</div>
+          <div class="pm-stat-card__info">
+            <div class="pm-stat-card__value">{{ connectionHistoryStore.totalConnections }}</div>
+            <div class="pm-stat-card__label">Total Connections</div>
           </div>
         </div>
 
-        <div class="stat-card">
-          <div class="stat-icon">⏱️</div>
-          <div class="stat-info">
-            <div class="stat-value">
+        <div class="pm-stat-card">
+          <div class="pm-stat-card__icon">⏱️</div>
+          <div class="pm-stat-card__info">
+            <div class="pm-stat-card__value">
               {{ connectionHistoryStore.formatDuration(connectionHistoryStore.totalConnectionTime) }}
             </div>
-            <div class="stat-label">Total Time</div>
+            <div class="pm-stat-card__label">Total Time</div>
           </div>
         </div>
 
-        <div class="stat-card">
-          <div class="stat-icon">⏰</div>
-          <div class="stat-info">
-            <div class="stat-value">
+        <div class="pm-stat-card">
+          <div class="pm-stat-card__icon">⏰</div>
+          <div class="pm-stat-card__info">
+            <div class="pm-stat-card__value">
               {{ connectionHistoryStore.formatDuration(connectionHistoryStore.averageConnectionTime) }}
             </div>
-            <div class="stat-label">Avg Duration</div>
+            <div class="pm-stat-card__label">Avg Duration</div>
           </div>
         </div>
 
-        <div class="stat-card">
-          <div class="stat-icon">📱</div>
-          <div class="stat-info">
-            <div class="stat-value">{{ connectionHistoryStore.recentDevices.length }}</div>
-            <div class="stat-label">Unique Devices</div>
+        <div class="pm-stat-card">
+          <div class="pm-stat-card__icon">📱</div>
+          <div class="pm-stat-card__info">
+            <div class="pm-stat-card__value">{{ connectionHistoryStore.recentDevices.length }}</div>
+            <div class="pm-stat-card__label">Unique Devices</div>
           </div>
         </div>
       </div>
 
       <!-- Top Devices -->
-      <div class="section">
-        <div class="section-header">
-          <h3 class="section-title">⭐ Top Devices</h3>
-          <span class="section-badge">{{ connectionHistoryStore.topDevices.length }}</span>
+      <div class="pm-section">
+        <div class="pm-section__header">
+          <h3 class="pm-section__title">⭐ Top Devices</h3>
+          <span class="pm-badge pm-badge--primary">{{ connectionHistoryStore.topDevices.length }}</span>
         </div>
 
-        <div v-if="connectionHistoryStore.topDevices.length === 0" class="empty-state">
-          <div class="empty-icon">📱</div>
-          <p class="empty-text">No devices connected yet</p>
+        <div v-if="connectionHistoryStore.topDevices.length === 0" class="pm-empty-state">
+          <div class="pm-empty-state__icon">📱</div>
+          <p class="pm-empty-state__text">No devices connected yet</p>
         </div>
 
-        <div v-else class="device-list">
+        <div v-else class="pm-list">
           <div
             v-for="device in connectionHistoryStore.topDevices"
             :key="device.serial"
-            class="device-item"
+            class="pm-card"
           >
-            <div class="device-header">
-              <div class="device-icon">📱</div>
-              <div class="device-info">
-                <div class="device-name">{{ device.deviceName }}</div>
-                <div class="device-model">{{ device.model || device.serial }}</div>
+            <div class="pm-card__header">
+              <div class="pm-card__icon">📱</div>
+              <div class="pm-card__info">
+                <div class="pm-card__title">{{ device.deviceName }}</div>
+                <div class="pm-card__subtitle">{{ device.model || device.serial }}</div>
               </div>
               <BaseButton
                 variant="primary"
@@ -80,26 +80,26 @@
                 Quick Connect
               </BaseButton>
             </div>
-            <div class="device-stats">
-              <div class="device-stat">
-                <span class="stat-icon-small">🔢</span>
-                <span class="stat-text">{{ device.connectionCount }} connections</span>
+            <div class="pm-card__body">
+              <div class="pm-stat-inline">
+                <span class="pm-stat-inline__icon">🔢</span>
+                <span class="pm-stat-inline__text">{{ device.connectionCount }} connections</span>
               </div>
-              <div class="device-stat">
-                <span class="stat-icon-small">⏱️</span>
-                <span class="stat-text">
+              <div class="pm-stat-inline">
+                <span class="pm-stat-inline__icon">⏱️</span>
+                <span class="pm-stat-inline__text">
                   {{ connectionHistoryStore.formatDuration(device.totalDuration) }} total
                 </span>
               </div>
-              <div class="device-stat">
-                <span class="stat-icon-small">⏰</span>
-                <span class="stat-text">
+              <div class="pm-stat-inline">
+                <span class="pm-stat-inline__icon">⏰</span>
+                <span class="pm-stat-inline__text">
                   {{ connectionHistoryStore.formatDuration(device.averageDuration) }} avg
                 </span>
               </div>
-              <div class="device-stat">
-                <span class="stat-icon-small">🕒</span>
-                <span class="stat-text">
+              <div class="pm-stat-inline">
+                <span class="pm-stat-inline__icon">🕒</span>
+                <span class="pm-stat-inline__text">
                   {{ connectionHistoryStore.formatTimestamp(device.lastConnected) }}
                 </span>
               </div>
@@ -109,9 +109,9 @@
       </div>
 
       <!-- Recent History -->
-      <div class="section">
-        <div class="section-header">
-          <h3 class="section-title">📋 Recent Connections</h3>
+      <div class="pm-section">
+        <div class="pm-section__header">
+          <h3 class="pm-section__title">📋 Recent Connections</h3>
           <BaseButton
             v-if="connectionHistoryStore.history.length > 0"
             variant="ghost"
@@ -123,43 +123,43 @@
           </BaseButton>
         </div>
 
-        <div v-if="connectionHistoryStore.recentHistory.length === 0" class="empty-state">
-          <div class="empty-icon">📋</div>
-          <p class="empty-text">No connection history</p>
-          <p class="empty-hint">Connect to a device to start tracking history</p>
+        <div v-if="connectionHistoryStore.recentHistory.length === 0" class="pm-empty-state">
+          <div class="pm-empty-state__icon">📋</div>
+          <p class="pm-empty-state__text">No connection history</p>
+          <p class="pm-empty-state__hint">Connect to a device to start tracking history</p>
         </div>
 
-        <div v-else class="history-list">
+        <div v-else class="pm-list pm-list--compact">
           <div
             v-for="entry in connectionHistoryStore.recentHistory"
             :key="`${entry.serial}-${entry.connectedAt}`"
-            class="history-item"
+            class="pm-history-item"
           >
-            <div class="history-left">
-              <div class="history-icon">📱</div>
-              <div class="history-info">
-                <div class="history-device">{{ entry.deviceName }}</div>
-                <div class="history-time">
+            <div class="pm-history-item__left">
+              <div class="pm-history-item__icon">📱</div>
+              <div class="pm-history-item__info">
+                <div class="pm-history-item__title">{{ entry.deviceName }}</div>
+                <div class="pm-history-item__subtitle">
                   {{ connectionHistoryStore.formatTimestamp(entry.connectedAt) }}
                 </div>
               </div>
             </div>
-            <div class="history-right">
+            <div class="pm-history-item__right">
               <div
                 v-if="entry.duration"
-                class="history-duration"
-                :class="`quality-${entry.quality || 'good'}`"
+                class="pm-badge"
+                :class="`pm-badge--quality-${entry.quality || 'good'}`"
               >
                 {{ connectionHistoryStore.formatDuration(entry.duration) }}
               </div>
-              <div v-else class="history-active">
-                <span class="pulse-dot"></span>
+              <div v-else class="pm-badge pm-badge--success pm-badge--pulse">
+                <span class="pm-badge__pulse-dot"></span>
                 Active
               </div>
               <div
                 v-if="entry.quality"
-                class="quality-badge"
-                :class="`quality-${entry.quality}`"
+                class="pm-quality-indicator"
+                :class="`pm-quality-indicator--${entry.quality}`"
                 :title="`Connection quality: ${entry.quality}`"
               >
                 {{ getQualityIcon(entry.quality) }}
@@ -228,346 +228,525 @@ function getQualityIcon(quality: string): string {
 </script>
 
 <style scoped>
-.history-content {
+/* ConnectionHistoryPanel Styles with NFTMax Theme */
+
+/* Panel Body */
+.pm-panel__body {
+  padding: var(--pm-space-lg);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--pm-space-xl);
 }
 
-/* Statistics Grid */
-.stats-grid {
+/* Stats Grid */
+.pm-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
+  gap: var(--pm-space-md);
+  animation: pm-fadeIn 0.5s ease;
 }
 
-.stat-card {
+/* Stat Card */
+.pm-stat-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 12px;
-  transition: all 0.2s ease;
+  gap: var(--pm-space-md);
+  background: var(--pm-bg-card);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-lg);
+  padding: var(--pm-space-lg);
+  transition: var(--pm-transition-fast);
+  animation: pm-scaleUp 0.4s ease;
 }
 
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+.pm-stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--pm-shadow-md);
+  border-color: var(--pm-primary);
 }
 
-.stat-icon {
+.pm-stat-card:nth-child(1) { animation-delay: 0s; }
+.pm-stat-card:nth-child(2) { animation-delay: 0.1s; }
+.pm-stat-card:nth-child(3) { animation-delay: 0.2s; }
+.pm-stat-card:nth-child(4) { animation-delay: 0.3s; }
+
+.pm-stat-card__icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 32px;
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.1) 0%, rgba(243, 57, 248, 0.1) 100%);
+  border-radius: var(--pm-radius-lg);
+  transition: var(--pm-transition-fast);
 }
 
-.stat-info {
+.pm-stat-card:hover .pm-stat-card__icon {
+  transform: scale(1.1) rotate(5deg);
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.2) 0%, rgba(243, 57, 248, 0.2) 100%);
+}
+
+.pm-stat-card__info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.stat-value {
-  font-size: 24px;
+.pm-stat-card__value {
+  font-size: var(--pm-font-size-xl);
   font-weight: 700;
-  color: #1f2937;
+  background: var(--pm-gradient-primary);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1;
 }
 
-.stat-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.pm-stat-card__label {
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-secondary);
+  font-weight: 500;
 }
 
 /* Section */
-.section {
+.pm-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--pm-space-md);
+  animation: pm-fadeUp 0.5s ease;
 }
 
-.section-header {
+.pm-section:nth-of-type(2) { animation-delay: 0.4s; }
+.pm-section:nth-of-type(3) { animation-delay: 0.6s; }
+
+.pm-section__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-bottom: 12px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid transparent;
+  border-image: var(--pm-gradient-primary) 1;
+  border-image-slice: 1;
 }
 
-.section-title {
+.pm-section__title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2937;
-}
-
-.section-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 10px;
-  background: #3b82f6;
-  border-radius: 14px;
-  color: white;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 20px;
-  text-align: center;
-}
-
-.empty-icon {
-  font-size: 64px;
-  opacity: 0.3;
-  margin-bottom: 16px;
-}
-
-.empty-text {
-  margin: 0 0 8px 0;
-  font-size: 16px;
+  font-size: var(--pm-font-size-lg);
   font-weight: 600;
-  color: #6b7280;
-}
-
-.empty-hint {
-  margin: 0;
-  font-size: 14px;
-  color: #9ca3af;
-}
-
-/* Device List */
-.device-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.device-item {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  transition: all 0.2s ease;
-}
-
-.device-item:hover {
-  background: #f3f4f6;
-  border-color: #d1d5db;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.device-header {
+  color: var(--pm-text-primary);
   display: flex;
   align-items: center;
-  gap: 12px;
-}
-
-.device-icon {
-  font-size: 24px;
-}
-
-.device-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.device-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.device-model {
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.device-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding-left: 36px;
-}
-
-.device-stat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.stat-icon-small {
-  font-size: 14px;
-}
-
-.stat-text {
-  font-weight: 500;
-}
-
-/* History List */
-.history-list {
-  display: flex;
-  flex-direction: column;
   gap: 8px;
 }
 
-.history-item {
+/* Badge */
+.pm-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 12px;
+  font-size: var(--pm-font-size-xs);
+  font-weight: 600;
+  border-radius: var(--pm-radius-full);
+  white-space: nowrap;
+  transition: var(--pm-transition-fast);
+}
+
+.pm-badge--primary {
+  background: var(--pm-gradient-primary);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(243, 57, 248, 0.3);
+}
+
+.pm-badge--success {
+  background: var(--pm-success);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
+}
+
+.pm-badge--pulse {
+  position: relative;
+  animation: pm-pulse 2s ease-in-out infinite;
+}
+
+.pm-badge__pulse-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #ffffff;
+  border-radius: var(--pm-radius-circle);
+  animation: pm-pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pm-pulse-dot {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.pm-badge--quality-excellent {
+  background: var(--pm-success);
+  color: #ffffff;
+}
+
+.pm-badge--quality-good {
+  background: var(--pm-warning);
+  color: #ffffff;
+}
+
+.pm-badge--quality-fair {
+  background: #F2994A;
+  color: #ffffff;
+}
+
+.pm-badge--quality-poor {
+  background: var(--pm-danger);
+  color: #ffffff;
+}
+
+/* List */
+.pm-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-space-md);
+}
+
+.pm-list--compact {
+  gap: 8px;
+}
+
+/* Card */
+.pm-card {
+  background: var(--pm-bg-card);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-lg);
+  padding: var(--pm-space-lg);
+  transition: var(--pm-transition-fast);
+  animation: pm-fadeRight 0.4s ease;
+}
+
+.pm-card:hover {
+  transform: translateX(4px);
+  box-shadow: var(--pm-shadow-md);
+  border-color: var(--pm-primary);
+}
+
+.pm-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--pm-space-md);
+  margin-bottom: var(--pm-space-md);
+}
+
+.pm-card__icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.1) 0%, rgba(243, 57, 248, 0.1) 100%);
+  border-radius: var(--pm-radius-md);
+  transition: var(--pm-transition-fast);
+}
+
+.pm-card:hover .pm-card__icon {
+  transform: scale(1.1);
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.2) 0%, rgba(243, 57, 248, 0.2) 100%);
+}
+
+.pm-card__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pm-card__title {
+  font-size: var(--pm-font-size-md);
+  font-weight: 600;
+  color: var(--pm-text-primary);
+}
+
+.pm-card__subtitle {
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-secondary);
+  font-family: 'Courier New', monospace;
+}
+
+.pm-card__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding-top: var(--pm-space-md);
+  border-top: 1px solid var(--pm-border);
+}
+
+/* Stat Inline */
+.pm-stat-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--pm-bg-main);
+  border-radius: var(--pm-radius-md);
+  transition: var(--pm-transition-fast);
+}
+
+.pm-stat-inline:hover {
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.05) 0%, rgba(243, 57, 248, 0.05) 100%);
+}
+
+.pm-stat-inline__icon {
+  font-size: 16px;
+}
+
+.pm-stat-inline__text {
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-secondary);
+}
+
+/* History Item */
+.pm-history-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  transition: all 0.2s ease;
+  padding: var(--pm-space-md);
+  background: var(--pm-bg-card);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-md);
+  transition: var(--pm-transition-fast);
+  animation: pm-fadeIn 0.3s ease;
 }
 
-.history-item:hover {
-  background: #f3f4f6;
+.pm-history-item:hover {
   transform: translateX(4px);
+  border-color: var(--pm-primary);
+  box-shadow: var(--pm-shadow-sm);
 }
 
-.history-left {
+.pm-history-item__left {
   display: flex;
   align-items: center;
   gap: 12px;
   flex: 1;
 }
 
-.history-icon {
+.pm-history-item__icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 20px;
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.1) 0%, rgba(243, 57, 248, 0.1) 100%);
+  border-radius: var(--pm-radius-md);
+  transition: var(--pm-transition-fast);
 }
 
-.history-info {
+.pm-history-item:hover .pm-history-item__icon {
+  transform: rotate(10deg) scale(1.1);
+}
+
+.pm-history-item__info {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.history-device {
-  font-size: 14px;
+.pm-history-item__title {
+  font-size: var(--pm-font-size-sm);
   font-weight: 600;
-  color: #1f2937;
+  color: var(--pm-text-primary);
 }
 
-.history-time {
-  font-size: 12px;
-  color: #6b7280;
+.pm-history-item__subtitle {
+  font-size: var(--pm-font-size-xs);
+  color: var(--pm-text-muted);
 }
 
-.history-right {
+.pm-history-item__right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
-.history-duration {
-  padding: 4px 12px;
-  background: #e5e7eb;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.history-duration.quality-excellent {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.history-duration.quality-good {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.history-duration.quality-fair {
-  background: #fed7aa;
-  color: #9a3412;
-}
-
-.history-duration.quality-poor {
-  background: #fecaca;
-  color: #991b1b;
-}
-
-.history-active {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  background: #d1fae5;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #065f46;
-}
-
-.pulse-dot {
-  width: 8px;
-  height: 8px;
-  background: #10b981;
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-  }
-  50% {
-    opacity: 0.7;
-    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
-  }
-}
-
-.quality-badge {
+/* Quality Indicator */
+.pm-quality-indicator {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
   font-size: 16px;
-  border-radius: 50%;
-  background: #f3f4f6;
+  border-radius: var(--pm-radius-circle);
+  transition: var(--pm-transition-fast);
+}
+
+.pm-quality-indicator:hover {
+  transform: scale(1.2);
+}
+
+.pm-quality-indicator--excellent {
+  background: rgba(39, 174, 96, 0.1);
+}
+
+.pm-quality-indicator--good {
+  background: rgba(242, 153, 74, 0.1);
+}
+
+.pm-quality-indicator--fair {
+  background: rgba(242, 153, 74, 0.15);
+}
+
+.pm-quality-indicator--poor {
+  background: rgba(235, 87, 87, 0.1);
+}
+
+/* Empty State */
+.pm-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  text-align: center;
+}
+
+.pm-empty-state__icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+  animation: pm-pulse 2s ease-in-out infinite;
+}
+
+.pm-empty-state__text {
+  margin: 0 0 8px 0;
+  font-size: var(--pm-font-size-base);
+  font-weight: 600;
+  color: var(--pm-text-secondary);
+}
+
+.pm-empty-state__hint {
+  margin: 0;
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-muted);
+}
+
+/* Animations */
+@keyframes pm-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pm-scaleUp {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pm-fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pm-fadeRight {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pm-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
 }
 
 /* Responsive */
-@media (max-width: 768px) {
-  .stats-grid {
+@media (max-width: 1278px) {
+  .pm-stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .device-stats {
-    padding-left: 0;
+  .pm-card__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .pm-panel__body {
+    padding: var(--pm-space-md);
+    gap: var(--pm-space-lg);
   }
 
-  .history-item {
+  .pm-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pm-stat-card {
+    padding: var(--pm-space-md);
+  }
+
+  .pm-stat-card__icon {
+    width: 48px;
+    height: 48px;
+    font-size: 28px;
+  }
+
+  .pm-section__header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
 
-  .history-right {
+  .pm-card__header {
+    flex-wrap: wrap;
+  }
+
+  .pm-history-item {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .pm-history-item__right {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: space-between;
   }
 }
 </style>

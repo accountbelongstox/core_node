@@ -33,6 +33,7 @@ const BackupManager = require('../libs/backup_manager.js');
 const UnifiedResourceProcessor = require('#@ncore/utils/web_offline/unified_resource_processor.js');
 
 const PuppeteerSpiderModule = require('#@puppeteer');
+const { ResourceProxyServer, ResourceDownloadUtils } = require('#@ncore/utils/puppeteer_spider_v2/main.js');
 
 class CrawlController {
   constructor() {
@@ -43,7 +44,7 @@ class CrawlController {
     this.fileMapper = new FileMapper(new Set([
       '.html', '.htm', '.xhtml', '.xml', '.json', '.txt', '.csv',
       '.pdf', '.zip', '.gz', '.rar', '.7z', '.png', '.jpg', '.jpeg', '.gif',
-      '.svg', '.webp', '.css', '.js', '.mp3', '.mp4', '.avi', '.mov', '.m4v', '.webm',
+      '.svg', '.webp', '.ico', '.css', '.js', '.mp3', '.mp4', '.avi', '.mov', '.m4v', '.webm',
       '.woff', '.woff2', '.ttf', '.otf', '.eot'
     ]));
     this.fetcher = null;
@@ -53,16 +54,19 @@ class CrawlController {
     this.backupManager = new BackupManager(5);
     this.autoOpenFolder = true;
     this.downloadedUrls = [];
+    this.failedUrls = [];
     this.finalHostDir = null;
     this.disableJs = false;
     this.screenshot = false;
     this.screenshotsDir = null;
     this.pageScreenshots = new Map();
+    this.proxyServer = null;
+    this.resourceDownloadUtils = null;
   }
 
   openFolderInExplorer(folderPath) {
     if (!fs.existsSync(folderPath)) {
-      logger.warn(`Folder does not exist: ${folderPath}`);
+      logger.warn(`Folder does not exist yet, will be created during download`);
       return;
     }
 
@@ -71,40 +75,24 @@ class CrawlController {
 
     try {
       if (platform === 'win32') {
-        command = `explorer /select,"${folderPath}"`;
-        exec(command, (error) => {
-          if (error) {
-            logger.error(`Failed to open folder: ${error.message}`);
-          } else {
-            logger.success(`Opened folder: ${folderPath}`);
-          }
-        });
+        command = `explorer "${folderPath}"`;
       } else if (platform === 'darwin') {
         command = `open "${folderPath}"`;
-        exec(command, (error) => {
-          if (error) {
-            logger.error(`Failed to open folder: ${error.message}`);
-          } else {
-            logger.success(`Opened folder: ${folderPath}`);
-          }
-        });
       } else if (platform === 'linux') {
         command = `xdg-open "${folderPath}"`;
-        exec(command, (error) => {
-          if (error) {
-            logger.error(`Failed to open folder: ${error.message}`);
-          } else {
-            logger.success(`Opened folder: ${folderPath}`);
-          }
-        });
+      }
+
+      if (command) {
+        exec(command);
+        logger.warn(`Opening download folder in system explorer...`);
       }
     } catch (error) {
-      logger.error(`Error opening folder: ${error.message}`);
+      logger.warn(`Could not auto-open folder, please navigate to: ${folderPath}`);
     }
   }
 
   async start(argv = process.argv.slice(2)) {
-    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder, disableJs, screenshot } = this.parseArguments(argv);
+    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder, disableJs, screenshot, debug } = this.parseArguments(argv);
     this.domainContext = new DomainContext(targetUrl);
     this.resourceProcessor = new UnifiedResourceProcessor(
       this.domainContext,
@@ -117,6 +105,7 @@ class CrawlController {
     this.autoOpenFolder = autoOpenFolder;
     this.disableJs = disableJs;
     this.screenshot = screenshot;
+    this.debug = debug;
     this.downloadedUrls = [];
 
     logger.info(`Starting document offline analysis for: ${targetUrl}`);
@@ -152,10 +141,15 @@ class CrawlController {
     this.queue.enqueue(canonicalTarget, 0);
     this.urlPool.add(canonicalTarget);
 
+    if (this.fetcherType === 'iframe' || this.fetcherType === 'puppeteer') {
+      await this.initializeProxyServer();
+    }
+
     try {
       await this.processQueue();
       await this.generateSitemap(this.finalHostDir);
       await this.generateMapsite(this.finalHostDir);
+      await this.saveFailedUrlsReport(this.finalHostDir);
       this.printDownloadSummary();
       await this.pauseForNextStep();
     } catch (error) {
@@ -214,7 +208,7 @@ class CrawlController {
   }
 
   async selectFetcherMethod(fetcherType) {
-    if (fetcherType === 'http' || fetcherType === 'puppeteer') {
+    if (fetcherType === 'http' || fetcherType === 'puppeteer' || fetcherType === 'iframe') {
       await this.applyFetcherType(fetcherType);
       return;
     }
@@ -227,13 +221,19 @@ class CrawlController {
       logger.info('========================================');
       logger.info('1. HTTP Request (faster, gets source HTML)');
       logger.info('2. Puppeteer Browser (slower, gets rendered HTML with JavaScript execution)');
+      logger.info('3. Iframe Force Download (extracts iframe content by clicking all links inside)');
       logger.info('========================================\n');
 
-      rl.question('Enter your choice (1 or 2, default is 1): ', async (answer) => {
+      rl.question('Enter your choice (1, 2, or 3, default is 1): ', async (answer) => {
         rl.close();
 
         const choice = answer.trim() || '1';
-        const selectedType = choice === '2' ? 'puppeteer' : 'http';
+        let selectedType = 'http';
+        if (choice === '2') {
+          selectedType = 'puppeteer';
+        } else if (choice === '3') {
+          selectedType = 'iframe';
+        }
 
         await this.applyFetcherType(selectedType);
 
@@ -246,8 +246,13 @@ class CrawlController {
     if (fetcherType === 'puppeteer') {
       this.fetcherType = 'puppeteer';
       this.fetcher = new PuppeteerSpiderModule.Fetcher();
-      await this.fetcher.initialize();
-      logger.success('Using Puppeteer Browser for fetching (renders JavaScript)');
+      await this.fetcher.initialize('edge', { headless: !this.debug });
+      logger.success(`Using Puppeteer Browser for fetching (renders JavaScript)${this.debug ? ' [DEBUG MODE: Browser Visible]' : ''}`);
+    } else if (fetcherType === 'iframe') {
+      this.fetcherType = 'iframe';
+      this.fetcher = new PuppeteerSpiderModule.Fetcher();
+      await this.fetcher.initialize('edge', { headless: !this.debug });
+      logger.success(`Using Iframe Force Download mode (extracts iframe content with link clicking)${this.debug ? ' [DEBUG MODE: Browser Visible]' : ''}`);
     } else {
       this.fetcherType = 'http';
       this.fetcher = new PageFetcher(this.fileMapper);
@@ -397,7 +402,41 @@ class CrawlController {
     }
   }
 
+  async initializeProxyServer() {
+    try {
+      this.proxyServer = new ResourceProxyServer({
+        host: 'localhost',
+        port: 0,
+        tempDir: path.join(this.finalHostDir, '.temp_resources')
+      });
+
+      const serverInfo = await this.proxyServer.start();
+      logger.success(`[PROXY] Resource proxy server started at ${serverInfo.url}`);
+
+      if (this.resourceProcessor && this.fetcher) {
+        const page = await this.fetcher.getPage();
+        this.resourceProcessor.setProxyServer(this.proxyServer, page);
+        logger.info('[PROXY] Proxy server configured with resource processor');
+      }
+
+      return serverInfo;
+    } catch (error) {
+      logger.error(`Failed to initialize proxy server: ${error.message}`);
+      throw error;
+    }
+  }
+
   async cleanupFetcher() {
+    if (this.proxyServer && this.proxyServer.isRunning) {
+      try {
+        await this.proxyServer.stop();
+        this.proxyServer.cleanupTempFiles();
+        logger.info('[PROXY] Resource proxy server stopped and cleaned up');
+      } catch (error) {
+        logger.error(`Failed to cleanup proxy server: ${error.message}`);
+      }
+    }
+
     if (this.fetcherType === 'puppeteer' && this.fetcher && this.fetcher.cleanup) {
       try {
         await this.fetcher.cleanup();
@@ -410,18 +449,23 @@ class CrawlController {
   async prepareDownloadDirectory(baseHostDir) {
     const parentDir = path.dirname(baseHostDir);
     const dirName = path.basename(baseHostDir);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_').substring(0, 19);
 
     if (!fs.existsSync(baseHostDir)) {
+      logger.info(`Creating new download directory: ${dirName}`);
       return baseHostDir;
     }
 
     const stats = fs.statSync(baseHostDir);
     if (!stats.isDirectory()) {
-      return baseHostDir;
+      logger.warn(`Path exists but is not a directory, creating timestamped directory`);
+      const newDirName = `${dirName}_${timestamp}`;
+      return path.join(parentDir, newDirName);
     }
 
     const files = fs.readdirSync(baseHostDir);
     if (files.length === 0) {
+      logger.info(`Directory exists but is empty, reusing: ${dirName}`);
       return baseHostDir;
     }
 
@@ -430,19 +474,19 @@ class CrawlController {
     logger.warn('========================================');
 
     const entries = fs.readdirSync(parentDir, { withFileTypes: true });
-    const conflictingDirs = entries
-      .filter(entry => entry.isDirectory() && entry.name === dirName)
+    const relatedDirs = entries
+      .filter(entry => entry.isDirectory() && (entry.name === dirName || entry.name.startsWith(dirName + '_')))
       .map(entry => ({
         name: entry.name,
         path: path.join(parentDir, entry.name),
         mtime: fs.statSync(path.join(parentDir, entry.name)).mtime
-      }));
+      }))
+      .sort((a, b) => b.mtime - a.mtime);
 
-    for (const dir of conflictingDirs) {
+    for (const dir of relatedDirs) {
       logger.warn(`  📁 ${dir.name} (modified: ${dir.mtime.toISOString()})`);
     }
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_').substring(0, 19);
     const newDirName = `${dirName}_${timestamp}`;
     const newHostDir = path.join(parentDir, newDirName);
 
@@ -473,6 +517,7 @@ class CrawlController {
     let autoOpenFolder = true;
     let disableJs = false;
     let screenshot = false;
+    let debug = false;
 
     for (let i = index + 1; i < argv.length; i++) {
       const arg = argv[i];
@@ -489,6 +534,8 @@ class CrawlController {
         disableJs = true;
       } else if (arg === '--screenshot') {
         screenshot = true;
+      } else if (arg === '--debug' || arg === '-d') {
+        debug = true;
       } else if (!arg.startsWith('--') && !arg.startsWith('-')) {
         const parsedDepth = parseInt(arg, 10);
         if (!Number.isNaN(parsedDepth)) {
@@ -510,7 +557,8 @@ class CrawlController {
       autoConfirm,
       autoOpenFolder,
       disableJs,
-      screenshot
+      screenshot,
+      debug
     };
   }
 
@@ -522,10 +570,12 @@ class CrawlController {
     logger.info('  [depth]                 Recursion depth (default: 3)');
     logger.info('');
     logger.info('Options:');
-    logger.info('  --fetcher=<type>        Fetcher type: http, puppeteer (default: prompt)');
+    logger.info('  --fetcher=<type>        Fetcher type: http, puppeteer, iframe (default: prompt)');
     logger.info('  --scope=<type>          Download scope: full, path (default: prompt)');
     logger.info('  --no-js                 Remove all script tags from HTML (default: keep JS)');
     logger.info('  --disable-js            Same as --no-js');
+    logger.info('  --screenshot            Capture screenshots for HTML pages (puppeteer only)');
+    logger.info('  --debug, -d             Show browser window (non-headless mode)');
     logger.info('  --auto-confirm, -y      Auto-confirm without prompts');
     logger.info('  --no-open               Do NOT open folder in explorer after download');
     logger.info('');
@@ -533,7 +583,8 @@ class CrawlController {
     logger.info('  node main.js app=DocumentOffline https://example.com 3');
     logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=http');
     logger.info('  node main.js app=DocumentOffline https://example.com --no-js -y');
-    logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=puppeteer --scope=full --no-js');
+    logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=puppeteer --debug');
+    logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=iframe --debug --screenshot');
   }
 
   isValidUrl(value) {
@@ -571,7 +622,76 @@ class CrawlController {
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          fetchResult = await this.fetcher.fetch(url);
+          if (this.fetcherType === 'iframe') {
+            const self = this;
+            let iframeDomain = null;
+
+            fetchResult = await this.fetcher.fetchIframeContentRecursive(url, {
+              maxDepth: 10,
+              delay: 1000,
+              maxLinksPerPage: Infinity,
+              sameOriginOnly: true,
+              skipHashLinks: true,
+              onPageCallback: async (pageResult, totalProcessed, depth) => {
+                const content = pageResult.content;
+                const len = content.length;
+                const head = content.substring(0, 100).replace(/\s+/g, ' ');
+                const mid = len > 200 ? content.substring(Math.floor(len / 2) - 25, Math.floor(len / 2) + 25).replace(/\s+/g, ' ') : '';
+                const tail = len > 100 ? content.substring(len - 50).replace(/\s+/g, ' ') : '';
+                logger.info(`[RECURSIVE] Depth ${depth}, Page ${totalProcessed}: len=${len} | head="${head}" | mid="${mid}" | tail="${tail}"`);
+
+                const pageUrl = pageResult.url || pageResult.originalUrl;
+
+                if (!iframeDomain) {
+                  try {
+                    const parsedUrl = new URL(pageUrl);
+                    iframeDomain = `${parsedUrl.protocol}//${parsedUrl.hostname}`;
+                    logger.info(`[IFRAME-RECURSIVE] Detected iframe domain: ${iframeDomain}`);
+                  } catch (error) {
+                    logger.warn(`[IFRAME-RECURSIVE] Could not parse iframe URL: ${pageUrl}`);
+                  }
+                }
+
+                let isInternal = false;
+                if (iframeDomain) {
+                  try {
+                    const parsedPageUrl = new URL(pageUrl);
+                    const pageDomain = `${parsedPageUrl.protocol}//${parsedPageUrl.hostname}`;
+                    isInternal = pageDomain === iframeDomain;
+                  } catch (error) {
+                    isInternal = false;
+                  }
+                } else {
+                  isInternal = self.domainContext.isInternalLink(pageUrl);
+                }
+
+                if (isInternal) {
+                  await self.savePage(pageUrl, content, false);
+                } else {
+                  logger.warn(`[IFRAME-RECURSIVE] Skipping external link: ${pageUrl} (iframe domain: ${iframeDomain})`);
+                }
+              },
+              onFailedCallback: async (failedResult) => {
+                const targetUrl = failedResult.targetUrl || failedResult.linkHref;
+                const linkText = failedResult.linkText || '';
+                const error = failedResult.error || 'Unknown error';
+                const depth = failedResult.depth || 0;
+
+                logger.error(`[IFRAME-RECURSIVE-FAILED] Depth ${depth}: "${linkText}" -> ${targetUrl} (${error})`);
+
+                self.failedUrls.push({
+                  url: targetUrl,
+                  linkText: linkText,
+                  error: error,
+                  depth: depth,
+                  timestamp: new Date().toISOString(),
+                  mode: 'iframe-recursive'
+                });
+              }
+            });
+          } else {
+            fetchResult = await this.fetcher.fetch(url);
+          }
           lastError = null;
           break;
         } catch (error) {
@@ -587,18 +707,30 @@ class CrawlController {
       }
 
       if (lastError) {
+        this.failedUrls.push({
+          url: url,
+          linkText: '',
+          error: lastError.message,
+          timestamp: new Date().toISOString(),
+          mode: this.fetcherType
+        });
         continue;
       }
 
       try {
-        await this.savePage(url, fetchResult.content, fetchResult.isBinary);
+        if (this.fetcherType === 'iframe') {
+          logger.info(`[DEBUG] Iframe content extracted, pages will be saved as they were processed`);
+        } else {
+          await this.savePage(url, fetchResult.content, fetchResult.isBinary);
+        }
       } catch (error) {
         logger.error(`Failed to save ${url}: ${error.message}`);
+        logger.error(`Stack trace: ${error.stack}`);
         this.queue.requeue(item);
         continue;
       }
 
-      if (depth < this.maxDepth && fetchResult.isText) {
+      if (this.fetcherType !== 'iframe' && depth < this.maxDepth && fetchResult.isText) {
         await this.analysePage(url, fetchResult.content, depth);
       }
 
@@ -608,22 +740,60 @@ class CrawlController {
     logger.info('Queue completed.');
   }
 
+
   async savePage(targetUrl, content, isBinary = false) {
     logger.info(`[DEBUG-SAVE-1] Saving: ${targetUrl}, isBinary=${isBinary}`);
 
     const canonical = this.domainContext.canonicalize(targetUrl) || targetUrl;
     const parsed = new URL(canonical);
     const relativePath = this.fileMapper.mapPath(parsed);
-    const finalPath = path.join(this.finalHostDir, relativePath);
+
+    let hostDir = this.finalHostDir;
+    const isExternal = !this.domainContext.isInternalLink(canonical);
+    if (isExternal) {
+      const parentDir = path.dirname(this.finalHostDir);
+      hostDir = path.join(parentDir, parsed.hostname);
+      logger.info(`[DEBUG-SAVE-1.5] External domain detected: ${parsed.hostname}, using hostDir: ${hostDir}`);
+    }
+
+    const finalPath = path.join(hostDir, relativePath);
 
     const directory = path.dirname(finalPath);
     this.ensureDirectory(directory);
 
     let finalContent = content;
+    let collectedResources = null;
 
     if (!isBinary && this.isHtmlContent(relativePath)) {
+      if ((this.fetcherType === 'puppeteer' || this.fetcherType === 'iframe') && this.fetcher && typeof this.fetcher.collectResources === 'function') {
+        logger.info(`[RESOURCE-COLLECTION] Collecting resources with xpath mapping for: ${canonical}`);
+        try {
+          collectedResources = await this.fetcher.collectResources({
+            waitForNetwork: true,
+            waitTime: 1000,
+            includeIframes: this.fetcherType === 'iframe',
+            includeDataUrls: false
+          });
+
+          if (collectedResources) {
+            logger.success(`[RESOURCE-COLLECTION] Collected ${collectedResources.stats.total} resources (${collectedResources.stats.matched} matched with interception)`);
+            logger.info(`[RESOURCE-COLLECTION] By source: ${JSON.stringify(collectedResources.stats.bySourceType)}`);
+
+            const resourceMapFile = path.join(hostDir, `.resource_map_${path.basename(relativePath, path.extname(relativePath))}.json`);
+            const collector = this.fetcher.getResourceCollector();
+            if (collector) {
+              const jsonOutput = collector.exportToJson(false);
+              await fs.promises.writeFile(resourceMapFile, JSON.stringify(jsonOutput, null, 2), 'utf8');
+              logger.info(`[RESOURCE-COLLECTION] Resource map saved to: ${path.basename(resourceMapFile)}`);
+            }
+          }
+        } catch (error) {
+          logger.warn(`[RESOURCE-COLLECTION] Failed to collect resources: ${error.message}`);
+        }
+      }
+
       logger.info(`[DEBUG-SAVE-2] Processing HTML: extracting, downloading, and rewriting resources`);
-      const result = await this.resourceProcessor.processPageResources(content, canonical, this.finalHostDir);
+      const result = await this.resourceProcessor.processPageResources(content, canonical, hostDir);
       finalContent = result.html;
       logger.info(`[DEBUG-SAVE-3] Processed ${result.resourcesProcessed} resources for: ${canonical}`);
 
@@ -798,6 +968,30 @@ class CrawlController {
       }
     } catch (error) {
       logger.error(`Failed to generate mapsite: ${error.message}`);
+    }
+  }
+
+  async saveFailedUrlsReport(hostDir) {
+    try {
+      if (this.failedUrls.length === 0) {
+        logger.info('No failed URLs to report');
+        return;
+      }
+
+      const failedReportPath = path.join(hostDir, 'failed_urls.json');
+
+      const failedReport = {
+        timestamp: new Date().toISOString(),
+        totalFailed: this.failedUrls.length,
+        fetcherMode: this.fetcherType,
+        failedUrls: this.failedUrls
+      };
+
+      fs.writeFileSync(failedReportPath, JSON.stringify(failedReport, null, 2), 'utf8');
+      logger.warn(`Failed URLs report saved: ${failedReportPath}`);
+      logger.warn(`Total failed URLs: ${this.failedUrls.length}`);
+    } catch (error) {
+      logger.error(`Failed to save failed URLs report: ${error.message}`);
     }
   }
 

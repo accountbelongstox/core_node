@@ -1,22 +1,22 @@
 <template>
   <div v-if="show" class="step-editor-overlay" @click.self="handleClose">
-    <div class="step-editor-modal">
+    <div class="pm-card">
       <!-- Header -->
-      <div class="step-editor-header">
+      <div class="pm-card__header">
         <h3>{{ editMode ? 'Edit Step' : 'Add New Step' }}</h3>
         <button class="close-btn" @click="handleClose" title="Close">×</button>
       </div>
 
       <!-- Content -->
-      <div class="step-editor-content">
+      <div class="pm-card__body">
         <!-- Step Type Selection -->
-        <div class="form-group">
-          <label for="step-type">Step Type</label>
+        <div class="pm-form-group">
+          <label for="step-type" class="pm-form-label">Step Type</label>
           <select
             id="step-type"
             v-model="localStep.type"
             :disabled="editMode"
-            class="form-control"
+            class="pm-select"
             @change="handleTypeChange"
           >
             <option value="touch">Touch Action</option>
@@ -31,24 +31,24 @@
         </div>
 
         <!-- Step Name -->
-        <div class="form-group">
-          <label for="step-name">Step Name</label>
+        <div class="pm-form-group">
+          <label for="step-name" class="pm-form-label">Step Name</label>
           <input
             id="step-name"
             v-model="localStep.name"
             type="text"
-            class="form-control"
+            class="pm-input"
             placeholder="Enter step name"
           />
         </div>
 
         <!-- Step Description -->
-        <div class="form-group">
-          <label for="step-description">Description (Optional)</label>
+        <div class="pm-form-group">
+          <label for="step-description" class="pm-form-label">Description (Optional)</label>
           <textarea
             id="step-description"
             v-model="localStep.description"
-            class="form-control"
+            class="pm-textarea"
             rows="2"
             placeholder="Enter step description"
           />
@@ -61,9 +61,9 @@
           <!-- Touch Action Fields -->
           <template v-if="localStep.type === 'touch'">
             <div class="form-row">
-              <div class="form-group">
-                <label for="touch-action">Action</label>
-                <select id="touch-action" v-model="localStep.data.action" class="form-control">
+              <div class="pm-form-group">
+                <label for="touch-action" class="pm-form-label">Action</label>
+                <select id="touch-action" v-model="localStep.data.action" class="pm-select">
                   <option value="tap">Tap</option>
                   <option value="long_press">Long Press</option>
                   <option value="down">Touch Down</option>
@@ -73,36 +73,36 @@
               </div>
             </div>
             <div class="form-row">
-              <div class="form-group">
-                <label for="touch-x">X Coordinate</label>
+              <div class="pm-form-group">
+                <label for="touch-x" class="pm-form-label">X Coordinate</label>
                 <input
                   id="touch-x"
                   v-model.number="localStep.data.x"
                   type="number"
-                  class="form-control"
+                  class="pm-input"
                   placeholder="0"
                   min="0"
                 />
               </div>
-              <div class="form-group">
-                <label for="touch-y">Y Coordinate</label>
+              <div class="pm-form-group">
+                <label for="touch-y" class="pm-form-label">Y Coordinate</label>
                 <input
                   id="touch-y"
                   v-model.number="localStep.data.y"
                   type="number"
-                  class="form-control"
+                  class="pm-input"
                   placeholder="0"
                   min="0"
                 />
               </div>
             </div>
-            <div class="form-group" v-if="localStep.data.action === 'long_press'">
-              <label for="touch-duration">Duration (ms)</label>
+            <div class="pm-form-group" v-if="localStep.data.action === 'long_press'">
+              <label for="touch-duration" class="pm-form-label">Duration (ms)</label>
               <input
                 id="touch-duration"
                 v-model.number="localStep.data.duration"
                 type="number"
-                class="form-control"
+                class="pm-input"
                 placeholder="1000"
                 min="0"
               />
@@ -112,23 +112,23 @@
           <!-- Key Press Fields -->
           <template v-if="localStep.type === 'key'">
             <div class="form-row">
-              <div class="form-group">
-                <label for="key-name">Key Name</label>
+              <div class="pm-form-group">
+                <label for="key-name" class="pm-form-label">Key Name</label>
                 <input
                   id="key-name"
                   v-model="localStep.data.keyName"
                   type="text"
-                  class="form-control"
+                  class="pm-input"
                   placeholder="Enter key name"
                 />
               </div>
-              <div class="form-group">
-                <label for="key-code">Key Code</label>
+              <div class="pm-form-group">
+                <label for="key-code" class="pm-form-label">Key Code</label>
                 <input
                   id="key-code"
                   v-model.number="localStep.data.keyCode"
                   type="number"
-                  class="form-control"
+                  class="pm-input"
                   placeholder="0"
                   min="0"
                 />
@@ -138,12 +138,12 @@
 
           <!-- Text Input Fields -->
           <template v-if="localStep.type === 'text'">
-            <div class="form-group">
-              <label for="text-input">Text to Input</label>
+            <div class="pm-form-group">
+              <label for="text-input" class="pm-form-label">Text to Input</label>
               <textarea
                 id="text-input"
                 v-model="localStep.data.text"
-                class="form-control"
+                class="pm-textarea"
                 rows="3"
                 placeholder="Enter text to input on device"
               />
@@ -153,60 +153,60 @@
           <!-- Swipe Gesture Fields -->
           <template v-if="localStep.type === 'swipe'">
             <div class="form-row">
-              <div class="form-group">
-                <label for="swipe-start-x">Start X</label>
+              <div class="pm-form-group">
+                <label for="swipe-start-x" class="pm-form-label">Start X</label>
                 <input
                   id="swipe-start-x"
                   v-model.number="localStep.data.startX"
                   type="number"
-                  class="form-control"
+                  class="pm-input"
                   placeholder="0"
                   min="0"
                 />
               </div>
-              <div class="form-group">
-                <label for="swipe-start-y">Start Y</label>
+              <div class="pm-form-group">
+                <label for="swipe-start-y" class="pm-form-label">Start Y</label>
                 <input
                   id="swipe-start-y"
                   v-model.number="localStep.data.startY"
                   type="number"
-                  class="form-control"
+                  class="pm-input"
                   placeholder="0"
                   min="0"
                 />
               </div>
             </div>
             <div class="form-row">
-              <div class="form-group">
-                <label for="swipe-end-x">End X</label>
+              <div class="pm-form-group">
+                <label for="swipe-end-x" class="pm-form-label">End X</label>
                 <input
                   id="swipe-end-x"
                   v-model.number="localStep.data.endX"
                   type="number"
-                  class="form-control"
+                  class="pm-input"
                   placeholder="0"
                   min="0"
                 />
               </div>
-              <div class="form-group">
-                <label for="swipe-end-y">End Y</label>
+              <div class="pm-form-group">
+                <label for="swipe-end-y" class="pm-form-label">End Y</label>
                 <input
                   id="swipe-end-y"
                   v-model.number="localStep.data.endY"
                   type="number"
-                  class="form-control"
+                  class="pm-input"
                   placeholder="0"
                   min="0"
                 />
               </div>
             </div>
-            <div class="form-group">
-              <label for="swipe-duration">Duration (ms)</label>
+            <div class="pm-form-group">
+              <label for="swipe-duration" class="pm-form-label">Duration (ms)</label>
               <input
                 id="swipe-duration"
                 v-model.number="localStep.data.swipeDuration"
                 type="number"
-                class="form-control"
+                class="pm-input"
                 placeholder="300"
                 min="0"
               />
@@ -215,9 +215,9 @@
 
           <!-- System Key Fields -->
           <template v-if="localStep.type === 'system'">
-            <div class="form-group">
-              <label for="system-key">System Key</label>
-              <select id="system-key" v-model="localStep.data.systemKey" class="form-control">
+            <div class="pm-form-group">
+              <label for="system-key" class="pm-form-label">System Key</label>
+              <select id="system-key" v-model="localStep.data.systemKey" class="pm-select">
                 <option value="home">Home</option>
                 <option value="back">Back</option>
                 <option value="recent">Recent Apps</option>
@@ -230,13 +230,13 @@
 
           <!-- Wait Fields -->
           <template v-if="localStep.type === 'wait'">
-            <div class="form-group">
-              <label for="wait-duration">Wait Duration (ms)</label>
+            <div class="pm-form-group">
+              <label for="wait-duration" class="pm-form-label">Wait Duration (ms)</label>
               <input
                 id="wait-duration"
                 v-model.number="localStep.data.waitDuration"
                 type="number"
-                class="form-control"
+                class="pm-input"
                 placeholder="1000"
                 min="0"
               />
@@ -246,9 +246,9 @@
 
           <!-- Screenshot Fields -->
           <template v-if="localStep.type === 'screenshot'">
-            <div class="form-group">
-              <label for="screenshot-format">Format</label>
-              <select id="screenshot-format" v-model="localStep.data.screenshotFormat" class="form-control">
+            <div class="pm-form-group">
+              <label for="screenshot-format" class="pm-form-label">Format</label>
+              <select id="screenshot-format" v-model="localStep.data.screenshotFormat" class="pm-select">
                 <option value="png">PNG</option>
                 <option value="jpg">JPG</option>
               </select>
@@ -257,19 +257,19 @@
 
           <!-- Clipboard Fields -->
           <template v-if="localStep.type === 'clipboard'">
-            <div class="form-group">
-              <label for="clipboard-action">Action</label>
-              <select id="clipboard-action" v-model="localStep.data.clipboardAction" class="form-control">
+            <div class="pm-form-group">
+              <label for="clipboard-action" class="pm-form-label">Action</label>
+              <select id="clipboard-action" v-model="localStep.data.clipboardAction" class="pm-select">
                 <option value="set">Set Clipboard</option>
                 <option value="get">Get Clipboard</option>
               </select>
             </div>
-            <div v-if="localStep.data.clipboardAction === 'set'" class="form-group">
-              <label for="clipboard-text">Clipboard Text</label>
+            <div v-if="localStep.data.clipboardAction === 'set'" class="pm-form-group">
+              <label for="clipboard-text" class="pm-form-label">Clipboard Text</label>
               <textarea
                 id="clipboard-text"
                 v-model="localStep.data.clipboardText"
-                class="form-control"
+                class="pm-textarea"
                 rows="3"
                 placeholder="Enter text to set on clipboard"
               />
@@ -278,13 +278,13 @@
         </div>
 
         <!-- Delay After Step -->
-        <div class="form-group">
-          <label for="step-delay">Delay After Step (ms)</label>
+        <div class="pm-form-group">
+          <label for="step-delay" class="pm-form-label">Delay After Step (ms)</label>
           <input
             id="step-delay"
             v-model.number="localStep.delay"
             type="number"
-            class="form-control"
+            class="pm-input"
             placeholder="500"
             min="0"
           />
@@ -303,8 +303,8 @@
 
       <!-- Footer -->
       <div class="step-editor-footer">
-        <button class="btn btn-secondary" @click="handleClose">Cancel</button>
-        <button class="btn btn-primary" @click="handleSave">
+        <button class="pm-button pm-button--secondary" @click="handleClose">Cancel</button>
+        <button class="pm-button pm-button--electric-blue" @click="handleSave">
           {{ editMode ? 'Save Changes' : 'Add Step' }}
         </button>
       </div>
@@ -495,17 +495,13 @@ function validateStepData(step: ScriptStep): boolean {
   }
 }
 
-.step-editor-modal {
-  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
-  border-radius: 16px;
+.pm-card {
   width: 90%;
   max-width: 600px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   animation: slideUp 0.3s ease-out;
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 @keyframes slideUp {
@@ -517,21 +513,6 @@ function validateStepData(step: ScriptStep): boolean {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.step-editor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.step-editor-header h3 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #ffffff;
 }
 
 .close-btn {
@@ -555,57 +536,9 @@ function validateStepData(step: ScriptStep): boolean {
   color: #ffffff;
 }
 
-.step-editor-content {
-  padding: 1.5rem;
+.pm-card__body {
   overflow-y: auto;
   flex: 1;
-}
-
-.form-group {
-  margin-bottom: 1.25rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.form-control {
-  width: 100%;
-  padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #ffffff;
-  font-size: 0.95rem;
-  transition: all 0.2s;
-}
-
-.form-control:focus {
-  outline: none;
-  border-color: #3b82f6;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.form-control::placeholder {
-  color: rgba(255, 255, 255, 0.3);
-}
-
-.form-control:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-select.form-control {
-  cursor: pointer;
-}
-
-textarea.form-control {
-  resize: vertical;
-  font-family: inherit;
 }
 
 .form-row {
@@ -667,52 +600,22 @@ textarea.form-control {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: #ffffff;
-}
-
-.btn-primary:hover {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-}
-
 /* Scrollbar Styling */
-.step-editor-content::-webkit-scrollbar {
+.pm-card__body::-webkit-scrollbar {
   width: 8px;
 }
 
-.step-editor-content::-webkit-scrollbar-track {
+.pm-card__body::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
 }
 
-.step-editor-content::-webkit-scrollbar-thumb {
+.pm-card__body::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
 }
 
-.step-editor-content::-webkit-scrollbar-thumb:hover {
+.pm-card__body::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 </style>

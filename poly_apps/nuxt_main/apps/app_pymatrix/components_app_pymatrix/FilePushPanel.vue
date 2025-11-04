@@ -8,10 +8,10 @@
     @close="handleClose"
   >
     <template #body>
-      <div class="file-push-panel">
+      <div class="pm-panel pm-panel--blue">
         <!-- File Selection Area -->
         <div
-          class="drop-zone"
+          class="pm-file-upload"
           :class="{ 'drop-zone-active': isDragging }"
           @dragover.prevent="handleDragOver"
           @dragleave.prevent="handleDragLeave"
@@ -104,20 +104,19 @@
 
     <template #footer>
       <div class="panel-actions">
-        <BaseButton
-          variant="default"
+        <button
+          class="pm-button pm-button--default"
           @click="handleClose"
         >
           Cancel
-        </BaseButton>
-        <BaseButton
-          variant="primary"
-          :loading="uploading"
+        </button>
+        <button
+          class="pm-button pm-button--ocean"
           :disabled="!selectedFile || !targetPath || uploading"
           @click="handlePush"
         >
           {{ uploading ? 'Uploading...' : 'Push File' }}
-        </BaseButton>
+        </button>
       </div>
     </template>
   </BasePanel>
@@ -254,30 +253,6 @@ function handleClose() {
 </script>
 
 <style scoped>
-.file-push-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 400px;
-}
-
-/* Drop Zone */
-.drop-zone {
-  border: 2px dashed rgba(59, 130, 246, 0.3);
-  border-radius: 8px;
-  padding: 32px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: rgba(59, 130, 246, 0.05);
-}
-
-.drop-zone:hover,
-.drop-zone-active {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
-}
-
 .file-input {
   display: none;
 }
@@ -304,7 +279,6 @@ function handleClose() {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Form Group */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -344,7 +318,6 @@ function handleClose() {
   color: rgba(255, 255, 255, 0.4);
 }
 
-/* Upload Progress */
 .upload-progress {
   display: flex;
   flex-direction: column;
@@ -394,7 +367,6 @@ function handleClose() {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Result Message */
 .result-message {
   display: flex;
   align-items: center;
@@ -421,7 +393,6 @@ function handleClose() {
   font-size: 16px;
 }
 
-/* Panel Actions */
 .panel-actions {
   display: flex;
   gap: 8px;
