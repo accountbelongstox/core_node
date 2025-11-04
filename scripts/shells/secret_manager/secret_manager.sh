@@ -187,16 +187,49 @@ secret_decrypt_all() {
         # Remove extension (.js or .JS)
         local key_name="${file_name%.js}"
         key_name="${key_name%.JS}"
-        echo "[SECRET_DECRYPT_ALL] Decrypting: $file_name -> $key_name" >&2
+        echo "[SECRET_DECRYPT_ALL] Decrypting: $file_name" >&2
         echo "[SECRET_DECRYPT_ALL]   Executing: node \"$encrypted_file\" pwd \"********\" \"$output_dir\"" >&2
+
+        # Count files before decryption
+        local files_before=$(find "$output_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
+
+        # Run decryption
         local result
         result=$(node "$encrypted_file" pwd "$password" "$output_dir" 2>&1)
-        local exit_code=$?
-        if [ $exit_code -eq 0 ]; then
-            echo "[SECRET_DECRYPT_ALL]   SUCCESS: $key_name" >&2
-            ((success_count++))
+
+        # Count files after decryption
+        local files_after=$(find "$output_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
+
+        # Check if new files were created and have content
+        if [ "$files_after" -gt "$files_before" ]; then
+            # Find the newly created file(s)
+            local new_files=()
+            while IFS= read -r -d '' file; do
+                new_files+=("$file")
+            done < <(find "$output_dir" -maxdepth 1 -type f -newer "$encrypted_file" -print0 2>/dev/null)
+
+            # If no files found with -newer, just check if any files have content
+            if [ ${#new_files[@]} -eq 0 ]; then
+                while IFS= read -r -d '' file; do
+                    local content=$(cat "$file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+                    if [ -n "$content" ]; then
+                        new_files+=("$file")
+                        break
+                    fi
+                done < <(find "$output_dir" -maxdepth 1 -type f -print0 2>/dev/null)
+            fi
+
+            if [ ${#new_files[@]} -gt 0 ]; then
+                local decrypted_name=$(basename "${new_files[0]}")
+                echo "[SECRET_DECRYPT_ALL]   SUCCESS: $file_name -> $decrypted_name" >&2
+                ((success_count++))
+            else
+                echo "[SECRET_DECRYPT_ALL]   FAILED: $file_name (no valid content)" >&2
+                echo "[SECRET_DECRYPT_ALL]   Node output: $result" >&2
+                ((fail_count++))
+            fi
         else
-            echo "[SECRET_DECRYPT_ALL]   FAILED: $key_name (exit code: $exit_code)" >&2
+            echo "[SECRET_DECRYPT_ALL]   FAILED: $file_name (no file created)" >&2
             echo "[SECRET_DECRYPT_ALL]   Node output: $result" >&2
             ((fail_count++))
         fi
@@ -391,26 +424,27 @@ secret_get_key() {
         # Decrypt to temporary directory
         local result
         result=$(node "$encrypted_file" pwd "$password" "$temp_output_dir" 2>&1)
-        local exit_code=$?
 
-        # Show detailed error if decryption failed
-        if [ $exit_code -ne 0 ]; then
-            echo "[SECRET_GET_KEY] ERROR: Decryption command failed (exit code: $exit_code)" >&2
+        # Don't check exit code - directly look for any decrypted file in temp directory
+        local decrypted_files=()
+        while IFS= read -r -d '' file; do
+            decrypted_files+=("$file")
+        done < <(find "$temp_output_dir" -maxdepth 1 -type f -print0 2>/dev/null)
+
+        # Check if any file was created
+        if [ ${#decrypted_files[@]} -eq 0 ]; then
+            echo "[SECRET_GET_KEY] ERROR: No decrypted file created in: $temp_output_dir" >&2
             echo "[SECRET_GET_KEY] Node output: $result" >&2
             rm -rf "$temp_output_dir"
             return 1
         fi
 
-        # Check if output file was created
-        if [ ! -f "$temp_raw_file" ]; then
-            echo "[SECRET_GET_KEY] ERROR: Decrypted file not created: $temp_raw_file" >&2
-            echo "[SECRET_GET_KEY] Node output: $result" >&2
-            rm -rf "$temp_output_dir"
-            return 1
-        fi
+        # Use the first decrypted file found
+        local decrypted_file="${decrypted_files[0]}"
+        echo "[SECRET_GET_KEY] Found decrypted file: $(basename "$decrypted_file")" >&2
 
         # Read decrypted content
-        local content=$(cat "$temp_raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+        local content=$(cat "$decrypted_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
         rm -rf "$temp_output_dir"
 
         if [ -n "$content" ]; then
@@ -418,7 +452,7 @@ secret_get_key() {
             return 0
         fi
 
-        echo "[SECRET_GET_KEY] ERROR: Decrypted file is empty" >&2
+        echo "[SECRET_GET_KEY] ERROR: Decrypted file is empty: $(basename "$decrypted_file")" >&2
         return 1
     fi
 
