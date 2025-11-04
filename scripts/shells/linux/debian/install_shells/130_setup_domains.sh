@@ -600,7 +600,7 @@ check_laravel_available() {
 read_domains() {
     echo "[$SCRIPT_INDEX] Reading domains from secret storage..."
 
-    domains_content=$(get_secret_content "DOMAINS_LIST")
+    domains_content=$(get_secret_content "DOMAINS_LISTS")
     if [ -z "$domains_content" ]; then
         echo "[$SCRIPT_INDEX] No domains found in secret storage"
         return 1
@@ -618,7 +618,7 @@ read_domains() {
 
 # Function to get domains list (without debug output)
 get_domains_list() {
-    get_secret_content "DOMAINS_LIST" | tr -d '\r' | sed '/^$/d'
+    get_secret_content "DOMAINS_LISTS" | tr -d '\r' | sed '/^$/d'
 }
 
 # Function to read DNSPod configuration
@@ -632,8 +632,8 @@ read_dnspod_config() {
         return 1
     fi
 
-    local email=$(get_secret_content "DNS_DNSPOD_EMAIL")
-    local api_token=$(get_secret_content "DNS_DNSPOD_API_TOKEN")
+    local email=$(get_secret_content "DNS_DNSPOD_EMAILS")
+    local api_token=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
 
     if [ -z "$email" ] || [ -z "$api_token" ]; then
         echo "[$SCRIPT_INDEX] DNSPod configuration not found or incomplete"
@@ -641,8 +641,8 @@ read_dnspod_config() {
         echo "[$SCRIPT_INDEX]   API Token: ${api_token:+FOUND}"
         echo "[$SCRIPT_INDEX]"
         echo "[$SCRIPT_INDEX] Please configure DNSPod credentials in secret storage:"
-        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAIL"
-        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKEN"
+        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAILS"
+        echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKENS"
         return 1
     fi
 
