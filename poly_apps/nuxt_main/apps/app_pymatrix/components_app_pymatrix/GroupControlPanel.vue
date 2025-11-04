@@ -1,5 +1,5 @@
 <template>
-  <div class="group-control-panel">
+  <div class="pm-panel pm-panel--golden">
     <div class="panel-header">
       <h3 class="panel-title">Group Control</h3>
       <button
@@ -56,7 +56,7 @@
           </select>
         </div>
         <button
-          class="action-btn primary full-width"
+          class="pm-button pm-button--rainbow full-width"
           :disabled="!newGroupId || !selectedHost"
           @click="handleCreateGroup"
         >
@@ -117,7 +117,7 @@
           </select>
         </div>
         <button
-          class="action-btn secondary full-width"
+          class="pm-button pm-button--sunset full-width"
           :disabled="!selectedSlave"
           @click="handleAddSlave"
         >
@@ -128,20 +128,20 @@
         <div class="actions-section">
           <button
             v-if="!groupEnabled"
-            class="action-btn success full-width"
+            class="pm-button pm-button--rainbow full-width"
             @click="handleEnableGroup"
           >
             Enable Group
           </button>
           <button
             v-else
-            class="action-btn warning full-width"
+            class="pm-button pm-button--sunset full-width"
             @click="handleDisableGroup"
           >
             Disable Group
           </button>
           <button
-            class="action-btn danger full-width"
+            class="pm-button pm-button--violet full-width"
             @click="handleDeleteGroup"
           >
             Delete Group
@@ -243,270 +243,3 @@ function handleDeleteGroup() {
   }
 }
 </script>
-
-<style scoped>
-.group-control-panel {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  width: 400px;
-  max-width: 100%;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.panel-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  line-height: 1;
-  color: #6b7280;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-}
-
-.status-section {
-  background: #f9fafb;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 20px;
-}
-
-.status-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-}
-
-.status-label {
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 500;
-}
-
-.status-value {
-  font-size: 13px;
-  color: #374151;
-  font-weight: 600;
-}
-
-.status-value.active {
-  color: #10b981;
-}
-
-.control-section {
-  margin-bottom: 20px;
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
-  margin: 0 0 12px 0;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 6px;
-}
-
-.form-input,
-.form-select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.form-input:focus,
-.form-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.device-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  margin-bottom: 8px;
-}
-
-.device-card.host {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border-color: #fbbf24;
-}
-
-.device-card.slave {
-  background: white;
-}
-
-.device-icon {
-  font-size: 24px;
-  line-height: 1;
-}
-
-.device-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.device-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2937;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.device-serial {
-  font-size: 12px;
-  color: #6b7280;
-  font-family: monospace;
-}
-
-.remove-btn {
-  background: #ef4444;
-  color: white;
-  border: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.remove-btn:hover {
-  background: #dc2626;
-  transform: scale(1.1);
-}
-
-.device-list {
-  margin-bottom: 16px;
-}
-
-.empty-message {
-  text-align: center;
-  padding: 20px;
-  color: #9ca3af;
-  font-size: 13px;
-}
-
-.action-btn {
-  width: 100%;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 8px;
-}
-
-.action-btn.full-width {
-  width: 100%;
-}
-
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.action-btn.primary {
-  background: #3b82f6;
-  color: white;
-}
-
-.action-btn.primary:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-.action-btn.secondary {
-  background: #6b7280;
-  color: white;
-}
-
-.action-btn.secondary:hover:not(:disabled) {
-  background: #4b5563;
-}
-
-.action-btn.success {
-  background: #10b981;
-  color: white;
-}
-
-.action-btn.success:hover {
-  background: #059669;
-}
-
-.action-btn.warning {
-  background: #f59e0b;
-  color: white;
-}
-
-.action-btn.warning:hover {
-  background: #d97706;
-}
-
-.action-btn.danger {
-  background: #ef4444;
-  color: white;
-}
-
-.action-btn.danger:hover {
-  background: #dc2626;
-}
-
-.actions-section {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
-}
-</style>

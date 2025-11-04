@@ -1,0 +1,327 @@
+/**
+ * ✨ Animation System
+ *
+ * 动画效果：流畅、动感、充满活力
+ */
+
+/* ========================================
+   🌟 KEYFRAME ANIMATIONS
+   ======================================== */
+
+/* 旋转动画 */
+@keyframes pm-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 脉冲动画 */
+@keyframes pm-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* 弹跳动画 */
+@keyframes pm-bounce {
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+/* 淡入动画 */
+@keyframes pm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 淡出动画 */
+@keyframes pm-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* 向上滑入 */
+@keyframes pm-slide-in-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 向下滑入 */
+@keyframes pm-slide-in-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 向右滑入 */
+@keyframes pm-slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 向左滑入 */
+@keyframes pm-slide-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 缩放进入 */
+@keyframes pm-scale-in {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 彩虹渐变流动 */
+@keyframes pm-gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* 霓虹闪烁 */
+@keyframes pm-neon-glow {
+  0%, 100% {
+    filter: brightness(1) drop-shadow(0 0 10px currentColor);
+  }
+  50% {
+    filter: brightness(1.3) drop-shadow(0 0 20px currentColor);
+  }
+}
+
+/* 摇晃动画 */
+@keyframes pm-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+/* 渐变背景移动 */
+@keyframes pm-bg-move {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+/* 彩虹边框旋转 */
+@keyframes pm-rainbow-border {
+  0% {
+    border-color: #ff0844;
+  }
+  20% {
+    border-color: #ff9500;
+  }
+  40% {
+    border-color: #ffd60a;
+  }
+  60% {
+    border-color: #00ff88;
+  }
+  80% {
+    border-color: #0096ff;
+  }
+  100% {
+    border-color: #ff0844;
+  }
+}
+
+/* 悬浮动画 */
+@keyframes pm-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* 心跳动画 */
+@keyframes pm-heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  10%, 30% {
+    transform: scale(0.9);
+  }
+  20%, 40%, 60%, 80% {
+    transform: scale(1.1);
+  }
+  50%, 70% {
+    transform: scale(1.05);
+  }
+}
+
+/* ========================================
+   🎯 UTILITY CLASSES
+   ======================================== */
+
+.pm-animate-spin {
+  animation: pm-spin 1s linear infinite;
+}
+
+.pm-animate-pulse {
+  animation: pm-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.pm-animate-bounce {
+  animation: pm-bounce 1s infinite;
+}
+
+.pm-animate-fade-in {
+  animation: pm-fade-in 0.3s ease-out;
+}
+
+.pm-animate-slide-in-up {
+  animation: pm-slide-in-up 0.4s ease-out;
+}
+
+.pm-animate-slide-in-down {
+  animation: pm-slide-in-down 0.4s ease-out;
+}
+
+.pm-animate-slide-in-right {
+  animation: pm-slide-in-right 0.4s ease-out;
+}
+
+.pm-animate-slide-in-left {
+  animation: pm-slide-in-left 0.4s ease-out;
+}
+
+.pm-animate-scale-in {
+  animation: pm-scale-in 0.3s ease-out;
+}
+
+.pm-animate-gradient-flow {
+  background-size: 200% 200%;
+  animation: pm-gradient-flow 3s ease infinite;
+}
+
+.pm-animate-neon-glow {
+  animation: pm-neon-glow 2s ease-in-out infinite;
+}
+
+.pm-animate-shake {
+  animation: pm-shake 0.5s ease-in-out;
+}
+
+.pm-animate-float {
+  animation: pm-float 3s ease-in-out infinite;
+}
+
+.pm-animate-heartbeat {
+  animation: pm-heartbeat 1.5s ease-in-out infinite;
+}
+
+/* ========================================
+   🎨 TRANSITION UTILITIES
+   ======================================== */
+
+.pm-transition-all {
+  transition: all var(--pm-transition-base) var(--pm-ease);
+}
+
+.pm-transition-colors {
+  transition: color var(--pm-transition-base) var(--pm-ease),
+              background-color var(--pm-transition-base) var(--pm-ease),
+              border-color var(--pm-transition-base) var(--pm-ease);
+}
+
+.pm-transition-transform {
+  transition: transform var(--pm-transition-base) var(--pm-ease);
+}
+
+.pm-transition-opacity {
+  transition: opacity var(--pm-transition-base) var(--pm-ease);
+}
+
+.pm-transition-shadow {
+  transition: box-shadow var(--pm-transition-base) var(--pm-ease);
+}
+
+/* ========================================
+   ✨ HOVER EFFECTS
+   ======================================== */
+
+.pm-hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--pm-shadow-lg);
+}
+
+.pm-hover-grow:hover {
+  transform: scale(1.05);
+}
+
+.pm-hover-glow:hover {
+  box-shadow: var(--pm-shadow-neon);
+}
+
+.pm-hover-rainbow:hover {
+  background: var(--pm-gradient-rainbow);
+  color: white;
+}

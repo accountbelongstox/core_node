@@ -1,18 +1,18 @@
 <template>
-  <div class="pymatrix-dialog-overlay" @click="$emit('close')">
-    <div class="pymatrix-dialog" @click.stop>
-      <div class="pymatrix-dialog__header">
-        <h3 class="pymatrix-dialog__title">Connect Device</h3>
-        <button class="pymatrix-dialog__close-btn" @click="$emit('close')">×</button>
+  <div class="pm-modal-backdrop" @click="$emit('close')">
+    <div class="pm-modal" @click.stop>
+      <div class="pm-modal__header">
+        <h3>Connect Device</h3>
+        <button @click="$emit('close')">×</button>
       </div>
 
-      <form class="pymatrix-dialog__body" @submit.prevent="handleConnect">
+      <form class="pm-modal__body" @submit.prevent="handleConnect">
         <!-- Preset Selector -->
         <div class="preset-section">
-          <div class="pymatrix-dialog__form-group">
-            <label class="pymatrix-dialog__form-label">Connection Preset</label>
+          <div class="pm-form-group">
+            <label>Connection Preset</label>
             <div class="preset-controls">
-              <select v-model="selectedPresetId" class="pymatrix-dialog__form-input preset-select" @change="handlePresetChange">
+              <select v-model="selectedPresetId" class="pm-select preset-select" @change="handlePresetChange">
                 <option value="">— No Preset —</option>
                 <option v-for="preset in presetsStore.allPresets" :key="preset.id" :value="preset.id">
                   {{ preset.name }} {{ preset.isDefault ? '' : '(Custom)' }}
@@ -38,9 +38,9 @@
           </div>
         </div>
 
-        <div class="pymatrix-dialog__form-group">
-          <label class="pymatrix-dialog__form-label">Select Discovered Device</label>
-          <select v-model="selectedSerial" class="pymatrix-dialog__form-input">
+        <div class="pm-form-group">
+          <label>Select Discovered Device</label>
+          <select v-model="selectedSerial" class="pm-select">
             <option value="">— Manual Entry —</option>
             <option v-for="device in deviceOptions" :key="device.serial" :value="device.serial">
               {{ device.label }}
@@ -48,22 +48,22 @@
           </select>
         </div>
 
-        <div class="pymatrix-dialog__form-group">
-          <label class="pymatrix-dialog__form-label">Device Serial</label>
+        <div class="pm-form-group">
+          <label>Device Serial</label>
           <input
             v-model="manualSerial"
             type="text"
-            class="pymatrix-dialog__form-input"
+            class="pm-input"
             placeholder="Enter device serial (e.g., ABC123DEF456)"
           />
         </div>
 
-        <div class="pymatrix-dialog__form-group">
-          <label class="pymatrix-dialog__form-label">Device Name (used for overrides)</label>
+        <div class="pm-form-group">
+          <label>Device Name (used for overrides)</label>
           <input
             v-model="deviceName"
             type="text"
-            class="pymatrix-dialog__form-input"
+            class="pm-input"
             placeholder="e.g. Samsung S23"
           />
         </div>
@@ -72,13 +72,13 @@
           <div
             v-for="field in configFields"
             :key="field.key"
-            class="pymatrix-dialog__form-group"
+            class="pm-form-group"
           >
-            <label class="pymatrix-dialog__form-label">{{ field.label }}</label>
+            <label>{{ field.label }}</label>
             <template v-if="field.type === 'number'">
               <input
                 v-model.number="configForm[field.key]"
-                class="pymatrix-dialog__form-input"
+                class="pm-input"
                 type="number"
                 :min="field.min"
                 :max="field.max"
@@ -89,7 +89,7 @@
               <select
                 v-if="'valueType' in field && field.valueType === 'number'"
                 v-model.number="configForm[field.key]"
-                class="pymatrix-dialog__form-input"
+                class="pm-select"
               >
                 <option v-for="option in field.options" :key="option.value" :value="option.value">
                   {{ option.label }}
@@ -98,7 +98,7 @@
               <select
                 v-else
                 v-model="configForm[field.key]"
-                class="pymatrix-dialog__form-input"
+                class="pm-select"
               >
                 <option v-for="option in field.options" :key="option.value" :value="option.value">
                   {{ option.label }}
@@ -106,7 +106,7 @@
               </select>
             </template>
             <template v-else-if="field.type === 'toggle'">
-              <label class="pymatrix-dialog__switch">
+              <label class="pm-switch">
                 <input type="checkbox" v-model="configForm[field.key]" />
                 <span class="slider"></span>
               </label>
@@ -114,13 +114,13 @@
           </div>
         </div>
 
-        <p v-if="errorMessage" class="pymatrix-dialog__error">{{ errorMessage }}</p>
+        <p v-if="errorMessage" class="pm-error">{{ errorMessage }}</p>
 
-        <div class="pymatrix-dialog__footer">
-          <button class="pymatrix-dialog__button" type="button" @click="$emit('close')">
+        <div class="pm-modal__footer">
+          <button class="pm-button pm-button--default" type="button" @click="$emit('close')">
             Cancel
           </button>
-          <button class="pymatrix-dialog__button pymatrix-dialog__button--primary" type="submit" :disabled="submitting">
+          <button class="pm-button pm-button--rainbow" type="submit" :disabled="submitting">
             {{ submitting ? 'Connecting…' : 'Connect' }}
           </button>
         </div>
@@ -129,37 +129,37 @@
   </div>
 
   <!-- Save Preset Dialog -->
-  <div v-if="showSavePresetDialog" class="save-preset-overlay" @click.self="closeSavePresetDialog">
-    <div class="save-preset-dialog">
-      <div class="save-preset-header">
-        <h4 class="save-preset-title">Save as Preset</h4>
-        <button class="save-preset-close-btn" @click="closeSavePresetDialog">×</button>
+  <div v-if="showSavePresetDialog" class="pm-modal-backdrop" @click.self="closeSavePresetDialog">
+    <div class="pm-modal">
+      <div class="pm-modal__header">
+        <h4>Save as Preset</h4>
+        <button @click="closeSavePresetDialog">×</button>
       </div>
-      <form class="save-preset-body" @submit.prevent="handleSavePreset">
-        <div class="save-preset-form-group">
-          <label class="save-preset-form-label">Preset Name</label>
+      <form class="pm-modal__body" @submit.prevent="handleSavePreset">
+        <div class="pm-form-group">
+          <label>Preset Name</label>
           <input
             v-model="savePresetName"
             type="text"
-            class="save-preset-form-input"
+            class="pm-input"
             placeholder="e.g., My Custom Preset"
             required
           />
         </div>
-        <div class="save-preset-form-group">
-          <label class="save-preset-form-label">Description (optional)</label>
+        <div class="pm-form-group">
+          <label>Description (optional)</label>
           <textarea
             v-model="savePresetDescription"
-            class="save-preset-form-input"
+            class="pm-input"
             placeholder="Enter preset description"
             rows="2"
           ></textarea>
         </div>
-        <div class="save-preset-footer">
-          <button type="button" class="save-preset-btn cancel-btn" @click="closeSavePresetDialog">
+        <div class="pm-modal__footer">
+          <button type="button" class="pm-button pm-button--default" @click="closeSavePresetDialog">
             Cancel
           </button>
-          <button type="submit" class="save-preset-btn save-btn">
+          <button type="submit" class="pm-button pm-button--primary">
             Save Preset
           </button>
         </div>
@@ -334,29 +334,103 @@ async function handleConnect() {
 }
 </script>
 
-<style scoped src="../assets/css/dialog.css"></style>
 <style scoped>
-.config-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
+/* ConnectDialog Styles with NFTMax Theme */
+
+/* Modal Backdrop */
+.pm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  animation: pm-fadeIn 0.3s ease;
 }
 
-.pymatrix-dialog__form-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+/* Modal Container */
+.pm-modal {
+  background: var(--pm-bg-card);
+  border-radius: var(--pm-radius-lg);
+  max-width: 650px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--pm-shadow-lg);
+  animation: pm-scaleUp 0.3s ease;
 }
 
-/* Preset Section Styles */
+/* Modal Header */
+.pm-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--pm-space-lg);
+  border-bottom: 1px solid var(--pm-border);
+  background: linear-gradient(135deg, rgba(83, 86, 251, 0.05) 0%, rgba(243, 57, 248, 0.05) 100%);
+}
+
+.pm-modal__header h3,
+.pm-modal__header h4 {
+  font-size: var(--pm-font-size-xl);
+  font-weight: 700;
+  margin: 0;
+  background: var(--pm-gradient-primary);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.pm-modal__header button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-circle);
+  font-size: 28px;
+  color: var(--pm-text-secondary);
+  cursor: pointer;
+  transition: var(--pm-transition-fast);
+  line-height: 1;
+  padding: 0;
+}
+
+.pm-modal__header button:hover {
+  background: var(--pm-danger);
+  color: #ffffff;
+  border-color: transparent;
+  transform: rotate(90deg) scale(1.1);
+}
+
+/* Modal Body */
+.pm-modal__body {
+  flex: 1;
+  padding: var(--pm-space-lg);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pm-space-md);
+}
+
+/* Preset Section */
 .preset-section {
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: var(--pm-space-md);
+  margin-bottom: var(--pm-space-md);
+  border-bottom: 1px solid var(--pm-border);
+  animation: pm-fadeUp 0.4s ease;
 }
 
 .preset-controls {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: stretch;
 }
 
 .preset-select {
@@ -367,50 +441,313 @@ async function handleConnect() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 18px;
+  background: var(--pm-bg-main);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-md);
+  color: var(--pm-text-secondary);
+  font-size: 20px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--pm-transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.preset-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--pm-gradient-primary);
+  opacity: 0;
+  transition: var(--pm-transition-fast);
 }
 
 .preset-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 1);
+  border-color: var(--pm-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(83, 86, 251, 0.3);
+}
+
+.preset-btn:hover::before {
+  opacity: 1;
+}
+
+.preset-btn:hover {
+  color: #ffffff;
 }
 
 .manage-btn:hover {
-  border-color: rgba(59, 130, 246, 0.5);
-  color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .save-btn:hover {
-  border-color: rgba(34, 197, 94, 0.5);
-  color: #22c55e;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
 }
 
-/* Save Preset Dialog Styles */
-.save-preset-overlay {
-  position: fixed;
+/* Form Groups */
+.pm-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: pm-fadeUp 0.4s ease;
+}
+
+.pm-form-group label {
+  font-size: var(--pm-font-size-sm);
+  font-weight: 600;
+  color: var(--pm-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pm-form-group label::before {
+  content: '◆';
+  font-size: 8px;
+  color: var(--pm-primary);
+}
+
+/* Config Grid */
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--pm-space-md);
+  padding-top: var(--pm-space-sm);
+}
+
+/* Input Styles (using theme classes) */
+.pm-input {
+  width: 100%;
+  height: 48px;
+  padding: 12px 20px;
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-primary);
+  background: var(--pm-bg-main);
+  border: 1.5px solid var(--pm-border);
+  border-radius: var(--pm-radius-xl);
+  outline: none;
+  transition: var(--pm-transition-fast);
+}
+
+.pm-input:hover {
+  border-color: var(--pm-primary);
+}
+
+.pm-input:focus {
+  border-color: var(--pm-primary);
+  box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.1);
+  background: #ffffff;
+}
+
+.pm-input::placeholder {
+  color: var(--pm-text-muted);
+}
+
+textarea.pm-input {
+  height: auto;
+  resize: vertical;
+  padding: 12px 20px;
+}
+
+/* Select Styles */
+.pm-select {
+  width: 100%;
+  height: 48px;
+  padding: 12px 40px 12px 20px;
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-text-primary);
+  background: var(--pm-bg-main);
+  border: 1.5px solid var(--pm-border);
+  border-radius: var(--pm-radius-xl);
+  outline: none;
+  transition: var(--pm-transition-fast);
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%23878F9A' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 20px center;
+}
+
+.pm-select:hover {
+  border-color: var(--pm-primary);
+}
+
+.pm-select:focus {
+  border-color: var(--pm-primary);
+  box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.1);
+}
+
+/* Toggle Switch (using theme classes) */
+.pm-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+}
+
+.pm-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.pm-switch .slider {
+  position: absolute;
+  cursor: pointer;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10001;
-  animation: fadeIn 0.2s ease-out;
+  background-color: var(--pm-text-secondary);
+  transition: var(--pm-transition-normal);
+  border-radius: 34px;
 }
 
-@keyframes fadeIn {
+.pm-switch .slider::before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  transition: var(--pm-transition-normal);
+  border-radius: 50%;
+}
+
+.pm-switch input:checked + .slider {
+  background: var(--pm-gradient-primary);
+}
+
+.pm-switch input:checked + .slider::before {
+  transform: translateX(24px);
+}
+
+.pm-switch input:focus + .slider {
+  box-shadow: 0 0 4px var(--pm-primary);
+}
+
+/* Error Message */
+.pm-error {
+  padding: 12px 16px;
+  background: rgba(235, 87, 87, 0.1);
+  border: 1px solid var(--pm-danger);
+  border-radius: var(--pm-radius-md);
+  color: var(--pm-danger);
+  font-size: var(--pm-font-size-sm);
+  margin: 0;
+  animation: pm-fadeIn 0.3s ease;
+}
+
+/* Modal Footer */
+.pm-modal__footer {
+  display: flex;
+  gap: 12px;
+  padding: var(--pm-space-lg);
+  border-top: 1px solid var(--pm-border);
+  background: var(--pm-bg-main);
+  justify-content: flex-end;
+}
+
+/* Buttons */
+.pm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  font-size: var(--pm-font-size-base);
+  font-weight: 600;
+  border-radius: var(--pm-radius-full);
+  cursor: pointer;
+  transition: var(--pm-transition-fast);
+  outline: none;
+  border: none;
+  min-width: 120px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pm-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  opacity: 0;
+  transition: var(--pm-transition-fast);
+  z-index: 0;
+}
+
+.pm-button span {
+  position: relative;
+  z-index: 1;
+}
+
+/* Default Button */
+.pm-button--default {
+  background: var(--pm-bg-main);
+  color: var(--pm-text-primary);
+  border: 1px solid var(--pm-border);
+}
+
+.pm-button--default::before {
+  background: var(--pm-primary);
+}
+
+.pm-button--default:hover {
+  border-color: var(--pm-primary);
+  color: var(--pm-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(83, 86, 251, 0.2);
+}
+
+/* Primary Button */
+.pm-button--primary {
+  background: var(--pm-primary);
+  color: #ffffff;
+}
+
+.pm-button--primary::before {
+  background: var(--pm-secondary);
+}
+
+.pm-button--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(83, 86, 251, 0.4);
+}
+
+.pm-button--primary:hover::before {
+  opacity: 1;
+}
+
+/* Rainbow/Gradient Button */
+.pm-button--rainbow {
+  background: var(--pm-gradient-primary);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.pm-button--rainbow::before {
+  background: var(--pm-gradient-primary-reverse);
+  opacity: 1;
+}
+
+.pm-button--rainbow:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(243, 57, 248, 0.5);
+}
+
+.pm-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Animations */
+@keyframes pm-fadeIn {
   from {
     opacity: 0;
   }
@@ -419,22 +756,21 @@ async function handleConnect() {
   }
 }
 
-.save-preset-dialog {
-  background: linear-gradient(135deg, rgba(20, 20, 20, 0.98) 0%, rgba(30, 30, 30, 0.98) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 450px;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(16px);
-  animation: slideUp 0.3s ease-out;
+@keyframes pm-scaleUp {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
-@keyframes slideUp {
+@keyframes pm-fadeUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -442,116 +778,47 @@ async function handleConnect() {
   }
 }
 
-.save-preset-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+/* Scrollbar Styling */
+.pm-modal__body::-webkit-scrollbar {
+  width: 6px;
 }
 
-.save-preset-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
-  margin: 0;
+.pm-modal__body::-webkit-scrollbar-track {
+  background: var(--pm-bg-main);
+  border-radius: 10px;
 }
 
-.save-preset-close-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 24px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.pm-modal__body::-webkit-scrollbar-thumb {
+  background: var(--pm-border);
+  border-radius: 10px;
+  transition: var(--pm-transition-fast);
 }
 
-.save-preset-close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 1);
+.pm-modal__body::-webkit-scrollbar-thumb:hover {
+  background: var(--pm-primary);
 }
 
-.save-preset-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
+/* Responsive */
+@media (max-width: 767px) {
+  .pm-modal {
+    width: 95%;
+    max-height: 95vh;
+  }
 
-.save-preset-form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
 
-.save-preset-form-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-}
+  .preset-controls {
+    flex-wrap: wrap;
+  }
 
-.save-preset-form-input {
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 14px;
-  font-family: inherit;
-  transition: all 0.2s ease;
-}
+  .pm-modal__footer {
+    flex-direction: column-reverse;
+  }
 
-.save-preset-form-input:focus {
-  outline: none;
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(59, 130, 246, 0.5);
-}
-
-.save-preset-form-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.save-preset-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.save-preset-btn {
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.save-preset-btn.cancel-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.save-preset-btn.cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.save-preset-btn.save-btn {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  border: none;
-  color: white;
-}
-
-.save-preset-btn.save-btn:hover {
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-  transform: translateY(-1px);
+  .pm-button {
+    width: 100%;
+  }
 }
 </style>

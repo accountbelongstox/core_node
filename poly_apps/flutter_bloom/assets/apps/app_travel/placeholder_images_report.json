@@ -1,0 +1,105 @@
+{
+  "scan_date": "2025-11-04",
+  "project": "flutter_bloom/app_travel",
+  "total_placeholders_found": 8,
+  "placeholders": [
+    {
+      "id": 1,
+      "filename": "content_map_top.png",
+      "path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_travel\\images\\content_map_top.png",
+      "dimensions": {
+        "width": 640,
+        "height": 480
+      },
+      "type": "placeholder",
+      "suggested_content": "Map with location markers and travel destinations",
+      "search_keywords": "travel map with pins aerial view"
+    },
+    {
+      "id": 2,
+      "filename": "content_video.png",
+      "path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_travel\\images\\content_video.png",
+      "dimensions": {
+        "width": 720,
+        "height": 960
+      },
+      "type": "placeholder",
+      "suggested_content": "Video player thumbnail for travel content",
+      "search_keywords": "beautiful travel destination video thumbnail"
+    },
+    {
+      "id": 3,
+      "filename": "hot_content_1.png",
+      "path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_travel\\images\\hot_content_1.png",
+      "dimensions": {
+        "width": 680,
+        "height": 900
+      },
+      "type": "placeholder",
+      "suggested_content": "Popular travel destination content",
+      "search_keywords": "popular beach resort vacation"
+    },
+    {
+      "id": 4,
+      "filename": "hot_content_2.png",
+      "path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_travel\\images\\hot_content_2.png",
+      "dimensions": {
+        "width": 680,
+        "height": 900
+      },
+      "type": "placeholder",
+      "suggested_content": "Popular travel destination content",
+      "search_keywords": "mountain landscape travel destination"
+    },
+    {
+      "id": 5,
+      "filename": "explore_header_bg.png",
+      "path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_travel\\images\\explore_header_bg.png",
+      "dimensions": {
+        "width": 750,
+        "height": 600
+      },
+      "type": "placeholder",
+      "suggested_content": "Explore page header background",
+      "search_keywords": "travel exploration adventure landscape"
+    },
+    {
+      "id": 6,
+      "filename": "recommend_banner.png",
+      "path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_travel\\images\\recommend_banner.png",
+      "dimensions": {
+        "width": 750,
+        "height": 300
+      },
+      "type": "placeholder",
+      "suggested_content": "Travel recommendation banner",
+      "search_keywords": "travel recommendation scenic destination"
+    },
+    {
+      "id": 7,
+      "filename": "promo_winter_banner.png",
+      "path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_travel\\images\\promo_winter_banner.png",
+      "dimensions": {
+        "width": 710,
+        "height": 320
+      },
+      "type": "placeholder",
+      "suggested_content": "Winter travel promotion banner",
+      "search_keywords": "winter snow mountain ski resort"
+    },
+    {
+      "id": 8,
+      "filename": "profile_recommendation_banner.png",
+      "path": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\assets\\apps\\app_travel\\images\\profile_recommendation_banner.png",
+      "dimensions": {
+        "width": 710,
+        "height": 400
+      },
+      "type": "placeholder",
+      "suggested_content": "Personalized travel recommendation banner",
+      "search_keywords": "exotic tropical island paradise"
+    }
+  ],
+  "generation_status": "pending",
+  "notes": "All identified placeholder images show filename and dimensions, indicating they need to be replaced with actual travel-related content."
+}

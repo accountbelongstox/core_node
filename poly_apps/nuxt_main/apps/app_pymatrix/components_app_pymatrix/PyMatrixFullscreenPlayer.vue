@@ -31,20 +31,20 @@
             </div>
 
             <!-- Device Label -->
-            <div class="device-label">
-              <span class="device-name">{{ device.name }}</span>
-              <span class="device-serial">{{ device.serial }}</span>
+            <div class="pm-badge pm-badge--info device-label-overlay">
+              <span class="pm-text-base pm-font-semibold">{{ device.name }}</span>
+              <span class="pm-text-xs" style="opacity: 0.7;">{{ device.serial }}</span>
             </div>
 
             <!-- Performance Stats (Optional) -->
-            <div v-if="showStats" class="performance-stats">
-              <div class="stat-item">
-                <span class="stat-label">FPS:</span>
-                <span class="stat-value">60</span>
+            <div v-if="showStats" class="pm-stat-card performance-stats-overlay">
+              <div class="pm-stat-inline">
+                <span class="pm-stat-inline__label">FPS:</span>
+                <span class="pm-stat-inline__value pm-badge pm-badge--success">60</span>
               </div>
-              <div class="stat-item">
-                <span class="stat-label">Delay:</span>
-                <span class="stat-value">45ms</span>
+              <div class="pm-stat-inline">
+                <span class="pm-stat-inline__label">Delay:</span>
+                <span class="pm-stat-inline__value pm-badge pm-badge--success">45ms</span>
               </div>
             </div>
           </div>
@@ -54,9 +54,9 @@
         <Transition name="control-slide">
           <div v-show="showControls" class="control-bar">
             <!-- Left Controls -->
-            <div class="control-group control-left">
+            <div class="pm-flex pm-items-center pm-gap-4 control-left">
               <button
-                class="control-btn"
+                class="pm-button pm-button--sm pm-button--danger"
                 @click="exitFullscreen"
                 title="Exit Fullscreen (Esc)"
               >
@@ -68,7 +68,7 @@
 
               <button
                 v-if="canSwitchDevice"
-                class="control-btn"
+                class="pm-button pm-button--sm pm-button--electric-blue"
                 @click="previousDevice"
                 title="Previous Device (←)"
               >
@@ -79,7 +79,7 @@
 
               <button
                 v-if="canSwitchDevice"
-                class="control-btn"
+                class="pm-button pm-button--sm pm-button--electric-blue"
                 @click="nextDevice"
                 title="Next Device (→)"
               >
@@ -90,10 +90,10 @@
             </div>
 
             <!-- Center Controls -->
-            <div class="control-group control-center">
-              <div class="layout-selector">
+            <div class="pm-flex pm-items-center pm-justify-center pm-gap-4 control-center" style="flex: 1;">
+              <div class="pm-layout-toggle">
                 <button
-                  :class="['layout-btn', { active: gridLayout === '1x1' }]"
+                  :class="['pm-button pm-button--sm pm-button--ghost', { 'pm-button--active': gridLayout === '1x1' }]"
                   @click="setGridLayout('1x1')"
                   title="Single Device"
                 >
@@ -103,7 +103,7 @@
                 </button>
 
                 <button
-                  :class="['layout-btn', { active: gridLayout === '2x1' }]"
+                  :class="['pm-button pm-button--sm pm-button--ghost', { 'pm-button--active': gridLayout === '2x1' }]"
                   @click="setGridLayout('2x1')"
                   title="2 Devices (Side by Side)"
                   :disabled="availableDevicesCount < 2"
@@ -115,7 +115,7 @@
                 </button>
 
                 <button
-                  :class="['layout-btn', { active: gridLayout === '2x2' }]"
+                  :class="['pm-button pm-button--sm pm-button--ghost', { 'pm-button--active': gridLayout === '2x2' }]"
                   @click="setGridLayout('2x2')"
                   title="4 Devices (2x2 Grid)"
                   :disabled="availableDevicesCount < 3"
@@ -129,20 +129,20 @@
                 </button>
               </div>
 
-              <div class="device-info">
-                <span v-if="displayDevices.length === 1" class="info-text">
+              <div class="pm-badge pm-badge--info">
+                <span v-if="displayDevices.length === 1">
                   {{ displayDevices[0].name }} ({{ displayDevices[0].serial }})
                 </span>
-                <span v-else class="info-text">
+                <span v-else>
                   {{ displayDevices.length }} devices
                 </span>
               </div>
             </div>
 
             <!-- Right Controls -->
-            <div class="control-group control-right">
+            <div class="pm-flex pm-items-center pm-gap-4 control-right">
               <button
-                class="control-btn"
+                class="pm-button pm-button--sm pm-button--violet"
                 @click="toggleStats"
                 :title="showStats ? 'Hide Stats' : 'Show Stats'"
               >
@@ -153,7 +153,7 @@
               </button>
 
               <button
-                class="control-btn"
+                class="pm-button pm-button--sm pm-button--rainbow"
                 @click="toggleHelp"
                 title="Show Keyboard Shortcuts"
               >
@@ -168,52 +168,54 @@
 
         <!-- Keyboard Shortcuts Help (Overlay) -->
         <Transition name="help-fade">
-          <div v-if="showHelpOverlay" class="help-overlay" @click="toggleHelp">
-            <div class="help-panel" @click.stop>
-              <div class="help-header">
-                <h3>Keyboard Shortcuts</h3>
-                <button class="help-close" @click="toggleHelp">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <div v-if="showHelpOverlay" class="pm-modal-backdrop" @click="toggleHelp">
+            <div class="pm-modal pm-modal--lg" @click.stop>
+              <div class="pm-modal__header">
+                <h3 class="pm-modal__title">Keyboard Shortcuts</h3>
+                <button class="pm-button pm-button--ghost pm-button--sm" @click="toggleHelp">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 24px; height: 24px;">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              <div class="help-content">
-                <div class="shortcut-item">
-                  <kbd>Esc</kbd>
-                  <span>Exit fullscreen</span>
-                </div>
-                <div class="shortcut-item">
-                  <kbd>F</kbd>
-                  <span>Toggle fullscreen</span>
-                </div>
-                <div class="shortcut-item">
-                  <kbd>←</kbd>
-                  <span>Previous device</span>
-                </div>
-                <div class="shortcut-item">
-                  <kbd>→</kbd>
-                  <span>Next device</span>
-                </div>
-                <div class="shortcut-item">
-                  <kbd>1</kbd>
-                  <span>Single device layout</span>
-                </div>
-                <div class="shortcut-item">
-                  <kbd>2</kbd>
-                  <span>2-device layout</span>
-                </div>
-                <div class="shortcut-item">
-                  <kbd>4</kbd>
-                  <span>4-device layout</span>
-                </div>
-                <div class="shortcut-item">
-                  <kbd>S</kbd>
-                  <span>Toggle stats</span>
-                </div>
-                <div class="shortcut-item">
-                  <kbd>?</kbd>
-                  <span>Show this help</span>
+              <div class="pm-modal__body">
+                <div class="pm-flex pm-flex-col pm-gap-4">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                    <kbd class="pm-badge pm-badge--info">Esc</kbd>
+                    <span class="pm-text-base">Exit fullscreen</span>
+                  </div>
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                    <kbd class="pm-badge pm-badge--info">F</kbd>
+                    <span class="pm-text-base">Toggle fullscreen</span>
+                  </div>
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                    <kbd class="pm-badge pm-badge--info">←</kbd>
+                    <span class="pm-text-base">Previous device</span>
+                  </div>
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                    <kbd class="pm-badge pm-badge--info">→</kbd>
+                    <span class="pm-text-base">Next device</span>
+                  </div>
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                    <kbd class="pm-badge pm-badge--info">1</kbd>
+                    <span class="pm-text-base">Single device layout</span>
+                  </div>
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                    <kbd class="pm-badge pm-badge--info">2</kbd>
+                    <span class="pm-text-base">2-device layout</span>
+                  </div>
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                    <kbd class="pm-badge pm-badge--info">4</kbd>
+                    <span class="pm-text-base">4-device layout</span>
+                  </div>
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                    <kbd class="pm-badge pm-badge--info">S</kbd>
+                    <span class="pm-text-base">Toggle stats</span>
+                  </div>
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                    <kbd class="pm-badge pm-badge--info">?</kbd>
+                    <span class="pm-text-base">Show this help</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -455,6 +457,7 @@ defineExpose({
 </script>
 
 <style scoped>
+/* Fullscreen Container - Required for fullscreen positioning */
 .fullscreen-container {
   position: fixed;
   top: 0;
@@ -467,7 +470,7 @@ defineExpose({
   outline: none;
 }
 
-/* Device Grid Layouts */
+/* Device Grid Layouts - Required for grid positioning */
 .device-grid {
   width: 100%;
   height: 100%;
@@ -502,8 +505,8 @@ defineExpose({
   height: 100%;
 }
 
-/* Device Label */
-.device-label {
+/* Overlay Positioning - Required for absolute positioning */
+.device-label-overlay {
   position: absolute;
   top: 12px;
   left: 12px;
@@ -511,59 +514,22 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
-  padding: 8px 12px;
-  border-radius: 8px;
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
   pointer-events: none;
 }
 
-.device-name {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.device-serial {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* Performance Stats */
-.performance-stats {
+.performance-stats-overlay {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 10;
   display: flex;
   gap: 16px;
-  background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  color: white;
-  font-weight: 500;
   pointer-events: none;
 }
 
-.stat-item {
-  display: flex;
-  gap: 6px;
-}
-
-.stat-label {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.stat-value {
-  color: #10b981;
-  font-weight: 600;
-}
-
-/* Control Bar */
+/* Control Bar - Required for bottom positioning and backdrop blur */
 .control-bar {
   position: absolute;
   bottom: 0;
@@ -580,49 +546,12 @@ defineExpose({
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.control-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
 .control-left {
   flex-shrink: 0;
 }
 
-.control-center {
-  flex: 1;
-  justify-content: center;
-  gap: 24px;
-}
-
 .control-right {
   flex-shrink: 0;
-}
-
-.control-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.control-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-}
-
-.control-btn:active {
-  transform: translateY(0);
 }
 
 .control-icon {
@@ -631,154 +560,13 @@ defineExpose({
   stroke-width: 2;
 }
 
-/* Layout Selector */
-.layout-selector {
-  display: flex;
-  gap: 8px;
-  padding: 4px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 10px;
-}
-
-.layout-btn {
-  padding: 8px;
-  background: transparent;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.layout-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-}
-
-.layout-btn.active {
-  background: rgba(59, 130, 246, 0.3);
-  border-color: #3b82f6;
-  color: white;
-}
-
-.layout-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
 .layout-icon {
   width: 24px;
   height: 24px;
   display: block;
 }
 
-/* Device Info */
-.device-info {
-  display: flex;
-  align-items: center;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-}
-
-.info-text {
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* Help Overlay */
-.help-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
-}
-
-.help-panel {
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 24px;
-  max-width: 500px;
-  width: 90%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-}
-
-.help-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.help-header h3 {
-  color: white;
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-}
-
-.help-close {
-  padding: 6px;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.help-close:hover {
-  color: white;
-}
-
-.help-close svg {
-  width: 24px;
-  height: 24px;
-  display: block;
-}
-
-.help-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.shortcut-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-}
-
-.shortcut-item kbd {
-  padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: white;
-  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
-  font-size: 13px;
-  font-weight: 600;
-  min-width: 40px;
-  text-align: center;
-}
-
-.shortcut-item span {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 14px;
-}
-
-/* Transitions */
+/* Transitions - Required for animations */
 .fullscreen-fade-enter-active,
 .fullscreen-fade-leave-active {
   transition: opacity 0.3s;
@@ -810,20 +598,13 @@ defineExpose({
   opacity: 0;
 }
 
-.help-fade-enter-active .help-panel,
-.help-fade-leave-active .help-panel {
+.help-fade-enter-active .pm-modal,
+.help-fade-leave-active .pm-modal {
   transition: transform 0.3s;
 }
 
-.help-fade-enter-from .help-panel,
-.help-fade-leave-to .help-panel {
+.help-fade-enter-from .pm-modal,
+.help-fade-leave-to .pm-modal {
   transform: scale(0.95);
-}
-
-/* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {
-  .fullscreen-container {
-    background: #000;
-  }
 }
 </style>
