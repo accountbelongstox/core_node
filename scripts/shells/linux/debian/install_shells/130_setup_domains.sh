@@ -27,11 +27,96 @@ ssl_dir=""
 php_version="8.4"
 success_count=0
 total_count=0
+SECRET_PASSWORD=""
+DNSPOD_EMAIL=""
+DNSPOD_API_TOKEN=""
 
 echo "[$SCRIPT_INDEX] Domain Setup Script - Adding domains to nginx and certbot"
 
 # USE_SUDO is already defined in gvar_common.sh
 echo "[$SCRIPT_INDEX] Using sudo configuration from gvar_common.sh: ${USE_SUDO:-'(none)'}"
+
+# Function to initialize secrets with password prompt
+initialize_secrets() {
+    # Only prompt for password on production servers
+    if [ "$IS_PRODUCTION" != true ]; then
+        echo "[$SCRIPT_INDEX] Desktop/WSL environment detected - secrets will be cached locally"
+        return 0
+    fi
+
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] SERVER ENVIRONMENT DETECTED"
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] For security, encrypted secrets require password authentication."
+    echo "[$SCRIPT_INDEX] The password will be used to decrypt all required secrets at once."
+    echo "[$SCRIPT_INDEX]"
+
+    # Prompt for password with confirmation
+    local password1=""
+    local password2=""
+
+    while true; do
+        echo -n "[$SCRIPT_INDEX] Enter decryption password: " >&2
+        read -s password1
+        echo "" >&2
+
+        if [ -z "$password1" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Password cannot be empty" >&2
+            continue
+        fi
+
+        echo -n "[$SCRIPT_INDEX] Confirm password: " >&2
+        read -s password2
+        echo "" >&2
+
+        if [ "$password1" = "$password2" ]; then
+            SECRET_PASSWORD="$password1"
+            echo "[$SCRIPT_INDEX] Password confirmed successfully" >&2
+            break
+        else
+            echo "[$SCRIPT_INDEX] ERROR: Passwords do not match. Please try again." >&2
+        fi
+    done
+
+    # Preload required secrets
+    echo "[$SCRIPT_INDEX] Decrypting required secrets..." >&2
+
+    # Check if secret_get_key function exists
+    if ! type secret_get_key >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] WARNING: secret_get_key function not found, using get_secret_content" >&2
+        DNSPOD_EMAIL=$(get_secret_content "DNS_DNSPOD_EMAILS")
+        DNSPOD_API_TOKEN=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
+    else
+        # Use secret_get_key with password parameter
+        DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "$SECRET_PASSWORD")
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DNS_DNSPOD_EMAILS (incorrect password?)" >&2
+            return 1
+        fi
+
+        DNSPOD_API_TOKEN=$(secret_get_key "DNS_DNSPOD_API_TOKENS" "$SECRET_PASSWORD")
+        exit_code=$?
+        if [ $exit_code -ne 0 ]; then
+            echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DNS_DNSPOD_API_TOKENS (incorrect password?)" >&2
+            return 1
+        fi
+    fi
+
+    # Validate decrypted content
+    if [ -z "$DNSPOD_EMAIL" ] || [ -z "$DNSPOD_API_TOKEN" ]; then
+        echo "[$SCRIPT_INDEX] ERROR: Failed to load DNSPod credentials" >&2
+        return 1
+    fi
+
+    echo "[$SCRIPT_INDEX] [OK]All secrets decrypted successfully" >&2
+    echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_EMAILS: ${DNSPOD_EMAIL:0:3}***@${DNSPOD_EMAIL##*@}" >&2
+    echo "[$SCRIPT_INDEX]   - DNS_DNSPOD_API_TOKENS: [LOADED]" >&2
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX]"
+
+    return 0
+}
 
 # Function to initialize system directories
 initialize_system_directories() {
@@ -625,15 +710,23 @@ get_domains_list() {
 read_dnspod_config() {
     echo "[$SCRIPT_INDEX] Reading DNSPod configuration..."
 
-    # Check if get_secret_content function exists
-    if ! type get_secret_content >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] Error: get_secret_content function not found"
-        echo "[$SCRIPT_INDEX] Please ensure common_functions.sh is properly sourced"
-        return 1
-    fi
+    # Use cached values if already loaded by initialize_secrets
+    local email="$DNSPOD_EMAIL"
+    local api_token="$DNSPOD_API_TOKEN"
 
-    local email=$(get_secret_content "DNS_DNSPOD_EMAILS")
-    local api_token=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
+    # If not cached, try to load (for non-production environments)
+    if [ -z "$email" ] || [ -z "$api_token" ]; then
+        if type secret_get_key >/dev/null 2>&1; then
+            email=$(secret_get_key "DNS_DNSPOD_EMAILS" "$SECRET_PASSWORD")
+            api_token=$(secret_get_key "DNS_DNSPOD_API_TOKENS" "$SECRET_PASSWORD")
+        elif type get_secret_content >/dev/null 2>&1; then
+            email=$(get_secret_content "DNS_DNSPOD_EMAILS")
+            api_token=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
+        else
+            echo "[$SCRIPT_INDEX] Error: No secret management function available"
+            return 1
+        fi
+    fi
 
     if [ -z "$email" ] || [ -z "$api_token" ]; then
         echo "[$SCRIPT_INDEX] DNSPod configuration not found or incomplete"
@@ -1218,6 +1311,12 @@ echo "[$SCRIPT_INDEX]"
 # Check prerequisites
 if ! check_laravel_available; then
     echo "[$SCRIPT_INDEX] Laravel is not available. Please install Laravel first."
+    exit 1
+fi
+
+# Initialize secrets (prompt for password on server environments)
+if ! initialize_secrets; then
+    echo "[$SCRIPT_INDEX] Failed to initialize secrets. Cannot continue."
     exit 1
 fi
 
