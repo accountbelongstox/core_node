@@ -1147,10 +1147,10 @@ function Show-WSLUbuntuSubMenu {
 }
 
 function Show-SpecialSoftwareEnvMenu {
-    $specialEnvManagerScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\SpecialSoftwareEnvManager.ps1"
+    $specialEnvManagerScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\dd.ps1"
     Write-ColorMessage -Message "Launching Special Software Environment Variables Manager..." -Type "Info"
-    # Use dot-sourcing to execute in the same process
-    . $specialEnvManagerScript
+    # Execute the Python launcher
+    & $specialEnvManagerScript
 }
 
 
