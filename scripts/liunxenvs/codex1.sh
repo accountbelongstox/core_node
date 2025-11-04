@@ -102,7 +102,7 @@ echo "  OPENAI_BASE_URL=$OPENAI_BASE_URL"
 echo ""
 
 # Execute codex command directly (environment variables are already exported)
-codex
+codex --yolo
 
 echo ""
 echo "Session ended"
