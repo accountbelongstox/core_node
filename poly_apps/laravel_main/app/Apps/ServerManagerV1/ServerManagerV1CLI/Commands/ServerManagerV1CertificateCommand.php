@@ -489,8 +489,8 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         }
 
         try {
-            $email = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_EMAIL');
-            $apiToken = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_API_TOKEN');
+            $email = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
+            $apiToken = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
 
             if (!$email || !$apiToken) {
                 return null;

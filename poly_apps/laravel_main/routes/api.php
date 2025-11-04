@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // ### AI SPECIAL ATTENTION RULES START ###
 // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 // 1. Write all code in English only.
@@ -12,27 +12,18 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
-    
-require_once 'api/auth.php';
-require_once 'api/system.php';
-require_once 'DictV1Router/DictV1Auth.php';
-require_once 'DictV1Router/DictV1Wordqurey.php';
-require_once 'DictV1Router/DictV1Dict.php';
-require_once 'DictV1Router/DictV1PersonDict.php';
-require_once 'DictV1Router/DictV1WordOperate.php';
-require_once 'DictV1Router/DictV1Manager.php';
-require_once 'DictV1Router/DictV1Test.php';
-require_once 'DictV1Router/DictV1Ploymerization.php';
-require_once 'DictV1Router/DictV1System.php';
+
+require_once __DIR__ . '/api/auth.php';
+require_once __DIR__ . '/api/system.php';
 
 // AwyV0 Routes
-require_once 'AwyV0Router/AwyV0Auth.php';
-require_once 'AwyV0Router/AwyV0User.php';
-require_once 'AwyV0Router/AwyV0Friend.php';
-require_once 'AwyV0Router/AwyV0Device.php';
-require_once 'AwyV0Router/AwyV0Chat.php';
-require_once 'AwyV0Router/AwyV0Search.php';
-require_once 'AwyV0Router/AwyV0Dashboard.php';
+require_once __DIR__ . '/AwyV0Router/AwyV0Auth.php';
+require_once __DIR__ . '/AwyV0Router/AwyV0User.php';
+require_once __DIR__ . '/AwyV0Router/AwyV0Friend.php';
+require_once __DIR__ . '/AwyV0Router/AwyV0Device.php';
+require_once __DIR__ . '/AwyV0Router/AwyV0Chat.php';
+require_once __DIR__ . '/AwyV0Router/AwyV0Search.php';
+require_once __DIR__ . '/AwyV0Router/AwyV0Dashboard.php';
 
 // ServerManagerV1 Routes
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1SystemInfoCtl;
@@ -94,10 +85,10 @@ Route::prefix('servermanager/v1')->group(function () {
 });
 
 // ItToolsV1 Routes
-require_once 'ItToolsV1Router/api.php';
+require_once __DIR__ . '/ItToolsV1Router/api.php';
 
 // CodeMartV1 Routes
-require_once 'CodeMartV1Router/api.php';
+require_once __DIR__ . '/CodeMartV1Router/api.php';
 
 // AChatV1 Routes
 Route::prefix('achat/v1')->group(function () {
@@ -105,13 +96,7 @@ Route::prefix('achat/v1')->group(function () {
 });
 
 // VipClubV1 Routes
-require_once 'VipClubV1Router/api.php';
-
-
-// AppQyV1 routes - app_qy vocabulary learning app
-require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
-require_once __DIR__ . '/AppQyV1Router/AppQyV1Words.php';
-require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';
+require_once __DIR__ . '/VipClubV1Router/api.php';
 
 // AppQyV1 routes - app_qy vocabulary learning app
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
