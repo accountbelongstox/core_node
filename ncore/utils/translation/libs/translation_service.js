@@ -15,11 +15,13 @@ const { loadConfig } = require('../config/config_loader');
 const BaiduTranslationProvider = require('../providers/baidu');
 const MoonshotTranslationProvider = require('../providers/moonshot');
 const YoudaoTranslationProvider = require('../providers/youdao');
+const NLLB200TranslationProvider = require('../providers/nllb200');
 
 const PROVIDER_MAP = {
   baidu: BaiduTranslationProvider,
   moonshot: MoonshotTranslationProvider,
   youdao: YoudaoTranslationProvider,
+  nllb200: NLLB200TranslationProvider,
 };
 
 let cachedConfig, cachedProviders;

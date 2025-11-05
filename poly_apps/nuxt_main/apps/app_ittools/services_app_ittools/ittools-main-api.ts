@@ -56,20 +56,163 @@ export class ItToolsMainAPI {
   /**
    * Crypto Tools - UUID Generate
    */
-  async generateUUID(count: number = 1, uppercase: boolean = false): Promise<ApiResponse<{ uuids: string[] }>> {
+  async generateUUID(count: number = 1, uppercase: boolean = false, version: number = 4): Promise<ApiResponse<{ uuids: string[] }>> {
     return this.post('/crypto/uuid/generate', {
       count,
-      uppercase
+      uppercase,
+      version
+    });
+  }
+
+  /**
+   * Crypto Tools - ULID Generate
+   */
+  async generateULID(count: number = 1, timestamp: string | null = null): Promise<ApiResponse<{ ulids: string[] }>> {
+    return this.post('/crypto/ulid/generate', {
+      count,
+      timestamp
+    });
+  }
+
+  /**
+   * Crypto Tools - Bcrypt Hash
+   */
+  async bcryptHash(password: string, rounds: number = 10): Promise<ApiResponse<{ hash: string }>> {
+    return this.post('/crypto/bcrypt/hash', {
+      password,
+      rounds
+    });
+  }
+
+  /**
+   * Crypto Tools - Bcrypt Verify
+   */
+  async bcryptVerify(password: string, hash: string): Promise<ApiResponse<{ valid: boolean }>> {
+    return this.post('/crypto/bcrypt/verify', {
+      password,
+      hash
+    });
+  }
+
+  /**
+   * Crypto Tools - BIP39 Mnemonic Generator
+   */
+  async generateBip39(strength: number = 128, language: string = 'english'): Promise<ApiResponse<{ mnemonic: string; entropy: string }>> {
+    return this.post('/crypto/bip39/generate', {
+      strength,
+      language
+    });
+  }
+
+  /**
+   * Crypto Tools - HMAC Generator
+   */
+  async generateHmac(message: string, secret: string, algorithm: string = 'sha256'): Promise<ApiResponse<{ hmac: string; algorithm: string }>> {
+    return this.post('/crypto/hmac', {
+      message,
+      text: message,
+      secret,
+      algorithm
+    });
+  }
+
+  /**
+   * Crypto Tools - RSA Key Pair Generator
+   */
+  async generateRsaKeyPair(keySize: number = 2048, format: 'pem' | 'der' = 'pem'): Promise<ApiResponse<{ publicKey: string; privateKey: string; keySize: number }>> {
+    return this.post('/crypto/rsa/generate', {
+      keySize,
+      format
+    });
+  }
+
+  /**
+   * Crypto Tools - OTP Generate
+   */
+  async generateOtp(
+    secret: string,
+    type: 'totp' | 'hotp' = 'totp',
+    digits: number = 6,
+    period: number = 30,
+    counter?: number
+  ): Promise<ApiResponse<{ code: string; remainingTime?: number; type: string }>> {
+    return this.post('/crypto/otp/generate', {
+      secret,
+      type,
+      digits,
+      period,
+      counter
+    });
+  }
+
+  /**
+   * Crypto Tools - OTP Verify
+   */
+  async verifyOtp(secret: string, code: string, type: 'totp' | 'hotp' = 'totp'): Promise<ApiResponse<{ valid: boolean }>> {
+    return this.post('/crypto/otp/verify', {
+      secret,
+      code,
+      type
+    });
+  }
+
+  /**
+   * Crypto Tools - Encrypt
+   */
+  async encryptText(text: string, algorithm: string, key: string, iv?: string): Promise<ApiResponse<{ encrypted: string; algorithm: string }>> {
+    return this.post('/crypto/encrypt', {
+      text,
+      algorithm,
+      key,
+      iv
+    });
+  }
+
+  /**
+   * Crypto Tools - Decrypt
+   */
+  async decryptText(encrypted: string, algorithm: string, key: string, iv?: string): Promise<ApiResponse<{ decrypted: string }>> {
+    return this.post('/crypto/decrypt', {
+      encrypted,
+      algorithm,
+      key,
+      iv
+    });
+  }
+
+  /**
+   * Crypto Tools - Password Strength
+   */
+  async analyzePassword(password: string): Promise<ApiResponse<{ score: number; strength: string; crackTime: string; suggestions: string[]; warnings: string[]; entropy: number }>> {
+    return this.post('/crypto/password/analyze', {
+      password
+    });
+  }
+
+  /**
+   * Crypto Tools - Basic Auth
+   */
+  async generateBasicAuth(username: string, password: string): Promise<ApiResponse<{ header: string; token: string }>> {
+    return this.post('/crypto/basic-auth', {
+      username,
+      password
     });
   }
 
   /**
    * Crypto Tools - Token Generate
    */
-  async generateToken(length: number = 32, charset: string = 'alphanumeric'): Promise<ApiResponse<{ token: string }>> {
+  async generateToken(
+    length: number = 32,
+    charset: string = 'alphanumeric',
+    includeSymbols: boolean = false,
+    count: number = 1
+  ): Promise<ApiResponse<{ tokens: string[] }>> {
     return this.post('/crypto/token/generate', {
       length,
-      charset
+      charset,
+      includeSymbols,
+      count
     });
   }
 
@@ -83,8 +226,8 @@ export class ItToolsMainAPI {
   /**
    * Converter - Base64 Decode
    */
-  async base64Decode(text: string): Promise<ApiResponse<{ decoded: string }>> {
-    return this.post('/converter/base64/decode', { text });
+  async base64Decode(encoded: string): Promise<ApiResponse<{ decoded: string }>> {
+    return this.post('/converter/base64/decode', { encoded });
   }
 
   /**
@@ -99,6 +242,80 @@ export class ItToolsMainAPI {
    */
   async urlDecode(text: string): Promise<ApiResponse<{ decoded: string }>> {
     return this.post('/converter/url/decode', { text });
+  }
+
+  /**
+   * Converter - Case
+   */
+  async convertCase(text: string): Promise<ApiResponse<Record<string, string>>> {
+    return this.post('/converter/case', { text });
+  }
+
+  /**
+   * Converter - Slugify
+   */
+  async slugify(text: string, separator: string = '-', lowercase: boolean = true): Promise<ApiResponse<{ slug: string }>> {
+    return this.post('/converter/slugify', {
+      text,
+      separator,
+      lowercase
+    });
+  }
+
+  /**
+   * Converter - Color
+   */
+  async convertColor(color: string): Promise<ApiResponse<Record<string, string>>> {
+    return this.post('/converter/color', { color });
+  }
+
+  /**
+   * Converter - Temperature
+   */
+  async convertTemperature(value: number, from: 'celsius' | 'fahrenheit' | 'kelvin'): Promise<ApiResponse<Record<string, number>>> {
+    return this.post('/converter/temperature', { value, from });
+  }
+
+  /**
+   * Converter - JSON to YAML
+   */
+  async jsonToYaml(json: string): Promise<ApiResponse<{ yaml: string }>> {
+    return this.post('/converter/json-to-yaml', { json });
+  }
+
+  /**
+   * Converter - YAML to JSON
+   */
+  async yamlToJson(yaml: string): Promise<ApiResponse<{ json: string }>> {
+    return this.post('/converter/yaml-to-json', { yaml });
+  }
+
+  /**
+   * Converter - JSON to XML
+   */
+  async jsonToXml(json: string): Promise<ApiResponse<{ xml: string }>> {
+    return this.post('/converter/json-to-xml', { json });
+  }
+
+  /**
+   * Converter - XML to JSON
+   */
+  async xmlToJson(xml: string): Promise<ApiResponse<{ json: string }>> {
+    return this.post('/converter/xml-to-json', { xml });
+  }
+
+  /**
+   * Converter - Markdown to HTML
+   */
+  async markdownToHtml(markdown: string): Promise<ApiResponse<{ html: string }>> {
+    return this.post('/web/markdown/to-html', { markdown });
+  }
+
+  /**
+   * Converter - List format conversions
+   */
+  async convertList(list: string, from: string = 'comma', to: string = 'newline'): Promise<ApiResponse<Record<string, string>>> {
+    return this.post('/converter/list', { list, from, to });
   }
 
   /**

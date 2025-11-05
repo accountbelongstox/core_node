@@ -86,6 +86,13 @@ class CompressionMixin:
     def _compress_image(self, src: Path, dst: Path) -> bool:
         """Compress an image using unified compressor or a PIL fallback."""
 
+        # Validate source file
+        if not src.exists():
+            print(f"  {Colors.RED}Source file not found{Colors.RESET}", flush=True)
+            return False
+
+        print(f"  Compressing image...", flush=True)
+
         if self.unified_compressor is not None:
             try:
                 dst.parent.mkdir(parents=True, exist_ok=True)
@@ -107,15 +114,18 @@ class CompressionMixin:
                                     new_height = self.IMAGE_MAX_DIMENSION
                                     new_width = int(width * (self.IMAGE_MAX_DIMENSION / height))
                                 resize_dims = (new_width, new_height)
+                                print(f"    {width}x{height} -> {new_width}x{new_height}", flush=True)
                     except Exception:
                         pass
 
                 needs_compress = file_size_kb > self.IMAGE_MAX_SIZE_KB
 
                 if not needs_resize and not needs_compress:
+                    print(f"    No compression needed, copying...", flush=True)
                     shutil.copy2(src, dst)
                     return True
 
+                print(f"    Quality={self.IMAGE_QUALITY}, processing...", flush=True)
                 stats = self.unified_compressor.compress_image(
                     input_path=str(src),
                     output_path=str(dst),
@@ -127,21 +137,23 @@ class CompressionMixin:
                 return stats.compressed_size > 0
 
             except Exception as exc:
-                print(f"  Unified compressor failed, falling back to legacy: {exc}")
-                print(f"    Source: {src}")
-                print(f"    Destination: {dst}")
+                print(f"  {Colors.YELLOW}Unified compressor failed, using PIL fallback{Colors.RESET}")
+                print(f"    Error: {exc}")
 
         if Image is None:
-            print("PIL not installed, cannot compress images")
+            print(f"  {Colors.RED}PIL not installed, cannot compress images{Colors.RESET}")
             return False
 
         try:
+            print(f"    Opening image with PIL...", flush=True)
             with Image.open(src) as img:
                 if img.mode == "RGBA":
+                    print(f"    Converting RGBA to RGB...", flush=True)
                     background = Image.new("RGB", img.size, (255, 255, 255))
                     background.paste(img, mask=img.split()[3])
                     img = background
                 elif img.mode != "RGB":
+                    print(f"    Converting {img.mode} to RGB...", flush=True)
                     img = img.convert("RGB")
 
                 width, height = img.size
@@ -150,6 +162,7 @@ class CompressionMixin:
                 needs_compress = file_size_kb > self.IMAGE_MAX_SIZE_KB
 
                 if not needs_resize and not needs_compress:
+                    print(f"    No compression needed, copying...", flush=True)
                     shutil.copy2(src, dst)
                     return True
 
@@ -161,20 +174,24 @@ class CompressionMixin:
                         new_height = self.IMAGE_MAX_DIMENSION
                         new_width = int(width * (self.IMAGE_MAX_DIMENSION / height))
 
+                    print(f"    Resizing {width}x{height} -> {new_width}x{new_height}...", flush=True)
                     img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
                 try:
+                    # Ensure parent directory exists and is valid
                     dst.parent.mkdir(parents=True, exist_ok=True)
                 except Exception as mkdir_err:  # pragma: no cover - filesystem guard
-                    print(f"  Failed to create directory: {dst.parent}")
-                    print(f"  Error: {mkdir_err}")
+                    print(f"  {Colors.RED}Failed to create directory{Colors.RESET}", flush=True)
+                    print(f"    Path: {dst.parent}", flush=True)
+                    print(f"    Error: {mkdir_err}", flush=True)
                     return False
 
                 save_path = dst.with_suffix(".jpg") if dst.suffix.lower() != ".jpg" else dst
+                print(f"    Saving JPEG (quality={self.IMAGE_QUALITY})...", flush=True)
                 try:
                     img.save(save_path, "JPEG", quality=self.IMAGE_QUALITY, optimize=True)
                 except Exception as save_err:
-                    print(f"  Failed to save image: {save_path}")
+                    print(f"  {Colors.RED}Failed to save image: {save_path}{Colors.RESET}")
                     print(f"  Error: {save_err}")
                     return False
 
@@ -184,11 +201,7 @@ class CompressionMixin:
                 return True
 
         except Exception as exc:  # pragma: no cover - fallback guard
-            print(f"Image compression failed: {exc}")
-            print(f"  Source: {src}")
-            print(f"  Destination: {dst}")
-            print(f"  Destination parent: {dst.parent}")
-            print(f"  Parent exists: {dst.parent.exists() if dst.parent else 'N/A'}")
+            print(f"  {Colors.RED}Image compression failed: {exc}{Colors.RESET}")
             return False
 
     def _compress_video(self, src: Path, dst: Path) -> bool:
@@ -256,7 +269,8 @@ class CompressionMixin:
                 "ffmpeg",
                 "-hide_banner",
                 "-loglevel",
-                "error",
+                "info",
+                "-stats",
                 "-i",
                 str(src),
                 "-c:v",
@@ -270,15 +284,15 @@ class CompressionMixin:
             if height > self.VIDEO_MAX_DIMENSION:
                 cmd.extend(["-vf", f"scale=-2:{self.VIDEO_MAX_DIMENSION}"])
                 print(
-                    f"  Compressing... (CRF={self.VIDEO_CRF}, {width}x{height} -> {self.VIDEO_MAX_DIMENSION}p)"
+                    f"  Compressing video: {width}x{height} -> {self.VIDEO_MAX_DIMENSION}p (CRF={self.VIDEO_CRF})", flush=True
                 )
             elif height > 0:
                 print(
-                    f"  Compressing... (CRF={self.VIDEO_CRF}, keeping {width}x{height})"
+                    f"  Compressing video: {width}x{height} (CRF={self.VIDEO_CRF})", flush=True
                 )
             else:
                 print(
-                    f"  Compressing... (CRF={self.VIDEO_CRF}, preset={self.VIDEO_PRESET})"
+                    f"  Compressing video (CRF={self.VIDEO_CRF}, preset={self.VIDEO_PRESET})", flush=True
                 )
 
             cmd.extend(
@@ -294,9 +308,8 @@ class CompressionMixin:
                 ]
             )
 
-            print(f"  Command: {' '.join(cmd)}")
-            print(f"  Processing (output below):")
-            print(f"  {'-'*50}")
+            print(f"  $ {' '.join(cmd)}", flush=True)
+            print(f"  {'-'*50}", flush=True)
 
             process = subprocess.Popen(
                 cmd,
@@ -316,11 +329,20 @@ class CompressionMixin:
             process.wait()
             print(f"  {'-'*50}")
 
-            if dst.exists() and dst.stat().st_size > 0:
-                print(f"  ✓ Output file created: {self._format_size(dst.stat().st_size)}")
-                return True
+            MIN_VALID_SIZE = 1024
 
-            print("  ✗ Output file not created or empty")
+            if dst.exists():
+                size = dst.stat().st_size
+                if size > MIN_VALID_SIZE:
+                    print(f"  ✓ Output file created: {self._format_size(size)}")
+                    return True
+                elif size == 0:
+                    print(f"  {Colors.RED}✗ Output file is empty (0 bytes){Colors.RESET}")
+                else:
+                    print(f"  {Colors.RED}✗ Output file too small ({size} bytes, likely corrupt){Colors.RESET}")
+            else:
+                print(f"  {Colors.RED}✗ Output file not created{Colors.RESET}")
+
             return False
 
         except Exception as exc:  # pragma: no cover - ffmpeg guard
@@ -339,6 +361,10 @@ class CompressionMixin:
 
             cmd = [
                 "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "info",
+                "-stats",
                 "-i",
                 str(src),
                 "-c:a",
@@ -350,10 +376,9 @@ class CompressionMixin:
                 str(dst),
             ]
 
-            print(f"  Compressing... (bitrate={self.AUDIO_BITRATE})")
-            print(f"  Command: {' '.join(cmd)}")
-            print(f"  Processing (output below):")
-            print(f"  {'-'*50}")
+            print(f"  Compressing audio (bitrate={self.AUDIO_BITRATE})", flush=True)
+            print(f"  $ {' '.join(cmd)}", flush=True)
+            print(f"  {'-'*50}", flush=True)
 
             process = subprocess.Popen(
                 cmd,
@@ -373,11 +398,20 @@ class CompressionMixin:
             process.wait()
             print(f"  {'-'*50}")
 
-            if dst.exists() and dst.stat().st_size > 0:
-                print(f"  ✓ Output file created: {self._format_size(dst.stat().st_size)}")
-                return True
+            MIN_VALID_SIZE = 1024
 
-            print("  ✗ Output file not created or empty")
+            if dst.exists():
+                size = dst.stat().st_size
+                if size > MIN_VALID_SIZE:
+                    print(f"  ✓ Output file created: {self._format_size(size)}")
+                    return True
+                elif size == 0:
+                    print(f"  {Colors.RED}✗ Output file is empty (0 bytes){Colors.RESET}")
+                else:
+                    print(f"  {Colors.RED}✗ Output file too small ({size} bytes, likely corrupt){Colors.RESET}")
+            else:
+                print(f"  {Colors.RED}✗ Output file not created{Colors.RESET}")
+
             return False
 
         except Exception as exc:  # pragma: no cover - ffmpeg guard

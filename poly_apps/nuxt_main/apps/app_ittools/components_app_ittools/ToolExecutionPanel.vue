@@ -1,5 +1,13 @@
 <template>
-  <div v-if="tool" class="h-full flex flex-col bg-white">
+  <component
+    v-if="tool && SpecializedComponent"
+    :is="SpecializedComponent"
+    :tool="tool"
+    :api="api"
+    @close="emit('close')"
+    @executed="handleExternalExecuted"
+  />
+  <div v-else-if="tool" class="h-full flex flex-col bg-white">
     <!-- Tool Header -->
     <div class="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
       <div class="flex items-center justify-between">
@@ -121,6 +129,7 @@
       </div>
     </div>
   </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -129,6 +138,7 @@ import type { Tool } from '../types_app_ittools';
 import { ItToolsMainAPI } from '../services_app_ittools/ittools-main-api';
 import { TOOL_PARAMS } from '../config_app_ittools/tool-params';
 import UniversalToolForm from './tools/UniversalToolForm.vue';
+import { getToolComponent } from './tools/tool-registry';
 
 const props = defineProps<{
   tool: Tool | null;
@@ -146,6 +156,11 @@ const isExecuting = ref(false);
 const executionTime = ref<number>(0);
 const copied = ref(false);
 const api = new ItToolsMainAPI();
+
+const SpecializedComponent = computed(() => {
+  if (!props.tool) return null;
+  return getToolComponent(props.tool.id);
+});
 
 // Get tool parameters from configuration
 const toolParams = computed(() => {
@@ -216,6 +231,10 @@ const reset = () => {
   error.value = null;
   executionTime.value = 0;
   copied.value = false;
+};
+
+const handleExternalExecuted = (data: any) => {
+  emit('executed', data);
 };
 
 const copyToClipboard = async () => {

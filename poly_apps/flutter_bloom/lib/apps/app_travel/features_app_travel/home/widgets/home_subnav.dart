@@ -11,7 +11,7 @@ class HomeSubnav extends StatelessWidget {
   });
 
   Widget _buildSubnavIcon(int index) {
-    const iconSize = 48.0;
+    const iconSize = 144.0;
     final iconPath = index < AssetsImagesAppTravel.travelSubnavIcons.length
         ? AssetsImagesAppTravel.travelSubnavIcons[index]
         : null;
@@ -24,7 +24,7 @@ class HomeSubnav extends StatelessWidget {
           color: Colors.grey[300],
           child: const Icon(
             Icons.image_not_supported,
-            size: 24,
+            size: 72,
             color: Colors.grey,
           ),
         ),
@@ -44,7 +44,7 @@ class HomeSubnav extends StatelessWidget {
             color: Colors.grey[300],
             child: const Icon(
               Icons.image_not_supported,
-              size: 24,
+              size: 72,
               color: Colors.grey,
             ),
           );

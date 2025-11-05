@@ -23,6 +23,7 @@ class ITToolsIntegrationController {
         this.httpServer = null;
         this.wsRpcServer = null;
         this.subAppRoutes = new Map();
+        this.subAppControllers = new Map();
         this.initialized = false;
         this.config = {
             httpPort: 8080,
@@ -282,6 +283,28 @@ class ITToolsIntegrationController {
         }
     }
 
+    registerSubAppController(appName, controller) {
+        if (!controller) {
+            logger.warn(`Cannot register controller: controller is null for ${appName}`);
+            return false;
+        }
+
+        try {
+            this.subAppControllers.set(appName, controller);
+            logger.info(`Registered sub-app controller: ${appName}`);
+
+            if (this.wsRpcServer && typeof controller.registerWebSocketRoutes === 'function') {
+                controller.registerWebSocketRoutes(this.wsRpcServer);
+                logger.info(`Registered WebSocket routes for sub-app: ${appName}`);
+            }
+
+            return true;
+        } catch (error) {
+            logger.error(`Failed to register sub-app controller ${appName}: ${error.message}`);
+            return false;
+        }
+    }
+
     async startServers(options = {}) {
         if (!this.initialized) {
             throw new Error('ITToolsIntegrationController not initialized');
@@ -313,6 +336,14 @@ class ITToolsIntegrationController {
             // Register sub-app routes if any
             for (const [appName, routes] of this.subAppRoutes) {
                 this.registerSubAppRoutes(appName, routes);
+            }
+
+            // Register sub-app controllers WebSocket routes if any
+            for (const [appName, controller] of this.subAppControllers) {
+                if (this.wsRpcServer && typeof controller.registerWebSocketRoutes === 'function') {
+                    controller.registerWebSocketRoutes(this.wsRpcServer);
+                    logger.info(`Registered WebSocket routes for controller: ${appName}`);
+                }
             }
 
             if (this.httpServer && serverConfig.enableHttp !== false) {

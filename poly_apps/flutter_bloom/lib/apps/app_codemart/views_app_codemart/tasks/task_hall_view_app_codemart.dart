@@ -84,7 +84,7 @@ class _TaskHallViewAppCodemartState extends State<TaskHallViewAppCodemart> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadTasks,
-                        child: const Text('Retry'),
+                        child: Text(context.tr(LocalizationKeysAppCodemart.codemartRetry)),
                       ),
                     ],
                   ),

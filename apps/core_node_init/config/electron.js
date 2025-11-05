@@ -15,13 +15,13 @@ const bdir = require('#@bdir');
 const fs = require('fs');
 
 const electronConfig = {
-    // Application settings
+    enabled: false,
+
     appTitle: 'Core Node MCP Server',
     appName: 'core-node-mcp',
     version: '1.0.0',
     productName: 'Core Node MCP',
 
-    // Application behavior mode
     mode: {
         trayOnly: true,
         hideOnStart: true,

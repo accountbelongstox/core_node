@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class WordListeningDictation2Screen extends StatefulWidget {
   const WordListeningDictation2Screen({super.key});
@@ -170,7 +172,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
             child: Column(
               children: [
                 Text(
-                  '进阶听写练习',
+                  QyAppLocalizationKeys.qyListeningDictationAdvancedTitle.tr(context),
                   style: AppTextStyles.headline4.copyWith(
                     color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
@@ -213,7 +215,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '进度',
+                QyAppLocalizationKeys.qyListeningProgress.tr(context),
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: AppTheme.textSecondary,
                 ),
@@ -320,7 +322,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
               ),
               const SizedBox(width: 4),
               Text(
-                '播放速度: ${_getSpeedText(currentWord['audioSpeed'])}',
+                '${QyAppLocalizationKeys.qyListeningSpeed.tr(context)}: ${_getSpeedText(currentWord['audioSpeed'])}',
                 style: AppTextStyles.bodySmall.copyWith(
                   color: AppTheme.textSecondary,
                 ),
@@ -373,7 +375,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
           ),
           const SizedBox(height: 16),
           Text(
-            _isPlaying ? '正在播放...' : '点击播放音频',
+            _isPlaying ? QyAppLocalizationKeys.qyListeningPlaying.tr(context) : QyAppLocalizationKeys.qyListeningClickToPlay.tr(context),
             style: AppTextStyles.bodyMedium.copyWith(
               color: AppTheme.textSecondary,
             ),
@@ -390,7 +392,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '请写出你听到的单词',
+            QyAppLocalizationKeys.qyListeningWriteWord.tr(context),
             style: AppTextStyles.headline6.copyWith(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
@@ -420,7 +422,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                 });
               },
               decoration: InputDecoration(
-                hintText: '输入单词...',
+                hintText: QyAppLocalizationKeys.qyListeningInputWord.tr(context),
                 hintStyle: AppTextStyles.bodyMedium.copyWith(
                   color: AppTheme.textSecondary.withOpacity(0.5),
                 ),
@@ -449,7 +451,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
           if (_userAttempts.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
-              '之前的尝试:',
+              QyAppLocalizationKeys.qyListeningPreviousAttempts.tr(context),
               style: AppTextStyles.bodySmall.copyWith(
                 color: AppTheme.textSecondary,
               ),
@@ -512,7 +514,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          _showHint ? '已显示提示' : '显示提示',
+                          _showHint ? QyAppLocalizationKeys.qyListeningHintShown.tr(context) : QyAppLocalizationKeys.qyListeningShowHint.tr(context),
                           style: AppTextStyles.bodyLarge.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -550,7 +552,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '检查答案',
+                          QyAppLocalizationKeys.qyListeningCheckAnswer.tr(context),
                           style: AppTextStyles.bodyLarge.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -579,7 +581,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                       ),
                     ),
                     child: Text(
-                      '跳过',
+                      QyAppLocalizationKeys.qyListeningSkip.tr(context),
                       style: AppTextStyles.bodyMedium.copyWith(
                         color: AppTheme.textSecondary,
                         fontWeight: FontWeight.w600,
@@ -603,7 +605,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
                       ),
                     ),
                     child: Text(
-                      '重新播放',
+                      QyAppLocalizationKeys.qyListeningReplay.tr(context),
                       style: AppTextStyles.bodyMedium.copyWith(
                         color: AppTheme.learningColor,
                         fontWeight: FontWeight.w600,
@@ -636,26 +638,26 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
   String _getDifficultyText(String difficulty) {
     switch (difficulty) {
       case 'easy':
-        return '简单';
+        return QyAppLocalizationKeys.qyListeningEasy.tr(context);
       case 'medium':
-        return '中等';
+        return QyAppLocalizationKeys.qyListeningMedium.tr(context);
       case 'hard':
-        return '困难';
+        return QyAppLocalizationKeys.qyListeningHard.tr(context);
       default:
-        return '未知';
+        return QyAppLocalizationKeys.qyListeningUnknown.tr(context);
     }
   }
 
   String _getSpeedText(String speed) {
     switch (speed) {
       case 'slow':
-        return '慢速';
+        return QyAppLocalizationKeys.qyListeningSlow.tr(context);
       case 'normal':
-        return '正常';
+        return QyAppLocalizationKeys.qyListeningNormal.tr(context);
       case 'fast':
-        return '快速';
+        return QyAppLocalizationKeys.qyListeningFast.tr(context);
       default:
-        return '正常';
+        return QyAppLocalizationKeys.qyListeningNormal.tr(context);
     }
   }
 

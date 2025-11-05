@@ -42,7 +42,7 @@ class _ProjectsViewAppCodemartState extends State<ProjectsViewAppCodemart> {
           });
         } else {
           setState(() {
-            _errorMessage = response.message ?? 'Failed to load projects';
+            _errorMessage = response.message ?? context.tr(LocalizationKeysAppCodemart.codemartFailedLoadProjects);
             _isLoading = false;
           });
         }
@@ -84,7 +84,7 @@ class _ProjectsViewAppCodemartState extends State<ProjectsViewAppCodemart> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadProjects,
-                        child: const Text('Retry'),
+                        child: Text(context.tr(LocalizationKeysAppCodemart.codemartRetry)),
                       ),
                     ],
                   ),
@@ -153,11 +153,11 @@ class _ProjectCard extends StatelessWidget {
                 children: [
                   const Icon(Icons.attach_money, size: 16),
                   const SizedBox(width: 4),
-                  Text('Budget: \$${project.budget.toStringAsFixed(2)}'),
+                  Text('${context.tr(LocalizationKeysAppCodemart.codemartBudget)}: \$${project.budget.toStringAsFixed(2)}'),
                   const SizedBox(width: 16),
                   const Icon(Icons.code, size: 16),
                   const SizedBox(width: 4),
-                  Text('Complexity: ${project.complexity.name}'),
+                  Text('${context.tr(LocalizationKeysAppCodemart.codemartComplexity)}: ${project.complexity.name}'),
                 ],
               ),
               if (project.skills.isNotEmpty) ...[

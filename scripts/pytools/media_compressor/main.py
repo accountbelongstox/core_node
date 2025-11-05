@@ -11,6 +11,11 @@ if __name__ == "__main__":
     if str(_current_dir) not in sys.path:
         sys.path.insert(0, str(_current_dir))
 
+    # Add pycore to path for FileLockManager
+    _pycore_dir = Path(__file__).parent.parent.parent.parent / 'pycore'
+    if _pycore_dir.exists() and str(_pycore_dir) not in sys.path:
+        sys.path.insert(0, str(_pycore_dir))
+
 try:
     from .menu import main as _run_main
 except ImportError:

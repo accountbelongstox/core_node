@@ -1,0 +1,126 @@
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, or modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+/// Word service for QY App - handles API calls for word data
+library;
+
+import '../model/word_model.dart';
+import '../../../../../services_app_qy/api_service_app_qy.dart';
+
+class WordService {
+  final ApiServiceAppQy _apiService;
+
+  const WordService({
+    required ApiServiceAppQy apiService,
+  }) : _apiService = apiService;
+
+  Future<List<WordBookModel>> getWordBooks() async {
+    try {
+      final response = await _apiService.get('/api/v1/words/books');
+      final data = response.data as List<dynamic>;
+      return data.map((json) => WordBookModel.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      return _getMockWordBooks();
+    }
+  }
+
+  Future<WordBookModel> getWordBookById(String id) async {
+    try {
+      final response = await _apiService.get('/api/v1/words/books/$id');
+      return WordBookModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      return _getMockWordBooks().first;
+    }
+  }
+
+  Future<List<WordModel>> getWordsByBook(String bookId, {int page = 1, int limit = 20}) async {
+    try {
+      final response = await _apiService.get(
+        '/api/v1/words/books/$bookId/words',
+        queryParameters: {'page': page, 'limit': limit},
+      );
+      final data = response.data['words'] as List<dynamic>;
+      return data.map((json) => WordModel.fromJson(json as Map<String, dynamic>)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<WordModel> getWordById(String id) async {
+    try {
+      final response = await _apiService.get('/api/v1/words/$id');
+      return WordModel.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> toggleFavorite(String wordId) async {
+    try {
+      await _apiService.post('/api/v1/words/$wordId/favorite');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> markAsLearned(String wordId) async {
+    try {
+      await _apiService.post('/api/v1/words/$wordId/learned');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> searchWords(String query) async {
+    try {
+      final response = await _apiService.get(
+        '/api/v1/words/search',
+        queryParameters: {'q': query},
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  List<WordBookModel> _getMockWordBooks() {
+    return [
+      const WordBookModel(
+        id: '1',
+        name: 'COCA 语料库 20000',
+        description: '美国当代英语语料库高频词汇',
+        totalWords: 16952,
+        learnedWords: 27,
+        remainingWords: 16925,
+        category: 'coca',
+      ),
+      const WordBookModel(
+        id: '2',
+        name: '雅思词汇',
+        description: 'IELTS 核心词汇',
+        totalWords: 5000,
+        learnedWords: 0,
+        remainingWords: 5000,
+        category: 'ielts',
+      ),
+      const WordBookModel(
+        id: '3',
+        name: '四六级词汇',
+        description: 'CET-4/6 核心词汇',
+        totalWords: 4500,
+        learnedWords: 0,
+        remainingWords: 4500,
+        category: 'cet',
+      ),
+    ];
+  }
+}

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col bg-gray-50">
+  <div class="h-screen relative flex flex-col bg-gray-50">
     <!-- Header -->
     <header class="bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
       <div class="px-6 py-4">
@@ -30,10 +30,10 @@
           <!-- Actions -->
           <div class="flex items-center space-x-3">
             <button
-              @click="activeTab = activeTab === 'favorites' ? 'tools' : 'favorites'"
+              @click="toggleFavoritesPanel"
               :class="[
                 'p-2 rounded-lg transition',
-                activeTab === 'favorites'
+                showFavoritesPanel
                   ? 'text-yellow-500 bg-yellow-50'
                   : 'text-gray-600 hover:text-yellow-500 hover:bg-gray-50'
               ]"
@@ -42,10 +42,10 @@
               <i class="fas fa-star"></i>
             </button>
             <button
-              @click="activeTab = activeTab === 'history' ? 'tools' : 'history'"
+              @click="toggleHistoryPanel"
               :class="[
                 'p-2 rounded-lg transition',
-                activeTab === 'history'
+                showHistoryPanel
                   ? 'text-blue-500 bg-blue-50'
                   : 'text-gray-600 hover:text-blue-500 hover:bg-gray-50'
               ]"
@@ -58,272 +58,285 @@
       </div>
     </header>
 
+    <!-- Favorites Panel -->
+    <div
+      v-if="showFavoritesPanel"
+      class="absolute top-24 right-8 z-30 w-80 bg-white border border-gray-200 rounded-xl shadow-xl"
+    >
+      <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-gray-800">Favorite Tools</h3>
+        <button
+          @click="toggleFavoritesPanel"
+          class="text-gray-400 hover:text-gray-600 transition"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div v-if="favorites.length > 0" class="max-h-80 overflow-y-auto">
+        <button
+          v-for="tool in favorites"
+          :key="tool.id"
+          @click="selectToolFromMenu(tool)"
+          class="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition flex items-center justify-between"
+        >
+          <span class="flex-1 truncate">{{ tool.name }}</span>
+          <i class="fas fa-chevron-right text-xs text-gray-400"></i>
+        </button>
+      </div>
+      <div v-else class="p-4 text-sm text-gray-500 text-center">
+        No favorites yet. Star tools to pin them here.
+      </div>
+    </div>
+
+    <!-- History Panel -->
+    <div
+      v-if="showHistoryPanel"
+      class="absolute top-24 right-8 z-30 w-80 bg-white border border-gray-200 rounded-xl shadow-xl"
+    >
+      <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-gray-800">Recent Tools</h3>
+        <button
+          @click="toggleHistoryPanel"
+          class="text-gray-400 hover:text-gray-600 transition"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div v-if="recentTools.length > 0" class="max-h-80 overflow-y-auto">
+        <button
+          v-for="tool in recentTools"
+          :key="tool.id"
+          @click="selectToolFromMenu(tool)"
+          class="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition flex items-center justify-between"
+        >
+          <div class="flex flex-col">
+            <span class="truncate font-medium text-gray-800">{{ tool.name }}</span>
+            <span class="text-xs text-gray-500">{{ getCategoryName(tool.category) }}</span>
+          </div>
+          <i class="fas fa-chevron-right text-xs text-gray-400"></i>
+        </button>
+      </div>
+      <div v-else class="p-4 text-sm text-gray-500 text-center">
+        Execute tools to build up your recent history.
+      </div>
+    </div>
+
     <!-- Main Content: Left-Right Layout -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Left Sidebar: Expandable Category Menu -->
-      <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
-        <div class="p-4 border-b border-gray-200">
-          <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Categories</h2>
+      <div class="ittools-sidebar">
+        <div class="ittools-sidebar__header">
+          <div class="ittools-sidebar__header-inner">
+            <div class="ittools-sidebar__title">
+              <p class="ittools-sidebar__eyebrow">Categories</p>
+              <h2 class="ittools-sidebar__heading">Browse Workspace</h2>
+            </div>
+            <div class="ittools-sidebar__meta">
+              <p class="ittools-sidebar__meta-primary">{{ itToolsStore.allTools.length }} tools</p>
+              <p class="ittools-sidebar__meta-secondary">{{ itToolsStore.categoriesWithCounts.length - 1 }} collections</p>
+            </div>
+          </div>
         </div>
 
-        <!-- Category Tree Menu -->
-        <div class="flex-1 overflow-y-auto">
-          <div class="p-2">
-            <div
-              v-for="category in itToolsStore.categoriesWithCounts"
-              :key="category.id"
-              class="mb-1"
-            >
-              <!-- Category Header -->
+        <div class="ittools-sidebar__body">
+          <nav class="category-tree" role="tree" aria-label="Tool Categories">
+            <div v-if="categoryTree.root" class="category-tree__root">
               <button
-                @click="toggleCategory(category.id)"
+                @click="toggleRootCategory('all')"
                 :class="[
-                  'w-full px-3 py-2.5 rounded-lg text-left transition flex items-center justify-between',
-                  selectedCategory === category.id
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-gray-700 hover:bg-gray-50'
+                  'category-tree__root-toggle',
+                  { 'is-expanded': expandedRootCategories.includes('all') }
                 ]"
+                role="treeitem"
+                :aria-expanded="expandedRootCategories.includes('all')"
               >
-                <div class="flex items-center space-x-2">
-                  <i :class="category.icon" class="w-5 text-sm"></i>
-                  <span class="text-sm font-medium">{{ category.name }}</span>
-                  <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                    {{ category.count }}
-                  </span>
+                <div class="category-tree__root-main">
+                  <div class="category-tree__root-icon">
+                    <i :class="categoryTree.root.icon"></i>
+                  </div>
+                  <div class="category-tree__root-text">
+                    <span class="category-tree__root-eyebrow">All Tools</span>
+                    <span class="category-tree__root-title">{{ categoryTree.root.count }} utilities</span>
+                  </div>
                 </div>
-                <i
-                  :class="[
-                    'fas fa-chevron-right text-xs transition-transform',
-                    expandedCategories.includes(category.id) ? 'rotate-90' : ''
-                  ]"
-                ></i>
+                <div class="category-tree__root-meta">
+                  <span class="category-tree__badge">{{ categoryTree.children.length }} categories</span>
+                  <i
+                    :class="[
+                      'fas fa-chevron-right',
+                      { 'is-rotated': expandedRootCategories.includes('all') }
+                    ]"
+                  ></i>
+                </div>
               </button>
 
-              <!-- Subcategory Tools List (Expandable) -->
               <div
-                v-if="expandedCategories.includes(category.id)"
-                class="ml-4 mt-1 space-y-0.5"
+                v-if="expandedRootCategories.includes('all')"
+                class="category-tree__root-panel"
+                role="group"
               >
-                <button
-                  v-for="tool in getToolsByCategory(category.id)"
-                  :key="tool.id"
-                  @click="selectToolFromMenu(tool)"
-                  :class="[
-                    'w-full px-3 py-2 rounded text-left text-sm transition flex items-center justify-between',
-                    selectedTool?.id === tool.id
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  ]"
+                <div class="category-tree__banner">
+                  <p class="category-tree__banner-title">IT Tools Collection</p>
+                  <p class="category-tree__banner-text">
+                    {{ itToolsStore.allTools.length }}+ developer-first utilities curated into themed categories. Pick a collection to reveal the tools inside.
+                  </p>
+                </div>
+
+                <div
+                  v-for="category in categoryTree.children"
+                  :key="category.id"
+                  class="category-tree__category"
                 >
-                  <span class="truncate">{{ tool.name }}</span>
-                  <i
-                    v-if="isToolCompleted(tool.id)"
-                    class="fas fa-check-circle text-green-500 text-xs ml-2 flex-shrink-0"
-                  ></i>
-                </button>
+                  <button
+                    @click="toggleCategory(category.id)"
+                    :class="[
+                      'category-tree__category-toggle',
+                      { 'is-active': selectedCategory === category.id }
+                    ]"
+                    role="treeitem"
+                    :aria-expanded="expandedCategories.includes(category.id)"
+                  >
+                    <div class="category-tree__category-main">
+                      <div class="category-tree__category-icon">
+                        <i :class="category.icon"></i>
+                      </div>
+                      <div class="category-tree__category-text">
+                        <span class="category-tree__category-name">{{ category.name }}</span>
+                        <span class="category-tree__category-count">{{ category.count }} tools</span>
+                      </div>
+                    </div>
+                    <div class="category-tree__category-meta">
+                      <span class="category-tree__link">Explore</span>
+                      <i
+                        :class="[
+                          'fas fa-chevron-right',
+                          { 'is-rotated': expandedCategories.includes(category.id) }
+                        ]"
+                      ></i>
+                    </div>
+                  </button>
+
+                  <div
+                    v-if="expandedCategories.includes(category.id)"
+                    class="category-tree__tool-list"
+                    role="group"
+                  >
+                    <button
+                      v-for="tool in getToolsByCategory(category.id)"
+                      :key="tool.id"
+                      @click="selectToolFromMenu(tool)"
+                      :class="[
+                        'category-tree__tool',
+                        {
+                          'is-active': activeTool?.id === tool.id,
+                          'is-open': itToolsStore.openedToolIds.includes(tool.id)
+                        }
+                      ]"
+                      role="treeitem"
+                    >
+                      <span
+                        class="category-tree__tool-indicator"
+                        :class="{
+                          'is-active': activeTool?.id === tool.id,
+                          'is-open': itToolsStore.openedToolIds.includes(tool.id)
+                        }"
+                      ></span>
+                      <div class="category-tree__tool-content">
+                        <div class="category-tree__tool-header">
+                          <span class="category-tree__tool-name">{{ tool.name }}</span>
+                          <span
+                            v-if="tool.isNew"
+                            class="category-tree__chip category-tree__chip--new"
+                          >New</span>
+                        </div>
+                        <p class="category-tree__tool-description">
+                          {{ tool.description }}
+                        </p>
+                        <div
+                          v-if="tool.tags && tool.tags.length"
+                          class="category-tree__tool-tags"
+                        >
+                          <span
+                            v-for="tag in tool.tags"
+                            :key="tag"
+                            class="category-tree__chip"
+                          >
+                            #{{ tag }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="category-tree__tool-status">
+                        <i
+                          v-if="itToolsStore.isFavorited(tool.id)"
+                          class="fas fa-star"
+                        ></i>
+                        <i
+                          v-if="isToolCompleted(tool.id)"
+                          class="fas fa-check-circle"
+                        ></i>
+                      </div>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </nav>
         </div>
       </div>
-
-      <!-- Right Panel: Tools Table View -->
-      <div class="flex-1 overflow-hidden bg-gray-50">
-        <!-- Tabs Header -->
+      <!-- Right Panel: Tool Workspace -->
+      <div class="flex-1 overflow-hidden bg-gray-50 flex flex-col">
         <div class="bg-white border-b border-gray-200">
-          <div class="flex items-center space-x-1 px-4 py-2">
-            <button
-              @click="activeTab = 'tools'"
-              :class="[
-                'px-4 py-2 text-sm font-medium rounded-lg transition',
-                activeTab === 'tools'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-              ]"
+          <div class="flex items-center px-4 py-2 space-x-2 overflow-x-auto">
+            <div
+              v-if="openedTools.length === 0"
+              class="flex items-center text-sm text-gray-500 py-1"
             >
-              <i class="fas fa-th-list mr-2"></i>All Tools
-            </button>
-            <button
-              @click="activeTab = 'favorites'"
-              :class="[
-                'px-4 py-2 text-sm font-medium rounded-lg transition',
-                activeTab === 'favorites'
-                  ? 'bg-yellow-100 text-yellow-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-              ]"
-            >
-              <i class="fas fa-star mr-2"></i>Favorites
-            </button>
-            <button
-              @click="activeTab === 'execution' ? activeTab = 'tools' : null"
-              v-if="selectedTool && activeTab === 'execution'"
-              class="px-4 py-2 text-sm font-medium rounded-lg bg-green-100 text-green-700"
-            >
-              <i class="fas fa-play mr-2"></i>{{ selectedTool.name }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Tools Table -->
-        <div v-if="activeTab === 'tools'" class="h-full overflow-auto p-6">
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tool Name
-                  </th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <tr
-                  v-for="tool in displayedTools"
-                  :key="tool.id"
-                  :class="[
-                    'hover:bg-gray-50 transition cursor-pointer',
-                    selectedTool?.id === tool.id ? 'bg-blue-50' : ''
-                  ]"
-                  @click="selectToolFromTable(tool)"
-                >
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center">
-                      <div class="text-sm font-medium text-gray-900">{{ tool.name }}</div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="text-sm text-gray-600 line-clamp-2">{{ tool.description }}</div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">
-                      {{ getCategoryName(tool.category) }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span
-                      v-if="isToolCompleted(tool.id)"
-                      class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 flex items-center w-fit"
-                    >
-                      <i class="fas fa-check-circle mr-1"></i>Ready
-                    </span>
-                    <span v-else class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
-                      Pending
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <div class="flex items-center space-x-2">
-                      <button
-                        @click.stop="executeToolDirectly(tool)"
-                        class="text-blue-600 hover:text-blue-800 transition"
-                        title="Execute"
-                      >
-                        <i class="fas fa-play"></i>
-                      </button>
-                      <button
-                        @click.stop="itToolsStore.toggleFavorite(tool.id)"
-                        :class="[
-                          'transition',
-                          itToolsStore.favorites.includes(tool.id)
-                            ? 'text-yellow-500 hover:text-yellow-600'
-                            : 'text-gray-400 hover:text-yellow-500'
-                        ]"
-                        title="Toggle Favorite"
-                      >
-                        <i class="fas fa-star"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Favorites Table -->
-        <div v-else-if="activeTab === 'favorites'" class="h-full overflow-auto p-6">
-          <div v-if="favorites.length === 0" class="h-full flex items-center justify-center">
-            <div class="text-center">
-              <i class="fas fa-star text-6xl text-gray-300 mb-4"></i>
-              <h3 class="text-xl font-semibold text-gray-700 mb-2">No Favorites Yet</h3>
-              <p class="text-gray-500">Click the star icon to add tools to favorites</p>
+              <i class="fas fa-arrow-left mr-2"></i>
+              Select a tool from the left menu to get started.
             </div>
-          </div>
-          <div v-else class="bg-white rounded-lg shadow overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tool Name
-                  </th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <tr
-                  v-for="tool in favorites"
-                  :key="tool.id"
-                  class="hover:bg-gray-50 transition cursor-pointer"
-                  @click="selectToolFromTable(tool)"
-                >
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-gray-900">{{ tool.name }}</div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="text-sm text-gray-600">{{ tool.description }}</div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">
-                      {{ getCategoryName(tool.category) }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <div class="flex items-center space-x-2">
-                      <button
-                        @click.stop="executeToolDirectly(tool)"
-                        class="text-blue-600 hover:text-blue-800 transition"
-                      >
-                        <i class="fas fa-play"></i>
-                      </button>
-                      <button
-                        @click.stop="itToolsStore.toggleFavorite(tool.id)"
-                        class="text-yellow-500 hover:text-yellow-600 transition"
-                      >
-                        <i class="fas fa-star"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <button
+              v-for="tool in openedTools"
+              :key="tool.id"
+              @click="setActiveToolFromTab(tool.id)"
+              :class="[
+                'group inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg border transition whitespace-nowrap',
+                activeTool?.id === tool.id
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                  : 'border-transparent text-gray-600 hover:bg-gray-100'
+              ]"
+            >
+              <i :class="['fas', 'fa-circle', 'text-[8px]', activeTool?.id === tool.id ? 'text-blue-500' : 'text-gray-300']"></i>
+              <span class="text-sm font-medium truncate max-w-[160px]">{{ tool.name }}</span>
+              <i
+                class="fas fa-times text-xs text-gray-400 hover:text-gray-600 transition"
+                @click.stop="closeToolTab(tool.id)"
+              ></i>
+            </button>
           </div>
         </div>
 
-        <!-- Tool Execution Panel -->
-        <div v-else-if="activeTab === 'execution' && selectedTool" class="h-full overflow-auto">
+        <div class="flex-1 overflow-hidden">
           <ToolExecutionPanel
-            :tool="selectedTool"
-            @close="closeExecutionPanel"
+            v-if="activeTool"
+            :key="activeTool.id"
+            :tool="activeTool"
+            @close="closeActiveTool"
             @executed="handleToolExecuted"
           />
+          <div
+            v-else
+            class="h-full flex flex-col items-center justify-center text-gray-500 space-y-4"
+          >
+            <div class="text-4xl">
+              <i class="fas fa-tools"></i>
+            </div>
+            <div class="text-center">
+              <p class="text-lg font-semibold text-gray-700">Welcome to IT Tools</p>
+              <p class="text-sm text-gray-500 mt-1">
+                Choose a tool from the category menu to open it here.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -331,7 +344,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useItToolsStore } from '../stores_app_ittools/ittools-store';
 import type { Tool } from '../types_app_ittools';
 import ToolExecutionPanel from '../components_app_ittools/ToolExecutionPanel.vue';
@@ -343,71 +356,92 @@ definePageMeta({
 });
 
 const itToolsStore = useItToolsStore();
-const activeTab = ref('tools');
-const selectedTool = ref<Tool | null>(null);
 const selectedCategory = ref('all');
 const expandedCategories = ref<string[]>([]);
+const expandedRootCategories = ref<string[]>([]);
+const showFavoritesPanel = ref(false);
+const showHistoryPanel = ref(false);
 
 const favorites = computed(() => itToolsStore.favoriteTools);
+const recentTools = computed(() => itToolsStore.recentTools);
+const openedTools = computed(() => itToolsStore.openedTools);
+const activeTool = computed(() => itToolsStore.activeTool);
 
-const displayedTools = computed(() => {
-  if (selectedCategory.value === 'all') {
-    return itToolsStore.filteredTools;
-  }
-  return itToolsStore.filteredTools.filter(tool => tool.category === selectedCategory.value);
+// Compute tree structure with "All Tools" as root containing child categories
+const categoryTree = computed(() => {
+  const allCategory = itToolsStore.categoriesWithCounts.find(c => c.id === 'all');
+  const childCategories = itToolsStore.categoriesWithCounts.filter(c => c.id !== 'all');
+
+  return {
+    root: allCategory,
+    children: childCategories
+  };
 });
 
 onMounted(() => {
   itToolsStore.loadPreferences();
   itToolsStore.filterTools();
-  expandedCategories.value = ['all'];
+  expandedRootCategories.value = ['all'];
 });
 
-const toggleCategory = (categoryId: string) => {
-  selectedCategory.value = categoryId;
-  itToolsStore.setSelectedCategory(categoryId);
+const toggleRootCategory = (categoryId: string) => {
+  const index = expandedRootCategories.value.indexOf(categoryId);
+  if (index > -1) {
+    expandedRootCategories.value.splice(index, 1);
+  } else {
+    expandedRootCategories.value.push(categoryId);
+  }
+};
 
+const toggleCategory = (categoryId: string) => {
   const index = expandedCategories.value.indexOf(categoryId);
   if (index > -1) {
     expandedCategories.value.splice(index, 1);
   } else {
     expandedCategories.value.push(categoryId);
   }
+
+  selectedCategory.value = categoryId;
 };
 
 const getToolsByCategory = (categoryId: string) => {
+  const sourceTools = itToolsStore.searchQuery.trim()
+    ? itToolsStore.filteredTools
+    : itToolsStore.allTools;
+
   if (categoryId === 'all') {
-    return itToolsStore.allTools;
+    return sourceTools;
   }
-  return itToolsStore.allTools.filter(tool => tool.category === categoryId);
+  return sourceTools.filter(tool => tool.category === categoryId);
 };
 
 const selectToolFromMenu = (tool: Tool) => {
-  selectedTool.value = tool;
-  itToolsStore.selectTool(tool);
-  activeTab.value = 'execution';
+  showFavoritesPanel.value = false;
+  showHistoryPanel.value = false;
+  selectedCategory.value = tool.category;
+
+  // Ensure root "All Tools" is expanded
+  if (!expandedRootCategories.value.includes('all')) {
+    expandedRootCategories.value.push('all');
+  }
+
+  // Ensure the tool's category is expanded
+  if (!expandedCategories.value.includes(tool.category)) {
+    expandedCategories.value.push(tool.category);
+  }
+
+  itToolsStore.setActiveTool(tool.id);
 };
 
-const selectToolFromTable = (tool: Tool) => {
-  selectedTool.value = tool;
-  itToolsStore.selectTool(tool);
-  activeTab.value = 'execution';
-};
-
-const executeToolDirectly = (tool: Tool) => {
-  selectedTool.value = tool;
-  itToolsStore.selectTool(tool);
-  activeTab.value = 'execution';
-};
-
-const closeExecutionPanel = () => {
-  activeTab.value = 'tools';
-  selectedTool.value = null;
+const closeActiveTool = () => {
+  if (activeTool.value) {
+    itToolsStore.closeTool(activeTool.value.id);
+  }
 };
 
 const handleToolExecuted = (result: any) => {
-  if (selectedTool.value) {
-    itToolsStore.addToHistory(selectedTool.value.id, {}, result);
+  if (activeTool.value) {
+    itToolsStore.addToHistory(activeTool.value.id, {}, result);
   }
 };
 
@@ -415,13 +449,46 @@ const getCategoryName = (categoryId: string): string => {
   const category = itToolsStore.categoriesWithCounts.find(c => c.id === categoryId);
   return category?.name || categoryId;
 };
+
+const setActiveToolFromTab = (toolId: string) => {
+  itToolsStore.setActiveTool(toolId);
+};
+
+const closeToolTab = (toolId: string) => {
+  itToolsStore.closeTool(toolId);
+};
+
+const toggleFavoritesPanel = () => {
+  showFavoritesPanel.value = !showFavoritesPanel.value;
+  if (showFavoritesPanel.value) {
+    showHistoryPanel.value = false;
+  }
+};
+
+const toggleHistoryPanel = () => {
+  showHistoryPanel.value = !showHistoryPanel.value;
+  if (showHistoryPanel.value) {
+    showFavoritesPanel.value = false;
+  }
+};
+
+watch(activeTool, (tool) => {
+  if (tool) {
+    selectedCategory.value = tool.category;
+
+    // Ensure root "All Tools" is expanded
+    if (!expandedRootCategories.value.includes('all')) {
+      expandedRootCategories.value.push('all');
+    }
+
+    // Ensure the tool's category is expanded
+    if (!expandedCategories.value.includes(tool.category)) {
+      expandedCategories.value.push(tool.category);
+    }
+  } else {
+    selectedCategory.value = 'all';
+  }
+});
 </script>
 
-<style scoped>
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-</style>
+<style scoped src="../styles_app_ittools/sidebar.css"></style>

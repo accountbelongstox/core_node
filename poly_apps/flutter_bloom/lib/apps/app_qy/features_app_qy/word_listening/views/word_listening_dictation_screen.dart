@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import 'word_listening_dictation_practice_screen.dart';
 
 class WordListeningDictationScreen extends StatefulWidget {
@@ -18,10 +20,10 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
 
-  final List<Map<String, dynamic>> _dictationLevels = [
+  List<Map<String, dynamic>> get _dictationLevels => [
     {
-      'title': '初级听写',
-      'subtitle': '基础词汇，慢速播放',
+      'title': QyAppLocalizationKeys.qyListeningDictationBeginner.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningDictationBeginnerDesc.tr(context),
       'level': 'Beginner',
       'icon': Icons.school,
       'color': AppTheme.newColor,
@@ -30,8 +32,8 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
       'locked': false,
     },
     {
-      'title': '中级听写',
-      'subtitle': '常用词汇，标准语速',
+      'title': QyAppLocalizationKeys.qyListeningDictationIntermediate.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningDictationIntermediateDesc.tr(context),
       'level': 'Intermediate',
       'icon': Icons.trending_up,
       'color': AppTheme.learningColor,
@@ -40,8 +42,8 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
       'locked': false,
     },
     {
-      'title': '高级听写',
-      'subtitle': '专业词汇，快速播放',
+      'title': QyAppLocalizationKeys.qyListeningDictationAdvanced.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningDictationAdvancedDesc.tr(context),
       'level': 'Advanced',
       'icon': Icons.psychology,
       'color': AppTheme.masteredColor,
@@ -50,8 +52,8 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
       'locked': false,
     },
     {
-      'title': '专家听写',
-      'subtitle': '复杂句子，原速播放',
+      'title': QyAppLocalizationKeys.qyListeningDictationExpert.tr(context),
+      'subtitle': QyAppLocalizationKeys.qyListeningDictationExpertDesc.tr(context),
       'level': 'Expert',
       'icon': Icons.workspace_premium,
       'color': AppTheme.darkGreen,
@@ -129,7 +131,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
           ),
           Expanded(
             child: Text(
-              '单词听写',
+              QyAppLocalizationKeys.qyListeningDictationTitle.tr(context),
               style: AppTextStyles.headline4.copyWith(
                 color: AppTheme.textPrimary,
                 fontWeight: FontWeight.bold,
@@ -189,7 +191,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '听写训练',
+                        QyAppLocalizationKeys.qyListeningDictationTraining.tr(context),
                         style: AppTextStyles.headline5.copyWith(
                           color: AppTheme.textPrimary,
                           fontWeight: FontWeight.bold,
@@ -197,7 +199,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '通过听写提升拼写和听力能力',
+                        QyAppLocalizationKeys.qyListeningDictationTrainingDesc.tr(context),
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppTheme.textSecondary,
                         ),
@@ -212,7 +214,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
               children: [
                 Expanded(
                   child: _buildStatItem(
-                    '已掌握',
+                    QyAppLocalizationKeys.qyListeningMastered.tr(context),
                     '245',
                     Icons.check_circle,
                     AppTheme.masteredColor,
@@ -225,7 +227,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                 ),
                 Expanded(
                   child: _buildStatItem(
-                    '练习中',
+                    QyAppLocalizationKeys.qyListeningPracticing.tr(context),
                     '128',
                     Icons.pending,
                     AppTheme.learningColor,
@@ -238,7 +240,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                 ),
                 Expanded(
                   child: _buildStatItem(
-                    '准确率',
+                    QyAppLocalizationKeys.qyListeningAccuracyRate.tr(context),
                     '87%',
                     Icons.trending_up,
                     AppTheme.primaryGreen,
@@ -399,7 +401,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                     ),
                     const SizedBox(width: 16),
                     Text(
-                      '${level['wordCount']} 词',
+                      QyAppLocalizationKeys.qyListeningWordCount.tr(context).replaceAll('{count}', level['wordCount'].toString()),
                       style: AppTextStyles.bodyMedium.copyWith(
                         color: AppTheme.textSecondary,
                       ),
@@ -422,7 +424,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '进度',
+              QyAppLocalizationKeys.qyListeningProgress.tr(context),
               style: AppTextStyles.bodySmall.copyWith(
                 color: AppTheme.textSecondary,
               ),
@@ -489,7 +491,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
               ),
               const SizedBox(width: 12),
               Text(
-                '每日挑战',
+                QyAppLocalizationKeys.qyListeningDailyChallenge.tr(context),
                 style: AppTextStyles.buttonText,
               ),
             ],
@@ -513,7 +515,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
   void _showLockedMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('完成当前级别后解锁'),
+        content: Text(QyAppLocalizationKeys.qyListeningUnlockAfterCurrentLevel.tr(context)),
         backgroundColor: AppTheme.warning,
       ),
     );
@@ -527,7 +529,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
           borderRadius: BorderRadius.circular(20),
         ),
         title: Text(
-          '听写训练帮助',
+          QyAppLocalizationKeys.qyListeningDictationHelp.tr(context),
           style: AppTextStyles.headline5.copyWith(
             color: AppTheme.textPrimary,
           ),
@@ -537,26 +539,26 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '📚 如何练习：',
+              QyAppLocalizationKeys.qyListeningHelpHowToPractice.tr(context),
               style: AppTextStyles.bodyLarge.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              '1. 选择适合的难度级别\n2. 点击播放按钮听取单词发音\n3. 在输入框中拼写听到的单词\n4. 提交答案查看结果',
+              QyAppLocalizationKeys.qyListeningHelpPracticeSteps.tr(context),
               style: AppTextStyles.bodyMedium,
             ),
             const SizedBox(height: 16),
             Text(
-              '💡 小贴士：',
+              QyAppLocalizationKeys.qyListeningHelpTips.tr(context),
               style: AppTextStyles.bodyLarge.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              '• 可以重复播放单词发音\n• 注意大小写\n• 可以使用提示功能\n• 坚持每天练习效果更佳',
+              QyAppLocalizationKeys.qyListeningHelpTipsContent.tr(context),
               style: AppTextStyles.bodyMedium,
             ),
           ],
@@ -571,7 +573,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '知道了',
+                QyAppLocalizationKeys.qyCommonGotIt.tr(context),
                 style: AppTextStyles.buttonText,
               ),
             ),
@@ -584,7 +586,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
   void _showDailyChallenge() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('每日挑战功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qyListeningDailyChallengeInDev.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );

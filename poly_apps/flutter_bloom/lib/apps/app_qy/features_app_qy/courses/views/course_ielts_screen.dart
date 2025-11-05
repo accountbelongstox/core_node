@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../domain/models/course_model.dart';
 
 class CourseIeltsScreen extends StatefulWidget {
@@ -134,7 +136,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
             const Icon(Icons.play_arrow, color: Colors.white),
             const SizedBox(width: 8),
             Text(
-              '继续学习',
+              QyAppLocalizationKeys.qyCourseContinue.tr(context),
               style: AppTextStyles.bodyMedium.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -237,11 +239,11 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
           fontWeight: FontWeight.bold,
         ),
         unselectedLabelStyle: AppTextStyles.bodySmall,
-        tabs: const [
-          Tab(text: '概览'),
-          Tab(text: '课程'),
-          Tab(text: '练习'),
-          Tab(text: '进度'),
+        tabs: [
+          Tab(text: QyAppLocalizationKeys.qyCourseOverview.tr(context)),
+          Tab(text: QyAppLocalizationKeys.qyCourseLessons.tr(context)),
+          Tab(text: QyAppLocalizationKeys.qyCourseCodePractice.tr(context)),
+          Tab(text: QyAppLocalizationKeys.qyCourseProgress.tr(context)),
         ],
       ),
     );
@@ -288,7 +290,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '学习进度',
+                QyAppLocalizationKeys.qyCourseLearningProgress.tr(context),
                 style: AppTextStyles.headline6.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -339,7 +341,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '已完成 $_completedLessons/${_ieltsCourse.lessons} 节课',
+                        QyAppLocalizationKeys.qyCourseCompletedLessons.tr(context).replaceAll('{completed}', _completedLessons.toString()).replaceAll('{total}', _ieltsCourse.lessons.toString()),
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: Colors.white.withOpacity(0.9),
                         ),

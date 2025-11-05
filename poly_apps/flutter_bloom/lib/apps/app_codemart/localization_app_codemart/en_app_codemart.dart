@@ -131,6 +131,18 @@ final Map<String, String> enAppCodemart = {
   LocalizationKeysAppCodemart.codemartSkillName: 'Skill name',
   LocalizationKeysAppCodemart.codemartSkillPlaceholder: 'e.g., Flutter, Python, Node.js',
   LocalizationKeysAppCodemart.codemartErrorPickingFiles: 'Error picking files',
+  LocalizationKeysAppCodemart.codemartPleaseEnterProjectTitle: 'Please enter project title',
+  LocalizationKeysAppCodemart.codemartPleaseEnterProjectDescription: 'Please enter project description',
+  LocalizationKeysAppCodemart.codemartPleaseEnterBudget: 'Please enter budget',
+  LocalizationKeysAppCodemart.codemartPleaseEnterValidNumber: 'Please enter valid number',
+  LocalizationKeysAppCodemart.codemartBudgetType: 'Budget Type',
+  LocalizationKeysAppCodemart.codemartNotSelected: 'Not selected',
+  LocalizationKeysAppCodemart.codemartNoSkillsAdded: 'No skills added yet',
+  LocalizationKeysAppCodemart.codemartAttachmentsOptional: 'Attachments (Optional)',
+  LocalizationKeysAppCodemart.codemartAddFiles: 'Add Files',
+  LocalizationKeysAppCodemart.codemartAttachDocumentsHint: 'Attach project documents, designs, or specifications (PDF, DOC, XLS, etc.)',
+  LocalizationKeysAppCodemart.codemartBudget: 'Budget',
+  LocalizationKeysAppCodemart.codemartComplexity: 'Complexity',
 
   // Tasks
   LocalizationKeysAppCodemart.codemartFailedLoadTasks: 'Failed to load tasks',

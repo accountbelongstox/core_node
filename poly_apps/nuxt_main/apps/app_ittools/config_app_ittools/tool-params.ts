@@ -52,10 +52,13 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
         { value: 'alphanumeric', label: 'Alphanumeric (a-z, A-Z, 0-9)' },
         { value: 'alphabetic', label: 'Alphabetic (a-z, A-Z)' },
         { value: 'numeric', label: 'Numeric (0-9)' },
-        { value: 'hex', label: 'Hexadecimal (0-9, a-f)' },
-        { value: 'base64', label: 'Base64' }
+        { value: 'lowercase', label: 'Lowercase (a-z)' },
+        { value: 'uppercase', label: 'Uppercase (A-Z)' },
+        { value: 'hex', label: 'Hexadecimal (0-9, a-f)' }
       ]
-    }
+    },
+    { name: 'includeSymbols', label: 'Include Symbols (!@#$...)', type: 'checkbox', default: false },
+    { name: 'count', label: 'Number of Tokens', type: 'number', default: 1, min: 1, max: 50 }
   ],
 
   ulid_generator: [
@@ -64,16 +67,32 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
 
   bip39_generator: [
     {
-      name: 'words',
-      label: 'Number of Words',
+      name: 'strength',
+      label: 'Entropy Strength (bits)',
       type: 'select',
-      default: '12',
+      default: '128',
       options: [
-        { value: '12', label: '12 words' },
-        { value: '15', label: '15 words' },
-        { value: '18', label: '18 words' },
-        { value: '21', label: '21 words' },
-        { value: '24', label: '24 words' }
+        { value: '128', label: '128 bits (12 words)' },
+        { value: '160', label: '160 bits (15 words)' },
+        { value: '192', label: '192 bits (18 words)' },
+        { value: '224', label: '224 bits (21 words)' },
+        { value: '256', label: '256 bits (24 words)' }
+      ]
+    },
+    {
+      name: 'language',
+      label: 'Language',
+      type: 'select',
+      default: 'english',
+      options: [
+        { value: 'english', label: 'English' },
+        { value: 'chinese_simplified', label: 'Chinese (Simplified)' },
+        { value: 'chinese_traditional', label: 'Chinese (Traditional)' },
+        { value: 'french', label: 'French' },
+        { value: 'italian', label: 'Italian' },
+        { value: 'japanese', label: 'Japanese' },
+        { value: 'korean', label: 'Korean' },
+        { value: 'spanish', label: 'Spanish' }
       ]
     }
   ],
@@ -161,6 +180,35 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
         { value: 'lower case', label: 'lower case' }
       ]
     }
+  ],
+
+  slugify_string: [
+    { name: 'text', label: 'Text to convert', type: 'textarea', required: true, placeholder: 'Hello World! This is a Test.', rows: 3 },
+    { name: 'separator', label: 'Separator', type: 'text', default: '-', placeholder: '-' },
+    { name: 'lowercase', label: 'Lowercase output', type: 'checkbox', default: true }
+  ],
+
+  temperature_converter: [
+    { name: 'value', label: 'Temperature Value', type: 'number', required: true, default: 0 },
+    {
+      name: 'from',
+      label: 'From Unit',
+      type: 'select',
+      default: 'celsius',
+      options: [
+        { value: 'celsius', label: 'Celsius (°C)' },
+        { value: 'fahrenheit', label: 'Fahrenheit (°F)' },
+        { value: 'kelvin', label: 'Kelvin (K)' }
+      ]
+    }
+  ],
+
+  json_to_yaml_converter: [
+    { name: 'json', label: 'JSON Input', type: 'textarea', required: true, placeholder: '{"name":"John","age":30}', rows: 8 }
+  ],
+
+  yaml_to_json_converter: [
+    { name: 'yaml', label: 'YAML Input', type: 'textarea', required: true, placeholder: 'name: John\nage: 30', rows: 8 }
   ],
 
   // Web Dev Tools
@@ -258,6 +306,7 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
   encryption: [
     { name: 'text', label: 'Text to encrypt/decrypt', type: 'textarea', required: true, placeholder: 'Enter text...', rows: 4 },
     { name: 'key', label: 'Encryption Key', type: 'text', required: true, placeholder: 'Enter secret key...' },
+    { name: 'iv', label: 'Initialization Vector (optional)', type: 'text', placeholder: 'Enter IV if required (e.g., 16 bytes for AES-CBC)' },
     {
       name: 'algorithm',
       label: 'Algorithm',
@@ -286,7 +335,7 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
   ],
 
   otp_code_generator_and_validator: [
-    { name: 'secret', label: 'Secret Key (Base32)', type: 'text', required: true, placeholder: 'Enter secret key...' },
+    { name: 'secret', label: 'Secret Key (Base32)', type: 'text', required: true, placeholder: 'Enter Base32 secret, e.g., JBSWY3DPEHPK3PXP' },
     {
       name: 'mode',
       label: 'Mode',
@@ -294,10 +343,23 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
       default: 'generate',
       options: [
         { value: 'generate', label: 'Generate OTP' },
-        { value: 'validate', label: 'Validate OTP' }
+        { value: 'verify', label: 'Verify OTP' }
       ]
     },
-    { name: 'token', label: 'OTP Token (for validation)', type: 'text', placeholder: '123456', description: 'Only required for validation mode' }
+    {
+      name: 'type',
+      label: 'OTP Type',
+      type: 'select',
+      default: 'totp',
+      options: [
+        { value: 'totp', label: 'TOTP (Time-based)' },
+        { value: 'hotp', label: 'HOTP (Counter-based)' }
+      ]
+    },
+    { name: 'digits', label: 'Digits', type: 'number', default: 6, min: 4, max: 8 },
+    { name: 'period', label: 'Period (seconds)', type: 'number', default: 30, min: 15, max: 300 },
+    { name: 'counter', label: 'Counter (HOTP only)', type: 'number', default: 0, min: 0 },
+    { name: 'code', label: 'OTP Code (Verify mode)', type: 'text', placeholder: '123456' }
   ],
 
   basic_auth_generator: [

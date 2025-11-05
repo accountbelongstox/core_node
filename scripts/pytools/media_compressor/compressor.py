@@ -12,10 +12,14 @@ from pathlib import Path
 _current_dir = Path(__file__).parent
 if str(_current_dir) not in sys.path:
     sys.path.insert(0, str(_current_dir))
+# Add pycore to path for FileLockManager
+_pycore_dir = Path(__file__).parent.parent.parent.parent / 'pycore'
+if _pycore_dir.exists() and str(_pycore_dir) not in sys.path:
+    sys.path.insert(0, str(_pycore_dir))
 
 try:
     from .colors import Colors
-    from .json_store import ThreadSafeJsonStore
+    from pyfoundations.split_file_store import SplitFileStore as ThreadSafeJsonStore
     from .subsystems import (
         CacheMixin,
         CompressionMixin,
@@ -29,7 +33,7 @@ try:
 except ImportError:
     # Fallback for direct script execution
     from colors import Colors
-    from json_store import ThreadSafeJsonStore
+    from pyfoundations.split_file_store import SplitFileStore as ThreadSafeJsonStore
     from subsystems import (
         CacheMixin,
         CompressionMixin,
@@ -119,10 +123,11 @@ class MediaCompressor(
         )
 
         self.cache_store = ThreadSafeJsonStore(
-            self.CACHE_JSON,
+            self.SOURCE_DIR,
             self._create_empty_cache,
             max_retries=20,
             retry_delay=1.0,
+            verbose=False,
         )
         self.cache_store.ensure_file()
 

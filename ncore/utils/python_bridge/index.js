@@ -11,13 +11,25 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const PythonCaller = require('./libs/PythonCaller');
+const ModelCaller = require('./libs/ModelCaller');
 
 const defaultCaller = new PythonCaller();
+const defaultModelCaller = new ModelCaller();
 
 module.exports = {
     PythonCaller,
+    ModelCaller,
+
     call: (scriptPath, params, options) => defaultCaller.call(scriptPath, params, options),
     callModule: (modulePath, functionName, params, options) => defaultCaller.callModule(modulePath, functionName, params, options),
     checkPythonAvailable: () => defaultCaller.checkPythonAvailable(),
-    getPythonVersion: () => defaultCaller.getPythonVersion()
+    getPythonVersion: () => defaultCaller.getPythonVersion(),
+
+    callWithModel: (scriptPath, params, options) => defaultModelCaller.callWithModel(scriptPath, params, options),
+    checkModelAvailable: (modelName, options) => defaultModelCaller.checkModelAvailable(modelName, options),
+    batchCall: (scriptPath, paramsArray, options) => defaultModelCaller.batchCall(scriptPath, paramsArray, options),
+    getModelInfo: (modelName, options) => defaultModelCaller.getModelInfo(modelName, options),
+    clearModelCache: (modelName, options) => defaultModelCaller.clearModelCache(modelName, options),
+    getModelCachePath: () => defaultModelCaller.getModelCachePath(),
+    setModelCachePath: (cachePath) => defaultModelCaller.setModelCachePath(cachePath)
 };

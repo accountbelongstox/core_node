@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import '../../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../../common/theme/app_theme.dart';
+import '../../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../../../../../../../common/widgets/glassmorphism_card.dart';
 import '../models/word_models.dart';
 import 'word_item_card.dart';
@@ -250,7 +252,7 @@ class _WordListViewState extends State<WordListView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '例句',
+                        QyAppLocalizationKeys.qyWordBookExampleSentence.tr(context),
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -278,7 +280,7 @@ class _WordListViewState extends State<WordListView> {
                           _playPronunciation(word);
                         },
                         icon: const Icon(Icons.volume_up),
-                        label: const Text('发音'),
+                        label: Text(QyAppLocalizationKeys.qyWordBookPronunciation.tr(context)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryGreen,
                           foregroundColor: Colors.white,
@@ -294,7 +296,7 @@ class _WordListViewState extends State<WordListView> {
                           _markAsLearned(word);
                         },
                         icon: const Icon(Icons.check),
-                        label: const Text('已掌握'),
+                        label: Text(QyAppLocalizationKeys.qyWordBookMastered.tr(context)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.accentGreen,
                           foregroundColor: Colors.white,

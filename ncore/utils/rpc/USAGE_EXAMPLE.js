@@ -18,7 +18,9 @@ async function serverExample() {
         return { message: 'Hello from API' };
     });
 
-    const rpcServer = rpc.createHttpServer(server.getApp());
+    const rpcServer = rpc.createHttpServer(server.getApp(), {
+        auth: { enabled: false }
+    });
 
     rpcServer.route('sayHello', async (params) => {
         return { greeting: `Hello, ${params.name}!` };

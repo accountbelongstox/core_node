@@ -131,6 +131,18 @@ final Map<String, String> zhAppCodemart = {
   LocalizationKeysAppCodemart.codemartSkillName: '技能名称',
   LocalizationKeysAppCodemart.codemartSkillPlaceholder: '例如：Flutter、Python、Node.js',
   LocalizationKeysAppCodemart.codemartErrorPickingFiles: '选择文件时出错',
+  LocalizationKeysAppCodemart.codemartPleaseEnterProjectTitle: '请输入项目标题',
+  LocalizationKeysAppCodemart.codemartPleaseEnterProjectDescription: '请输入项目描述',
+  LocalizationKeysAppCodemart.codemartPleaseEnterBudget: '请输入预算',
+  LocalizationKeysAppCodemart.codemartPleaseEnterValidNumber: '请输入有效数字',
+  LocalizationKeysAppCodemart.codemartBudgetType: '预算类型',
+  LocalizationKeysAppCodemart.codemartNotSelected: '未选择',
+  LocalizationKeysAppCodemart.codemartNoSkillsAdded: '尚未添加技能',
+  LocalizationKeysAppCodemart.codemartAttachmentsOptional: '附件（可选）',
+  LocalizationKeysAppCodemart.codemartAddFiles: '添加文件',
+  LocalizationKeysAppCodemart.codemartAttachDocumentsHint: '附加项目文档、设计或规格说明（PDF、DOC、XLS等）',
+  LocalizationKeysAppCodemart.codemartBudget: '预算',
+  LocalizationKeysAppCodemart.codemartComplexity: '复杂度',
 
   // Tasks
   LocalizationKeysAppCodemart.codemartFailedLoadTasks: '加载任务失败',

@@ -193,83 +193,110 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildMemberCard() {
-    return Container(
-      margin: const EdgeInsets.all(16.0),
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: TravelColors.travelGradientLightBlue,
+    return GestureDetector(
+      onTap: () {
+        debugPrint('Member card tapped');
+      },
+      child: Container(
+        margin: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8.0,
+              offset: const Offset(0, 2.0),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(12.0),
-      ),
-      child: Row(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                TravelLocalizationKeys.travelPublicMember.tr(context),
-                style: const TextStyle(
-                  fontSize: 20.0,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12.0),
+          child: Image.asset(
+            'assets/apps/app_travel/images/profile_member_banner.png',
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: TravelColors.travelGradientLightBlue,
+                  ),
+                  borderRadius: BorderRadius.circular(12.0),
                 ),
-              ),
-              const SizedBox(height: 4.0),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.diamond,
-                    size: 14.0,
-                    color: Colors.black54,
-                  ),
-                  const SizedBox(width: 4.0),
-                  Text(
-                    TravelLocalizationKeys.travelPointsRedeem.tr(context),
-                    style: const TextStyle(
-                      fontSize: 13.0,
-                      color: Colors.black54,
+                child: Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          TravelLocalizationKeys.travelPublicMember.tr(context),
+                          style: const TextStyle(
+                            fontSize: 20.0,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4.0),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.diamond,
+                              size: 14.0,
+                              color: Colors.black54,
+                            ),
+                            const SizedBox(width: 4.0),
+                            Text(
+                              TravelLocalizationKeys.travelPointsRedeem.tr(context),
+                              style: const TextStyle(
+                                fontSize: 13.0,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const Spacer(),
+                    Container(
+                      width: 79.0,
+                      height: 79.0,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.transparent,
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          AssetsImagesAppTravel.travelVipBadge,
+                          width: 79.0,
+                          height: 79.0,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 79.0,
+                              height: 79.0,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.verified,
+                                size: 40.0,
+                                color: Colors.white,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-          const Spacer(),
-          Container(
-            width: 79.0,
-            height: 79.0,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.transparent,
-            ),
-            child: ClipOval(
-              child: Image.asset(
-                AssetsImagesAppTravel.travelVipBadge,
-                width: 79.0,
-                height: 79.0,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 79.0,
-                    height: 79.0,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.verified,
-                      size: 40.0,
-                      color: Colors.white,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

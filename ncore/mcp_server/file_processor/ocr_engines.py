@@ -98,7 +98,7 @@ class FreeOCREngine:
             payload = {
                 'apikey': self.api_key,
                 'language': kwargs.get('language', 'chs'),  # Chinese Simplified
-                'isOverlayRequired': kwargs.get('overlay', False),
+                'isOverlayRequired': kwargs.get('overlay', True),  # Enable overlay for position info
                 'detectOrientation': kwargs.get('detect_orientation', True),
                 'scale': kwargs.get('scale', True),
                 'isTable': kwargs.get('is_table', False),
@@ -146,6 +146,7 @@ class FreeOCREngine:
             # Extract text and confidence
             all_text = []
             all_words = []
+            all_lines = []
             total_confidence = 0
 
             for parsed_result in parsed_results:
@@ -154,17 +155,32 @@ class FreeOCREngine:
                 if text:
                     all_text.append(text.strip())
 
-                # Confidence (if available)
-                confidence = parsed_result.get("TextOverlay", {}).get("HasOverlay", False)
-                if confidence:
-                    # Try to extract word-level data
-                    overlay_data = parsed_result.get("TextOverlay", {})
+                # Extract overlay data with positions
+                overlay_data = parsed_result.get("TextOverlay", {})
+                has_overlay = overlay_data.get("HasOverlay", False)
+
+                if has_overlay:
+                    # Extract line-level and word-level data
                     lines = overlay_data.get("Lines", [])
 
-                    for line in lines:
+                    for line_idx, line in enumerate(lines):
+                        line_text = line.get("LineText", "")
+                        line_info = {
+                            "line_number": line_idx + 1,
+                            "text": line_text,
+                            "bbox": {
+                                "left": line.get("MinLeft", 0),
+                                "top": line.get("MinTop", 0),
+                                "width": line.get("MaxWidth", 0),
+                                "height": line.get("MaxHeight", 0)
+                            },
+                            "words": []
+                        }
+
                         line_words = line.get("Words", [])
-                        for word in line_words:
+                        for word_idx, word in enumerate(line_words):
                             word_info = {
+                                "word_number": word_idx + 1,
                                 "text": word.get("WordText", ""),
                                 "confidence": word.get("Confidence", 0),
                                 "bbox": {
@@ -174,12 +190,16 @@ class FreeOCREngine:
                                     "height": word.get("Height", 0)
                                 }
                             }
+                            line_info["words"].append(word_info)
                             all_words.append(word_info)
                             total_confidence += word.get("Confidence", 0)
+
+                        all_lines.append(line_info)
 
             # Combine results
             result.text = "\n".join(all_text)
             result.words = all_words
+            result.lines = all_lines
             result.confidence = total_confidence / len(all_words) if all_words else 0
             result.success = True
 
