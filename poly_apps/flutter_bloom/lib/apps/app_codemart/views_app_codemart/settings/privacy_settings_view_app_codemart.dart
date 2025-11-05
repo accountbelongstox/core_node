@@ -8,7 +8,7 @@ class PrivacySettingsViewAppCodemart extends StatefulWidget {
 }
 
 class _PrivacySettingsViewAppCodemartState extends State<PrivacySettingsViewAppCodemart> {
-  bool _profileVisible = true;
+  final bool _profileVisible = true;
   bool _showEmail = false;
   bool _showPhone = false;
   bool _allowMessages = true;

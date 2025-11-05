@@ -246,13 +246,13 @@ D:\programing\core_node\
 │  poly_apps/pyMatrix/                                 │
 │  ├── services/          (业务服务)                   │
 │  │   ├── DeviceService   → pycore.pyadb              │
-│  │   ├── VideoService    → pycore.pystream           │
+│  │   ├── VideoStreamService → pycore.pystream        │
 │  │   ├── ControlService  → pycore.pycontrol          │
 │  │   └── GroupService    → pycore.pygroup            │
 │  │                                                    │
 │  ├── api/               (FastAPI 路由)               │
 │  │   ├── device_routes   → services.DeviceService    │
-│  │   ├── video_routes    → services.VideoService     │
+│  │   ├── video_routes    → services.VideoStreamService │
 │  │   ├── control_routes  → services.ControlService   │
 │  │   └── group_routes    → services.GroupService     │
 │  │                                                    │
@@ -294,7 +294,7 @@ services/DeviceService
     └─→ pycore.pyadb.ADBManager.forward_port()
         (端口转发)
     ↓
-VideoService 启动视频流处理任务
+VideoStreamService 启动视频流处理任务
     ├─→ 从 TCP socket 读取 H.264 数据
     │
     ├─→ pycore.pystream.H264Decoder.decode()
@@ -435,7 +435,7 @@ from pycore.pyfoundations import ColorPrint
 
 # ✅ 引用应用层
 from api import device_routes, video_routes, control_routes, group_routes
-from services import DeviceService, VideoService
+from services import DeviceService, VideoStreamService
 from config import Config
 
 # 初始化 FastAPI
@@ -473,7 +473,7 @@ async def startup():
 
     # 初始化服务
     DeviceService.initialize(Config.RESOURCES_DIR)
-    VideoService.initialize()
+    VideoStreamService.initialize()
 
     ColorPrint.print_green("✓ pyMatrix 启动完成")
     ColorPrint.print_blue(f"✓ API 文档: http://{Config.WEB_HOST}:{Config.WEB_PORT}/docs")

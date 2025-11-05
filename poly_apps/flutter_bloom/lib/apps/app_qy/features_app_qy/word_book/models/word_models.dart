@@ -1,5 +1,5 @@
 /// Word book data models
-library word_models;
+library;
 
 enum WordType { all, learning, newWords, mastered }
 

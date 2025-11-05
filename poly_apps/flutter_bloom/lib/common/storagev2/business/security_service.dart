@@ -89,7 +89,7 @@ class SecurityService {
         );
       }
       
-      return await _encryptionService!.encrypt(data);
+      return await _encryptionService.encrypt(data);
     } catch (e) {
       return StorageError.fromException(
         e is Exception ? e : Exception(e.toString()),
@@ -108,7 +108,7 @@ class SecurityService {
         );
       }
       
-      return await _encryptionService!.decrypt(encryptedData);
+      return await _encryptionService.decrypt(encryptedData);
     } catch (e) {
       return StorageError.fromException(
         e is Exception ? e : Exception(e.toString()),

@@ -116,7 +116,7 @@ class _VipClubMembershipTiersScreenState
           SizedBox(height: ThemeDimensions.hugePadding),
 
           // Membership Tiers
-          ..._tiers.map((tier) => _buildTierCard(tier)).toList(),
+          ..._tiers.map((tier) => _buildTierCard(tier)),
         ],
       ),
     );
@@ -322,7 +322,7 @@ class _VipClubMembershipSubscribeScreenState
                       : null,
                 ),
               );
-            }).toList(),
+            }),
 
             SizedBox(height: ThemeDimensions.hugePadding),
 

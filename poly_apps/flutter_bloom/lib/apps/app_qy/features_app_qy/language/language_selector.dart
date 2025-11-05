@@ -15,9 +15,10 @@ import 'package:flutter_localization/flutter_localization.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/apps/app_qy/controller_app_qy/settings_controller_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 
 class LanguageSelector extends StatelessWidget {
-  const LanguageSelector({Key? key}) : super(key: key);
+  const LanguageSelector({super.key});
 
   @override
   Widget build(BuildContext context) {

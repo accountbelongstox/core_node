@@ -23,7 +23,7 @@ const rootdir = path.join(ncore_dir, '..');
 const root_config_dir = path.join(rootdir, 'config');
 const root_config_file = path.join(root_config_dir, 'index.js');
 const apps_dir = path.join(rootdir, 'apps');
-const app_dir = path.join(apps_dir, appname);
+const app_dir = appname ? path.join(apps_dir, appname) : apps_dir;
 const app_config_dir = path.join(app_dir, 'config');
 const app_config_file = path.join(app_config_dir, 'index.js');
 

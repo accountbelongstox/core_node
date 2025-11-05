@@ -26,7 +26,7 @@ class CustomSearchInput extends StatelessWidget {
   final double? height;
 
   const CustomSearchInput({
-    Key? key,
+    super.key,
     this.search_placeholder = 'Search',
     this.isButtonRight = true,
     this.borderWidth = 2.0,
@@ -37,7 +37,7 @@ class CustomSearchInput extends StatelessWidget {
     this.onChanged,
     this.controller,
     this.height,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

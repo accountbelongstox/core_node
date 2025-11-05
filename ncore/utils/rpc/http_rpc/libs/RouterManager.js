@@ -13,7 +13,7 @@
 const logger = require('#@logger');
 const expressProvider = require('../provider/expressProvider');
 const { processResponse } = require('../tool/response.js');
-const { getConfig } = require('../config');
+const { getConfig } = require('../../common');
 const path = require('path');
 const fs = require('fs');
 const { APP_TEMPLATE_DIR } = require('#@global_dir');

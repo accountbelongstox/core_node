@@ -222,7 +222,7 @@ class _SubmitTaskViewAppCodemartState extends State<SubmitTaskViewAppCodemart> {
 
                           // Guidelines
                           Card(
-                            color: Theme.of(context).colorScheme.surfaceVariant,
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
                             child: Padding(
                               padding: const EdgeInsets.all(16),
                               child: Column(

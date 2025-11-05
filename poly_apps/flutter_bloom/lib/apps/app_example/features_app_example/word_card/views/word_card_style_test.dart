@@ -20,7 +20,7 @@ import 'package:qyflutter/common/widgets/custom_app_bar.dart';
 /// This screen demonstrates all the styles used in the word card feature
 /// and validates that the style system works correctly
 class WordCardStyleTestScreen extends StatelessWidget {
-  const WordCardStyleTestScreen({Key? key}) : super(key: key);
+  const WordCardStyleTestScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -136,7 +136,7 @@ class WordCardStyleTestScreen extends StatelessWidget {
                           label: const Text('Primary Button'),
                           onPressed: () {},
                           style: ThemeDimensions.primaryButtonStyle.copyWith(
-                            shape: MaterialStateProperty.all(
+                            shape: WidgetStateProperty.all(
                               RoundedRectangleBorder(
                                 borderRadius: ThemeDimensions.getAdaptiveBorderRadius(context),
                               ),
@@ -155,7 +155,7 @@ class WordCardStyleTestScreen extends StatelessWidget {
                           label: const Text('Secondary Button'),
                           onPressed: () {},
                           style: ThemeDimensions.secondaryButtonStyle.copyWith(
-                            shape: MaterialStateProperty.all(
+                            shape: WidgetStateProperty.all(
                               RoundedRectangleBorder(
                                 borderRadius: ThemeDimensions.getAdaptiveBorderRadius(context),
                               ),
@@ -174,7 +174,7 @@ class WordCardStyleTestScreen extends StatelessWidget {
                           label: const Text('Danger Button'),
                           onPressed: () {},
                           style: ThemeDimensions.dangerButtonStyle.copyWith(
-                            shape: MaterialStateProperty.all(
+                            shape: WidgetStateProperty.all(
                               RoundedRectangleBorder(
                                 borderRadius: ThemeDimensions.getAdaptiveBorderRadius(context),
                               ),

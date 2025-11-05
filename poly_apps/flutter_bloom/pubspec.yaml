@@ -51,6 +51,9 @@ dependencies:
   flutter_native_splash: ^2.4.6
   font_awesome_flutter: ^10.9.1 
 
+  equatable: any
+  sqflite: any
+  timezone: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,4 +1,4 @@
-library network_v2;
+library;
 
 export 'auth/auth_registry.dart';
 export 'auth/auth_strategy.dart';

@@ -180,17 +180,17 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Transparent placeholder to maintain spacing
-                      Container(
+                      SizedBox(
                         height: 16,
                         width: double.infinity,
                       ),
                       const SizedBox(height: 12),
-                      Container(
+                      SizedBox(
                         height: 28,
                         width: double.infinity,
                       ),
                       const SizedBox(height: 12),
-                      Container(
+                      SizedBox(
                         height: 16,
                         width: double.infinity,
                       ),
@@ -790,7 +790,7 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
           title: Text(label),
           content: const Text('请稍候正在为你打开'),
           actions: [
-            Container(
+            SizedBox(
               width: double.infinity,
               child: const Center(
                 child: CircularProgressIndicator(),

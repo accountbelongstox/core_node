@@ -1,8 +1,7 @@
 /// Check-in challenge screen
-library checkin_challenge_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/gradient_button.dart';
 
@@ -16,7 +15,7 @@ class CheckinChallengeScreen extends StatefulWidget {
 class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
   int _currentStreak = 0;
   int _totalFlowers = 0;
-  int _vouchers = 0;
+  final int _vouchers = 0;
   bool _isCheckedInToday = false;
 
   final List<DailyReward> _dailyRewards = [
@@ -382,7 +381,7 @@ class _CheckinChallengeScreenState extends State<CheckinChallengeScreen> {
                   const Divider(height: 1, indent: 72),
               ],
             );
-          }).toList(),
+          }),
         ],
       ),
     );

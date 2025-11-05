@@ -6,7 +6,7 @@ import '../../../testdata/journey_data.dart';
 /// Tab widget for displaying "My Itinerary" content
 /// Includes travel inspiration, fun maps, and hot picks sections
 class MyItineraryTab extends StatefulWidget {
-  const MyItineraryTab({Key? key}) : super(key: key);
+  const MyItineraryTab({super.key});
 
   @override
   State<MyItineraryTab> createState() => _MyItineraryTabState();

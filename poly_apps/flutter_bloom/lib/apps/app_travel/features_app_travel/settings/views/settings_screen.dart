@@ -9,7 +9,7 @@ import '../../../localization_app_travel/localization_keys_app_travel.dart';
 import '../../../constants_app_travel/cities_app_travel.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();

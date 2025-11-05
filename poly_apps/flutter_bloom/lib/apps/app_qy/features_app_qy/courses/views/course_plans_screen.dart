@@ -1,8 +1,7 @@
 /// Course Plans screen with learning roadmap and schedules
-library course_plans_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
 

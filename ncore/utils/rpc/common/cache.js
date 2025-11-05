@@ -87,7 +87,7 @@ class RpcCache {
     }
 
     keys() {
-        const allKeys = encyclopedia.keys();
+        const allKeys = Array.from(encyclopedia.keys());
         const prefix = `${this.namespace}:`;
         return allKeys
             .filter(key => key.startsWith(prefix))

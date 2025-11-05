@@ -1,8 +1,7 @@
 /// Word Listening Dictation Practice screen
-library word_listening_dictation_practice_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
 

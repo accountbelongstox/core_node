@@ -1,8 +1,7 @@
 /// Advanced Dictation Practice Screen - Level 2
-library word_listening_dictation_2_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
 
@@ -90,7 +89,7 @@ class _WordListeningDictation2ScreenState extends State<WordListeningDictation2S
   bool _isCompleted = false;
   int _correctCount = 0;
   int _attempts = 0;
-  List<String> _userAttempts = [];
+  final List<String> _userAttempts = [];
 
   @override
   void initState() {

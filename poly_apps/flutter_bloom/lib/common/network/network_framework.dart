@@ -36,7 +36,7 @@
 /// final response = await service.get<UserModel>('getUser');
 /// ```
 
-library network_framework;
+library;
 
 import 'core/network_types.dart' as network_types;
 import '../cache_manager/cache_manager.dart';
@@ -114,7 +114,6 @@ import 'package:flutter/foundation.dart';
 import 'core/network_types.dart' as types;
 import 'core/network_config.dart';
 import 'auth/unified_auth_manager.dart';
-import '../cache_manager/cache_manager.dart';
 // FIXED: Removed unused imports
 // import 'core/network_queue_and_offline.dart';
 // import 'ui/global_loading_system.dart';

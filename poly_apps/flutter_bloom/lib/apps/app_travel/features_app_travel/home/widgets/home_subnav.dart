@@ -6,9 +6,9 @@ class HomeSubnav extends StatelessWidget {
   final List<SubnavModel> subnavs;
 
   const HomeSubnav({
-    Key? key,
+    super.key,
     required this.subnavs,
-  }) : super(key: key);
+  });
 
   Widget _buildSubnavIcon(int index) {
     const iconSize = 48.0;

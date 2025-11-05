@@ -10,7 +10,6 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/custom_app_bar.dart';

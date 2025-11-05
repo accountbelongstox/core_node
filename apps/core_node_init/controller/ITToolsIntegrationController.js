@@ -11,9 +11,9 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const logger = require('#@logger');
-const { EnhancedItTools } = require('#@ncore/utils/ittools');
+const { EnhancedItTools } = require('#@ittools');
 const httpUtils = require('../../../ncore/utils/http-wrapper');
-const wsRpcUtils = require('#@ncore/utils/ws_rpc');
+const wsRpcUtils = require('../../../ncore/utils/rpc/ws_rpc');
 
 class ITToolsIntegrationController {
     constructor() {
@@ -59,12 +59,6 @@ class ITToolsIntegrationController {
 
             // Setup route interfaces
             this.setupRouteInterfaces();
-
-            // Register core routes
-            this.registerCoreRoutes();
-
-            // Register WebSocket handlers
-            this.registerWebSocketHandlers();
 
             this.initialized = true;
             logger.info('ITToolsIntegrationController initialized successfully');
@@ -195,12 +189,12 @@ class ITToolsIntegrationController {
         }
 
         // Integration status handler
-        this.wsRpcServer.registerMethod('integration.status', async () => {
+        this.wsRpcServer.route('integration.status', async () => {
             return this.getIntegrationStatus();
         });
 
         // Sub-app list handler
-        this.wsRpcServer.registerMethod('integration.subapps', async () => {
+        this.wsRpcServer.route('integration.subapps', async () => {
             return {
                 subApps: Array.from(this.subAppRoutes.keys()),
                 count: this.subAppRoutes.size
@@ -208,18 +202,18 @@ class ITToolsIntegrationController {
         });
 
         // WebSocket status handler
-        this.wsRpcServer.registerMethod('integration.websocket.status', async () => {
+        this.wsRpcServer.route('integration.websocket.status', async () => {
             return this.getWebSocketStatus();
         });
 
         // Sub-app route registration handler
-        this.wsRpcServer.registerMethod('integration.register.routes', async (params) => {
+        this.wsRpcServer.route('integration.register.routes', async (params) => {
             const { appName, routes } = params;
             return this.registerSubAppRoutesFromParams(appName, routes);
         });
 
         // Sub-app WebSocket handler registration
-        this.wsRpcServer.registerMethod('integration.register.ws_handlers', async (params) => {
+        this.wsRpcServer.route('integration.register.ws_handlers', async (params) => {
             const { appName, handlers } = params;
             return this.registerSubAppWsHandlersFromParams(appName, handlers);
         });
@@ -309,6 +303,12 @@ class ITToolsIntegrationController {
 
             this.httpServer = serverResult.httpServer || null;
             this.wsRpcServer = serverResult.wsRpcServer || null;
+
+            // Register core routes after server is started
+            this.registerCoreRoutes();
+
+            // Register WebSocket handlers after server is started
+            this.registerWebSocketHandlers();
 
             // Register sub-app routes if any
             for (const [appName, routes] of this.subAppRoutes) {

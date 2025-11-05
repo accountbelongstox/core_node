@@ -17,7 +17,6 @@ import '../models/storage_result.dart';
 import '../models/storage_entity.dart';
 import '../models/user_entity.dart';
 import '../models/config_entity.dart';
-import '../interfaces/storage_adapter_interface.dart';
 
 /// Generic storage repository implementation
 class StorageRepositoryImpl<T extends StorageEntity> implements StorageRepository<T> {
@@ -210,8 +209,8 @@ class StorageRepositoryImpl<T extends StorageEntity> implements StorageRepositor
 
 /// User repository implementation
 class UserRepository extends StorageRepositoryImpl<UserEntity> {
-  UserRepository({required StorageDataAccess dataAccess})
-      : super(dataAccess: dataAccess, entityType: 'user');
+  UserRepository({required super.dataAccess})
+      : super(entityType: 'user');
   
   /// Get user by email
   Future<StorageResult<UserEntity?>> getByEmail(String email) async {
@@ -252,8 +251,8 @@ class UserRepository extends StorageRepositoryImpl<UserEntity> {
 
 /// Config repository implementation
 class ConfigRepository extends StorageRepositoryImpl<ConfigEntity> {
-  ConfigRepository({required StorageDataAccess dataAccess})
-      : super(dataAccess: dataAccess, entityType: 'config');
+  ConfigRepository({required super.dataAccess})
+      : super(entityType: 'config');
   
   /// Get config by key
   Future<StorageResult<ConfigEntity?>> getByKey(String key) async {

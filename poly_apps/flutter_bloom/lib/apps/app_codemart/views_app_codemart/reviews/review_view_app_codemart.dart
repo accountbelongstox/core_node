@@ -201,7 +201,7 @@ class _ReviewViewAppCodemartState extends State<ReviewViewAppCodemart> {
 
             // Guidelines
             Card(
-              color: Theme.of(context).colorScheme.surfaceVariant,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(

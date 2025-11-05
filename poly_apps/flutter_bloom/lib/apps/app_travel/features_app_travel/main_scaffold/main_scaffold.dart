@@ -12,21 +12,23 @@
 
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/enhanced_bottom_navigation.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../home/views/home_screen.dart';
 import '../journey/views/journey_screen.dart';
 import '../service/views/service_screen.dart';
 import '../explore/views/explore_screen.dart';
-import '../favorites/views/favorites_screen.dart';
 import '../profile/views/profile_screen.dart';
 import '../../router_app_travel/routes_provider_app_travel.dart';
+import '../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../resources_app_travel/colors_app_travel.dart';
 
 class MainScaffold extends StatefulWidget {
   final int initialIndex;
 
   const MainScaffold({
-    Key? key,
+    super.key,
     this.initialIndex = 0,
-  }) : super(key: key);
+  });
 
   @override
   State<MainScaffold> createState() => _MainScaffoldState();
@@ -81,38 +83,38 @@ class _MainScaffoldState extends State<MainScaffold> {
         currentIndex: _currentIndex,
         onTap: _onNavItemTapped,
         showLabels: true,
-        selectedItemColor: const Color(0xFF00D0D8),
-        items: const [
+        selectedItemColor: TravelColors.travelPrimary,
+        items: [
           NavigationItem(
             icon: Icons.home_outlined,
             activeIcon: Icons.home,
-            label: '首页',
+            label: TravelLocalizationKeys.travelHome.tr(context),
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.calendar_today_outlined,
             activeIcon: Icons.calendar_today,
-            label: '行程',
+            label: TravelLocalizationKeys.travelJourney.tr(context),
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.chat_bubble_outline,
             activeIcon: Icons.chat_bubble,
-            label: '客服',
+            label: TravelLocalizationKeys.travelCustomerService.tr(context),
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.explore_outlined,
             activeIcon: Icons.explore,
-            label: '看世界',
+            label: TravelLocalizationKeys.travelExploreWorld.tr(context),
             route: TravelAppRoutesProvider.routeSearch,
-            badge: '旅行攻略',
-            badgeColor: Color(0xFFFF3B30),
+            badge: TravelLocalizationKeys.travelTravelGuide.tr(context),
+            badgeColor: const Color(0xFFFF3B30),
           ),
           NavigationItem(
             icon: Icons.person_outline,
             activeIcon: Icons.person,
-            label: '我的',
+            label: TravelLocalizationKeys.travelMine.tr(context),
             route: TravelAppRoutesProvider.routeProfile,
           ),
         ],

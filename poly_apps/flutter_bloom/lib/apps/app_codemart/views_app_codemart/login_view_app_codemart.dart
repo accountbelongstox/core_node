@@ -43,11 +43,12 @@ class _LoginViewAppCodemartState extends State<LoginViewAppCodemart> {
 
       if (response.success && response.data != null) {
         final userModel = context.read<UserModelAppCodemart>();
+        final data = response.data!;
         userModel.login(
-          response.data!.user,
-          response.data!.token,
-          response.data!.developer,
-          response.data!.client,
+          data['user'] as Map<String, dynamic>,
+          data['token'] as String,
+          data['developer'] as Map<String, dynamic>?,
+          data['client'] as Map<String, dynamic>?,
         );
 
         RouterAppCodemart.goToHome(context);
@@ -112,10 +113,10 @@ class _LoginViewAppCodemartState extends State<LoginViewAppCodemart> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
+                        return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterEmail);
                       }
                       if (!value.contains('@')) {
-                        return 'Please enter a valid email';
+                        return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterValidEmail);
                       }
                       return null;
                     },
@@ -140,10 +141,10 @@ class _LoginViewAppCodemartState extends State<LoginViewAppCodemart> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                        return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterPassword);
                       }
                       if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                        return context.tr(LocalizationKeysAppCodemart.codemartPasswordMinLength);
                       }
                       return null;
                     },
@@ -167,7 +168,7 @@ class _LoginViewAppCodemartState extends State<LoginViewAppCodemart> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text("Don't have an account? "),
+                      Text(context.tr(LocalizationKeysAppCodemart.codemartDontHaveAccount)),
                       TextButton(
                         onPressed: () => RouterAppCodemart.goToRegister(context),
                         child: Text(

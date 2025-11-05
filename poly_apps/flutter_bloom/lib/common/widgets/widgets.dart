@@ -5,6 +5,7 @@
 /// ```dart
 /// import 'package:qyflutter/common/widgets/widgets.dart';
 /// ```
+library;
 
 // Buttons
 export 'buttons/primary_button.dart';

@@ -18,9 +18,9 @@ class HomeSwiper extends StatefulWidget {
   final List<SwiperItemModel> swiperItems;
 
   const HomeSwiper({
-    Key? key,
+    super.key,
     required this.swiperItems,
-  }) : super(key: key);
+  });
 
   @override
   State<HomeSwiper> createState() => _HomeSwiperState();
@@ -66,7 +66,7 @@ class _HomeSwiperState extends State<HomeSwiper> {
                   builder: (BuildContext context) {
                     return Transform.translate(
                       offset: const Offset(0, -32.0),
-                      child: Container(
+                      child: SizedBox(
                         width: screenWidth,
                         height: imageHeight,
                         child: item.getFullImageUrl().startsWith('assets/')

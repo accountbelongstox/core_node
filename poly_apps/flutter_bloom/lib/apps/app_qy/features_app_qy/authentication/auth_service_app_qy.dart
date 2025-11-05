@@ -1,6 +1,6 @@
 /// Authentication service for app_qy
 /// Handles business logic for authentication flows
-library auth_service_app_qy;
+library;
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';

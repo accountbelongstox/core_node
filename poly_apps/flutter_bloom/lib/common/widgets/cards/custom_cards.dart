@@ -478,7 +478,7 @@ class PricingCard extends StatelessWidget {
                       ],
                     ),
                   );
-                }).toList(),
+                }),
                 SizedBox(height: ThemeDimensions.defaultPadding),
                 SizedBox(
                   width: double.infinity,

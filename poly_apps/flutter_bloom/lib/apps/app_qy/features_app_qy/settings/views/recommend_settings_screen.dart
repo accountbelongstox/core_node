@@ -1,11 +1,12 @@
 /// Recommend settings screen
-library recommend_settings_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
-import 'widgets/settings_section.dart';
-import 'widgets/settings_tile.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../widgets/settings_section.dart';
+import '../widgets/settings_tile.dart';
 
 class RecommendSettingsScreen extends StatefulWidget {
   const RecommendSettingsScreen({super.key});
@@ -17,7 +18,7 @@ class RecommendSettingsScreen extends StatefulWidget {
 class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
   bool _autoRecommend = true;
   String _difficultyLevel = 'Intermediate';
-  List<String> _selectedInterests = ['Business', 'Technology', 'Daily Life'];
+  final List<String> _selectedInterests = ['Business', 'Technology', 'Daily Life'];
   double _recommendationFrequency = 0.7;
 
   @override
@@ -71,7 +72,7 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
           ),
           Expanded(
             child: Text(
-              'settings.recommend'.tr,
+              'settings.recommend'.tr(context),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -86,7 +87,7 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
 
   Widget _buildAutoRecommendSection() {
     return SettingsSection(
-      title: '智能推荐',
+      title: QyAppLocalizationKeys.qySettingsSmartRecommendation.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -94,8 +95,8 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
               Icons.auto_awesome_outlined,
               color: AppTheme.primaryGreen,
             ),
-            title: 'settings.autoRecommend'.tr,
-            subtitle: '基于学习历史智能推荐单词',
+            title: 'settings.autoRecommend'.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsAutoRecommendSubtitle.tr(context),
             trailing: Switch(
               value: _autoRecommend,
               onChanged: (value) {
@@ -113,7 +114,7 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
 
   Widget _buildDifficultySection() {
     return SettingsSection(
-      title: '难度设置',
+      title: QyAppLocalizationKeys.qySettingsDifficultySettings.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -121,7 +122,7 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
               Icons.trending_up_outlined,
               color: AppTheme.secondaryGreen,
             ),
-            title: 'settings.difficulty'.tr,
+            title: 'settings.difficulty'.tr(context),
             subtitle: _getDifficultyLabel(_difficultyLevel),
             trailing: const Icon(Icons.chevron_right),
             onTap: _showDifficultyDialog,
@@ -138,7 +139,7 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
     ];
 
     return SettingsSection(
-      title: '兴趣标签',
+      title: QyAppLocalizationKeys.qySettingsInterestTags.tr(context),
       child: Column(
         children: [
           Wrap(
@@ -165,7 +166,7 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '已选择 ${_selectedInterests.length} 个兴趣标签',
+            QyAppLocalizationKeys.qySettingsInterestTagsSelected.tr(context).replaceAll('{count}', '${_selectedInterests.length}'),
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
@@ -178,7 +179,7 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
 
   Widget _buildFrequencySection() {
     return SettingsSection(
-      title: '推荐频率',
+      title: QyAppLocalizationKeys.qySettingsRecommendationFrequency.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -186,9 +187,9 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
               Icons.speed_outlined,
               color: AppTheme.accentGreen,
             ),
-            title: '推荐强度',
+            title: QyAppLocalizationKeys.qySettingsRecommendationStrength.tr(context),
             subtitle: '${(_recommendationFrequency * 100).toInt()}%',
-            trailing: Container(
+            trailing: SizedBox(
               width: 200,
               child: Slider(
                 value: _recommendationFrequency,
@@ -212,13 +213,13 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
   String _getDifficultyLabel(String level) {
     switch (level) {
       case 'Beginner':
-        return '初级';
+        return QyAppLocalizationKeys.qySettingsDifficultyBeginner.tr(context);
       case 'Intermediate':
-        return '中级';
+        return QyAppLocalizationKeys.qySettingsDifficultyIntermediate.tr(context);
       case 'Advanced':
-        return '高级';
+        return QyAppLocalizationKeys.qySettingsDifficultyAdvanced.tr(context);
       case 'Expert':
-        return '专家';
+        return QyAppLocalizationKeys.qySettingsDifficultyExpert.tr(context);
       default:
         return level;
     }
@@ -229,7 +230,7 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('选择难度'),
+        title: Text(QyAppLocalizationKeys.qySettingsSelectDifficulty.tr(context)),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -261,13 +262,13 @@ class _RecommendSettingsScreenState extends State<RecommendSettingsScreen> {
   String _getDifficultyDescription(String level) {
     switch (level) {
       case 'Beginner':
-        return '适合初学者，基础词汇';
+        return QyAppLocalizationKeys.qySettingsDifficultyBeginnerDesc.tr(context);
       case 'Intermediate':
-        return '适合有一定基础的学习者';
+        return QyAppLocalizationKeys.qySettingsDifficultyIntermediateDesc.tr(context);
       case 'Advanced':
-        return '适合高级学习者，专业词汇';
+        return QyAppLocalizationKeys.qySettingsDifficultyAdvancedDesc.tr(context);
       case 'Expert':
-        return '适合专家级学习者，学术词汇';
+        return QyAppLocalizationKeys.qySettingsDifficultyExpertDesc.tr(context);
       default:
         return '';
     }

@@ -132,8 +132,8 @@ class LoggingWebSocketInterceptor extends BaseWebSocketInterceptor {
 /// Authentication interceptor for token injection
 class AuthWebSocketInterceptor extends BaseWebSocketInterceptor {
   String? _token;
-  String _tokenPrefix;
-  Function()? _onTokenExpired;
+  final String _tokenPrefix;
+  final Function()? _onTokenExpired;
 
   AuthWebSocketInterceptor({
     String? token,

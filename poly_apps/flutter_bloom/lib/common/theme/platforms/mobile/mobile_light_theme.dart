@@ -36,7 +36,6 @@ ThemeData getMobileLightTheme() {
     hoverColor: const Color(0x0D4CAF50),
     splashColor: const Color(0x334CAF50),
     highlightColor: const Color(0x66CDDC39),
-    indicatorColor: const Color(0xFF4CAF50),
     secondaryHeaderColor: const Color(0xFFF0F4C3),
     unselectedWidgetColor: const Color(0xFF9E9E9E),
     dividerColor: const Color(0xFFE6EE9C),
@@ -170,7 +169,7 @@ ThemeData getMobileLightTheme() {
         }
         return const Color(0xFFE0E0E0);
       }),
-    ),
+    ), tabBarTheme: TabBarThemeData(indicatorColor: const Color(0xFF4CAF50)),
   );
   if (!kIsWeb) {
     themeData = langCode == 'zh'

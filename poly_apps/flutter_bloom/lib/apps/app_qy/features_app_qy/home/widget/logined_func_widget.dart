@@ -13,7 +13,6 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/bookmark/bookmark_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';

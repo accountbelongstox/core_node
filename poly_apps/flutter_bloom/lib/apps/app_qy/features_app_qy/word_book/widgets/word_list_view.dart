@@ -1,5 +1,5 @@
 /// Word list view widget
-library word_list_view;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../../common/i18n/i18n_service.dart';

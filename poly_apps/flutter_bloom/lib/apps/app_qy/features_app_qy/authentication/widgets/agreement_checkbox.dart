@@ -1,5 +1,5 @@
 /// Agreement checkbox widget for terms and privacy
-library agreement_checkbox;
+library;
 
 import 'package:flutter/material.dart';
 

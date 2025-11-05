@@ -1,0 +1,123 @@
+{
+  "ai_collaboration": {
+    "ai_claude_code": {
+      "current_task": "Fixing critical errors - data centralization focus",
+      "status": "in_progress",
+      "timestamp": "2025-11-05",
+      "progress": {
+        "total_issues_initial": 3210,
+        "issues_after_dart_fix": 2089,
+        "current_total_issues": 1969,
+        "remaining_errors": 228,
+        "total_fixed": 1441,
+        "auto_fixed": 1121,
+        "manually_fixed": 320,
+        "improvement_from_initial": "38.7%",
+        "improvement_from_dart_fix": "5.7%",
+        "errors_reduced_from_initial": "92.9%"
+      },
+      "error_breakdown": {
+        "undefined_getter": 96,
+        "undefined_method": 85,
+        "undefined_named_parameter": 75,
+        "undefined_identifier": 60,
+        "undefined_class": 46,
+        "others": 157
+      },
+      "fixed_issues": [
+        {
+          "file": "lib/apps/app_codemart/models_app_codemart/codemart_types.dart",
+          "issue": "Duplicate Attachment class definition (line 333 and 873)",
+          "priority": "P0",
+          "status": "FIXED",
+          "solution": "Removed duplicate definition at line 873"
+        },
+        {
+          "file": "lib/apps/app_codemart/models_app_codemart/codemart_enums.dart",
+          "issue": "FileType naming conflict with file_picker package",
+          "priority": "P0",
+          "status": "FIXED",
+          "solution": "Renamed FileType to AttachmentFileType"
+        },
+        {
+          "file": "lib/common/theme/app_theme.dart",
+          "issue": "Missing theme getters (primaryColor, accentColor, headline6, etc)",
+          "priority": "P1",
+          "status": "FIXED",
+          "count": 48,
+          "solution": "Added backwards compatibility aliases for color and text style getters"
+        },
+        {
+          "file": "lib/common/theme/app_theme.dart",
+          "issue": "Missing gradient definitions (errorGradient, warningGradient, etc)",
+          "priority": "P1",
+          "status": "FIXED",
+          "count": 4,
+          "solution": "Added status-specific gradient definitions"
+        },
+        {
+          "file": "lib/apps/app_codemart/views_app_codemart/login_view_app_codemart.dart",
+          "issue": "Map access using dot notation instead of brackets",
+          "priority": "P0",
+          "status": "FIXED",
+          "solution": "Changed response.data.user to response.data['user']"
+        },
+        {
+          "file": "lib/apps/app_qy/features_app_qy/settings/views/*.dart (5 files)",
+          "issue": "Wrong import path for Settings widgets and missing localization import",
+          "priority": "P1",
+          "status": "FIXED",
+          "count": 98,
+          "solution": "Fixed import paths from 'widgets/' to '../widgets/' and added localization_manager import"
+        },
+        {
+          "file": "lib/apps/app_qy/features_app_qy/settings/views/*.dart (5 files)",
+          "issue": "Ambiguous extension member access for .tr() method (i18n_service vs localization_manager)",
+          "priority": "P0",
+          "status": "FIXED",
+          "count": 105,
+          "solution": "Removed i18n_service import to resolve conflict, keeping only localization_manager"
+        },
+        {
+          "file": "lib/apps/app_travel/features_app_travel/explore/views/explore_screen.dart",
+          "issue": "currentCity variable undefined in _buildHeaderWithSearch method",
+          "priority": "P0",
+          "status": "FIXED",
+          "solution": "Wrapped method with Consumer<UserProviderAppTravel> for data centralization"
+        },
+        {
+          "file": "lib/apps/app_qy/features_app_qy/settings/views/*.dart (4 files)",
+          "issue": "Missing parentheses in .tr method calls causing type mismatch",
+          "priority": "P0",
+          "status": "FIXED",
+          "count": 43,
+          "solution": "Changed '.tr,' to '.tr(context),' to properly invoke translation method"
+        }
+      ],
+      "next_actions": [
+        "Re-scan all errors to get updated count",
+        "Fix undefined getter/method errors",
+        "Centralize data models to lib/common where appropriate",
+        "Review and optimize network service usage"
+      ]
+    },
+    "ai_other": {
+      "status": "waiting",
+      "notes": "Coordinate here for parallel work"
+    }
+  },
+  "centralization_notes": {
+    "common_modules_to_use": [
+      "lib/common/network/ - for network calls",
+      "lib/common/database/ - for data persistence",
+      "lib/common/models/ - for shared models",
+      "lib/common/utils/ - for utilities",
+      "lib/common/theme/ - for theming"
+    ],
+    "app_specific_only": [
+      "App-specific models in models_app_{name}",
+      "App-specific services in services_app_{name}",
+      "App-specific controllers in controller_app_{name}"
+    ]
+  }
+}

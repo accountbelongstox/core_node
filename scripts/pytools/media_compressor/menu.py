@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-from compressor import MediaCompressor
-from file_transfer_client import FileTransferClient
-from file_transfer_server import FileTransferServer
+# Add current directory to path for direct script execution
+_current_dir = Path(__file__).parent
+if str(_current_dir) not in sys.path:
+    sys.path.insert(0, str(_current_dir))
+
+try:
+    from .compressor import MediaCompressor
+    from .file_transfer_client import FileTransferClient
+    from .file_transfer_server import FileTransferServer
+except ImportError:
+    # Fallback for direct script execution
+    from compressor import MediaCompressor
+    from file_transfer_client import FileTransferClient
+    from file_transfer_server import FileTransferServer
 
 def show_menu():
     """Show main menu"""
@@ -180,4 +192,3 @@ if __name__ == '__main__':
         print(f"\nProgram error: {e}")
         import traceback
         traceback.print_exc()
-

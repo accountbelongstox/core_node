@@ -14,11 +14,11 @@ const { EventEmitter } = require('events');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('#@logger');
 const { RPC_CONSTANTS, getSessionManager, getRequestManager, getResponseCache } = require('../common');
-const AuthManager = require('#@ncore/utils/ws_rpc/libs/AuthManager');
-const RateLimiter = require('#@ncore/utils/ws_rpc/libs/RateLimiter');
-const PerformanceMonitor = require('#@ncore/utils/ws_rpc/libs/PerformanceMonitor');
-const MiddlewareChain = require('#@ncore/utils/ws_rpc/libs/MiddlewareChain');
-const InterceptorManager = require('#@ncore/utils/ws_rpc/libs/InterceptorManager');
+const AuthManager = require('../ws_rpc/libs/AuthManager');
+const RateLimiter = require('../ws_rpc/libs/RateLimiter');
+const PerformanceMonitor = require('../ws_rpc/libs/PerformanceMonitor');
+const MiddlewareChain = require('../ws_rpc/libs/MiddlewareChain');
+const InterceptorManager = require('../ws_rpc/libs/InterceptorManager');
 
 const MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES;
 const ERROR_CODES = RPC_CONSTANTS.ERROR_CODES;
@@ -43,6 +43,7 @@ class HttpRpcServer extends EventEmitter {
         this.sessionManager = getSessionManager();
         this.requestManager = getRequestManager();
         this.responseCache = getResponseCache();
+        this.subAppManager = require('../common').getSubAppManager();
 
         this.auth = new AuthManager({
             enabled: options.auth?.enabled,
@@ -84,23 +85,43 @@ class HttpRpcServer extends EventEmitter {
             await this._handleQuery(req, res);
         });
 
+        this.app.get(`${this.basePath}/client.js`, (req, res) => {
+            const path = require('path');
+            const clientPath = path.join(__dirname, '../client/UnifiedRpcClient.js');
+            res.type('application/javascript');
+            res.sendFile(clientPath);
+        });
+
         this.app.get(`${this.basePath}/health`, (req, res) => {
+            const subAppStats = this.subAppManager.getStats();
             res.json({
                 status: 'ok',
                 timestamp: Date.now(),
                 routeCount: this.routes.size,
+                subAppRoutesCount: subAppStats.routesCount,
+                subAppsCount: subAppStats.subAppsCount,
                 sessions: this.sessionManager.getSessionCount(),
                 cachedResponses: this.responseCache.size()
             });
         });
 
+        this.app.get(`${this.basePath}/subapps`, (req, res) => {
+            const stats = this.subAppManager.getStats();
+            res.json(stats);
+        });
+
         this.started = true;
         logger.success(`HTTP RPC Server started at ${this.basePath}`);
+        logger.success(`RPC Client library available at: ${this.basePath}/client.js`);
+
+        if (this.subAppManager.subApps.size > 0) {
+            logger.success(`SubApps registered: ${this.subAppManager.getAllSubApps().join(', ')}`);
+        }
     }
 
     stop() {
         this.rateLimiter.destroy();
-        this.sessions.clear();
+        this.responseCache.stopAutoCleanup();
         this.started = false;
         logger.info('HTTP RPC Server stopped');
     }
@@ -160,13 +181,16 @@ class HttpRpcServer extends EventEmitter {
             middlewareCount: this.middleware.count(),
             interceptorCount: this.interceptors.getCount(),
             routeCount: this.routes.size,
-            sessionCount: this.sessions.size
+            sessionCount: this.sessionManager.getSessionCount(),
+            requestStats: this.requestManager.getStats(),
+            cacheStats: this.responseCache.getStats()
         };
     }
 
     async _handleRequest(req, res) {
         let requestId = null;
         let sessionId = null;
+        let clientId = null;
 
         try {
             if (!req.body || typeof req.body !== 'object') {
@@ -175,7 +199,11 @@ class HttpRpcServer extends EventEmitter {
 
             const message = req.body;
             requestId = message.id || uuidv4();
-            sessionId = this._getSessionId(req);
+            clientId = message.clientId || this._getSessionId(req);
+            sessionId = this.sessionManager.createSession(clientId);
+
+            this.sessionManager.updateActivity(sessionId);
+            this.sessionManager.addToGroup(clientId, sessionId);
 
             if (message.type !== MSG_TYPES.REQUEST) {
                 return this._sendError(res, 400, ERROR_CODES.INTERNAL_ERROR, 'Invalid message type');
@@ -192,10 +220,24 @@ class HttpRpcServer extends EventEmitter {
                 return this._sendError(res, 401, ERROR_CODES.UNAUTHORIZED, 'Authentication required');
             }
 
-            const handler = this.routes.get(message.route);
+            let handler = this.routes.get(message.route);
+            let isSubAppRoute = false;
+
             if (!handler) {
-                logger.error(`Route not found: ${message.route}`);
-                return this._sendError(res, 404, ERROR_CODES.ROUTE_NOT_FOUND, `Route not found: ${message.route}`);
+                if (this.subAppManager.routes.has(message.route)) {
+                    handler = async (params, sessionId, ctx) => {
+                        return await this.subAppManager.executeRoute(
+                            message.route,
+                            params,
+                            requestId,
+                            { ...ctx, sessionId }
+                        );
+                    };
+                    isSubAppRoute = true;
+                } else {
+                    logger.error(`Route not found: ${message.route}`);
+                    return this._sendError(res, 404, ERROR_CODES.ROUTE_NOT_FOUND, `Route not found: ${message.route}`);
+                }
             }
 
             this.performance.startRequest(requestId, message.route, sessionId);
@@ -216,21 +258,75 @@ class HttpRpcServer extends EventEmitter {
 
             let processedResult = await this.interceptors.executeResponseInterceptors(result);
 
+            const responseData = {
+                type: MSG_TYPES.RESPONSE,
+                id: requestId,
+                success: true,
+                result: processedResult,
+                timestamp: Date.now()
+            };
+
+            this.responseCache.set(requestId, responseData, 1800000);
+
             this._sendResponse(res, requestId, true, processedResult);
             this.performance.endRequest(requestId, true);
 
-            logger.debug(`HTTP RPC Route executed: ${message.route}`);
+            logger.debug(`HTTP RPC Route executed: ${message.route}, cached response for ${requestId}`);
 
         } catch (error) {
             logger.error('HTTP RPC request error:', error);
 
             const handledError = await this.interceptors.executeErrorInterceptors(error, { sessionId });
 
-            this._sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, handledError.message || error.message);
+            const errorData = {
+                type: MSG_TYPES.ERROR,
+                id: requestId,
+                success: false,
+                error: handledError.message || error.message,
+                code: ERROR_CODES.INTERNAL_ERROR,
+                timestamp: Date.now()
+            };
 
             if (requestId) {
+                this.responseCache.set(requestId, errorData, 1800000);
                 this.performance.endRequest(requestId, false, error);
             }
+
+            this._sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, handledError.message || error.message);
+        }
+    }
+
+    async _handleQuery(req, res) {
+        try {
+            const { requestId } = req.params;
+
+            if (!requestId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'requestId is required'
+                });
+            }
+
+            const cachedResponse = this.responseCache.get(requestId, true);
+
+            if (!cachedResponse) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Response not found or expired',
+                    requestId
+                });
+            }
+
+            res.json(cachedResponse);
+
+            logger.debug(`HTTP RPC Query: ${requestId} - response delivered`);
+
+        } catch (error) {
+            logger.error('HTTP RPC query error:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
         }
     }
 

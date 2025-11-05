@@ -314,12 +314,10 @@ class ThemeColors {
     primary: blue,
     secondary: green,
     surface: lightSurface,
-    background: lightBackground,
     error: red,
     onPrimary: white,
     onSecondary: white,
     onSurface: black,
-    onBackground: black,
     onError: white,
   );
 
@@ -327,12 +325,10 @@ class ThemeColors {
     primary: blue60,
     secondary: green60,
     surface: darkSurface,
-    background: darkBackground,
     error: red60,
     onPrimary: black,
     onSecondary: black,
     onSurface: white,
-    onBackground: white,
     onError: black,
   );
 

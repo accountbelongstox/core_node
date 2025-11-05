@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../router_app_travel/routes_provider_app_travel.dart';
 import '../../../provider_app_travel/user_provider_app_travel.dart';
 import '../../../resources_app_travel/assets_images_app_travel.dart';
-import '../../../widgets/travel_icons.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../../resources_app_travel/colors_app_travel.dart';
 
 class HomeHeader extends StatelessWidget {
   final double scrollTop;
@@ -89,7 +91,7 @@ class HomeHeader extends StatelessWidget {
                           padding: const EdgeInsets.only(left: 18.0),
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            '新人大礼包',
+                            TravelLocalizationKeys.travelNewUserGift.tr(context),
                             style: TextStyle(
                               fontSize: 14.0,
                               color: Colors.grey[600],
@@ -109,12 +111,12 @@ class HomeHeader extends StatelessWidget {
                           vertical: 8.0,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00D0D8),
+                          color: TravelColors.travelPrimary,
                           borderRadius: BorderRadius.circular(16.0),
                         ),
-                        child: const Text(
-                          '搜索',
-                          style: TextStyle(
+                        child: Text(
+                          TravelLocalizationKeys.travelSearch.tr(context),
+                          style: const TextStyle(
                             fontSize: 13.0,
                             color: Colors.white,
                             fontWeight: FontWeight.w500,
@@ -183,11 +185,11 @@ class HomeHeader extends StatelessWidget {
 
   Widget _buildDefaultAvatar() {
     return Container(
-      color: const Color(0xFFE3F2FD),
+      color: TravelColors.travelPrimaryLight,
       child: const Icon(
         Icons.person,
         size: 24.0,
-        color: Color(0xFF00D0D8),
+        color: TravelColors.travelPrimary,
       ),
     );
   }

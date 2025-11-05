@@ -1,5 +1,5 @@
 /// Playback controls widget for word listening
-library playback_controls;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../../common/theme/app_theme.dart';

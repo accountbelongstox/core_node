@@ -1,11 +1,9 @@
 /// IELTS Course Detail Screen
-library course_ielts_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../../../../common/widgets/gradient_button.dart';
 import '../domain/models/course_model.dart';
 
 class CourseIeltsScreen extends StatefulWidget {
@@ -54,9 +52,9 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
     ],
   );
 
-  double _userProgress = 0.35;
-  int _completedLessons = 17;
-  int _currentStreak = 5;
+  final double _userProgress = 0.35;
+  final int _completedLessons = 17;
+  final int _currentStreak = 5;
 
   @override
   void initState() {
@@ -506,7 +504,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 ),
               ],
             ),
-          )).toList(),
+          )),
         ],
       ),
     );
@@ -643,7 +641,7 @@ class _CourseIeltsScreenState extends State<CourseIeltsScreen>
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );

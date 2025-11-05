@@ -18,10 +18,10 @@ class HomeGridNav extends StatelessWidget {
   final bool isFirst;
 
   const HomeGridNav({
-    Key? key,
+    super.key,
     required this.gridNav,
     this.isFirst = false,
-  }) : super(key: key);
+  });
 
   String _getBackgroundImage(String title, int index) {
     const Map<String, List<String>> imageMap = {

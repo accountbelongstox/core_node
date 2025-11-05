@@ -14,7 +14,7 @@ const WebSocket = require('ws');
 const { EventEmitter } = require('events');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('#@logger');
-const { RPC_CONSTANTS } = require('../common');
+const { RPC_CONSTANTS, getSessionManager, getRequestManager, getResponseCache } = require('../common');
 const WS_RPC_CONSTANTS = RPC_CONSTANTS;
 const HeartbeatManager = require('./libs/HeartbeatManager');
 const MiddlewareChain = require('./libs/MiddlewareChain');
@@ -58,6 +58,11 @@ class WsRpcServer extends EventEmitter {
         this.events = new Map();
         this.pendingRequests = new Map();
         this.clients = new Map();
+
+        this.sessionManager = getSessionManager();
+        this.requestManager = getRequestManager();
+        this.responseCache = getResponseCache();
+        this.subAppManager = require('../common').getSubAppManager();
 
         this.heartbeat = new HeartbeatManager({
             interval: options.heartbeatInterval || DEFAULTS.HEARTBEAT_INTERVAL,
@@ -209,9 +214,9 @@ class WsRpcServer extends EventEmitter {
         const clients = this.namespace.getNamespaceClients(namespace);
         const messageStr = JSON.stringify(message);
         clients.forEach(clientId => {
-            const ws = this.clients.get(clientId);
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(messageStr);
+            const clientInfo = this.clients.get(clientId);
+            if (clientInfo && clientInfo.ws && clientInfo.ws.readyState === WebSocket.OPEN) {
+                clientInfo.ws.send(messageStr);
             }
         });
     }
@@ -220,9 +225,9 @@ class WsRpcServer extends EventEmitter {
         const clients = this.namespace.getRoomClients(room, namespace);
         const messageStr = JSON.stringify(message);
         clients.forEach(clientId => {
-            const ws = this.clients.get(clientId);
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(messageStr);
+            const clientInfo = this.clients.get(clientId);
+            if (clientInfo && clientInfo.ws && clientInfo.ws.readyState === WebSocket.OPEN) {
+                clientInfo.ws.send(messageStr);
             }
         });
     }
@@ -293,9 +298,9 @@ class WsRpcServer extends EventEmitter {
         };
 
         if (targetClientId) {
-            const ws = this.clients.get(targetClientId);
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(message));
+            const clientInfo = this.clients.get(targetClientId);
+            if (clientInfo && clientInfo.ws && clientInfo.ws.readyState === WebSocket.OPEN) {
+                clientInfo.ws.send(JSON.stringify(message));
             }
         } else {
             this.broadcast(message);
@@ -304,9 +309,9 @@ class WsRpcServer extends EventEmitter {
 
     callClient(routeName, params, clientId) {
         return new Promise((resolve, reject) => {
-            const ws = this.clients.get(clientId);
+            const clientInfo = this.clients.get(clientId);
 
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
+            if (!clientInfo || !clientInfo.ws || clientInfo.ws.readyState !== WebSocket.OPEN) {
                 logger.error(`Client ${clientId} not connected`);
                 return reject(new Error(`Client ${clientId} not connected`));
             }
@@ -334,16 +339,16 @@ class WsRpcServer extends EventEmitter {
                 clientId
             });
 
-            ws.send(JSON.stringify(message));
+            clientInfo.ws.send(JSON.stringify(message));
             logger.debug(`Calling client route: ${routeName} (ID: ${requestId})`);
         });
     }
 
     broadcast(message) {
         const messageStr = JSON.stringify(message);
-        this.clients.forEach((ws, clientId) => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(messageStr);
+        this.clients.forEach((clientInfo, clientId) => {
+            if (clientInfo.ws && clientInfo.ws.readyState === WebSocket.OPEN) {
+                clientInfo.ws.send(messageStr);
             }
         });
     }
@@ -353,49 +358,81 @@ class WsRpcServer extends EventEmitter {
     }
 
     _handleConnection(ws, req) {
-        const clientId = uuidv4();
-        this.clients.set(clientId, ws);
+        const tempId = uuidv4();
+        let clientId = null;
 
-        logger.info(`Client connected: ${clientId} from ${req.socket.remoteAddress}`);
-        this.emit(EVENTS.CONNECTION, clientId);
+        this.clients.set(tempId, { ws, clientId: null });
 
-        this.heartbeat.start(clientId, (message) => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(message));
-            }
-        });
+        logger.info(`Client connected (temp): ${tempId} from ${req.socket.remoteAddress}`);
+        this.emit(EVENTS.CONNECTION, tempId);
 
         ws.send(JSON.stringify({
             type: MSG_TYPES.WELCOME,
-            clientId: clientId,
+            tempId: tempId,
             authRequired: this.auth.enabled,
             timestamp: Date.now()
         }));
 
         ws.on('message', async (data) => {
-            await this._handleMessage(clientId, data);
+            try {
+                const message = JSON.parse(data.toString());
+
+                if (message.type === 'init' && message.clientId) {
+                    clientId = message.clientId;
+                    const sessionId = this.sessionManager.createSession(clientId);
+                    this.sessionManager.addToGroup(clientId, sessionId);
+
+                    this.clients.delete(tempId);
+                    this.clients.set(clientId, { ws, clientId, sessionId });
+
+                    this.heartbeat.start(clientId, (msg) => {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify(msg));
+                        }
+                    });
+
+                    logger.info(`Client initialized: ${clientId} (session: ${sessionId})`);
+                    return;
+                }
+
+                const actualClientId = clientId || tempId;
+                await this._handleMessage(actualClientId, data);
+
+            } catch (error) {
+                logger.error('Error processing message:', error);
+            }
         });
 
         ws.on('close', () => {
-            this.heartbeat.stop(clientId);
-            this.auth.revoke(clientId);
-            this.namespace.removeClient(clientId);
-            this.clients.delete(clientId);
-            logger.info(`Client disconnected: ${clientId}`);
-            this.emit(EVENTS.DISCONNECT, clientId);
+            const actualClientId = clientId || tempId;
+            this.heartbeat.stop(actualClientId);
+            this.auth.revoke(actualClientId);
+            this.namespace.removeClient(actualClientId);
+            this.clients.delete(actualClientId);
+
+            if (clientId) {
+                const clientInfo = this.clients.get(clientId);
+                if (clientInfo && clientInfo.sessionId) {
+                    this.sessionManager.removeSession(clientInfo.sessionId);
+                }
+            }
+
+            logger.info(`Client disconnected: ${actualClientId}`);
+            this.emit(EVENTS.DISCONNECT, actualClientId);
         });
 
         ws.on('error', (error) => {
-            logger.error(`Client error (${clientId}):`, error);
-            this.emit(EVENTS.ERROR, error, clientId);
+            const actualClientId = clientId || tempId;
+            logger.error(`Client error (${actualClientId}):`, error);
+            this.emit(EVENTS.ERROR, error, actualClientId);
         });
     }
 
     _handleHeartbeatTimeout(clientId) {
-        const ws = this.clients.get(clientId);
-        if (ws) {
+        const clientInfo = this.clients.get(clientId);
+        if (clientInfo && clientInfo.ws) {
             logger.warn(`Heartbeat timeout for client ${clientId}, closing connection`);
-            ws.close();
+            clientInfo.ws.close();
         }
     }
 
@@ -460,9 +497,9 @@ class WsRpcServer extends EventEmitter {
     }
 
     _sendError(clientId, code, message) {
-        const ws = this.clients.get(clientId);
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
+        const clientInfo = this.clients.get(clientId);
+        if (clientInfo && clientInfo.ws && clientInfo.ws.readyState === WebSocket.OPEN) {
+            clientInfo.ws.send(JSON.stringify({
                 type: MSG_TYPES.ERROR,
                 code: code,
                 error: message,
@@ -475,9 +512,9 @@ class WsRpcServer extends EventEmitter {
         const { credentials } = message;
         const result = await this.auth.authenticate(clientId, credentials);
 
-        const ws = this.clients.get(clientId);
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
+        const clientInfo = this.clients.get(clientId);
+        if (clientInfo && clientInfo.ws && clientInfo.ws.readyState === WebSocket.OPEN) {
+            clientInfo.ws.send(JSON.stringify({
                 type: MSG_TYPES.AUTH_RESPONSE,
                 success: result.success,
                 token: result.token,
@@ -537,10 +574,15 @@ class WsRpcServer extends EventEmitter {
 
     async _handleRequest(clientId, message) {
         const { id: requestId, route, params } = message;
-        const ws = this.clients.get(clientId);
+        const clientInfo = this.clients.get(clientId);
 
-        if (!ws) {
+        if (!clientInfo || !clientInfo.ws) {
             return;
+        }
+
+        const sessionId = clientInfo.sessionId;
+        if (sessionId) {
+            this.sessionManager.updateActivity(sessionId);
         }
 
         this.performance.startRequest(requestId, route, clientId);
@@ -549,25 +591,38 @@ class WsRpcServer extends EventEmitter {
             const rateLimitCheck = this.rateLimiter.check(clientId);
             if (!rateLimitCheck.allowed) {
                 logger.warn(`Rate limit exceeded for client ${clientId}`);
-                this._sendResponse(ws, requestId, false, null, ERROR_CODES.FORBIDDEN, 'Rate limit exceeded');
+                await this._sendResponseWithRetry(clientId, requestId, false, null, ERROR_CODES.FORBIDDEN, 'Rate limit exceeded');
                 this.performance.endRequest(requestId, false, new Error('Rate limit exceeded'));
                 return;
             }
 
             if (this.auth.enabled && !this.auth.isAuthenticated(clientId)) {
                 logger.warn(`Unauthorized request from client ${clientId}`);
-                this._sendResponse(ws, requestId, false, null, ERROR_CODES.UNAUTHORIZED, 'Authentication required');
+                await this._sendResponseWithRetry(clientId, requestId, false, null, ERROR_CODES.UNAUTHORIZED, 'Authentication required');
                 this.performance.endRequest(requestId, false, new Error('Unauthorized'));
                 return;
             }
 
-            const handler = this.routes.get(route);
+            let handler = this.routes.get(route);
+            let isSubAppRoute = false;
 
             if (!handler) {
-                logger.error(`Route not found: ${route}`);
-                this._sendResponse(ws, requestId, false, null, ERROR_CODES.ROUTE_NOT_FOUND, `Route not found: ${route}`);
-                this.performance.endRequest(requestId, false, new Error('Route not found'));
-                return;
+                if (this.subAppManager.routes.has(route)) {
+                    handler = async (params, clientId, ctx) => {
+                        return await this.subAppManager.executeRoute(
+                            route,
+                            params,
+                            requestId,
+                            { ...ctx, clientId }
+                        );
+                    };
+                    isSubAppRoute = true;
+                } else {
+                    logger.error(`Route not found: ${route}`);
+                    await this._sendResponseWithRetry(clientId, requestId, false, null, ERROR_CODES.ROUTE_NOT_FOUND, `Route not found: ${route}`);
+                    this.performance.endRequest(requestId, false, new Error('Route not found'));
+                    return;
+                }
             }
 
             const context = {
@@ -576,7 +631,8 @@ class WsRpcServer extends EventEmitter {
                 route,
                 params,
                 auth: this.auth.getAuthData(clientId),
-                ws
+                sessionId,
+                ws: clientInfo.ws
             };
 
             const result = await this.middleware.execute(context, async (ctx) => {
@@ -590,7 +646,7 @@ class WsRpcServer extends EventEmitter {
                 processedResult = compressed;
             }
 
-            this._sendResponse(ws, requestId, true, processedResult);
+            await this._sendResponseWithRetry(clientId, requestId, true, processedResult);
             this.performance.endRequest(requestId, true);
 
             logger.debug(`Route executed successfully: ${route}`);
@@ -600,9 +656,54 @@ class WsRpcServer extends EventEmitter {
 
             const handledError = await this.interceptors.executeErrorInterceptors(error, { clientId, route });
 
-            this._sendResponse(ws, requestId, false, null, ERROR_CODES.INTERNAL_ERROR, handledError.message || error.message);
+            await this._sendResponseWithRetry(clientId, requestId, false, null, ERROR_CODES.INTERNAL_ERROR, handledError.message || error.message);
             this.performance.endRequest(requestId, false, error);
         }
+    }
+
+    async _sendResponseWithRetry(clientId, requestId, success, result = null, code = null, error = null) {
+        const responseData = {
+            type: MSG_TYPES.RESPONSE,
+            id: requestId,
+            success,
+            result,
+            code,
+            error,
+            timestamp: Date.now()
+        };
+
+        const clientInfo = this.clients.get(clientId);
+        if (!clientInfo || !clientInfo.ws) {
+            this.responseCache.set(requestId, responseData, 1800000);
+            logger.warn(`Client ${clientId} not found, response cached for HTTP query`);
+            return false;
+        }
+
+        const ws = clientInfo.ws;
+        const maxRetries = 3;
+        const retryInterval = 1000;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify(responseData));
+                    logger.debug(`WebSocket response sent to ${clientId} (attempt ${attempt}/${maxRetries})`);
+                    return true;
+                } else {
+                    logger.warn(`WebSocket not open for ${clientId}, readyState: ${ws.readyState} (attempt ${attempt}/${maxRetries})`);
+                }
+            } catch (sendError) {
+                logger.error(`Failed to send WebSocket response to ${clientId} (attempt ${attempt}/${maxRetries}):`, sendError);
+            }
+
+            if (attempt < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, retryInterval));
+            }
+        }
+
+        this.responseCache.set(requestId, responseData, 1800000);
+        logger.warn(`WebSocket send failed after ${maxRetries} attempts for ${clientId}, response cached for HTTP query`);
+        return false;
     }
 
     _sendResponse(ws, requestId, success, result = null, code = null, error = null) {

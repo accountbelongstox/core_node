@@ -6,9 +6,9 @@ class HomeGridNavSection extends StatefulWidget {
   final List<GridNavModel> gridNavs;
 
   const HomeGridNavSection({
-    Key? key,
+    super.key,
     required this.gridNavs,
-  }) : super(key: key);
+  });
 
   @override
   State<HomeGridNavSection> createState() => _HomeGridNavSectionState();

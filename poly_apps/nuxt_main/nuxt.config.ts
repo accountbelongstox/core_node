@@ -166,7 +166,14 @@ export default defineNuxtConfig({
         options: { linkExactActiveClass: 'active' },
     },
     nitro: {
-        preset: 'node-server'
+        preset: 'node-server',
+        devProxy: {
+            '/api/ittools': {
+                target: 'http://localhost:8080',
+                changeOrigin: true,
+                prependPath: true
+            }
+        }
     },
     experimental: {
         payloadExtraction: false

@@ -251,7 +251,7 @@ class _WuyPersonalInfoScreenState extends State<WuyPersonalInfoScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Container(
+      child: SizedBox(
         height: 56,
         child: TextFormField(
           controller: controller,

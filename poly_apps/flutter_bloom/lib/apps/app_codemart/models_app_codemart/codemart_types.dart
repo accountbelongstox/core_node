@@ -334,7 +334,7 @@ class Attachment {
   final int id;
   final String fileName;
   final String fileUrl;
-  final FileType fileType;
+  final AttachmentFileType fileType;
   final AttachmentType attachmentType;
   final int fileSizeBytes;
   final String uploadedAt;
@@ -385,18 +385,18 @@ class Attachment {
   double get fileSizeMb => fileSizeBytes / (1024 * 1024);
 
   // Helper to check if file is an image
-  bool get isImage => fileType == FileType.image;
+  bool get isImage => fileType == AttachmentFileType.image;
 
   // Helper to check if file is a document
   bool get isDocument => [
-        FileType.pdf,
-        FileType.doc,
-        FileType.docx,
-        FileType.xls,
-        FileType.xlsx,
-        FileType.ppt,
-        FileType.pptx,
-        FileType.txt,
+        AttachmentFileType.pdf,
+        AttachmentFileType.doc,
+        AttachmentFileType.docx,
+        AttachmentFileType.xls,
+        AttachmentFileType.xlsx,
+        AttachmentFileType.ppt,
+        AttachmentFileType.pptx,
+        AttachmentFileType.txt,
       ].contains(fileType);
 }
 
@@ -870,58 +870,6 @@ class Task {
   }
 }
 
-class Attachment {
-  final int id;
-  final String fileName;
-  final String originalName;
-  final String mimeType;
-  final int size;
-  final String path;
-  final String url;
-  final int uploadedBy;
-  final String uploadedAt;
-
-  Attachment({
-    required this.id,
-    required this.fileName,
-    required this.originalName,
-    required this.mimeType,
-    required this.size,
-    required this.path,
-    required this.url,
-    required this.uploadedBy,
-    required this.uploadedAt,
-  });
-
-  factory Attachment.fromJson(Map<String, dynamic> json) {
-    return Attachment(
-      id: json['id'] as int,
-      fileName: json['fileName'] as String,
-      originalName: json['originalName'] as String,
-      mimeType: json['mimeType'] as String,
-      size: json['size'] as int,
-      path: json['path'] as String,
-      url: json['url'] as String,
-      uploadedBy: json['uploadedBy'] as int,
-      uploadedAt: json['uploadedAt'] as String,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'fileName': fileName,
-      'originalName': originalName,
-      'mimeType': mimeType,
-      'size': size,
-      'path': path,
-      'url': url,
-      'uploadedBy': uploadedBy,
-      'uploadedAt': uploadedAt,
-    };
-  }
-}
-
 class PaginatedResponse<T> {
   final List<T> items;
   final int total;
@@ -1137,10 +1085,10 @@ VerificationStatus _parseVerificationStatus(String value) {
   );
 }
 
-FileType _parseFileType(String value) {
-  return FileType.values.firstWhere(
+AttachmentFileType _parseFileType(String value) {
+  return AttachmentFileType.values.firstWhere(
     (e) => e.name == value,
-    orElse: () => FileType.pdf,
+    orElse: () => AttachmentFileType.pdf,
   );
 }
 

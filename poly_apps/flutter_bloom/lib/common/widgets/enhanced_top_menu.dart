@@ -375,7 +375,7 @@ class ActionTopMenu extends EnhancedTopMenu {
   final String appTitle;
   final List<TopMenuAction> menuActions;
 
-  ActionTopMenu({
+  const ActionTopMenu({
     super.key,
     required this.appTitle,
     required this.menuActions,

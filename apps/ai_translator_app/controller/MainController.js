@@ -13,6 +13,7 @@
 const logger = require('#@logger');
 const aiTranslator = require('#@ncore/utils/ai_translator/index.js');
 const webInterface = require('#@ncore/utils/ai_translator/web/index.js');
+const RpcIntegrationController = require('./RpcIntegrationController.js');
 
 class MainController {
     constructor(config) {
@@ -20,6 +21,7 @@ class MainController {
         this.isRunning = false;
         this.translationManager = null;
         this.webServer = null;
+        this.rpcIntegration = null;
     }
 
     async start() {
@@ -55,6 +57,12 @@ class MainController {
             if (this.config.webConfig.enabled) {
                 this.webServer = await webInterface.startWebInterface(this.translationManager, this.config);
                 logger.info(`[AI Translator App] Web interface: http://${this.config.webConfig.host}:${this.config.webConfig.port}`);
+            }
+
+            if (this.config.rpcConfig && this.config.rpcConfig.enabled) {
+                this.rpcIntegration = new RpcIntegrationController(this, this.config);
+                await this.rpcIntegration.start();
+                logger.info(`[AI Translator App] RPC interface: http://${this.config.rpcConfig.host}:${this.config.rpcConfig.port}`);
             }
 
             this.isRunning = true;
@@ -118,6 +126,11 @@ class MainController {
         try {
             logger.info('[AI Translator App] Stopping application...');
 
+            if (this.rpcIntegration) {
+                await this.rpcIntegration.stop();
+                this.rpcIntegration = null;
+            }
+
             if (this.webServer) {
                 await webInterface.stopWebInterface();
                 this.webServer = null;
@@ -148,16 +161,21 @@ class MainController {
         const webStatus = this.webServer ?
             await webInterface.getWebStatus() : null;
 
+        const rpcStatus = this.rpcIntegration ?
+            await this.rpcIntegration.getStatus() : null;
+
         return {
             status: 'running',
             uptime: process.uptime(),
             translationService: translationStatus,
             webInterface: webStatus,
+            rpcInterface: rpcStatus,
             configuration: {
                 watchPath: this.config.watchConfig.watchPath,
                 watchExtensions: this.config.watchConfig.watchExtensions,
                 targetLanguage: this.config.translationConfig.targetLanguage,
-                webEnabled: this.config.webConfig.enabled
+                webEnabled: this.config.webConfig.enabled,
+                rpcEnabled: this.config.rpcConfig?.enabled || false
             }
         };
     }

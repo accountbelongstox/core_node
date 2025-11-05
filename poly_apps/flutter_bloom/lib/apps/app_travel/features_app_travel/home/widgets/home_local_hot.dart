@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../models_app_travel/local_hot_model.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
 
 class HomeLocalHot extends StatelessWidget {
   final List<LocalHotModel> localHot;
   final bool hideTitle;
 
   const HomeLocalHot({
-    Key? key,
+    super.key,
     required this.localHot,
     this.hideTitle = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -38,9 +40,9 @@ class HomeLocalHot extends StatelessWidget {
                 vertical: 24.0,
                 horizontal: 48.0,
               ),
-              child: const Text(
-                '当地热门',
-                style: TextStyle(
+              child: Text(
+                TravelLocalizationKeys.travelLocalHot.tr(context),
+                style: const TextStyle(
                   fontSize: 36.0,
                   height: 40.0 / 36.0,
                   color: Colors.black87,

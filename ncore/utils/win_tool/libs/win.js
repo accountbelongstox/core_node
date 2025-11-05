@@ -19,7 +19,6 @@ const { execSync, exec } = require('child_process');
 const { gdir } = require('#@global_vars');
 const { Shell } = require('node-windows');
 const { execCmd, execCmdResultText, pipeExecCmd } = require('#@commander');
-const userSettings = require('#@/ncore/global_vars/libs/user_settings.js');
 // const windows_shortcuts = require('windows-shortcuts');
 const logger = require('#@logger');
 const registry = require('./registry.js');

@@ -10,9 +10,9 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-const logger = require('./../../foundation/common/logger');
+const logger = require('#@logger');
 const httpUtils = require('../http-wrapper');
-const wsRpcUtils = require('../ws_rpc');
+const wsRpcUtils = require('../rpc/ws_rpc');
 const CryptoTools = require('./tools/crypto');
 const ConverterTools = require('./tools/converter');
 const WebTools = require('./tools/web');
@@ -332,6 +332,207 @@ class EnhancedItTools {
         });
 
         this._registerHttpRoute('POST', '/api/tools/:toolId/execute', async (req, res) => {
+            try {
+                const { toolId } = req.params;
+                const params = req.body || {};
+                const result = await this.executeTool(toolId, params);
+                res.json({
+                    success: result.success,
+                    data: result.data,
+                    error: result.error,
+                    executionTime: result.executionTime,
+                    timestamp: result.timestamp
+                });
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/crypto/hash', async (req, res) => {
+            try {
+                const result = await this.executeTool('hash_text', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/crypto/uuid/generate', async (req, res) => {
+            try {
+                const result = await this.executeTool('uuid_generator', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/crypto/token/generate', async (req, res) => {
+            try {
+                const result = await this.executeTool('token_generator', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/converter/base64/encode', async (req, res) => {
+            try {
+                const result = await this.executeTool('base64_encoder', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/converter/base64/decode', async (req, res) => {
+            try {
+                const result = await this.executeTool('base64_decoder', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/converter/url/encode', async (req, res) => {
+            try {
+                const result = await this.executeTool('url_encoder', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/converter/url/decode', async (req, res) => {
+            try {
+                const result = await this.executeTool('url_decoder', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/web/json/prettify', async (req, res) => {
+            try {
+                const result = await this.executeTool('json_prettify', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/web/json/minify', async (req, res) => {
+            try {
+                const result = await this.executeTool('json_minify', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/text/statistics', async (req, res) => {
+            try {
+                const result = await this.executeTool('text_statistics', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/text/regex/test', async (req, res) => {
+            try {
+                const result = await this.executeTool('regex_tester', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/math/evaluate', async (req, res) => {
+            try {
+                const result = await this.executeTool('math_evaluator', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/network/ipv4/convert', async (req, res) => {
+            try {
+                const result = await this.executeTool('ipv4_converter', req.body);
+                res.json(result);
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        this._registerHttpRoute('GET', '/api/ittools/tools', (req, res) => {
+            try {
+                const tools = this.getAllTools();
+                res.json({
+                    success: true,
+                    data: tools,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this._registerHttpRoute('GET', '/api/ittools/tools/category/:category', (req, res) => {
+            try {
+                const { category } = req.params;
+                const tools = this.getToolsByCategory(category);
+                res.json({
+                    success: true,
+                    data: tools,
+                    category: category,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this._registerHttpRoute('GET', '/api/ittools/tools/search', (req, res) => {
+            try {
+                const { q } = req.query;
+                if (!q) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Query parameter "q" is required',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                const tools = this.searchTools(q);
+                res.json({
+                    success: true,
+                    data: tools,
+                    query: q,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+
+        this._registerHttpRoute('POST', '/api/ittools/tools/:toolId/execute', async (req, res) => {
             try {
                 const { toolId } = req.params;
                 const params = req.body || {};

@@ -1,13 +1,13 @@
 /// Login screen for app_qy
 /// Features phone number and WeChat authentication options
-library login_screen_app_qy;
+library;
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../../../common/auth_v2/auth_v2.dart';
-import '../../provider_app_qy/user_provider_app_qy.dart';
+import '../../../provider_app_qy/user_provider_app_qy.dart';
 import '../widgets/phone_login_button.dart';
 import '../widgets/wechat_login_button.dart';
 import '../widgets/agreement_checkbox.dart';

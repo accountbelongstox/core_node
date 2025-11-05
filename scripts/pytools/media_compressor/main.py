@@ -2,7 +2,20 @@
 
 from __future__ import annotations
 
-from menu import main as _run_main
+import sys
+from pathlib import Path
+
+# Add current directory to path for direct script execution
+if __name__ == "__main__":
+    _current_dir = Path(__file__).parent
+    if str(_current_dir) not in sys.path:
+        sys.path.insert(0, str(_current_dir))
+
+try:
+    from .menu import main as _run_main
+except ImportError:
+    # Fallback for direct script execution
+    from menu import main as _run_main
 
 
 def main() -> None:
@@ -10,7 +23,7 @@ def main() -> None:
     _run_main()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

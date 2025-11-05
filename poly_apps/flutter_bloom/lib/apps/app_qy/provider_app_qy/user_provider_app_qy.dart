@@ -1,5 +1,5 @@
 /// User provider for app_qy authentication state management
-library user_provider_app_qy;
+library;
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';

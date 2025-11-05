@@ -33,7 +33,7 @@ class BingWordParseTool {
 // Other AIs: This file should be renamed to word_cards_screen_delete.dart for manual cleanup
 
 class WordCardsScreen extends StatefulWidget {
-  const WordCardsScreen({Key? key}) : super(key: key);
+  const WordCardsScreen({super.key});
 
   @override
   State<WordCardsScreen> createState() => _WordCardsScreenState();

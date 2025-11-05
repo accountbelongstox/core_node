@@ -15,10 +15,8 @@ import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../config_app_bank/bank_text_styles.dart';
 import '../../../config_app_bank/constants.dart';
-import '../../../localization_app_bank/localization_keys_app_bank.dart';
 
 /// Bank Authentication Screen - Inspired by Chinese Banking UI
 /// Simple and clean login interface matching modern banking apps

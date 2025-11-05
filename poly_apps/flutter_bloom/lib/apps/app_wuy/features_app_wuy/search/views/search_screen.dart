@@ -511,7 +511,7 @@ class _WuySearchScreenState extends State<WuySearchScreen> {
           const SizedBox(height: 12),
           WuyModernInputField(
             controller: controller,
-            keyboardType: keyboardType,
+            keyboardType: keyboardType ?? TextInputType.text,
             hintText: hintText,
             maxLines: maxLines,
           ),

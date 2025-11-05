@@ -1,6 +1,6 @@
 /// Beautiful login screen with glassmorphism and gradients
 /// Uses centralized i18n, theme, and settings systems
-library login_screen_v2_app_qy;
+library;
 
 import 'dart:async';
 import 'dart:ui';
@@ -558,8 +558,8 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
             child: Checkbox(
               value: _agreedToTerms,
               onChanged: (value) => setState(() => _agreedToTerms = value ?? false),
-              fillColor: MaterialStateProperty.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
+              fillColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
                   return AppTheme.primaryGreen;
                 }
                 return Colors.white.withOpacity(0.3);

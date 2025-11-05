@@ -151,7 +151,7 @@ class _NotificationsViewAppCodemartState extends State<NotificationsViewAppCodem
 
                 return Card(
                   margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                  color: isRead ? null : Theme.of(context).colorScheme.surfaceVariant,
+                  color: isRead ? null : Theme.of(context).colorScheme.surfaceContainerHighest,
                   child: Dismissible(
                     key: Key(notification['id'].toString()),
                     direction: DismissDirection.endToStart,

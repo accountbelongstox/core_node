@@ -21,14 +21,14 @@ class SettingsBadgeItem extends StatelessWidget {
   final Color? badgeColor;
 
   const SettingsBadgeItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     required this.badge,
     required this.onTap,
     this.iconColor,
     this.badgeColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

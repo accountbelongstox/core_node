@@ -1,5 +1,5 @@
 /// Study statistics card widget
-library study_stats_card;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../common/i18n/i18n_service.dart';

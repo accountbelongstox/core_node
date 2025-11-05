@@ -1,8 +1,7 @@
 /// Word Listening AI Explain screen with advanced AI explanations
-library word_listening_ai_explain_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
 
@@ -454,7 +453,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
                   ),
                 ),
               ),
-            )).toList(),
+            )),
           ],
         ),
       ),

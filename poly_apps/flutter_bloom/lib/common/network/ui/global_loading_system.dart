@@ -329,6 +329,7 @@ class GlobalLoadingSystem extends ChangeNotifier {
   }
 
   /// Cleanup method
+  @override
   void dispose() {
     // FIXED: LoadingManager doesn't exist and was never imported
     // This appears to be self-referential - GlobalLoadingSystem is the loading manager
@@ -626,17 +627,15 @@ enum FileOperationType {
 /// Provider wrapper for easy integration
 class GlobalLoadingProvider extends ChangeNotifierProvider<GlobalLoadingSystem> {
   GlobalLoadingProvider({
-    Key? key,
-    required Widget child,
+    super.key,
+    required Widget super.child,
     LoadingTheme? theme,
   }) : super(
-    key: key,
     create: (context) {
       final system = GlobalLoadingSystem.instance;
       system.initialize(theme: theme);
       return system;
     },
-    child: child,
   );
 }
 

@@ -192,10 +192,6 @@ class ProxySettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }
 
 /// Proxy configuration model

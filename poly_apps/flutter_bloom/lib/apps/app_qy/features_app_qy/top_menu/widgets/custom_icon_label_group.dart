@@ -19,11 +19,11 @@ class CustomIconLabelGroup extends StatelessWidget {
   final WrapAlignment alignment;
 
   const CustomIconLabelGroup({
-    Key? key,
+    super.key,
     required this.iconLabelList,
     this.title,
     this.alignment = WrapAlignment.spaceBetween,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

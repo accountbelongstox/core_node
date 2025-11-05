@@ -1,5 +1,5 @@
 /// More Features screen with additional tools and utilities
-library more_features_screen;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
@@ -160,7 +160,7 @@ class _MoreFeaturesScreenState extends State<MoreFeaturesScreen>
         {
           'title': '语法检查',
           'subtitle': '智能语法检查器',
-          'icon': Icons.spellcheck',
+          'icon': Icons.spellcheck,
           'color': AppTheme.warning,
           'route': '/grammar_checker',
           'locked': false,

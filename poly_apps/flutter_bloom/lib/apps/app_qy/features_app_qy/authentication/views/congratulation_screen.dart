@@ -19,7 +19,7 @@ import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:get/get.dart';
 
 class CongratulationScreen extends StatelessWidget {
-  const CongratulationScreen({Key? key}) : super(key: key);
+  const CongratulationScreen({super.key});
   @override
   Widget build(BuildContext context) {
     // Using common text styles directly

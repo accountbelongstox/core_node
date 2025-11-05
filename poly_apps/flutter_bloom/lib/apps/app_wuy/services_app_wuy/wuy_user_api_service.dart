@@ -11,9 +11,9 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:qyflutter/common/network/network_framework.dart';
-import '../config_app_wuy/api_config_app_wuy.dart';
+import '../config_app_wuy/api_config_app_wuy.dart' hide ApiEndpointsAppWuy;
 import '../models_app_wuy/user_model_app_wuy.dart';
-import 'wuy_api_client.dart';
+import 'wuy_api_client.dart' as wuy_endpoints;
 import 'wuy_api_response.dart';
 
 /// User Management API Service for Wuy App
@@ -35,7 +35,7 @@ class WuyUserApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.userProfile,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.userProfile,
         method: RequestMethod.get,
         headers: {
           'Content-Type': 'application/json',
@@ -95,7 +95,7 @@ class WuyUserApiService {
       if (avatar != null) body['avatar'] = avatar;
 
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.userProfileUpdate,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.userProfileUpdate,
         method: RequestMethod.put,
         body: body,
         headers: {
@@ -171,7 +171,7 @@ class WuyUserApiService {
       }
 
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.userChangePassword,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.userChangePassword,
         method: RequestMethod.post,
         body: {
           'current_password': currentPassword,
@@ -218,7 +218,7 @@ class WuyUserApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.userBindPhone,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.userBindPhone,
         method: RequestMethod.post,
         body: {
           'phone': phone,
@@ -264,7 +264,7 @@ class WuyUserApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: '${ApiEndpointsAppWuy.userBindPhone}/request-code',
+        endpoint: '${wuy_endpoints.ApiEndpointsAppWuy.userBindPhone}/request-code',
         method: RequestMethod.post,
         body: {
           'phone': phone,
@@ -314,7 +314,7 @@ class WuyUserApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.userBindEmail,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.userBindEmail,
         method: RequestMethod.post,
         body: {
           'email': email,
@@ -358,7 +358,7 @@ class WuyUserApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: '${ApiEndpointsAppWuy.userBindEmail}/request-code',
+        endpoint: '${wuy_endpoints.ApiEndpointsAppWuy.userBindEmail}/request-code',
         method: RequestMethod.post,
         body: {'email': email},
         headers: {

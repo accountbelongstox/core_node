@@ -16,7 +16,6 @@ import 'package:qyflutter/apps/app_qy/features_app_qy/donation/domain/model/doan
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/actions_widget.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 
 class MyDonationAllScreen extends StatelessWidget {

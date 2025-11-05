@@ -1,5 +1,5 @@
 /// Settings tile widget
-library settings_tile;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../../common/theme/app_theme.dart';

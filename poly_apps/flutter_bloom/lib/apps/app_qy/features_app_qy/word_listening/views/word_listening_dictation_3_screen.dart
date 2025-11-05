@@ -1,8 +1,7 @@
 /// Expert Dictation Practice Screen - Level 3
-library word_listening_dictation_3_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
 
@@ -97,7 +96,7 @@ class _WordListeningDictation3ScreenState extends State<WordListeningDictation3S
   bool _isCompleted = false;
   int _correctCount = 0;
   int _attempts = 0;
-  List<String> _userAttempts = [];
+  final List<String> _userAttempts = [];
   int _streakCount = 0;
 
   @override

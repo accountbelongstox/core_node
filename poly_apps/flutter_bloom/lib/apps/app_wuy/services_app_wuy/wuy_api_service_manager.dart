@@ -16,7 +16,6 @@ import '../config_app_wuy/api_config_app_wuy.dart';
 import '../models_app_wuy/auth_models_app_wuy.dart';
 import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
-import 'wuy_api_client.dart';
 import 'wuy_api_response.dart';
 import 'wuy_auth_api_service.dart';
 import 'wuy_user_api_service.dart';

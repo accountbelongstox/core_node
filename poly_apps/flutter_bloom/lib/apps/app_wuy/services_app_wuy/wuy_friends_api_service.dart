@@ -10,12 +10,10 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'package:flutter/foundation.dart';
 import 'package:qyflutter/common/network/network_framework.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
-import 'wuy_api_client.dart';
+import 'wuy_api_client.dart' as wuy_endpoints;
 import 'wuy_api_response.dart';
-import 'wuy_auth_api_service.dart';
 
 /// Friends API Service for Wuy App
 /// Handles all friends-related API calls
@@ -25,7 +23,6 @@ class WuyFriendsApiService {
   WuyFriendsApiService(this._networkClient);
 
   // ==================== FRIENDS LIST ====================
-
   /// Get friends list
   ///
   /// [accessToken] - User's access token
@@ -39,8 +36,8 @@ class WuyFriendsApiService {
     int limit = 20,
   }) async {
     try {
-      final endpoint = ApiEndpointsAppWuy.buildPaginatedEndpoint(
-        ApiEndpointsAppWuy.friendsList,
+      final endpoint = wuy_endpoints.ApiEndpointsAppWuy.buildPaginatedEndpoint(
+        wuy_endpoints.ApiEndpointsAppWuy.friendsList,
         page: page,
         limit: limit,
       );
@@ -83,7 +80,6 @@ class WuyFriendsApiService {
   }
 
   // ==================== ADD FRIEND ====================
-
   /// Send friend request
   ///
   /// [accessToken] - User's access token
@@ -96,7 +92,7 @@ class WuyFriendsApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.friendsAdd,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.friendsAdd,
         method: RequestMethod.post,
         body: {'user_id': userId},
         headers: {
@@ -149,7 +145,7 @@ class WuyFriendsApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.friendsAdd,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.friendsAdd,
         method: RequestMethod.post,
         body: {'username': username},
         headers: {
@@ -191,7 +187,6 @@ class WuyFriendsApiService {
   }
 
   // ==================== REMOVE FRIEND ====================
-
   /// Remove friend
   ///
   /// [accessToken] - User's access token
@@ -202,7 +197,7 @@ class WuyFriendsApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.friendsRemove,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.friendsRemove,
         method: RequestMethod.delete,
         body: {'friend_id': friendId},
         headers: {
@@ -242,7 +237,7 @@ class WuyFriendsApiService {
     required String friendId,
   }) async {
     try {
-      final endpoint = '${ApiEndpointsAppWuy.friendsInfo}/$friendId';
+      final endpoint = '${wuy_endpoints.ApiEndpointsAppWuy.friendsInfo}/$friendId';
 
       final request = NetworkRequest(
         endpoint: endpoint,
@@ -296,8 +291,8 @@ class WuyFriendsApiService {
     int limit = 20,
   }) async {
     try {
-      final endpoint = ApiEndpointsAppWuy.buildPaginatedEndpoint(
-        ApiEndpointsAppWuy.friendsSearch,
+      final endpoint = wuy_endpoints.ApiEndpointsAppWuy.buildPaginatedEndpoint(
+        wuy_endpoints.ApiEndpointsAppWuy.friendsSearch,
         page: page,
         limit: limit,
         additionalParams: {'query': query},
@@ -346,7 +341,7 @@ class WuyFriendsApiService {
   Future<WuyApiResponse<Map<String, dynamic>>> checkFriendSystemHealth() async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.friendsHealth,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.friendsHealth,
         method: RequestMethod.get,
         headers: {'Content-Type': 'application/json'},
       );
@@ -383,7 +378,7 @@ class WuyFriendsApiService {
     required String requestId,
   }) async {
     try {
-      final endpoint = '${ApiEndpointsAppWuy.friendsAdd}/accept/$requestId';
+      final endpoint = '${wuy_endpoints.ApiEndpointsAppWuy.friendsAdd}/accept/$requestId';
 
       final request = NetworkRequest(
         endpoint: endpoint,
@@ -423,7 +418,7 @@ class WuyFriendsApiService {
     required String requestId,
   }) async {
     try {
-      final endpoint = '${ApiEndpointsAppWuy.friendsAdd}/decline/$requestId';
+      final endpoint = '${wuy_endpoints.ApiEndpointsAppWuy.friendsAdd}/decline/$requestId';
 
       final request = NetworkRequest(
         endpoint: endpoint,

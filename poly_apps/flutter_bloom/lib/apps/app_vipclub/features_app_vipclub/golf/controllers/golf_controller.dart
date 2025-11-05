@@ -25,8 +25,9 @@ class VipClubGolfController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final facilities = await _publicApi.getFacilities(type: 'golf');
-      _golfCourses = facilities
+      final response = await _publicApi.getFacilities(type: 'golf');
+      final facilitiesList = response['data'] as List? ?? response['items'] as List? ?? [];
+      _golfCourses = facilitiesList
           .where((f) => f is VipClubGolfCourseModel)
           .cast<VipClubGolfCourseModel>()
           .toList();

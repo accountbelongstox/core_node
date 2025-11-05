@@ -213,28 +213,20 @@ class PaginatedResponse<T> extends ApiResponse<List<T>> {
   final bool hasPreviousPage;
 
   const PaginatedResponse({
-    required bool success,
-    required List<T>? data,
-    String? message,
-    String? error,
-    int? statusCode,
-    Map<String, dynamic>? metadata,
-    required DateTime timestamp,
+    required super.success,
+    required super.data,
+    super.message,
+    super.error,
+    super.statusCode,
+    super.metadata,
+    required super.timestamp,
     required this.currentPage,
     required this.totalPages,
     required this.totalItems,
     required this.itemsPerPage,
     required this.hasNextPage,
     required this.hasPreviousPage,
-  }) : super(
-          success: success,
-          data: data,
-          message: message,
-          error: error,
-          statusCode: statusCode,
-          metadata: metadata,
-          timestamp: timestamp,
-        );
+  });
 
   /// Create successful paginated response
   factory PaginatedResponse.success({
@@ -400,13 +392,13 @@ class EnhancedApiResponse<T> extends ApiResponse<T> {
   final bool isStale;
 
   const EnhancedApiResponse({
-    required bool success,
-    T? data,
-    String? message,
-    String? error,
-    int? statusCode,
-    Map<String, dynamic>? metadata,
-    required DateTime timestamp,
+    required super.success,
+    super.data,
+    super.message,
+    super.error,
+    super.statusCode,
+    super.metadata,
+    required super.timestamp,
     this.meta,
     this.pagination,
     this.cacheInfo,
@@ -414,15 +406,7 @@ class EnhancedApiResponse<T> extends ApiResponse<T> {
     this.latency,
     this.isFromCache = false,
     this.isStale = false,
-  }) : super(
-          success: success,
-          data: data,
-          message: message,
-          error: error,
-          statusCode: statusCode,
-          metadata: metadata,
-          timestamp: timestamp,
-        );
+  });
 
   factory EnhancedApiResponse.fromApiResponse(
     ApiResponse<T> response, {
@@ -678,41 +662,26 @@ class NetworkResponse<T> extends EnhancedApiResponse<T> {
   final NetworkErrorType? errorType;
 
   const NetworkResponse({
-    required bool success,
-    T? data,
-    String? message,
-    String? error,
-    int? statusCode,
-    Map<String, dynamic>? metadata,
-    required DateTime timestamp,
-    Map<String, dynamic>? meta,
-    Map<String, dynamic>? pagination,
-    CacheInfo? cacheInfo,
-    String? requestId,
-    Duration? latency,
-    bool isFromCache = false,
-    bool isStale = false,
+    required super.success,
+    super.data,
+    super.message,
+    super.error,
+    super.statusCode,
+    super.metadata,
+    required super.timestamp,
+    super.meta,
+    super.pagination,
+    super.cacheInfo,
+    super.requestId,
+    super.latency,
+    super.isFromCache,
+    super.isStale,
     this.headers,
     this.endpoint,
     this.method,
     this.retryCount,
     this.errorType,
-  }) : super(
-          success: success,
-          data: data,
-          message: message,
-          error: error,
-          statusCode: statusCode,
-          metadata: metadata,
-          timestamp: timestamp,
-          meta: meta,
-          pagination: pagination,
-          cacheInfo: cacheInfo,
-          requestId: requestId,
-          latency: latency,
-          isFromCache: isFromCache,
-          isStale: isStale,
-        );
+  });
 
   factory NetworkResponse.fromEnhanced(
     EnhancedApiResponse<T> response, {

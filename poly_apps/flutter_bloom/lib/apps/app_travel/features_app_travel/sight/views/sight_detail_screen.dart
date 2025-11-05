@@ -21,9 +21,9 @@ class SightDetailScreen extends StatefulWidget {
   final String? sightId;
 
   const SightDetailScreen({
-    Key? key,
+    super.key,
     this.sightId,
-  }) : super(key: key);
+  });
 
   @override
   State<SightDetailScreen> createState() => _SightDetailScreenState();

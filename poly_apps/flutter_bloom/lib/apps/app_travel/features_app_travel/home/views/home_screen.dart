@@ -19,7 +19,6 @@ import '../../../router_app_travel/routes_provider_app_travel.dart';
 import '../widgets/home_swiper.dart';
 import '../widgets/home_header.dart';
 import '../widgets/home_local_nav.dart';
-import '../widgets/home_grid_nav.dart';
 import '../widgets/home_grid_nav_section.dart';
 import '../widgets/home_subnav.dart';
 import '../widgets/home_welcome.dart';
@@ -34,9 +33,9 @@ class HomeScreen extends StatefulWidget {
   final bool isInScaffold;
 
   const HomeScreen({
-    Key? key,
+    super.key,
     this.isInScaffold = false,
-  }) : super(key: key);
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();

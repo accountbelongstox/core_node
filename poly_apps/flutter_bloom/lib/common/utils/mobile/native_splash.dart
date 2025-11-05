@@ -14,7 +14,6 @@
 // This file provides native splash screen utilities for the application
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 class NativeSplashHelper {

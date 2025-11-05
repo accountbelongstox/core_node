@@ -1,6 +1,7 @@
 import 'codemart_api_base.dart';
 import '../config_app_codemart/api_config_app_codemart.dart';
 import '../models_app_codemart/codemart_types.dart';
+import '../models_app_codemart/codemart_enums.dart';
 
 class AuthApiServiceAppCodemart extends CodeMartApiBase {
   AuthApiServiceAppCodemart({super.baseUrl, super.namespace});
@@ -23,8 +24,9 @@ class AuthApiServiceAppCodemart extends CodeMartApiBase {
     required String username,
     required String email,
     required String password,
-    required String name,
+    String? name,
     String? nickname,
+    UserRoleType? roleType,
   }) async {
     return await post<Map<String, dynamic>>(
       endpoint: '${ApiConfigAppCodemart.authEndpoint}${ApiEndpointsAppCodemart.register}',
@@ -32,8 +34,9 @@ class AuthApiServiceAppCodemart extends CodeMartApiBase {
         'username': username,
         'email': email,
         'password': password,
-        'name': name,
+        'name': name ?? username,
         'nickname': nickname,
+        if (roleType != null) 'roleType': roleType.name,
       },
       fromJson: (data) => data as Map<String, dynamic>,
     );

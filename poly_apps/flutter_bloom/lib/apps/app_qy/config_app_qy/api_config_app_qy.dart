@@ -11,8 +11,6 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:qyflutter/common/network/models/api_config.dart';
-import 'api_endpoints_app_qy.dart';
-import 'api_data_models_app_qy.dart';
 
 /// API configuration for app_qy
 /// This defines the API settings and user data structure for the qy app

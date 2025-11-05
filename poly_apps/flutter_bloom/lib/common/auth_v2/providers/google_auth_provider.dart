@@ -1,11 +1,10 @@
 
 /// Google authentication provider implementation
 /// Supports Google Sign-In with access token and user info retrieval
-library google_auth_provider;
+library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../auth_interface.dart';
@@ -360,7 +359,10 @@ class GoogleAuthProvider extends IAuthProvider {
         isVerified: data['verified_email'] as bool? ?? false,
       );
 
-      return AuthResult.success(user: user);
+      return AuthResult(
+        success: true,
+        user: user,
+      );
     } catch (e) {
       return AuthResult.failure(
         errorMessage: 'Detailed user info error: ${e.toString()}',

@@ -16,6 +16,6 @@ class NetworkError implements Exception {
 
   @override
   String toString() {
-    return 'NetworkError(statusCode: ' + ', message: )';
+    return 'NetworkError(statusCode: ' ', message: )';
   }
 }

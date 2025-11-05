@@ -1,10 +1,12 @@
-/// Certificate Center screen for achievements and certificates
-library certificate_center_screen;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../models/certificate_model.dart';
+import '../services/certificate_service.dart';
 
 class CertificateCenterScreen extends StatefulWidget {
   const CertificateCenterScreen({super.key});
@@ -17,71 +19,16 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
     with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
-
-  final List<Map<String, dynamic>> _certificates = [
-    {
-      'title': '英语学习初级证书',
-      'description': '完成基础英语学习课程',
-      'earnedDate': '2024-01-15',
-      'level': '初级',
-      'color': AppTheme.newColor,
-      'icon': Icons.school,
-      'badge': '新手',
-      'locked': false,
-    },
-    {
-      'title': '单词掌握达人',
-      'description': '累计掌握1000个单词',
-      'earnedDate': '2024-02-20',
-      'level': '中级',
-      'color': AppTheme.learningColor,
-      'icon': Icons.menu_book,
-      'badge': '勤奋',
-      'locked': false,
-    },
-    {
-      'title': '听力挑战大师',
-      'description': '连续30天完成听力练习',
-      'earnedDate': '2024-03-10',
-      'level': '高级',
-      'color': AppTheme.masteredColor,
-      'icon': Icons.headphones,
-      'badge': '坚持',
-      'locked': false,
-    },
-    {
-      'title': '学习全勤奖',
-      'description': '连续学习90天不间断',
-      'earnedDate': '2024-04-05',
-      'level': '高级',
-      'color': AppTheme.primaryGreen,
-      'icon': Icons.emoji_events,
-      'badge': '全勤',
-      'locked': false,
-    },
-    {
-      'title': '词汇专家认证',
-      'description': '掌握5000个高阶词汇',
-      'level': '专家',
-      'color': AppTheme.darkGreen,
-      'icon': Icons.workspace_premium,
-      'badge': '专家',
-      'locked': true,
-    },
-    {
-      'title': '雅思高分证书',
-      'description': '雅思考试7.5分以上',
-      'level': '专家',
-      'color': AppTheme.error,
-      'icon': Stars.star,
-      'badge': '卓越',
-      'locked': true,
-    },
-  ];
+  final CertificateService _certificateService = CertificateService();
+  late List<CertificateModel> _certificates;
+  late CertificateStats _stats;
 
   @override
   void initState() {
     super.initState();
+    _certificates = _certificateService.getAllCertificates();
+    _stats = _certificateService.getCertificateStats();
+
     _controller = AnimationController(
       duration: ComponentStyles.normalDuration,
       vsync: this,
@@ -148,14 +95,14 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
             child: Column(
               children: [
                 Text(
-                  '证书中心',
+                  QyAppLocalizationKeys.qyCertificateCenter.tr,
                   style: AppTextStyles.headline4.copyWith(
                     color: AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '查看你的学习成就',
+                  QyAppLocalizationKeys.qyCertificateCenterSubtitle.tr,
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -188,8 +135,8 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
         children: [
           Expanded(
             child: _buildStatItem(
-              '已获得',
-              '${_certificates.where((c) => !(c['locked'] as bool)).length}',
+              QyAppLocalizationKeys.qyCertificateEarned.tr,
+              '${_stats.earnedCount}',
               Icons.workspace_premium,
               Colors.white,
             ),
@@ -201,8 +148,8 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
           ),
           Expanded(
             child: _buildStatItem(
-              '进行中',
-              '2',
+              QyAppLocalizationKeys.qyCertificateInProgress.tr,
+              '${_stats.inProgressCount}',
               Icons.pending,
               Colors.white,
             ),
@@ -214,8 +161,8 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
           ),
           Expanded(
             child: _buildStatItem(
-              '总积分',
-              '2850',
+              QyAppLocalizationKeys.qyCertificateTotalPoints.tr,
+              '${_stats.totalPoints}',
               Icons.trending_up,
               Colors.white,
             ),
@@ -268,8 +215,8 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
     );
   }
 
-  Widget _buildCertificateCard(Map<String, dynamic> certificate, int index) {
-    final isLocked = certificate['locked'] as bool;
+  Widget _buildCertificateCard(CertificateModel certificate, int index) {
+    final isLocked = certificate.locked;
 
     return BouncingButton(
       onPressed: isLocked ? _showLockedMessage : () => _viewCertificate(certificate),
@@ -280,12 +227,12 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
               ? LinearGradient(
                   colors: [Colors.grey.shade300, Colors.grey.shade200],
                 )
-              : (certificate['color'] as Color) == AppTheme.darkGreen
+              : certificate.color == AppTheme.darkGreen
                   ? AppTheme.midnightGradient
                   : LinearGradient(
                       colors: [
-                        (certificate['color'] as Color).withOpacity(0.2),
-                        (certificate['color'] as Color).withOpacity(0.1),
+                        certificate.color.withOpacity(0.2),
+                        certificate.color.withOpacity(0.1),
                       ],
                     ),
           border: Border.all(
@@ -296,7 +243,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
             BoxShadow(
               color: isLocked
                   ? Colors.grey.shade300
-                  : (certificate['color'] as Color).withOpacity(0.3),
+                  : certificate.color.withOpacity(0.3),
               blurRadius: isLocked ? 8 : 15,
               offset: const Offset(0, 8),
             ),
@@ -330,7 +277,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                     decoration: BoxDecoration(
                       color: isLocked
                           ? Colors.grey.shade200
-                          : (certificate['color'] as Color).withOpacity(0.1),
+                          : certificate.color.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(25),
                     ),
                     child: isLocked
@@ -340,8 +287,8 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                             size: 24,
                           )
                         : Icon(
-                            certificate['icon'] as IconData,
-                            color: certificate['color'] as Color,
+                            certificate.icon,
+                            color: certificate.color,
                             size: 24,
                           ),
                   ),
@@ -354,7 +301,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                           children: [
                             Expanded(
                               child: Text(
-                                certificate['title'] as String,
+                                certificate.titleKey.tr,
                                 style: AppTextStyles.bodyLarge.copyWith(
                                   color: isLocked
                                       ? Colors.grey.shade600
@@ -365,15 +312,15 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            if (!isLocked && certificate['badge'] != null)
+                            if (!isLocked && certificate.badge != null)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: (certificate['badgeColor'] as Color),
+                                  color: certificate.color,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
-                                  certificate['badge'] as String,
+                                  _getBadgeText(certificate.badge!),
                                   style: AppTextStyles.bodySmall.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -385,11 +332,11 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          certificate['level'] as String,
+                          _getLevelText(certificate.level),
                           style: AppTextStyles.bodySmall.copyWith(
                             color: isLocked
                                 ? Colors.grey.shade500
-                                : (certificate['color'] as Color),
+                                : certificate.color,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -400,7 +347,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
               ),
               const SizedBox(height: 12),
               Text(
-                certificate['description'] as String,
+                certificate.descriptionKey.tr,
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: isLocked
                       ? Colors.grey.shade500
@@ -410,7 +357,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 12),
-              if (!isLocked) ...[
+              if (!isLocked && certificate.earnedDate != null) ...[
                 Row(
                   children: [
                     Icon(
@@ -420,7 +367,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '获得时间: ${certificate['earnedDate']}',
+                      '${QyAppLocalizationKeys.qyCertificateEarnedDate.tr}: ${_formatDate(certificate.earnedDate!)}',
                       style: AppTextStyles.bodySmall.copyWith(
                         color: AppTheme.textSecondary,
                       ),
@@ -438,7 +385,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '未解锁',
+                      QyAppLocalizationKeys.qyCertificateLocked.tr,
                       style: AppTextStyles.bodySmall.copyWith(
                         color: Colors.grey.shade500,
                       ),
@@ -453,7 +400,41 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
     );
   }
 
-  void _viewCertificate(Map<String, dynamic> certificate) {
+  String _getLevelText(CertificateLevel level) {
+    switch (level) {
+      case CertificateLevel.beginner:
+        return QyAppLocalizationKeys.qyCertificateLevelBeginner.tr;
+      case CertificateLevel.intermediate:
+        return QyAppLocalizationKeys.qyCertificateLevelIntermediate.tr;
+      case CertificateLevel.advanced:
+        return QyAppLocalizationKeys.qyCertificateLevelAdvanced.tr;
+      case CertificateLevel.expert:
+        return QyAppLocalizationKeys.qyCertificateLevelExpert.tr;
+    }
+  }
+
+  String _getBadgeText(CertificateBadge badge) {
+    switch (badge) {
+      case CertificateBadge.newbie:
+        return QyAppLocalizationKeys.qyCertificateBadgeNewbie.tr;
+      case CertificateBadge.diligent:
+        return QyAppLocalizationKeys.qyCertificateBadgeDiligent.tr;
+      case CertificateBadge.persistent:
+        return QyAppLocalizationKeys.qyCertificateBadgePersistent.tr;
+      case CertificateBadge.perfectAttendance:
+        return QyAppLocalizationKeys.qyCertificateBadgePerfectAttendance.tr;
+      case CertificateBadge.expert:
+        return QyAppLocalizationKeys.qyCertificateBadgeExpert.tr;
+      case CertificateBadge.excellent:
+        return QyAppLocalizationKeys.qyCertificateBadgeExcellent.tr;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  void _viewCertificate(CertificateModel certificate) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => CertificateDetailScreen(certificate: certificate),
@@ -464,7 +445,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
   void _showLockedMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('继续努力，早日解锁这个证书！'),
+        content: Text(QyAppLocalizationKeys.qyCertificateKeepWorking.tr),
         backgroundColor: AppTheme.warning,
       ),
     );
@@ -475,9 +456,9 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
       context: context,
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -491,10 +472,26 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
               ),
             ),
             const SizedBox(height: 20),
-            _buildShareOption('分享到微信', 'assets/icons/wechat.png', () {}),
-            _buildShareOption('分享到朋友圈', 'assets/icons/wechat_moments.png', () {}),
-            _buildShareOption('保存图片', 'assets/icons/save.png', () {}),
-            _buildShareOption('复制链接', 'assets/icons/link.png', () {}),
+            _buildShareOption(
+              QyAppLocalizationKeys.qyCertificateShareToWechat.tr,
+              Icons.chat,
+              () {},
+            ),
+            _buildShareOption(
+              QyAppLocalizationKeys.qyCertificateShareToMoments.tr,
+              Icons.public,
+              () {},
+            ),
+            _buildShareOption(
+              QyAppLocalizationKeys.qyCertificateSaveImage.tr,
+              Icons.save_alt,
+              () {},
+            ),
+            _buildShareOption(
+              QyAppLocalizationKeys.qyCertificateCopyLink.tr,
+              Icons.link,
+              () {},
+            ),
             const SizedBox(height: 20),
           ],
         ),
@@ -502,7 +499,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
     );
   }
 
-  Widget _buildShareOption(String title, String icon, VoidCallback onTap) {
+  Widget _buildShareOption(String title, IconData icon, VoidCallback onTap) {
     return BouncingButton(
       onPressed: onTap,
       child: Container(
@@ -517,7 +514,7 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
-                Icons.share,
+                icon,
                 color: AppTheme.textSecondary,
                 size: 18,
               ),
@@ -537,9 +534,8 @@ class _CertificateCenterScreenState extends State<CertificateCenterScreen>
   }
 }
 
-/// Certificate detail screen
 class CertificateDetailScreen extends StatelessWidget {
-  final Map<String, dynamic> certificate;
+  final CertificateModel certificate;
 
   const CertificateDetailScreen({
     super.key,
@@ -552,12 +548,12 @@ class CertificateDetailScreen extends StatelessWidget {
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
         title: Text(
-          certificate['title'] as String,
+          certificate.titleKey.tr,
           style: AppTextStyles.headline5.copyWith(
             color: Colors.white,
           ),
         ),
-        backgroundColor: (certificate['color'] as Color),
+        backgroundColor: certificate.color,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -567,23 +563,23 @@ class CertificateDetailScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.download, color: Colors.white),
-            onPressed: _downloadCertificate,
+            onPressed: () => _downloadCertificate(context),
           ),
           IconButton(
             icon: const Icon(Icons.share, color: Colors.white),
-            onPressed: _shareCertificate,
+            onPressed: () => _shareCertificate(context),
           ),
         ],
       ),
       body: Container(
         decoration: BoxDecoration(
-          gradient: (certificate['color'] as Color) == AppTheme.darkGreen
+          gradient: certificate.color == AppTheme.darkGreen
               ? AppTheme.midnightGradient
               : LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    (certificate['color'] as Color).withOpacity(0.1),
+                    certificate.color.withOpacity(0.1),
                     Colors.white,
                   ],
                 ),
@@ -613,35 +609,36 @@ class CertificateDetailScreen extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.workspace_premium,
-                        color: certificate['color'] as Color,
+                        color: certificate.color,
                         size: 80,
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        certificate['title'] as String,
+                        certificate.titleKey.tr,
                         style: AppTextStyles.headline3.copyWith(
-                          color: certificate['color'] as Color,
+                          color: certificate.color,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        certificate['level'] as String,
+                        _getLevelText(certificate.level),
                         style: AppTextStyles.headline5.copyWith(
                           color: AppTheme.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Text(
-                        '颁发日期：${certificate['earnedDate']}',
-                        style: AppTextStyles.bodyLarge.copyWith(
-                          color: AppTheme.textSecondary,
+                      if (certificate.earnedDate != null)
+                        Text(
+                          '${QyAppLocalizationKeys.qyCertificateIssueDate.tr}${_formatDate(certificate.earnedDate!)}',
+                          style: AppTextStyles.bodyLarge.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 32),
                       Text(
-                        '证书编号：${DateTime.now().millisecondsSinceEpoch}',
+                        '${QyAppLocalizationKeys.qyCertificateNumber.tr}${DateTime.now().millisecondsSinceEpoch}',
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppTheme.textHint,
                         ),
@@ -650,18 +647,19 @@ class CertificateDetailScreen extends StatelessWidget {
                   ),
                 ),
                 Container(
+                  margin: const EdgeInsets.all(20),
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: (certificate['color'] as Color).withOpacity(0.1),
+                    color: certificate.color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: (certificate['color'] as Color).withOpacity(0.3),
+                      color: certificate.color.withOpacity(0.3),
                     ),
                   ),
                   child: Text(
-                    '此证书由扇贝单词英语学习平台颁发\n\n兹证明学员已完成相关学习要求，\n达到相应学习标准，特发此证以资鼓励。',
+                    QyAppLocalizationKeys.qyCertificateDescription.tr,
                     style: AppTextStyles.bodyMedium.copyWith(
-                      color: certificate['color'] as Color,
+                      color: certificate.color,
                       height: 1.6,
                     ),
                     textAlign: TextAlign.center,
@@ -675,19 +673,36 @@ class CertificateDetailScreen extends StatelessWidget {
     );
   }
 
-  void _downloadCertificate() {
+  String _getLevelText(CertificateLevel level) {
+    switch (level) {
+      case CertificateLevel.beginner:
+        return QyAppLocalizationKeys.qyCertificateLevelBeginner.tr;
+      case CertificateLevel.intermediate:
+        return QyAppLocalizationKeys.qyCertificateLevelIntermediate.tr;
+      case CertificateLevel.advanced:
+        return QyAppLocalizationKeys.qyCertificateLevelAdvanced.tr;
+      case CertificateLevel.expert:
+        return QyAppLocalizationKeys.qyCertificateLevelExpert.tr;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  void _downloadCertificate(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('证书下载功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qyCertificateDownloadInProgress.tr),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
   }
 
-  void _shareCertificate() {
+  void _shareCertificate(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('证书分享功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qyCertificateShareInProgress.tr),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );

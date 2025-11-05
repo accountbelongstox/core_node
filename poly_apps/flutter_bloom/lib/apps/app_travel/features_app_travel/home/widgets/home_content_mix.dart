@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class HomeContentMix extends StatelessWidget {
-  const HomeContentMix({Key? key}) : super(key: key);
+  const HomeContentMix({super.key});
 
   @override
   Widget build(BuildContext context) {
