@@ -307,4 +307,34 @@ class VipClubReceiptModel {
       'details': details,
     };
   }
+
+  String get formattedAmount {
+    final currencySymbols = {
+      'USD': '\$',
+      'EUR': '€',
+      'GBP': '£',
+      'CNY': '¥',
+      'JPY': '¥',
+    };
+
+    final symbol = currencySymbols[currency.toUpperCase()] ?? currency;
+    return '$symbol${amount.toStringAsFixed(2)}';
+  }
+
+  String get paymentMethodDisplay {
+    switch (paymentMethod.toLowerCase()) {
+      case 'stripe':
+        return 'Credit Card (Stripe)';
+      case 'paypal':
+        return 'PayPal';
+      case 'wechat':
+        return 'WeChat Pay';
+      case 'alipay':
+        return 'Alipay';
+      case 'credit_card':
+        return 'Credit Card';
+      default:
+        return paymentMethod;
+    }
+  }
 }

@@ -58,26 +58,26 @@ function Install-NodeJS {
     exit 1
 }
 
-function Install-Yarn {
+function Install-Pnpm {
     Write-Host ""
-    Write-Host "[INFO] Yarn is not installed, installing via npm..." -ForegroundColor Yellow
+    Write-Host "[INFO] pnpm is not installed, installing via npm..." -ForegroundColor Yellow
 
     try {
-        npm install -g yarn
+        npm install -g pnpm
 
         if ($LASTEXITCODE -eq 0 -or $null -eq $LASTEXITCODE) {
-            Write-Host "[SUCCESS] Yarn installed successfully" -ForegroundColor Green
+            Write-Host "[SUCCESS] pnpm installed successfully" -ForegroundColor Green
             return $true
         }
         else {
-            Write-Host "[ERROR] Failed to install Yarn" -ForegroundColor Red
+            Write-Host "[ERROR] Failed to install pnpm" -ForegroundColor Red
             Write-Host "Press any key to exit..." -ForegroundColor Cyan
             $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             exit 1
         }
     }
     catch {
-        Write-Host "[ERROR] Failed to install Yarn: $_" -ForegroundColor Red
+        Write-Host "[ERROR] Failed to install pnpm: $_" -ForegroundColor Red
         Write-Host "Press any key to exit..." -ForegroundColor Cyan
         $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         exit 1
@@ -100,7 +100,7 @@ function Install-NodeModules {
         Push-Location $AppDirectory
 
         try {
-            yarn install
+            pnpm install
 
             if ($LASTEXITCODE -eq 0 -or $null -eq $LASTEXITCODE) {
                 Write-Host ""
@@ -148,16 +148,16 @@ function Test-Prerequisites {
         Write-Host "[OK] Node.js is installed: $nodeVersion" -ForegroundColor Green
     }
 
-    if (-not (Test-CommandExists "yarn")) {
-        $yarnInstalled = Install-Yarn
-        if (-not $yarnInstalled) {
-            Write-Host "[ERROR] Cannot proceed without Yarn" -ForegroundColor Red
+    if (-not (Test-CommandExists "pnpm")) {
+        $pnpmInstalled = Install-Pnpm
+        if (-not $pnpmInstalled) {
+            Write-Host "[ERROR] Cannot proceed without pnpm" -ForegroundColor Red
             exit 1
         }
     }
     else {
-        $yarnVersion = yarn --version
-        Write-Host "[OK] Yarn is installed: $yarnVersion" -ForegroundColor Green
+        $pnpmVersion = pnpm --version
+        Write-Host "[OK] pnpm is installed: $pnpmVersion" -ForegroundColor Green
     }
 
     Install-NodeModules -AppDirectory $AppDirectory

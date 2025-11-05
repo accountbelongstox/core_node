@@ -87,6 +87,9 @@ flutter:
 
     - assets/apps/app_bank/images/
 
+    # VIP Club App assets
+    - assets/apps/app_vipclub/images/
+
     # Travel App assets
     - assets/apps/app_travel/images/
     - assets/apps/app_travel/images/nav/

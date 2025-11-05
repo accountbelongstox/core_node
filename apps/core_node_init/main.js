@@ -312,9 +312,17 @@ class CoreNodeInitMCPServer {
                 });
 
                 // Start HTTP and WebSocket servers
-                await itToolsController.startServers();
-                logger.info('ITTools HTTP API server started on http://localhost:8080');
-                logger.info('ITTools WebSocket RPC server started on ws://localhost:8081');
+                const serverResult = await itToolsController.startServers();
+
+                if (serverResult.wsRpcServer) {
+                    logger.info('ITTools WebSocket RPC server started on ws://localhost:8081');
+                } else {
+                    logger.warn('ITTools WebSocket RPC server failed to start');
+                }
+
+                if (serverResult.httpServer) {
+                    logger.info('ITTools HTTP API server started on http://localhost:8080');
+                }
             } catch (itToolsError) {
                 logger.warn(`ITTools integration warning: ${itToolsError.message}`);
                 logger.info('MCP server continuing without ITTools HTTP API');

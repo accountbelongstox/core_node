@@ -295,6 +295,7 @@ class ThemeColors {
 
   // Primary and accent colors (for branding and highlights)
   static const Color primaryBlue = blue;             // #007AFF - Primary brand color
+  static const Color accent = blue;                  // Default accent color for highlights
   static const Color accentGold = Color(0xFFD4AF37); // #D4AF37 - VIP Gold tier
   static const Color accentPurple = purple;          // #AF52DE - Purple accents
   static const Color accentGreen = green;            // #34C759 - Green accents

@@ -12,6 +12,8 @@
 
 const { app, BrowserWindow, Menu, Tray, dialog, shell } = require('electron');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+const WebSocket = require('ws');
 const logger = require('#@logger');
 
 class ElectronManager {
@@ -24,7 +26,8 @@ class ElectronManager {
             appTitle: 'Core Node MCP Server',
             trayIcon: null,
             frontendUrl: 'http://localhost:7096',
-            backendUrl: 'http://localhost:8080',
+            backendUrl: 'ws://localhost:8081',
+            backendHealthRoute: 'server.status',
             autoStart: true,
             showWindowOnStart: false,
             enableTray: true,
@@ -130,6 +133,7 @@ class ElectronManager {
 
             this.tray = new Tray(iconPath);
             this.tray.setToolTip(tooltip);
+            logger.info(`Tray icon path resolved: ${iconPath}`);
 
             if (trayConfig.title) {
                 this.tray.setTitle(trayConfig.title);
@@ -321,8 +325,21 @@ class ElectronManager {
                 return;
             }
 
-            // Open backend status page in default browser
-            await shell.openExternal(`${this.config.backendUrl}/api/status`);
+            const backendUrl = this.config.backendUrl || '';
+
+            if (backendUrl.startsWith('ws://') || backendUrl.startsWith('wss://')) {
+                await dialog.showMessageBox({
+                    type: 'info',
+                    title: 'Backend WebSocket Endpoint',
+                    message: 'The backend is exposed via WebSocket.',
+                    detail: backendUrl
+                });
+                return;
+            }
+
+            const statusUrl = `${backendUrl}${this.config.backendHealthRoute || '/api/status'}`;
+
+            await shell.openExternal(statusUrl);
         } catch (error) {
             logger.error(`Failed to open backend status: ${error.message}`);
         }
@@ -479,15 +496,93 @@ class ElectronManager {
 
     async checkBackendHealth() {
         try {
+            const backendUrl = this.config.backendUrl || '';
+            if (backendUrl.startsWith('ws://') || backendUrl.startsWith('wss://')) {
+                return await this._checkBackendHealthViaWebSocket(backendUrl);
+            }
+            return await this._checkBackendHealthViaHttp(backendUrl);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async _checkBackendHealthViaHttp(backendUrl) {
+        try {
             const fetch = require('node-fetch');
-            const response = await fetch(`${this.config.backendUrl}/api/status`, {
+            const statusUrl = `${backendUrl}${this.config.backendHealthRoute || '/api/status'}`;
+            const response = await fetch(statusUrl, {
                 method: 'GET',
                 timeout: 3000
             });
             return response.ok;
         } catch (error) {
+            logger.debug(`HTTP backend health check failed: ${error.message}`);
             return false;
         }
+    }
+
+    async _checkBackendHealthViaWebSocket(backendUrl) {
+        return await new Promise((resolve) => {
+            const healthRoute = this.config.backendHealthRoute || 'server.status';
+            const requestId = uuidv4();
+            const timeoutMs = 3000;
+            let resolved = false;
+
+            const socket = new WebSocket(backendUrl, {
+                handshakeTimeout: timeoutMs
+            });
+
+            const finalize = (result) => {
+                if (resolved) {
+                    return;
+                }
+                resolved = true;
+                try {
+                    socket.terminate();
+                } catch (error) {
+                    logger.debug(`Error terminating backend health socket: ${error.message}`);
+                }
+                resolve(result);
+            };
+
+            const timeoutHandle = setTimeout(() => {
+                finalize(false);
+            }, timeoutMs);
+
+            socket.on('open', () => {
+                const payload = {
+                    type: 'request',
+                    id: requestId,
+                    route: healthRoute,
+                    params: {},
+                    timestamp: Date.now()
+                };
+                socket.send(JSON.stringify(payload));
+            });
+
+            socket.on('message', (data) => {
+                try {
+                    const message = JSON.parse(data.toString());
+                    if (message.type === 'response' && message.id === requestId) {
+                        clearTimeout(timeoutHandle);
+                        finalize(message.success !== false);
+                    }
+                } catch (error) {
+                    logger.debug(`Backend WebSocket health parse error: ${error.message}`);
+                }
+            });
+
+            socket.on('error', (error) => {
+                clearTimeout(timeoutHandle);
+                logger.debug(`Backend WebSocket health socket error: ${error.message}`);
+                finalize(false);
+            });
+
+            socket.on('close', () => {
+                clearTimeout(timeoutHandle);
+                finalize(resolved);
+            });
+        });
     }
 
     updateTrayMenu() {

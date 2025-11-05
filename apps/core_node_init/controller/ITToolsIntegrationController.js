@@ -30,6 +30,7 @@ class ITToolsIntegrationController {
             host: 'localhost',
             enableCors: true,
             enableWebSocket: true,
+            enableHttp: true,
             staticDir: null
         };
     }
@@ -95,14 +96,9 @@ class ITToolsIntegrationController {
 
         // Add WebSocket handler registration for sub-apps
         routeInterface.registerSubAppWsHandlers = (appName, handlers) => {
-            if (!this.wsRpcServer) {
-                logger.warn('WebSocket server not available, cannot register handlers');
-                return;
-            }
-
             for (const [method, handler] of Object.entries(handlers)) {
                 const methodName = `${appName}.${method}`;
-                this.wsRpcServer.registerMethod(methodName, handler);
+                routeInterface.addWsHandler(methodName, handler);
                 logger.info(`Registered WebSocket handler: ${methodName}`);
             }
         };
@@ -256,18 +252,24 @@ class ITToolsIntegrationController {
 
     registerSubAppWsHandlersFromParams(appName, handlers) {
         try {
-            if (!this.wsRpcServer) {
+            if (!this.routeInterface || typeof this.routeInterface.addWsHandler !== 'function') {
                 return {
                     success: false,
-                    error: 'WebSocket server not available',
+                    error: 'Route interface not available',
                     appName: appName
                 };
             }
 
+            const handlerEntries = Object.entries(handlers || {});
             let registeredCount = 0;
-            for (const [method, handler] of Object.entries(handlers)) {
+
+            for (const [method, handler] of handlerEntries) {
+                if (typeof handler !== 'function') {
+                    logger.warn(`Invalid WebSocket handler for ${appName}.${method} - expected function`);
+                    continue;
+                }
                 const methodName = `${appName}.${method}`;
-                this.wsRpcServer.registerMethod(methodName, handler);
+                this.routeInterface.addWsHandler(methodName, handler);
                 registeredCount++;
             }
 
@@ -293,26 +295,43 @@ class ITToolsIntegrationController {
 
         try {
             const serverConfig = { ...this.config, ...options };
+            this.config = serverConfig;
 
-            // Start HTTP server
-            this.httpServer = await this.itToolsInstance.startServer({
+            const serverResult = await this.itToolsInstance.startServer({
                 port: serverConfig.httpPort,
                 host: serverConfig.host,
+                enableHttp: serverConfig.enableHttp,
                 enableWs: serverConfig.enableWebSocket,
+                wsPort: serverConfig.wsPort,
                 staticDir: serverConfig.staticDir,
                 cors: serverConfig.enableCors
             });
+
+            this.httpServer = serverResult.httpServer || null;
+            this.wsRpcServer = serverResult.wsRpcServer || null;
 
             // Register sub-app routes if any
             for (const [appName, routes] of this.subAppRoutes) {
                 this.registerSubAppRoutes(appName, routes);
             }
 
-            logger.info(`ITTools Integration HTTP server started on ${serverConfig.host}:${serverConfig.httpPort}`);
+            if (this.httpServer && serverConfig.enableHttp !== false) {
+                logger.info(`ITTools Integration HTTP server started on ${serverConfig.host}:${serverConfig.httpPort}`);
+            } else {
+                logger.info('ITTools Integration HTTP server not started (disabled)');
+            }
+
+            if (this.wsRpcServer && serverConfig.enableWebSocket) {
+                const effectiveWsPort = serverConfig.wsPort || (serverConfig.enableHttp !== false ? serverConfig.httpPort + 1 : serverConfig.httpPort);
+                logger.info(`ITTools Integration WebSocket server started on ws://${serverConfig.host}:${effectiveWsPort}`);
+            } else if (!serverConfig.enableWebSocket) {
+                logger.info('ITTools Integration WebSocket server disabled by configuration');
+            }
 
             // Return the route interface for external use
             return {
                 httpServer: this.httpServer,
+                wsRpcServer: this.wsRpcServer,
                 routeInterface: this.routeInterface,
                 config: serverConfig
             };
@@ -339,6 +358,10 @@ class ITToolsIntegrationController {
     }
 
     getIntegrationStatus() {
+        const serverStatus = this.itToolsInstance ? this.itToolsInstance.getServerStatus() : null;
+        const httpStatus = serverStatus ? serverStatus.httpServer : null;
+        const wsStatus = serverStatus ? serverStatus.websocketServer : null;
+
         return {
             name: this.name,
             version: this.version,
@@ -350,13 +373,15 @@ class ITToolsIntegrationController {
             },
             servers: {
                 http: {
-                    running: this.httpServer !== null,
-                    port: this.config.httpPort,
+                    enabled: httpStatus ? httpStatus.enabled : this.config.enableHttp,
+                    running: httpStatus ? httpStatus.running : this.httpServer !== null,
+                    port: httpStatus && httpStatus.port !== null ? httpStatus.port : this.config.httpPort,
                     host: this.config.host
                 },
                 websocket: {
-                    running: this.wsRpcServer !== null,
-                    port: this.config.wsPort,
+                    enabled: wsStatus ? wsStatus.enabled : this.config.enableWebSocket,
+                    running: wsStatus ? wsStatus.running : this.wsRpcServer !== null,
+                    port: wsStatus && wsStatus.port !== null ? wsStatus.port : this.config.wsPort,
                     host: this.config.host
                 }
             },
@@ -365,15 +390,20 @@ class ITToolsIntegrationController {
     }
 
     getWebSocketStatus() {
+        const serverStatus = this.itToolsInstance ? this.itToolsInstance.getServerStatus() : null;
+        const wsStatus = serverStatus ? serverStatus.websocketServer : null;
+        const registeredMethods = this.wsRpcServer && this.wsRpcServer.routes ?
+            Array.from(this.wsRpcServer.routes.keys()) : [];
+        const connectedClients = this.wsRpcServer && typeof this.wsRpcServer.getClients === 'function' ?
+            this.wsRpcServer.getClients().length : 0;
+
         return {
-            enabled: this.config.enableWebSocket,
-            running: this.wsRpcServer !== null,
-            port: this.config.wsPort,
+            enabled: wsStatus ? wsStatus.enabled : this.config.enableWebSocket,
+            running: wsStatus ? wsStatus.running : this.wsRpcServer !== null,
+            port: wsStatus && wsStatus.port !== null ? wsStatus.port : this.config.wsPort,
             host: this.config.host,
-            registeredMethods: this.wsRpcServer ?
-                Object.keys(this.wsRpcServer.getRegisteredMethods()) : [],
-            connectedClients: this.wsRpcServer ?
-                this.wsRpcServer.getConnectedClients() : 0
+            registeredMethods: registeredMethods,
+            connectedClients: connectedClients
         };
     }
 

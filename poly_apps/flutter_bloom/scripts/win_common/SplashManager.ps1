@@ -32,6 +32,242 @@
 # Variable declarations
 $Global:CommonSplashConfigFile = "flutter_native_splash.yaml"
 $Global:PythonSplashManager = Join-Path (Split-Path $PSScriptRoot -Parent) "build_scripts\utils\splash_manager.py"
+$Global:PubspecCacheDir = Join-Path (Split-Path $PSScriptRoot -Parent) ".pubspec_cache"
+$Global:PubspecHashFile = "pubspec_hash.txt"
+
+function Get-PubspecHash {
+    <#
+    .SYNOPSIS
+    Calculate hash of pubspec.yaml file
+
+    .PARAMETER PubspecPath
+    Path to pubspec.yaml file
+
+    .RETURNS
+    Hash string of the file content
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$PubspecPath
+    )
+
+    if (-not (Test-Path $PubspecPath)) {
+        return $null
+    }
+
+    try {
+        $content = Get-Content $PubspecPath -Raw -ErrorAction Stop
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($content)
+        $hashAlgorithm = [System.Security.Cryptography.SHA256]::Create()
+        $hashBytes = $hashAlgorithm.ComputeHash($bytes)
+        $hashString = [System.BitConverter]::ToString($hashBytes) -replace '-', ''
+        return $hashString
+    } catch {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Error calculating hash: $($_.Exception.Message)" -Type "Error"
+        return $null
+    }
+}
+
+function Test-PubspecChanged {
+    <#
+    .SYNOPSIS
+    Check if pubspec.yaml has changed since last pub get
+
+    .PARAMETER ProjectRoot
+    Project root directory containing pubspec.yaml
+
+    .RETURNS
+    Boolean - $true if changed or first run, $false if unchanged
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$ProjectRoot
+    )
+
+    $pubspecPath = Join-Path $ProjectRoot "pubspec.yaml"
+
+    if (-not (Test-Path $pubspecPath)) {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] pubspec.yaml not found at: $pubspecPath" -Type "Warning"
+        return $true
+    }
+
+    $currentHash = Get-PubspecHash -PubspecPath $pubspecPath
+
+    if (-not $currentHash) {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Failed to calculate current hash, will run pub get" -Type "Warning"
+        return $true
+    }
+
+    $cacheDir = $Global:PubspecCacheDir
+    $hashFilePath = Join-Path $cacheDir $Global:PubspecHashFile
+
+    if (-not (Test-Path $cacheDir)) {
+        New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+    }
+
+    if (-not (Test-Path $hashFilePath)) {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] No previous hash found, first run detected" -Type "Info"
+        Set-Content -Path $hashFilePath -Value $currentHash -Force
+        return $true
+    }
+
+    try {
+        $previousHash = Get-Content $hashFilePath -Raw -ErrorAction Stop
+        $previousHash = $previousHash.Trim()
+
+        if ($currentHash -eq $previousHash) {
+            Write-ColorMessage -Message "[PUBSPEC-CACHE] pubspec.yaml unchanged, skipping pub get" -Type "Success"
+            return $false
+        } else {
+            Write-ColorMessage -Message "[PUBSPEC-CACHE] pubspec.yaml changed, will run pub get" -Type "Info"
+            Set-Content -Path $hashFilePath -Value $currentHash -Force
+            return $true
+        }
+    } catch {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Error reading previous hash: $($_.Exception.Message)" -Type "Error"
+        return $true
+    }
+}
+
+function Test-BuildPubspecChanged {
+    <#
+    .SYNOPSIS
+    Check if pubspec.yaml has changed for build mode (compares with source project)
+
+    .PARAMETER SourceRoot
+    Source Flutter project root directory
+
+    .RETURNS
+    Boolean - $true if changed or first run, $false if unchanged
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SourceRoot
+    )
+
+    $pubspecPath = Join-Path $SourceRoot "pubspec.yaml"
+
+    if (-not (Test-Path $pubspecPath)) {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] pubspec.yaml not found at: $pubspecPath" -Type "Warning"
+        return $true
+    }
+
+    $currentHash = Get-PubspecHash -PubspecPath $pubspecPath
+
+    if (-not $currentHash) {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Failed to calculate current hash, will run pub get" -Type "Warning"
+        return $true
+    }
+
+    $cacheDir = $Global:PubspecCacheDir
+    $buildHashFile = Join-Path $cacheDir "build_pubspec_hash.txt"
+
+    if (-not (Test-Path $cacheDir)) {
+        New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+    }
+
+    if (-not (Test-Path $buildHashFile)) {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] No previous build hash found, first build detected" -Type "Info"
+        Set-Content -Path $buildHashFile -Value $currentHash -Force
+        return $true
+    }
+
+    try {
+        $previousHash = Get-Content $buildHashFile -Raw -ErrorAction Stop
+        $previousHash = $previousHash.Trim()
+
+        if ($currentHash -eq $previousHash) {
+            Write-ColorMessage -Message "[PUBSPEC-CACHE] pubspec.yaml unchanged since last build" -Type "Success"
+            return $false
+        } else {
+            Write-ColorMessage -Message "[PUBSPEC-CACHE] pubspec.yaml changed, will run pub get" -Type "Info"
+            Set-Content -Path $buildHashFile -Value $currentHash -Force
+            return $true
+        }
+    } catch {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Error reading previous hash: $($_.Exception.Message)" -Type "Error"
+        return $true
+    }
+}
+
+function Copy-PubCache {
+    <#
+    .SYNOPSIS
+    Copy .pub-cache directory from source to target for build optimization
+
+    .PARAMETER SourceRoot
+    Source Flutter project root directory
+
+    .PARAMETER TargetRoot
+    Target build directory
+
+    .RETURNS
+    Boolean - $true if successful, $false if failed
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SourceRoot,
+
+        [Parameter(Mandatory=$true)]
+        [string]$TargetRoot
+    )
+
+    $sourcePubCache = Join-Path $SourceRoot ".pub-cache"
+    $targetPubCache = Join-Path $TargetRoot ".pub-cache"
+
+    if (-not (Test-Path $sourcePubCache)) {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Source .pub-cache not found: $sourcePubCache" -Type "Warning"
+        return $false
+    }
+
+    try {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Copying .pub-cache from source to build directory..." -Type "Info"
+
+        if (Test-Path $targetPubCache) {
+            Remove-Item -Path $targetPubCache -Recurse -Force -ErrorAction Stop
+        }
+
+        Copy-Item -Path $sourcePubCache -Destination $targetPubCache -Recurse -Force -ErrorAction Stop
+
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Successfully copied .pub-cache to build directory" -Type "Success"
+        return $true
+    } catch {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Failed to copy .pub-cache: $($_.Exception.Message)" -Type "Error"
+        return $false
+    }
+}
+
+function Set-BuildPubspecSkipFlag {
+    <#
+    .SYNOPSIS
+    Set flag file to indicate pub get should be skipped in build scripts
+
+    .PARAMETER TargetRoot
+    Target build directory
+
+    .RETURNS
+    Boolean - $true if successful, $false if failed
+    #>
+
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TargetRoot
+    )
+
+    try {
+        $flagFile = Join-Path $TargetRoot ".skip_pub_get"
+        Set-Content -Path $flagFile -Value "SKIP_PUB_GET=true" -Force
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Created skip pub get flag: $flagFile" -Type "Info"
+        return $true
+    } catch {
+        Write-ColorMessage -Message "[PUBSPEC-CACHE] Failed to create skip flag: $($_.Exception.Message)" -Type "Error"
+        return $false
+    }
+}
 
 function Invoke-PythonSplashUpdate {
     <#
@@ -133,22 +369,35 @@ function Invoke-FlutterNativeSplash {
             return $false
         }
 
-        # Run flutter pub get first to ensure dependencies
-        Write-ColorMessage -Message "[SPLASH-FLUTTER] Running flutter pub get..." -Type "Command"
-        $pubgetResult = flutter pub get
-        if ($LASTEXITCODE -ne 0) {
-            Write-ColorMessage -Message "[SPLASH-FLUTTER] flutter pub get failed" -Type "Error"
-            Pop-Location
-            return $false
+        # Check if we need to run flutter pub get
+        $isDebugMode = Test-IsDebugMode
+        $needsPubGet = $true
+
+        if ($isDebugMode) {
+            $pubspecChanged = Test-PubspecChanged -ProjectRoot $projectRoot
+            $needsPubGet = $pubspecChanged
         }
 
-        # Run flutter_native_splash generate - wrap risky operation
-        Write-ColorMessage -Message "[SPLASH-FLUTTER] Running flutter_native_splash generate..." -Type "Command"
-        $splashResult = flutter pub run flutter_native_splash:create
-        if ($LASTEXITCODE -ne 0) {
-            Write-ColorMessage -Message "[SPLASH-FLUTTER] flutter_native_splash generate failed" -Type "Error"
-            Pop-Location
-            return $false
+        if ($needsPubGet) {
+            Write-ColorMessage -Message "[SPLASH-FLUTTER] Running flutter pub get..." -Type "Command"
+            $pubgetResult = flutter pub get
+            if ($LASTEXITCODE -ne 0) {
+                Write-ColorMessage -Message "[SPLASH-FLUTTER] flutter pub get failed" -Type "Error"
+                Pop-Location
+                return $false
+            }
+
+            # Run flutter_native_splash generate only if pub get was executed
+            Write-ColorMessage -Message "[SPLASH-FLUTTER] Running flutter_native_splash generate..." -Type "Command"
+            $splashResult = flutter pub run flutter_native_splash:create
+            if ($LASTEXITCODE -ne 0) {
+                Write-ColorMessage -Message "[SPLASH-FLUTTER] flutter_native_splash generate failed" -Type "Error"
+                Pop-Location
+                return $false
+            }
+        } else {
+            Write-ColorMessage -Message "[SPLASH-FLUTTER] Skipping flutter pub get (pubspec.yaml unchanged, packages already downloaded)" -Type "Info"
+            Write-ColorMessage -Message "[SPLASH-FLUTTER] Skipping flutter_native_splash generate (splash already generated)" -Type "Info"
         }
 
         Write-ColorMessage -Message "[SPLASH-FLUTTER] flutter_native_splash completed successfully" -Type "Success"

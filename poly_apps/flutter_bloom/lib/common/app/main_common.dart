@@ -28,6 +28,7 @@ import 'package:flutter_localization/flutter_localization.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_strategy/url_strategy.dart';
 import 'package:qyflutter/common/localization/map_locales.dart';
@@ -96,6 +97,8 @@ Future<void> runCommonApp({
   String? homeRoute,
   String? splashRoute,
   List<dynamic>? additionalProviders, // Additional app-specific providers
+  List<SingleChildWidget> Function(SettingsController commonSettingsController)?
+      scopedProvidersBuilder,
   // Storage configuration - control whether to initialize UnifiedStorage
   bool initializeUnifiedStorage = true, // Default to true for backward compatibility
 }) async {
@@ -207,19 +210,31 @@ Future<void> runCommonApp({
   // Mark app as initialized
   _appInitialized = true;
 
+  final List<SingleChildWidget> providerList = [
+    ChangeNotifierProvider.value(value: userProvider),
+    Provider.value(value: prefs),
+    ChangeNotifierProvider.value(value: settingsController),
+    ChangeNotifierProvider.value(value: screenSizeProvider),
+  ];
+
+  if (appPrefs != null) {
+    providerList.add(Provider.value(value: appPrefs));
+  }
+
+  if (scopedProvidersBuilder != null) {
+    final scopedProviders = scopedProvidersBuilder(settingsController);
+    if (scopedProviders.isNotEmpty) {
+      providerList.addAll(scopedProviders);
+    }
+  }
+
+  if (additionalProviders != null) {
+    providerList.addAll(additionalProviders.cast<SingleChildWidget>());
+  }
+
   runApp(
     MultiProvider(
-      providers: [
-        ChangeNotifierProvider.value(value: userProvider),
-        Provider.value(value: prefs),
-        ChangeNotifierProvider.value(value: settingsController),
-        ChangeNotifierProvider.value(value: screenSizeProvider),
-        // Register app-specific SharedPreferences class for Provider access
-        // This is a required class that must be implemented by all apps
-        if (appPrefs != null) Provider.value(value: appPrefs),
-        // Add additional app-specific providers if provided
-        if (additionalProviders != null) ...additionalProviders,
-      ],
+      providers: providerList,
       child: customApp ?? FlutterBloomMainApp(routerConfig: routerConfig),
     ),
   );

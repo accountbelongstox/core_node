@@ -217,8 +217,73 @@ class Step1ProjectCopyController:
 
             print(f"[STEP-1] Created build info: {build_info_file}")
 
+            # Optimize pub cache for builds
+            self._optimize_pub_cache(target_dir)
+
         except Exception as e:
             print(f"[STEP-1] [WARNING] Failed to create post-copy setup: {e}")
+
+    def _optimize_pub_cache(self, target_dir: Path):
+        """Optimize pub cache by checking if pubspec.yaml changed and copying cache"""
+        try:
+            # Get Flutter project root from unified variables
+            from shared.data_exchange.unified_variable_system import unified_vars
+            flutter_root = Path("D:/programing/core_node/poly_apps/flutter_bloom")
+
+            print(f"\n[STEP-1] [PUBSPEC-CACHE] Checking pubspec.yaml changes...")
+
+            # Call PowerShell function to check pubspec changes
+            import subprocess
+
+            ps_script = f'''
+            $PSScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+            $SplashManagerPath = "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\scripts\\win_common\\SplashManager.ps1"
+
+            if (Test-Path $SplashManagerPath) {{
+                . $SplashManagerPath
+
+                $sourceRoot = "{flutter_root}"
+                $targetRoot = "{target_dir}"
+
+                # Check if pubspec.yaml changed
+                $pubspecChanged = Test-BuildPubspecChanged -SourceRoot $sourceRoot
+
+                if (-not $pubspecChanged) {{
+                    Write-Host "[STEP-1] [PUBSPEC-CACHE] pubspec.yaml unchanged, optimizing build..." -ForegroundColor Green
+
+                    # Copy .pub-cache from source to target
+                    $copyResult = Copy-PubCache -SourceRoot $sourceRoot -TargetRoot $targetRoot
+
+                    if ($copyResult) {{
+                        # Set flag to skip pub get in build scripts
+                        $flagResult = Set-BuildPubspecSkipFlag -TargetRoot $targetRoot
+                        if ($flagResult) {{
+                            Write-Host "[STEP-1] [PUBSPEC-CACHE] Build optimization completed successfully" -ForegroundColor Green
+                        }}
+                    }}
+                }} else {{
+                    Write-Host "[STEP-1] [PUBSPEC-CACHE] pubspec.yaml changed, will run full pub get" -ForegroundColor Yellow
+                }}
+            }} else {{
+                Write-Host "[STEP-1] [PUBSPEC-CACHE] SplashManager.ps1 not found" -ForegroundColor Yellow
+            }}
+            '''
+
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+
+            if result.stdout:
+                print(result.stdout)
+            if result.returncode != 0 and result.stderr:
+                print(f"[STEP-1] [PUBSPEC-CACHE] Warning: {result.stderr}")
+
+        except Exception as e:
+            print(f"[STEP-1] [PUBSPEC-CACHE] Warning: Failed to optimize pub cache: {e}")
+            print(f"[STEP-1] [PUBSPEC-CACHE] Continuing without optimization...")
 
     def get_step_info(self) -> Dict[str, Any]:
         """Get information about Step 1"""

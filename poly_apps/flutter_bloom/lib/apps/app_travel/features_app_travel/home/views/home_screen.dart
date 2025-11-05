@@ -128,6 +128,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
+                HomeRecommend(
+                  recommend: homeProvider.homeData!.data.recommend,
+                ),
+                const SizedBox(height: 4),
                 HomeGridNavSection(
                   gridNavs: homeProvider.homeData!.data.gridNavs,
                 ),
@@ -144,10 +148,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: HomePopular(
                     popularItems: homeProvider.homeData!.data.popularList,
                   ),
-                ),
-                const SizedBox(height: 4),
-                HomeRecommend(
-                  recommend: homeProvider.homeData!.data.recommend,
                 ),
                 const HomeContentMix(),
                 const SizedBox(height: 4),
@@ -171,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       Positioned(
-        top: 0,
+        top: MediaQuery.of(context).size.width * 0.512 * 0.3 - 30,
         left: 0,
         right: 0,
         child: HomeHeader(

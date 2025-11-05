@@ -1,6 +1,6 @@
 # Directory Tree: ncore
 
-**Path:** `/mnt/dev_sdb3/programing/core_node/ncore`
+**Path:** `D:\programing\core_node\ncore`
 
 ```
 ncore/
@@ -126,7 +126,8 @@ ncore/
 │       └── urltool.js
 ├── global_vars/
 │   ├── gcommon/
-│   │   └── encyclopedia.js
+│   │   ├── encyclopedia.js
+│   │   └── ws_rpc_constants.js
 │   ├── global_dir/
 │   │   ├── binary_dir.js
 │   │   └── globaldir.js
@@ -169,6 +170,18 @@ ncore/
 │   │   └── gconfig.js
 │   └── index.js
 ├── mcp_server/
+│   ├── ai_collaboration/
+│   │   ├── tmp_sessions/
+│   │   ├── README.md
+│   │   ├── README_SQLITE.md
+│   │   ├── __init__.py
+│   │   ├── constants.py
+│   │   ├── main.py
+│   │   ├── message_queue.py
+│   │   ├── qa_system.py
+│   │   ├── role_manager.py
+│   │   ├── storage.py
+│   │   └── storage_sqlite.py
 │   ├── auto-context7-mcp/
 │   │   ├── README.md
 │   │   ├── auto_fix_context7.ps1
@@ -179,10 +192,18 @@ ncore/
 │   │   ├── main.py
 │   │   ├── start_server.bat
 │   │   └── start_server.py
+│   ├── document_parser/
 │   ├── file_processor/
+│   │   ├── CHANGELOG_2025_11_04.md
+│   │   ├── IMAGE_TOOLS_GUIDE.md
+│   │   ├── QUICK_REFERENCE.md
+│   │   ├── SCAN_DIRECTORY_OCR_GUIDE.md
+│   │   ├── SCAN_DIRECTORY_OCR_UPDATE.md
+│   │   ├── UPDATE_SUMMARY.md
 │   │   ├── cnocr_engine.py
 │   │   ├── constants.py
 │   │   ├── image_processor.py
+│   │   ├── image_tools.py
 │   │   ├── main.py
 │   │   ├── ocr_config.py
 │   │   ├── ocr_engines.py
@@ -190,9 +211,91 @@ ncore/
 │   │   ├── paddle_ocr_engine.py
 │   │   └── pdf_processor.py
 │   ├── mcp-alchemy/
+│   │   ├── data/
 │   │   ├── mcp_alchemy/
 │   │   │   ├── __init__.py
 │   │   │   └── server.py
+│   │   ├── tmp_sessions/
+│   │   │   ├── alchemy_master_3c09c0e1/
+│   │   │   ├── alchemy_master_4a700444/
+│   │   │   ├── alchemy_master_da7e33f9/
+│   │   │   ├── alchemy_master_e167326a/
+│   │   │   ├── alchemy_master_f8072dfc/
+│   │   │   ├── alchemy_master_fbf92bac/
+│   │   │   ├── vscode_00732031/
+│   │   │   ├── vscode_0756767f/
+│   │   │   ├── vscode_089f0876/
+│   │   │   ├── vscode_10ec6f64/
+│   │   │   ├── vscode_110c2609/
+│   │   │   ├── vscode_14f2a3e8/
+│   │   │   ├── vscode_163c1f98/
+│   │   │   ├── vscode_1878e5ea/
+│   │   │   ├── vscode_19daba89/
+│   │   │   ├── vscode_1ff3059e/
+│   │   │   ├── vscode_2089f079/
+│   │   │   ├── vscode_20a461df/
+│   │   │   ├── vscode_2a6d69ec/
+│   │   │   ├── vscode_3518ad32/
+│   │   │   ├── vscode_36ff7487/
+│   │   │   ├── vscode_38665c21/
+│   │   │   ├── vscode_3a3f2249/
+│   │   │   ├── vscode_422fb150/
+│   │   │   ├── vscode_4a739bec/
+│   │   │   ├── vscode_4ba8c9b4/
+│   │   │   ├── vscode_4cca1b4a/
+│   │   │   ├── vscode_4cdc1b1c/
+│   │   │   ├── vscode_4f1c77d1/
+│   │   │   ├── vscode_51fc8140/
+│   │   │   ├── vscode_566c38b9/
+│   │   │   ├── vscode_5c019a12/
+│   │   │   ├── vscode_5d4ee70b/
+│   │   │   ├── vscode_5eb795b5/
+│   │   │   ├── vscode_60fe4f01/
+│   │   │   ├── vscode_626b8137/
+│   │   │   ├── vscode_671e84fc/
+│   │   │   ├── vscode_6737d159/
+│   │   │   ├── vscode_6bf43308/
+│   │   │   ├── vscode_77364060/
+│   │   │   ├── vscode_7aafd051/
+│   │   │   ├── vscode_7d40b5bf/
+│   │   │   ├── vscode_8009ef14/
+│   │   │   ├── vscode_85e9dd6e/
+│   │   │   ├── vscode_8779798a/
+│   │   │   ├── vscode_87d721dd/
+│   │   │   ├── vscode_966485bc/
+│   │   │   ├── vscode_98e4fdcb/
+│   │   │   ├── vscode_99192e89/
+│   │   │   ├── vscode_a015f2ee/
+│   │   │   ├── vscode_a1278804/
+│   │   │   ├── vscode_a8e3b4f2/
+│   │   │   ├── vscode_a9d3cffc/
+│   │   │   ├── vscode_aa0eb474/
+│   │   │   ├── vscode_ac99ea1c/
+│   │   │   ├── vscode_aea20669/
+│   │   │   ├── vscode_b3db76ff/
+│   │   │   ├── vscode_bd645ef8/
+│   │   │   ├── vscode_c6c3f5db/
+│   │   │   ├── vscode_ccf88277/
+│   │   │   ├── vscode_cd3105be/
+│   │   │   ├── vscode_ce7f7cc9/
+│   │   │   ├── vscode_d24f6bd4/
+│   │   │   ├── vscode_d25d38ce/
+│   │   │   ├── vscode_db90727d/
+│   │   │   ├── vscode_ddb9bc86/
+│   │   │   ├── vscode_dea6051e/
+│   │   │   ├── vscode_e2063757/
+│   │   │   ├── vscode_e2245255/
+│   │   │   ├── vscode_e2254c6c/
+│   │   │   ├── vscode_e47914c8/
+│   │   │   ├── vscode_e6f10652/
+│   │   │   ├── vscode_ed92e6a3/
+│   │   │   ├── vscode_edd1abe7/
+│   │   │   ├── vscode_f0143667/
+│   │   │   ├── vscode_f0f0bb85/
+│   │   │   ├── vscode_f4765db4/
+│   │   │   ├── vscode_f9a88045/
+│   │   │   ├── vscode_fe97482d/
+│   │   │   └── active_sessions.json
 │   │   ├── .gitignore
 │   │   ├── ARCHITECTURE_REFACTORING_COMPLETE.md
 │   │   ├── LICENSE
@@ -203,10 +306,17 @@ ncore/
 │   │   ├── main.py
 │   │   ├── pyproject.toml
 │   │   ├── requirements.txt
-│   │   └── requirements_core.txt
+│   │   ├── requirements_core.txt
+│   │   └── tmp_.service.status
 │   ├── placeholder_image_generator/
+│   │   ├── OCR_IMPLEMENTATION_SUMMARY.md
+│   │   ├── OCR_PLACEHOLDER_REPLACER_GUIDE.md
+│   │   ├── OCR_QUICK_START.md
+│   │   ├── RATE_LIMITER_README.md
 │   │   ├── constants.py
-│   │   └── main.py
+│   │   ├── main.py
+│   │   ├── ocr_placeholder_replacer.py
+│   │   └── test_client.py
 │   └── wait_please/
 │       ├── icons/
 │       │   ├── icon-128.png
@@ -511,6 +621,9 @@ ncore/
 │   │   ├── projectES6NativeDirectoryPrinting.js
 │   │   ├── project_dir_tree.txt
 │   │   └── project_file_tree.txt
+│   ├── electron/
+│   │   ├── index.js
+│   │   └── preload.js
 │   ├── flutter_icon_tool/
 │   │   ├── libs/
 │   │   │   ├── directory_scanner.js
@@ -518,6 +631,8 @@ ncore/
 │   │   │   ├── image_analyzer.js
 │   │   │   └── image_processor.js
 │   │   └── index.js
+│   ├── frontend_launcher/
+│   │   └── main.js
 │   ├── htmltool/
 │   │   └── libs/
 │   │       ├── htmlparse.js
@@ -526,6 +641,19 @@ ncore/
 │   │   └── libs/
 │   │       ├── icon.js
 │   │       └── imgtool.js
+│   ├── ittools/
+│   │   ├── tools/
+│   │   │   ├── converter.js
+│   │   │   ├── crypto.js
+│   │   │   ├── data.js
+│   │   │   ├── development.js
+│   │   │   ├── math.js
+│   │   │   ├── measurement.js
+│   │   │   ├── media.js
+│   │   │   ├── network.js
+│   │   │   ├── text.js
+│   │   │   └── web.js
+│   │   └── index.js
 │   ├── linux/
 │   │   ├── libs/
 │   │   │   ├── envlink.js
@@ -536,6 +664,15 @@ ncore/
 │   ├── mail/
 │   │   ├── index.js
 │   │   └── mail.js
+│   ├── mcp_server/
+│   │   ├── config/
+│   │   │   └── mcp_config.js
+│   │   ├── DualModeRunner.js
+│   │   ├── MCPServerManager.js
+│   │   ├── SessionManager.js
+│   │   ├── SingleInstanceManager.js
+│   │   ├── ToolRegistry.js
+│   │   └── index.js
 │   ├── net/
 │   │   ├── front/
 │   │   │   ├── socket.js
@@ -570,79 +707,16 @@ ncore/
 │   │   ├── example.js
 │   │   └── example_to_es6.js
 │   ├── puppeteer_spider/
-│   │   ├── library/
-│   │   │   ├── browsers/
-│   │   │   │   ├── chrome/
-│   │   │   │   │   ├── finder/
-│   │   │   │   │   │   └── index.js
-│   │   │   │   │   └── installer/
-│   │   │   │   │       └── index.js
-│   │   │   │   └── edge/
-│   │   │   │       ├── finder/
-│   │   │   │       │   └── index.js
-│   │   │   │       └── installer/
-│   │   │   │           └── index.js
-│   │   │   ├── chrome_ver/
-│   │   │   ├── config/
-│   │   │   │   ├── chrome_config.js
-│   │   │   │   ├── chrome_version.js
-│   │   │   │   ├── config_manager.js
-│   │   │   │   └── edge_config.js
-│   │   │   ├── core/
-│   │   │   │   ├── fetcher.js
-│   │   │   │   ├── spider_core.js
-│   │   │   │   ├── spider_factory.js
-│   │   │   │   ├── spider_plugin_manager.js
-│   │   │   │   ├── spider_registry.js
-│   │   │   │   └── web_spider.js
-│   │   │   ├── drivers/
-│   │   │   │   └── driver_downloader.js
-│   │   │   ├── plugins/
-│   │   │   │   └── download_plugin.js
-│   │   │   ├── utils/
-│   │   │   │   └── ai_rules.js
-│   │   │   ├── version_mappers/
-│   │   │   │   ├── chrome.js
-│   │   │   │   └── edge.js
-│   │   │   ├── wrappers/
-│   │   │   │   ├── climber/
-│   │   │   │   │   ├── modus/
-│   │   │   │   │   │   ├── bot.js
-│   │   │   │   │   │   ├── content.js
-│   │   │   │   │   │   ├── content_wrapper.js
-│   │   │   │   │   │   ├── download.js
-│   │   │   │   │   │   ├── file_monitor.js
-│   │   │   │   │   │   ├── handle.js
-│   │   │   │   │   │   ├── iframe.js
-│   │   │   │   │   │   ├── page.js
-│   │   │   │   │   │   ├── page_wrapper.js
-│   │   │   │   │   │   ├── position.js
-│   │   │   │   │   │   ├── screen.js
-│   │   │   │   │   │   ├── special.js
-│   │   │   │   │   │   └── wait.js
-│   │   │   │   │   └── driver.js
-│   │   │   │   ├── node_provider/
-│   │   │   │   │   └── utils.js
-│   │   │   │   └── utils/
-│   │   │   │       └── classUtils.js
-│   │   │   ├── browser_detector.js
-│   │   │   ├── browser_installer_manager.js
-│   │   │   ├── global_instance_manager.js
-│   │   │   ├── global_wrappers.js
-│   │   │   ├── instance_manager.js
-│   │   │   ├── mime.js
-│   │   │   └── puppeteer_spider.js
-│   │   ├── COMPREHENSIVE_FRAMEWORK_ANALYSIS.md
-│   │   ├── FRAMEWORK_ANALYSIS_REPORT.md
-│   │   ├── README.md
-│   │   ├── main.js
-│   │   └── puppeteer_spider_tree.md
+│   │   └── node_provider/
+│   │       └── library/
+│   │           ├── linux/
+│   │           │   └── 7z2301-linux-x64/
+│   │           │       └── MANUAL/
+│   │           │           └── cmdline/
+│   │           │               └── switches/
+│   │           │                   └── output_dir.htm
+│   │           └── win32/
 │   ├── puppeteer_spider_v2/
-│   │   ├── config/
-│   │   ├── docs/
-│   │   │   ├── api/
-│   │   │   ├── examples/
-│   │   │   └── guides/
 │   │   ├── src/
 │   │   │   ├── compat/
 │   │   │   │   └── LegacyAdapter.js
@@ -668,7 +742,6 @@ ncore/
 │   │   │   │   │   ├── ChromeInstaller.js
 │   │   │   │   │   ├── EdgeFinder.js
 │   │   │   │   │   └── EdgeInstaller.js
-│   │   │   │   ├── downloaders/
 │   │   │   │   └── pages/
 │   │   │   │       ├── EnhancedPage.js
 │   │   │   │       └── StandardPage.js
@@ -691,34 +764,50 @@ ncore/
 │   │   │       │   └── BaseUtils.js
 │   │   │       ├── control/
 │   │   │       │   └── BrowserControlUtils.js
+│   │   │       ├── download/
+│   │   │       │   ├── DomResourceMapper.js
+│   │   │       │   ├── EnhancedResourceCollector.js
+│   │   │       │   ├── ResourceDownloadUtils.js
+│   │   │       │   ├── ResourceInterceptor.js
+│   │   │       │   └── ResourceProxyServer.js
 │   │   │       ├── events/
 │   │   │       │   └── EventUtils.js
 │   │   │       ├── extraction/
 │   │   │       │   └── DataExtractionUtils.js
 │   │   │       ├── finder/
 │   │   │       │   └── ElementFinderUtils.js
+│   │   │       ├── iframe/
+│   │   │       │   ├── IframeRecursiveCrawler.js
+│   │   │       │   └── IframeUtils.js
 │   │   │       ├── navigation/
 │   │   │       │   └── NavigationUtils.js
 │   │   │       ├── operations/
 │   │   │       │   └── PageOperationUtils.js
+│   │   │       ├── tampermonkey/
+│   │   │       │   ├── DocumentOffline_Crawler.user.js
+│   │   │       │   └── TampermonkeyServer.js
 │   │   │       ├── BrowserUtils.js
 │   │   │       ├── CacheManager.js
 │   │   │       ├── Logger.js
 │   │   │       └── PageUtils.js
-│   │   ├── tests/
-│   │   │   ├── e2e/
-│   │   │   ├── integration/
-│   │   │   └── unit/
 │   │   ├── COMPLETE_REFACTORING_PLAN.md
 │   │   ├── IMPLEMENTATION_COMPARISON.md
 │   │   ├── README.md
 │   │   ├── REFACTORING_SUMMARY.md
 │   │   ├── example.js
+│   │   ├── example_iframe_recursive.js
+│   │   ├── example_resource_collection.js
+│   │   ├── fetcher.js
 │   │   ├── main.js
 │   │   ├── puppeteer_spider_v2_tree.md
 │   │   └── test.js
-│   ├── shortcuttool/
+│   ├── python_bridge/
+│   │   ├── libs/
+│   │   │   └── PythonCaller.js
+│   │   ├── example.js
 │   │   └── index.js
+│   ├── singleton_browser/
+│   │   └── main.js
 │   ├── smart_compression/
 │   │   ├── libs/
 │   │   │   ├── compression_queue.js
@@ -729,10 +818,37 @@ ncore/
 │   │   ├── config.js
 │   │   ├── example.js
 │   │   └── index.js
-│   ├── strapi_tool/
-│   │   └── libs/
-│   │       ├── handle.js
-│   │       └── server.js
+│   ├── stream_translator/
+│   │   ├── config/
+│   │   │   └── index.js
+│   │   ├── libs/
+│   │   │   ├── CodeDetector.js
+│   │   │   ├── CommandExecutor.js
+│   │   │   ├── ConfigHelper.js
+│   │   │   ├── DeepSeekTranslator.js
+│   │   │   ├── Logger.js
+│   │   │   ├── ModelInitializer.js
+│   │   │   ├── SentenceBuffer.js
+│   │   │   ├── StreamTranslatorManager.js
+│   │   │   ├── TranslatorAPI.js
+│   │   │   ├── TriggerWordsDetector.js
+│   │   │   └── deepseek_server.py
+│   │   ├── .gitignore
+│   │   ├── QUICK_START.txt
+│   │   ├── README_USAGE.txt
+│   │   ├── SETUP_AZURE.txt
+│   │   ├── STANDALONE_README.txt
+│   │   ├── TRIGGER_WORDS_USAGE.txt
+│   │   ├── config.example.json
+│   │   ├── example.js
+│   │   ├── example_trigger.js
+│   │   ├── index.js
+│   │   ├── init_deepseek.js
+│   │   ├── package.json
+│   │   ├── test_deepseek.js
+│   │   ├── test_stream.js
+│   │   ├── test_trigger_words.js
+│   │   └── test_without_api.js
 │   ├── system/
 │   │   └── fix_symlink_loops.js
 │   ├── systool/
@@ -756,6 +872,7 @@ ncore/
 │   │   ├── domain_context.js
 │   │   ├── file_mapper.js
 │   │   ├── index.js
+│   │   ├── path_resolver.js
 │   │   ├── resource_downloader.js
 │   │   ├── resource_extractor.js
 │   │   ├── unified_resource_processor.js
@@ -775,8 +892,42 @@ ncore/
 │   │   │   ├── download_manager.js
 │   │   │   └── requests_tools.js
 │   │   └── index.js
+│   ├── ws_rpc/
+│   │   ├── examples/
+│   │   │   ├── client_example.html
+│   │   │   └── server_example.js
+│   │   ├── libs/
+│   │   │   ├── AuthManager.js
+│   │   │   ├── HeartbeatManager.js
+│   │   │   ├── InterceptorManager.js
+│   │   │   ├── MessageCompressor.js
+│   │   │   ├── MiddlewareChain.js
+│   │   │   ├── NamespaceManager.js
+│   │   │   ├── PerformanceMonitor.js
+│   │   │   └── RateLimiter.js
+│   │   ├── WsRpcClient.js
+│   │   ├── WsRpcServer.js
+│   │   ├── index.js
+│   │   └── task.txt
+│   ├── wsrpc/
+│   │   ├── README.md
+│   │   ├── ResultCache.js
+│   │   ├── WsRpcBrowserClient.js
+│   │   ├── WsRpcClient.js
+│   │   ├── WsRpcClientExtended.js
+│   │   ├── WsRpcServer.js
+│   │   ├── WsRpcServerExtended.js
+│   │   ├── example-browser-client.js
+│   │   ├── example-browser.html
+│   │   ├── example-client.js
+│   │   ├── example-extended-browser.html
+│   │   ├── example-extended-client.js
+│   │   ├── example-extended-server.js
+│   │   ├── example-server.js
+│   │   └── index.js
 │   ├── conf.js
 │   ├── encodingtool.js
+│   ├── http-wrapper.js
 │   ├── http.js
 │   ├── porttool.js
 │   ├── schedule.js

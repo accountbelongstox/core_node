@@ -18,8 +18,21 @@ class QyAppLocalizationKeys {
   static const String qyAppDescription = 'qy_app_description';
   static const String qyAppSlogan = 'qy_app_slogan';
   static const String qyAppVersion = 'qy_app_version';
+  static const String qyAppSettings = 'qy_app_settings';
+  static const String qySloganWords = 'qy_slogan_words';
+  static const String qySloganEyes = 'qy_slogan_eyes';
+  static const String qyLetsStart = 'qy_lets_start';
+  static const String qyDoNotHaveAccount = 'qy_do_not_have_account';
+  static const String qySignupForFree = 'qy_signup_for_free';
+  static const String qyWelcome = 'qy_welcome';
+  static const String qyGreeting = 'qy_greeting';
+  static const String qyWelcomeBack = 'qy_welcome_back';
+  static const String qyGuestMode = 'qy_guest_mode';
 
   static const String qyHome = 'qy_home';
+  static const String qyMenu = 'qy_menu';
+  static const String qySocial = 'qy_social';
+  static const String qySupport = 'qy_support';
   static const String qyNext = 'qy_next';
   static const String qyPrevious = 'qy_previous';
   static const String qySkip = 'qy_skip';
@@ -42,6 +55,9 @@ class QyAppLocalizationKeys {
   static const String qySort = 'qy_sort';
   static const String qyClear = 'qy_clear';
   static const String qyReset = 'qy_reset';
+  static const String qySearchPlaceholder = 'qy_search_placeholder';
+  static const String qyEnterSearchText = 'qy_enter_search_text';
+  static const String qyTopUp = 'qy_top_up';
 
   static const String qySuccess = 'qy_success';
   static const String qyError = 'qy_error';
@@ -56,6 +72,10 @@ class QyAppLocalizationKeys {
   static const String qySignUp = 'qy_sign_up';
   static const String qySignOut = 'qy_sign_out';
   static const String qyLogout = 'qy_logout';
+  static const String qyLogoutConfirm = 'qy_logout_confirm';
+  static const String qyLogoutSuccess = 'qy_logout_success';
+  static const String qyLogoutFailed = 'qy_logout_failed';
+  static const String qyYesLogout = 'qy_yes_logout';
   static const String qyLogin = 'qy_login';
   static const String qyRegister = 'qy_register';
   static const String qyForgotPassword = 'qy_forgot_password';
@@ -71,6 +91,7 @@ class QyAppLocalizationKeys {
   static const String qyNoAccount = 'qy_no_account';
 
   static const String qyProfile = 'qy_profile';
+  static const String qyMyProfile = 'qy_my_profile';
   static const String qyEditProfile = 'qy_edit_profile';
   static const String qyPersonalInfo = 'qy_personal_info';
   static const String qyFirstName = 'qy_first_name';
@@ -90,18 +111,23 @@ class QyAppLocalizationKeys {
   static const String qyNotificationSettings = 'qy_notification_settings';
   static const String qyLanguageSettings = 'qy_language_settings';
   static const String qyThemeSettings = 'qy_theme_settings';
+  static const String qyBiometricAuth = 'qy_biometric_auth';
   static const String qyDarkMode = 'qy_dark_mode';
   static const String qyLightMode = 'qy_light_mode';
   static const String qySystemMode = 'qy_system_mode';
   static const String qyLanguage = 'qy_language';
   static const String qyNotifications = 'qy_notifications';
   static const String qyPrivacy = 'qy_privacy';
+  static const String qyPrivacySecurity = 'qy_privacy_security';
   static const String qySecurity = 'qy_security';
   static const String qyHelp = 'qy_help';
-  static const String qySupport = 'qy_support';
+  static const String qyHelpSupport = 'qy_help_support';
   static const String qyAbout = 'qy_about';
+  static const String qyAboutDescription = 'qy_about_description';
   static const String qyTerms = 'qy_terms';
   static const String qyPrivacyPolicy = 'qy_privacy_policy';
+  static const String qyLanguageEnglish = 'qy_language_english';
+  static const String qyLanguageChinese = 'qy_language_chinese';
 
   static const String qyDashboard = 'qy_dashboard';
   static const String qyInbox = 'qy_inbox';
@@ -116,6 +142,21 @@ class QyAppLocalizationKeys {
   static const String qyCalendar = 'qy_calendar';
   static const String qyTasks = 'qy_tasks';
   static const String qyProjects = 'qy_projects';
+  static const String qyMyPrayers = 'qy_my_prayers';
+  static const String qyMyDonations = 'qy_my_donations';
+  static const String qyMyFundraising = 'qy_my_fundraising';
+  static const String qyInviteFriends = 'qy_invite_friends';
+  static const String qyShareApp = 'qy_share_app';
+  static const String qyFeature = 'qy_feature';
+  static const String qyFeaturePreview = 'qy_feature_preview';
+  static const String qyFeatureComingSoon = 'qy_feature_coming_soon';
+  static const String qyDisaster = 'qy_disaster';
+  static const String qyEducation = 'qy_education';
+  static const String qyEnvironment = 'qy_environment';
+  static const String qyHumanity = 'qy_humanity';
+  static const String qyMedical = 'qy_medical';
+  static const String qyOrphanage = 'qy_orphanage';
+  static const String qyHomeTopMenuPrayer = 'qy_home_top_menu_prayer';
 
   static const String qyTitle = 'qy_title';
   static const String qyDescription = 'qy_description';
@@ -135,6 +176,7 @@ class QyAppLocalizationKeys {
   static const String qyUpdate = 'qy_update';
   static const String qyView = 'qy_view';
   static const String qyShare = 'qy_share';
+  static const String qyBookmarks = 'qy_bookmarks';
   static const String qyLike = 'qy_like';
   static const String qyComment = 'qy_comment';
   static const String qyFollow = 'qy_follow';
@@ -239,6 +281,7 @@ class QyAppLocalizationKeys {
   static const String qyStudyDuration = 'qy_study_duration';
   static const String qyAccuracyRate = 'qy_accuracy_rate';
   static const String qyReviewCount = 'qy_review_count';
-
+  static const String qyInterest = 'qy_interest';
+  static const String qyIAm = 'qy_i_am';
   static const String qyWordLearning = 'qy_word_learning';
 }

@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-10-21 19:22:19
+Generated: 2025-11-05 15:58:39
 App: app_qy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -10,6 +10,20 @@ Development Guide: development-guides/FLUTTER_GUIDE_THIS_FILE_NO_AI_EDIT.md
 
 app_qy [code_assets]
 ├── lib/apps/app_qy/
+│   ├── DEVELOPMENT_ROADMAP.md
+│   ├── IMPLEMENTATION_SUMMARY.md
+│   ├── PROJECT_SUMMARY.md
+│   ├── README.MD
+│   ├── README_AUTHENTICATION.md
+│   ├── TECHNICAL_ARCHITECTURE.md
+│   ├── _prompts
+│   │   ├── AI_COLLABORATION_BRIDGE_QY.json
+│   │   ├── flutter_error_ament.txt
+│   │   ├── prompts.md
+│   │   ├── qy_bankend.txt
+│   │   ├── qy_frontend.txt
+│   │   ├── task.txt
+│   │   └── testapp.txt
 │   ├── app_qy_tree.md
 │   ├── app_qy_tree_code_assets.txt
 │   ├── build_config.ini
@@ -28,28 +42,81 @@ app_qy [code_assets]
 │   │   ├── profile_controller_app_qy.dart
 │   │   ├── settings_controller_app_qy.dart
 │   │   └── splash_controller_app_qy.dart
+│   ├── docs
+│   │   ├── about.jpg
+│   │   ├── account_settings.jpg
+│   │   ├── account_settings_1.jpg
+│   │   ├── certificate_center.jpg
+│   │   ├── checkin_challenge.jpg
+│   │   ├── course_ielts.jpg
+│   │   ├── course_ielts_1.jpg
+│   │   ├── course_ielts_2.jpg
+│   │   ├── course_ielts_3.jpg
+│   │   ├── course_ielts_4.jpg
+│   │   ├── course_plans.jpg
+│   │   ├── course_python.jpg
+│   │   ├── course_python_1.jpg
+│   │   ├── display_mode.jpg
+│   │   ├── docs_tree.md
+│   │   ├── home_search.jpg
+│   │   ├── home_study.jpg
+│   │   ├── image_001.jpg
+│   │   ├── login_phone.jpg
+│   │   ├── message_center.jpg
+│   │   ├── more_features.jpg
+│   │   ├── more_features_1.jpg
+│   │   ├── recommend_settings.jpg
+│   │   ├── reminder_settings.jpg
+│   │   ├── settings.jpg
+│   │   ├── word_book.jpg
+│   │   ├── word_listening.jpg
+│   │   ├── word_listening_1.jpg
+│   │   ├── word_listening_ai_explain.jpg
+│   │   ├── word_listening_dictation.jpg
+│   │   ├── word_listening_dictation_1.jpg
+│   │   ├── word_listening_dictation_2.jpg
+│   │   ├── word_listening_dictation_3.jpg
+│   │   ├── word_listening_free.jpg
+│   │   └── word_listening_sleep.jpg
 │   ├── features_app_qy
 │   │   ├── about
 │   │   │   ├── about_screen.dart
-│   │   │   └── actions
-│   │   │       └── .gitkeep
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   └── views
+│   │   │       └── about_screen.dart
 │   │   ├── authentication
 │   │   │   ├── actions
 │   │   │   │   ├── .gitkeep
 │   │   │   │   └── auth_actions.dart
-│   │   │   └── views
-│   │   │       ├── congratulation_screen.dart
-│   │   │       ├── create_pin_screen.dart
-│   │   │       ├── forgot_screen.dart
-│   │   │       ├── resetpassword_screen.dart
-│   │   │       ├── select_country.dart
-│   │   │       ├── signin_up_screen.dart
-│   │   │       ├── verify_screen.dart
-│   │   │       └── welcom_screen.dart
+│   │   │   ├── auth_config_app_qy.dart
+│   │   │   ├── auth_routes_app_qy.dart
+│   │   │   ├── auth_service_app_qy.dart
+│   │   │   ├── views
+│   │   │   │   ├── congratulation_screen.dart
+│   │   │   │   ├── create_pin_screen.dart
+│   │   │   │   ├── forgot_screen.dart
+│   │   │   │   ├── login_screen_app_qy.dart
+│   │   │   │   ├── login_screen_v2_app_qy.dart
+│   │   │   │   ├── resetpassword_screen.dart
+│   │   │   │   ├── select_country.dart
+│   │   │   │   ├── signin_up_screen.dart
+│   │   │   │   ├── verify_screen.dart
+│   │   │   │   └── welcom_screen.dart
+│   │   │   └── widgets
+│   │   │       ├── agreement_checkbox.dart
+│   │   │       ├── phone_login_button.dart
+│   │   │       └── wechat_login_button.dart
 │   │   ├── bookmark
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
 │   │   │   └── bookmark_screen.dart
+│   │   ├── certificate
+│   │   │   └── views
+│   │   │       └── certificate_center_screen.dart
+│   │   ├── checkin
+│   │   │   └── views
+│   │   │       └── checkin_challenge_screen.dart
 │   │   ├── comming
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
@@ -67,6 +134,17 @@ app_qy [code_assets]
 │   │   │       ├── settings_dropdown_item.dart
 │   │   │       ├── settings_group.dart
 │   │   │       └── settings_switch_item.dart
+│   │   ├── courses
+│   │   │   ├── domain
+│   │   │   │   ├── models
+│   │   │   │   │   └── course_model.dart
+│   │   │   │   └── services
+│   │   │   │       └── course_service.dart
+│   │   │   └── views
+│   │   │       ├── course_ielts_screen.dart
+│   │   │       ├── course_plans_screen.dart
+│   │   │       ├── course_python_screen.dart
+│   │   │       └── courses_screen.dart
 │   │   ├── dashboard
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
@@ -138,32 +216,37 @@ app_qy [code_assets]
 │   │   │   │       └── product_service.dart
 │   │   │   ├── views
 │   │   │   │   ├── home_screen.dart
+│   │   │   │   ├── home_screen_app_qy.dart
 │   │   │   │   ├── play_video_screen.dart
 │   │   │   │   ├── prayer_screen.dart
 │   │   │   │   ├── urgent_fundraising.dart
 │   │   │   │   └── watch_impact.dart
-│   │   │   └── widget
-│   │   │       ├── actions_widget.dart
-│   │   │       ├── all_screen.dart
-│   │   │       ├── banner_widget.dart
-│   │   │       ├── coming_list.dart
-│   │   │       ├── coming_widget.dart
-│   │   │       ├── disaster_screen.dart
-│   │   │       ├── education_screen.dart
-│   │   │       ├── fund_rising_listview.dart
-│   │   │       ├── fund_rising_widget.dart
-│   │   │       ├── health_screen.dart
-│   │   │       ├── home_title.dart
-│   │   │       ├── logined_func_widget.dart
-│   │   │       ├── logined_wordgroup_widget.dart
-│   │   │       ├── medical_screen.dart
-│   │   │       ├── prayer_listview.dart
-│   │   │       ├── prayer_widget.dart
-│   │   │       ├── prayerfrom_pepole.dart
-│   │   │       ├── urgent_fund_rising_widget.dart
-│   │   │       ├── urgentfunding_widget.dart
-│   │   │       ├── watch_impact_list.dart
-│   │   │       └── watch_impact_widget.dart
+│   │   │   ├── widget
+│   │   │   │   ├── actions_widget.dart
+│   │   │   │   ├── all_screen.dart
+│   │   │   │   ├── banner_widget.dart
+│   │   │   │   ├── coming_list.dart
+│   │   │   │   ├── coming_widget.dart
+│   │   │   │   ├── disaster_screen.dart
+│   │   │   │   ├── education_screen.dart
+│   │   │   │   ├── fund_rising_listview.dart
+│   │   │   │   ├── fund_rising_widget.dart
+│   │   │   │   ├── health_screen.dart
+│   │   │   │   ├── home_title.dart
+│   │   │   │   ├── logined_func_widget.dart
+│   │   │   │   ├── logined_wordgroup_widget.dart
+│   │   │   │   ├── medical_screen.dart
+│   │   │   │   ├── prayer_listview.dart
+│   │   │   │   ├── prayer_widget.dart
+│   │   │   │   ├── prayerfrom_pepole.dart
+│   │   │   │   ├── urgent_fund_rising_widget.dart
+│   │   │   │   ├── urgentfunding_widget.dart
+│   │   │   │   ├── watch_impact_list.dart
+│   │   │   │   └── watch_impact_widget.dart
+│   │   │   └── widgets
+│   │   │       ├── feature_grid.dart
+│   │   │       ├── study_progress_card.dart
+│   │   │       └── study_stats_card.dart
 │   │   ├── home_login
 │   │   │   ├── views
 │   │   │   │   └── home_login_view.dart
@@ -176,7 +259,8 @@ app_qy [code_assets]
 │   │   │   │   └── model
 │   │   │   │       └── inbox_model.dart
 │   │   │   └── views
-│   │   │       └── chat_screen.dart
+│   │   │       ├── chat_screen.dart
+│   │   │       └── message_center_screen.dart
 │   │   ├── interest
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
@@ -189,6 +273,9 @@ app_qy [code_assets]
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
 │   │   │   └── language_selector.dart
+│   │   ├── more_features
+│   │   │   └── views
+│   │   │       └── more_features_screen.dart
 │   │   ├── notification
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
@@ -254,6 +341,16 @@ app_qy [code_assets]
 │   │   │   └── widgets
 │   │   │       ├── card_widget.dart
 │   │   │       └── notification_setting_widget.dart
+│   │   ├── settings
+│   │   │   ├── views
+│   │   │   │   ├── account_settings_screen.dart
+│   │   │   │   ├── display_settings_screen.dart
+│   │   │   │   ├── recommend_settings_screen.dart
+│   │   │   │   ├── reminder_settings_screen.dart
+│   │   │   │   └── settings_screen.dart
+│   │   │   └── widgets
+│   │   │       ├── settings_section.dart
+│   │   │       └── settings_tile.dart
 │   │   ├── social_feed
 │   │   │   ├── model
 │   │   │   │   └── post_model.dart
@@ -282,6 +379,16 @@ app_qy [code_assets]
 │   │   │   └── widgets
 │   │   │       ├── custom_icon_label.dart
 │   │   │       └── custom_icon_label_group.dart
+│   │   ├── word_book
+│   │   │   ├── models
+│   │   │   │   └── word_models.dart
+│   │   │   ├── views
+│   │   │   │   └── word_book_screen.dart
+│   │   │   └── widgets
+│   │   │       ├── word_item_card.dart
+│   │   │       ├── word_list_view.dart
+│   │   │       ├── word_search_bar.dart
+│   │   │       └── word_stats_card.dart
 │   │   ├── word_card
 │   │   │   ├── actions
 │   │   │   │   └── .gitkeep
@@ -289,26 +396,45 @@ app_qy [code_assets]
 │   │   │   │   └── word_card_controller.dart
 │   │   │   ├── models
 │   │   │   │   ├── word_card_model.dart
+│   │   │   │   ├── word_card_model.g.dart
 │   │   │   │   └── word_model.dart
 │   │   │   └── views
 │   │   │       ├── word_card_screen.dart
 │   │   │       └── word_card_style_test.dart
-│   │   └── word_cards
-│   │       ├── actions
-│   │       │   └── .gitkeep
-│   │       ├── types
-│   │       │   └── words_types.dart
-│   │       └── views
-│   │           └── word_cards_screen.dart
+│   │   ├── word_cards
+│   │   │   ├── actions
+│   │   │   │   └── .gitkeep
+│   │   │   ├── types
+│   │   │   │   └── words_types.dart
+│   │   │   └── views
+│   │   │       └── word_cards_screen.dart
+│   │   └── word_listening
+│   │       ├── views
+│   │       │   ├── word_listening_ai_explain_screen.dart
+│   │       │   ├── word_listening_dictation_2_screen.dart
+│   │       │   ├── word_listening_dictation_3_screen.dart
+│   │       │   ├── word_listening_dictation_practice_screen.dart
+│   │       │   ├── word_listening_dictation_screen.dart
+│   │       │   ├── word_listening_free_screen.dart
+│   │       │   ├── word_listening_screen.dart
+│   │       │   └── word_listening_sleep_screen.dart
+│   │       └── widgets
+│   │           ├── category_list.dart
+│   │           ├── current_word_card.dart
+│   │           └── playback_controls.dart
 │   ├── localization_app_qy
 │   │   ├── en_app_qy.dart
 │   │   ├── localization_keys_app_qy.dart
 │   │   └── zh_app_qy.dart
+│   ├── main.dart
 │   ├── main_app_qy.dart
 │   ├── model_app_qy
 │   │   └── user_model.dart
+│   ├── provider_app_qy
+│   │   └── user_provider_app_qy.dart
 │   ├── providers_app_qy
 │   │   └── qy_user_provider.dart
+│   ├── pubspec.yaml
 │   ├── resources_app_qy
 │   │   ├── assets_icons_app_qy.dart
 │   │   ├── assets_images_app_qy.dart
@@ -323,6 +449,7 @@ app_qy [code_assets]
 │   ├── services_app_qy
 │   │   ├── app_qy_service_manager.dart
 │   │   ├── auth_api_app_qy_service.dart
+│   │   ├── cache_service_app_qy.dart
 │   │   ├── product_api_app_qy_service.dart
 │   │   ├── service_app_qy.dart
 │   │   ├── services_app_qy.dart
@@ -332,14 +459,31 @@ app_qy [code_assets]
 │   └── utils_app_qy
 │       └── utils_app_qy.dart
 ├── lib/common/
+│   ├── README.md
 │   ├── app
 │   │   └── main_common.dart
 │   ├── assets
 │   │   ├── common_assets_icons.dart
 │   │   ├── common_assets_images.dart
 │   │   └── common_assets_launch.dart
+│   ├── auth
+│   ├── auth_v2
+│   │   ├── README.md
+│   │   ├── auth_config.dart
+│   │   ├── auth_interface.dart
+│   │   ├── auth_manager.dart
+│   │   ├── auth_models.dart
+│   │   ├── auth_provider_factory.dart
+│   │   ├── auth_v2.dart
+│   │   └── providers
+│   │       ├── github_auth_provider.dart
+│   │       ├── google_auth_provider.dart
+│   │       ├── phone_auth_provider.dart
+│   │       ├── qq_auth_provider.dart
+│   │       └── wechat_auth_provider.dart
 │   ├── cache_manager
 │   │   └── cache_manager.dart
+│   ├── common.dart
 │   ├── common_tree.md
 │   ├── constants
 │   │   └── app_constants.dart
@@ -355,6 +499,9 @@ app_qy [code_assets]
 │   │   │   └── base_model.dart
 │   │   └── sqlite
 │   │       └── sqlite_service.dart
+│   ├── i18n
+│   │   ├── i18n_service.dart
+│   │   └── translations.dart
 │   ├── iframe
 │   │   └── iframe_listner.dart
 │   ├── localization
@@ -450,6 +597,10 @@ app_qy [code_assets]
 │   │   │   ├── login_manager.dart
 │   │   │   ├── session_auth_strategy.dart
 │   │   │   └── user_provider_auth_coordinator.dart
+│   │   ├── cache
+│   │   │   ├── cache_entry.dart
+│   │   │   ├── cache_store.dart
+│   │   │   └── memory_cache_store.dart
 │   │   ├── core
 │   │   │   ├── http_client.dart
 │   │   │   └── network_manager.dart
@@ -501,6 +652,8 @@ app_qy [code_assets]
 │   │       ├── tencent_maps_flutter_integration.dart
 │   │       ├── tencent_maps_sdk.dart
 │   │       └── tencent_maps_service.dart
+│   ├── services
+│   │   └── settings_service.dart
 │   ├── settings
 │   │   ├── configs
 │   │   │   └── base_settings.dart
@@ -573,10 +726,15 @@ app_qy [code_assets]
 │   │   └── utils
 │   │       └── storage_utils.dart
 │   ├── theme
+│   │   ├── app_theme.dart
 │   │   ├── base
+│   │   │   ├── theme_animations.dart
 │   │   │   ├── theme_colors.dart
 │   │   │   ├── theme_constants.dart
 │   │   │   ├── theme_dimensions.dart
+│   │   │   ├── theme_effects.dart
+│   │   │   ├── theme_extensions.dart
+│   │   │   ├── theme_gradients.dart
 │   │   │   ├── theme_shadow.dart
 │   │   │   └── theme_text_styles.dart
 │   │   ├── compatibility
@@ -594,6 +752,7 @@ app_qy [code_assets]
 │   │   │   └── web
 │   │   │       ├── web_dark_theme.dart
 │   │   │       └── web_light_theme.dart
+│   │   ├── theme.dart
 │   │   └── theme_manager.dart
 │   ├── utils
 │   │   ├── common
@@ -629,11 +788,23 @@ app_qy [code_assets]
 │   │       ├── web_tools_web.dart
 │   │       └── webabs.dart
 │   └── widgets
+│       ├── README.md
 │       ├── action_bar.dart
 │       ├── animated_custom_dialog.dart
+│       ├── animations
+│       │   └── animation_utils.dart
 │       ├── back_app_bar.dart
+│       ├── badges
+│       │   ├── badges_chips.dart
+│       │   └── premium_badges.dart
 │       ├── bank_bottom_navigation.dart
 │       ├── bank_scaffold.dart
+│       ├── buttons
+│       │   ├── premium_buttons.dart
+│       │   └── primary_button.dart
+│       ├── cards
+│       │   ├── custom_cards.dart
+│       │   └── premium_cards.dart
 │       ├── config.dart
 │       ├── confirmation_dialog.dart
 │       ├── country_picker.dart
@@ -662,12 +833,20 @@ app_qy [code_assets]
 │       │   └── swipeable_widget.dart
 │       ├── custom_text_field.dart
 │       ├── custom_title.dart
+│       ├── dialogs
+│       │   └── custom_dialogs.dart
 │       ├── digital_payment_dialog.dart
 │       ├── enhanced_bottom_navigation.dart
 │       ├── enhanced_top_menu.dart
 │       ├── floating_avatar_header.dart
+│       ├── glassmorphism_card.dart
+│       ├── gradient_button.dart
 │       ├── image_dialog.dart
 │       ├── info_row_widget.dart
+│       ├── inputs
+│       │   └── custom_text_fields.dart
+│       ├── lists
+│       │   └── list_items.dart
 │       ├── navigation_widgets.dart
 │       ├── network_connection_dialog.dart
 │       ├── no_data_screen.dart
@@ -675,10 +854,15 @@ app_qy [code_assets]
 │       ├── outelineborder.dart
 │       ├── paginated_list_view.dart
 │       ├── payment_item_info.dart
+│       ├── progress
+│       │   └── progress_indicators.dart
 │       ├── responsive_layout.dart
 │       ├── segmented_button.dart
 │       ├── settings_page_example.dart
-│       └── type_button_widget.dart
+│       ├── states
+│       │   └── empty_state.dart
+│       ├── type_button_widget.dart
+│       └── widgets.dart
 ├── assets/apps/app_qy/
 │   ├── icons
 │   │   ├── ic_launcher.backup.png

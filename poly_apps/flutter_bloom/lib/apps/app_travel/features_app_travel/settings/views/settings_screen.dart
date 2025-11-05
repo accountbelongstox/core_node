@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/controller/settings_controller.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../provider_app_travel/user_provider_app_travel.dart';
+import '../../../router_app_travel/routes_provider_app_travel.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../../constants_app_travel/cities_app_travel.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -10,11 +16,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final Map<String, dynamic> _userProfile = {
-    'avatar': 'assets/apps/app_travel/images/settings_avatar.png',
-    'name': '去哪儿用户',
-    'phone': '+86-181****7523',
-  };
 
   final List<Map<String, dynamic>> _accountSettings = [
     {
@@ -43,6 +44,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ];
 
   final List<Map<String, dynamic>> _systemSettings = [
+    {
+      'icon': Icons.location_city,
+      'iconColor': Color(0xFF9C9FDE),
+      'title': '当前城市',
+    },
     {
       'icon': Icons.devices,
       'iconColor': Color(0xFF9C9FDE),
@@ -90,6 +96,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProviderAppTravel>();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
@@ -119,6 +127,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingsSection(_systemSettings),
             const SizedBox(height: 12.0),
             _buildSettingsSection(_aboutSettings),
+            const SizedBox(height: 12.0),
+            if (userProvider.isLoggedIn) _buildLogoutButton(userProvider),
             const SizedBox(height: 20.0),
           ],
         ),
@@ -126,7 +136,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildLogoutButton(UserProviderAppTravel userProvider) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: ElevatedButton(
+        onPressed: () => _showLogoutDialog(userProvider),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red.shade400,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14.0),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8.0),
+          ),
+        ),
+        child: Text(
+          TravelLocalizationKeys.travelLogout.tr(context),
+          style: const TextStyle(
+            fontSize: 16.0,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLogoutDialog(UserProviderAppTravel userProvider) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(TravelLocalizationKeys.travelLogout.tr(context)),
+          content: Text(TravelLocalizationKeys.travelConfirm.tr(context)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(TravelLocalizationKeys.travelCancel.tr(context)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await userProvider.logout();
+                if (mounted) {
+                  Navigator.of(context).pop();
+                  context.go(TravelAppRoutesProvider.routeLogin);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: Text(TravelLocalizationKeys.travelConfirm.tr(context)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildUserProfile() {
+    final userProvider = context.watch<UserProviderAppTravel>();
+    final user = userProvider.user;
+    final username = user.username ?? TravelLocalizationKeys.travelGuestUser.tr(context);
+    final email = user.email ?? '';
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16.0),
@@ -137,23 +208,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             height: 64.0,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF00D0D8), width: 2.0),
+              border: Border.all(
+                color: user.isLoggedIn ? const Color(0xFF00D0D8) : const Color(0xFFE0E0E0),
+                width: 2.0,
+              ),
             ),
             child: ClipOval(
-              child: Image.asset(
-                _userProfile['avatar'],
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: const Color(0xFFE3F2FD),
-                    child: const Icon(
-                      Icons.person,
-                      size: 36.0,
-                      color: Color(0xFF00D0D8),
-                    ),
-                  );
-                },
-              ),
+              child: user.avatarUrl != null
+                  ? Image.network(
+                      user.avatarUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildDefaultAvatar();
+                      },
+                    )
+                  : _buildDefaultAvatar(),
             ),
           ),
           const SizedBox(width: 16.0),
@@ -162,7 +231,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _userProfile['name'],
+                  username,
                   style: const TextStyle(
                     fontSize: 18.0,
                     fontWeight: FontWeight.bold,
@@ -171,7 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 6.0),
                 Text(
-                  _userProfile['phone'],
+                  email.isNotEmpty ? email : TravelLocalizationKeys.travelGuestUser.tr(context),
                   style: const TextStyle(
                     fontSize: 14.0,
                     color: Colors.black45,
@@ -182,7 +251,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           GestureDetector(
             onTap: () {
-              _showEditProfileDialog();
+              if (user.isLoggedIn) {
+                _showEditProfileDialog(userProvider);
+              } else {
+                _showLoginPromptDialog();
+              }
             },
             child: Row(
               children: const [
@@ -203,6 +276,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      color: const Color(0xFFE3F2FD),
+      child: const Icon(
+        Icons.person,
+        size: 36.0,
+        color: Color(0xFF00D0D8),
       ),
     );
   }
@@ -302,8 +386,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _handleSettingTap(String settingTitle) {
     final settingsController = context.read<SettingsController>();
+    final userProvider = context.read<UserProviderAppTravel>();
 
     switch (settingTitle) {
+      case '当前城市':
+        _showCitySelectionDialog(userProvider);
+        break;
       case '实名认证':
         _showComingSoonDialog('实名认证');
         break;
@@ -345,9 +433,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _showEditProfileDialog() {
+  void _showLoginPromptDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(TravelLocalizationKeys.travelLogin.tr(context)),
+          content: Text(TravelLocalizationKeys.travelPleaseEnterUsername.tr(context)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(TravelLocalizationKeys.travelCancel.tr(context)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.go(TravelAppRoutesProvider.routeLogin);
+              },
+              child: Text(TravelLocalizationKeys.travelLogin.tr(context)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEditProfileDialog(UserProviderAppTravel userProvider) {
+    final user = userProvider.user;
     final TextEditingController nameController = TextEditingController(
-      text: _userProfile['name'],
+      text: user.username ?? '',
+    );
+    final TextEditingController emailController = TextEditingController(
+      text: user.email ?? '',
     );
 
     showDialog(
@@ -365,6 +482,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
+              const SizedBox(height: 16.0),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: '邮箱',
+                  border: OutlineInputBorder(),
+                ),
+              ),
             ],
           ),
           actions: [
@@ -373,14 +498,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: const Text('取消'),
             ),
             ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _userProfile['name'] = nameController.text;
-                });
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('修改成功')),
+              onPressed: () async {
+                final success = await userProvider.updateProfile(
+                  username: nameController.text,
+                  email: emailController.text,
                 );
+                if (mounted) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(success ? '修改成功' : '修改失败'),
+                    ),
+                  );
+                }
               },
               child: const Text('确定'),
             ),
@@ -615,6 +745,86 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('缓存已清除')),
                 );
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showCitySelectionDialog(UserProviderAppTravel userProvider) {
+    final TextEditingController customCityController = TextEditingController();
+    final currentCity = userProvider.user.currentCity ?? CitiesAppTravel.defaultCity;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('选择城市'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('热门城市', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: CitiesAppTravel.popularCities.length,
+                    itemBuilder: (context, index) {
+                      final city = CitiesAppTravel.popularCities[index];
+                      return RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(city),
+                        value: city,
+                        groupValue: currentCity,
+                        onChanged: (value) async {
+                          if (value != null) {
+                            await userProvider.updateProfile(currentCity: value);
+                            if (mounted) {
+                              Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('城市已更改为 $value')),
+                              );
+                            }
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const Divider(),
+                TextField(
+                  controller: customCityController,
+                  decoration: const InputDecoration(
+                    labelText: '自定义城市',
+                    border: OutlineInputBorder(),
+                    hintText: '输入城市名称',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final customCity = customCityController.text.trim();
+                if (customCity.isNotEmpty) {
+                  await userProvider.updateProfile(currentCity: customCity);
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('城市已更改为 $customCity')),
+                    );
+                  }
+                }
               },
               child: const Text('确定'),
             ),

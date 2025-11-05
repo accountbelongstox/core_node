@@ -117,19 +117,19 @@ echo App namespace: ${this.appNamespace}
 echo Port: ${port}
 echo.
 
-REM Check if yarn is available
-where yarn >nul 2>nul
+REM Check if pnpm is available
+where pnpm >nul 2>nul
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] yarn is not installed or not in PATH
-    echo Please install yarn: npm install -g yarn
+    echo [ERROR] pnpm is not installed or not in PATH
+    echo Please install pnpm: npm install -g pnpm
     pause
     exit /b 1
 )
 
 REM Check if node_modules exists
 if not exist "node_modules" (
-    echo [WARNING] node_modules not found, running yarn install...
-    yarn install
+    echo [WARNING] node_modules not found, running pnpm install...
+    pnpm install
     if %ERRORLEVEL% neq 0 (
         echo [ERROR] Failed to install dependencies
         pause
@@ -147,8 +147,8 @@ if %ERRORLEVEL% neq 0 (
 )
 
 REM Launch development server with specified port
-echo Running: yarn dev:${this.appNamespace} --port ${port}
-yarn dev:${this.appNamespace} --port ${port}
+echo Running: pnpm dev:${this.appNamespace} --port ${port}
+pnpm dev:${this.appNamespace} --port ${port}
 
 pause
 `;
@@ -210,7 +210,7 @@ pause
             // Launch development server in background
             logger.info(`Starting frontend development server for app: ${this.appNamespace}`);
 
-            this.childProcess = spawn('yarn', [`dev:${this.appNamespace}`], {
+            this.childProcess = spawn('pnpm', [`dev:${this.appNamespace}`], {
                 cwd: this.frontendDir,
                 detached: true,
                 stdio: ['ignore', 'pipe', 'pipe']

@@ -34,7 +34,7 @@ class VipClubBookingController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final booking = await _bookingRepository.createBooking(
+      final result = await _bookingRepository.createBooking(
         facilityType: facilityType,
         facilityId: facilityId,
         bookingDate: bookingDate,
@@ -45,7 +45,7 @@ class VipClubBookingController extends ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      return true;
+      return result['success'] == true;
     } catch (e) {
       _errorMessage = 'Failed to create booking: ${e.toString()}';
       _isLoading = false;
@@ -88,7 +88,10 @@ class VipClubBookingController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _selectedBooking = await _bookingRepository.getBookingById(bookingId);
+      final result = await _bookingRepository.getBookingDetails(bookingId);
+      if (result['success']) {
+        _selectedBooking = result['booking'];
+      }
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -127,15 +130,15 @@ class VipClubBookingController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _bookingRepository.updateBooking(
+      final result = await _bookingRepository.updateBooking(
         bookingId: bookingId,
-        bookingDate: bookingDate,
-        timeSlot: timeSlot,
-        duration: duration,
+        newDate: bookingDate,
+        newTimeSlot: timeSlot,
+        newDuration: duration,
       );
       _isLoading = false;
       notifyListeners();
-      return true;
+      return result['success'] == true;
     } catch (e) {
       _errorMessage = 'Failed to update booking: ${e.toString()}';
       _isLoading = false;

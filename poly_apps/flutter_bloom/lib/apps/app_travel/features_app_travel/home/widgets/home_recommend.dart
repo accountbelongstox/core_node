@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models_app_travel/recommend_item_model.dart';
 import '../../../widgets/travel_icons.dart';
+import '../../../resources_app_travel/assets_icons_app_travel.dart';
 
 class HomeRecommend extends StatelessWidget {
   final List<List<RecommendItemModel>> recommend;
@@ -12,27 +13,27 @@ class HomeRecommend extends StatelessWidget {
 
   final List<Map<String, String>> recommendCards = const [
     {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_1.png',
+      'icon': AssetsIconsAppTravel.travelRecommendIcon1,
       'title': '天天神券',
       'subtitle': '签到领券',
     },
     {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_2.png',
+      'icon': AssetsIconsAppTravel.travelRecommendIcon2,
       'title': '低价机票',
       'subtitle': '30天低价',
     },
     {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_3.png',
+      'icon': AssetsIconsAppTravel.travelRecommendIcon3,
       'title': '1折机票',
       'subtitle': '200元起',
     },
     {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_4.png',
+      'icon': AssetsIconsAppTravel.travelRecommendIcon4,
       'title': '酒店囤货',
       'subtitle': '69元秒底',
     },
     {
-      'icon': 'assets/apps/app_travel/images/recommend_icon_5.png',
+      'icon': AssetsIconsAppTravel.travelRecommendIcon5,
       'title': 'AI行程',
       'subtitle': '智能规划',
     },
@@ -49,21 +50,17 @@ class HomeRecommend extends StatelessWidget {
             width: 100.0,
             height: 100.0,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Colors.transparent,
               borderRadius: BorderRadius.circular(8.0),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4.0,
-                  offset: const Offset(0, 2.0),
-                ),
-              ],
             ),
+            padding: const EdgeInsets.all(8.0),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8.0),
               child: Image.asset(
                 card['icon']!,
-                fit: BoxFit.cover,
+                width: 84.0,
+                height: 84.0,
+                fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
                     color: const Color(0xFFF5F5F5),
@@ -84,6 +81,12 @@ class HomeRecommend extends StatelessWidget {
               fontSize: 13.0,
               fontWeight: FontWeight.w600,
               color: Colors.black87,
+              shadows: [
+                Shadow(
+                  color: Colors.white,
+                  blurRadius: 4.0,
+                ),
+              ],
             ),
             textAlign: TextAlign.center,
           ),
@@ -93,6 +96,12 @@ class HomeRecommend extends StatelessWidget {
             style: const TextStyle(
               fontSize: 11.0,
               color: Color(0xFF999999),
+              shadows: [
+                Shadow(
+                  color: Colors.white,
+                  blurRadius: 4.0,
+                ),
+              ],
             ),
             textAlign: TextAlign.center,
           ),
@@ -140,8 +149,15 @@ class HomeRecommend extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12.0),
-          SizedBox(
+          Container(
             height: 140.0,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8.0),
+              image: const DecorationImage(
+                image: AssetImage(AssetsIconsAppTravel.travelRecommendBg1),
+                fit: BoxFit.cover,
+              ),
+            ),
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 4.0),

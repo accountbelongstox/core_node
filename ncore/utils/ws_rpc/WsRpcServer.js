@@ -30,11 +30,25 @@ const ERROR_CODES = WS_RPC_CONSTANTS.ERROR_CODES;
 const EVENTS = WS_RPC_CONSTANTS.EVENTS;
 
 class WsRpcServer extends EventEmitter {
-    constructor(options = {}) {
+    constructor(wssOrOptions = {}) {
         super();
 
-        this.port = options.port || DEFAULTS.SERVER_PORT;
-        this.host = options.host || DEFAULTS.SERVER_HOST;
+        let options;
+
+        if (wssOrOptions instanceof WebSocket.Server) {
+            this.wss = wssOrOptions;
+            this.externalWss = true;
+            options = {};
+            this.port = null;
+            this.host = null;
+        } else {
+            options = wssOrOptions;
+            this.wss = null;
+            this.externalWss = false;
+            this.port = options.port || DEFAULTS.SERVER_PORT;
+            this.host = options.host || DEFAULTS.SERVER_HOST;
+        }
+
         this.debug = options.debug || false;
         this.requestTimeout = options.requestTimeout || DEFAULTS.REQUEST_TIMEOUT;
         this.maxPayloadSize = options.maxPayloadSize || DEFAULTS.MAX_PAYLOAD_SIZE;
@@ -43,7 +57,6 @@ class WsRpcServer extends EventEmitter {
         this.events = new Map();
         this.pendingRequests = new Map();
         this.clients = new Map();
-        this.wss = null;
 
         this.heartbeat = new HeartbeatManager({
             interval: options.heartbeatInterval || DEFAULTS.HEARTBEAT_INTERVAL,
@@ -90,19 +103,19 @@ class WsRpcServer extends EventEmitter {
     start() {
         return new Promise((resolve, reject) => {
             try {
+                if (this.externalWss) {
+                    this._attachHandlers();
+                    logger.success('WebSocket RPC Server attached to existing WebSocket server');
+                    resolve();
+                    return;
+                }
+
                 this.wss = new WebSocket.Server({
                     host: this.host,
                     port: this.port
                 });
 
-                this.wss.on('connection', (ws, req) => {
-                    this._handleConnection(ws, req);
-                });
-
-                this.wss.on('error', (error) => {
-                    logger.error('WsRpcServer error:', error);
-                    this.emit('error', error);
-                });
+                this._attachHandlers();
 
                 this.wss.on('listening', () => {
                     logger.success(`WebSocket RPC Server listening on ${this.host}:${this.port}`);
@@ -113,6 +126,22 @@ class WsRpcServer extends EventEmitter {
                 logger.error('Failed to start WsRpcServer:', error);
                 reject(error);
             }
+        });
+    }
+
+    _attachHandlers() {
+        if (!this.wss) {
+            logger.error('Cannot attach handlers: WebSocket server is null');
+            return;
+        }
+
+        this.wss.on('connection', (ws, req) => {
+            this._handleConnection(ws, req);
+        });
+
+        this.wss.on('error', (error) => {
+            logger.error('WsRpcServer error:', error);
+            this.emit('error', error);
         });
     }
 
@@ -134,12 +163,15 @@ class WsRpcServer extends EventEmitter {
             this.rateLimiter.destroy();
             this.namespace.clear();
 
-            if (this.wss) {
+            if (this.wss && !this.externalWss) {
                 this.wss.close(() => {
                     logger.info('WebSocket RPC Server stopped');
                     resolve();
                 });
             } else {
+                if (this.externalWss) {
+                    logger.info('WebSocket RPC Server detached from external server');
+                }
                 resolve();
             }
         });

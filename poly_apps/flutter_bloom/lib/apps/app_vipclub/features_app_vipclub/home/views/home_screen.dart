@@ -246,7 +246,7 @@ class _VipClubHomeScreenState extends State<VipClubHomeScreen> {
               SizedBox(height: ThemeDimensions.tinyPadding),
               Text(
                 label,
-                style: ThemeTextStyles.captionMedium.copyWith(
+                style: ThemeTextStyles.caption1.copyWith(
                   color: color,
                   fontWeight: FontWeight.w600,
                 ),

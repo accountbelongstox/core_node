@@ -42,12 +42,18 @@ class EnhancedItTools {
         this.wsRpcServer = null;
         this.routes = new Map();
         this.wsHandlers = new Map();
+        this.coreWsHandlers = new Map();
+        this.registeredWsHandlers = new Set();
+        this.registeredHttpRoutes = new Set();
+        this.httpEnabled = true;
         this.initialized = false;
         this.serverRunning = false;
         this.config = {
             port: 8080,
             host: 'localhost',
             enableWs: true,
+            enableHttp: true,
+            wsPort: null,
             staticDir: null,
             cors: true
         };
@@ -86,19 +92,63 @@ class EnhancedItTools {
         }
     }
 
+    _registerHttpRoute(method, path, handler) {
+        if (!this.httpEnabled || !this.httpServer || !this.httpServer.app) {
+            return;
+        }
+
+        const routeKey = `${method.toUpperCase()}:${path}`;
+        if (this.registeredHttpRoutes.has(routeKey)) {
+            return;
+        }
+
+        const app = this.httpServer.app;
+        const normalizedMethod = (method || 'get').toLowerCase();
+
+        if (typeof app[normalizedMethod] !== 'function') {
+            logger.warn(`Unsupported HTTP method for route ${routeKey}`);
+            return;
+        }
+
+        app[normalizedMethod](path, handler);
+        this.registeredHttpRoutes.add(routeKey);
+        logger.debug(`HTTP route registered: ${routeKey}`);
+    }
+
+    _registerWsHandler(method, handler) {
+        if (!this.wsRpcServer) {
+            return;
+        }
+
+        if (this.registeredWsHandlers.has(method)) {
+            return;
+        }
+
+        this.wsRpcServer.route(method, handler);
+        this.registeredWsHandlers.add(method);
+        logger.debug(`WebSocket RPC handler registered: ${method}`);
+    }
+
     createRouteInterface() {
         return {
             // REST API routes
             addRoute: (method, path, handler) => {
-                const routeKey = `${method.toUpperCase()}:${path}`;
-                this.routes.set(routeKey, handler);
-                logger.info(`Added route: ${method.toUpperCase()} ${path}`);
+                const normalizedMethod = (method || 'get').toUpperCase();
+                const routeKey = `${normalizedMethod}:${path}`;
+                this.routes.set(routeKey, {
+                    method: normalizedMethod,
+                    path: path,
+                    handler: handler
+                });
+                logger.info(`Added route: ${normalizedMethod} ${path}`);
+                this._registerHttpRoute(normalizedMethod, path, handler);
             },
 
             // WebSocket handlers
             addWsHandler: (method, handler) => {
                 this.wsHandlers.set(method, handler);
                 logger.info(`Added WebSocket handler: ${method}`);
+                this._registerWsHandler(method, handler);
             },
 
             // Tool execution
@@ -125,34 +175,59 @@ class EnhancedItTools {
     async startServer(options = {}) {
         if (this.serverRunning) {
             logger.warn('EnhancedItTools server is already running');
-            return this.httpServer;
+            return {
+                httpServer: this.httpServer,
+                wsRpcServer: this.wsRpcServer
+            };
         }
 
         try {
             const serverConfig = { ...this.config, ...options };
+            const enableHttp = serverConfig.enableHttp !== false;
+            const enableWs = serverConfig.enableWs !== false;
+            const httpPort = serverConfig.port;
+            const wsPort = serverConfig.wsPort || (enableHttp ? httpPort + 1 : httpPort);
 
-            // Initialize HTTP server with Express
-            this.httpServer = httpUtils.createServer({
-                port: serverConfig.port,
-                host: serverConfig.host,
-                staticDir: serverConfig.staticDir,
-                cors: serverConfig.cors
-            });
+            this.httpEnabled = enableHttp;
+            this.config = {
+                ...serverConfig,
+                enableHttp: enableHttp,
+                enableWs: enableWs,
+                wsPort: enableWs ? wsPort : null
+            };
 
-            // Register custom routes
-            this.registerRoutes();
+            this.registeredHttpRoutes.clear();
+            this.registeredWsHandlers.clear();
 
-            // Initialize WebSocket if enabled
-            if (serverConfig.enableWs) {
-                await this.initializeWebSocket();
+            if (enableHttp) {
+                this.httpServer = httpUtils.createServer({
+                    port: httpPort,
+                    host: serverConfig.host,
+                    staticDir: serverConfig.staticDir,
+                    cors: serverConfig.cors
+                });
+
+                this.registerRoutes();
+                await httpUtils.startServer(this.httpServer);
+                logger.info(`EnhancedItTools HTTP server started on ${serverConfig.host}:${httpPort}`);
+            } else {
+                this.httpServer = null;
+                logger.info('EnhancedItTools HTTP server disabled by configuration');
             }
 
-            // Start the server
-            await httpUtils.startServer(this.httpServer);
+            if (enableWs) {
+                await this.initializeWebSocket();
+            } else {
+                this.wsRpcServer = null;
+                logger.info('EnhancedItTools WebSocket server disabled by configuration');
+            }
+
             this.serverRunning = true;
 
-            logger.info(`EnhancedItTools server started on ${serverConfig.host}:${serverConfig.port}`);
-            return this.httpServer;
+            return {
+                httpServer: this.httpServer,
+                wsRpcServer: this.wsRpcServer
+            };
         } catch (error) {
             logger.error(`Failed to start EnhancedItTools server: ${error.message}`);
             throw error;
@@ -168,7 +243,7 @@ class EnhancedItTools {
         try {
             // Stop WebSocket server
             if (this.wsRpcServer) {
-                await wsRpcUtils.stopServer();
+                await this.wsRpcServer.stop();
                 this.wsRpcServer = null;
             }
 
@@ -179,6 +254,8 @@ class EnhancedItTools {
             }
 
             this.serverRunning = false;
+            this.registeredWsHandlers.clear();
+            this.registeredHttpRoutes.clear();
             logger.info('EnhancedItTools server stopped successfully');
         } catch (error) {
             logger.error(`Failed to stop EnhancedItTools server: ${error.message}`);
@@ -191,10 +268,7 @@ class EnhancedItTools {
             return;
         }
 
-        const app = this.httpServer.app;
-
-        // API routes
-        app.get('/api/tools', (req, res) => {
+        this._registerHttpRoute('GET', '/api/tools', (req, res) => {
             try {
                 const tools = this.getAllTools();
                 res.json({
@@ -211,7 +285,7 @@ class EnhancedItTools {
             }
         });
 
-        app.get('/api/tools/category/:category', (req, res) => {
+        this._registerHttpRoute('GET', '/api/tools/category/:category', (req, res) => {
             try {
                 const { category } = req.params;
                 const tools = this.getToolsByCategory(category);
@@ -230,7 +304,7 @@ class EnhancedItTools {
             }
         });
 
-        app.get('/api/tools/search', (req, res) => {
+        this._registerHttpRoute('GET', '/api/tools/search', (req, res) => {
             try {
                 const { q } = req.query;
                 if (!q) {
@@ -257,13 +331,18 @@ class EnhancedItTools {
             }
         });
 
-        app.post('/api/tools/:toolId/execute', async (req, res) => {
+        this._registerHttpRoute('POST', '/api/tools/:toolId/execute', async (req, res) => {
             try {
                 const { toolId } = req.params;
                 const params = req.body || {};
-
                 const result = await this.executeTool(toolId, params);
-                res.json(result);
+                res.json({
+                    success: result.success,
+                    data: result.data,
+                    error: result.error,
+                    executionTime: result.executionTime,
+                    timestamp: result.timestamp
+                });
             } catch (error) {
                 res.status(500).json({
                     success: false,
@@ -273,7 +352,7 @@ class EnhancedItTools {
             }
         });
 
-        app.get('/api/status', (req, res) => {
+        this._registerHttpRoute('GET', '/api/status', (req, res) => {
             try {
                 const status = this.getServerStatus();
                 res.json({
@@ -290,27 +369,29 @@ class EnhancedItTools {
             }
         });
 
-        // Register custom routes
-        for (const [routeKey, handler] of this.routes) {
-            const [method, path] = routeKey.split(':');
-            app[method.toLowerCase()](path, handler);
+        for (const route of this.routes.values()) {
+            this._registerHttpRoute(route.method, route.path, route.handler);
         }
     }
 
     async initializeWebSocket() {
+        if (!this.config.enableWs) {
+            return;
+        }
+
         try {
-            // Initialize WebSocket RPC server
+            const host = this.config.host;
+            const port = this.config.wsPort || (this.httpEnabled ? this.config.port + 1 : this.config.port);
+
             this.wsRpcServer = wsRpcUtils.createServer({
-                port: this.config.port + 1, // WebSocket on port + 1
-                host: this.config.host
+                host: host,
+                port: port
             });
 
-            // Register WebSocket handlers
+            await this.wsRpcServer.start();
             this.registerWebSocketHandlers();
 
-            // Start WebSocket server
-            await wsRpcUtils.startServer(this.wsRpcServer);
-            logger.info(`WebSocket RPC server started on ${this.config.host}:${this.config.port + 1}`);
+            logger.info(`WebSocket RPC server started on ${host}:${port}`);
         } catch (error) {
             logger.error(`Failed to initialize WebSocket: ${error.message}`);
             throw error;
@@ -322,37 +403,31 @@ class EnhancedItTools {
             return;
         }
 
-        // Tool execution handler
-        this.wsRpcServer.registerMethod('tools.execute', async (params) => {
+        this._registerWsHandler('tools.execute', async (params) => {
             const { toolId, ...toolParams } = params;
             return await this.executeTool(toolId, toolParams);
         });
 
-        // Tool listing handler
-        this.wsRpcServer.registerMethod('tools.list', async () => {
+        this._registerWsHandler('tools.list', async () => {
             return this.getAllTools();
         });
 
-        // Tool search handler
-        this.wsRpcServer.registerMethod('tools.search', async (params) => {
+        this._registerWsHandler('tools.search', async (params) => {
             const { query } = params;
             return this.searchTools(query);
         });
 
-        // Tool category handler
-        this.wsRpcServer.registerMethod('tools.category', async (params) => {
+        this._registerWsHandler('tools.category', async (params) => {
             const { category } = params;
             return this.getToolsByCategory(category);
         });
 
-        // Status handler
-        this.wsRpcServer.registerMethod('server.status', async () => {
+        this._registerWsHandler('server.status', async () => {
             return this.getServerStatus();
         });
 
-        // Register custom WebSocket handlers
         for (const [method, handler] of this.wsHandlers) {
-            this.wsRpcServer.registerMethod(method, handler);
+            this._registerWsHandler(method, handler);
         }
     }
 
@@ -480,6 +555,9 @@ class EnhancedItTools {
     }
 
     getServerStatus() {
+        const enableWs = this.config.enableWs !== false;
+        const enableHttp = this.config.enableHttp !== false;
+
         return {
             name: this.name,
             version: this.version,
@@ -488,8 +566,20 @@ class EnhancedItTools {
             config: {
                 port: this.config.port,
                 host: this.config.host,
-                enableWs: this.config.enableWs,
+                enableHttp: enableHttp,
+                enableWs: enableWs,
+                wsPort: this.config.wsPort,
                 cors: this.config.cors
+            },
+            httpServer: {
+                enabled: enableHttp,
+                running: enableHttp && this.httpServer !== null,
+                port: enableHttp ? this.config.port : null
+            },
+            websocketServer: {
+                enabled: enableWs,
+                running: enableWs && this.wsRpcServer !== null,
+                port: enableWs ? this.config.wsPort : null
             },
             tools: {
                 crypto: this.crypto ? this.crypto.getToolList().length : 0,
@@ -499,8 +589,8 @@ class EnhancedItTools {
                 math: this.math ? this.math.getToolList().length : 0,
                 network: this.network ? this.network.getToolList().length : 0
             },
-            routes: this.routes.size,
-            wsHandlers: this.wsHandlers.size
+            routes: this.registeredHttpRoutes.size,
+            wsHandlers: this.registeredWsHandlers.size
         };
     }
 

@@ -17,6 +17,7 @@ import '../models_app_wuy/auth_models_app_wuy.dart';
 import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
 import 'wuy_api_client.dart';
+import 'wuy_api_response.dart';
 import 'wuy_auth_api_service.dart';
 import 'wuy_user_api_service.dart';
 import 'wuy_friends_api_service.dart';
@@ -88,7 +89,7 @@ class WuyApiServiceManager {
   // ==================== CONVENIENCE METHODS ====================
 
   /// Quick login method that combines login and token storage
-  Future<ApiResponse<AuthResponse>> loginWithPassword({
+  Future<WuyApiResponse<AuthResponse>> loginWithPassword({
     required String username,
     required String password,
     Function(AuthToken)? onTokenReceived,
@@ -103,7 +104,7 @@ class WuyApiServiceManager {
   }
 
   /// Quick phone login method
-  Future<ApiResponse<AuthResponse>> loginWithPhone({
+  Future<WuyApiResponse<AuthResponse>> loginWithPhone({
     required String phone,
     required String verificationCode,
     Function(AuthToken)? onTokenReceived,
@@ -121,7 +122,7 @@ class WuyApiServiceManager {
   }
 
   /// Quick registration method
-  Future<ApiResponse<AuthResponse>> register({
+  Future<WuyApiResponse<AuthResponse>> register({
     required String username,
     required String email,
     required String password,
@@ -143,14 +144,14 @@ class WuyApiServiceManager {
   }
 
   /// Get current user profile with token
-  Future<ApiResponse<UserModelAppWuy>> getCurrentUser({
+  Future<WuyApiResponse<UserModelAppWuy>> getCurrentUser({
     required String accessToken,
   }) async {
     return user.getUserProfile(accessToken: accessToken);
   }
 
   /// Update current user profile
-  Future<ApiResponse<UserModelAppWuy>> updateCurrentUser({
+  Future<WuyApiResponse<UserModelAppWuy>> updateCurrentUser({
     required String accessToken,
     String? username,
     String? email,
@@ -169,7 +170,7 @@ class WuyApiServiceManager {
   }
 
   /// Get friends list
-  Future<ApiResponse<List<FriendModelAppWuy>>> getFriends({
+  Future<WuyApiResponse<List<FriendModelAppWuy>>> getFriends({
     required String accessToken,
     int page = 1,
     int limit = 20,
@@ -182,7 +183,7 @@ class WuyApiServiceManager {
   }
 
   /// Search for users to add as friends
-  Future<ApiResponse<List<FriendModelAppWuy>>> searchUsers({
+  Future<WuyApiResponse<List<FriendModelAppWuy>>> searchUsers({
     required String accessToken,
     required String query,
     int page = 1,
@@ -197,7 +198,7 @@ class WuyApiServiceManager {
   }
 
   /// Send friend request
-  Future<ApiResponse<FriendRequestResponse>> addFriend({
+  Future<WuyApiResponse<FriendRequestResponse>> addFriend({
     required String accessToken,
     required String userId,
   }) async {
@@ -208,7 +209,7 @@ class WuyApiServiceManager {
   }
 
   /// Upload avatar
-  Future<ApiResponse<String>> uploadAvatar({
+  Future<WuyApiResponse<String>> uploadAvatar({
     required String accessToken,
     required dynamic imageFile, // File or image source
   }) async {
@@ -219,7 +220,7 @@ class WuyApiServiceManager {
   }
 
   /// Logout user
-  Future<ApiResponse<void>> logout({
+  Future<WuyApiResponse<void>> logout({
     required String accessToken,
     Function()? onLogoutComplete,
   }) async {
@@ -240,12 +241,12 @@ class WuyApiServiceManager {
   }
 
   /// Refresh token if needed (placeholder for future implementation)
-  Future<ApiResponse<AuthToken>> refreshToken({
+  Future<WuyApiResponse<AuthToken>> refreshToken({
     required String refreshToken,
   }) async {
     // This would need to be implemented when the backend supports token refresh
     // For now, return an error
-    return ApiResponse.error(
+    return WuyApiResponse.error(
       message: 'Token refresh not implemented',
       errorCode: 'NOT_IMPLEMENTED',
     );
@@ -310,7 +311,7 @@ class WuyApiServiceManager {
 
 /// API request wrapper for easier error handling
 class ApiRequest<T> {
-  final Future<ApiResponse<T>> Function() requestFunction;
+  final Future<WuyApiResponse<T>> Function() requestFunction;
   final String? errorMessage;
   final String? errorCode;
 
@@ -321,11 +322,11 @@ class ApiRequest<T> {
   });
 
   /// Execute the request with error handling
-  Future<ApiResponse<T>> execute() async {
+  Future<WuyApiResponse<T>> execute() async {
     try {
       return await requestFunction();
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: errorMessage ?? 'Request failed: ${e.toString()}',
         errorCode: errorCode ?? 'REQUEST_ERROR',
       );
@@ -351,7 +352,7 @@ class ApiEnvironment {
 
 /// API error handler for centralized error management
 class ApiErrorHandler {
-  static ApiResponse<T> handleError<T>({
+  static WuyApiResponse<T> handleError<T>({
     required String message,
     String? errorCode,
     dynamic originalError,
@@ -361,7 +362,7 @@ class ApiErrorHandler {
       debugPrint('Original error: $originalError');
     }
 
-    return ApiResponse.error(
+    return WuyApiResponse.error(
       message: message,
       errorCode: errorCode ?? 'UNKNOWN_ERROR',
     );

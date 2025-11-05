@@ -13,8 +13,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../provider_app_travel/user_provider_app_travel.dart';
 import '../../../router_app_travel/routes_provider_app_travel.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -29,6 +31,29 @@ class _LoginScreenState extends State<LoginScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _isCheckingLogin = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final userProvider = context.read<UserProviderAppTravel>();
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (!mounted) return;
+
+    if (userProvider.isLoggedIn) {
+      context.go(TravelAppRoutesProvider.routeHome);
+    } else {
+      setState(() {
+        _isCheckingLogin = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -58,11 +83,14 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(TravelLocalizationKeys.travelLoginSuccess.tr(context))),
+      );
       context.go(TravelAppRoutesProvider.routeHome);
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login failed')),
+          SnackBar(content: Text(TravelLocalizationKeys.travelLoginFailed.tr(context))),
         );
       }
     }
@@ -70,6 +98,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingLogin) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -87,18 +123,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: Colors.blue,
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Travel App',
-                    style: TextStyle(
+                  Text(
+                    TravelLocalizationKeys.travelAppName.tr(context),
+                    style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Debug Mode - Any credentials work',
-                    style: TextStyle(
+                  Text(
+                    TravelLocalizationKeys.travelDebugModeHint.tr(context),
+                    style: const TextStyle(
                       fontSize: 14,
                       color: Colors.grey,
                     ),
@@ -107,14 +143,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 48),
                   TextFormField(
                     controller: _usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      prefixIcon: Icon(Icons.person),
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: TravelLocalizationKeys.travelUsername.tr(context),
+                      prefixIcon: const Icon(Icons.person),
+                      border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter username';
+                        return TravelLocalizationKeys.travelPleaseEnterUsername.tr(context);
                       }
                       return null;
                     },
@@ -124,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
-                      labelText: 'Password',
+                      labelText: TravelLocalizationKeys.travelPassword.tr(context),
                       prefixIcon: const Icon(Icons.lock),
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
@@ -142,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter password';
+                        return TravelLocalizationKeys.travelPleaseEnterPassword.tr(context);
                       }
                       return null;
                     },
@@ -161,9 +197,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               strokeWidth: 2,
                             ),
                           )
-                        : const Text(
-                            'Login',
-                            style: TextStyle(fontSize: 16),
+                        : Text(
+                            TravelLocalizationKeys.travelLogin.tr(context),
+                            style: const TextStyle(fontSize: 16),
                           ),
                   ),
                   const SizedBox(height: 16),
@@ -171,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: () {
                       context.go(TravelAppRoutesProvider.routeHome);
                     },
-                    child: const Text('Skip Login'),
+                    child: Text(TravelLocalizationKeys.travelSkipLogin.tr(context)),
                   ),
                 ],
               ),

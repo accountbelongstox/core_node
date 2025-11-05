@@ -323,20 +323,20 @@ if ($mode -eq "debug") {
     Write-Host "[INFO] Host: 0.0.0.0 (Network Accessible)" -ForegroundColor Cyan
     Write-Host ""
 
-    $yarnCommand = "yarn $($selectedApp.DevCommand)"
-    $fullCommand = "Set `$env:NUXT_PORT=$($selectedApp.Port); Set `$env:NUXT_HOST=`"0.0.0.0`"; $yarnCommand"
+    $pnpmCommand = "pnpm $($selectedApp.DevCommand)"
+    $fullCommand = "Set `$env:NUXT_PORT=$($selectedApp.Port); Set `$env:NUXT_HOST=`"0.0.0.0`"; $pnpmCommand"
 
     Write-Host "[COMMAND TRACE] Environment Variables:" -ForegroundColor Yellow
     Write-Host "  > `$env:NUXT_PORT = $($selectedApp.Port)" -ForegroundColor White
     Write-Host "  > `$env:NUXT_HOST = 0.0.0.0" -ForegroundColor White
     Write-Host "  > `$env:APP_ENTRY = $appNamespace" -ForegroundColor White
     Write-Host ""
-    Write-Host "[COMMAND TRACE] Executing Yarn Command:" -ForegroundColor Yellow
-    Write-Host "  > $yarnCommand" -ForegroundColor White
+    Write-Host "[COMMAND TRACE] Executing pnpm Command:" -ForegroundColor Yellow
+    Write-Host "  > $pnpmCommand" -ForegroundColor White
     Write-Host ""
     Write-Host "[COMMAND TRACE] Package.json Script Resolution:" -ForegroundColor Yellow
     Write-Host "  > Script Name: $($selectedApp.DevCommand)" -ForegroundColor White
-    Write-Host "  > Full Script: npm run switch-app $appNamespace && cross-env APP_ENTRY=$appNamespace nuxt dev" -ForegroundColor White
+    Write-Host "  > Full Script: pnpm switch-app $appNamespace && cross-env APP_ENTRY=$appNamespace nuxt dev" -ForegroundColor White
     Write-Host ""
     Write-Host "[INFO] Starting development server..." -ForegroundColor Green
     Write-Host "===============================================================================" -ForegroundColor Magenta
@@ -345,8 +345,8 @@ if ($mode -eq "debug") {
     Invoke-CommandWithErrorHandling -Command {
         $env:NUXT_PORT = $selectedApp.Port
         $env:NUXT_HOST = "0.0.0.0"
-        Write-Host "[EXEC] yarn $($selectedApp.DevCommand)" -ForegroundColor DarkYellow
-        yarn $selectedApp.DevCommand
+        Write-Host "[EXEC] pnpm $($selectedApp.DevCommand)" -ForegroundColor DarkYellow
+        pnpm $selectedApp.DevCommand
     } -CommandDescription "Start $($selectedApp.DisplayName) in debug mode at port $($selectedApp.Port)" -PauseOnError $true
 }
 else {
@@ -354,18 +354,18 @@ else {
     Write-Host "[INFO] Port: $($selectedApp.Port)" -ForegroundColor Cyan
     Write-Host ""
 
-    $yarnCommand = "yarn $($selectedApp.BuildCommand)"
+    $pnpmCommand = "pnpm $($selectedApp.BuildCommand)"
 
     Write-Host "[COMMAND TRACE] Environment Variables:" -ForegroundColor Yellow
     Write-Host "  > `$env:NUXT_PORT = $($selectedApp.Port)" -ForegroundColor White
     Write-Host "  > `$env:APP_ENTRY = $appNamespace" -ForegroundColor White
     Write-Host ""
-    Write-Host "[COMMAND TRACE] Executing Yarn Command:" -ForegroundColor Yellow
-    Write-Host "  > $yarnCommand" -ForegroundColor White
+    Write-Host "[COMMAND TRACE] Executing pnpm Command:" -ForegroundColor Yellow
+    Write-Host "  > $pnpmCommand" -ForegroundColor White
     Write-Host ""
     Write-Host "[COMMAND TRACE] Package.json Script Resolution:" -ForegroundColor Yellow
     Write-Host "  > Script Name: $($selectedApp.BuildCommand)" -ForegroundColor White
-    Write-Host "  > Full Script: npm run switch-app $appNamespace && cross-env APP_ENTRY=$appNamespace nuxt build" -ForegroundColor White
+    Write-Host "  > Full Script: pnpm switch-app $appNamespace && cross-env APP_ENTRY=$appNamespace nuxt build" -ForegroundColor White
     Write-Host ""
     Write-Host "[INFO] Starting build process..." -ForegroundColor Green
     Write-Host "===============================================================================" -ForegroundColor Magenta
@@ -373,8 +373,8 @@ else {
 
     Invoke-CommandWithErrorHandling -Command {
         $env:NUXT_PORT = $selectedApp.Port
-        Write-Host "[EXEC] yarn $($selectedApp.BuildCommand)" -ForegroundColor DarkYellow
-        yarn $selectedApp.BuildCommand
+        Write-Host "[EXEC] pnpm $($selectedApp.BuildCommand)" -ForegroundColor DarkYellow
+        pnpm $selectedApp.BuildCommand
     } -CommandDescription "Build $($selectedApp.DisplayName)" -PauseOnError $true
 }
 

@@ -16,6 +16,7 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 class HomeBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onMenuTap;
@@ -50,7 +51,7 @@ class HomeBar extends StatelessWidget implements PreferredSizeWidget {
         child: SizedBox(
           height: 40,
           child: CustomSearchInput(
-            search_placeholder: 'search_placeholder'.tr(context),
+            search_placeholder: QyAppLocalizationKeys.qySearchPlaceholder.tr(context),
             borderColor: Theme.of(context).colorScheme.onPrimary.withAlpha(128),
             textColor: Theme.of(context).colorScheme.onPrimary,
             backgroundColor: Colors.transparent,
@@ -60,9 +61,9 @@ class HomeBar extends StatelessWidget implements PreferredSizeWidget {
                 context: context,
                 builder: (BuildContext context) {
                   return AlertDialog(
-                    title: Text('search'.tr(context)),
+                    title: Text(QyAppLocalizationKeys.qySearch.tr(context)),
                     content: CustomSearchInput(
-                      search_placeholder: 'enter_search_text'.tr(context),
+                      search_placeholder: QyAppLocalizationKeys.qyEnterSearchText.tr(context),
                       borderColor: Theme.of(context).colorScheme.primary,
                       textColor: Theme.of(context).colorScheme.onSurface,
                       backgroundColor: Colors.transparent,
@@ -72,7 +73,7 @@ class HomeBar extends StatelessWidget implements PreferredSizeWidget {
                     actions: [
                       TextButton(
                         onPressed: () => context.pop(),
-                        child: Text('cancel'.tr(context)),
+                        child: Text(QyAppLocalizationKeys.qyCancel.tr(context)),
                       ),
                       TextButton(
                         onPressed: () {
@@ -80,7 +81,7 @@ class HomeBar extends StatelessWidget implements PreferredSizeWidget {
                           // Note: routeProfileTwo doesn't exist, using routeProfile instead
                           context.push(QyAppRoutesProvider.routeProfile);
                         },
-                        child: Text('search'.tr(context)),
+                        child: Text(QyAppLocalizationKeys.qySearch.tr(context)),
                       ),
                     ],
                   );
