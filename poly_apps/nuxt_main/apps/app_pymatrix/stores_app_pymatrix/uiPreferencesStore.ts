@@ -5,9 +5,12 @@ export interface GridLayoutPreferences {
   deviceOrder: string[]; // Array of device serials in display order
 }
 
+export type ThemeMode = 'dark' | 'light';
+
 export interface UIPreferences {
   gridLayout: GridLayoutPreferences;
   toastPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'top-center' | 'bottom-center';
+  theme: ThemeMode;
 }
 
 interface UIPreferencesState {
@@ -19,7 +22,8 @@ const DEFAULT_PREFERENCES: UIPreferences = {
     columns: 0, // 0 means auto-detect based on device count
     deviceOrder: []
   },
-  toastPosition: 'top-right'
+  toastPosition: 'top-right',
+  theme: 'dark'
 };
 
 export const useUIPreferencesStore = defineStore('uiPreferences', {
@@ -31,6 +35,7 @@ export const useUIPreferencesStore = defineStore('uiPreferences', {
     gridColumns: (state) => state.preferences.gridLayout.columns,
     deviceOrder: (state) => state.preferences.gridLayout.deviceOrder,
     toastPosition: (state) => state.preferences.toastPosition,
+    theme: (state) => state.preferences.theme,
 
     isAutoColumns: (state) => state.preferences.gridLayout.columns === 0,
 
@@ -97,6 +102,16 @@ export const useUIPreferencesStore = defineStore('uiPreferences', {
       console.log('[UIPreferencesStore] Toast position set to:', position);
     },
 
+    setTheme(mode: ThemeMode) {
+      if (!['dark', 'light'].includes(mode)) {
+        console.warn('[UIPreferencesStore] Invalid theme mode:', mode);
+        return;
+      }
+      this.preferences.theme = mode;
+      this.savePreferences();
+      console.log('[UIPreferencesStore] Theme mode set to:', mode);
+    },
+
     resetGridLayout() {
       this.preferences.gridLayout = { ...DEFAULT_PREFERENCES.gridLayout };
       this.savePreferences();
@@ -136,7 +151,8 @@ function loadPreferences(): UIPreferences {
           ...DEFAULT_PREFERENCES.gridLayout,
           ...parsed.gridLayout
         },
-        toastPosition: parsed.toastPosition || DEFAULT_PREFERENCES.toastPosition
+        toastPosition: parsed.toastPosition || DEFAULT_PREFERENCES.toastPosition,
+        theme: parsed.theme === 'light' ? 'light' : DEFAULT_PREFERENCES.theme
       };
     }
   } catch (error) {
