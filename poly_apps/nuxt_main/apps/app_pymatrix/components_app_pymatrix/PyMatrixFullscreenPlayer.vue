@@ -180,39 +180,39 @@
               </div>
               <div class="pm-modal__body">
                 <div class="pm-flex pm-flex-col pm-gap-4">
-                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-gradient-soft); border-radius: 8px;">
                     <kbd class="pm-badge pm-badge--info">Esc</kbd>
                     <span class="pm-text-base">Exit fullscreen</span>
                   </div>
-                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-gradient-soft); border-radius: 8px;">
                     <kbd class="pm-badge pm-badge--info">F</kbd>
                     <span class="pm-text-base">Toggle fullscreen</span>
                   </div>
-                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-gradient-soft); border-radius: 8px;">
                     <kbd class="pm-badge pm-badge--info">←</kbd>
                     <span class="pm-text-base">Previous device</span>
                   </div>
-                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-gradient-soft); border-radius: 8px;">
                     <kbd class="pm-badge pm-badge--info">→</kbd>
                     <span class="pm-text-base">Next device</span>
                   </div>
-                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-gradient-soft); border-radius: 8px;">
                     <kbd class="pm-badge pm-badge--info">1</kbd>
                     <span class="pm-text-base">Single device layout</span>
                   </div>
-                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-gradient-soft); border-radius: 8px;">
                     <kbd class="pm-badge pm-badge--info">2</kbd>
                     <span class="pm-text-base">2-device layout</span>
                   </div>
-                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-gradient-soft); border-radius: 8px;">
                     <kbd class="pm-badge pm-badge--info">4</kbd>
                     <span class="pm-text-base">4-device layout</span>
                   </div>
-                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-gradient-soft); border-radius: 8px;">
                     <kbd class="pm-badge pm-badge--info">S</kbd>
                     <span class="pm-text-base">Toggle stats</span>
                   </div>
-                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-bg-gradient-cool); border-radius: 8px;">
+                  <div class="pm-flex pm-justify-between pm-items-center pm-p-4" style="background: var(--pm-gradient-soft); border-radius: 8px;">
                     <kbd class="pm-badge pm-badge--info">?</kbd>
                     <span class="pm-text-base">Show this help</span>
                   </div>

@@ -34,6 +34,7 @@ const UnifiedResourceProcessor = require('#@ncore/utils/web_offline/unified_reso
 
 const PuppeteerSpiderModule = require('#@puppeteer');
 const { ResourceProxyServer, ResourceDownloadUtils } = require('#@ncore/utils/puppeteer_spider_v2/main.js');
+const TampermonkeyServer = require('#@ncore/utils/puppeteer_spider_v2/src/utils/tampermonkey/TampermonkeyServer.js');
 
 class CrawlController {
   constructor() {
@@ -62,6 +63,16 @@ class CrawlController {
     this.pageScreenshots = new Map();
     this.proxyServer = null;
     this.resourceDownloadUtils = null;
+    this.tampermonkeyServer = null;
+    this.tampermonkeySessionPromise = null;
+    this.tampermonkeySessionResolver = null;
+    this.tampermonkeySessionRejecter = null;
+    this.tampermonkeyPagesReceived = 0;
+    this.tampermonkeyCompletionData = null;
+    this.tampermonkeyPageHandler = null;
+    this.tampermonkeyCompleteHandler = null;
+    this.tampermonkeyErrorHandler = null;
+    this.tampermonkeySessionActive = false;
   }
 
   openFolderInExplorer(folderPath) {
@@ -146,7 +157,11 @@ class CrawlController {
     }
 
     try {
-      await this.processQueue();
+      if (this.fetcherType === 'tampermonkey') {
+        await this.runTampermonkeyFlow(canonicalTarget);
+      } else {
+        await this.processQueue();
+      }
       await this.generateSitemap(this.finalHostDir);
       await this.generateMapsite(this.finalHostDir);
       await this.saveFailedUrlsReport(this.finalHostDir);
@@ -208,7 +223,7 @@ class CrawlController {
   }
 
   async selectFetcherMethod(fetcherType) {
-    if (fetcherType === 'http' || fetcherType === 'puppeteer' || fetcherType === 'iframe') {
+    if (fetcherType === 'http' || fetcherType === 'puppeteer' || fetcherType === 'iframe' || fetcherType === 'tampermonkey') {
       await this.applyFetcherType(fetcherType);
       return;
     }
@@ -222,9 +237,10 @@ class CrawlController {
       logger.info('1. HTTP Request (faster, gets source HTML)');
       logger.info('2. Puppeteer Browser (slower, gets rendered HTML with JavaScript execution)');
       logger.info('3. Iframe Force Download (extracts iframe content by clicking all links inside)');
+      logger.info('4. Tampermonkey Browser Session (use logged-in browser with userscript bridge)');
       logger.info('========================================\n');
 
-      rl.question('Enter your choice (1, 2, or 3, default is 1): ', async (answer) => {
+      rl.question('Enter your choice (1, 2, 3, or 4, default is 1): ', async (answer) => {
         rl.close();
 
         const choice = answer.trim() || '1';
@@ -233,6 +249,8 @@ class CrawlController {
           selectedType = 'puppeteer';
         } else if (choice === '3') {
           selectedType = 'iframe';
+        } else if (choice === '4') {
+          selectedType = 'tampermonkey';
         }
 
         await this.applyFetcherType(selectedType);
@@ -253,6 +271,10 @@ class CrawlController {
       this.fetcher = new PuppeteerSpiderModule.Fetcher();
       await this.fetcher.initialize('edge', { headless: !this.debug });
       logger.success(`Using Iframe Force Download mode (extracts iframe content with link clicking)${this.debug ? ' [DEBUG MODE: Browser Visible]' : ''}`);
+    } else if (fetcherType === 'tampermonkey') {
+      this.fetcherType = 'tampermonkey';
+      this.fetcher = null;
+      logger.success('Using Tampermonkey Browser workflow (userscript bridge will push rendered HTML)');
     } else {
       this.fetcherType = 'http';
       this.fetcher = new PageFetcher(this.fileMapper);
@@ -305,7 +327,7 @@ class CrawlController {
   }
 
   async selectScreenshot() {
-    if (this.fetcherType === 'http') {
+    if (this.fetcherType === 'http' || this.fetcherType === 'tampermonkey') {
       logger.info('Screenshot feature is only available with Puppeteer fetcher');
       this.screenshot = false;
       return;
@@ -346,6 +368,217 @@ class CrawlController {
         resolve();
       });
     });
+  }
+
+  resetTampermonkeySession() {
+    this.tampermonkeySessionPromise = null;
+    this.tampermonkeySessionResolver = null;
+    this.tampermonkeySessionRejecter = null;
+    this.tampermonkeyPagesReceived = 0;
+    this.tampermonkeyCompletionData = null;
+    this.tampermonkeySessionActive = false;
+  }
+
+  async setupTampermonkeyServer() {
+    await this.shutdownTampermonkeyServer();
+    this.resetTampermonkeySession();
+
+    this.tampermonkeyServer = TampermonkeyServer.getInstance();
+    await this.tampermonkeyServer.ensureStarted();
+
+    this.tampermonkeyPageHandler = async (pageData) => {
+      await this.handleTampermonkeyPage(pageData);
+    };
+    this.tampermonkeyCompleteHandler = async (payload) => {
+      await this.handleTampermonkeyCompletion(payload);
+    };
+    this.tampermonkeyErrorHandler = (error) => {
+      this.handleTampermonkeyError(error);
+    };
+
+    this.tampermonkeyServer.on('page', this.tampermonkeyPageHandler);
+    this.tampermonkeyServer.on('complete', this.tampermonkeyCompleteHandler);
+    this.tampermonkeyServer.on('error', this.tampermonkeyErrorHandler);
+    this.tampermonkeySessionActive = true;
+
+    logger.success('[TAMPERMONKEY] Bridge ready on http://127.0.0.1:8765 (WS enabled)');
+    return this.tampermonkeyServer;
+  }
+
+  async runTampermonkeyFlow(initialUrl) {
+    const server = await this.setupTampermonkeyServer();
+    this.logTampermonkeyInstructions(initialUrl);
+    this.openUrlInBrowser(initialUrl);
+    server.broadcastConfig({
+      startUrl: initialUrl,
+      maxDepth: this.maxDepth,
+      scopeType: this.scopeType,
+      sameOriginOnly: true,
+      skipHashLinks: true
+    });
+    server.sendCommand('focus-url', { url: initialUrl });
+    server.sendCommand('startPageCrawl', {
+      url: initialUrl,
+      maxDepth: this.maxDepth,
+      trigger: 'cli'
+    });
+    logger.info('[TAMPERMONKEY] Waiting for browser script to send pages...');
+    await this.waitForTampermonkeyCompletion();
+    logger.success(`[TAMPERMONKEY] Session completed. Pages received: ${this.tampermonkeyPagesReceived}`);
+  }
+
+  waitForTampermonkeyCompletion() {
+    if (!this.tampermonkeySessionPromise) {
+      this.tampermonkeySessionPromise = new Promise((resolve, reject) => {
+        this.tampermonkeySessionResolver = resolve;
+        this.tampermonkeySessionRejecter = reject;
+      });
+    }
+    return this.tampermonkeySessionPromise;
+  }
+
+  async handleTampermonkeyPage(pageData) {
+    if (!this.tampermonkeySessionActive) {
+      logger.info('[TAMPERMONKEY] Ignoring page payload (session inactive)');
+      return;
+    }
+
+    try {
+      const sourceUrl = pageData?.url || pageData?.originalUrl;
+      if (!sourceUrl || !pageData?.content) {
+        logger.warn('[TAMPERMONKEY] Received invalid payload without URL or content, skipping');
+        return;
+      }
+
+      const canonicalUrl = this.domainContext.canonicalize(sourceUrl) || sourceUrl;
+
+      if (!this.domainContext.isInternalLink(canonicalUrl)) {
+        if (this.scopeType === 'path' && !this.domainContext.isWithinScope(canonicalUrl)) {
+          logger.warn(`[TAMPERMONKEY] Skipping out-of-scope URL: ${sourceUrl}`);
+          return;
+        }
+        logger.warn(`[TAMPERMONKEY] External domain detected from browser payload: ${sourceUrl}`);
+      }
+
+      const descriptor = pageData.sourceType === 'iframe' ? 'Iframe page' : 'Page';
+      logger.info(`[TAMPERMONKEY] ${descriptor} depth=${pageData.depth ?? 0}: ${canonicalUrl}`);
+
+      await this.savePage(canonicalUrl, pageData.content, false);
+      this.tampermonkeyPagesReceived += 1;
+    } catch (error) {
+      const failedUrl = pageData?.url || pageData?.originalUrl || 'unknown';
+      logger.error(`[TAMPERMONKEY] Failed to persist ${failedUrl}: ${error.message}`);
+      this.failedUrls.push({
+        url: failedUrl,
+        linkText: pageData?.linkText || '',
+        error: error.message,
+        timestamp: new Date().toISOString(),
+        mode: 'tampermonkey'
+      });
+    }
+  }
+
+  async handleTampermonkeyCompletion(payload) {
+    const reported = payload?.totalPages ?? 0;
+    logger.success(`[TAMPERMONKEY] Browser workflow reported completion. Pages: ${reported}`);
+
+    this.tampermonkeySessionActive = false;
+
+    if (Array.isArray(payload?.failedUrls)) {
+      payload.failedUrls.forEach((url) => {
+        this.failedUrls.push({
+          url: url,
+          linkText: '',
+          error: 'Tampermonkey script reported failure',
+          timestamp: new Date().toISOString(),
+          mode: 'tampermonkey'
+        });
+      });
+      if (payload.failedUrls.length > 0) {
+        logger.warn(`[TAMPERMONKEY] Script reported ${payload.failedUrls.length} failed URLs`);
+      }
+    }
+
+    this.tampermonkeyCompletionData = payload || null;
+    if (this.tampermonkeySessionResolver) {
+      this.tampermonkeySessionResolver(payload);
+      this.tampermonkeySessionResolver = null;
+    }
+  }
+
+  handleTampermonkeyError(error) {
+    logger.error(`[TAMPERMONKEY] Server error: ${error.message}`);
+    this.tampermonkeySessionActive = false;
+    if (this.tampermonkeySessionRejecter) {
+      this.tampermonkeySessionRejecter(error);
+      this.tampermonkeySessionRejecter = null;
+    }
+  }
+
+  async shutdownTampermonkeyServer() {
+    if (!this.tampermonkeyServer) {
+      this.resetTampermonkeySession();
+      return;
+    }
+
+    if (this.tampermonkeyPageHandler) {
+      this.tampermonkeyServer.off('page', this.tampermonkeyPageHandler);
+      this.tampermonkeyPageHandler = null;
+    }
+
+    if (this.tampermonkeyCompleteHandler) {
+      this.tampermonkeyServer.off('complete', this.tampermonkeyCompleteHandler);
+      this.tampermonkeyCompleteHandler = null;
+    }
+
+    if (this.tampermonkeyErrorHandler) {
+      this.tampermonkeyServer.off('error', this.tampermonkeyErrorHandler);
+      this.tampermonkeyErrorHandler = null;
+    }
+
+    this.tampermonkeyServer = null;
+    this.resetTampermonkeySession();
+  }
+
+  logTampermonkeyInstructions(initialUrl) {
+    const scriptPath = 'ncore/utils/puppeteer_spider_v2/src/utils/tampermonkey/DocumentOffline_Crawler.user.js';
+    logger.info('\n========================================');
+    logger.info('Tampermonkey Browser Workflow');
+    logger.info('========================================');
+    logger.info('1. Install/enable the DocumentOffline Tampermonkey script:');
+    logger.info(`   ${scriptPath}`);
+    logger.info('2. Confirm the script WS endpoint points to ws://127.0.0.1:8765/ws');
+    logger.info(`3. The target URL will open automatically: ${initialUrl}`);
+    logger.info('4. The floating panel will reflect server commands automatically.');
+    logger.info('5. Progress is streamed into this app; close the panel when finished.');
+    logger.info('========================================\n');
+  }
+
+  openUrlInBrowser(targetUrl) {
+    try {
+      const platform = os.platform();
+      let command = null;
+
+      if (platform === 'win32') {
+        command = `start "" "${targetUrl}"`;
+      } else if (platform === 'darwin') {
+        command = `open "${targetUrl}"`;
+      } else {
+        command = `xdg-open "${targetUrl}"`;
+      }
+
+      if (command) {
+        exec(command, { shell: true }, (error) => {
+          if (error) {
+            logger.warn(`[TAMPERMONKEY] Unable to open browser automatically: ${error.message}`);
+          } else {
+            logger.info('[TAMPERMONKEY] Opening target URL in default browser...');
+          }
+        });
+      }
+    } catch (error) {
+      logger.warn(`[TAMPERMONKEY] Could not launch browser: ${error.message}`);
+    }
   }
 
   generateScreenshotName(htmlPath) {
@@ -443,6 +676,10 @@ class CrawlController {
       } catch (error) {
         logger.error(`Failed to cleanup fetcher: ${error.message}`);
       }
+    }
+
+    if (this.tampermonkeyServer) {
+      await this.shutdownTampermonkeyServer();
     }
   }
 
@@ -570,7 +807,7 @@ class CrawlController {
     logger.info('  [depth]                 Recursion depth (default: 3)');
     logger.info('');
     logger.info('Options:');
-    logger.info('  --fetcher=<type>        Fetcher type: http, puppeteer, iframe (default: prompt)');
+    logger.info('  --fetcher=<type>        Fetcher type: http, puppeteer, iframe, tampermonkey (default: prompt)');
     logger.info('  --scope=<type>          Download scope: full, path (default: prompt)');
     logger.info('  --no-js                 Remove all script tags from HTML (default: keep JS)');
     logger.info('  --disable-js            Same as --no-js');
@@ -585,6 +822,7 @@ class CrawlController {
     logger.info('  node main.js app=DocumentOffline https://example.com --no-js -y');
     logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=puppeteer --debug');
     logger.info('  node main.js app=DocumentOffline https://example.com --fetcher=iframe --debug --screenshot');
+    logger.info('  node main.js app=DocumentOffline https://secure.example.com --fetcher=tampermonkey');
   }
 
   isValidUrl(value) {

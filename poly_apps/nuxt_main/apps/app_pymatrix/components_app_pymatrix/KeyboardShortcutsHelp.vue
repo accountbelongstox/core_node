@@ -186,7 +186,7 @@ function formatKey(key: string): string {
 
 /* Modal Container */
 .pm-modal {
-  background: var(--pm-bg-card);
+  background: var(--pm-color-surface);
   border-radius: var(--pm-radius-xl);
   box-shadow: var(--pm-shadow-lg);
   display: flex;
@@ -207,7 +207,7 @@ function formatKey(key: string): string {
   align-items: center;
   justify-content: space-between;
   padding: var(--pm-space-xl);
-  border-bottom: 1px solid var(--pm-border);
+  border-bottom: 1px solid var(--pm-color-border-soft);
   background: linear-gradient(135deg, rgba(83, 86, 251, 0.03) 0%, rgba(243, 57, 248, 0.03) 100%);
 }
 
@@ -215,7 +215,7 @@ function formatKey(key: string): string {
   margin: 0;
   font-size: var(--pm-font-size-xl);
   font-weight: 700;
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -229,16 +229,16 @@ function formatKey(key: string): string {
   justify-content: center;
   background: rgba(235, 87, 87, 0.1);
   border: 1px solid rgba(235, 87, 87, 0.2);
-  border-radius: var(--pm-radius-circle);
-  color: var(--pm-danger);
+  border-radius: 50%;
+  color: var(--pm-color-danger);
   cursor: pointer;
   transition: var(--pm-transition-fast);
 }
 
 .pm-modal__header button:hover {
-  background: var(--pm-danger);
+  background: var(--pm-color-danger);
   color: #ffffff;
-  border-color: var(--pm-danger);
+  border-color: var(--pm-color-danger);
   transform: rotate(90deg) scale(1.1);
   box-shadow: 0 4px 16px rgba(235, 87, 87, 0.4);
 }
@@ -247,8 +247,8 @@ function formatKey(key: string): string {
 .search-container {
   position: relative;
   padding: var(--pm-space-lg);
-  border-bottom: 1px solid var(--pm-border);
-  background: var(--pm-bg-main);
+  border-bottom: 1px solid var(--pm-color-border-soft);
+  background: var(--pm-color-surface);
 }
 
 .search-input {
@@ -256,9 +256,9 @@ function formatKey(key: string): string {
   height: 48px;
   padding: 0 48px 0 20px;
   font-size: var(--pm-font-size-sm);
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
   background: #ffffff;
-  border: 1.5px solid var(--pm-border);
+  border: 1.5px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-xl);
   outline: none;
   transition: var(--pm-transition-fast);
@@ -269,11 +269,11 @@ function formatKey(key: string): string {
 }
 
 .search-input:hover {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
 }
 
 .search-input:focus {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.1);
   background: #ffffff;
 }
@@ -288,16 +288,16 @@ function formatKey(key: string): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--pm-border);
-  border-radius: var(--pm-radius-circle);
-  color: var(--pm-text-secondary);
+  background: var(--pm-color-border-soft);
+  border-radius: 50%;
+  color: var(--pm-text-muted);
   cursor: pointer;
   font-size: 14px;
   transition: var(--pm-transition-fast);
 }
 
 .search-clear:hover {
-  background: var(--pm-danger);
+  background: var(--pm-color-danger);
   color: #ffffff;
   transform: translateY(-50%) scale(1.1);
 }
@@ -308,8 +308,8 @@ function formatKey(key: string): string {
   gap: 10px;
   padding: var(--pm-space-lg);
   overflow-x: auto;
-  border-bottom: 1px solid var(--pm-border);
-  background: var(--pm-bg-main);
+  border-bottom: 1px solid var(--pm-color-border-soft);
+  background: var(--pm-color-surface);
   scrollbar-width: thin;
 }
 
@@ -318,11 +318,11 @@ function formatKey(key: string): string {
 }
 
 .category-tabs::-webkit-scrollbar-track {
-  background: var(--pm-bg-main);
+  background: var(--pm-color-surface);
 }
 
 .category-tabs::-webkit-scrollbar-thumb {
-  background: var(--pm-border);
+  background: var(--pm-color-border-soft);
   border-radius: 10px;
 }
 
@@ -332,9 +332,9 @@ function formatKey(key: string): string {
   gap: 8px;
   padding: 10px 18px;
   background: #ffffff;
-  border: 1px solid var(--pm-border);
-  border-radius: var(--pm-radius-full);
-  color: var(--pm-text-secondary);
+  border: 1px solid var(--pm-color-border-soft);
+  border-radius: var(--pm-radius-pill);
+  color: var(--pm-text-muted);
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
   cursor: pointer;
@@ -348,19 +348,19 @@ function formatKey(key: string): string {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   opacity: 0;
   transition: var(--pm-transition-fast);
 }
 
 .category-tab:hover {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(83, 86, 251, 0.2);
 }
 
 .category-tab.active {
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   border-color: transparent;
   color: #ffffff;
   box-shadow: 0 4px 16px rgba(243, 57, 248, 0.4);
@@ -381,13 +381,13 @@ function formatKey(key: string): string {
   padding: 0 8px;
   font-size: var(--pm-font-size-xs);
   font-weight: 600;
-  border-radius: var(--pm-radius-full);
+  border-radius: var(--pm-radius-pill);
   transition: var(--pm-transition-fast);
 }
 
 .pm-badge--info {
   background: rgba(83, 86, 251, 0.1);
-  color: var(--pm-primary);
+  color: var(--pm-color-primary);
 }
 
 /* Modal Body */
@@ -406,15 +406,15 @@ function formatKey(key: string): string {
 
 /* Card */
 .pm-card {
-  background: var(--pm-bg-card);
-  border: 1px solid var(--pm-border);
+  background: var(--pm-color-surface);
+  border: 1px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-lg);
   transition: var(--pm-transition-fast);
   animation: pm-fadeIn 0.3s ease;
 }
 
 .pm-card:hover {
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   box-shadow: var(--pm-shadow-md);
 }
 
@@ -448,9 +448,9 @@ function formatKey(key: string): string {
   height: 36px;
   padding: 0 12px;
   background: #ffffff;
-  border: 1.5px solid var(--pm-border);
+  border: 1.5px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-md);
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
@@ -465,7 +465,7 @@ function formatKey(key: string): string {
 }
 
 .key.primary {
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   border-color: transparent;
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(243, 57, 248, 0.4);
@@ -481,7 +481,7 @@ function formatKey(key: string): string {
 }
 
 .shortcut-description {
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
   font-size: var(--pm-font-size-sm);
   line-height: 1.5;
   font-weight: 500;
@@ -517,7 +517,7 @@ function formatKey(key: string): string {
   margin: 0 0 8px 0;
   font-size: var(--pm-font-size-lg);
   font-weight: 600;
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
 }
 
 .no-results-hint {
@@ -533,14 +533,14 @@ function formatKey(key: string): string {
   justify-content: space-between;
   gap: 12px;
   padding: var(--pm-space-lg) var(--pm-space-xl);
-  border-top: 1px solid var(--pm-border);
-  background: var(--pm-bg-main);
+  border-top: 1px solid var(--pm-color-border-soft);
+  background: var(--pm-color-surface);
   flex-wrap: wrap;
 }
 
 .footer-hint {
   margin: 0;
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
   font-size: var(--pm-font-size-sm);
   display: flex;
   align-items: center;
@@ -562,7 +562,7 @@ function formatKey(key: string): string {
   height: 26px;
   padding: 0 8px;
   margin: 0 4px;
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   border-radius: var(--pm-radius-sm);
   color: #ffffff;
   font-size: var(--pm-font-size-xs);
@@ -609,18 +609,18 @@ function formatKey(key: string): string {
 }
 
 .pm-modal__body::-webkit-scrollbar-track {
-  background: var(--pm-bg-main);
+  background: var(--pm-color-surface);
   border-radius: 10px;
 }
 
 .pm-modal__body::-webkit-scrollbar-thumb {
-  background: var(--pm-border);
+  background: var(--pm-color-border-soft);
   border-radius: 10px;
   transition: var(--pm-transition-fast);
 }
 
 .pm-modal__body::-webkit-scrollbar-thumb:hover {
-  background: var(--pm-primary);
+  background: var(--pm-color-primary);
 }
 
 /* Responsive */

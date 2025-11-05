@@ -67,6 +67,7 @@ const ResourceProxyServer = require('./src/utils/download/ResourceProxyServer');
 const ResourceInterceptor = require('./src/utils/download/ResourceInterceptor');
 const DomResourceMapper = require('./src/utils/download/DomResourceMapper');
 const EnhancedResourceCollector = require('./src/utils/download/EnhancedResourceCollector');
+const TampermonkeyServer = require('./src/utils/tampermonkey/TampermonkeyServer');
 
 // Compatibility
 const { LegacyAdapter, MigrationTool } = require('./src/compat/LegacyAdapter');
@@ -118,6 +119,10 @@ async function shutdown() {
         defaultEngine = null;
     }
 }
+
+TampermonkeyServer.ensureStarted().catch((error) => {
+    logger.warn('[TAMPERMONKEY-SERVER] Failed to auto-start bridge:', error.message);
+});
 
 // Export everything
 module.exports = {
@@ -177,6 +182,7 @@ module.exports = {
     ResourceInterceptor,
     DomResourceMapper,
     EnhancedResourceCollector,
+    TampermonkeyServer,
 
     // Compatibility
     LegacyAdapter,

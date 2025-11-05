@@ -232,7 +232,7 @@ function handleDrop(event: DragEvent, toIndex: number) {
 /* Grid Item */
 .pm-grid-item {
   position: relative;
-  background: var(--pm-bg-card);
+  background: var(--pm-color-surface);
   border-radius: var(--pm-radius-lg);
   overflow: hidden;
   box-shadow: var(--pm-shadow-sm);
@@ -260,7 +260,7 @@ function handleDrop(event: DragEvent, toIndex: number) {
   justify-content: center;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(8px);
-  border-radius: var(--pm-radius-circle);
+  border-radius: 50%;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   cursor: grab;
   opacity: 0;
@@ -277,7 +277,7 @@ function handleDrop(event: DragEvent, toIndex: number) {
 
 .pm-drag-icon {
   font-size: 16px;
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
   font-weight: bold;
   letter-spacing: -2px;
 }
@@ -294,7 +294,7 @@ function handleDrop(event: DragEvent, toIndex: number) {
 }
 
 .pm-grid-item--drag-over {
-  border: 2px dashed var(--pm-primary);
+  border: 2px dashed var(--pm-color-primary);
   background: linear-gradient(135deg, rgba(83, 86, 251, 0.05) 0%, rgba(243, 57, 248, 0.05) 100%);
 }
 
@@ -309,7 +309,7 @@ function handleDrop(event: DragEvent, toIndex: number) {
   content: '';
   position: absolute;
   inset: -2px;
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   border-radius: var(--pm-radius-lg);
   z-index: -1;
   opacity: 0.8;
@@ -322,11 +322,11 @@ function handleDrop(event: DragEvent, toIndex: number) {
   top: 12px;
   right: 12px;
   padding: 6px 16px;
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   color: #ffffff;
   font-size: var(--pm-font-size-xs);
   font-weight: 700;
-  border-radius: var(--pm-radius-full);
+  border-radius: var(--pm-radius-pill);
   box-shadow: 0 2px 8px rgba(243, 57, 248, 0.4);
   z-index: 100;
   letter-spacing: 0.5px;
@@ -334,7 +334,7 @@ function handleDrop(event: DragEvent, toIndex: number) {
 
 /* Selected Device */
 .pm-grid-item--selected {
-  border: 2px solid var(--pm-primary);
+  border: 2px solid var(--pm-color-primary);
   box-shadow: 0 0 0 3px rgba(83, 86, 251, 0.15);
 }
 
@@ -371,7 +371,7 @@ function handleDrop(event: DragEvent, toIndex: number) {
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: var(--pm-radius-full);
+  border-radius: var(--pm-radius-pill);
   cursor: pointer;
   transition: var(--pm-transition-fast);
   white-space: nowrap;
@@ -401,12 +401,12 @@ function handleDrop(event: DragEvent, toIndex: number) {
 
 /* Primary Action Button */
 .pm-action-btn--primary {
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   border-color: transparent;
 }
 
 .pm-action-btn--primary::before {
-  background: var(--pm-gradient-primary-reverse);
+  background: linear-gradient(135deg, #ec4899 0%, #a855f7 45%, #7c5cff 95%);
   opacity: 1;
 }
 
@@ -416,7 +416,7 @@ function handleDrop(event: DragEvent, toIndex: number) {
 
 /* Danger Action Button */
 .pm-action-btn--danger {
-  background: var(--pm-danger);
+  background: var(--pm-color-danger);
   border-color: transparent;
 }
 
@@ -465,18 +465,18 @@ function handleDrop(event: DragEvent, toIndex: number) {
 }
 
 .pm-device-grid::-webkit-scrollbar-track {
-  background: var(--pm-bg-main);
+  background: var(--pm-color-surface);
   border-radius: 10px;
 }
 
 .pm-device-grid::-webkit-scrollbar-thumb {
-  background: var(--pm-border);
+  background: var(--pm-color-border-soft);
   border-radius: 10px;
   transition: var(--pm-transition-fast);
 }
 
 .pm-device-grid::-webkit-scrollbar-thumb:hover {
-  background: var(--pm-primary);
+  background: var(--pm-color-primary);
 }
 
 /* Responsive Grid */
@@ -525,8 +525,8 @@ function handleDrop(event: DragEvent, toIndex: number) {
     position: static;
     opacity: 1;
     transform: none;
-    background: var(--pm-bg-main);
-    border-top: 1px solid var(--pm-border);
+    background: var(--pm-color-surface);
+    border-top: 1px solid var(--pm-color-border-soft);
   }
 
   .pm-action-btn {
