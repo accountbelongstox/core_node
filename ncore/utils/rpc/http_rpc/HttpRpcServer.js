@@ -13,16 +13,16 @@
 const { EventEmitter } = require('events');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('#@logger');
-const { WS_RPC_CONSTANTS } = require('#@global_vars');
+const { RPC_CONSTANTS, getSessionManager, getRequestManager, getResponseCache } = require('../common');
 const AuthManager = require('#@ncore/utils/ws_rpc/libs/AuthManager');
 const RateLimiter = require('#@ncore/utils/ws_rpc/libs/RateLimiter');
 const PerformanceMonitor = require('#@ncore/utils/ws_rpc/libs/PerformanceMonitor');
 const MiddlewareChain = require('#@ncore/utils/ws_rpc/libs/MiddlewareChain');
 const InterceptorManager = require('#@ncore/utils/ws_rpc/libs/InterceptorManager');
 
-const MSG_TYPES = WS_RPC_CONSTANTS.MESSAGE_TYPES;
-const ERROR_CODES = WS_RPC_CONSTANTS.ERROR_CODES;
-const EVENTS = WS_RPC_CONSTANTS.EVENTS;
+const MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES;
+const ERROR_CODES = RPC_CONSTANTS.ERROR_CODES;
+const EVENTS = RPC_CONSTANTS.EVENTS;
 
 class HttpRpcServer extends EventEmitter {
     constructor(expressApp, options = {}) {
@@ -38,8 +38,11 @@ class HttpRpcServer extends EventEmitter {
         this.maxPayloadSize = options.maxPayloadSize || 1048576;
 
         this.routes = new Map();
-        this.sessions = new Map();
         this.started = false;
+
+        this.sessionManager = getSessionManager();
+        this.requestManager = getRequestManager();
+        this.responseCache = getResponseCache();
 
         this.auth = new AuthManager({
             enabled: options.auth?.enabled,
@@ -77,11 +80,17 @@ class HttpRpcServer extends EventEmitter {
             await this._handleRequest(req, res);
         });
 
+        this.app.get(`${this.basePath}/query/:requestId`, async (req, res) => {
+            await this._handleQuery(req, res);
+        });
+
         this.app.get(`${this.basePath}/health`, (req, res) => {
             res.json({
                 status: 'ok',
                 timestamp: Date.now(),
-                routeCount: this.routes.size
+                routeCount: this.routes.size,
+                sessions: this.sessionManager.getSessionCount(),
+                cachedResponses: this.responseCache.size()
             });
         });
 
