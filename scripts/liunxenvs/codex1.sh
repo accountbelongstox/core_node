@@ -105,7 +105,7 @@ echo "============================================================"
 read -r
 
 echo ""
-echo "Executing: codex"
+echo "Executing: codex --yolo"
 echo ""
 echo "Environment variables are set:"
 echo "  OPENAI_API_KEY=$OPENAI_API_KEY"
