@@ -14,6 +14,7 @@ import '../../../../../../common/widgets/animations/animation_utils.dart';
 import '../../../../../../common/services/settings_service.dart';
 import '../../../../../../common/auth_v2/auth_v2.dart';
 import '../../../provider_app_qy/user_provider_app_qy.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class LoginScreenV2AppQy extends StatefulWidget {
   const LoginScreenV2AppQy({super.key});
@@ -721,7 +722,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
       final success = await userProvider.loginWithWeChat();
 
       if (success && mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(context).pushReplacementNamed(QyAppRoutesProvider.routeHome);
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -744,7 +745,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text('中文'),
+              title: Text(QyAppLocalizationKeys.qyLanguageChinese.tr(context)),
               trailing: _i18n.languageCode == 'zh'
                   ? const Icon(Icons.check, color: AppTheme.primaryGreen)
                   : null,
@@ -754,7 +755,7 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
               },
             ),
             ListTile(
-              title: const Text('English'),
+              title: Text(QyAppLocalizationKeys.qyLanguageEnglish.tr(context)),
               trailing: _i18n.languageCode == 'en'
                   ? const Icon(Icons.check, color: AppTheme.primaryGreen)
                   : null,

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../router_app_travel/routes_provider_app_travel.dart';
 import '../../../provider_app_travel/user_provider_app_travel.dart';
+import '../../../resources_app_travel/assets_images_app_travel.dart';
 import '../../../widgets/travel_icons.dart';
 
 class HomeHeader extends StatelessWidget {
@@ -126,31 +127,67 @@ class HomeHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10.0),
-            GestureDetector(
-              onTap: onMenuTap,
-              child: Container(
-                width: 40.0,
-                height: 40.0,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20.0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 8.0,
-                      offset: const Offset(0, 2.0),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  TravelIcons.scan,
-                  size: 20.0,
-                  color: const Color(0xFF00D0D8),
-                ),
-              ),
+            _buildUserAvatar(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserAvatar(BuildContext context) {
+    final userProvider = context.watch<UserProviderAppTravel>();
+    final user = userProvider.user;
+
+    return GestureDetector(
+      onTap: () {
+        context.go(TravelAppRoutesProvider.routeProfile);
+      },
+      child: Container(
+        width: 40.0,
+        height: 40.0,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white,
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 8.0,
+              offset: const Offset(0, 2.0),
             ),
           ],
         ),
+        child: ClipOval(
+          child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+              ? Image.network(
+                  user.avatarUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return _buildDefaultAvatar();
+                  },
+                )
+              : Image.asset(
+                  AssetsImagesAppTravel.travelUserAvatarDefault,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return _buildDefaultAvatar();
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      color: const Color(0xFFE3F2FD),
+      child: const Icon(
+        Icons.person,
+        size: 24.0,
+        color: Color(0xFF00D0D8),
       ),
     );
   }

@@ -425,7 +425,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
                       ),
                     ),
                     CustomGradientText(
-                      text: 'welcome'.tr(context),
+                      text: QyAppLocalizationKeys.qyWelcome.tr(context),
                       fontSize: ThemeDimensions.fontSizeOverOverOverExtraLarge,
                       gradientStyleIndex: 4,
                       style: ThemeTextStyles.textSemiBold,

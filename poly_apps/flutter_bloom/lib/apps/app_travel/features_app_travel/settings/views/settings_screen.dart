@@ -98,6 +98,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final userProvider = context.watch<UserProviderAppTravel>();
 
+    final systemSettingsWithCity = _systemSettings.map((setting) {
+      if (setting['title'] == '当前城市') {
+        return {
+          ...setting,
+          'trailing': userProvider.user.currentCity ?? CitiesAppTravel.defaultCity,
+        };
+      }
+      return setting;
+    }).toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
@@ -124,7 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12.0),
             _buildSettingsSection(_accountSettings),
             const SizedBox(height: 12.0),
-            _buildSettingsSection(_systemSettings),
+            _buildSettingsSection(systemSettingsWithCity),
             const SizedBox(height: 12.0),
             _buildSettingsSection(_aboutSettings),
             const SizedBox(height: 12.0),

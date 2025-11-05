@@ -129,11 +129,12 @@ class ZhAppQy {
     QyAppLocalizationKeys.qySecurity: '安全',
     QyAppLocalizationKeys.qyHelp: '帮助',
     QyAppLocalizationKeys.qyHelpSupport: '帮助与支持',
-    QyAppLocalizationKeys.qySupport: '客服支持',
     QyAppLocalizationKeys.qyAbout: '关于',
     QyAppLocalizationKeys.qyAboutDescription: '了解 QY 应用的详细信息',
     QyAppLocalizationKeys.qyTerms: '服务条款',
     QyAppLocalizationKeys.qyPrivacyPolicy: '隐私政策',
+    QyAppLocalizationKeys.qyDisplayLayoutSettings: '显示布局设置',
+    QyAppLocalizationKeys.qyCompatibilitySettings: '兼容性设置',
 
     // Dashboard & Stats
     QyAppLocalizationKeys.qyDashboard: '仪表盘',
@@ -164,6 +165,15 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyHumanity: '人道主义',
     QyAppLocalizationKeys.qyMedical: '医疗援助',
     QyAppLocalizationKeys.qyOrphanage: '孤儿关怀',
+    QyAppLocalizationKeys.qyDailyStudyReminder: '每日学习提醒',
+    QyAppLocalizationKeys.qyPersonalizedRecommendations: '个性化推荐设置',
+    QyAppLocalizationKeys.qySyncSettings: '同步设置',
+    QyAppLocalizationKeys.qyNotLoggedIn: '未登录',
+    QyAppLocalizationKeys.qyUser: '用户',
+    QyAppLocalizationKeys.qyClearCacheTitle: '清除缓存',
+    QyAppLocalizationKeys.qyClearCacheMessage: '确定要清除缓存吗？这将删除 {size} MB 的数据。',
+    QyAppLocalizationKeys.qyCacheCleared: '缓存已清除',
+    QyAppLocalizationKeys.qyHelpCenterInProgress: '帮助中心功能开发中...',
 
     // Learning statistics
     QyAppLocalizationKeys.qyCommunity: '社区',
