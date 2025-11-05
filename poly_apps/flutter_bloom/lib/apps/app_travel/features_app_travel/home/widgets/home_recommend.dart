@@ -43,69 +43,31 @@ class HomeRecommend extends StatelessWidget {
     return Container(
       width: 100.0,
       margin: const EdgeInsets.only(right: 12.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 100.0,
-            height: 100.0,
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            padding: const EdgeInsets.all(8.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: Image.asset(
-                card['icon']!,
-                width: 84.0,
-                height: 84.0,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: const Color(0xFFF5F5F5),
-                    child: const Icon(
-                      Icons.image,
-                      color: Colors.grey,
-                      size: 40.0,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 6.0),
-          Text(
-            card['title']!,
-            style: const TextStyle(
-              fontSize: 13.0,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-              shadows: [
-                Shadow(
-                  color: Colors.white,
-                  blurRadius: 4.0,
+      child: Container(
+        width: 100.0,
+        height: 100.0,
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(8.0),
+        ),
+        padding: const EdgeInsets.only(top: 60.0, left: 8.0, right: 8.0, bottom: 8.0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8.0),
+          child: Image.asset(
+            card['icon']!,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: const Color(0xFFF5F5F5),
+                child: const Icon(
+                  Icons.image,
+                  color: Colors.grey,
+                  size: 40.0,
                 ),
-              ],
-            ),
-            textAlign: TextAlign.center,
+              );
+            },
           ),
-          const SizedBox(height: 2.0),
-          Text(
-            card['subtitle']!,
-            style: const TextStyle(
-              fontSize: 11.0,
-              color: Color(0xFF999999),
-              shadows: [
-                Shadow(
-                  color: Colors.white,
-                  blurRadius: 4.0,
-                ),
-              ],
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -150,7 +112,7 @@ class HomeRecommend extends StatelessWidget {
           ),
           const SizedBox(height: 12.0),
           Container(
-            height: 140.0,
+            height: 100.0,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8.0),
               image: const DecorationImage(
