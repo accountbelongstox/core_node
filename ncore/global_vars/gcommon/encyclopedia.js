@@ -64,6 +64,22 @@ class Encyclopedia  {
         return false;
     }
 
+    delete(key) {
+        return this.remove(key);
+    }
+
+    keys() {
+        return Object.keys(this.encyclopedia);
+    }
+
+    values() {
+        return Object.values(this.encyclopedia);
+    }
+
+    entries() {
+        return Object.entries(this.encyclopedia);
+    }
+
     getAll() {
         return { ...this.encyclopedia };
     }
@@ -71,6 +87,16 @@ class Encyclopedia  {
     clear() {
         this.encyclopedia = {};
         return this.saveEncyclopedia();
+    }
+
+    size() {
+        return Object.keys(this.encyclopedia).length;
+    }
+
+    forEach(callback) {
+        Object.entries(this.encyclopedia).forEach(([key, value]) => {
+            callback(value, key, this.encyclopedia);
+        });
     }
 }
 

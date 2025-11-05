@@ -2331,11 +2331,10 @@ def scan_directory_and_ocr(
                 normalized_path = _normalize_file_path(image_path)
 
                 # Perform OCR
-                result = ocr_manager.recognize_image(
+                result = ocr_manager.recognize(
                     image_path=normalized_path,
                     engine=ocr_engine,
-                    language=language,
-                    use_fallback=True
+                    language=language
                 )
 
                 if result and result.success:
@@ -2345,11 +2344,13 @@ def scan_directory_and_ocr(
                         "confidence": result.confidence,
                         "provider": result.provider,
                         "word_count": len(result.text.split()) if result.text else 0,
-                        "processing_time": result.processing_time
+                        "processing_time": result.processing_time,
+                        "lines": result.lines if hasattr(result, 'lines') else [],
+                        "words": result.words if hasattr(result, 'words') else []
                     }
                     successful_count += 1
                 else:
-                    error_msg = result.error_message if result else "Unknown error"
+                    error_msg = result.error if result else "Unknown error"
                     ocr_results[image_path] = {
                         "success": False,
                         "error": error_msg

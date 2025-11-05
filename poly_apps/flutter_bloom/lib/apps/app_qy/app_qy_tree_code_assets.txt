@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-05 15:58:39
+Generated: 2025-11-06 02:22:49
 App: app_qy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -43,41 +43,78 @@ app_qy [code_assets]
 │   │   ├── settings_controller_app_qy.dart
 │   │   └── splash_controller_app_qy.dart
 │   ├── docs
+│   │   ├── OCR_PROCESSING_REPORT.md
+│   │   ├── OCR_UPGRADE_REPORT.md
+│   │   ├── REPLACEMENT_REPORT.md
 │   │   ├── about.jpg
+│   │   ├── about_info.json
 │   │   ├── account_settings.jpg
 │   │   ├── account_settings_1.jpg
+│   │   ├── account_settings_1_info.json
+│   │   ├── account_settings_info.json
 │   │   ├── certificate_center.jpg
+│   │   ├── certificate_center_info.json
 │   │   ├── checkin_challenge.jpg
+│   │   ├── checkin_challenge_info.json
 │   │   ├── course_ielts.jpg
 │   │   ├── course_ielts_1.jpg
+│   │   ├── course_ielts_1_info.json
 │   │   ├── course_ielts_2.jpg
+│   │   ├── course_ielts_2_info.json
 │   │   ├── course_ielts_3.jpg
+│   │   ├── course_ielts_3_info.json
 │   │   ├── course_ielts_4.jpg
+│   │   ├── course_ielts_4_info.json
+│   │   ├── course_ielts_info.json
 │   │   ├── course_plans.jpg
+│   │   ├── course_plans_info.json
 │   │   ├── course_python.jpg
 │   │   ├── course_python_1.jpg
+│   │   ├── course_python_1_info.json
+│   │   ├── course_python_info.json
 │   │   ├── display_mode.jpg
+│   │   ├── display_mode_info.json
 │   │   ├── docs_tree.md
 │   │   ├── home_search.jpg
+│   │   ├── home_search_info.json
 │   │   ├── home_study.jpg
+│   │   ├── home_study_info.json
 │   │   ├── image_001.jpg
+│   │   ├── image_001_info.json
 │   │   ├── login_phone.jpg
+│   │   ├── login_phone_info.json
 │   │   ├── message_center.jpg
+│   │   ├── message_center_info.json
 │   │   ├── more_features.jpg
 │   │   ├── more_features_1.jpg
+│   │   ├── more_features_1_info.json
+│   │   ├── more_features_info.json
 │   │   ├── recommend_settings.jpg
+│   │   ├── recommend_settings_info.json
 │   │   ├── reminder_settings.jpg
+│   │   ├── reminder_settings_info.json
 │   │   ├── settings.jpg
+│   │   ├── settings_info.json
 │   │   ├── word_book.jpg
+│   │   ├── word_book_info.json
 │   │   ├── word_listening.jpg
 │   │   ├── word_listening_1.jpg
+│   │   ├── word_listening_1_info.json
 │   │   ├── word_listening_ai_explain.jpg
+│   │   ├── word_listening_ai_explain_info.json
 │   │   ├── word_listening_dictation.jpg
 │   │   ├── word_listening_dictation_1.jpg
+│   │   ├── word_listening_dictation_1_info.json
 │   │   ├── word_listening_dictation_2.jpg
+│   │   ├── word_listening_dictation_2_info.json
 │   │   ├── word_listening_dictation_3.jpg
+│   │   ├── word_listening_dictation_3_info.json
+│   │   ├── word_listening_dictation_info.json
 │   │   ├── word_listening_free.jpg
-│   │   └── word_listening_sleep.jpg
+│   │   ├── word_listening_free_info.json
+│   │   ├── word_listening_info.json
+│   │   ├── word_listening_sleep.jpg
+│   │   └── word_listening_sleep_info.json
 │   ├── features_app_qy
 │   │   ├── about
 │   │   │   ├── about_screen.dart
@@ -112,6 +149,10 @@ app_qy [code_assets]
 │   │   │   │   └── .gitkeep
 │   │   │   └── bookmark_screen.dart
 │   │   ├── certificate
+│   │   │   ├── models
+│   │   │   │   └── certificate_model.dart
+│   │   │   ├── services
+│   │   │   │   └── certificate_service.dart
 │   │   │   └── views
 │   │   │       └── certificate_center_screen.dart
 │   │   ├── checkin
@@ -383,6 +424,10 @@ app_qy [code_assets]
 │   │   │   ├── models
 │   │   │   │   └── word_models.dart
 │   │   │   ├── views
+│   │   │   │   ├── widgets
+│   │   │   │   │   ├── word_list_view.dart
+│   │   │   │   │   ├── word_search_bar.dart
+│   │   │   │   │   └── word_stats_card.dart
 │   │   │   │   └── word_book_screen.dart
 │   │   │   └── widgets
 │   │   │       ├── word_item_card.dart
@@ -410,6 +455,10 @@ app_qy [code_assets]
 │   │   │       └── word_cards_screen.dart
 │   │   └── word_listening
 │   │       ├── views
+│   │       │   ├── widgets
+│   │       │   │   ├── category_list.dart
+│   │       │   │   ├── current_word_card.dart
+│   │       │   │   └── playback_controls.dart
 │   │       │   ├── word_listening_ai_explain_screen.dart
 │   │       │   ├── word_listening_dictation_2_screen.dart
 │   │       │   ├── word_listening_dictation_3_screen.dart
@@ -426,7 +475,6 @@ app_qy [code_assets]
 │   │   ├── en_app_qy.dart
 │   │   ├── localization_keys_app_qy.dart
 │   │   └── zh_app_qy.dart
-│   ├── main.dart
 │   ├── main_app_qy.dart
 │   ├── model_app_qy
 │   │   └── user_model.dart
@@ -466,7 +514,6 @@ app_qy [code_assets]
 │   │   ├── common_assets_icons.dart
 │   │   ├── common_assets_images.dart
 │   │   └── common_assets_launch.dart
-│   ├── auth
 │   ├── auth_v2
 │   │   ├── README.md
 │   │   ├── auth_config.dart
@@ -969,7 +1016,9 @@ app_qy [code_assets]
     │   ├── welcome.jpg
     │   └── youtube.png
     ├── images
-    │   └── .gitkeep
+    │   ├── .gitkeep
+    │   ├── splash.png
+    │   └── user.png
     └── launch
         ├── .gitkeep
         ├── dark_launch.backup.jpg

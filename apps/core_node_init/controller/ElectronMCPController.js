@@ -36,14 +36,26 @@ class ElectronMCPController {
         try {
             logger.info('Initializing ElectronMCPController...');
 
-            // Initialize Electron manager
+            const electronEnabled = this.config.enabled !== false;
+
+            if (!electronEnabled) {
+                logger.info('Electron is disabled in configuration, skipping Electron initialization');
+                this.initialized = true;
+                return this;
+            }
+
             this.electronManager = ElectronManager.getInstance();
             await this.electronManager.initialize(this.config);
 
-            // Setup IPC handlers
+            if (!this.electronManager.isInitialized || !this.electronManager.electron) {
+                logger.warn('Electron module not available, running without Electron features');
+                this.electronManager = null;
+                this.initialized = true;
+                return this;
+            }
+
             this.setupIPCHandlers();
 
-            // Initialize services
             await this.initializeServices();
 
             this.initialized = true;

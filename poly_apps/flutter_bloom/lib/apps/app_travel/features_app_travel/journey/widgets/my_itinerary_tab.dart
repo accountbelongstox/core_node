@@ -36,86 +36,42 @@ class _MyItineraryTabState extends State<MyItineraryTab>
   Widget build(BuildContext context) {
     super.build(context);
 
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Column(
-        children: [
-          _buildEmptyState(),
-          if (_inspirations.isNotEmpty) _buildTravelInspiration(),
-          if (_hotContents.isNotEmpty) _buildHotSelection(),
-        ],
-      ),
+    return Stack(
+      children: [
+        // Background image layer
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            width: double.infinity,
+            height: 400.0,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/apps/app_travel/images/journey_empty_bg.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        ),
+        // Content layer
+        SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              _buildEmptyState(),
+              if (_inspirations.isNotEmpty) _buildTravelInspiration(),
+              if (_hotContents.isNotEmpty) _buildHotSelection(),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildEmptyState() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 40.0),
-      child: Column(
-        children: [
-          Image.asset(
-            'assets/apps/app_travel/images/empty_order_mascot.png',
-            width: 160.0,
-            height: 160.0,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                width: 160.0,
-                height: 160.0,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE3F2FD),
-                  borderRadius: BorderRadius.circular(80.0),
-                ),
-                child: const Icon(
-                  Icons.receipt_long_outlined,
-                  size: 80.0,
-                  color: Color(0xFF00D0D8),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 16.0),
-          const Text(
-            '您还没有订单哦～',
-            style: TextStyle(
-              fontSize: 15.0,
-              color: Colors.black38,
-            ),
-          ),
-          const SizedBox(height: 60.0),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                '找不到订单，',
-                style: TextStyle(
-                  fontSize: 13.0,
-                  color: Colors.black38,
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  debugPrint('Check reason tapped');
-                },
-                child: const Text(
-                  '点击查看原因',
-                  style: TextStyle(
-                    fontSize: 13.0,
-                    color: Color(0xFF00D0D8),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8.0),
-          const Text(
-            '*根据铁路局规定，火车票仅展示近30天订单*',
-            style: TextStyle(
-              fontSize: 11.0,
-              color: Colors.black26,
-            ),
-          ),
-        ],
-      ),
+    return const SizedBox(
+      height: 300.0,
     );
   }
 

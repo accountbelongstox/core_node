@@ -10,6 +10,8 @@ export interface ItToolsState {
   allTools: Tool[];
   filteredTools: Tool[];
   selectedTool: Tool | null;
+  openedToolIds: string[];
+  activeToolId: string | null;
 
   // Search and filters
   searchQuery: string;
@@ -42,6 +44,8 @@ export const useItToolsStore = defineStore('ittools', {
     allTools: ALL_TOOLS,
     filteredTools: ALL_TOOLS,
     selectedTool: null,
+    openedToolIds: [],
+    activeToolId: null,
 
     // Search and filters
     searchQuery: '',
@@ -79,6 +83,25 @@ export const useItToolsStore = defineStore('ittools', {
      */
     favoriteTools: (state) => {
       return state.allTools.filter(tool => state.favorites.includes(tool.id));
+    },
+
+    /**
+     * Get opened tools in tab order
+     */
+    openedTools: (state) => {
+      return state.openedToolIds
+        .map(id => state.allTools.find(tool => tool.id === id))
+        .filter(Boolean) as Tool[];
+    },
+
+    /**
+     * Currently active tool tab
+     */
+    activeTool: (state) => {
+      if (!state.activeToolId) {
+        return null;
+      }
+      return state.allTools.find(tool => tool.id === state.activeToolId) || null;
     },
 
     /**
@@ -179,6 +202,10 @@ export const useItToolsStore = defineStore('ittools', {
      */
     selectTool(tool: Tool): void {
       this.selectedTool = tool;
+      this.activeToolId = tool.id;
+      if (!this.openedToolIds.includes(tool.id)) {
+        this.openedToolIds.push(tool.id);
+      }
     },
 
     /**
@@ -186,6 +213,44 @@ export const useItToolsStore = defineStore('ittools', {
      */
     clearSelectedTool(): void {
       this.selectedTool = null;
+      this.activeToolId = null;
+    },
+
+    /**
+     * Close an opened tool tab
+     */
+    closeTool(toolId: string): void {
+      const index = this.openedToolIds.indexOf(toolId);
+      if (index > -1) {
+        this.openedToolIds.splice(index, 1);
+      }
+
+      if (this.activeToolId === toolId) {
+        const nextId = this.openedToolIds[index] || this.openedToolIds[index - 1] || null;
+        this.activeToolId = nextId || null;
+        this.selectedTool = nextId
+          ? (this.allTools.find(tool => tool.id === nextId) || null)
+          : null;
+      }
+
+      if (this.selectedTool?.id === toolId && this.activeToolId !== toolId) {
+        this.selectedTool = this.activeToolId
+          ? (this.allTools.find(tool => tool.id === this.activeToolId) || null)
+          : null;
+      }
+    },
+
+    /**
+     * Set an opened tool tab as active
+     */
+    setActiveTool(toolId: string): void {
+      if (!this.openedToolIds.includes(toolId)) {
+        this.openedToolIds.push(toolId);
+      }
+
+      const tool = this.allTools.find(t => t.id === toolId) || null;
+      this.selectedTool = tool;
+      this.activeToolId = tool ? tool.id : null;
     },
 
     /**

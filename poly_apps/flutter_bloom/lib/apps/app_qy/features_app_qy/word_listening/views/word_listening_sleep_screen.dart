@@ -1,10 +1,12 @@
 /// Word Listening Sleep Mode screen
 library;
 
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class WordListeningSleepScreen extends StatefulWidget {
   const WordListeningSleepScreen({super.key});
@@ -27,15 +29,15 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
   Timer? _timer;
   Timer? _sleepTimer;
 
-  final List<String> _wordCategories = [
-    '舒缓词汇',
-    '自然词汇',
-    '故事词汇',
-    '诗歌词汇',
-    '冥想词汇',
+  List<String> get _wordCategories => [
+    QyAppLocalizationKeys.qyListeningSleepCategorySoothing.tr(context),
+    QyAppLocalizationKeys.qyListeningSleepCategoryNature.tr(context),
+    QyAppLocalizationKeys.qyListeningSleepCategoryStory.tr(context),
+    QyAppLocalizationKeys.qyListeningSleepCategoryPoetry.tr(context),
+    QyAppLocalizationKeys.qyListeningSleepCategoryMeditation.tr(context),
   ];
 
-  String _selectedCategory = '舒缓词汇';
+  int _selectedCategoryIndex = 0;
 
   @override
   void initState() {
@@ -134,14 +136,14 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             child: Column(
               children: [
                 Text(
-                  '睡眠听力',
+                  QyAppLocalizationKeys.qyListeningSleepTitle.tr(context),
                   style: AppTextStyles.headline4.copyWith(
                     color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  '舒缓词汇，助眠入眠',
+                  QyAppLocalizationKeys.qyListeningSleepSubtitle.tr(context),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: _isDarkMode ? Colors.white70 : AppTheme.textSecondary,
                   ),
@@ -221,7 +223,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               ),
               const SizedBox(height: 32),
               Text(
-                '正在播放舒缓词汇...',
+                QyAppLocalizationKeys.qyListeningSleepPlaying.tr(context),
                 style: AppTextStyles.headline4.copyWith(
                   color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
                   fontWeight: FontWeight.w300,
@@ -229,7 +231,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
               ),
               const SizedBox(height: 16),
               Text(
-                '剩余时间: ${_formatTime(_remainingTime)}',
+                QyAppLocalizationKeys.qyListeningSleepRemainingTime.tr(context).replaceAll('{time}', _formatTime(_remainingTime)),
                 style: AppTextStyles.bodyLarge.copyWith(
                   color: _isDarkMode ? Colors.white70 : AppTheme.textSecondary,
                 ),
@@ -307,7 +309,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '选择词汇类别',
+              QyAppLocalizationKeys.qyListeningSleepSelectCategory.tr(context),
               style: AppTextStyles.headline5.copyWith(
                 color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
                 fontWeight: FontWeight.bold,
@@ -317,10 +319,12 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _wordCategories.map((category) {
-                final isSelected = category == _selectedCategory;
+              children: _wordCategories.asMap().entries.map((entry) {
+                final index = entry.key;
+                final category = entry.value;
+                final isSelected = index == _selectedCategoryIndex;
                 return BouncingButton(
-                  onPressed: () => setState(() => _selectedCategory = category),
+                  onPressed: () => setState(() => _selectedCategoryIndex = index),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
@@ -370,7 +374,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '播放时长',
+              QyAppLocalizationKeys.qyListeningSleepDuration.tr(context),
               style: AppTextStyles.headline5.copyWith(
                 color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
                 fontWeight: FontWeight.bold,
@@ -420,7 +424,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             ),
           ),
           child: Text(
-            '$minutes分钟',
+            QyAppLocalizationKeys.qyListeningSleepMinutes.tr(context).replaceAll('{minutes}', minutes.toString()),
             style: AppTextStyles.bodyMedium.copyWith(
               color: isSelected
                   ? Colors.white
@@ -452,7 +456,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  '睡眠小贴士',
+                  QyAppLocalizationKeys.qyListeningSleepTipsTitle.tr(context),
                   style: AppTextStyles.headline5.copyWith(
                     color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
                     fontWeight: FontWeight.bold,
@@ -462,10 +466,10 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             ),
             const SizedBox(height: 16),
             ...[
-              '• 睡前1小时避免使用电子设备',
-              '• 保持卧室温度在18-22°C',
-              '• 使用柔和的背景音乐',
-              '• 调整屏幕亮度至最低',
+              QyAppLocalizationKeys.qyListeningSleepTip1.tr(context),
+              QyAppLocalizationKeys.qyListeningSleepTip2.tr(context),
+              QyAppLocalizationKeys.qyListeningSleepTip3.tr(context),
+              QyAppLocalizationKeys.qyListeningSleepTip4.tr(context),
             ].map((tip) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
@@ -509,7 +513,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             ),
             const SizedBox(width: 12),
             Text(
-              '开始睡眠听力',
+              QyAppLocalizationKeys.qyListeningSleepStart.tr(context),
               style: AppTextStyles.buttonText,
             ),
           ],
@@ -588,7 +592,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '播放进度',
+                QyAppLocalizationKeys.qyListeningSleepProgress.tr(context),
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: _isDarkMode ? Colors.white70 : AppTheme.textSecondary,
                 ),
@@ -637,7 +641,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                 ),
               ),
               child: Text(
-                '结束睡眠模式',
+                QyAppLocalizationKeys.qyListeningSleepEnd.tr(context),
                 style: AppTextStyles.buttonText.copyWith(
                   color: AppTheme.error,
                 ),
@@ -689,7 +693,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
     // Previous word logic
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('上一个词汇'),
+        content: Text(QyAppLocalizationKeys.qyListeningSleepPrevious.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -699,7 +703,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
     // Next word logic
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('下一个词汇'),
+        content: Text(QyAppLocalizationKeys.qyListeningSleepNext.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -719,13 +723,13 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
           borderRadius: BorderRadius.circular(20),
         ),
         title: Text(
-          '睡眠模式结束',
+          QyAppLocalizationKeys.qyListeningSleepEndTitle.tr(context),
           style: AppTextStyles.headline5.copyWith(
             color: AppTheme.textPrimary,
           ),
         ),
         content: Text(
-          '希望您有一个美好的睡眠！\n已播放 $_selectedDuration 分钟舒缓词汇。',
+          QyAppLocalizationKeys.qyListeningSleepEndMessage.tr(context).replaceAll('{minutes}', _selectedDuration.toString()),
           style: AppTextStyles.bodyMedium,
           textAlign: TextAlign.center,
         ),
@@ -739,7 +743,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '好的',
+                QyAppLocalizationKeys.qyCommonOk.tr(context),
                 style: AppTextStyles.buttonText,
               ),
             ),

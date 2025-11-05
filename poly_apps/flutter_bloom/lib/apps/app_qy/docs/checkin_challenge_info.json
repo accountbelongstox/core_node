@@ -1,0 +1,4123 @@
+{
+  "file_info": {
+    "filename": "checkin_challenge.jpg",
+    "filepath": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\checkin_challenge.jpg",
+    "location": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\checkin_challenge.jpg"
+  },
+  "ocr_result": {
+    "success": true,
+    "text": "04:00\n41 911［92\n0天\n连续打卡〉\n同桌 找个同桌〉\n新一期挑战已开始《\n打卡挑战\n集徽章领奖励\n秋日任务派送站\n赚赏花券 得「小组件皮肤」\n10花瓣=1赏花券\nO\nS2\n0\n去抽奖\n分享人参汤打卡图（0/5）\n• 花瓣x1 累计分享1/3/5天还能得\n限定徽章\n去分享\n今天\n+1\n开学每日签到\n花瓣x1\n第2天\n第3天\n第4天\n第5天\n+1\n+2\n+2\n+3\n在千语单词完成打卡\n⑦花瓣x1\n第6天\n+3\n分享旅行熊熊打卡图（0/9）\n点击签到\n第7天\n+5\n去打卡\n单词\n课程\nAl学\n发现\n我的",
+    "confidence": 0.0,
+    "provider": "FreeOCR",
+    "word_count": 50,
+    "processing_time": 12.51137375831604,
+    "lines": [
+      {
+        "line_number": 1,
+        "text": "04:00",
+        "bbox": {
+          "left": 0,
+          "top": 56.0,
+          "width": 0,
+          "height": 45.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "04",
+            "confidence": 0,
+            "bbox": {
+              "left": 77.0,
+              "top": 56.0,
+              "width": 61.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": ":",
+            "confidence": 0,
+            "bbox": {
+              "left": 137.0,
+              "top": 57.0,
+              "width": 22.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "00",
+            "confidence": 0,
+            "bbox": {
+              "left": 159.0,
+              "top": 57.0,
+              "width": 55.0,
+              "height": 45.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 2,
+        "text": "41 911［92",
+        "bbox": {
+          "left": 0,
+          "top": 46.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "41",
+            "confidence": 0,
+            "bbox": {
+              "left": 965.0,
+              "top": 49.0,
+              "width": 68.0,
+              "height": 54.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "911",
+            "confidence": 0,
+            "bbox": {
+              "left": 1034.0,
+              "top": 48.0,
+              "width": 81.0,
+              "height": 54.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "［",
+            "confidence": 0,
+            "bbox": {
+              "left": 1114.0,
+              "top": 47.0,
+              "width": 21.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "92",
+            "confidence": 0,
+            "bbox": {
+              "left": 1134.0,
+              "top": 46.0,
+              "width": 54.0,
+              "height": 54.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 3,
+        "text": "0天",
+        "bbox": {
+          "left": 0,
+          "top": 287.0,
+          "width": 0,
+          "height": 170.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "0",
+            "confidence": 0,
+            "bbox": {
+              "left": 267.0,
+              "top": 287.0,
+              "width": 149.0,
+              "height": 170.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 416.0,
+              "top": 287.0,
+              "width": 65.0,
+              "height": 170.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 4,
+        "text": "连续打卡〉",
+        "bbox": {
+          "left": 0,
+          "top": 473.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "连续",
+            "confidence": 0,
+            "bbox": {
+              "left": 267.0,
+              "top": 473.0,
+              "width": 113.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "打",
+            "confidence": 0,
+            "bbox": {
+              "left": 379.0,
+              "top": 473.0,
+              "width": 60.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 439.0,
+              "top": 473.0,
+              "width": 67.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "〉",
+            "confidence": 0,
+            "bbox": {
+              "left": 507.0,
+              "top": 473.0,
+              "width": 30.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 5,
+        "text": "同桌 找个同桌〉",
+        "bbox": {
+          "left": 0,
+          "top": 0.0,
+          "width": 0,
+          "height": 741.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "同桌",
+            "confidence": 0,
+            "bbox": {
+              "left": 254.0,
+              "top": 681.0,
+              "width": 122.0,
+              "height": 58.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "找",
+            "confidence": 0,
+            "bbox": {
+              "left": 378.0,
+              "top": 683.0,
+              "width": 45.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "个",
+            "confidence": 0,
+            "bbox": {
+              "left": 422.0,
+              "top": 683.0,
+              "width": 29.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "同桌",
+            "confidence": 0,
+            "bbox": {
+              "left": 450.0,
+              "top": 683.0,
+              "width": 85.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "〉",
+            "confidence": 0,
+            "bbox": {
+              "left": 534.0,
+              "top": 684.0,
+              "width": 19.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 6,
+        "text": "新一期挑战已开始《",
+        "bbox": {
+          "left": 0,
+          "top": 748.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "新",
+            "confidence": 0,
+            "bbox": {
+              "left": 250.0,
+              "top": 748.0,
+              "width": 45.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "一",
+            "confidence": 0,
+            "bbox": {
+              "left": 295.0,
+              "top": 748.0,
+              "width": 35.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "期",
+            "confidence": 0,
+            "bbox": {
+              "left": 330.0,
+              "top": 748.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "挑战",
+            "confidence": 0,
+            "bbox": {
+              "left": 370.0,
+              "top": 748.0,
+              "width": 80.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "已",
+            "confidence": 0,
+            "bbox": {
+              "left": 450.0,
+              "top": 748.0,
+              "width": 35.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "开始",
+            "confidence": 0,
+            "bbox": {
+              "left": 485.0,
+              "top": 748.0,
+              "width": 80.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "《",
+            "confidence": 0,
+            "bbox": {
+              "left": 565.0,
+              "top": 748.0,
+              "width": 29.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 7,
+        "text": "打卡挑战",
+        "bbox": {
+          "left": 0,
+          "top": 682.0,
+          "width": 0,
+          "height": 58.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "打",
+            "confidence": 0,
+            "bbox": {
+              "left": 832.0,
+              "top": 682.0,
+              "width": 63.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 895.0,
+              "top": 683.0,
+              "width": 42.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "挑战",
+            "confidence": 0,
+            "bbox": {
+              "left": 937.0,
+              "top": 683.0,
+              "width": 105.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 8,
+        "text": "集徽章领奖励",
+        "bbox": {
+          "left": 0,
+          "top": 743.0,
+          "width": 0,
+          "height": 45.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "集",
+            "confidence": 0,
+            "bbox": {
+              "left": 828.0,
+              "top": 744.0,
+              "width": 44.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "徽章",
+            "confidence": 0,
+            "bbox": {
+              "left": 872.0,
+              "top": 743.0,
+              "width": 77.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "领",
+            "confidence": 0,
+            "bbox": {
+              "left": 949.0,
+              "top": 743.0,
+              "width": 39.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "奖励",
+            "confidence": 0,
+            "bbox": {
+              "left": 987.0,
+              "top": 743.0,
+              "width": 75.0,
+              "height": 45.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 9,
+        "text": "秋日任务派送站",
+        "bbox": {
+          "left": 0,
+          "top": 978.0,
+          "width": 0,
+          "height": 105.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "秋日",
+            "confidence": 0,
+            "bbox": {
+              "left": 291.0,
+              "top": 978.0,
+              "width": 210.0,
+              "height": 105.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "任务",
+            "confidence": 0,
+            "bbox": {
+              "left": 501.0,
+              "top": 978.0,
+              "width": 197.0,
+              "height": 105.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "派送",
+            "confidence": 0,
+            "bbox": {
+              "left": 698.0,
+              "top": 978.0,
+              "width": 197.0,
+              "height": 105.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "站",
+            "confidence": 0,
+            "bbox": {
+              "left": 895.0,
+              "top": 978.0,
+              "width": 123.0,
+              "height": 105.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 10,
+        "text": "赚赏花券 得「小组件皮肤」",
+        "bbox": {
+          "left": 0,
+          "top": 0.0,
+          "width": 0,
+          "height": 1184.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "赚",
+            "confidence": 0,
+            "bbox": {
+              "left": 295.0,
+              "top": 1115.0,
+              "width": 61.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "赏",
+            "confidence": 0,
+            "bbox": {
+              "left": 355.0,
+              "top": 1115.0,
+              "width": 52.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "花",
+            "confidence": 0,
+            "bbox": {
+              "left": 407.0,
+              "top": 1115.0,
+              "width": 60.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "券",
+            "confidence": 0,
+            "bbox": {
+              "left": 467.0,
+              "top": 1115.0,
+              "width": 54.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "得",
+            "confidence": 0,
+            "bbox": {
+              "left": 526.0,
+              "top": 1115.0,
+              "width": 88.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "「",
+            "confidence": 0,
+            "bbox": {
+              "left": 614.0,
+              "top": 1115.0,
+              "width": 26.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "小",
+            "confidence": 0,
+            "bbox": {
+              "left": 640.0,
+              "top": 1115.0,
+              "width": 60.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 9,
+            "text": "组件",
+            "confidence": 0,
+            "bbox": {
+              "left": 700.0,
+              "top": 1115.0,
+              "width": 112.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 10,
+            "text": "皮肤",
+            "confidence": 0,
+            "bbox": {
+              "left": 813.0,
+              "top": 1115.0,
+              "width": 112.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 11,
+            "text": "」",
+            "confidence": 0,
+            "bbox": {
+              "left": 925.0,
+              "top": 1115.0,
+              "width": 24.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 11,
+        "text": "10花瓣=1赏花券",
+        "bbox": {
+          "left": 0,
+          "top": 1245.0,
+          "width": 0,
+          "height": 36.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "10",
+            "confidence": 0,
+            "bbox": {
+              "left": 275.0,
+              "top": 1245.0,
+              "width": 41.0,
+              "height": 36.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "花瓣",
+            "confidence": 0,
+            "bbox": {
+              "left": 316.0,
+              "top": 1245.0,
+              "width": 54.0,
+              "height": 36.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "=",
+            "confidence": 0,
+            "bbox": {
+              "left": 370.0,
+              "top": 1245.0,
+              "width": 18.0,
+              "height": 36.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "1",
+            "confidence": 0,
+            "bbox": {
+              "left": 388.0,
+              "top": 1245.0,
+              "width": 14.0,
+              "height": 36.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "赏",
+            "confidence": 0,
+            "bbox": {
+              "left": 401.0,
+              "top": 1245.0,
+              "width": 31.0,
+              "height": 36.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "花",
+            "confidence": 0,
+            "bbox": {
+              "left": 433.0,
+              "top": 1245.0,
+              "width": 27.0,
+              "height": 36.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "券",
+            "confidence": 0,
+            "bbox": {
+              "left": 460.0,
+              "top": 1245.0,
+              "width": 25.0,
+              "height": 36.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 12,
+        "text": "O",
+        "bbox": {
+          "left": 0,
+          "top": 1301.0,
+          "width": 0,
+          "height": 36.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "O",
+            "confidence": 0,
+            "bbox": {
+              "left": 420.0,
+              "top": 1301.0,
+              "width": 28.0,
+              "height": 36.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 13,
+        "text": "S2",
+        "bbox": {
+          "left": 0,
+          "top": 1224.0,
+          "width": 0,
+          "height": 49.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "S2",
+            "confidence": 0,
+            "bbox": {
+              "left": 860.0,
+              "top": 1224.0,
+              "width": 85.0,
+              "height": 49.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 14,
+        "text": "0",
+        "bbox": {
+          "left": 0,
+          "top": 1301.0,
+          "width": 0,
+          "height": 32.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "0",
+            "confidence": 0,
+            "bbox": {
+              "left": 682.0,
+              "top": 1301.0,
+              "width": 24.0,
+              "height": 32.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 15,
+        "text": "去抽奖",
+        "bbox": {
+          "left": 0,
+          "top": 1293.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "去",
+            "confidence": 0,
+            "bbox": {
+              "left": 844.0,
+              "top": 1293.0,
+              "width": 44.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "抽奖",
+            "confidence": 0,
+            "bbox": {
+              "left": 888.0,
+              "top": 1293.0,
+              "width": 89.0,
+              "height": 44.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 16,
+        "text": "分享人参汤打卡图（0/5）",
+        "bbox": {
+          "left": 0,
+          "top": 1442.0,
+          "width": 0,
+          "height": 67.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "分享",
+            "confidence": 0,
+            "bbox": {
+              "left": 302.0,
+              "top": 1442.0,
+              "width": 121.0,
+              "height": 62.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "人",
+            "confidence": 0,
+            "bbox": {
+              "left": 422.0,
+              "top": 1443.0,
+              "width": 53.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "参汤",
+            "confidence": 0,
+            "bbox": {
+              "left": 475.0,
+              "top": 1444.0,
+              "width": 106.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "打卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 580.0,
+              "top": 1445.0,
+              "width": 113.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "图",
+            "confidence": 0,
+            "bbox": {
+              "left": 692.0,
+              "top": 1446.0,
+              "width": 53.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "（",
+            "confidence": 0,
+            "bbox": {
+              "left": 745.0,
+              "top": 1447.0,
+              "width": 31.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "0",
+            "confidence": 0,
+            "bbox": {
+              "left": 775.0,
+              "top": 1447.0,
+              "width": 31.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "/",
+            "confidence": 0,
+            "bbox": {
+              "left": 805.0,
+              "top": 1447.0,
+              "width": 23.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 9,
+            "text": "5",
+            "confidence": 0,
+            "bbox": {
+              "left": 827.0,
+              "top": 1448.0,
+              "width": 38.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 10,
+            "text": "）",
+            "confidence": 0,
+            "bbox": {
+              "left": 865.0,
+              "top": 1448.0,
+              "width": 20.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 17,
+        "text": "• 花瓣x1 累计分享1/3/5天还能得",
+        "bbox": {
+          "left": 0,
+          "top": 0.0,
+          "width": 0,
+          "height": 1572.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "•",
+            "confidence": 0,
+            "bbox": {
+              "left": 327.0,
+              "top": 1527.0,
+              "width": 41.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "花瓣",
+            "confidence": 0,
+            "bbox": {
+              "left": 370.0,
+              "top": 1527.0,
+              "width": 86.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "x",
+            "confidence": 0,
+            "bbox": {
+              "left": 456.0,
+              "top": 1527.0,
+              "width": 28.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "1",
+            "confidence": 0,
+            "bbox": {
+              "left": 485.0,
+              "top": 1527.0,
+              "width": 24.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "累计",
+            "confidence": 0,
+            "bbox": {
+              "left": 511.0,
+              "top": 1527.0,
+              "width": 81.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "分享",
+            "confidence": 0,
+            "bbox": {
+              "left": 591.0,
+              "top": 1527.0,
+              "width": 79.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 9,
+            "text": "1",
+            "confidence": 0,
+            "bbox": {
+              "left": 670.0,
+              "top": 1527.0,
+              "width": 23.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 10,
+            "text": "/",
+            "confidence": 0,
+            "bbox": {
+              "left": 693.0,
+              "top": 1527.0,
+              "width": 17.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 11,
+            "text": "3",
+            "confidence": 0,
+            "bbox": {
+              "left": 710.0,
+              "top": 1527.0,
+              "width": 22.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 12,
+            "text": "/",
+            "confidence": 0,
+            "bbox": {
+              "left": 732.0,
+              "top": 1527.0,
+              "width": 17.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 13,
+            "text": "5",
+            "confidence": 0,
+            "bbox": {
+              "left": 749.0,
+              "top": 1527.0,
+              "width": 23.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 14,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 771.0,
+              "top": 1527.0,
+              "width": 39.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 15,
+            "text": "还",
+            "confidence": 0,
+            "bbox": {
+              "left": 811.0,
+              "top": 1527.0,
+              "width": 39.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 16,
+            "text": "能",
+            "confidence": 0,
+            "bbox": {
+              "left": 850.0,
+              "top": 1527.0,
+              "width": 34.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 17,
+            "text": "得",
+            "confidence": 0,
+            "bbox": {
+              "left": 884.0,
+              "top": 1527.0,
+              "width": 37.0,
+              "height": 45.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 18,
+        "text": "限定徽章",
+        "bbox": {
+          "left": 0,
+          "top": 1600.0,
+          "width": 0,
+          "height": 41.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "限定",
+            "confidence": 0,
+            "bbox": {
+              "left": 303.0,
+              "top": 1600.0,
+              "width": 80.0,
+              "height": 41.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "徽章",
+            "confidence": 0,
+            "bbox": {
+              "left": 383.0,
+              "top": 1600.0,
+              "width": 74.0,
+              "height": 41.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 19,
+        "text": "去分享",
+        "bbox": {
+          "left": 0,
+          "top": 1515.0,
+          "width": 0,
+          "height": 49.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "去",
+            "confidence": 0,
+            "bbox": {
+              "left": 993.0,
+              "top": 1515.0,
+              "width": 49.0,
+              "height": 49.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "分享",
+            "confidence": 0,
+            "bbox": {
+              "left": 1042.0,
+              "top": 1515.0,
+              "width": 81.0,
+              "height": 49.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 20,
+        "text": "今天",
+        "bbox": {
+          "left": 0,
+          "top": 1968.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "今天",
+            "confidence": 0,
+            "bbox": {
+              "left": 125.0,
+              "top": 1968.0,
+              "width": 73.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 21,
+        "text": "+1",
+        "bbox": {
+          "left": 0,
+          "top": 2121.0,
+          "width": 0,
+          "height": 29.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 137.0,
+              "top": 2121.0,
+              "width": 32.0,
+              "height": 29.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "1",
+            "confidence": 0,
+            "bbox": {
+              "left": 170.0,
+              "top": 2121.0,
+              "width": 12.0,
+              "height": 29.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 22,
+        "text": "开学每日签到",
+        "bbox": {
+          "left": 0,
+          "top": 1785.0,
+          "width": 0,
+          "height": 58.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "开学",
+            "confidence": 0,
+            "bbox": {
+              "left": 303.0,
+              "top": 1785.0,
+              "width": 112.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "每日",
+            "confidence": 0,
+            "bbox": {
+              "left": 415.0,
+              "top": 1786.0,
+              "width": 112.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "签到",
+            "confidence": 0,
+            "bbox": {
+              "left": 527.0,
+              "top": 1786.0,
+              "width": 107.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 23,
+        "text": "花瓣x1",
+        "bbox": {
+          "left": 0,
+          "top": 1871.0,
+          "width": 0,
+          "height": 48.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "花",
+            "confidence": 0,
+            "bbox": {
+              "left": 372.0,
+              "top": 1871.0,
+              "width": 48.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "瓣",
+            "confidence": 0,
+            "bbox": {
+              "left": 420.0,
+              "top": 1871.0,
+              "width": 42.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "x",
+            "confidence": 0,
+            "bbox": {
+              "left": 462.0,
+              "top": 1871.0,
+              "width": 24.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "1",
+            "confidence": 0,
+            "bbox": {
+              "left": 486.0,
+              "top": 1871.0,
+              "width": 19.0,
+              "height": 48.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 24,
+        "text": "第2天",
+        "bbox": {
+          "left": 0,
+          "top": 1968.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "第",
+            "confidence": 0,
+            "bbox": {
+              "left": 271.0,
+              "top": 1968.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "2",
+            "confidence": 0,
+            "bbox": {
+              "left": 311.0,
+              "top": 1968.0,
+              "width": 20.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 331.0,
+              "top": 1968.0,
+              "width": 32.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 25,
+        "text": "第3天",
+        "bbox": {
+          "left": 0,
+          "top": 1968.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "第",
+            "confidence": 0,
+            "bbox": {
+              "left": 428.0,
+              "top": 1968.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "3",
+            "confidence": 0,
+            "bbox": {
+              "left": 468.0,
+              "top": 1968.0,
+              "width": 20.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 488.0,
+              "top": 1968.0,
+              "width": 33.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 26,
+        "text": "第4天",
+        "bbox": {
+          "left": 0,
+          "top": 1968.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "第",
+            "confidence": 0,
+            "bbox": {
+              "left": 586.0,
+              "top": 1968.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "4",
+            "confidence": 0,
+            "bbox": {
+              "left": 626.0,
+              "top": 1968.0,
+              "width": 20.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 646.0,
+              "top": 1968.0,
+              "width": 28.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 27,
+        "text": "第5天",
+        "bbox": {
+          "left": 0,
+          "top": 1968.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "第",
+            "confidence": 0,
+            "bbox": {
+              "left": 739.0,
+              "top": 1968.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "5",
+            "confidence": 0,
+            "bbox": {
+              "left": 779.0,
+              "top": 1968.0,
+              "width": 25.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 804.0,
+              "top": 1968.0,
+              "width": 28.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 28,
+        "text": "+1",
+        "bbox": {
+          "left": 0,
+          "top": 2121.0,
+          "width": 0,
+          "height": 33.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 295.0,
+              "top": 2121.0,
+              "width": 29.0,
+              "height": 33.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "1",
+            "confidence": 0,
+            "bbox": {
+              "left": 324.0,
+              "top": 2121.0,
+              "width": 15.0,
+              "height": 33.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 29,
+        "text": "+2",
+        "bbox": {
+          "left": 0,
+          "top": 2121.0,
+          "width": 0,
+          "height": 33.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 452.0,
+              "top": 2121.0,
+              "width": 24.0,
+              "height": 33.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "2",
+            "confidence": 0,
+            "bbox": {
+              "left": 477.0,
+              "top": 2121.0,
+              "width": 20.0,
+              "height": 33.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 30,
+        "text": "+2",
+        "bbox": {
+          "left": 0,
+          "top": 2121.0,
+          "width": 0,
+          "height": 33.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 606.0,
+              "top": 2121.0,
+              "width": 29.0,
+              "height": 33.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "2",
+            "confidence": 0,
+            "bbox": {
+              "left": 635.0,
+              "top": 2121.0,
+              "width": 15.0,
+              "height": 33.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 31,
+        "text": "+3",
+        "bbox": {
+          "left": 0,
+          "top": 2121.0,
+          "width": 0,
+          "height": 33.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 763.0,
+              "top": 2121.0,
+              "width": 25.0,
+              "height": 33.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "3",
+            "confidence": 0,
+            "bbox": {
+              "left": 788.0,
+              "top": 2121.0,
+              "width": 20.0,
+              "height": 33.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 32,
+        "text": "在千语单词完成打卡",
+        "bbox": {
+          "left": 0,
+          "top": 2247.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "在",
+            "confidence": 0,
+            "bbox": {
+              "left": 303.0,
+              "top": 2247.0,
+              "width": 60.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "千语",
+            "confidence": 0,
+            "bbox": {
+              "left": 363.0,
+              "top": 2247.0,
+              "width": 112.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 475.0,
+              "top": 2247.0,
+              "width": 105.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "完成",
+            "confidence": 0,
+            "bbox": {
+              "left": 580.0,
+              "top": 2247.0,
+              "width": 112.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "打卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 693.0,
+              "top": 2247.0,
+              "width": 107.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 33,
+        "text": "⑦花瓣x1",
+        "bbox": {
+          "left": 0,
+          "top": 2336.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "⑦",
+            "confidence": 0,
+            "bbox": {
+              "left": 327.0,
+              "top": 2336.0,
+              "width": 49.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "花",
+            "confidence": 0,
+            "bbox": {
+              "left": 377.0,
+              "top": 2336.0,
+              "width": 38.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "瓣",
+            "confidence": 0,
+            "bbox": {
+              "left": 415.0,
+              "top": 2336.0,
+              "width": 44.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "x",
+            "confidence": 0,
+            "bbox": {
+              "left": 459.0,
+              "top": 2336.0,
+              "width": 28.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "1",
+            "confidence": 0,
+            "bbox": {
+              "left": 487.0,
+              "top": 2336.0,
+              "width": 14.0,
+              "height": 44.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 34,
+        "text": "第6天",
+        "bbox": {
+          "left": 0,
+          "top": 1968.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "第",
+            "confidence": 0,
+            "bbox": {
+              "left": 897.0,
+              "top": 1968.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "6",
+            "confidence": 0,
+            "bbox": {
+              "left": 937.0,
+              "top": 1968.0,
+              "width": 20.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 957.0,
+              "top": 1968.0,
+              "width": 28.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 35,
+        "text": "+3",
+        "bbox": {
+          "left": 0,
+          "top": 2121.0,
+          "width": 0,
+          "height": 25.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 921.0,
+              "top": 2121.0,
+              "width": 25.0,
+              "height": 25.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "3",
+            "confidence": 0,
+            "bbox": {
+              "left": 946.0,
+              "top": 2121.0,
+              "width": 27.0,
+              "height": 25.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 36,
+        "text": "分享旅行熊熊打卡图（0/9）",
+        "bbox": {
+          "left": 0,
+          "top": 2465.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "分享",
+            "confidence": 0,
+            "bbox": {
+              "left": 303.0,
+              "top": 2465.0,
+              "width": 113.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "旅行",
+            "confidence": 0,
+            "bbox": {
+              "left": 415.0,
+              "top": 2465.0,
+              "width": 112.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "熊熊",
+            "confidence": 0,
+            "bbox": {
+              "left": 528.0,
+              "top": 2465.0,
+              "width": 112.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "打卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 640.0,
+              "top": 2465.0,
+              "width": 105.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "图",
+            "confidence": 0,
+            "bbox": {
+              "left": 745.0,
+              "top": 2465.0,
+              "width": 60.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "（",
+            "confidence": 0,
+            "bbox": {
+              "left": 805.0,
+              "top": 2465.0,
+              "width": 22.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "0",
+            "confidence": 0,
+            "bbox": {
+              "left": 828.0,
+              "top": 2465.0,
+              "width": 30.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "/",
+            "confidence": 0,
+            "bbox": {
+              "left": 858.0,
+              "top": 2465.0,
+              "width": 30.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 9,
+            "text": "9",
+            "confidence": 0,
+            "bbox": {
+              "left": 888.0,
+              "top": 2465.0,
+              "width": 30.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 10,
+            "text": "）",
+            "confidence": 0,
+            "bbox": {
+              "left": 918.0,
+              "top": 2465.0,
+              "width": 27.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 37,
+        "text": "点击签到",
+        "bbox": {
+          "left": 0,
+          "top": 1822.0,
+          "width": 0,
+          "height": 49.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "点击",
+            "confidence": 0,
+            "bbox": {
+              "left": 973.0,
+              "top": 1822.0,
+              "width": 86.0,
+              "height": 49.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "签到",
+            "confidence": 0,
+            "bbox": {
+              "left": 1059.0,
+              "top": 1822.0,
+              "width": 84.0,
+              "height": 49.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 38,
+        "text": "第7天",
+        "bbox": {
+          "left": 0,
+          "top": 1968.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "第",
+            "confidence": 0,
+            "bbox": {
+              "left": 1054.0,
+              "top": 1968.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "7",
+            "confidence": 0,
+            "bbox": {
+              "left": 1094.0,
+              "top": 1968.0,
+              "width": 20.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 1114.0,
+              "top": 1968.0,
+              "width": 29.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 39,
+        "text": "+5",
+        "bbox": {
+          "left": 0,
+          "top": 2121.0,
+          "width": 0,
+          "height": 29.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 1098.0,
+              "top": 2121.0,
+              "width": 29.0,
+              "height": 29.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "5",
+            "confidence": 0,
+            "bbox": {
+              "left": 1127.0,
+              "top": 2121.0,
+              "width": 16.0,
+              "height": 29.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 40,
+        "text": "去打卡",
+        "bbox": {
+          "left": 0,
+          "top": 2283.0,
+          "width": 0,
+          "height": 48.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "去",
+            "confidence": 0,
+            "bbox": {
+              "left": 993.0,
+              "top": 2283.0,
+              "width": 48.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "打卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 1041.0,
+              "top": 2283.0,
+              "width": 82.0,
+              "height": 48.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 41,
+        "text": "单词",
+        "bbox": {
+          "left": 0,
+          "top": 2659.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 89.0,
+              "top": 2659.0,
+              "width": 73.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 42,
+        "text": "课程",
+        "bbox": {
+          "left": 0,
+          "top": 2659.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "课程",
+            "confidence": 0,
+            "bbox": {
+              "left": 339.0,
+              "top": 2659.0,
+              "width": 77.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 43,
+        "text": "Al学",
+        "bbox": {
+          "left": 0,
+          "top": 2659.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Al",
+            "confidence": 0,
+            "bbox": {
+              "left": 594.0,
+              "top": 2659.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "学",
+            "confidence": 0,
+            "bbox": {
+              "left": 634.0,
+              "top": 2659.0,
+              "width": 32.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 44,
+        "text": "发现",
+        "bbox": {
+          "left": 0,
+          "top": 2655.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "发现",
+            "confidence": 0,
+            "bbox": {
+              "left": 844.0,
+              "top": 2655.0,
+              "width": 77.0,
+              "height": 44.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 45,
+        "text": "我的",
+        "bbox": {
+          "left": 0,
+          "top": 2659.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "我",
+            "confidence": 0,
+            "bbox": {
+              "left": 1098.0,
+              "top": 2659.0,
+              "width": 45.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "的",
+            "confidence": 0,
+            "bbox": {
+              "left": 1143.0,
+              "top": 2659.0,
+              "width": 28.0,
+              "height": 40.0
+            }
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "word_number": 1,
+        "text": "04",
+        "confidence": 0,
+        "bbox": {
+          "left": 77.0,
+          "top": 56.0,
+          "width": 61.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": ":",
+        "confidence": 0,
+        "bbox": {
+          "left": 137.0,
+          "top": 57.0,
+          "width": 22.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "00",
+        "confidence": 0,
+        "bbox": {
+          "left": 159.0,
+          "top": 57.0,
+          "width": 55.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "41",
+        "confidence": 0,
+        "bbox": {
+          "left": 965.0,
+          "top": 49.0,
+          "width": 68.0,
+          "height": 54.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "911",
+        "confidence": 0,
+        "bbox": {
+          "left": 1034.0,
+          "top": 48.0,
+          "width": 81.0,
+          "height": 54.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "［",
+        "confidence": 0,
+        "bbox": {
+          "left": 1114.0,
+          "top": 47.0,
+          "width": 21.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "92",
+        "confidence": 0,
+        "bbox": {
+          "left": 1134.0,
+          "top": 46.0,
+          "width": 54.0,
+          "height": 54.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "0",
+        "confidence": 0,
+        "bbox": {
+          "left": 267.0,
+          "top": 287.0,
+          "width": 149.0,
+          "height": 170.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 416.0,
+          "top": 287.0,
+          "width": 65.0,
+          "height": 170.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "连续",
+        "confidence": 0,
+        "bbox": {
+          "left": 267.0,
+          "top": 473.0,
+          "width": 113.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "打",
+        "confidence": 0,
+        "bbox": {
+          "left": 379.0,
+          "top": 473.0,
+          "width": 60.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 439.0,
+          "top": 473.0,
+          "width": 67.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "〉",
+        "confidence": 0,
+        "bbox": {
+          "left": 507.0,
+          "top": 473.0,
+          "width": 30.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "同桌",
+        "confidence": 0,
+        "bbox": {
+          "left": 254.0,
+          "top": 681.0,
+          "width": 122.0,
+          "height": 58.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "找",
+        "confidence": 0,
+        "bbox": {
+          "left": 378.0,
+          "top": 683.0,
+          "width": 45.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "个",
+        "confidence": 0,
+        "bbox": {
+          "left": 422.0,
+          "top": 683.0,
+          "width": 29.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "同桌",
+        "confidence": 0,
+        "bbox": {
+          "left": 450.0,
+          "top": 683.0,
+          "width": 85.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "〉",
+        "confidence": 0,
+        "bbox": {
+          "left": 534.0,
+          "top": 684.0,
+          "width": 19.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "新",
+        "confidence": 0,
+        "bbox": {
+          "left": 250.0,
+          "top": 748.0,
+          "width": 45.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "一",
+        "confidence": 0,
+        "bbox": {
+          "left": 295.0,
+          "top": 748.0,
+          "width": 35.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "期",
+        "confidence": 0,
+        "bbox": {
+          "left": 330.0,
+          "top": 748.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "挑战",
+        "confidence": 0,
+        "bbox": {
+          "left": 370.0,
+          "top": 748.0,
+          "width": 80.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "已",
+        "confidence": 0,
+        "bbox": {
+          "left": 450.0,
+          "top": 748.0,
+          "width": 35.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "开始",
+        "confidence": 0,
+        "bbox": {
+          "left": 485.0,
+          "top": 748.0,
+          "width": 80.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "《",
+        "confidence": 0,
+        "bbox": {
+          "left": 565.0,
+          "top": 748.0,
+          "width": 29.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "打",
+        "confidence": 0,
+        "bbox": {
+          "left": 832.0,
+          "top": 682.0,
+          "width": 63.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 895.0,
+          "top": 683.0,
+          "width": 42.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "挑战",
+        "confidence": 0,
+        "bbox": {
+          "left": 937.0,
+          "top": 683.0,
+          "width": 105.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "集",
+        "confidence": 0,
+        "bbox": {
+          "left": 828.0,
+          "top": 744.0,
+          "width": 44.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "徽章",
+        "confidence": 0,
+        "bbox": {
+          "left": 872.0,
+          "top": 743.0,
+          "width": 77.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "领",
+        "confidence": 0,
+        "bbox": {
+          "left": 949.0,
+          "top": 743.0,
+          "width": 39.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "奖励",
+        "confidence": 0,
+        "bbox": {
+          "left": 987.0,
+          "top": 743.0,
+          "width": 75.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "秋日",
+        "confidence": 0,
+        "bbox": {
+          "left": 291.0,
+          "top": 978.0,
+          "width": 210.0,
+          "height": 105.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "任务",
+        "confidence": 0,
+        "bbox": {
+          "left": 501.0,
+          "top": 978.0,
+          "width": 197.0,
+          "height": 105.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "派送",
+        "confidence": 0,
+        "bbox": {
+          "left": 698.0,
+          "top": 978.0,
+          "width": 197.0,
+          "height": 105.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "站",
+        "confidence": 0,
+        "bbox": {
+          "left": 895.0,
+          "top": 978.0,
+          "width": 123.0,
+          "height": 105.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "赚",
+        "confidence": 0,
+        "bbox": {
+          "left": 295.0,
+          "top": 1115.0,
+          "width": 61.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "赏",
+        "confidence": 0,
+        "bbox": {
+          "left": 355.0,
+          "top": 1115.0,
+          "width": 52.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "花",
+        "confidence": 0,
+        "bbox": {
+          "left": 407.0,
+          "top": 1115.0,
+          "width": 60.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "券",
+        "confidence": 0,
+        "bbox": {
+          "left": 467.0,
+          "top": 1115.0,
+          "width": 54.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "得",
+        "confidence": 0,
+        "bbox": {
+          "left": 526.0,
+          "top": 1115.0,
+          "width": 88.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "「",
+        "confidence": 0,
+        "bbox": {
+          "left": 614.0,
+          "top": 1115.0,
+          "width": 26.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "小",
+        "confidence": 0,
+        "bbox": {
+          "left": 640.0,
+          "top": 1115.0,
+          "width": 60.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 9,
+        "text": "组件",
+        "confidence": 0,
+        "bbox": {
+          "left": 700.0,
+          "top": 1115.0,
+          "width": 112.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 10,
+        "text": "皮肤",
+        "confidence": 0,
+        "bbox": {
+          "left": 813.0,
+          "top": 1115.0,
+          "width": 112.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 11,
+        "text": "」",
+        "confidence": 0,
+        "bbox": {
+          "left": 925.0,
+          "top": 1115.0,
+          "width": 24.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "10",
+        "confidence": 0,
+        "bbox": {
+          "left": 275.0,
+          "top": 1245.0,
+          "width": 41.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "花瓣",
+        "confidence": 0,
+        "bbox": {
+          "left": 316.0,
+          "top": 1245.0,
+          "width": 54.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "=",
+        "confidence": 0,
+        "bbox": {
+          "left": 370.0,
+          "top": 1245.0,
+          "width": 18.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "1",
+        "confidence": 0,
+        "bbox": {
+          "left": 388.0,
+          "top": 1245.0,
+          "width": 14.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "赏",
+        "confidence": 0,
+        "bbox": {
+          "left": 401.0,
+          "top": 1245.0,
+          "width": 31.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "花",
+        "confidence": 0,
+        "bbox": {
+          "left": 433.0,
+          "top": 1245.0,
+          "width": 27.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "券",
+        "confidence": 0,
+        "bbox": {
+          "left": 460.0,
+          "top": 1245.0,
+          "width": 25.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "O",
+        "confidence": 0,
+        "bbox": {
+          "left": 420.0,
+          "top": 1301.0,
+          "width": 28.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "S2",
+        "confidence": 0,
+        "bbox": {
+          "left": 860.0,
+          "top": 1224.0,
+          "width": 85.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "0",
+        "confidence": 0,
+        "bbox": {
+          "left": 682.0,
+          "top": 1301.0,
+          "width": 24.0,
+          "height": 32.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "去",
+        "confidence": 0,
+        "bbox": {
+          "left": 844.0,
+          "top": 1293.0,
+          "width": 44.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "抽奖",
+        "confidence": 0,
+        "bbox": {
+          "left": 888.0,
+          "top": 1293.0,
+          "width": 89.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "分享",
+        "confidence": 0,
+        "bbox": {
+          "left": 302.0,
+          "top": 1442.0,
+          "width": 121.0,
+          "height": 62.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "人",
+        "confidence": 0,
+        "bbox": {
+          "left": 422.0,
+          "top": 1443.0,
+          "width": 53.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "参汤",
+        "confidence": 0,
+        "bbox": {
+          "left": 475.0,
+          "top": 1444.0,
+          "width": 106.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "打卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 580.0,
+          "top": 1445.0,
+          "width": 113.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "图",
+        "confidence": 0,
+        "bbox": {
+          "left": 692.0,
+          "top": 1446.0,
+          "width": 53.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "（",
+        "confidence": 0,
+        "bbox": {
+          "left": 745.0,
+          "top": 1447.0,
+          "width": 31.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "0",
+        "confidence": 0,
+        "bbox": {
+          "left": 775.0,
+          "top": 1447.0,
+          "width": 31.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "/",
+        "confidence": 0,
+        "bbox": {
+          "left": 805.0,
+          "top": 1447.0,
+          "width": 23.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 9,
+        "text": "5",
+        "confidence": 0,
+        "bbox": {
+          "left": 827.0,
+          "top": 1448.0,
+          "width": 38.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 10,
+        "text": "）",
+        "confidence": 0,
+        "bbox": {
+          "left": 865.0,
+          "top": 1448.0,
+          "width": 20.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "•",
+        "confidence": 0,
+        "bbox": {
+          "left": 327.0,
+          "top": 1527.0,
+          "width": 41.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "花瓣",
+        "confidence": 0,
+        "bbox": {
+          "left": 370.0,
+          "top": 1527.0,
+          "width": 86.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "x",
+        "confidence": 0,
+        "bbox": {
+          "left": 456.0,
+          "top": 1527.0,
+          "width": 28.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "1",
+        "confidence": 0,
+        "bbox": {
+          "left": 485.0,
+          "top": 1527.0,
+          "width": 24.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "累计",
+        "confidence": 0,
+        "bbox": {
+          "left": 511.0,
+          "top": 1527.0,
+          "width": 81.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "分享",
+        "confidence": 0,
+        "bbox": {
+          "left": 591.0,
+          "top": 1527.0,
+          "width": 79.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 9,
+        "text": "1",
+        "confidence": 0,
+        "bbox": {
+          "left": 670.0,
+          "top": 1527.0,
+          "width": 23.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 10,
+        "text": "/",
+        "confidence": 0,
+        "bbox": {
+          "left": 693.0,
+          "top": 1527.0,
+          "width": 17.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 11,
+        "text": "3",
+        "confidence": 0,
+        "bbox": {
+          "left": 710.0,
+          "top": 1527.0,
+          "width": 22.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 12,
+        "text": "/",
+        "confidence": 0,
+        "bbox": {
+          "left": 732.0,
+          "top": 1527.0,
+          "width": 17.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 13,
+        "text": "5",
+        "confidence": 0,
+        "bbox": {
+          "left": 749.0,
+          "top": 1527.0,
+          "width": 23.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 14,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 771.0,
+          "top": 1527.0,
+          "width": 39.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 15,
+        "text": "还",
+        "confidence": 0,
+        "bbox": {
+          "left": 811.0,
+          "top": 1527.0,
+          "width": 39.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 16,
+        "text": "能",
+        "confidence": 0,
+        "bbox": {
+          "left": 850.0,
+          "top": 1527.0,
+          "width": 34.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 17,
+        "text": "得",
+        "confidence": 0,
+        "bbox": {
+          "left": 884.0,
+          "top": 1527.0,
+          "width": 37.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "限定",
+        "confidence": 0,
+        "bbox": {
+          "left": 303.0,
+          "top": 1600.0,
+          "width": 80.0,
+          "height": 41.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "徽章",
+        "confidence": 0,
+        "bbox": {
+          "left": 383.0,
+          "top": 1600.0,
+          "width": 74.0,
+          "height": 41.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "去",
+        "confidence": 0,
+        "bbox": {
+          "left": 993.0,
+          "top": 1515.0,
+          "width": 49.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "分享",
+        "confidence": 0,
+        "bbox": {
+          "left": 1042.0,
+          "top": 1515.0,
+          "width": 81.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "今天",
+        "confidence": 0,
+        "bbox": {
+          "left": 125.0,
+          "top": 1968.0,
+          "width": 73.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 137.0,
+          "top": 2121.0,
+          "width": 32.0,
+          "height": 29.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "1",
+        "confidence": 0,
+        "bbox": {
+          "left": 170.0,
+          "top": 2121.0,
+          "width": 12.0,
+          "height": 29.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "开学",
+        "confidence": 0,
+        "bbox": {
+          "left": 303.0,
+          "top": 1785.0,
+          "width": 112.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "每日",
+        "confidence": 0,
+        "bbox": {
+          "left": 415.0,
+          "top": 1786.0,
+          "width": 112.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "签到",
+        "confidence": 0,
+        "bbox": {
+          "left": 527.0,
+          "top": 1786.0,
+          "width": 107.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "花",
+        "confidence": 0,
+        "bbox": {
+          "left": 372.0,
+          "top": 1871.0,
+          "width": 48.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "瓣",
+        "confidence": 0,
+        "bbox": {
+          "left": 420.0,
+          "top": 1871.0,
+          "width": 42.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "x",
+        "confidence": 0,
+        "bbox": {
+          "left": 462.0,
+          "top": 1871.0,
+          "width": 24.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "1",
+        "confidence": 0,
+        "bbox": {
+          "left": 486.0,
+          "top": 1871.0,
+          "width": 19.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "第",
+        "confidence": 0,
+        "bbox": {
+          "left": 271.0,
+          "top": 1968.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "2",
+        "confidence": 0,
+        "bbox": {
+          "left": 311.0,
+          "top": 1968.0,
+          "width": 20.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 331.0,
+          "top": 1968.0,
+          "width": 32.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "第",
+        "confidence": 0,
+        "bbox": {
+          "left": 428.0,
+          "top": 1968.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "3",
+        "confidence": 0,
+        "bbox": {
+          "left": 468.0,
+          "top": 1968.0,
+          "width": 20.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 488.0,
+          "top": 1968.0,
+          "width": 33.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "第",
+        "confidence": 0,
+        "bbox": {
+          "left": 586.0,
+          "top": 1968.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "4",
+        "confidence": 0,
+        "bbox": {
+          "left": 626.0,
+          "top": 1968.0,
+          "width": 20.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 646.0,
+          "top": 1968.0,
+          "width": 28.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "第",
+        "confidence": 0,
+        "bbox": {
+          "left": 739.0,
+          "top": 1968.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "5",
+        "confidence": 0,
+        "bbox": {
+          "left": 779.0,
+          "top": 1968.0,
+          "width": 25.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 804.0,
+          "top": 1968.0,
+          "width": 28.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 295.0,
+          "top": 2121.0,
+          "width": 29.0,
+          "height": 33.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "1",
+        "confidence": 0,
+        "bbox": {
+          "left": 324.0,
+          "top": 2121.0,
+          "width": 15.0,
+          "height": 33.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 452.0,
+          "top": 2121.0,
+          "width": 24.0,
+          "height": 33.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "2",
+        "confidence": 0,
+        "bbox": {
+          "left": 477.0,
+          "top": 2121.0,
+          "width": 20.0,
+          "height": 33.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 606.0,
+          "top": 2121.0,
+          "width": 29.0,
+          "height": 33.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "2",
+        "confidence": 0,
+        "bbox": {
+          "left": 635.0,
+          "top": 2121.0,
+          "width": 15.0,
+          "height": 33.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 763.0,
+          "top": 2121.0,
+          "width": 25.0,
+          "height": 33.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "3",
+        "confidence": 0,
+        "bbox": {
+          "left": 788.0,
+          "top": 2121.0,
+          "width": 20.0,
+          "height": 33.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "在",
+        "confidence": 0,
+        "bbox": {
+          "left": 303.0,
+          "top": 2247.0,
+          "width": 60.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "千语",
+        "confidence": 0,
+        "bbox": {
+          "left": 363.0,
+          "top": 2247.0,
+          "width": 112.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 475.0,
+          "top": 2247.0,
+          "width": 105.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "完成",
+        "confidence": 0,
+        "bbox": {
+          "left": 580.0,
+          "top": 2247.0,
+          "width": 112.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "打卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 693.0,
+          "top": 2247.0,
+          "width": 107.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "⑦",
+        "confidence": 0,
+        "bbox": {
+          "left": 327.0,
+          "top": 2336.0,
+          "width": 49.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "花",
+        "confidence": 0,
+        "bbox": {
+          "left": 377.0,
+          "top": 2336.0,
+          "width": 38.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "瓣",
+        "confidence": 0,
+        "bbox": {
+          "left": 415.0,
+          "top": 2336.0,
+          "width": 44.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "x",
+        "confidence": 0,
+        "bbox": {
+          "left": 459.0,
+          "top": 2336.0,
+          "width": 28.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "1",
+        "confidence": 0,
+        "bbox": {
+          "left": 487.0,
+          "top": 2336.0,
+          "width": 14.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "第",
+        "confidence": 0,
+        "bbox": {
+          "left": 897.0,
+          "top": 1968.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "6",
+        "confidence": 0,
+        "bbox": {
+          "left": 937.0,
+          "top": 1968.0,
+          "width": 20.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 957.0,
+          "top": 1968.0,
+          "width": 28.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 921.0,
+          "top": 2121.0,
+          "width": 25.0,
+          "height": 25.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "3",
+        "confidence": 0,
+        "bbox": {
+          "left": 946.0,
+          "top": 2121.0,
+          "width": 27.0,
+          "height": 25.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "分享",
+        "confidence": 0,
+        "bbox": {
+          "left": 303.0,
+          "top": 2465.0,
+          "width": 113.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "旅行",
+        "confidence": 0,
+        "bbox": {
+          "left": 415.0,
+          "top": 2465.0,
+          "width": 112.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "熊熊",
+        "confidence": 0,
+        "bbox": {
+          "left": 528.0,
+          "top": 2465.0,
+          "width": 112.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "打卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 640.0,
+          "top": 2465.0,
+          "width": 105.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "图",
+        "confidence": 0,
+        "bbox": {
+          "left": 745.0,
+          "top": 2465.0,
+          "width": 60.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "（",
+        "confidence": 0,
+        "bbox": {
+          "left": 805.0,
+          "top": 2465.0,
+          "width": 22.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "0",
+        "confidence": 0,
+        "bbox": {
+          "left": 828.0,
+          "top": 2465.0,
+          "width": 30.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "/",
+        "confidence": 0,
+        "bbox": {
+          "left": 858.0,
+          "top": 2465.0,
+          "width": 30.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 9,
+        "text": "9",
+        "confidence": 0,
+        "bbox": {
+          "left": 888.0,
+          "top": 2465.0,
+          "width": 30.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 10,
+        "text": "）",
+        "confidence": 0,
+        "bbox": {
+          "left": 918.0,
+          "top": 2465.0,
+          "width": 27.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "点击",
+        "confidence": 0,
+        "bbox": {
+          "left": 973.0,
+          "top": 1822.0,
+          "width": 86.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "签到",
+        "confidence": 0,
+        "bbox": {
+          "left": 1059.0,
+          "top": 1822.0,
+          "width": 84.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "第",
+        "confidence": 0,
+        "bbox": {
+          "left": 1054.0,
+          "top": 1968.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "7",
+        "confidence": 0,
+        "bbox": {
+          "left": 1094.0,
+          "top": 1968.0,
+          "width": 20.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 1114.0,
+          "top": 1968.0,
+          "width": 29.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 1098.0,
+          "top": 2121.0,
+          "width": 29.0,
+          "height": 29.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "5",
+        "confidence": 0,
+        "bbox": {
+          "left": 1127.0,
+          "top": 2121.0,
+          "width": 16.0,
+          "height": 29.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "去",
+        "confidence": 0,
+        "bbox": {
+          "left": 993.0,
+          "top": 2283.0,
+          "width": 48.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "打卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 1041.0,
+          "top": 2283.0,
+          "width": 82.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 89.0,
+          "top": 2659.0,
+          "width": 73.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "课程",
+        "confidence": 0,
+        "bbox": {
+          "left": 339.0,
+          "top": 2659.0,
+          "width": 77.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Al",
+        "confidence": 0,
+        "bbox": {
+          "left": 594.0,
+          "top": 2659.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "学",
+        "confidence": 0,
+        "bbox": {
+          "left": 634.0,
+          "top": 2659.0,
+          "width": 32.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "发现",
+        "confidence": 0,
+        "bbox": {
+          "left": 844.0,
+          "top": 2655.0,
+          "width": 77.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "我",
+        "confidence": 0,
+        "bbox": {
+          "left": 1098.0,
+          "top": 2659.0,
+          "width": 45.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "的",
+        "confidence": 0,
+        "bbox": {
+          "left": 1143.0,
+          "top": 2659.0,
+          "width": 28.0,
+          "height": 40.0
+        }
+      }
+    ]
+  }
+}

@@ -14,11 +14,19 @@ class CacheMixin:
     lock_timeout_seconds: int
     client_id: str
 
-    def _read_cache_safe(self, max_retries=20, retry_delay=1.0, allow_empty=False) -> Dict:
+    def _read_cache_safe(self, max_retries=20, retry_delay=1.0, allow_empty=False, silent=False) -> Dict:
         """Read cache data using the shared JSON store."""
+
+        if not silent:
+            print(f"    Reading cache file...", end='', flush=True)
 
         cache_data = self.cache_store.read()
         cache_data.setdefault('files', {})
+
+        if not silent:
+            file_count = len(cache_data.get('files', {}))
+            print(f" loaded {file_count} entries", flush=True)
+
         return cache_data
 
     def _write_cache_safe(self, cache_data: Dict, max_retries=20, retry_delay=1.0):
@@ -42,10 +50,10 @@ class CacheMixin:
             retry_delay=retry_delay,
         )
 
-    def _get_cache_snapshot(self) -> Dict:
+    def _get_cache_snapshot(self, silent=False) -> Dict:
         """Return a full cache snapshot for read-only operations."""
 
-        return self._read_cache_safe()
+        return self._read_cache_safe(silent=silent)
 
     def _ensure_stats_block(self, cache: Dict) -> None:
         cache.setdefault('stats', {})
@@ -118,8 +126,28 @@ class CacheMixin:
         except Exception:
             return True
 
-    def try_acquire_lock(self, file_key: str) -> bool:
-        cache = self._read_cache_safe()
+    def _force_release_lock(self, file_key: str, *, expected_owner: str | None = None) -> None:
+        """Reset processing metadata for a stale lock."""
+
+        def clear_lock(cache: Dict) -> None:
+            entry = cache['files'].get(file_key)
+            if not entry:
+                return
+
+            if expected_owner and entry.get('processing_by') != expected_owner:
+                return
+
+            entry.pop('processing_by', None)
+            entry.pop('processing_start', None)
+
+            if entry.get('status') == 'processing':
+                entry['status'] = 'pending'
+
+        self._update_cache_file(clear_lock)
+
+    def try_acquire_lock(self, file_key: str, cache_snapshot: Dict = None) -> bool:
+        # Use provided snapshot if available, otherwise read fresh (silently)
+        cache = cache_snapshot if cache_snapshot is not None else self._read_cache_safe(silent=True)
 
         if file_key in cache['files']:
             file_info = cache['files'][file_key]
@@ -130,13 +158,15 @@ class CacheMixin:
 
             if 'processing_by' in file_info:
                 if self._is_lock_expired(file_info):
-                    print(
-                        f"  Lock expired, taking over from {file_info['processing_by']}"
-                    )
+                    # Lock expired, reclaim it silently
+                    owner_id = file_info.get('processing_by')
+                    if owner_id:
+                        self._force_release_lock(file_key, expected_owner=owner_id)
+                    else:
+                        self._force_release_lock(file_key)
                 else:
-                    other_client = file_info.get('processing_by', 'unknown')
-                    if other_client != self.client_id:
-                        print(f"  Being processed by: {other_client}")
+                    # Being processed by another client, skip silently
+                    if file_info.get('processing_by') != self.client_id:
                         return False
 
         def acquire(cache):

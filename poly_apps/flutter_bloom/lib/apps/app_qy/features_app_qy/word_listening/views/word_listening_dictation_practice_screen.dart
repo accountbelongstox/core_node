@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class WordListeningDictationPracticeScreen extends StatefulWidget {
   final String level;
@@ -121,7 +123,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                   ),
                 ),
                 Text(
-                  '第 ${_currentWordIndex + 1} / ${_words.length} 题',
+                  QyAppLocalizationKeys.qyListeningQuestionNumber.tr(context).replaceAll('{index}', '${_currentWordIndex + 1}').replaceAll('{total}', '${_words.length}'),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -136,7 +138,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              '正确率: $_totalAttempts > 0 ? ${(_correctAnswers / _totalAttempts * 100).toInt()}% : 0%',
+              '${QyAppLocalizationKeys.qyListeningAccuracy.tr(context)}: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0}%',
               style: AppTextStyles.bodySmall.copyWith(
                 color: AppTheme.primaryGreen,
                 fontWeight: FontWeight.bold,
@@ -157,7 +159,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '练习进度',
+                QyAppLocalizationKeys.qyListeningProgress.tr(context),
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: AppTheme.textSecondary,
                 ),
@@ -278,7 +280,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        _isPlaying ? '停止播放' : '播放单词',
+                        _isPlaying ? QyAppLocalizationKeys.qyListeningStopPlay.tr(context) : QyAppLocalizationKeys.qyListeningPlayWord.tr(context),
                         style: AppTextStyles.buttonText,
                       ),
                     ],
@@ -287,7 +289,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
               ),
               const SizedBox(height: 16),
               Text(
-                '播放次数: $_playCount / 3',
+                '${QyAppLocalizationKeys.qyListeningPlayCount.tr(context)}: $_playCount / 3',
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: AppTheme.textSecondary,
                 ),
@@ -309,7 +311,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '请输入听到的单词',
+                QyAppLocalizationKeys.qyListeningEnterWord.tr(context),
                 style: AppTextStyles.headline5.copyWith(
                   color: AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
@@ -325,7 +327,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                 ),
                 textAlign: TextAlign.center,
                 decoration: ComponentStyles.primaryInputDecoration.copyWith(
-                  hintText: '在此输入单词...',
+                  hintText: QyAppLocalizationKeys.qyListeningInputPlaceholder.tr(context),
                   hintStyle: AppTextStyles.bodyLarge.copyWith(
                     color: AppTheme.textHint,
                   ),
@@ -347,7 +349,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
-                            '提交答案',
+                            QyAppLocalizationKeys.qyListeningSubmitAnswer.tr(context),
                             style: AppTextStyles.buttonText,
                             textAlign: TextAlign.center,
                           ),
@@ -368,7 +370,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                           ),
                         ),
                         child: Text(
-                          '提示',
+                          QyAppLocalizationKeys.qyListeningHint.tr(context),
                           style: AppTextStyles.buttonText.copyWith(
                             color: AppTheme.warning,
                           ),
@@ -410,7 +412,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
               ),
               const SizedBox(height: 16),
               Text(
-                _isCorrect ? '回答正确！' : '回答错误',
+                _isCorrect ? QyAppLocalizationKeys.qyListeningCorrect.tr(context) : QyAppLocalizationKeys.qyListeningIncorrect.tr(context),
                 style: AppTextStyles.headline4.copyWith(
                   color: _isCorrect ? AppTheme.masteredColor : AppTheme.error,
                   fontWeight: FontWeight.bold,
@@ -419,7 +421,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
               const SizedBox(height: 16),
               if (!_isCorrect) ...[
                 Text(
-                  '正确答案',
+                  QyAppLocalizationKeys.qyListeningCorrectAnswer.tr(context),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppTheme.textSecondary,
                   ),
@@ -444,7 +446,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '词义',
+                      QyAppLocalizationKeys.qyListeningMeaning.tr(context),
                       style: AppTextStyles.bodyMedium.copyWith(
                         color: AppTheme.textSecondary,
                         fontWeight: FontWeight.w500,
@@ -459,7 +461,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      '例句',
+                      QyAppLocalizationKeys.qyListeningExample.tr(context),
                       style: AppTextStyles.bodyMedium.copyWith(
                         color: AppTheme.textSecondary,
                         fontWeight: FontWeight.w500,
@@ -503,7 +505,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                     ),
                   ),
                   child: Text(
-                    '上一题',
+                    QyAppLocalizationKeys.qyListeningPrevious.tr(context),
                     style: AppTextStyles.buttonText.copyWith(
                       color: AppTheme.primaryGreen,
                     ),
@@ -523,7 +525,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
-                  _currentWordIndex < _words.length - 1 ? '下一题' : '完成',
+                  _currentWordIndex < _words.length - 1 ? QyAppLocalizationKeys.qyListeningNext.tr(context) : QyAppLocalizationKeys.qyListeningComplete.tr(context),
                   style: AppTextStyles.buttonText,
                   textAlign: TextAlign.center,
                 ),
@@ -574,7 +576,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('提示：这个词以 "${word[0].toUpperCase()}" 开头，共 ${word.length} 个字母'),
+        content: Text(QyAppLocalizationKeys.qyListeningHintMessage.tr(context).replaceAll('{letter}', word[0].toUpperCase()).replaceAll('{length}', '${word.length}')),
         backgroundColor: AppTheme.warning,
         duration: const Duration(seconds: 3),
       ),
@@ -629,7 +631,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
               ),
               const SizedBox(height: 20),
               Text(
-                '练习完成！',
+                QyAppLocalizationKeys.qyListeningPracticeComplete.tr(context),
                 style: AppTextStyles.headline3.copyWith(
                   color: AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
@@ -637,7 +639,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
               ),
               const SizedBox(height: 16),
               Text(
-                '正确率: $accuracy%',
+                '${QyAppLocalizationKeys.qyListeningAccuracy.tr(context)}: $accuracy%',
                 style: AppTextStyles.headline4.copyWith(
                   color: accuracy >= 80 ? AppTheme.masteredColor :
                          accuracy >= 60 ? AppTheme.learningColor : AppTheme.error,
@@ -646,7 +648,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
               ),
               const SizedBox(height: 8),
               Text(
-                '正确答案: $_correctAnswers / $_totalAttempts',
+                '${QyAppLocalizationKeys.qyListeningCorrectAnswers.tr(context)}: $_correctAnswers / $_totalAttempts',
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: AppTheme.textSecondary,
                 ),
@@ -664,7 +666,7 @@ class _WordListeningDictationPracticeScreenState extends State<WordListeningDict
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    '完成',
+                    QyAppLocalizationKeys.qyListeningComplete.tr(context),
                     style: AppTextStyles.buttonText,
                   ),
                 ),

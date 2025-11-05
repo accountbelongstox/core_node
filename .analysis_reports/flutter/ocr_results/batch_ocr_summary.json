@@ -1,0 +1,355 @@
+{
+  "success": true,
+  "total_images": 68,
+  "successful_ocr": 0,
+  "failed_ocr": 68,
+  "info_files_generated": 68,
+  "success_rate": "0.0%",
+  "details": {
+    "successful": [],
+    "failed": [
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\about.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\about.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\account_settings.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\account_settings.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\account_settings_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\account_settings_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\certificate_center.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\certificate_center.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\checkin_challenge.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\checkin_challenge.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts_2.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts_2.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts_3.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts_3.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts_4.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_ielts_4.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_plans.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_plans.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_python.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_python.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_python_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_python_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\display_mode.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\display_mode.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\home_search.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\home_search.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\home_study.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\home_study.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\image_001.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\image_001.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\login_phone.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\login_phone.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\message_center.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\message_center.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\more_features.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\more_features.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\more_features_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\more_features_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\recommend_settings.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\recommend_settings.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\reminder_settings.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\reminder_settings.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\settings.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\settings.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_book.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_book.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_ai_explain.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_ai_explain.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_dictation.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_dictation.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_dictation_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_dictation_1.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_dictation_2.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_dictation_2.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_dictation_3.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_dictation_3.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_free.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_free.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_sleep.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      },
+      {
+        "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_sleep.jpg",
+        "error": "'OCRManager' object has no attribute 'is_initialized'"
+      }
+    ],
+    "info_files": [
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\about_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\about_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\account_settings_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\account_settings_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\account_settings_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\account_settings_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\certificate_center_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\certificate_center_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\checkin_challenge_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\checkin_challenge_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_2_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_2_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_3_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_3_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_4_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_ielts_4_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_plans_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_plans_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_python_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_python_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_python_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\course_python_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\display_mode_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\display_mode_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\home_search_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\home_search_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\home_study_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\home_study_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\image_001_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\image_001_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\login_phone_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\login_phone_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\message_center_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\message_center_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\more_features_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\more_features_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\more_features_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\more_features_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\recommend_settings_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\recommend_settings_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\reminder_settings_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\reminder_settings_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\settings_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\settings_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_book_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_book_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_ai_explain_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_ai_explain_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_dictation_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_dictation_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_dictation_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_dictation_1_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_dictation_2_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_dictation_2_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_dictation_3_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_dictation_3_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_free_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_free_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_sleep_info.json",
+      "D:\\programing\\core_node\\.analysis_reports\\flutter\\ocr_results\\word_listening_sleep_info.json"
+    ]
+  }
+}

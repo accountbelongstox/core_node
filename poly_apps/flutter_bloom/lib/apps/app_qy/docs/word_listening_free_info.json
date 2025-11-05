@@ -1,0 +1,955 @@
+{
+  "file_info": {
+    "filename": "word_listening_free.jpg",
+    "filepath": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_free.jpg",
+    "location": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\word_listening_free.jpg"
+  },
+  "ocr_result": {
+    "success": true,
+    "text": "04:00\nRail s91l 93\n单词随身听\n单词书•今日新词 =\n自由模式\n自由设置内容&遍数\nAli\n趣味讠\n一）\n贝売续期\n加入会员畅享\n随身听已过期",
+    "confidence": 0.0,
+    "provider": "FreeOCR",
+    "word_count": 15,
+    "processing_time": 2.4727234840393066,
+    "lines": [
+      {
+        "line_number": 1,
+        "text": "04:00",
+        "bbox": {
+          "left": 0,
+          "top": 57.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "04",
+            "confidence": 0,
+            "bbox": {
+              "left": 77.0,
+              "top": 57.0,
+              "width": 61.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": ":",
+            "confidence": 0,
+            "bbox": {
+              "left": 138.0,
+              "top": 57.0,
+              "width": 22.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "00",
+            "confidence": 0,
+            "bbox": {
+              "left": 160.0,
+              "top": 57.0,
+              "width": 59.0,
+              "height": 44.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 2,
+        "text": "Rail s91l 93",
+        "bbox": {
+          "left": 0,
+          "top": 51.0,
+          "width": 0,
+          "height": 55.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Rail",
+            "confidence": 0,
+            "bbox": {
+              "left": 945.0,
+              "top": 51.0,
+              "width": 94.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "s91l",
+            "confidence": 0,
+            "bbox": {
+              "left": 1040.0,
+              "top": 52.0,
+              "width": 76.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "93",
+            "confidence": 0,
+            "bbox": {
+              "left": 1118.0,
+              "top": 53.0,
+              "width": 77.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 3,
+        "text": "单词随身听",
+        "bbox": {
+          "left": 0,
+          "top": 210.0,
+          "width": 0,
+          "height": 66.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 489.0,
+              "top": 210.0,
+              "width": 120.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "随身听",
+            "confidence": 0,
+            "bbox": {
+              "left": 609.0,
+              "top": 210.0,
+              "width": 163.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 4,
+        "text": "单词书•今日新词 =",
+        "bbox": {
+          "left": 0,
+          "top": 0.0,
+          "width": 0,
+          "height": 505.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 392.0,
+              "top": 449.0,
+              "width": 105.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "书",
+            "confidence": 0,
+            "bbox": {
+              "left": 497.0,
+              "top": 449.0,
+              "width": 63.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "•",
+            "confidence": 0,
+            "bbox": {
+              "left": 560.0,
+              "top": 449.0,
+              "width": 42.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "今日",
+            "confidence": 0,
+            "bbox": {
+              "left": 602.0,
+              "top": 449.0,
+              "width": 91.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "新词",
+            "confidence": 0,
+            "bbox": {
+              "left": 693.0,
+              "top": 449.0,
+              "width": 121.0,
+              "height": 56.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "=",
+            "confidence": 0,
+            "bbox": {
+              "left": 817.0,
+              "top": 449.0,
+              "width": 51.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 5,
+        "text": "自由模式",
+        "bbox": {
+          "left": 0,
+          "top": 1801.0,
+          "width": 0,
+          "height": 75.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "自由",
+            "confidence": 0,
+            "bbox": {
+              "left": 278.0,
+              "top": 1801.0,
+              "width": 144.0,
+              "height": 74.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "模式",
+            "confidence": 0,
+            "bbox": {
+              "left": 422.0,
+              "top": 1802.0,
+              "width": 135.0,
+              "height": 74.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 6,
+        "text": "自由设置内容&遍数",
+        "bbox": {
+          "left": 0,
+          "top": 1903.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "自由",
+            "confidence": 0,
+            "bbox": {
+              "left": 283.0,
+              "top": 1903.0,
+              "width": 100.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "设置",
+            "confidence": 0,
+            "bbox": {
+              "left": 382.0,
+              "top": 1903.0,
+              "width": 99.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "内容",
+            "confidence": 0,
+            "bbox": {
+              "left": 482.0,
+              "top": 1903.0,
+              "width": 99.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "&",
+            "confidence": 0,
+            "bbox": {
+              "left": 581.0,
+              "top": 1903.0,
+              "width": 33.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "遍",
+            "confidence": 0,
+            "bbox": {
+              "left": 614.0,
+              "top": 1903.0,
+              "width": 46.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "数",
+            "confidence": 0,
+            "bbox": {
+              "left": 661.0,
+              "top": 1903.0,
+              "width": 46.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 7,
+        "text": "Ali",
+        "bbox": {
+          "left": 0,
+          "top": 1770.0,
+          "width": 0,
+          "height": 69.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Ali",
+            "confidence": 0,
+            "bbox": {
+              "left": 1143.0,
+              "top": 1770.0,
+              "width": 117.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 8,
+        "text": "趣味讠",
+        "bbox": {
+          "left": 0,
+          "top": 1859.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "趣味",
+            "confidence": 0,
+            "bbox": {
+              "left": 1147.0,
+              "top": 1859.0,
+              "width": 98.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "讠",
+            "confidence": 0,
+            "bbox": {
+              "left": 1244.0,
+              "top": 1859.0,
+              "width": 15.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 9,
+        "text": "一）",
+        "bbox": {
+          "left": 0,
+          "top": 1895.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "一",
+            "confidence": 0,
+            "bbox": {
+              "left": 892.0,
+              "top": 1895.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "）",
+            "confidence": 0,
+            "bbox": {
+              "left": 932.0,
+              "top": 1895.0,
+              "width": 17.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 10,
+        "text": "贝売续期",
+        "bbox": {
+          "left": 0,
+          "top": 2420.0,
+          "width": 0,
+          "height": 65.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "贝売",
+            "confidence": 0,
+            "bbox": {
+              "left": 190.0,
+              "top": 2420.0,
+              "width": 120.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "续期",
+            "confidence": 0,
+            "bbox": {
+              "left": 310.0,
+              "top": 2420.0,
+              "width": 106.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 11,
+        "text": "加入会员畅享",
+        "bbox": {
+          "left": 0,
+          "top": 2420.0,
+          "width": 0,
+          "height": 66.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "加入",
+            "confidence": 0,
+            "bbox": {
+              "left": 783.0,
+              "top": 2421.0,
+              "width": 128.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "会员",
+            "confidence": 0,
+            "bbox": {
+              "left": 911.0,
+              "top": 2420.0,
+              "width": 104.0,
+              "height": 64.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "畅享",
+            "confidence": 0,
+            "bbox": {
+              "left": 1015.0,
+              "top": 2420.0,
+              "width": 112.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 12,
+        "text": "随身听已过期",
+        "bbox": {
+          "left": 0,
+          "top": 2573.0,
+          "width": 0,
+          "height": 54.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "随身听",
+            "confidence": 0,
+            "bbox": {
+              "left": 505.0,
+              "top": 2574.0,
+              "width": 130.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "已",
+            "confidence": 0,
+            "bbox": {
+              "left": 635.0,
+              "top": 2574.0,
+              "width": 39.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "过期",
+            "confidence": 0,
+            "bbox": {
+              "left": 674.0,
+              "top": 2573.0,
+              "width": 86.0,
+              "height": 53.0
+            }
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "word_number": 1,
+        "text": "04",
+        "confidence": 0,
+        "bbox": {
+          "left": 77.0,
+          "top": 57.0,
+          "width": 61.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": ":",
+        "confidence": 0,
+        "bbox": {
+          "left": 138.0,
+          "top": 57.0,
+          "width": 22.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "00",
+        "confidence": 0,
+        "bbox": {
+          "left": 160.0,
+          "top": 57.0,
+          "width": 59.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Rail",
+        "confidence": 0,
+        "bbox": {
+          "left": 945.0,
+          "top": 51.0,
+          "width": 94.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "s91l",
+        "confidence": 0,
+        "bbox": {
+          "left": 1040.0,
+          "top": 52.0,
+          "width": 76.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "93",
+        "confidence": 0,
+        "bbox": {
+          "left": 1118.0,
+          "top": 53.0,
+          "width": 77.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 489.0,
+          "top": 210.0,
+          "width": 120.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "随身听",
+        "confidence": 0,
+        "bbox": {
+          "left": 609.0,
+          "top": 210.0,
+          "width": 163.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 392.0,
+          "top": 449.0,
+          "width": 105.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "书",
+        "confidence": 0,
+        "bbox": {
+          "left": 497.0,
+          "top": 449.0,
+          "width": 63.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "•",
+        "confidence": 0,
+        "bbox": {
+          "left": 560.0,
+          "top": 449.0,
+          "width": 42.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "今日",
+        "confidence": 0,
+        "bbox": {
+          "left": 602.0,
+          "top": 449.0,
+          "width": 91.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "新词",
+        "confidence": 0,
+        "bbox": {
+          "left": 693.0,
+          "top": 449.0,
+          "width": 121.0,
+          "height": 56.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "=",
+        "confidence": 0,
+        "bbox": {
+          "left": 817.0,
+          "top": 449.0,
+          "width": 51.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "自由",
+        "confidence": 0,
+        "bbox": {
+          "left": 278.0,
+          "top": 1801.0,
+          "width": 144.0,
+          "height": 74.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "模式",
+        "confidence": 0,
+        "bbox": {
+          "left": 422.0,
+          "top": 1802.0,
+          "width": 135.0,
+          "height": 74.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "自由",
+        "confidence": 0,
+        "bbox": {
+          "left": 283.0,
+          "top": 1903.0,
+          "width": 100.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "设置",
+        "confidence": 0,
+        "bbox": {
+          "left": 382.0,
+          "top": 1903.0,
+          "width": 99.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "内容",
+        "confidence": 0,
+        "bbox": {
+          "left": 482.0,
+          "top": 1903.0,
+          "width": 99.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "&",
+        "confidence": 0,
+        "bbox": {
+          "left": 581.0,
+          "top": 1903.0,
+          "width": 33.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "遍",
+        "confidence": 0,
+        "bbox": {
+          "left": 614.0,
+          "top": 1903.0,
+          "width": 46.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "数",
+        "confidence": 0,
+        "bbox": {
+          "left": 661.0,
+          "top": 1903.0,
+          "width": 46.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Ali",
+        "confidence": 0,
+        "bbox": {
+          "left": 1143.0,
+          "top": 1770.0,
+          "width": 117.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "趣味",
+        "confidence": 0,
+        "bbox": {
+          "left": 1147.0,
+          "top": 1859.0,
+          "width": 98.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "讠",
+        "confidence": 0,
+        "bbox": {
+          "left": 1244.0,
+          "top": 1859.0,
+          "width": 15.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "一",
+        "confidence": 0,
+        "bbox": {
+          "left": 892.0,
+          "top": 1895.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "）",
+        "confidence": 0,
+        "bbox": {
+          "left": 932.0,
+          "top": 1895.0,
+          "width": 17.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "贝売",
+        "confidence": 0,
+        "bbox": {
+          "left": 190.0,
+          "top": 2420.0,
+          "width": 120.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "续期",
+        "confidence": 0,
+        "bbox": {
+          "left": 310.0,
+          "top": 2420.0,
+          "width": 106.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "加入",
+        "confidence": 0,
+        "bbox": {
+          "left": 783.0,
+          "top": 2421.0,
+          "width": 128.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "会员",
+        "confidence": 0,
+        "bbox": {
+          "left": 911.0,
+          "top": 2420.0,
+          "width": 104.0,
+          "height": 64.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "畅享",
+        "confidence": 0,
+        "bbox": {
+          "left": 1015.0,
+          "top": 2420.0,
+          "width": 112.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "随身听",
+        "confidence": 0,
+        "bbox": {
+          "left": 505.0,
+          "top": 2574.0,
+          "width": 130.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "已",
+        "confidence": 0,
+        "bbox": {
+          "left": 635.0,
+          "top": 2574.0,
+          "width": 39.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "过期",
+        "confidence": 0,
+        "bbox": {
+          "left": 674.0,
+          "top": 2573.0,
+          "width": 86.0,
+          "height": 53.0
+        }
+      }
+    ]
+  }
+}

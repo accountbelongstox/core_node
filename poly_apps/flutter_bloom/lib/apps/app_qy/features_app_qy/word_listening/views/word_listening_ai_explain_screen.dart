@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 
 class WordListeningAIExplainScreen extends StatefulWidget {
   final String word;
@@ -147,7 +149,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
           ),
           Expanded(
             child: Text(
-              'AI智能解释',
+              QyAppLocalizationKeys.qyListeningAIExplainTitle.tr(context),
               style: AppTextStyles.headline4.copyWith(
                 color: AppTheme.textPrimary,
                 fontWeight: FontWeight.bold,
@@ -190,7 +192,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
           ),
           const SizedBox(height: 24),
           Text(
-            'AI正在分析单词...',
+            QyAppLocalizationKeys.qyListeningAIAnalyzing.tr(context),
             style: AppTextStyles.bodyLarge.copyWith(
               color: AppTheme.textSecondary,
             ),
@@ -317,7 +319,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'AI智能解析',
+                    QyAppLocalizationKeys.qyListeningAIAnalysis.tr(context),
                     style: AppTextStyles.headline5.copyWith(
                       color: AppTheme.textPrimary,
                       fontWeight: FontWeight.bold,
@@ -365,7 +367,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    '词源解释',
+                    QyAppLocalizationKeys.qyListeningEtymology.tr(context),
                     style: AppTextStyles.headline5.copyWith(
                       color: AppTheme.textPrimary,
                       fontWeight: FontWeight.bold,
@@ -394,7 +396,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
         children: [
           Expanded(
             child: _buildWordList(
-              '同义词',
+              QyAppLocalizationKeys.qyListeningSynonyms.tr(context),
               _synonyms,
               Icons.compare_arrows,
               AppTheme.newColor,
@@ -403,7 +405,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
           const SizedBox(width: 16),
           Expanded(
             child: _buildWordList(
-              '反义词',
+              QyAppLocalizationKeys.qyListeningAntonyms.tr(context),
               _antonyms,
               Icons.swap_horiz,
               AppTheme.error,
@@ -485,7 +487,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    '常用搭配',
+                    QyAppLocalizationKeys.qyListeningCollocations.tr(context),
                     style: AppTextStyles.headline5.copyWith(
                       color: AppTheme.textPrimary,
                       fontWeight: FontWeight.bold,
@@ -547,7 +549,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
               ],
             ),
             child: Text(
-              '开始练习',
+              QyAppLocalizationKeys.qyListeningStartPractice.tr(context),
               style: AppTextStyles.buttonText,
               textAlign: TextAlign.center,
             ),
@@ -568,7 +570,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
               ),
             ),
             child: Text(
-              '返回学习',
+              QyAppLocalizationKeys.qyListeningBackToStudy.tr(context),
               style: AppTextStyles.buttonText.copyWith(
                 color: AppTheme.primaryGreen,
               ),
@@ -584,7 +586,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
     // Implement share functionality
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('分享功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qyListeningShareInDev.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -594,7 +596,7 @@ ${widget.word} 是一个非常常用的英语词汇，在日常交流和专业�
     // Navigate to practice screen
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('练习功能开发中...'),
+        content: Text(QyAppLocalizationKeys.qyListeningPracticeInDev.tr(context)),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );

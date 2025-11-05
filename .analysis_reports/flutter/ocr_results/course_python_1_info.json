@@ -1,0 +1,3001 @@
+{
+  "file_info": {
+    "filename": "course_python_1.jpg",
+    "filepath": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_python_1.jpg",
+    "location": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\course_python_1.jpg"
+  },
+  "ocr_result": {
+    "success": true,
+    "text": "04:02\n考研\n实用口语\nPython\n阅读\n大学生备\n数字时代硬技能\nPython 21天入门\n除了英语，再学一门未来新语言\n¥298\n大会员年卡免费\nPython 14天进阶\n高手晋级修炼\n¥199\n大会员年卡免费\nPython 数据分析\n编程赋能数据，创造高效未来\n¥198\n大会员年卡免费\n数据分析案例实战\n数据思维＋三大数据分析利器\n¥188\n大会员年卡免费\n体验区\n全年最低价。还加赠\n扇贝大会员•年卡\n畅享「单词+阅读+听力口语+考研」会员\n去开通\n单词\nD\n课程\nAl学\n发现\n我的",
+    "confidence": 0.0,
+    "provider": "FreeOCR",
+    "word_count": 37,
+    "processing_time": 2.307915210723877,
+    "lines": [
+      {
+        "line_number": 1,
+        "text": "04:02",
+        "bbox": {
+          "left": 0,
+          "top": 44.0,
+          "width": 0,
+          "height": 69.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "04",
+            "confidence": 0,
+            "bbox": {
+              "left": 73.0,
+              "top": 44.0,
+              "width": 61.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": ":",
+            "confidence": 0,
+            "bbox": {
+              "left": 133.0,
+              "top": 44.0,
+              "width": 26.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "02",
+            "confidence": 0,
+            "bbox": {
+              "left": 159.0,
+              "top": 44.0,
+              "width": 59.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 2,
+        "text": "考研",
+        "bbox": {
+          "left": 0,
+          "top": 230.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "考",
+            "confidence": 0,
+            "bbox": {
+              "left": 73.0,
+              "top": 230.0,
+              "width": 61.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "研",
+            "confidence": 0,
+            "bbox": {
+              "left": 134.0,
+              "top": 230.0,
+              "width": 48.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 3,
+        "text": "实用口语",
+        "bbox": {
+          "left": 0,
+          "top": 229.0,
+          "width": 0,
+          "height": 59.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "实用",
+            "confidence": 0,
+            "bbox": {
+              "left": 218.0,
+              "top": 229.0,
+              "width": 147.0,
+              "height": 58.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "口语",
+            "confidence": 0,
+            "bbox": {
+              "left": 365.0,
+              "top": 231.0,
+              "width": 96.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 4,
+        "text": "Python",
+        "bbox": {
+          "left": 0,
+          "top": 225.0,
+          "width": 0,
+          "height": 79.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Python",
+            "confidence": 0,
+            "bbox": {
+              "left": 513.0,
+              "top": 225.0,
+              "width": 231.0,
+              "height": 79.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 5,
+        "text": "阅读",
+        "bbox": {
+          "left": 0,
+          "top": 230.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "阅读",
+            "confidence": 0,
+            "bbox": {
+              "left": 796.0,
+              "top": 230.0,
+              "width": 121.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 6,
+        "text": "大学生备",
+        "bbox": {
+          "left": 0,
+          "top": 230.0,
+          "width": 0,
+          "height": 58.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "大学生",
+            "confidence": 0,
+            "bbox": {
+              "left": 969.0,
+              "top": 230.0,
+              "width": 175.0,
+              "height": 58.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "备",
+            "confidence": 0,
+            "bbox": {
+              "left": 1144.0,
+              "top": 231.0,
+              "width": 43.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 7,
+        "text": "数字时代硬技能",
+        "bbox": {
+          "left": 0,
+          "top": 388.0,
+          "width": 0,
+          "height": 73.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "数字",
+            "confidence": 0,
+            "bbox": {
+              "left": 69.0,
+              "top": 388.0,
+              "width": 146.0,
+              "height": 73.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "时代",
+            "confidence": 0,
+            "bbox": {
+              "left": 215.0,
+              "top": 388.0,
+              "width": 137.0,
+              "height": 73.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "硬",
+            "confidence": 0,
+            "bbox": {
+              "left": 352.0,
+              "top": 388.0,
+              "width": 73.0,
+              "height": 73.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "技能",
+            "confidence": 0,
+            "bbox": {
+              "left": 425.0,
+              "top": 388.0,
+              "width": 132.0,
+              "height": 73.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 8,
+        "text": "Python 21天入门",
+        "bbox": {
+          "left": 0,
+          "top": 558.0,
+          "width": 0,
+          "height": 77.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Python",
+            "confidence": 0,
+            "bbox": {
+              "left": 372.0,
+              "top": 558.0,
+              "width": 221.0,
+              "height": 77.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "21",
+            "confidence": 0,
+            "bbox": {
+              "left": 598.0,
+              "top": 558.0,
+              "width": 78.0,
+              "height": 76.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 676.0,
+              "top": 558.0,
+              "width": 57.0,
+              "height": 76.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "入门",
+            "confidence": 0,
+            "bbox": {
+              "left": 733.0,
+              "top": 558.0,
+              "width": 119.0,
+              "height": 77.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 9,
+        "text": "除了英语，再学一门未来新语言",
+        "bbox": {
+          "left": 0,
+          "top": 647.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "除了",
+            "confidence": 0,
+            "bbox": {
+              "left": 380.0,
+              "top": 647.0,
+              "width": 90.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "英语",
+            "confidence": 0,
+            "bbox": {
+              "left": 470.0,
+              "top": 647.0,
+              "width": 97.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "，",
+            "confidence": 0,
+            "bbox": {
+              "left": 567.0,
+              "top": 647.0,
+              "width": 37.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "再",
+            "confidence": 0,
+            "bbox": {
+              "left": 605.0,
+              "top": 647.0,
+              "width": 45.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "学",
+            "confidence": 0,
+            "bbox": {
+              "left": 650.0,
+              "top": 647.0,
+              "width": 52.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "一",
+            "confidence": 0,
+            "bbox": {
+              "left": 702.0,
+              "top": 647.0,
+              "width": 37.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "门",
+            "confidence": 0,
+            "bbox": {
+              "left": 740.0,
+              "top": 647.0,
+              "width": 52.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "未来",
+            "confidence": 0,
+            "bbox": {
+              "left": 792.0,
+              "top": 647.0,
+              "width": 82.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 9,
+            "text": "新",
+            "confidence": 0,
+            "bbox": {
+              "left": 875.0,
+              "top": 647.0,
+              "width": 52.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 10,
+            "text": "语言",
+            "confidence": 0,
+            "bbox": {
+              "left": 927.0,
+              "top": 647.0,
+              "width": 86.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 10,
+        "text": "¥298",
+        "bbox": {
+          "left": 0,
+          "top": 788.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "¥",
+            "confidence": 0,
+            "bbox": {
+              "left": 384.0,
+              "top": 788.0,
+              "width": 52.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "298",
+            "confidence": 0,
+            "bbox": {
+              "left": 436.0,
+              "top": 788.0,
+              "width": 97.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 11,
+        "text": "大会员年卡免费",
+        "bbox": {
+          "left": 0,
+          "top": 788.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "大",
+            "confidence": 0,
+            "bbox": {
+              "left": 824.0,
+              "top": 788.0,
+              "width": 52.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "会员",
+            "confidence": 0,
+            "bbox": {
+              "left": 876.0,
+              "top": 788.0,
+              "width": 91.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "年卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 967.0,
+              "top": 788.0,
+              "width": 91.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "免费",
+            "confidence": 0,
+            "bbox": {
+              "left": 1058.0,
+              "top": 788.0,
+              "width": 89.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 12,
+        "text": "Python 14天进阶",
+        "bbox": {
+          "left": 0,
+          "top": 0.0,
+          "width": 0,
+          "height": 1018.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Python",
+            "confidence": 0,
+            "bbox": {
+              "left": 376.0,
+              "top": 950.0,
+              "width": 215.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "14",
+            "confidence": 0,
+            "bbox": {
+              "left": 595.0,
+              "top": 950.0,
+              "width": 79.0,
+              "height": 68.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "天",
+            "confidence": 0,
+            "bbox": {
+              "left": 674.0,
+              "top": 950.0,
+              "width": 59.0,
+              "height": 68.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "进阶",
+            "confidence": 0,
+            "bbox": {
+              "left": 733.0,
+              "top": 950.0,
+              "width": 123.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 13,
+        "text": "高手晋级修炼",
+        "bbox": {
+          "left": 0,
+          "top": 1037.0,
+          "width": 0,
+          "height": 55.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "高手",
+            "confidence": 0,
+            "bbox": {
+              "left": 375.0,
+              "top": 1037.0,
+              "width": 98.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "晋级",
+            "confidence": 0,
+            "bbox": {
+              "left": 473.0,
+              "top": 1038.0,
+              "width": 91.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "修炼",
+            "confidence": 0,
+            "bbox": {
+              "left": 564.0,
+              "top": 1039.0,
+              "width": 91.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 14,
+        "text": "¥199",
+        "bbox": {
+          "left": 0,
+          "top": 1179.0,
+          "width": 0,
+          "height": 54.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "¥",
+            "confidence": 0,
+            "bbox": {
+              "left": 383.0,
+              "top": 1179.0,
+              "width": 59.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "199",
+            "confidence": 0,
+            "bbox": {
+              "left": 442.0,
+              "top": 1180.0,
+              "width": 91.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 15,
+        "text": "大会员年卡免费",
+        "bbox": {
+          "left": 0,
+          "top": 1180.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "大",
+            "confidence": 0,
+            "bbox": {
+              "left": 828.0,
+              "top": 1180.0,
+              "width": 52.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "会员",
+            "confidence": 0,
+            "bbox": {
+              "left": 880.0,
+              "top": 1180.0,
+              "width": 84.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "年卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 964.0,
+              "top": 1180.0,
+              "width": 91.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "免费",
+            "confidence": 0,
+            "bbox": {
+              "left": 1055.0,
+              "top": 1180.0,
+              "width": 91.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 16,
+        "text": "Python 数据分析",
+        "bbox": {
+          "left": 0,
+          "top": 1342.0,
+          "width": 0,
+          "height": 69.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Python",
+            "confidence": 0,
+            "bbox": {
+              "left": 376.0,
+              "top": 1342.0,
+              "width": 206.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "数据",
+            "confidence": 0,
+            "bbox": {
+              "left": 587.0,
+              "top": 1342.0,
+              "width": 138.0,
+              "height": 68.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "分析",
+            "confidence": 0,
+            "bbox": {
+              "left": 724.0,
+              "top": 1342.0,
+              "width": 120.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 17,
+        "text": "编程赋能数据，创造高效未来",
+        "bbox": {
+          "left": 0,
+          "top": 1430.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "编程",
+            "confidence": 0,
+            "bbox": {
+              "left": 376.0,
+              "top": 1430.0,
+              "width": 100.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "赋",
+            "confidence": 0,
+            "bbox": {
+              "left": 475.0,
+              "top": 1430.0,
+              "width": 46.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "能",
+            "confidence": 0,
+            "bbox": {
+              "left": 521.0,
+              "top": 1430.0,
+              "width": 38.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "数据",
+            "confidence": 0,
+            "bbox": {
+              "left": 559.0,
+              "top": 1430.0,
+              "width": 99.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "，",
+            "confidence": 0,
+            "bbox": {
+              "left": 658.0,
+              "top": 1430.0,
+              "width": 38.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "创造",
+            "confidence": 0,
+            "bbox": {
+              "left": 696.0,
+              "top": 1430.0,
+              "width": 92.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "高效",
+            "confidence": 0,
+            "bbox": {
+              "left": 788.0,
+              "top": 1430.0,
+              "width": 92.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "未来",
+            "confidence": 0,
+            "bbox": {
+              "left": 879.0,
+              "top": 1430.0,
+              "width": 98.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 18,
+        "text": "¥198",
+        "bbox": {
+          "left": 0,
+          "top": 1576.0,
+          "width": 0,
+          "height": 48.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "¥",
+            "confidence": 0,
+            "bbox": {
+              "left": 384.0,
+              "top": 1576.0,
+              "width": 54.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "198",
+            "confidence": 0,
+            "bbox": {
+              "left": 438.0,
+              "top": 1576.0,
+              "width": 95.0,
+              "height": 48.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 19,
+        "text": "大会员年卡免费",
+        "bbox": {
+          "left": 0,
+          "top": 1572.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "大",
+            "confidence": 0,
+            "bbox": {
+              "left": 828.0,
+              "top": 1572.0,
+              "width": 52.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "会员",
+            "confidence": 0,
+            "bbox": {
+              "left": 880.0,
+              "top": 1572.0,
+              "width": 84.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "年卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 964.0,
+              "top": 1572.0,
+              "width": 91.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "免费",
+            "confidence": 0,
+            "bbox": {
+              "left": 1055.0,
+              "top": 1572.0,
+              "width": 91.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 20,
+        "text": "数据分析案例实战",
+        "bbox": {
+          "left": 0,
+          "top": 1733.0,
+          "width": 0,
+          "height": 69.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "数据",
+            "confidence": 0,
+            "bbox": {
+              "left": 376.0,
+              "top": 1733.0,
+              "width": 130.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "分析",
+            "confidence": 0,
+            "bbox": {
+              "left": 505.0,
+              "top": 1733.0,
+              "width": 129.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "案例",
+            "confidence": 0,
+            "bbox": {
+              "left": 635.0,
+              "top": 1733.0,
+              "width": 129.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "实战",
+            "confidence": 0,
+            "bbox": {
+              "left": 764.0,
+              "top": 1733.0,
+              "width": 116.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 21,
+        "text": "数据思维＋三大数据分析利器",
+        "bbox": {
+          "left": 0,
+          "top": 1822.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "数据",
+            "confidence": 0,
+            "bbox": {
+              "left": 376.0,
+              "top": 1822.0,
+              "width": 100.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "思维",
+            "confidence": 0,
+            "bbox": {
+              "left": 476.0,
+              "top": 1822.0,
+              "width": 100.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "＋",
+            "confidence": 0,
+            "bbox": {
+              "left": 576.0,
+              "top": 1822.0,
+              "width": 36.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "三大",
+            "confidence": 0,
+            "bbox": {
+              "left": 611.0,
+              "top": 1822.0,
+              "width": 86.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "数据",
+            "confidence": 0,
+            "bbox": {
+              "left": 697.0,
+              "top": 1822.0,
+              "width": 100.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "分析",
+            "confidence": 0,
+            "bbox": {
+              "left": 796.0,
+              "top": 1822.0,
+              "width": 85.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "利器",
+            "confidence": 0,
+            "bbox": {
+              "left": 882.0,
+              "top": 1822.0,
+              "width": 95.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 22,
+        "text": "¥188",
+        "bbox": {
+          "left": 0,
+          "top": 1967.0,
+          "width": 0,
+          "height": 49.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "¥",
+            "confidence": 0,
+            "bbox": {
+              "left": 384.0,
+              "top": 1967.0,
+              "width": 54.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "188",
+            "confidence": 0,
+            "bbox": {
+              "left": 438.0,
+              "top": 1968.0,
+              "width": 96.0,
+              "height": 49.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 23,
+        "text": "大会员年卡免费",
+        "bbox": {
+          "left": 0,
+          "top": 1964.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "大",
+            "confidence": 0,
+            "bbox": {
+              "left": 828.0,
+              "top": 1964.0,
+              "width": 52.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "会员",
+            "confidence": 0,
+            "bbox": {
+              "left": 880.0,
+              "top": 1964.0,
+              "width": 84.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "年卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 964.0,
+              "top": 1964.0,
+              "width": 91.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "免费",
+            "confidence": 0,
+            "bbox": {
+              "left": 1055.0,
+              "top": 1964.0,
+              "width": 91.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 24,
+        "text": "体验区",
+        "bbox": {
+          "left": 0,
+          "top": 2166.0,
+          "width": 0,
+          "height": 73.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "体验区",
+            "confidence": 0,
+            "bbox": {
+              "left": 69.0,
+              "top": 2166.0,
+              "width": 210.0,
+              "height": 73.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 25,
+        "text": "全年最低价。还加赠",
+        "bbox": {
+          "left": 0,
+          "top": 2214.0,
+          "width": 0,
+          "height": 65.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "全年",
+            "confidence": 0,
+            "bbox": {
+              "left": 606.0,
+              "top": 2214.0,
+              "width": 114.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "最低价",
+            "confidence": 0,
+            "bbox": {
+              "left": 720.0,
+              "top": 2214.0,
+              "width": 163.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "。",
+            "confidence": 0,
+            "bbox": {
+              "left": 882.0,
+              "top": 2214.0,
+              "width": 24.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "还",
+            "confidence": 0,
+            "bbox": {
+              "left": 907.0,
+              "top": 2214.0,
+              "width": 49.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "加",
+            "confidence": 0,
+            "bbox": {
+              "left": 955.0,
+              "top": 2214.0,
+              "width": 57.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "赠",
+            "confidence": 0,
+            "bbox": {
+              "left": 1012.0,
+              "top": 2214.0,
+              "width": 46.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 26,
+        "text": "扇贝大会员•年卡",
+        "bbox": {
+          "left": 0,
+          "top": 2279.0,
+          "width": 0,
+          "height": 65.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "扇贝",
+            "confidence": 0,
+            "bbox": {
+              "left": 258.0,
+              "top": 2279.0,
+              "width": 121.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "大",
+            "confidence": 0,
+            "bbox": {
+              "left": 380.0,
+              "top": 2279.0,
+              "width": 57.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "会员",
+            "confidence": 0,
+            "bbox": {
+              "left": 437.0,
+              "top": 2279.0,
+              "width": 122.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "•",
+            "confidence": 0,
+            "bbox": {
+              "left": 559.0,
+              "top": 2279.0,
+              "width": 32.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "年卡",
+            "confidence": 0,
+            "bbox": {
+              "left": 591.0,
+              "top": 2279.0,
+              "width": 108.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 27,
+        "text": "畅享「单词+阅读+听力口语+考研」会员",
+        "bbox": {
+          "left": 0,
+          "top": 2368.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "畅享",
+            "confidence": 0,
+            "bbox": {
+              "left": 262.0,
+              "top": 2368.0,
+              "width": 91.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "「",
+            "confidence": 0,
+            "bbox": {
+              "left": 353.0,
+              "top": 2368.0,
+              "width": 19.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 372.0,
+              "top": 2368.0,
+              "width": 78.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 450.0,
+              "top": 2368.0,
+              "width": 26.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "阅读",
+            "confidence": 0,
+            "bbox": {
+              "left": 476.0,
+              "top": 2368.0,
+              "width": 84.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 561.0,
+              "top": 2368.0,
+              "width": 19.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "听力",
+            "confidence": 0,
+            "bbox": {
+              "left": 580.0,
+              "top": 2368.0,
+              "width": 84.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "口语",
+            "confidence": 0,
+            "bbox": {
+              "left": 665.0,
+              "top": 2368.0,
+              "width": 78.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 9,
+            "text": "+",
+            "confidence": 0,
+            "bbox": {
+              "left": 743.0,
+              "top": 2368.0,
+              "width": 26.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 10,
+            "text": "考研",
+            "confidence": 0,
+            "bbox": {
+              "left": 769.0,
+              "top": 2368.0,
+              "width": 84.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 11,
+            "text": "」",
+            "confidence": 0,
+            "bbox": {
+              "left": 853.0,
+              "top": 2368.0,
+              "width": 19.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 12,
+            "text": "会员",
+            "confidence": 0,
+            "bbox": {
+              "left": 873.0,
+              "top": 2368.0,
+              "width": 80.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 28,
+        "text": "去开通",
+        "bbox": {
+          "left": 0,
+          "top": 2331.0,
+          "width": 0,
+          "height": 45.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "去",
+            "confidence": 0,
+            "bbox": {
+              "left": 1014.0,
+              "top": 2331.0,
+              "width": 45.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "开通",
+            "confidence": 0,
+            "bbox": {
+              "left": 1059.0,
+              "top": 2331.0,
+              "width": 80.0,
+              "height": 45.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 29,
+        "text": "单词",
+        "bbox": {
+          "left": 0,
+          "top": 2655.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 89.0,
+              "top": 2655.0,
+              "width": 77.0,
+              "height": 44.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 30,
+        "text": "D",
+        "bbox": {
+          "left": 0,
+          "top": 2574.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "D",
+            "confidence": 0,
+            "bbox": {
+              "left": 343.0,
+              "top": 2574.0,
+              "width": 69.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 31,
+        "text": "课程",
+        "bbox": {
+          "left": 0,
+          "top": 2659.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "课程",
+            "confidence": 0,
+            "bbox": {
+              "left": 339.0,
+              "top": 2659.0,
+              "width": 77.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 32,
+        "text": "Al学",
+        "bbox": {
+          "left": 0,
+          "top": 2659.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Al",
+            "confidence": 0,
+            "bbox": {
+              "left": 594.0,
+              "top": 2659.0,
+              "width": 40.0,
+              "height": 40.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "学",
+            "confidence": 0,
+            "bbox": {
+              "left": 634.0,
+              "top": 2659.0,
+              "width": 32.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 33,
+        "text": "发现",
+        "bbox": {
+          "left": 0,
+          "top": 2655.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "发现",
+            "confidence": 0,
+            "bbox": {
+              "left": 848.0,
+              "top": 2655.0,
+              "width": 77.0,
+              "height": 44.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 34,
+        "text": "我的",
+        "bbox": {
+          "left": 0,
+          "top": 2655.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "我",
+            "confidence": 0,
+            "bbox": {
+              "left": 1098.0,
+              "top": 2655.0,
+              "width": 44.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "的",
+            "confidence": 0,
+            "bbox": {
+              "left": 1142.0,
+              "top": 2655.0,
+              "width": 33.0,
+              "height": 44.0
+            }
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "word_number": 1,
+        "text": "04",
+        "confidence": 0,
+        "bbox": {
+          "left": 73.0,
+          "top": 44.0,
+          "width": 61.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": ":",
+        "confidence": 0,
+        "bbox": {
+          "left": 133.0,
+          "top": 44.0,
+          "width": 26.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "02",
+        "confidence": 0,
+        "bbox": {
+          "left": 159.0,
+          "top": 44.0,
+          "width": 59.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "考",
+        "confidence": 0,
+        "bbox": {
+          "left": 73.0,
+          "top": 230.0,
+          "width": 61.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "研",
+        "confidence": 0,
+        "bbox": {
+          "left": 134.0,
+          "top": 230.0,
+          "width": 48.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "实用",
+        "confidence": 0,
+        "bbox": {
+          "left": 218.0,
+          "top": 229.0,
+          "width": 147.0,
+          "height": 58.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "口语",
+        "confidence": 0,
+        "bbox": {
+          "left": 365.0,
+          "top": 231.0,
+          "width": 96.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Python",
+        "confidence": 0,
+        "bbox": {
+          "left": 513.0,
+          "top": 225.0,
+          "width": 231.0,
+          "height": 79.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "阅读",
+        "confidence": 0,
+        "bbox": {
+          "left": 796.0,
+          "top": 230.0,
+          "width": 121.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "大学生",
+        "confidence": 0,
+        "bbox": {
+          "left": 969.0,
+          "top": 230.0,
+          "width": 175.0,
+          "height": 58.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "备",
+        "confidence": 0,
+        "bbox": {
+          "left": 1144.0,
+          "top": 231.0,
+          "width": 43.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "数字",
+        "confidence": 0,
+        "bbox": {
+          "left": 69.0,
+          "top": 388.0,
+          "width": 146.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "时代",
+        "confidence": 0,
+        "bbox": {
+          "left": 215.0,
+          "top": 388.0,
+          "width": 137.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "硬",
+        "confidence": 0,
+        "bbox": {
+          "left": 352.0,
+          "top": 388.0,
+          "width": 73.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "技能",
+        "confidence": 0,
+        "bbox": {
+          "left": 425.0,
+          "top": 388.0,
+          "width": 132.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Python",
+        "confidence": 0,
+        "bbox": {
+          "left": 372.0,
+          "top": 558.0,
+          "width": 221.0,
+          "height": 77.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "21",
+        "confidence": 0,
+        "bbox": {
+          "left": 598.0,
+          "top": 558.0,
+          "width": 78.0,
+          "height": 76.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 676.0,
+          "top": 558.0,
+          "width": 57.0,
+          "height": 76.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "入门",
+        "confidence": 0,
+        "bbox": {
+          "left": 733.0,
+          "top": 558.0,
+          "width": 119.0,
+          "height": 77.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "除了",
+        "confidence": 0,
+        "bbox": {
+          "left": 380.0,
+          "top": 647.0,
+          "width": 90.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "英语",
+        "confidence": 0,
+        "bbox": {
+          "left": 470.0,
+          "top": 647.0,
+          "width": 97.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "，",
+        "confidence": 0,
+        "bbox": {
+          "left": 567.0,
+          "top": 647.0,
+          "width": 37.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "再",
+        "confidence": 0,
+        "bbox": {
+          "left": 605.0,
+          "top": 647.0,
+          "width": 45.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "学",
+        "confidence": 0,
+        "bbox": {
+          "left": 650.0,
+          "top": 647.0,
+          "width": 52.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "一",
+        "confidence": 0,
+        "bbox": {
+          "left": 702.0,
+          "top": 647.0,
+          "width": 37.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "门",
+        "confidence": 0,
+        "bbox": {
+          "left": 740.0,
+          "top": 647.0,
+          "width": 52.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "未来",
+        "confidence": 0,
+        "bbox": {
+          "left": 792.0,
+          "top": 647.0,
+          "width": 82.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 9,
+        "text": "新",
+        "confidence": 0,
+        "bbox": {
+          "left": 875.0,
+          "top": 647.0,
+          "width": 52.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 10,
+        "text": "语言",
+        "confidence": 0,
+        "bbox": {
+          "left": 927.0,
+          "top": 647.0,
+          "width": 86.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "¥",
+        "confidence": 0,
+        "bbox": {
+          "left": 384.0,
+          "top": 788.0,
+          "width": 52.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "298",
+        "confidence": 0,
+        "bbox": {
+          "left": 436.0,
+          "top": 788.0,
+          "width": 97.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "大",
+        "confidence": 0,
+        "bbox": {
+          "left": 824.0,
+          "top": 788.0,
+          "width": 52.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "会员",
+        "confidence": 0,
+        "bbox": {
+          "left": 876.0,
+          "top": 788.0,
+          "width": 91.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "年卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 967.0,
+          "top": 788.0,
+          "width": 91.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "免费",
+        "confidence": 0,
+        "bbox": {
+          "left": 1058.0,
+          "top": 788.0,
+          "width": 89.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Python",
+        "confidence": 0,
+        "bbox": {
+          "left": 376.0,
+          "top": 950.0,
+          "width": 215.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "14",
+        "confidence": 0,
+        "bbox": {
+          "left": 595.0,
+          "top": 950.0,
+          "width": 79.0,
+          "height": 68.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "天",
+        "confidence": 0,
+        "bbox": {
+          "left": 674.0,
+          "top": 950.0,
+          "width": 59.0,
+          "height": 68.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "进阶",
+        "confidence": 0,
+        "bbox": {
+          "left": 733.0,
+          "top": 950.0,
+          "width": 123.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "高手",
+        "confidence": 0,
+        "bbox": {
+          "left": 375.0,
+          "top": 1037.0,
+          "width": 98.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "晋级",
+        "confidence": 0,
+        "bbox": {
+          "left": 473.0,
+          "top": 1038.0,
+          "width": 91.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "修炼",
+        "confidence": 0,
+        "bbox": {
+          "left": 564.0,
+          "top": 1039.0,
+          "width": 91.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "¥",
+        "confidence": 0,
+        "bbox": {
+          "left": 383.0,
+          "top": 1179.0,
+          "width": 59.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "199",
+        "confidence": 0,
+        "bbox": {
+          "left": 442.0,
+          "top": 1180.0,
+          "width": 91.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "大",
+        "confidence": 0,
+        "bbox": {
+          "left": 828.0,
+          "top": 1180.0,
+          "width": 52.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "会员",
+        "confidence": 0,
+        "bbox": {
+          "left": 880.0,
+          "top": 1180.0,
+          "width": 84.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "年卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 964.0,
+          "top": 1180.0,
+          "width": 91.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "免费",
+        "confidence": 0,
+        "bbox": {
+          "left": 1055.0,
+          "top": 1180.0,
+          "width": 91.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Python",
+        "confidence": 0,
+        "bbox": {
+          "left": 376.0,
+          "top": 1342.0,
+          "width": 206.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "数据",
+        "confidence": 0,
+        "bbox": {
+          "left": 587.0,
+          "top": 1342.0,
+          "width": 138.0,
+          "height": 68.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "分析",
+        "confidence": 0,
+        "bbox": {
+          "left": 724.0,
+          "top": 1342.0,
+          "width": 120.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "编程",
+        "confidence": 0,
+        "bbox": {
+          "left": 376.0,
+          "top": 1430.0,
+          "width": 100.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "赋",
+        "confidence": 0,
+        "bbox": {
+          "left": 475.0,
+          "top": 1430.0,
+          "width": 46.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "能",
+        "confidence": 0,
+        "bbox": {
+          "left": 521.0,
+          "top": 1430.0,
+          "width": 38.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "数据",
+        "confidence": 0,
+        "bbox": {
+          "left": 559.0,
+          "top": 1430.0,
+          "width": 99.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "，",
+        "confidence": 0,
+        "bbox": {
+          "left": 658.0,
+          "top": 1430.0,
+          "width": 38.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "创造",
+        "confidence": 0,
+        "bbox": {
+          "left": 696.0,
+          "top": 1430.0,
+          "width": 92.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "高效",
+        "confidence": 0,
+        "bbox": {
+          "left": 788.0,
+          "top": 1430.0,
+          "width": 92.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "未来",
+        "confidence": 0,
+        "bbox": {
+          "left": 879.0,
+          "top": 1430.0,
+          "width": 98.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "¥",
+        "confidence": 0,
+        "bbox": {
+          "left": 384.0,
+          "top": 1576.0,
+          "width": 54.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "198",
+        "confidence": 0,
+        "bbox": {
+          "left": 438.0,
+          "top": 1576.0,
+          "width": 95.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "大",
+        "confidence": 0,
+        "bbox": {
+          "left": 828.0,
+          "top": 1572.0,
+          "width": 52.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "会员",
+        "confidence": 0,
+        "bbox": {
+          "left": 880.0,
+          "top": 1572.0,
+          "width": 84.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "年卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 964.0,
+          "top": 1572.0,
+          "width": 91.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "免费",
+        "confidence": 0,
+        "bbox": {
+          "left": 1055.0,
+          "top": 1572.0,
+          "width": 91.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "数据",
+        "confidence": 0,
+        "bbox": {
+          "left": 376.0,
+          "top": 1733.0,
+          "width": 130.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "分析",
+        "confidence": 0,
+        "bbox": {
+          "left": 505.0,
+          "top": 1733.0,
+          "width": 129.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "案例",
+        "confidence": 0,
+        "bbox": {
+          "left": 635.0,
+          "top": 1733.0,
+          "width": 129.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "实战",
+        "confidence": 0,
+        "bbox": {
+          "left": 764.0,
+          "top": 1733.0,
+          "width": 116.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "数据",
+        "confidence": 0,
+        "bbox": {
+          "left": 376.0,
+          "top": 1822.0,
+          "width": 100.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "思维",
+        "confidence": 0,
+        "bbox": {
+          "left": 476.0,
+          "top": 1822.0,
+          "width": 100.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "＋",
+        "confidence": 0,
+        "bbox": {
+          "left": 576.0,
+          "top": 1822.0,
+          "width": 36.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "三大",
+        "confidence": 0,
+        "bbox": {
+          "left": 611.0,
+          "top": 1822.0,
+          "width": 86.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "数据",
+        "confidence": 0,
+        "bbox": {
+          "left": 697.0,
+          "top": 1822.0,
+          "width": 100.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "分析",
+        "confidence": 0,
+        "bbox": {
+          "left": 796.0,
+          "top": 1822.0,
+          "width": 85.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "利器",
+        "confidence": 0,
+        "bbox": {
+          "left": 882.0,
+          "top": 1822.0,
+          "width": 95.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "¥",
+        "confidence": 0,
+        "bbox": {
+          "left": 384.0,
+          "top": 1967.0,
+          "width": 54.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "188",
+        "confidence": 0,
+        "bbox": {
+          "left": 438.0,
+          "top": 1968.0,
+          "width": 96.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "大",
+        "confidence": 0,
+        "bbox": {
+          "left": 828.0,
+          "top": 1964.0,
+          "width": 52.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "会员",
+        "confidence": 0,
+        "bbox": {
+          "left": 880.0,
+          "top": 1964.0,
+          "width": 84.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "年卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 964.0,
+          "top": 1964.0,
+          "width": 91.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "免费",
+        "confidence": 0,
+        "bbox": {
+          "left": 1055.0,
+          "top": 1964.0,
+          "width": 91.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "体验区",
+        "confidence": 0,
+        "bbox": {
+          "left": 69.0,
+          "top": 2166.0,
+          "width": 210.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "全年",
+        "confidence": 0,
+        "bbox": {
+          "left": 606.0,
+          "top": 2214.0,
+          "width": 114.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "最低价",
+        "confidence": 0,
+        "bbox": {
+          "left": 720.0,
+          "top": 2214.0,
+          "width": 163.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "。",
+        "confidence": 0,
+        "bbox": {
+          "left": 882.0,
+          "top": 2214.0,
+          "width": 24.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "还",
+        "confidence": 0,
+        "bbox": {
+          "left": 907.0,
+          "top": 2214.0,
+          "width": 49.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "加",
+        "confidence": 0,
+        "bbox": {
+          "left": 955.0,
+          "top": 2214.0,
+          "width": 57.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "赠",
+        "confidence": 0,
+        "bbox": {
+          "left": 1012.0,
+          "top": 2214.0,
+          "width": 46.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "扇贝",
+        "confidence": 0,
+        "bbox": {
+          "left": 258.0,
+          "top": 2279.0,
+          "width": 121.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "大",
+        "confidence": 0,
+        "bbox": {
+          "left": 380.0,
+          "top": 2279.0,
+          "width": 57.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "会员",
+        "confidence": 0,
+        "bbox": {
+          "left": 437.0,
+          "top": 2279.0,
+          "width": 122.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "•",
+        "confidence": 0,
+        "bbox": {
+          "left": 559.0,
+          "top": 2279.0,
+          "width": 32.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "年卡",
+        "confidence": 0,
+        "bbox": {
+          "left": 591.0,
+          "top": 2279.0,
+          "width": 108.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "畅享",
+        "confidence": 0,
+        "bbox": {
+          "left": 262.0,
+          "top": 2368.0,
+          "width": 91.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "「",
+        "confidence": 0,
+        "bbox": {
+          "left": 353.0,
+          "top": 2368.0,
+          "width": 19.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 372.0,
+          "top": 2368.0,
+          "width": 78.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 450.0,
+          "top": 2368.0,
+          "width": 26.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "阅读",
+        "confidence": 0,
+        "bbox": {
+          "left": 476.0,
+          "top": 2368.0,
+          "width": 84.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 561.0,
+          "top": 2368.0,
+          "width": 19.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "听力",
+        "confidence": 0,
+        "bbox": {
+          "left": 580.0,
+          "top": 2368.0,
+          "width": 84.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "口语",
+        "confidence": 0,
+        "bbox": {
+          "left": 665.0,
+          "top": 2368.0,
+          "width": 78.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 9,
+        "text": "+",
+        "confidence": 0,
+        "bbox": {
+          "left": 743.0,
+          "top": 2368.0,
+          "width": 26.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 10,
+        "text": "考研",
+        "confidence": 0,
+        "bbox": {
+          "left": 769.0,
+          "top": 2368.0,
+          "width": 84.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 11,
+        "text": "」",
+        "confidence": 0,
+        "bbox": {
+          "left": 853.0,
+          "top": 2368.0,
+          "width": 19.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 12,
+        "text": "会员",
+        "confidence": 0,
+        "bbox": {
+          "left": 873.0,
+          "top": 2368.0,
+          "width": 80.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "去",
+        "confidence": 0,
+        "bbox": {
+          "left": 1014.0,
+          "top": 2331.0,
+          "width": 45.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "开通",
+        "confidence": 0,
+        "bbox": {
+          "left": 1059.0,
+          "top": 2331.0,
+          "width": 80.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 89.0,
+          "top": 2655.0,
+          "width": 77.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "D",
+        "confidence": 0,
+        "bbox": {
+          "left": 343.0,
+          "top": 2574.0,
+          "width": 69.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "课程",
+        "confidence": 0,
+        "bbox": {
+          "left": 339.0,
+          "top": 2659.0,
+          "width": 77.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Al",
+        "confidence": 0,
+        "bbox": {
+          "left": 594.0,
+          "top": 2659.0,
+          "width": 40.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "学",
+        "confidence": 0,
+        "bbox": {
+          "left": 634.0,
+          "top": 2659.0,
+          "width": 32.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "发现",
+        "confidence": 0,
+        "bbox": {
+          "left": 848.0,
+          "top": 2655.0,
+          "width": 77.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "我",
+        "confidence": 0,
+        "bbox": {
+          "left": 1098.0,
+          "top": 2655.0,
+          "width": 44.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "的",
+        "confidence": 0,
+        "bbox": {
+          "left": 1142.0,
+          "top": 2655.0,
+          "width": 33.0,
+          "height": 44.0
+        }
+      }
+    ]
+  }
+}

@@ -2,10 +2,11 @@
 library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/glassmorphism_card.dart';
 import '../../../../../../common/widgets/gradient_button.dart';
+import '../../../localization_app_qy/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import 'widgets/category_list.dart';
 import 'widgets/playback_controls.dart';
 import 'widgets/current_word_card.dart';
@@ -102,7 +103,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
           ),
           Expanded(
             child: Text(
-              'wordListening.title'.tr,
+              QyAppLocalizationKeys.qyListeningTitle.tr(context),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -159,7 +160,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
           Expanded(
             child: _buildStatItem(
               Icons.headphones,
-              'wordListening.currentProgress'.tr,
+              QyAppLocalizationKeys.qyListeningCurrentProgress.tr(context),
               '${_currentIndex + 1}/${_currentWords.length}',
               AppTheme.primaryGreen,
             ),
@@ -172,7 +173,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
           Expanded(
             child: _buildStatItem(
               Icons.speed,
-              'wordListening.speed'.tr,
+              QyAppLocalizationKeys.qyListeningSpeed.tr(context),
               '${_playbackSpeed}x',
               AppTheme.secondaryGreen,
             ),
@@ -185,8 +186,8 @@ class _WordListeningScreenState extends State<WordListeningScreen>
           Expanded(
             child: _buildStatItem(
               Icons.loop,
-              'wordListening.loop'.tr,
-              _isLooping ? '开启' : '关闭',
+              QyAppLocalizationKeys.qyListeningLoop.tr(context),
+              _isLooping ? QyAppLocalizationKeys.qyListeningOn.tr(context) : QyAppLocalizationKeys.qyListeningOff.tr(context),
               _isLooping ? AppTheme.accentGreen : Colors.grey,
             ),
           ),
@@ -411,7 +412,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
     // TODO: Implement audio playback
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${'wordListening.playing'.tr}: ${_currentWords[_currentIndex].word}'),
+        content: Text('${QyAppLocalizationKeys.qyListeningPlaying.tr(context)}: ${_currentWords[_currentIndex].word}'),
         backgroundColor: AppTheme.primaryGreen,
       ),
     );
@@ -421,7 +422,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
     // TODO: Implement audio pause
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('wordListening.paused'.tr),
+        content: Text(QyAppLocalizationKeys.qyListeningPaused.tr(context)),
         backgroundColor: Colors.orange,
       ),
     );
@@ -445,7 +446,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
                   children: [
                     Expanded(
                       child: Text(
-                        '播放列表',
+                        QyAppLocalizationKeys.qyListeningPlaylist.tr(context),
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -520,7 +521,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'wordListening.playMode'.tr,
+                QyAppLocalizationKeys.qyListeningPlayMode.tr(context),
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -530,7 +531,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
               const SizedBox(height: 16),
               ListTile(
                 leading: Icon(Icons.speed, color: AppTheme.primaryGreen),
-                title: Text('wordListening.speed'.tr),
+                title: Text(QyAppLocalizationKeys.qyListeningSpeed.tr(context)),
                 trailing: DropdownButton<double>(
                   value: _playbackSpeed,
                   items: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
@@ -553,7 +554,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
                   _toggleLoop();
                   Navigator.of(context).pop();
                 },
-                title: Text('wordListening.loop'.tr),
+                title: Text(QyAppLocalizationKeys.qyListeningLoop.tr(context)),
                 secondary: Icon(
                   Icons.loop,
                   color: _isLooping ? AppTheme.accentGreen : Colors.grey,
@@ -565,7 +566,7 @@ class _WordListeningScreenState extends State<WordListeningScreen>
                   _toggleShuffle();
                   Navigator.of(context).pop();
                 },
-                title: Text('wordListening.shufflePlay'.tr),
+                title: Text(QyAppLocalizationKeys.qyListeningShufflePlay.tr(context)),
                 secondary: Icon(
                   Icons.shuffle,
                   color: _isShuffling ? AppTheme.primaryGreen : Colors.grey,

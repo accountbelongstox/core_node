@@ -120,7 +120,9 @@ async function startServerWithSubApps() {
     console.log('Step 4: Create RPC Server');
     console.log('-------------------------');
 
-    const rpcServer = rpc.createHttpServer(server.getApp());
+    const rpcServer = rpc.createHttpServer(server.getApp(), {
+        auth: { enabled: false }
+    });
 
     rpcServer.route('coreFunction', async (params) => {
         console.log('  → Core RPC route called');
@@ -174,16 +176,11 @@ async function testSubAppClients() {
 
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    const client = rpc.createClient('http://localhost:8080/rpc', {
-        clientId: 'subapp-test-client',
-        httpFallback: true
+    const client = rpc.createHttpClient('http://localhost:8080/rpc', {
+        clientId: 'subapp-test-client'
     });
 
-    client.on('connected', (data) => {
-        console.log(`✓ Client connected via ${data.mode}\n`);
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log(`✓ Client connected via HTTP\n`);
 
     console.log('Test 1: Call UserModule.getUser');
     console.log('--------------------------------');

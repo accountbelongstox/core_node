@@ -40,11 +40,11 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
-      _showError('Please select start and end dates');
+      _showError(context.tr(LocalizationKeysAppCodemart.codemartSelectStartEndDates));
       return;
     }
     if (_skills.isEmpty) {
-      _showError('Please add at least one skill');
+      _showError(context.tr(LocalizationKeysAppCodemart.codemartAddAtLeastOneSkill));
       return;
     }
 
@@ -84,7 +84,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
         );
         RouterAppCodemart.goToProjectDetails(context, projectId);
       } else {
-        _showError(response.message ?? 'Failed to create project');
+        _showError(response.message ?? context.tr(LocalizationKeysAppCodemart.codemartFailedCreateProject));
       }
     } catch (e) {
       _showError('Error: $e');
@@ -128,12 +128,12 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Skill'),
+        title: Text(context.tr(LocalizationKeysAppCodemart.codemartAddSkill)),
         content: TextField(
           controller: skillController,
-          decoration: const InputDecoration(
-            labelText: 'Skill name',
-            hintText: 'e.g., Flutter, Python, Node.js',
+          decoration: InputDecoration(
+            labelText: context.tr(LocalizationKeysAppCodemart.codemartSkillName),
+            hintText: context.tr(LocalizationKeysAppCodemart.codemartSkillPlaceholder),
           ),
         ),
         actions: [
@@ -150,7 +150,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
                 Navigator.pop(context);
               }
             },
-            child: const Text('Add'),
+            child: Text(context.tr(LocalizationKeysAppCodemart.codemartAdd)),
           ),
         ],
       ),
@@ -171,7 +171,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
         });
       }
     } catch (e) {
-      _showError('Error picking files: $e');
+      _showError(context.tr(LocalizationKeysAppCodemart.codemartErrorPickingFiles));
     }
   }
 
@@ -225,7 +225,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter project title';
+                  return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterProjectTitle);
                 }
                 return null;
               },
@@ -243,7 +243,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter project description';
+                  return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterProjectDescription);
                 }
                 return null;
               },
@@ -260,10 +260,10 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter budget';
+                  return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterBudget);
                 }
                 if (double.tryParse(value) == null) {
-                  return 'Please enter valid number';
+                  return context.tr(LocalizationKeysAppCodemart.codemartPleaseEnterValidNumber);
                 }
                 return null;
               },
@@ -273,9 +273,9 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
             // Budget Type
             DropdownButtonFormField<BudgetType>(
               value: _budgetType,
-              decoration: const InputDecoration(
-                labelText: 'Budget Type',
-                prefixIcon: Icon(Icons.payments),
+              decoration: InputDecoration(
+                labelText: context.tr(LocalizationKeysAppCodemart.codemartBudgetType),
+                prefixIcon: const Icon(Icons.payments),
               ),
               items: BudgetType.values.map((type) {
                 return DropdownMenuItem(
@@ -316,7 +316,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
             ListTile(
               leading: const Icon(Icons.calendar_today),
               title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjectStartDate)),
-              subtitle: Text(_startDate?.toString().split(' ')[0] ?? 'Not selected'),
+              subtitle: Text(_startDate?.toString().split(' ')[0] ?? context.tr(LocalizationKeysAppCodemart.codemartNotSelected)),
               onTap: () => _selectDate(context, true),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -329,7 +329,7 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
             ListTile(
               leading: const Icon(Icons.event),
               title: Text(context.tr(LocalizationKeysAppCodemart.codemartProjectEndDate)),
-              subtitle: Text(_endDate?.toString().split(' ')[0] ?? 'Not selected'),
+              subtitle: Text(_endDate?.toString().split(' ')[0] ?? context.tr(LocalizationKeysAppCodemart.codemartNotSelected)),
               onTap: () => _selectDate(context, false),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -349,13 +349,13 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
                 FilledButton.icon(
                   onPressed: _showAddSkillDialog,
                   icon: const Icon(Icons.add),
-                  label: const Text('Add Skill'),
+                  label: Text(context.tr(LocalizationKeysAppCodemart.codemartAddSkill)),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             if (_skills.isEmpty)
-              const Text('No skills added yet', style: TextStyle(color: Colors.grey))
+              Text(context.tr(LocalizationKeysAppCodemart.codemartNoSkillsAdded), style: const TextStyle(color: Colors.grey))
             else
               Wrap(
                 spacing: 8,
@@ -376,21 +376,21 @@ class _CreateProjectViewAppCodemartState extends State<CreateProjectViewAppCodem
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Attachments (Optional)',
+                  context.tr(LocalizationKeysAppCodemart.codemartAttachmentsOptional),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 OutlinedButton.icon(
                   onPressed: _pickFiles,
                   icon: const Icon(Icons.attach_file),
-                  label: const Text('Add Files'),
+                  label: Text(context.tr(LocalizationKeysAppCodemart.codemartAddFiles)),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             if (_attachedFiles.isEmpty)
-              const Text(
-                'Attach project documents, designs, or specifications (PDF, DOC, XLS, etc.)',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
+              Text(
+                context.tr(LocalizationKeysAppCodemart.codemartAttachDocumentsHint),
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
               )
             else
               Card(

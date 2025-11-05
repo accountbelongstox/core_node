@@ -20,6 +20,7 @@ const CoreNodeInitPlugin = require('./controller/CoreNodeInitPlugin');
 const config = require('./config');
 const ElectronMCPController = require('./controller/ElectronMCPController');
 const ITToolsIntegrationController = require('./controller/ITToolsIntegrationController');
+const TranslationController = require('./controller/TranslationController');
 
 const singletonBrowser = getSingletonBrowser();
 const frontendLauncher = getFrontendLauncher({
@@ -31,6 +32,7 @@ const itTools = getItTools();
 let downloadPlugin = null;
 let electronController = null;
 let itToolsController = null;
+let translationController = null;
 
 class CoreNodeInitMCPServer {
     constructor() {
@@ -312,6 +314,19 @@ class CoreNodeInitMCPServer {
                     enableWebSocket: true
                 });
 
+                // Initialize Translation Controller
+                try {
+                    translationController = new TranslationController();
+                    await translationController.initialize();
+
+                    // Register translation controller with integration controller
+                    itToolsController.registerSubAppController('translation', translationController);
+                    logger.info('Translation controller registered successfully');
+                } catch (translationError) {
+                    logger.warn(`Translation initialization warning: ${translationError.message}`);
+                    logger.info('MCP server continuing without translation features');
+                }
+
                 // Start HTTP and WebSocket servers
                 const serverResult = await itToolsController.startServers();
 
@@ -329,12 +344,18 @@ class CoreNodeInitMCPServer {
                 logger.info('MCP server continuing without ITTools HTTP API');
             }
 
-            // Initialize Electron integration
+            // Initialize Electron integration (optional)
             try {
                 electronController = new ElectronMCPController();
                 await electronController.initialize();
-                logger.info('Electron integration initialized successfully');
-                logger.info('System tray and desktop features are available');
+
+                if (electronController.initialized && electronController.electronManager?.electron) {
+                    logger.info('Electron integration initialized successfully');
+                    logger.info('System tray and desktop features are available');
+                } else {
+                    logger.info('Electron is disabled or not available');
+                    logger.info('MCP server running without Electron desktop features');
+                }
             } catch (electronError) {
                 logger.warn(`Electron initialization warning: ${electronError.message}`);
                 logger.info('MCP server continuing without Electron desktop features');
@@ -873,6 +894,11 @@ class CoreNodeInitMCPServer {
             // Clean up Electron controller
             if (electronController) {
                 await electronController.shutdown();
+            }
+
+            // Clean up Translation controller
+            if (translationController) {
+                await translationController.shutdown();
             }
 
             // Stop frontend if running

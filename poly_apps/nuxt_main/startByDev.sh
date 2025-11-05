@@ -21,44 +21,43 @@ YELLOW="\033[33m"
 CYAN="\033[36m"
 RESET="\033[0m"
 
-# Function to install yarn globally if not present
-install_yarn() {
-    echo -e "${YELLOW}Yarn not found. Installing yarn globally...${RESET}"
-    
+# Function to install pnpm globally if not present
+install_pnpm() {
+    echo -e "${YELLOW}pnpm not found. Installing pnpm globally...${RESET}"
+
     # Check if npm is available
     if ! command -v npm &> /dev/null; then
         echo -e "${RED}Error: npm is not installed. Please install Node.js first.${RESET}"
         exit 1
     fi
-    
-    # Install yarn globally
-    echo -e "${CYAN}Installing yarn globally using npm...${RESET}"
-    npm install -g yarn
-    
+
+    # Install pnpm globally
+    echo -e "${CYAN}Installing pnpm globally using npm...${RESET}"
+    npm install -g pnpm
+
     if [ $? -ne 0 ]; then
-        echo -e "${RED}Failed to install yarn globally. Please check your npm configuration or run 'npm install -g yarn' manually.${RESET}"
+        echo -e "${RED}Failed to install pnpm globally. Please check your npm configuration or run 'npm install -g pnpm' manually.${RESET}"
         exit 1
     fi
-    
-    echo -e "${GREEN}Yarn installed successfully!${RESET}"
+
+    echo -e "${GREEN}pnpm installed successfully!${RESET}"
 }
 
 # Check if node_modules directory exists
 if [ ! -d "node_modules" ]; then
     echo "No node_modules directory detected, installing dependencies..."
     
-    # Check if yarn is installed
-    if command -v yarn &> /dev/null; then
-        echo -e "${CYAN}Using yarn to install dependencies...${RESET}"
-        yarn install
-        yarn install         2
+    # Check if pnpm is installed
+    if command -v pnpm &> /dev/null; then
+        echo -e "${CYAN}Using pnpm to install dependencies...${RESET}"
+        pnpm install
     else
-        # Install yarn if not present
-        install_yarn
-        
-        # Now use yarn to install dependencies
-        echo -e "${CYAN}Using yarn to install dependencies...${RESET}"
-        yarn install
+        # Install pnpm if not present
+        install_pnpm
+
+        # Now use pnpm to install dependencies
+        echo -e "${CYAN}Using pnpm to install dependencies...${RESET}"
+        pnpm install
     fi
 
     if [ $? -ne 0 ]; then
@@ -103,15 +102,13 @@ echo -e "${YELLOW}http://localhost:5173${RESET}"
 # Start development server
 echo -e "\n${GREEN}Starting development server...${RESET}"
 
-# Check if yarn is installed (shoul
-
-d be available now after installation)
-if command -v yarn &> /dev/null; then
-    echo -e "${CYAN}Using command: yarn dev -- --host=0.0.0.0${RESET}"
-    yarn dev -- --host=0.0.0.0
+# Check if pnpm is installed (should be available now after installation)
+if command -v pnpm &> /dev/null; then
+    echo -e "${CYAN}Using command: pnpm dev -- --host=0.0.0.0${RESET}"
+    pnpm dev -- --host=0.0.0.0
 else
-    # Fallback to npm if yarn installation failed
-    echo -e "${YELLOW}Yarn not available, falling back to npm...${RESET}"
+    # Fallback to npm if pnpm installation failed
+    echo -e "${YELLOW}pnpm not available, falling back to npm...${RESET}"
     echo -e "${CYAN}Using command: npm run dev -- --host=0.0.0.0${RESET}"
     npm run dev -- --host=0.0.0.0
 fi

@@ -135,6 +135,18 @@ class LocalizationKeysAppCodemart {
   static const String codemartSkillName = 'codemart_skill_name';
   static const String codemartSkillPlaceholder = 'codemart_skill_placeholder';
   static const String codemartErrorPickingFiles = 'codemart_error_picking_files';
+  static const String codemartPleaseEnterProjectTitle = 'codemart_please_enter_project_title';
+  static const String codemartPleaseEnterProjectDescription = 'codemart_please_enter_project_description';
+  static const String codemartPleaseEnterBudget = 'codemart_please_enter_budget';
+  static const String codemartPleaseEnterValidNumber = 'codemart_please_enter_valid_number';
+  static const String codemartBudgetType = 'codemart_budget_type';
+  static const String codemartNotSelected = 'codemart_not_selected';
+  static const String codemartNoSkillsAdded = 'codemart_no_skills_added';
+  static const String codemartAttachmentsOptional = 'codemart_attachments_optional';
+  static const String codemartAddFiles = 'codemart_add_files';
+  static const String codemartAttachDocumentsHint = 'codemart_attach_documents_hint';
+  static const String codemartBudget = 'codemart_budget';
+  static const String codemartComplexity = 'codemart_complexity';
 
   // Tasks
   static const String codemartFailedLoadTasks = 'codemart_failed_load_tasks';

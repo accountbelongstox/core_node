@@ -42,63 +42,75 @@ class HomeRecommend extends StatelessWidget {
     ];
   }
 
-  Widget _buildRecommendCard(BuildContext context, Map<String, dynamic> card, double cardWidth) {
+  Widget _buildRecommendCard(BuildContext context, Map<String, dynamic> card) {
+    const iconSize = 86.4;
     return Container(
-      width: cardWidth,
-      margin: const EdgeInsets.only(right: 20.0),
-      child: Container(
-        width: cardWidth,
-        height: cardWidth,
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(12.0),
-        ),
-        padding: EdgeInsets.only(top: cardWidth * 0.6, left: 8.0, right: 8.0, bottom: 8.0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12.0),
-          child: Image.asset(
-            card['icon']!,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                color: const Color(0xFFF5F5F5),
-                child: const Icon(
-                  Icons.image,
-                  color: Colors.grey,
-                  size: 40.0,
+      width: iconSize + 8.0,
+      margin: const EdgeInsets.only(right: 10.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20.0),
+            child: SizedBox(
+              width: iconSize,
+              height: iconSize,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12.0),
+                child: Image.asset(
+                  card['icon']!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: const Color(0xFFF5F5F5),
+                      child: const Icon(
+                        Icons.image,
+                        color: Colors.grey,
+                        size: 43.2,
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final cardWidth = (screenWidth - 12.0 * 2 - 20.0 * 3 - 8.0) / 4;
     final recommendCards = _getRecommendCards(context);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      child: Container(
-        height: cardWidth,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12.0),
-          image: const DecorationImage(
-            image: AssetImage(AssetsIconsAppTravel.travelRecommendBg1),
-            fit: BoxFit.cover,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12.0),
+        child: Container(
+          height: 216.0,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Transform.scale(
+                  scale: 1.5,
+                  child: Image.asset(
+                    AssetsIconsAppTravel.travelRecommendBg1,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(right: 4.0),
+                itemCount: 5,
+                itemBuilder: (context, index) {
+                  return _buildRecommendCard(context, recommendCards[index]);
+                },
+              ),
+            ],
           ),
-        ),
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-          itemCount: recommendCards.length,
-          itemBuilder: (context, index) {
-            return _buildRecommendCard(context, recommendCards[index], cardWidth);
-          },
         ),
       ),
     );

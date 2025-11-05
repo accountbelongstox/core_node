@@ -68,7 +68,7 @@ function loadConfig(password) {
     secretPassword = password;
   }
 
-  defaultContent = freader.readFileSync(path.join(__dirname, 'default.ini'), 'utf-8');
+  defaultContent = freader.readText(path.join(__dirname, 'default.ini'));
   defaultConfig = ini.parse(defaultContent);
 
   if (!['dev', 'prod', 'development', 'production'].includes(defaultConfig.environment)) {
@@ -85,7 +85,7 @@ function loadConfig(password) {
   }
 
   const envFile = `${defaultConfig.environment}.ini`;
-  envContent = freader.readFileSync(path.join(__dirname, envFile), 'utf-8');
+  envContent = freader.readText(path.join(__dirname, envFile));
   envConfig = ini.parse(envContent);
   mergedConfig = { ...defaultConfig, ...envConfig };
 

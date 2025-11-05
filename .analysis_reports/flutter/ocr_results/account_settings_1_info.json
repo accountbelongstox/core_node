@@ -1,0 +1,1079 @@
+{
+  "file_info": {
+    "filename": "account_settings_1.jpg",
+    "filepath": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\account_settings_1.jpg",
+    "location": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\account_settings_1.jpg"
+  },
+  "ocr_result": {
+    "success": true,
+    "text": "04:01\n个\n设置\n提醒设置\n账号设置\n推荐设置\n其他设置\n夜间或护眼模式\nICP 备案号\n关于我们\n检测更新\n网络检测\n退出账号\n普通模式＞\n苏ICP备13045540号-20A",
+    "confidence": 0.0,
+    "provider": "FreeOCR",
+    "word_count": 16,
+    "processing_time": 3.9870946407318115,
+    "lines": [
+      {
+        "line_number": 1,
+        "text": "04:01",
+        "bbox": {
+          "left": 0,
+          "top": 48.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "04",
+            "confidence": 0,
+            "bbox": {
+              "left": 73.0,
+              "top": 48.0,
+              "width": 61.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": ":",
+            "confidence": 0,
+            "bbox": {
+              "left": 134.0,
+              "top": 48.0,
+              "width": 23.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "01",
+            "confidence": 0,
+            "bbox": {
+              "left": 157.0,
+              "top": 48.0,
+              "width": 53.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 2,
+        "text": "个",
+        "bbox": {
+          "left": 0,
+          "top": 194.0,
+          "width": 0,
+          "height": 89.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "个",
+            "confidence": 0,
+            "bbox": {
+              "left": 61.0,
+              "top": 194.0,
+              "width": 85.0,
+              "height": 89.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 3,
+        "text": "设置",
+        "bbox": {
+          "left": 0,
+          "top": 202.0,
+          "width": 0,
+          "height": 81.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "设置",
+            "confidence": 0,
+            "bbox": {
+              "left": 250.0,
+              "top": 202.0,
+              "width": 145.0,
+              "height": 81.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 4,
+        "text": "提醒设置",
+        "bbox": {
+          "left": 0,
+          "top": 388.0,
+          "width": 0,
+          "height": 69.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "提醒",
+            "confidence": 0,
+            "bbox": {
+              "left": 36.0,
+              "top": 388.0,
+              "width": 129.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "设置",
+            "confidence": 0,
+            "bbox": {
+              "left": 165.0,
+              "top": 388.0,
+              "width": 117.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 5,
+        "text": "账号设置",
+        "bbox": {
+          "left": 0,
+          "top": 558.0,
+          "width": 0,
+          "height": 65.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "账号",
+            "confidence": 0,
+            "bbox": {
+              "left": 40.0,
+              "top": 558.0,
+              "width": 128.0,
+              "height": 65.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "设置",
+            "confidence": 0,
+            "bbox": {
+              "left": 168.0,
+              "top": 558.0,
+              "width": 115.0,
+              "height": 65.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 6,
+        "text": "推荐设置",
+        "bbox": {
+          "left": 0,
+          "top": 719.0,
+          "width": 0,
+          "height": 70.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "推荐",
+            "confidence": 0,
+            "bbox": {
+              "left": 40.0,
+              "top": 719.0,
+              "width": 128.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "设置",
+            "confidence": 0,
+            "bbox": {
+              "left": 168.0,
+              "top": 719.0,
+              "width": 115.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 7,
+        "text": "其他设置",
+        "bbox": {
+          "left": 0,
+          "top": 888.0,
+          "width": 0,
+          "height": 71.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "其他",
+            "confidence": 0,
+            "bbox": {
+              "left": 36.0,
+              "top": 889.0,
+              "width": 128.0,
+              "height": 70.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "设置",
+            "confidence": 0,
+            "bbox": {
+              "left": 164.0,
+              "top": 888.0,
+              "width": 119.0,
+              "height": 70.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 8,
+        "text": "夜间或护眼模式",
+        "bbox": {
+          "left": 0,
+          "top": 1055.0,
+          "width": 0,
+          "height": 69.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "夜间",
+            "confidence": 0,
+            "bbox": {
+              "left": 40.0,
+              "top": 1055.0,
+              "width": 127.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "或",
+            "confidence": 0,
+            "bbox": {
+              "left": 168.0,
+              "top": 1055.0,
+              "width": 60.0,
+              "height": 68.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "护",
+            "confidence": 0,
+            "bbox": {
+              "left": 227.0,
+              "top": 1055.0,
+              "width": 59.0,
+              "height": 68.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "眼",
+            "confidence": 0,
+            "bbox": {
+              "left": 287.0,
+              "top": 1055.0,
+              "width": 60.0,
+              "height": 68.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "模式",
+            "confidence": 0,
+            "bbox": {
+              "left": 346.0,
+              "top": 1055.0,
+              "width": 118.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 9,
+        "text": "ICP 备案号",
+        "bbox": {
+          "left": 0,
+          "top": 0.0,
+          "width": 0,
+          "height": 1342.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "ICP",
+            "confidence": 0,
+            "bbox": {
+              "left": 28.0,
+              "top": 1273.0,
+              "width": 114.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": " ",
+            "confidence": 0,
+            "bbox": {
+              "left": 0.0,
+              "top": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "备案号",
+            "confidence": 0,
+            "bbox": {
+              "left": 147.0,
+              "top": 1273.0,
+              "width": 188.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 10,
+        "text": "关于我们",
+        "bbox": {
+          "left": 0,
+          "top": 1438.0,
+          "width": 0,
+          "height": 73.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "关于",
+            "confidence": 0,
+            "bbox": {
+              "left": 40.0,
+              "top": 1438.0,
+              "width": 126.0,
+              "height": 73.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "我们",
+            "confidence": 0,
+            "bbox": {
+              "left": 166.0,
+              "top": 1438.0,
+              "width": 120.0,
+              "height": 73.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 11,
+        "text": "检测更新",
+        "bbox": {
+          "left": 0,
+          "top": 1604.0,
+          "width": 0,
+          "height": 69.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "检测",
+            "confidence": 0,
+            "bbox": {
+              "left": 40.0,
+              "top": 1604.0,
+              "width": 129.0,
+              "height": 69.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "更新",
+            "confidence": 0,
+            "bbox": {
+              "left": 169.0,
+              "top": 1604.0,
+              "width": 113.0,
+              "height": 69.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 12,
+        "text": "网络检测",
+        "bbox": {
+          "left": 0,
+          "top": 1770.0,
+          "width": 0,
+          "height": 73.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "网络",
+            "confidence": 0,
+            "bbox": {
+              "left": 36.0,
+              "top": 1770.0,
+              "width": 126.0,
+              "height": 73.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "检测",
+            "confidence": 0,
+            "bbox": {
+              "left": 162.0,
+              "top": 1770.0,
+              "width": 121.0,
+              "height": 73.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 13,
+        "text": "退出账号",
+        "bbox": {
+          "left": 0,
+          "top": 1995.0,
+          "width": 0,
+          "height": 70.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "退出",
+            "confidence": 0,
+            "bbox": {
+              "left": 36.0,
+              "top": 1995.0,
+              "width": 128.0,
+              "height": 70.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "账号",
+            "confidence": 0,
+            "bbox": {
+              "left": 164.0,
+              "top": 1996.0,
+              "width": 123.0,
+              "height": 70.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 14,
+        "text": "普通模式＞",
+        "bbox": {
+          "left": 0,
+          "top": 1061.0,
+          "width": 0,
+          "height": 56.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "普通",
+            "confidence": 0,
+            "bbox": {
+              "left": 977.0,
+              "top": 1063.0,
+              "width": 105.0,
+              "height": 54.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "模式",
+            "confidence": 0,
+            "bbox": {
+              "left": 1081.0,
+              "top": 1061.0,
+              "width": 118.0,
+              "height": 54.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "＞",
+            "confidence": 0,
+            "bbox": {
+              "left": 1198.0,
+              "top": 1061.0,
+              "width": 30.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 15,
+        "text": "苏ICP备13045540号-20A",
+        "bbox": {
+          "left": 0,
+          "top": 1277.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "苏",
+            "confidence": 0,
+            "bbox": {
+              "left": 586.0,
+              "top": 1277.0,
+              "width": 53.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "ICP",
+            "confidence": 0,
+            "bbox": {
+              "left": 638.0,
+              "top": 1277.0,
+              "width": 90.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "备",
+            "confidence": 0,
+            "bbox": {
+              "left": 728.0,
+              "top": 1277.0,
+              "width": 60.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "13045540",
+            "confidence": 0,
+            "bbox": {
+              "left": 788.0,
+              "top": 1277.0,
+              "width": 262.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 5,
+            "text": "号",
+            "confidence": 0,
+            "bbox": {
+              "left": 1051.0,
+              "top": 1277.0,
+              "width": 52.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 6,
+            "text": "-",
+            "confidence": 0,
+            "bbox": {
+              "left": 1103.0,
+              "top": 1277.0,
+              "width": 22.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 7,
+            "text": "20",
+            "confidence": 0,
+            "bbox": {
+              "left": 1126.0,
+              "top": 1277.0,
+              "width": 67.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 8,
+            "text": "A",
+            "confidence": 0,
+            "bbox": {
+              "left": 1193.0,
+              "top": 1277.0,
+              "width": 30.0,
+              "height": 61.0
+            }
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "word_number": 1,
+        "text": "04",
+        "confidence": 0,
+        "bbox": {
+          "left": 73.0,
+          "top": 48.0,
+          "width": 61.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": ":",
+        "confidence": 0,
+        "bbox": {
+          "left": 134.0,
+          "top": 48.0,
+          "width": 23.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "01",
+        "confidence": 0,
+        "bbox": {
+          "left": 157.0,
+          "top": 48.0,
+          "width": 53.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "个",
+        "confidence": 0,
+        "bbox": {
+          "left": 61.0,
+          "top": 194.0,
+          "width": 85.0,
+          "height": 89.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "设置",
+        "confidence": 0,
+        "bbox": {
+          "left": 250.0,
+          "top": 202.0,
+          "width": 145.0,
+          "height": 81.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "提醒",
+        "confidence": 0,
+        "bbox": {
+          "left": 36.0,
+          "top": 388.0,
+          "width": 129.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "设置",
+        "confidence": 0,
+        "bbox": {
+          "left": 165.0,
+          "top": 388.0,
+          "width": 117.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "账号",
+        "confidence": 0,
+        "bbox": {
+          "left": 40.0,
+          "top": 558.0,
+          "width": 128.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "设置",
+        "confidence": 0,
+        "bbox": {
+          "left": 168.0,
+          "top": 558.0,
+          "width": 115.0,
+          "height": 65.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "推荐",
+        "confidence": 0,
+        "bbox": {
+          "left": 40.0,
+          "top": 719.0,
+          "width": 128.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "设置",
+        "confidence": 0,
+        "bbox": {
+          "left": 168.0,
+          "top": 719.0,
+          "width": 115.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "其他",
+        "confidence": 0,
+        "bbox": {
+          "left": 36.0,
+          "top": 889.0,
+          "width": 128.0,
+          "height": 70.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "设置",
+        "confidence": 0,
+        "bbox": {
+          "left": 164.0,
+          "top": 888.0,
+          "width": 119.0,
+          "height": 70.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "夜间",
+        "confidence": 0,
+        "bbox": {
+          "left": 40.0,
+          "top": 1055.0,
+          "width": 127.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "或",
+        "confidence": 0,
+        "bbox": {
+          "left": 168.0,
+          "top": 1055.0,
+          "width": 60.0,
+          "height": 68.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "护",
+        "confidence": 0,
+        "bbox": {
+          "left": 227.0,
+          "top": 1055.0,
+          "width": 59.0,
+          "height": 68.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "眼",
+        "confidence": 0,
+        "bbox": {
+          "left": 287.0,
+          "top": 1055.0,
+          "width": 60.0,
+          "height": 68.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "模式",
+        "confidence": 0,
+        "bbox": {
+          "left": 346.0,
+          "top": 1055.0,
+          "width": 118.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "ICP",
+        "confidence": 0,
+        "bbox": {
+          "left": 28.0,
+          "top": 1273.0,
+          "width": 114.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": " ",
+        "confidence": 0,
+        "bbox": {
+          "left": 0.0,
+          "top": 0.0,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "备案号",
+        "confidence": 0,
+        "bbox": {
+          "left": 147.0,
+          "top": 1273.0,
+          "width": 188.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "关于",
+        "confidence": 0,
+        "bbox": {
+          "left": 40.0,
+          "top": 1438.0,
+          "width": 126.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "我们",
+        "confidence": 0,
+        "bbox": {
+          "left": 166.0,
+          "top": 1438.0,
+          "width": 120.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "检测",
+        "confidence": 0,
+        "bbox": {
+          "left": 40.0,
+          "top": 1604.0,
+          "width": 129.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "更新",
+        "confidence": 0,
+        "bbox": {
+          "left": 169.0,
+          "top": 1604.0,
+          "width": 113.0,
+          "height": 69.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "网络",
+        "confidence": 0,
+        "bbox": {
+          "left": 36.0,
+          "top": 1770.0,
+          "width": 126.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "检测",
+        "confidence": 0,
+        "bbox": {
+          "left": 162.0,
+          "top": 1770.0,
+          "width": 121.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "退出",
+        "confidence": 0,
+        "bbox": {
+          "left": 36.0,
+          "top": 1995.0,
+          "width": 128.0,
+          "height": 70.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "账号",
+        "confidence": 0,
+        "bbox": {
+          "left": 164.0,
+          "top": 1996.0,
+          "width": 123.0,
+          "height": 70.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "普通",
+        "confidence": 0,
+        "bbox": {
+          "left": 977.0,
+          "top": 1063.0,
+          "width": 105.0,
+          "height": 54.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "模式",
+        "confidence": 0,
+        "bbox": {
+          "left": 1081.0,
+          "top": 1061.0,
+          "width": 118.0,
+          "height": 54.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "＞",
+        "confidence": 0,
+        "bbox": {
+          "left": 1198.0,
+          "top": 1061.0,
+          "width": 30.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "苏",
+        "confidence": 0,
+        "bbox": {
+          "left": 586.0,
+          "top": 1277.0,
+          "width": 53.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "ICP",
+        "confidence": 0,
+        "bbox": {
+          "left": 638.0,
+          "top": 1277.0,
+          "width": 90.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "备",
+        "confidence": 0,
+        "bbox": {
+          "left": 728.0,
+          "top": 1277.0,
+          "width": 60.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "13045540",
+        "confidence": 0,
+        "bbox": {
+          "left": 788.0,
+          "top": 1277.0,
+          "width": 262.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 5,
+        "text": "号",
+        "confidence": 0,
+        "bbox": {
+          "left": 1051.0,
+          "top": 1277.0,
+          "width": 52.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 6,
+        "text": "-",
+        "confidence": 0,
+        "bbox": {
+          "left": 1103.0,
+          "top": 1277.0,
+          "width": 22.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 7,
+        "text": "20",
+        "confidence": 0,
+        "bbox": {
+          "left": 1126.0,
+          "top": 1277.0,
+          "width": 67.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 8,
+        "text": "A",
+        "confidence": 0,
+        "bbox": {
+          "left": 1193.0,
+          "top": 1277.0,
+          "width": 30.0,
+          "height": 61.0
+        }
+      }
+    ]
+  }
+}

@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
+import '../../../../../../common/localization/localization_manager.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/gradient_button.dart';
 import '../../../../../../common/widgets/glassmorphism_card.dart';
@@ -291,7 +292,9 @@ class _LoginScreenV2AppQyState extends State<LoginScreenV2AppQy>
         color: Colors.white,
       ),
       label: Text(
-        _showMoreOptions ? '收起' : '更多登录方式',
+        _showMoreOptions
+            ? QyAppLocalizationKeys.qyAuthCollapseOptions.tr(context)
+            : QyAppLocalizationKeys.qyAuthMoreOptions.tr(context),
         style: const TextStyle(color: Colors.white),
       ),
     );

@@ -28,7 +28,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
         ],
       ),
       body: user == null
-          ? const Center(child: Text('User not logged in'))
+          ? Center(child: Text(context.tr(LocalizationKeysAppCodemart.codemartUserNotLoggedIn)))
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -168,7 +168,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
                       const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.notifications),
-                        title: const Text('Notifications'),
+                        title: Text(context.tr(LocalizationKeysAppCodemart.codemartNotifications)),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
                           // TODO: Navigate to notifications settings
@@ -177,7 +177,7 @@ class ProfileViewAppCodemart extends StatelessWidget {
                       const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.language),
-                        title: const Text('Language'),
+                        title: Text(context.tr(LocalizationKeysAppCodemart.codemartLanguage)),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
                           // TODO: Navigate to language settings

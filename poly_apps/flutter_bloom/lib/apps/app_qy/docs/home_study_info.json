@@ -1,0 +1,1577 @@
+{
+  "file_info": {
+    "filename": "home_study.jpg",
+    "filepath": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\home_study.jpg",
+    "location": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\lib\\apps\\app_qy\\docs\\home_study.jpg"
+  },
+  "ocr_result": {
+    "success": true,
+    "text": "04:00\n小留8\n更多功能\n×\n巩固\n单词测试\n随身听\n-\n短语\n极速刷词\n扩展\n阅读\n听力口语\n设置\n学习设置\n学习数据\n已学0.1%\n27/16952词\n新学词\n0/200\n复习词\n0/27\n开始学习\n•。\n单词\n课程\nAl学\n发现\n我的",
+    "confidence": 0.0,
+    "provider": "FreeOCR",
+    "word_count": 29,
+    "processing_time": 2.1913461685180664,
+    "lines": [
+      {
+        "line_number": 1,
+        "text": "04:00",
+        "bbox": {
+          "left": 0,
+          "top": 52.0,
+          "width": 0,
+          "height": 49.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "04",
+            "confidence": 0,
+            "bbox": {
+              "left": 77.0,
+              "top": 52.0,
+              "width": 60.0,
+              "height": 49.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": ":",
+            "confidence": 0,
+            "bbox": {
+              "left": 137.0,
+              "top": 52.0,
+              "width": 18.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "00",
+            "confidence": 0,
+            "bbox": {
+              "left": 155.0,
+              "top": 53.0,
+              "width": 60.0,
+              "height": 49.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 2,
+        "text": "小留8",
+        "bbox": {
+          "left": 0,
+          "top": 48.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "小",
+            "confidence": 0,
+            "bbox": {
+              "left": 723.0,
+              "top": 48.0,
+              "width": 60.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "留",
+            "confidence": 0,
+            "bbox": {
+              "left": 783.0,
+              "top": 48.0,
+              "width": 46.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "8",
+            "confidence": 0,
+            "bbox": {
+              "left": 829.0,
+              "top": 48.0,
+              "width": 31.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 3,
+        "text": "更多功能",
+        "bbox": {
+          "left": 0,
+          "top": 230.0,
+          "width": 0,
+          "height": 62.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "更",
+            "confidence": 0,
+            "bbox": {
+              "left": 52.0,
+              "top": 230.0,
+              "width": 60.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "多功能",
+            "confidence": 0,
+            "bbox": {
+              "left": 112.0,
+              "top": 230.0,
+              "width": 170.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 4,
+        "text": "×",
+        "bbox": {
+          "left": 0,
+          "top": 206.0,
+          "width": 0,
+          "height": 77.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "×",
+            "confidence": 0,
+            "bbox": {
+              "left": 1127.0,
+              "top": 206.0,
+              "width": 77.0,
+              "height": 77.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 5,
+        "text": "巩固",
+        "bbox": {
+          "left": 0,
+          "top": 444.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "巩固",
+            "confidence": 0,
+            "bbox": {
+              "left": 52.0,
+              "top": 444.0,
+              "width": 97.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 6,
+        "text": "单词测试",
+        "bbox": {
+          "left": 0,
+          "top": 565.0,
+          "width": 0,
+          "height": 54.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 234.0,
+              "top": 565.0,
+              "width": 98.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "测试",
+            "confidence": 0,
+            "bbox": {
+              "left": 332.0,
+              "top": 566.0,
+              "width": 101.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 7,
+        "text": "随身听",
+        "bbox": {
+          "left": 0,
+          "top": 566.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "随身听",
+            "confidence": 0,
+            "bbox": {
+              "left": 517.0,
+              "top": 566.0,
+              "width": 153.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 8,
+        "text": "-",
+        "bbox": {
+          "left": 0,
+          "top": 428.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "-",
+            "confidence": 0,
+            "bbox": {
+              "left": 812.0,
+              "top": 428.0,
+              "width": 69.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 9,
+        "text": "短语",
+        "bbox": {
+          "left": 0,
+          "top": 566.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "短语",
+            "confidence": 0,
+            "bbox": {
+              "left": 800.0,
+              "top": 566.0,
+              "width": 101.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 10,
+        "text": "极速刷词",
+        "bbox": {
+          "left": 0,
+          "top": 566.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "极速",
+            "confidence": 0,
+            "bbox": {
+              "left": 1010.0,
+              "top": 566.0,
+              "width": 104.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "刷",
+            "confidence": 0,
+            "bbox": {
+              "left": 1114.0,
+              "top": 566.0,
+              "width": 52.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "词",
+            "confidence": 0,
+            "bbox": {
+              "left": 1166.0,
+              "top": 566.0,
+              "width": 41.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 11,
+        "text": "扩展",
+        "bbox": {
+          "left": 0,
+          "top": 836.0,
+          "width": 0,
+          "height": 53.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "扩展",
+            "confidence": 0,
+            "bbox": {
+              "left": 52.0,
+              "top": 836.0,
+              "width": 97.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 12,
+        "text": "阅读",
+        "bbox": {
+          "left": 0,
+          "top": 917.0,
+          "width": 0,
+          "height": 57.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "阅读",
+            "confidence": 0,
+            "bbox": {
+              "left": 283.0,
+              "top": 917.0,
+              "width": 101.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 13,
+        "text": "听力口语",
+        "bbox": {
+          "left": 0,
+          "top": 916.0,
+          "width": 0,
+          "height": 60.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "听力",
+            "confidence": 0,
+            "bbox": {
+              "left": 492.0,
+              "top": 916.0,
+              "width": 106.0,
+              "height": 58.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "口语",
+            "confidence": 0,
+            "bbox": {
+              "left": 597.0,
+              "top": 917.0,
+              "width": 94.0,
+              "height": 58.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 14,
+        "text": "设置",
+        "bbox": {
+          "left": 0,
+          "top": 1192.0,
+          "width": 0,
+          "height": 48.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "设置",
+            "confidence": 0,
+            "bbox": {
+              "left": 57.0,
+              "top": 1192.0,
+              "width": 97.0,
+              "height": 48.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 15,
+        "text": "学习设置",
+        "bbox": {
+          "left": 0,
+          "top": 1268.0,
+          "width": 0,
+          "height": 58.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "学习",
+            "confidence": 0,
+            "bbox": {
+              "left": 234.0,
+              "top": 1269.0,
+              "width": 98.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "设置",
+            "confidence": 0,
+            "bbox": {
+              "left": 332.0,
+              "top": 1268.0,
+              "width": 100.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 16,
+        "text": "学习数据",
+        "bbox": {
+          "left": 0,
+          "top": 1268.0,
+          "width": 0,
+          "height": 58.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "学习",
+            "confidence": 0,
+            "bbox": {
+              "left": 492.0,
+              "top": 1269.0,
+              "width": 98.0,
+              "height": 57.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "数据",
+            "confidence": 0,
+            "bbox": {
+              "left": 590.0,
+              "top": 1268.0,
+              "width": 100.0,
+              "height": 57.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 17,
+        "text": "已学0.1%",
+        "bbox": {
+          "left": 0,
+          "top": 1511.0,
+          "width": 0,
+          "height": 45.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "已学",
+            "confidence": 0,
+            "bbox": {
+              "left": 113.0,
+              "top": 1511.0,
+              "width": 73.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "0.1",
+            "confidence": 0,
+            "bbox": {
+              "left": 186.0,
+              "top": 1511.0,
+              "width": 45.0,
+              "height": 45.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "%",
+            "confidence": 0,
+            "bbox": {
+              "left": 231.0,
+              "top": 1511.0,
+              "width": 35.0,
+              "height": 45.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 18,
+        "text": "27/16952词",
+        "bbox": {
+          "left": 0,
+          "top": 1511.0,
+          "width": 0,
+          "height": 41.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "27",
+            "confidence": 0,
+            "bbox": {
+              "left": 949.0,
+              "top": 1511.0,
+              "width": 51.0,
+              "height": 41.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "/",
+            "confidence": 0,
+            "bbox": {
+              "left": 1000.0,
+              "top": 1511.0,
+              "width": 15.0,
+              "height": 41.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "16952",
+            "confidence": 0,
+            "bbox": {
+              "left": 1016.0,
+              "top": 1511.0,
+              "width": 102.0,
+              "height": 41.0
+            }
+          },
+          {
+            "word_number": 4,
+            "text": "词",
+            "confidence": 0,
+            "bbox": {
+              "left": 1118.0,
+              "top": 1511.0,
+              "width": 33.0,
+              "height": 41.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 19,
+        "text": "新学词",
+        "bbox": {
+          "left": 0,
+          "top": 1855.0,
+          "width": 0,
+          "height": 48.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "新",
+            "confidence": 0,
+            "bbox": {
+              "left": 246.0,
+              "top": 1855.0,
+              "width": 48.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "学",
+            "confidence": 0,
+            "bbox": {
+              "left": 294.0,
+              "top": 1855.0,
+              "width": 42.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "词",
+            "confidence": 0,
+            "bbox": {
+              "left": 336.0,
+              "top": 1855.0,
+              "width": 44.0,
+              "height": 48.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 20,
+        "text": "0/200",
+        "bbox": {
+          "left": 0,
+          "top": 1854.0,
+          "width": 0,
+          "height": 54.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "0",
+            "confidence": 0,
+            "bbox": {
+              "left": 428.0,
+              "top": 1854.0,
+              "width": 33.0,
+              "height": 53.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "/",
+            "confidence": 0,
+            "bbox": {
+              "left": 460.0,
+              "top": 1854.0,
+              "width": 20.0,
+              "height": 52.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "200",
+            "confidence": 0,
+            "bbox": {
+              "left": 480.0,
+              "top": 1855.0,
+              "width": 90.0,
+              "height": 53.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 21,
+        "text": "复习词",
+        "bbox": {
+          "left": 0,
+          "top": 1855.0,
+          "width": 0,
+          "height": 48.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "复习",
+            "confidence": 0,
+            "bbox": {
+              "left": 699.0,
+              "top": 1855.0,
+              "width": 90.0,
+              "height": 48.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "词",
+            "confidence": 0,
+            "bbox": {
+              "left": 789.0,
+              "top": 1855.0,
+              "width": 39.0,
+              "height": 48.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 22,
+        "text": "0/27",
+        "bbox": {
+          "left": 0,
+          "top": 1851.0,
+          "width": 0,
+          "height": 61.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "0",
+            "confidence": 0,
+            "bbox": {
+              "left": 872.0,
+              "top": 1851.0,
+              "width": 37.0,
+              "height": 61.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "/",
+            "confidence": 0,
+            "bbox": {
+              "left": 909.0,
+              "top": 1851.0,
+              "width": 22.0,
+              "height": 60.0
+            }
+          },
+          {
+            "word_number": 3,
+            "text": "27",
+            "confidence": 0,
+            "bbox": {
+              "left": 932.0,
+              "top": 1851.0,
+              "width": 57.0,
+              "height": 61.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 23,
+        "text": "开始学习",
+        "bbox": {
+          "left": 0,
+          "top": 2081.0,
+          "width": 0,
+          "height": 73.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "开始",
+            "confidence": 0,
+            "bbox": {
+              "left": 545.0,
+              "top": 2081.0,
+              "width": 144.0,
+              "height": 73.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "学习",
+            "confidence": 0,
+            "bbox": {
+              "left": 689.0,
+              "top": 2081.0,
+              "width": 123.0,
+              "height": 73.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 24,
+        "text": "•。",
+        "bbox": {
+          "left": 0,
+          "top": 2287.0,
+          "width": 0,
+          "height": 36.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "•。",
+            "confidence": 0,
+            "bbox": {
+              "left": 594.0,
+              "top": 2287.0,
+              "width": 69.0,
+              "height": 36.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 25,
+        "text": "单词",
+        "bbox": {
+          "left": 0,
+          "top": 2659.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "单词",
+            "confidence": 0,
+            "bbox": {
+              "left": 89.0,
+              "top": 2659.0,
+              "width": 73.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 26,
+        "text": "课程",
+        "bbox": {
+          "left": 0,
+          "top": 2659.0,
+          "width": 0,
+          "height": 40.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "课程",
+            "confidence": 0,
+            "bbox": {
+              "left": 343.0,
+              "top": 2659.0,
+              "width": 77.0,
+              "height": 40.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 27,
+        "text": "Al学",
+        "bbox": {
+          "left": 0,
+          "top": 2659.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "Al",
+            "confidence": 0,
+            "bbox": {
+              "left": 594.0,
+              "top": 2659.0,
+              "width": 44.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "学",
+            "confidence": 0,
+            "bbox": {
+              "left": 638.0,
+              "top": 2659.0,
+              "width": 28.0,
+              "height": 44.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 28,
+        "text": "发现",
+        "bbox": {
+          "left": 0,
+          "top": 2655.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "发现",
+            "confidence": 0,
+            "bbox": {
+              "left": 848.0,
+              "top": 2655.0,
+              "width": 77.0,
+              "height": 44.0
+            }
+          }
+        ]
+      },
+      {
+        "line_number": 29,
+        "text": "我的",
+        "bbox": {
+          "left": 0,
+          "top": 2655.0,
+          "width": 0,
+          "height": 44.0
+        },
+        "words": [
+          {
+            "word_number": 1,
+            "text": "我",
+            "confidence": 0,
+            "bbox": {
+              "left": 1098.0,
+              "top": 2655.0,
+              "width": 44.0,
+              "height": 44.0
+            }
+          },
+          {
+            "word_number": 2,
+            "text": "的",
+            "confidence": 0,
+            "bbox": {
+              "left": 1142.0,
+              "top": 2655.0,
+              "width": 33.0,
+              "height": 44.0
+            }
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "word_number": 1,
+        "text": "04",
+        "confidence": 0,
+        "bbox": {
+          "left": 77.0,
+          "top": 52.0,
+          "width": 60.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": ":",
+        "confidence": 0,
+        "bbox": {
+          "left": 137.0,
+          "top": 52.0,
+          "width": 18.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "00",
+        "confidence": 0,
+        "bbox": {
+          "left": 155.0,
+          "top": 53.0,
+          "width": 60.0,
+          "height": 49.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "小",
+        "confidence": 0,
+        "bbox": {
+          "left": 723.0,
+          "top": 48.0,
+          "width": 60.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "留",
+        "confidence": 0,
+        "bbox": {
+          "left": 783.0,
+          "top": 48.0,
+          "width": 46.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "8",
+        "confidence": 0,
+        "bbox": {
+          "left": 829.0,
+          "top": 48.0,
+          "width": 31.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "更",
+        "confidence": 0,
+        "bbox": {
+          "left": 52.0,
+          "top": 230.0,
+          "width": 60.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "多功能",
+        "confidence": 0,
+        "bbox": {
+          "left": 112.0,
+          "top": 230.0,
+          "width": 170.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "×",
+        "confidence": 0,
+        "bbox": {
+          "left": 1127.0,
+          "top": 206.0,
+          "width": 77.0,
+          "height": 77.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "巩固",
+        "confidence": 0,
+        "bbox": {
+          "left": 52.0,
+          "top": 444.0,
+          "width": 97.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 234.0,
+          "top": 565.0,
+          "width": 98.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "测试",
+        "confidence": 0,
+        "bbox": {
+          "left": 332.0,
+          "top": 566.0,
+          "width": 101.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "随身听",
+        "confidence": 0,
+        "bbox": {
+          "left": 517.0,
+          "top": 566.0,
+          "width": 153.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "-",
+        "confidence": 0,
+        "bbox": {
+          "left": 812.0,
+          "top": 428.0,
+          "width": 69.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "短语",
+        "confidence": 0,
+        "bbox": {
+          "left": 800.0,
+          "top": 566.0,
+          "width": 101.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "极速",
+        "confidence": 0,
+        "bbox": {
+          "left": 1010.0,
+          "top": 566.0,
+          "width": 104.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "刷",
+        "confidence": 0,
+        "bbox": {
+          "left": 1114.0,
+          "top": 566.0,
+          "width": 52.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "词",
+        "confidence": 0,
+        "bbox": {
+          "left": 1166.0,
+          "top": 566.0,
+          "width": 41.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "扩展",
+        "confidence": 0,
+        "bbox": {
+          "left": 52.0,
+          "top": 836.0,
+          "width": 97.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "阅读",
+        "confidence": 0,
+        "bbox": {
+          "left": 283.0,
+          "top": 917.0,
+          "width": 101.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "听力",
+        "confidence": 0,
+        "bbox": {
+          "left": 492.0,
+          "top": 916.0,
+          "width": 106.0,
+          "height": 58.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "口语",
+        "confidence": 0,
+        "bbox": {
+          "left": 597.0,
+          "top": 917.0,
+          "width": 94.0,
+          "height": 58.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "设置",
+        "confidence": 0,
+        "bbox": {
+          "left": 57.0,
+          "top": 1192.0,
+          "width": 97.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "学习",
+        "confidence": 0,
+        "bbox": {
+          "left": 234.0,
+          "top": 1269.0,
+          "width": 98.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "设置",
+        "confidence": 0,
+        "bbox": {
+          "left": 332.0,
+          "top": 1268.0,
+          "width": 100.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "学习",
+        "confidence": 0,
+        "bbox": {
+          "left": 492.0,
+          "top": 1269.0,
+          "width": 98.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "数据",
+        "confidence": 0,
+        "bbox": {
+          "left": 590.0,
+          "top": 1268.0,
+          "width": 100.0,
+          "height": 57.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "已学",
+        "confidence": 0,
+        "bbox": {
+          "left": 113.0,
+          "top": 1511.0,
+          "width": 73.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "0.1",
+        "confidence": 0,
+        "bbox": {
+          "left": 186.0,
+          "top": 1511.0,
+          "width": 45.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "%",
+        "confidence": 0,
+        "bbox": {
+          "left": 231.0,
+          "top": 1511.0,
+          "width": 35.0,
+          "height": 45.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "27",
+        "confidence": 0,
+        "bbox": {
+          "left": 949.0,
+          "top": 1511.0,
+          "width": 51.0,
+          "height": 41.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "/",
+        "confidence": 0,
+        "bbox": {
+          "left": 1000.0,
+          "top": 1511.0,
+          "width": 15.0,
+          "height": 41.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "16952",
+        "confidence": 0,
+        "bbox": {
+          "left": 1016.0,
+          "top": 1511.0,
+          "width": 102.0,
+          "height": 41.0
+        }
+      },
+      {
+        "word_number": 4,
+        "text": "词",
+        "confidence": 0,
+        "bbox": {
+          "left": 1118.0,
+          "top": 1511.0,
+          "width": 33.0,
+          "height": 41.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "新",
+        "confidence": 0,
+        "bbox": {
+          "left": 246.0,
+          "top": 1855.0,
+          "width": 48.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "学",
+        "confidence": 0,
+        "bbox": {
+          "left": 294.0,
+          "top": 1855.0,
+          "width": 42.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "词",
+        "confidence": 0,
+        "bbox": {
+          "left": 336.0,
+          "top": 1855.0,
+          "width": 44.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "0",
+        "confidence": 0,
+        "bbox": {
+          "left": 428.0,
+          "top": 1854.0,
+          "width": 33.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "/",
+        "confidence": 0,
+        "bbox": {
+          "left": 460.0,
+          "top": 1854.0,
+          "width": 20.0,
+          "height": 52.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "200",
+        "confidence": 0,
+        "bbox": {
+          "left": 480.0,
+          "top": 1855.0,
+          "width": 90.0,
+          "height": 53.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "复习",
+        "confidence": 0,
+        "bbox": {
+          "left": 699.0,
+          "top": 1855.0,
+          "width": 90.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "词",
+        "confidence": 0,
+        "bbox": {
+          "left": 789.0,
+          "top": 1855.0,
+          "width": 39.0,
+          "height": 48.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "0",
+        "confidence": 0,
+        "bbox": {
+          "left": 872.0,
+          "top": 1851.0,
+          "width": 37.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "/",
+        "confidence": 0,
+        "bbox": {
+          "left": 909.0,
+          "top": 1851.0,
+          "width": 22.0,
+          "height": 60.0
+        }
+      },
+      {
+        "word_number": 3,
+        "text": "27",
+        "confidence": 0,
+        "bbox": {
+          "left": 932.0,
+          "top": 1851.0,
+          "width": 57.0,
+          "height": 61.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "开始",
+        "confidence": 0,
+        "bbox": {
+          "left": 545.0,
+          "top": 2081.0,
+          "width": 144.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "学习",
+        "confidence": 0,
+        "bbox": {
+          "left": 689.0,
+          "top": 2081.0,
+          "width": 123.0,
+          "height": 73.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "•。",
+        "confidence": 0,
+        "bbox": {
+          "left": 594.0,
+          "top": 2287.0,
+          "width": 69.0,
+          "height": 36.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "单词",
+        "confidence": 0,
+        "bbox": {
+          "left": 89.0,
+          "top": 2659.0,
+          "width": 73.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "课程",
+        "confidence": 0,
+        "bbox": {
+          "left": 343.0,
+          "top": 2659.0,
+          "width": 77.0,
+          "height": 40.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "Al",
+        "confidence": 0,
+        "bbox": {
+          "left": 594.0,
+          "top": 2659.0,
+          "width": 44.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "学",
+        "confidence": 0,
+        "bbox": {
+          "left": 638.0,
+          "top": 2659.0,
+          "width": 28.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "发现",
+        "confidence": 0,
+        "bbox": {
+          "left": 848.0,
+          "top": 2655.0,
+          "width": 77.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 1,
+        "text": "我",
+        "confidence": 0,
+        "bbox": {
+          "left": 1098.0,
+          "top": 2655.0,
+          "width": 44.0,
+          "height": 44.0
+        }
+      },
+      {
+        "word_number": 2,
+        "text": "的",
+        "confidence": 0,
+        "bbox": {
+          "left": 1142.0,
+          "top": 2655.0,
+          "width": 33.0,
+          "height": 44.0
+        }
+      }
+    ]
+  }
+}

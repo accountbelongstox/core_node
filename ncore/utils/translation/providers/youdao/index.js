@@ -28,7 +28,7 @@ function truncate(q) {
 class YoudaoTranslationProvider extends TranslationProvider {
   constructor(name, config) {
     super(name, config);
-    const languageContent = freader.readFileSync(path.join(__dirname, 'language.ini'), 'utf-8');
+    const languageContent = freader.readText(path.join(__dirname, 'language.ini'));
     this.languageTable = ini.parse(languageContent);
   }
 
