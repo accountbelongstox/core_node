@@ -137,12 +137,12 @@ class TopDropdownMenu extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('i_am'.tr(context)),
-        content: Text('$featureName ${'feature'.tr(context)}'),
+        title: Text(QyAppLocalizationKeys.qyIAm.tr(context)),
+        content: Text('$featureName ${QyAppLocalizationKeys.qyFeature.tr(context)}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('关闭'.tr(context)),
+            child: Text(QyAppLocalizationKeys.qyClose.tr(context)),
           ),
         ],
       ),
