@@ -68,6 +68,7 @@ Future<void> main() async {
     scopedProvidersBuilder: (commonSettingsController) => [
       ChangeNotifierProvider<SettingsControllerAppQy>(
         create: (_) => SettingsControllerAppQy(commonSettingsController),
+        lazy: false,
       ),
     ],
     initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + Hive)

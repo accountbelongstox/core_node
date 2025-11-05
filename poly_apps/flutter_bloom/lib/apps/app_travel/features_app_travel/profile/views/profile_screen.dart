@@ -229,25 +229,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const Spacer(),
-          Image.asset(
-            AssetsImagesAppTravel.travelVipBadge,
-            width: 80.0,
-            height: 80.0,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                width: 80.0,
-                height: 80.0,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.verified,
-                  size: 40.0,
-                  color: Colors.white,
-                ),
-              );
-            },
+          Container(
+            width: 79.0,
+            height: 79.0,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.transparent,
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                AssetsImagesAppTravel.travelVipBadge,
+                width: 79.0,
+                height: 79.0,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 79.0,
+                    height: 79.0,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.verified,
+                      size: 40.0,
+                      color: Colors.white,
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),

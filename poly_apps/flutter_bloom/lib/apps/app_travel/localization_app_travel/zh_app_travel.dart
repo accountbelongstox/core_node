@@ -95,10 +95,8 @@ Map<String, String> zhAppTravel = {
   TravelLocalizationKeys.travelProfile: '我的',
   TravelLocalizationKeys.travelUser: '用户',
   TravelLocalizationKeys.travelGuestUser: '游客用户',
-  TravelLocalizationKeys.travelSelectCity: '选择城市',
   TravelLocalizationKeys.travelPopularCities: '热门城市',
   TravelLocalizationKeys.travelCustomCity: '自定义城市',
   TravelLocalizationKeys.travelEnterCityName: '输入城市名称',
   TravelLocalizationKeys.travelCityChangedTo: '城市已更改为',
-  TravelLocalizationKeys.travelCurrentCity: '当前城市',
 };

@@ -128,6 +128,17 @@ class QyAppLocalizationKeys {
   static const String qyPrivacyPolicy = 'qy_privacy_policy';
   static const String qyLanguageEnglish = 'qy_language_english';
   static const String qyLanguageChinese = 'qy_language_chinese';
+  static const String qyDisplayLayoutSettings = 'qy_display_layout_settings';
+  static const String qyCompatibilitySettings = 'qy_compatibility_settings';
+  static const String qyDailyStudyReminder = 'qy_daily_study_reminder';
+  static const String qyPersonalizedRecommendations = 'qy_personalized_recommendations';
+  static const String qySyncSettings = 'qy_sync_settings';
+  static const String qyNotLoggedIn = 'qy_not_logged_in';
+  static const String qyUser = 'qy_user';
+  static const String qyClearCacheTitle = 'qy_clear_cache_title';
+  static const String qyClearCacheMessage = 'qy_clear_cache_message';
+  static const String qyCacheCleared = 'qy_cache_cleared';
+  static const String qyHelpCenterInProgress = 'qy_help_center_in_progress';
 
   static const String qyDashboard = 'qy_dashboard';
   static const String qyInbox = 'qy_inbox';

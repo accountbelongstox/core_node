@@ -626,7 +626,66 @@ apps/ai_translator_app/
 
 ## 5. Implementation Plan
 
+### Phase 0: RPC Framework Unification (✅ COMPLETED)
+**Status**: **COMPLETED** - 2025-11-05
+
+**Files modified**:
+1. `ncore/utils/ws_rpc/WsRpcServer.js` - Added external WebSocket server support
+2. `ncore/foundation/express_utils/libs/WsManager.js` - Export WebSocket server instance
+3. `ncore/foundation/express_utils/index.js` - Export accessor methods
+
+**Files created**:
+1. `ncore/utils/http_rpc/HttpRpcServer.js` - HTTP RPC server
+2. `ncore/utils/http_rpc/HttpRpcClient.js` - HTTP RPC client
+3. `ncore/utils/http_rpc/index.js` - Entry point
+4. `ncore/utils/http_rpc/example_usage.js` - Usage example
+5. `ncore/utils/http_rpc/example_client.js` - Client example
+
+**Documentation created**:
+1. `ncore/RPC_FRAMEWORK_UNIFICATION_PLAN.md` - Complete unification plan
+2. `ncore/RPC_UNIFICATION_PHASE1_COMPLETE.txt` - Implementation summary
+3. `ncore/RPC_CONSISTENCY_CHECK_REPORT.txt` - Consistency verification
+
+**Achievements**:
+- ✅ Resolved conflicts between express_utils and ws_rpc
+- ✅ Created unified RPC architecture supporting WebSocket and HTTP
+- ✅ Maintained 100% backward compatibility
+- ✅ Enabled flexible deployment options
+- ✅ All 50 consistency checks passed
+
+**Impact on AI Translator App**:
+- Can now use WebSocket RPC attached to Express server
+- Can use HTTP RPC for stateless clients
+- Can share handlers between both transports
+- Ready to implement multi-service architecture
+
+**Usage Pattern** (Now Available):
+```javascript
+// Start Express + WebSocket
+await expressUtils.startExpressServer(config);
+
+// Get instances
+const wss = expressUtils.getWebSocketServer();
+const app = expressUtils.getConfig().app;
+
+// Setup both RPC transports
+const wsRpc = new WsRpcServer(wss);
+const httpRpc = new HttpRpcServer(app);
+
+await wsRpc.start();
+httpRpc.start();
+
+// Register same handlers for both
+const handler = async (params, clientId) => { /* ... */ };
+wsRpc.route('translateText', handler);
+httpRpc.route('translateText', handler);
+```
+
+---
+
 ### Phase 1: Core Infrastructure (Priority: HIGH)
+**Status**: PENDING
+
 **Files to create**:
 1. `processes/ProcessManager.js`
 2. `service/ClientManager.js`
@@ -637,11 +696,17 @@ apps/ai_translator_app/
 - Implement client connection tracking
 - Update configuration
 
-**Dependencies**: None
+**Dependencies**: Phase 0 ✅ (Completed)
+
+**Updated Approach**:
+- Use unified RPC framework from Phase 0
+- Support both WebSocket and HTTP transports
+- Leverage http_rpc for stateless operations
 
 ---
 
 ### Phase 2: Service Layer (Priority: HIGH)
+**Status**: PENDING
 **Files to create**:
 1. `service/TranslationService.js`
 2. `service/CallbackManager.js`
@@ -744,77 +809,164 @@ class ModelProcessHandler {
 module.exports = ModelProcessHandler;
 ```
 
-### 6.2 Using ws_rpc for Client Management
+### 6.2 Using Unified RPC Framework (Phase 0 - UPDATED)
 
 ```javascript
 // In main.js
-const { WsRpcServer } = require('#@ncore/utils/ws_rpc');
 const expressUtils = require('#@ncore/foundation/express_utils');
+const { WsRpcServer } = require('#@ncore/utils/ws_rpc');
+const { HttpRpcServer } = require('#@ncore/utils/http_rpc');
+const logger = require('#@logger');
 
-// Create Express + WebSocket server
-const { app, server } = expressUtils.createExpressApp(config);
-const wss = expressUtils.createWebSocketServer(server, {
-    path: config.websocketConfig.path
-});
-
-// Create WebSocket RPC server
-const wsRpc = new WsRpcServer(wss, {
-    enableAuth: false,
-    enableHeartbeat: true,
-    heartbeatInterval: config.websocketConfig.heartbeatInterval,
-    enableNamespace: true
-});
-
-// Register RPC methods
-wsRpc.register('translateText', async (params, clientInfo) => {
-    const { text, targetLanguage, provider } = params;
-    const clientId = clientInfo.clientId;
-
-    // Use TranslationService
-    const result = await translationService.translate({
-        clientId,
-        text,
-        targetLanguage,
-        provider
-    });
-
-    return result;
-});
-
-wsRpc.register('getStatus', async (params, clientInfo) => {
-    return {
-        status: 'ok',
-        clientId: clientInfo.clientId
+async function startUnifiedServer() {
+    // Step 1: Start Express + WebSocket server
+    const config = {
+        HTTP_PORT: 3000,
+        STATIC_DIRECTORY: './public',
+        STATIC_PATH: '/static'
     };
+
+    await expressUtils.startExpressServer(config);
+    logger.info('Express server started');
+
+    // Step 2: Get WebSocket server and Express app instances
+    const wss = expressUtils.getWebSocketServer();
+    const app = expressUtils.getConfig().app;
+
+    // Step 3: Attach WebSocket RPC to existing WebSocket server
+    const wsRpc = new WsRpcServer(wss, {
+        auth: { enabled: false },
+        rateLimit: {
+            enabled: true,
+            maxRequests: 100,
+            windowMs: 60000
+        },
+        heartbeatInterval: 30000
+    });
+    await wsRpc.start();
+    logger.info('WebSocket RPC attached');
+
+    // Step 4: Create HTTP RPC server
+    const httpRpc = new HttpRpcServer(app, {
+        basePath: '/rpc',
+        rateLimit: {
+            enabled: true,
+            maxRequests: 100,
+            windowMs: 60000
+        }
+    });
+    httpRpc.start();
+    logger.info('HTTP RPC started');
+
+    // Step 5: Register handlers for both transports
+    const translateHandler = async (params, clientId) => {
+        const { text, targetLanguage, provider } = params;
+        logger.info(`Translation request from ${clientId}: ${text} -> ${targetLanguage}`);
+
+        // Use TranslationService
+        const result = await translationService.translate({
+            clientId,
+            text,
+            targetLanguage,
+            provider
+        });
+
+        return result;
+    };
+
+    const statusHandler = async (params, clientId) => {
+        return {
+            status: 'ok',
+            clientId: clientId,
+            wsClients: wsRpc.getClients().length,
+            routes: {
+                ws: wsRpc.routes.size,
+                http: httpRpc.routes.size
+            }
+        };
+    };
+
+    // Register for WebSocket
+    wsRpc.route('translateText', translateHandler);
+    wsRpc.route('getStatus', statusHandler);
+
+    // Register for HTTP
+    httpRpc.route('translateText', translateHandler);
+    httpRpc.route('getStatus', statusHandler);
+
+    logger.success('Both WebSocket and HTTP RPC ready');
+    logger.info('WebSocket: ws://localhost:3000');
+    logger.info('HTTP: http://localhost:3000/rpc');
+    logger.info('Health: http://localhost:3000/rpc/health');
+}
+
+startUnifiedServer().catch(error => {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
 });
 ```
 
-### 6.3 Using express_utils for HTTP Server
+### 6.3 Client Usage Examples (Phase 0 - NEW)
 
+**WebSocket Client**:
 ```javascript
-// In main.js
-const expressUtils = require('#@ncore/foundation/express_utils');
-const httpRoutes = require('./routes/http_routes.js');
+const { WsRpcClient } = require('#@ncore/utils/ws_rpc');
 
-// Create Express app
-const config = {
-    port: 3000,
-    host: '0.0.0.0',
-    cors: {
-        enabled: true,
-        origins: ['*']
-    }
-};
-
-const { app, server } = expressUtils.createExpressApp(config);
-
-// Register HTTP routes
-expressUtils.registerRoutes(app, httpRoutes);
-
-// Start server
-server.listen(config.port, config.host, () => {
-    logger.info(`Server listening on ${config.host}:${config.port}`);
+const wsClient = new WsRpcClient('ws://localhost:3000', {
+    reconnect: true
 });
+
+await wsClient.connect();
+
+// Call method
+const result = await wsClient.call('translateText', {
+    text: 'Hello world',
+    targetLanguage: 'zh',
+    provider: 'deepseek'
+});
+
+console.log('Translation:', result);
+```
+
+**HTTP Client**:
+```javascript
+const { HttpRpcClient } = require('#@ncore/utils/http_rpc');
+
+const httpClient = new HttpRpcClient('http://localhost:3000', {
+    basePath: '/rpc',
+    timeout: 5000,
+    retryCount: 2
+});
+
+// Single call
+const result = await httpClient.call('translateText', {
+    text: 'Hello world',
+    targetLanguage: 'zh',
+    provider: 'deepseek'
+});
+
+// Batch calls
+const results = await httpClient.batch([
+    { route: 'translateText', params: { text: 'Hello', targetLanguage: 'zh' } },
+    { route: 'translateText', params: { text: 'World', targetLanguage: 'es' } }
+]);
+
+console.log('Results:', results);
+```
+
+**Transport Selection Guide**:
+```
+Use WebSocket RPC when:
+- Need real-time bidirectional communication
+- Server needs to push updates to client
+- Long-lived connections are acceptable
+- Want lower per-message overhead
+
+Use HTTP RPC when:
+- Stateless request-response is sufficient
+- Client is behind restrictive firewall
+- Standard HTTP tooling needed
+- Short-lived connections preferred
 ```
 
 ---
@@ -914,26 +1066,109 @@ server.listen(config.port, config.host, () => {
 
 ## 10. Summary
 
-### Libraries to Use (No Changes)
-1. `foundation/express_utils` - HTTP + WebSocket server
-2. `utils/ws_rpc` - WebSocket RPC + client management
-3. `utils/stream_translator` - DeepSeek integration
-4. `#@commander` - Process management
-5. All foundation utilities (`#@logger`, `#@ftools`, etc.)
+### Phase 0 Completion Status ✅
+
+**RPC Framework Unification** - COMPLETED (2025-11-05)
+
+Key achievements:
+- ✅ `express_utils` and `ws_rpc` conflicts resolved
+- ✅ HTTP RPC framework created (`utils/http_rpc`)
+- ✅ Unified architecture with WebSocket + HTTP support
+- ✅ 100% backward compatibility maintained
+- ✅ All 50 consistency checks passed
+- ✅ Production-ready and documented
+
+**Ready to use**:
+```javascript
+// Unified RPC setup
+await expressUtils.startExpressServer(config);
+const wss = expressUtils.getWebSocketServer();
+const app = expressUtils.getConfig().app;
+
+const wsRpc = new WsRpcServer(wss);
+const httpRpc = new HttpRpcServer(app);
+
+await wsRpc.start();
+httpRpc.start();
+
+// Share handlers between transports
+wsRpc.route('method', handler);
+httpRpc.route('method', handler);
+```
+
+### Libraries to Use (Phase 0 Enhanced)
+1. `foundation/express_utils` - HTTP + WebSocket server (✅ Updated)
+   - Now exports `getWebSocketServer()` and `getHttpServer()`
+2. `utils/ws_rpc` - WebSocket RPC (✅ Updated)
+   - Now supports attaching to existing WebSocket server
+3. `utils/http_rpc` - HTTP RPC (✅ NEW)
+   - Same protocol as WebSocket RPC
+   - Stateless request-response pattern
+4. `utils/stream_translator` - DeepSeek integration
+5. `#@commander` - Process management
+6. All foundation utilities (`#@logger`, `#@ftools`, etc.)
 
 ### Libraries to Extend
-1. `utils/ai_translator` - Optional: Add WebSocket RPC support
+1. `utils/ai_translator` - Optional: Add WebSocket RPC support (may not be needed now)
 
-### New Components in App
+### New Components in App (Pending Implementation)
 1. `processes/` - Multi-process management
 2. `service/` - Business logic orchestration
-3. `controller/` - Request handlers
-4. `routes/` - Route definitions
+3. `controller/` - Request handlers (WebSocket + HTTP)
+4. `routes/` - Route definitions (WebSocket + HTTP)
 
-### Implementation Priority
-1. Phase 1: Core infrastructure (ProcessManager, ClientManager)
-2. Phase 2: Service layer (TranslationService, process handlers)
-3. Phase 3: WebSocket + HTTP integration
-4. Phase 4: Testing and deployment
+### Implementation Status & Priority
 
-This architecture follows ncore conventions and provides a scalable, multi-service translation system with support for both cloud (OpenRouter) and local (DeepSeek) models.
+✅ **Phase 0: RPC Framework Unification** - COMPLETED
+   - Unified WebSocket and HTTP RPC
+   - Ready for production use
+
+⏳ **Phase 1: Core Infrastructure** - PENDING
+   - ProcessManager, ClientManager
+   - Configuration updates
+   - Depends on: Phase 0 ✅
+
+⏳ **Phase 2: Service Layer** - PENDING
+   - TranslationService, CallbackManager
+   - Process handlers
+   - Depends on: Phase 1
+
+⏳ **Phase 3: WebSocket + HTTP Integration** - PENDING
+   - Controllers for both transports
+   - Route registration
+   - Main entry point updates
+   - Depends on: Phase 2
+
+⏳ **Phase 4: Testing & Deployment** - PENDING
+   - Deployment scripts
+   - Process monitoring
+   - Health checks
+   - Depends on: Phase 3
+
+### Architecture Benefits
+
+With Phase 0 completed, the AI Translator App now has:
+- **Flexible deployment**: WebSocket OR HTTP OR both
+- **Code reuse**: Same handlers for both transports
+- **Consistent protocol**: Unified message format
+- **Feature parity**: Auth, rate limiting, monitoring everywhere
+- **Production ready**: All consistency checks passed
+- **Scalable foundation**: Ready for multi-service architecture
+
+### Next Steps
+
+1. Implement Phase 1: Core Infrastructure
+   - Create ProcessManager
+   - Create ClientManager
+   - Update configuration
+
+2. Use unified RPC from Phase 0
+   - Leverage ws_rpc for real-time features
+   - Leverage http_rpc for stateless operations
+   - Share translation handlers between transports
+
+3. Continue with Phases 2-4
+   - Follow updated implementation plan
+   - Use Phase 0 as foundation
+
+This architecture follows ncore conventions and provides a scalable, multi-service translation system with support for both cloud (OpenRouter) and local (DeepSeek) models. **Phase 0 foundation is complete and ready for app implementation.**

@@ -16,6 +16,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 class TopSection extends StatelessWidget {
   final Function()? onTap;
@@ -68,7 +69,7 @@ class TopSection extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: ThemeDimensions.mediumSize,
                         vertical: ThemeDimensions.paddingSizeSeven),
-                    child: Text('top_up'.tr(context),
+                    child: Text(QyAppLocalizationKeys.qyTopUp.tr(context),
                         style: ThemeTextStyles.textSemiBold.copyWith(
                           color: Theme.of(context).colorScheme.surfaceTint,
                         )),

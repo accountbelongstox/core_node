@@ -129,11 +129,12 @@ class EnAppQy {
     QyAppLocalizationKeys.qySecurity: 'Security',
     QyAppLocalizationKeys.qyHelp: 'Help',
     QyAppLocalizationKeys.qyHelpSupport: 'Help & Support',
-    QyAppLocalizationKeys.qySupport: 'Support',
     QyAppLocalizationKeys.qyAbout: 'About',
     QyAppLocalizationKeys.qyAboutDescription: 'Learn more about the QY App',
     QyAppLocalizationKeys.qyTerms: 'Terms of Service',
     QyAppLocalizationKeys.qyPrivacyPolicy: 'Privacy Policy',
+    QyAppLocalizationKeys.qyDisplayLayoutSettings: 'Display layout settings',
+    QyAppLocalizationKeys.qyCompatibilitySettings: 'Compatibility settings',
 
     // Dashboard & Stats
     QyAppLocalizationKeys.qyDashboard: 'Dashboard',
@@ -164,6 +165,15 @@ class EnAppQy {
     QyAppLocalizationKeys.qyHumanity: 'Humanitarian',
     QyAppLocalizationKeys.qyMedical: 'Medical Aid',
     QyAppLocalizationKeys.qyOrphanage: 'Orphanage',
+    QyAppLocalizationKeys.qyDailyStudyReminder: 'Daily study reminder',
+    QyAppLocalizationKeys.qyPersonalizedRecommendations: 'Personalized recommendation settings',
+    QyAppLocalizationKeys.qySyncSettings: 'Sync settings',
+    QyAppLocalizationKeys.qyNotLoggedIn: 'Not logged in',
+    QyAppLocalizationKeys.qyUser: 'User',
+    QyAppLocalizationKeys.qyClearCacheTitle: 'Clear cache',
+    QyAppLocalizationKeys.qyClearCacheMessage: 'Are you sure you want to clear the cache? This will remove {size} MB of data.',
+    QyAppLocalizationKeys.qyCacheCleared: 'Cache cleared successfully.',
+    QyAppLocalizationKeys.qyHelpCenterInProgress: 'Help center feature is under development...',
 
     // Learning statistics
     QyAppLocalizationKeys.qyCommunity: 'Community',
