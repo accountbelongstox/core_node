@@ -93,4 +93,10 @@ class TravelLocalizationKeys {
   static const String travelProfile = 'travel_profile';
   static const String travelUser = 'travel_user';
   static const String travelGuestUser = 'travel_guest_user';
+  static const String travelSelectCity = 'travel_select_city';
+  static const String travelPopularCities = 'travel_popular_cities';
+  static const String travelCustomCity = 'travel_custom_city';
+  static const String travelEnterCityName = 'travel_enter_city_name';
+  static const String travelCityChangedTo = 'travel_city_changed_to';
+  static const String travelCurrentCity = 'travel_current_city';
 }

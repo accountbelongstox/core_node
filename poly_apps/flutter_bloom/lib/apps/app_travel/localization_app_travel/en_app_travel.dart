@@ -95,4 +95,10 @@ Map<String, String> enAppTravel = {
   TravelLocalizationKeys.travelProfile: 'Profile',
   TravelLocalizationKeys.travelUser: 'User',
   TravelLocalizationKeys.travelGuestUser: 'Guest User',
+  TravelLocalizationKeys.travelSelectCity: 'Select City',
+  TravelLocalizationKeys.travelPopularCities: 'Popular Cities',
+  TravelLocalizationKeys.travelCustomCity: 'Custom City',
+  TravelLocalizationKeys.travelEnterCityName: 'Enter city name',
+  TravelLocalizationKeys.travelCityChangedTo: 'City changed to',
+  TravelLocalizationKeys.travelCurrentCity: 'Current City',
 };
