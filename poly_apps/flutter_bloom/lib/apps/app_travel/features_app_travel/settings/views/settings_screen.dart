@@ -762,13 +762,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('选择城市'),
+          title: Text(TravelLocalizationKeys.travelSelectCity.tr(context)),
           content: SizedBox(
             width: double.maxFinite,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('热门城市', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  TravelLocalizationKeys.travelPopularCities.tr(context),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
                 Flexible(
                   child: ListView.builder(
@@ -787,7 +790,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (mounted) {
                               Navigator.of(context).pop();
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('城市已更改为 $value')),
+                                SnackBar(
+                                  content: Text(
+                                    '${TravelLocalizationKeys.travelCityChangedTo.tr(context)} $value',
+                                  ),
+                                ),
                               );
                             }
                           }
@@ -799,10 +806,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(),
                 TextField(
                   controller: customCityController,
-                  decoration: const InputDecoration(
-                    labelText: '自定义城市',
-                    border: OutlineInputBorder(),
-                    hintText: '输入城市名称',
+                  decoration: InputDecoration(
+                    labelText: TravelLocalizationKeys.travelCustomCity.tr(context),
+                    border: const OutlineInputBorder(),
+                    hintText: TravelLocalizationKeys.travelEnterCityName.tr(context),
                   ),
                 ),
               ],
@@ -811,7 +818,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
+              child: Text(TravelLocalizationKeys.travelCancel.tr(context)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -821,12 +828,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (mounted) {
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('城市已更改为 $customCity')),
+                      SnackBar(
+                        content: Text(
+                          '${TravelLocalizationKeys.travelCityChangedTo.tr(context)} $customCity',
+                        ),
+                      ),
                     );
                   }
                 }
               },
-              child: const Text('确定'),
+              child: Text(TravelLocalizationKeys.travelConfirm.tr(context)),
             ),
           ],
         );
