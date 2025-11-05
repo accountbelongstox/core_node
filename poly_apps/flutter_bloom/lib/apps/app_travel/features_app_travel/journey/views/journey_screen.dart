@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../widgets/my_itinerary_tab.dart';
 import '../widgets/all_orders_tab.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../../resources_app_travel/colors_app_travel.dart';
 
 /// Journey Screen with Tab Navigation
 /// Displays "My Itinerary" and "All Orders" in separate tabs
@@ -10,7 +13,7 @@ import '../widgets/all_orders_tab.dart';
 /// - Centralized data management (no hardcoded data)
 /// - Separate components for each tab
 class JourneyScreen extends StatefulWidget {
-  const JourneyScreen({Key? key}) : super(key: key);
+  const JourneyScreen({super.key});
 
   @override
   State<JourneyScreen> createState() => _JourneyScreenState();
@@ -69,7 +72,7 @@ class _JourneyScreenState extends State<JourneyScreen>
                   child: TabBar(
                     controller: _tabController,
                     isScrollable: true,
-                    indicatorColor: const Color(0xFF00D0D8),
+                    indicatorColor: TravelColors.travelPrimary,
                     indicatorWeight: 3.0,
                     indicatorSize: TabBarIndicatorSize.label,
                     labelColor: Colors.black87,
@@ -82,9 +85,9 @@ class _JourneyScreenState extends State<JourneyScreen>
                       fontSize: 15.0,
                       fontWeight: FontWeight.normal,
                     ),
-                    tabs: const [
-                      Tab(text: '我的行程'),
-                      Tab(text: '全部订单'),
+                    tabs: [
+                      Tab(text: TravelLocalizationKeys.travelMyItinerary.tr(context)),
+                      Tab(text: TravelLocalizationKeys.travelAllOrders.tr(context)),
                     ],
                   ),
                 ),
@@ -95,16 +98,16 @@ class _JourneyScreenState extends State<JourneyScreen>
                     // TODO: Navigate to service/customer support page
                   },
                   child: Column(
-                    children: const [
-                      Icon(
+                    children: [
+                      const Icon(
                         Icons.headset_mic_outlined,
                         size: 24.0,
                         color: Colors.black54,
                       ),
-                      SizedBox(height: 2.0),
+                      const SizedBox(height: 2.0),
                       Text(
-                        '客服',
-                        style: TextStyle(
+                        TravelLocalizationKeys.travelCustomerService.tr(context),
+                        style: const TextStyle(
                           fontSize: 11.0,
                           color: Colors.black54,
                         ),

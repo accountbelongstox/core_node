@@ -1,6 +1,6 @@
 
 /// Authentication data models for the multi-provider authentication system
-library auth_models;
+library;
 
 import 'dart:convert';
 import 'package:equatable/equatable.dart';
@@ -15,7 +15,7 @@ class AuthResult extends Equatable {
   final AuthError? errorCode;
   final Map<String, dynamic>? additionalData;
 
-  const AuthResult._({
+  const AuthResult({
     required this.success,
     this.user,
     this.token,
@@ -30,7 +30,7 @@ class AuthResult extends Equatable {
     required AuthToken token,
     Map<String, dynamic>? additionalData,
   }) {
-    return AuthResult._(
+    return AuthResult(
       success: true,
       user: user,
       token: token,
@@ -44,7 +44,7 @@ class AuthResult extends Equatable {
     AuthError? errorCode,
     Map<String, dynamic>? additionalData,
   }) {
-    return AuthResult._(
+    return AuthResult(
       success: false,
       errorMessage: errorMessage,
       errorCode: errorCode,

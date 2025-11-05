@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 // Fix: Use BankNetworkService for app lifecycle events (has appOpen/appClose methods)
 import '../services_app_bank/bank_network_service.dart';
 // Fix: Use BankPublicApiService for device status/security checks

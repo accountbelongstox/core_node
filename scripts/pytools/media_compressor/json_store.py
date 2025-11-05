@@ -48,8 +48,8 @@ class ThreadSafeJsonStore:
                 self._write_json_to_disk(data)
 
     def read(self) -> JsonData:
-        """Read the JSON file with exclusive file locking."""
-        for attempt in range(self.max_retries):
+        """Read the JSON file with exclusive file locking. Retries indefinitely."""
+        while True:
             with self._thread_lock:
                 try:
                     with self._file_lock():
@@ -57,18 +57,11 @@ class ThreadSafeJsonStore:
                 except Exception:
                     pass
 
-            if attempt < self.max_retries - 1:
-                time.sleep(self.retry_delay)
-
-        data = self._create_default()
-        with self._thread_lock:
-            with self._file_lock():
-                self._write_json_to_disk(data)
-        return data
+            time.sleep(self.retry_delay)
 
     def write(self, data: JsonData) -> bool:
-        """Write data to the JSON file atomically with file lock coordination."""
-        for attempt in range(self.max_retries):
+        """Write data to the JSON file atomically with file lock coordination. Retries indefinitely."""
+        while True:
             with self._thread_lock:
                 try:
                     with self._file_lock():
@@ -77,10 +70,7 @@ class ThreadSafeJsonStore:
                 except Exception:
                     pass
 
-            if attempt < self.max_retries - 1:
-                time.sleep(self.retry_delay)
-
-        return False
+            time.sleep(self.retry_delay)
 
     def update(
         self,
@@ -89,26 +79,44 @@ class ThreadSafeJsonStore:
         max_retries: Optional[int] = None,
         retry_delay: Optional[float] = None,
     ) -> bool:
-        """Apply a mutator to the JSON data with retries and file locking."""
+        """Apply a mutator to the JSON data with retries and file locking.
 
-        retries = max_retries if max_retries is not None else self.max_retries
+        If max_retries is None, retries indefinitely. Otherwise uses the specified limit.
+        """
+
         delay = self.retry_delay if retry_delay is None else retry_delay
 
-        for attempt in range(retries):
-            with self._thread_lock:
-                try:
-                    with self._file_lock():
-                        data = self._load_json_from_disk()
-                        mutator(data)
-                        self._write_json_to_disk(data)
-                        return True
-                except Exception:
-                    pass
+        # If max_retries is None, retry indefinitely
+        if max_retries is None:
+            while True:
+                with self._thread_lock:
+                    try:
+                        with self._file_lock():
+                            data = self._load_json_from_disk()
+                            mutator(data)
+                            self._write_json_to_disk(data)
+                            return True
+                    except Exception:
+                        pass
 
-            if attempt < retries - 1:
                 time.sleep(delay)
+        else:
+            # Use specified retry limit
+            for attempt in range(max_retries):
+                with self._thread_lock:
+                    try:
+                        with self._file_lock():
+                            data = self._load_json_from_disk()
+                            mutator(data)
+                            self._write_json_to_disk(data)
+                            return True
+                    except Exception:
+                        pass
 
-        return False
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+
+            return False
 
     def _create_default(self) -> JsonData:
         if self.default_factory:
@@ -150,6 +158,7 @@ class ThreadSafeJsonStore:
 
     def _acquire_file_lock(self) -> None:
         deadline = None if self.lock_timeout is None else time.time() + self.lock_timeout
+        zombie_lock_threshold = 300  # 5 minutes in seconds
 
         while True:
             try:
@@ -158,6 +167,26 @@ class ThreadSafeJsonStore:
                     lock_file.write(f"pid={os.getpid()} time={time.time():.0f}")
                 return
             except FileExistsError:
+                # Check if lock file is a zombie (process crashed, lock file remained)
+                try:
+                    if self._lock_path.exists():
+                        # Read lock file timestamp
+                        with self._lock_path.open('r', encoding='utf-8') as lock_file:
+                            content = lock_file.read()
+                            # Parse time from content: "pid=12345 time=1730812800"
+                            for part in content.split():
+                                if part.startswith('time='):
+                                    lock_time = float(part.split('=')[1])
+                                    elapsed = time.time() - lock_time
+                                    if elapsed > zombie_lock_threshold:
+                                        # Zombie lock detected - remove it
+                                        self._lock_path.unlink(missing_ok=True)
+                                        continue  # Retry immediately
+                                    break
+                except (OSError, ValueError, IndexError):
+                    # If we can't read the lock file, treat it as potentially valid
+                    pass
+
                 if deadline is not None and time.time() >= deadline:
                     raise TimeoutError(f"Timed out acquiring lock for {self.path}")
                 time.sleep(self.lock_wait)

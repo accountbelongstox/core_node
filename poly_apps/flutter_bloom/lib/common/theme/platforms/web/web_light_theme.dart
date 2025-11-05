@@ -35,7 +35,6 @@ ThemeData getWebLightTheme() {
     hoverColor: const Color(0xFF8AFF00).withAlpha((255 * 0.08).round()),
     splashColor: const Color(0xFF8AFF00).withAlpha((255 * 0.16).round()),
     highlightColor: const Color(0xFF8AFF00).withAlpha((255 * 0.24).round()),
-    indicatorColor: const Color(0xFF8AFF00),
     disabledColor: const Color(0xFFB0B0C0),
     secondaryHeaderColor: const Color(0xFFF3F6F9),
     unselectedWidgetColor: const Color(0xFF8888A0),
@@ -180,7 +179,7 @@ ThemeData getWebLightTheme() {
         }
         return const Color(0xFFE0E0E0);
       }),
-    ),
+    ), tabBarTheme: TabBarThemeData(indicatorColor: const Color(0xFF8AFF00)),
   );
   if (!kIsWeb) {
     themeData = langCode == 'zh'

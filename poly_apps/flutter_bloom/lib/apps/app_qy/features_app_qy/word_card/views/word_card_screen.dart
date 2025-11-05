@@ -19,7 +19,7 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 
 class WordCardScreen extends StatelessWidget {
-  const WordCardScreen({Key? key}) : super(key: key);
+  const WordCardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

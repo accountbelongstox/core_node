@@ -1,13 +1,14 @@
 /// Display settings screen
-library display_settings_screen;
+library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/services/settings_service.dart';
-import 'widgets/settings_section.dart';
-import 'widgets/settings_tile.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../widgets/settings_section.dart';
+import '../widgets/settings_tile.dart';
 
 class DisplaySettingsScreen extends StatefulWidget {
   const DisplaySettingsScreen({super.key});
@@ -71,7 +72,7 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
           ),
           Expanded(
             child: Text(
-              'settings.displayMode'.tr,
+              'settings.displayMode'.tr(context),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -86,7 +87,7 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
 
   Widget _buildFontSettings() {
     return SettingsSection(
-      title: '字体设置',
+      title: QyAppLocalizationKeys.qySettingsFontSettings.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -94,9 +95,9 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
               Icons.text_fields_outlined,
               color: AppTheme.primaryGreen,
             ),
-            title: 'settings.fontSize'.tr,
+            title: 'settings.fontSize'.tr(context),
             subtitle: '${_fontSize.toInt()}px',
-            trailing: Container(
+            trailing: SizedBox(
               width: 200,
               child: Slider(
                 value: _fontSize,
@@ -118,7 +119,7 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
               Icons.font_download_outlined,
               color: AppTheme.secondaryGreen,
             ),
-            title: '字体',
+            title: QyAppLocalizationKeys.qySettingsFont.tr(context),
             subtitle: _fontFamily,
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showFontFamilyDialog(),
@@ -132,7 +133,7 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
     return Consumer<SettingsService>(
       builder: (context, settings, child) {
         return SettingsSection(
-          title: '外观设置',
+          title: QyAppLocalizationKeys.qySettingsAppearanceSettings.tr(context),
           child: Column(
             children: [
               SettingsTile(
@@ -142,8 +143,8 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
                       : Icons.light_mode_outlined,
                   color: AppTheme.primaryGreen,
                 ),
-                title: 'settings.darkMode'.tr,
-                subtitle: settings.themeMode == ThemeMode.dark ? '深色模式' : '浅色模式',
+                title: 'settings.darkMode'.tr(context),
+                subtitle: settings.themeMode == ThemeMode.dark ? QyAppLocalizationKeys.qyDarkMode.tr(context) : QyAppLocalizationKeys.qyLightMode.tr(context),
                 trailing: Switch(
                   value: settings.themeMode == ThemeMode.dark,
                   onChanged: (value) {
@@ -158,8 +159,8 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
                   Icons.grid_view_outlined,
                   color: AppTheme.secondaryGreen,
                 ),
-                title: '界面布局',
-                subtitle: '标准模式',
+                title: QyAppLocalizationKeys.qySettingsInterfaceLayout.tr(context),
+                subtitle: QyAppLocalizationKeys.qySettingsStandardMode.tr(context),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _showLayoutDialog(),
               ),
@@ -172,7 +173,7 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
 
   Widget _buildAccessibilitySettings() {
     return SettingsSection(
-      title: '辅助功能',
+      title: QyAppLocalizationKeys.qySettingsAccessibility.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -180,8 +181,8 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
               Icons.accessibility_outlined,
               color: AppTheme.accentGreen,
             ),
-            title: '高对比度',
-            subtitle: '提高文字和背景的对比度',
+            title: QyAppLocalizationKeys.qySettingsHighContrast.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsHighContrastSubtitle.tr(context),
             trailing: Switch(
               value: _highContrast,
               onChanged: (value) {
@@ -198,8 +199,8 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
               Icons.format_size_outlined,
               color: Colors.orange,
             ),
-            title: '大字体模式',
-            subtitle: '适合视力不佳的用户',
+            title: QyAppLocalizationKeys.qySettingsLargeFontMode.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsLargeFontModeSubtitle.tr(context),
             trailing: Switch(
               value: _largeText,
               onChanged: (value) {
@@ -225,7 +226,7 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('选择字体'),
+        title: Text(QyAppLocalizationKeys.qySettingsSelectFont.tr(context)),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -257,12 +258,12 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('界面布局'),
-        content: Text('界面布局设置功能开发中...'),
+        title: Text(QyAppLocalizationKeys.qySettingsInterfaceLayout.tr(context)),
+        content: Text(QyAppLocalizationKeys.qySettingsLayoutInProgress.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),

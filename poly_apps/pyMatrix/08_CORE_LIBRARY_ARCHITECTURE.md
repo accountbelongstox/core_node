@@ -616,14 +616,14 @@ from pycore.pyapi import WebSocketManager
 
 # ✅ 引用本地模块
 from api import device_routes, video_routes, control_routes, group_routes
-from services import DeviceService, VideoService
+from services import DeviceService, VideoStreamService
 from config import Config
 
 app = FastAPI(title="pyMatrix API")
 
 # 初始化服务
 device_service = DeviceService()
-video_service = VideoService()
+video_service = VideoStreamService()
 
 # 注册路由
 app.include_router(device_routes.router, prefix="/api")
@@ -712,20 +712,20 @@ from pycore.pyapi import WebSocketManager
 from pycore.pystream import H264Decoder, FMP4Encoder
 
 # ✅ 引用本地服务
-from services.video_service import VideoService
+from services.video_stream_service import VideoStreamService
 
 router = APIRouter()
 ws_manager = WebSocketManager()
 
 # 依赖注入
-def get_video_service() -> VideoService:
-    return VideoService.instance()
+def get_video_service() -> VideoStreamService:
+    return VideoStreamService.instance()
 
 @router.websocket("/ws/video/{serial}")
 async def video_stream(
     websocket: WebSocket,
     serial: str,
-    video_service: VideoService = Depends(get_video_service)
+    video_service: VideoStreamService = Depends(get_video_service)
 ):
     """视频流 WebSocket"""
     await ws_manager.connect(serial, websocket)

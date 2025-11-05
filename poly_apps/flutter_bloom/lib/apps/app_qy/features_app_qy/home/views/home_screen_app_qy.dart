@@ -1,11 +1,10 @@
 /// Home screen with study features and navigation
-library home_screen_app_qy;
+library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
-import '../../../../../../common/widgets/glassmorphism_card.dart';
 import '../../../provider_app_qy/user_provider_app_qy.dart';
 import '../widgets/study_progress_card.dart';
 import '../widgets/feature_grid.dart';

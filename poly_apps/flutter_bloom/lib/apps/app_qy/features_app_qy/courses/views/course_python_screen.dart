@@ -1,11 +1,9 @@
 /// Python Course Detail Screen
-library course_python_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
-import '../../../../../../common/widgets/gradient_button.dart';
 import '../domain/models/course_model.dart';
 
 class CoursePythonScreen extends StatefulWidget {
@@ -54,10 +52,10 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
     ],
   );
 
-  double _userProgress = 0.28;
-  int _completedLessons = 18;
-  int _currentStreak = 12;
-  int _projectCompleted = 3;
+  final double _userProgress = 0.28;
+  final int _completedLessons = 18;
+  final int _currentStreak = 12;
+  final int _projectCompleted = 3;
 
   @override
   void initState() {
@@ -537,7 +535,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                 ),
               ],
             ),
-          )).toList(),
+          )),
         ],
       ),
     );
@@ -674,7 +672,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -1317,7 +1315,7 @@ class _CoursePythonScreenState extends State<CoursePythonScreen>
                 ),
               ],
             ),
-          )).toList(),
+          )),
         ],
       ),
     );

@@ -1,5 +1,5 @@
 /// Word Book screen with search functionality
-library word_book_screen;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../common/i18n/i18n_service.dart';

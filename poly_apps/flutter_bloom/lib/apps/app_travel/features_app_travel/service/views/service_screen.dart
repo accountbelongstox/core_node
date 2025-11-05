@@ -1,36 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../../resources_app_travel/colors_app_travel.dart';
 
 class ServiceScreen extends StatelessWidget {
-  const ServiceScreen({Key? key}) : super(key: key);
+  const ServiceScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('客服'),
-        backgroundColor: const Color(0xFF00D0D8),
+        title: Text(TravelLocalizationKeys.travelCustomerService.tr(context)),
+        backgroundColor: TravelColors.travelPrimary,
       ),
-      body: const Center(
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.headset_mic,
               size: 80.0,
-              color: Color(0xFF00D0D8),
+              color: TravelColors.travelPrimary,
             ),
-            SizedBox(height: 16.0),
+            const SizedBox(height: 16.0),
             Text(
-              '客服中心',
-              style: TextStyle(
+              TravelLocalizationKeys.travelServiceCenter.tr(context),
+              style: const TextStyle(
                 fontSize: 24.0,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: 8.0),
+            const SizedBox(height: 8.0),
             Text(
-              '在线客服功能开发中',
-              style: TextStyle(
+              TravelLocalizationKeys.travelOnlineServiceDev.tr(context),
+              style: const TextStyle(
                 fontSize: 14.0,
                 color: Colors.grey,
               ),

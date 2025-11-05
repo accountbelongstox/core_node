@@ -110,16 +110,15 @@ class VipClubAuthController extends ChangeNotifier {
     await _userProvider.ensureInitialized();
 
     final mockUser = VipClubUserModel(
-      id: 'debug_user_123',
+      id: 123,
       email: '$username@debug.com',
       name: username.toUpperCase(),
       phone: '+1234567890',
       memberType: 'gold',
-      isVipMember: true,
       vipPoints: 50000,
-      discountRate: 0.15,
       memberSince: DateTime.now().subtract(const Duration(days: 365)),
       memberExpiry: DateTime.now().add(const Duration(days: 365)),
+      isActive: true,
     );
 
     _userProvider.setUser(mockUser);

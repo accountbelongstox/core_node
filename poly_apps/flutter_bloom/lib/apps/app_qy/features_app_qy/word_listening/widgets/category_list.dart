@@ -1,5 +1,5 @@
 /// Category list widget for word listening
-library category_list;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../../common/i18n/i18n_service.dart';

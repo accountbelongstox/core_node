@@ -1,8 +1,7 @@
 /// Word Listening Dictation main screen
-library word_listening_dictation_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 import '../../../../../../common/widgets/animations/animation_utils.dart';
 import 'word_listening_dictation_practice_screen.dart';
@@ -55,7 +54,7 @@ class _WordListeningDictationScreenState extends State<WordListeningDictationScr
       'subtitle': '复杂句子，原速播放',
       'level': 'Expert',
       'icon': Icons.workspace_premium,
-      'color: AppTheme.darkGreen,
+      'color': AppTheme.darkGreen,
       'wordCount': 2000,
       'progress': 0.0,
       'locked': true,

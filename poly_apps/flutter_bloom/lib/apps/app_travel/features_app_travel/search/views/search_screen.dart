@@ -19,7 +19,7 @@ import '../../../router_app_travel/routes_provider_app_travel.dart';
 import '../../../models_app_travel/sight_model_app_travel.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({Key? key}) : super(key: key);
+  const SearchScreen({super.key});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();

@@ -15,16 +15,15 @@ import 'package:qyflutter/common/widgets/custom_search_input.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 class HomeBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onMenuTap;
 
   const HomeBar({
-    Key? key,
+    super.key,
     required this.onMenuTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -133,10 +132,10 @@ class ActionWidget extends StatelessWidget {
   final Widget actionIcon;
 
   const ActionWidget({
-    Key? key,
+    super.key,
     required this.onTap,
     required this.actionIcon,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

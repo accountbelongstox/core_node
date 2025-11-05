@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../ui/global_loading_system.dart';
@@ -12,13 +11,13 @@ class AdaptiveLoadingOverlay extends StatelessWidget {
   final LoadingConfig? config;
 
   const AdaptiveLoadingOverlay({
-    Key? key,
+    super.key,
     required this.child,
     this.showWhen = false,
     this.message,
     this.style,
     this.config,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -50,12 +49,12 @@ class AdaptiveLoadingIndicator extends StatelessWidget {
   final double? progress;
 
   const AdaptiveLoadingIndicator({
-    Key? key,
+    super.key,
     this.message,
     this.style = LoadingStyle.circular,
     this.config = const LoadingConfig(),
     this.progress,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -336,12 +335,12 @@ class ContextualLoadingWidget extends StatelessWidget {
   final bool showOverlay;
 
   const ContextualLoadingWidget({
-    Key? key,
+    super.key,
     required this.context,
     required this.child,
     this.loadingWidget,
     this.showOverlay = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -391,14 +390,14 @@ class SmartLoadingButton extends StatefulWidget {
   final String? loadingMessage;
 
   const SmartLoadingButton({
-    Key? key,
+    super.key,
     this.onPressed,
     this.onPressedAsync,
     required this.child,
     this.loadingStyle = LoadingStyle.circular,
     this.disabled = false,
     this.loadingMessage,
-  }) : super(key: key);
+  });
 
   @override
   State<SmartLoadingButton> createState() => _SmartLoadingButtonState();
@@ -445,7 +444,7 @@ class _SmartLoadingButtonState extends State<SmartLoadingButton> {
 class SkeletonItem extends StatelessWidget {
   final LoadingTheme theme;
 
-  const SkeletonItem({Key? key, required this.theme}) : super(key: key);
+  const SkeletonItem({super.key, required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -492,12 +491,12 @@ class SkeletonBox extends StatelessWidget {
   final LoadingTheme theme;
 
   const SkeletonBox({
-    Key? key,
+    super.key,
     required this.width,
     required this.height,
     this.borderRadius,
     required this.theme,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -524,12 +523,12 @@ class ShimmerEffect extends StatefulWidget {
   final Duration period;
 
   const ShimmerEffect({
-    Key? key,
+    super.key,
     required this.child,
     required this.baseColor,
     required this.highlightColor,
     this.period = const Duration(milliseconds: 1500),
-  }) : super(key: key);
+  });
 
   @override
   State<ShimmerEffect> createState() => _ShimmerEffectState();
@@ -592,11 +591,11 @@ class DotsIndicator extends StatefulWidget {
   final int dotCount;
 
   const DotsIndicator({
-    Key? key,
+    super.key,
     required this.color,
     this.size = 8.0,
     this.dotCount = 3,
-  }) : super(key: key);
+  });
 
   @override
   State<DotsIndicator> createState() => _DotsIndicatorState();
@@ -674,10 +673,10 @@ class PulseIndicator extends StatefulWidget {
   final double size;
 
   const PulseIndicator({
-    Key? key,
+    super.key,
     required this.color,
     this.size = 40.0,
-  }) : super(key: key);
+  });
 
   @override
   State<PulseIndicator> createState() => _PulseIndicatorState();
@@ -741,10 +740,10 @@ class LoadingStateBuilder extends StatelessWidget {
   final Widget Function(BuildContext context, LoadingUIState state, dynamic data) builder;
 
   const LoadingStateBuilder({
-    Key? key,
+    super.key,
     required this.context,
     required this.builder,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

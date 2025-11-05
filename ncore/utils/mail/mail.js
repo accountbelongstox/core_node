@@ -14,6 +14,7 @@ const nodemailer = require('nodemailer');
     const dotenv = require('dotenv');
     const Base = require('#@base');
     const { format } = require('date-fns');
+    const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper');
 
     dotenv.config();
 
@@ -28,8 +29,8 @@ const nodemailer = require('nodemailer');
         const config = {
           MAIL_SERVER: process.env.MAIL_SERVER || 'mail.local.12gm.com',
           MAIL_PORT: parseInt(process.env.MAIL_PORT, 10) || 587,
-          MAIL_USERNAME: process.env.MAIL_USERNAME || 'mailserver@mail.local.12gm.com',
-          MAIL_PASSWORD: process.env.MAIL_PASSWORD || null,
+          MAIL_USERNAME: getSecretOrEnv('MAIL_USERNAME', 'MAIL_USERNAME', 'mailserver@mail.local.12gm.com'),
+          MAIL_PASSWORD: getSecretOrEnv('MAIL_PASSWORD', 'MAIL_PASSWORD', null),
         };
 
         const missing = Object.entries(config).filter(([key, value]) => value === null);

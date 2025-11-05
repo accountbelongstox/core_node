@@ -1,0 +1,94 @@
+# Codex MCP Servers Configuration Template (Ubuntu Desktop)
+# This file contains MCP server configurations for Codex on Ubuntu Desktop
+# Auto-generated template - do not modify directly
+
+# Global MCP settings
+experimental_use_rmcp_client = true
+
+# ==================== Developer Documentation ====================
+
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]
+
+[mcp_servers.context7.env]
+# Add any required environment variables here
+# CONTEXT7_API_KEY = "your_key_here"
+DISPLAY = ":0"
+
+# ==================== File Processing ====================
+
+[mcp_servers.file_processor]
+command = "python3"
+args = [
+    "/home/$USER/projects/core_node/ncore/mcp_server/file_processor/main.py"
+]
+
+[mcp_servers.file_processor.env]
+# File processor environment variables
+PYTHONIOENCODING = "utf-8"
+LANG = "en_US.UTF-8"
+LC_ALL = "en_US.UTF-8"
+
+# ==================== Project-Specific Servers ====================
+
+# Example: Project-specific MCP server
+# Uncomment and modify as needed
+# [mcp_servers.my_project]
+# command = "node"
+# args = ["$PROJECT_NAME$/mcp-server/index.js"]
+# startup_timeout_sec = 30
+# tool_timeout_sec = 60
+
+# ==================== HTTP-based MCP Servers ====================
+
+# Example: Figma Remote MCP
+# [mcp_servers.figma]
+# url = "https://mcp.figma.com/mcp"
+# bearer_token = "your_token_here"
+
+# ==================== Desktop-Specific Servers ====================
+
+# Example: Playwright (browser automation)
+# [mcp_servers.playwright]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-playwright"]
+# [mcp_servers.playwright.env]
+# DISPLAY = ":0"
+
+# Example: Chrome DevTools
+# [mcp_servers.chrome_devtools]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-chrome"]
+# [mcp_servers.chrome_devtools.env]
+# DISPLAY = ":0"
+
+# ==================== Ubuntu Desktop Notes ====================
+#
+# Desktop Environment:
+# - Set DISPLAY=:0 for GUI applications
+# - Ensure X11 or Wayland is running
+#
+# Paths:
+# - Use absolute paths starting with /home/$USER/
+# - Or use ~/ for home directory
+# - Use forward slashes (/)
+#
+# Python:
+# - Use python3 command
+# - Install packages with: pip3 install package-name
+#
+# Node.js:
+# - Use npx for global packages
+# - Or install locally: npm install -g package-name
+#
+# Configuration structure:
+# - command: The executable to launch the server
+# - args: Array of arguments to pass to the command
+# - env: Environment variables (optional)
+# - url: For HTTP-based servers (instead of command)
+# - bearer_token: For HTTP servers requiring authentication
+# - startup_timeout_sec: Timeout for server initialization (optional)
+# - tool_timeout_sec: Timeout for tool execution (optional)
+#
+# More info: https://docs.codex.ai/mcp

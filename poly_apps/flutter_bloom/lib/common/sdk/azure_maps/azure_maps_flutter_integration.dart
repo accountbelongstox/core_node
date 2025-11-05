@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'azure_maps_service.dart';
 
 class AzureMapsFlutterIntegration {

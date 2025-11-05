@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../widgets/travel_icons.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
 
 class HomeWelcome extends StatelessWidget {
   final String cityName;
   final String temperature;
 
   const HomeWelcome({
-    Key? key,
+    super.key,
     required this.cityName,
     this.temperature = '35',
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +45,7 @@ class HomeWelcome extends StatelessWidget {
           ),
           Center(
             child: Text(
-              '您好,欢迎来到$cityName',
+              '${TravelLocalizationKeys.travelWelcomeToCity.tr(context)}$cityName',
               style: const TextStyle(
                 fontSize: 16.0,
                 height: 1.0,

@@ -1,7 +1,7 @@
 
 /// Authentication configuration models for multi-provider login system
 /// Supports WeChat, QQ, Google, GitHub, and phone number authentication
-library auth_config;
+library;
 
 import 'dart:convert';
 

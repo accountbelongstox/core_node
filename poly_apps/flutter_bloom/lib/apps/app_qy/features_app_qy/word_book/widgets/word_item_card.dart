@@ -1,9 +1,8 @@
 /// Word item card widget
-library word_item_card;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../../common/theme/app_theme.dart';
-import '../../../../../../../common/widgets/glassmorphism_card.dart';
 import '../../../../../../../common/widgets/animations/animation_utils.dart';
 import '../models/word_models.dart';
 

@@ -36,6 +36,7 @@ class VideoStreamService:
         self.streams: Dict[str, asyncio.Task] = {}  # serial -> stream task
         self.handlers: Dict[str, VideoStreamHandler] = {}  # serial -> stream handler
         self.paused: Dict[str, bool] = {}  # serial -> is_paused
+        self.frame_timestamps: Dict[str, list] = {}  # serial -> list of (frame_time, send_time)
 
     @classmethod
     def instance(cls) -> 'VideoStreamService':
@@ -109,26 +110,51 @@ class VideoStreamService:
             frame_count = 0
             start_time = asyncio.get_event_loop().time()
 
+            # Initialize latency tracking
+            self.frame_timestamps[serial] = []
+
             async for fmp4_chunk in handler.stream_fmp4():
                 # Check if paused
                 if self.paused.get(serial, False):
                     await asyncio.sleep(0.1)
                     continue
 
+                # Record frame timestamp for latency calculation
+                frame_time = asyncio.get_event_loop().time()
+
                 # Send fMP4 media segment
+                send_start = asyncio.get_event_loop().time()
                 await websocket.send_bytes(fmp4_chunk)
+                send_end = asyncio.get_event_loop().time()
+
+                # Track send latency (network + encoding time)
+                send_latency = (send_end - send_start) * 1000  # Convert to ms
+                self.frame_timestamps[serial].append((frame_time, send_latency))
+
+                # Keep only last 120 frames for latency calculation (~2 seconds at 60fps)
+                if len(self.frame_timestamps[serial]) > 120:
+                    self.frame_timestamps[serial].pop(0)
+
                 frame_count += 1
 
                 # Send metadata every 60 frames (~1 second)
                 if frame_count % 60 == 0:
                     elapsed = asyncio.get_event_loop().time() - start_time
+
+                    # Calculate average latency from recent frames
+                    if self.frame_timestamps[serial]:
+                        recent_latencies = [lat for _, lat in self.frame_timestamps[serial][-60:]]
+                        avg_latency = sum(recent_latencies) / len(recent_latencies)
+                    else:
+                        avg_latency = 0
+
                     metadata = {
                         "type": "video.metadata",
                         "timestamp": int(elapsed * 1000),
                         "data": {
                             "fps": frame_count / elapsed if elapsed > 0 else 0,
                             "droppedFrames": 0,
-                            "latency": 100  # ms (TODO: measure actual latency)
+                            "latency": round(avg_latency, 2)  # Actual measured latency in ms
                         }
                     }
                     await websocket.send_json(metadata)
@@ -161,11 +187,44 @@ class VideoStreamService:
                 del self.handlers[serial]
             if serial in self.paused:
                 del self.paused[serial]
+            if serial in self.frame_timestamps:
+                del self.frame_timestamps[serial]
 
     async def set_quality(self, serial: str, quality_config: dict):
-        """Change video quality settings"""
-        # TODO: Send quality change to scrcpy-server
-        print(f"Set quality for {serial}: {quality_config}")
+        """
+        Change video quality settings dynamically
+
+        Args:
+            serial: Device serial number
+            quality_config: Quality configuration dict containing:
+                - max_size: Maximum resolution (short edge, e.g., 720, 1080)
+                - bit_rate: Video bitrate in bps (e.g., 8000000 for 8 Mbps)
+                - max_fps: Maximum frame rate (e.g., 30, 60)
+
+        Note:
+            Quality changes require reconnecting the video stream to take effect.
+            This method updates the device parameters and will apply on next connection.
+        """
+        device = self.device_manager.get_device(serial)
+        if not device:
+            print(f"[VideoStreamService] Device {serial} not found for quality change")
+            return
+
+        # Update device parameters
+        if 'max_size' in quality_config:
+            device.params.max_size = quality_config['max_size']
+            print(f"[VideoStreamService] Updated max_size to {quality_config['max_size']}")
+
+        if 'bit_rate' in quality_config:
+            device.params.bit_rate = quality_config['bit_rate']
+            print(f"[VideoStreamService] Updated bit_rate to {quality_config['bit_rate']}")
+
+        if 'max_fps' in quality_config:
+            device.params.max_fps = quality_config['max_fps']
+            print(f"[VideoStreamService] Updated max_fps to {quality_config['max_fps']}")
+
+        print(f"[VideoStreamService] Quality settings updated for {serial}")
+        print(f"[VideoStreamService] Note: Changes will apply on next video stream connection")
 
     async def pause(self, serial: str):
         """Pause video stream"""

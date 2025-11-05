@@ -19,12 +19,12 @@ class SettingsArrowItem extends StatelessWidget {
   final Color? iconColor;
 
   const SettingsArrowItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     required this.onTap,
     this.iconColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

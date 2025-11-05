@@ -1,5 +1,5 @@
 /// Authentication configuration for app_qy
-library auth_config_app_qy;
+library;
 
 import 'package:flutter/foundation.dart';
 import '../../../../../common/auth_v2/auth_v2.dart';
@@ -24,14 +24,10 @@ class AuthConfigAppQy {
           maxRetries: 3,
         ),
       },
-      enabledProviders: [
-        AuthProvider.wechat,
-        AuthProvider.phone,
-      ],
       enableAutoLogin: true,
       sessionTimeoutMinutes: 1440, // 24 hours
       enableTokenRefresh: true,
-      enableBiometricAuth: false, // Can be enabled later
+      enableBiometric: false, // Can be enabled later
     );
   }
 
@@ -53,14 +49,10 @@ class AuthConfigAppQy {
           maxRetries: 3,
         ),
       },
-      enabledProviders: [
-        AuthProvider.wechat,
-        AuthProvider.phone,
-      ],
       enableAutoLogin: true,
       sessionTimeoutMinutes: 720, // 12 hours in production
       enableTokenRefresh: true,
-      enableBiometricAuth: true,
+      enableBiometric: true,
     );
   }
 

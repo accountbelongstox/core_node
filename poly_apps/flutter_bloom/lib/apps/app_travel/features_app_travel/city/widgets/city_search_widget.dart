@@ -8,11 +8,11 @@ class CitySearchWidget extends StatefulWidget {
   final Function(CityModel)? onCitySelected;
 
   const CitySearchWidget({
-    Key? key,
+    super.key,
     required this.cityList,
     this.onClose,
     this.onCitySelected,
-  }) : super(key: key);
+  });
 
   @override
   State<CitySearchWidget> createState() => _CitySearchWidgetState();

@@ -29,7 +29,7 @@ class _EditProjectViewAppCodemartState extends State<EditProjectViewAppCodemart>
   bool _isLoading = true;
   bool _isSaving = false;
   String? _errorMessage;
-  ProjectStatusType? _status;
+  ProjectStatus? _status;
 
   @override
   void initState() {
@@ -223,13 +223,13 @@ class _EditProjectViewAppCodemartState extends State<EditProjectViewAppCodemart>
 
                       // Status
                       if (_status != null)
-                        DropdownButtonFormField<ProjectStatusType>(
+                        DropdownButtonFormField<ProjectStatus>(
                           value: _status,
                           decoration: InputDecoration(
                             labelText: context.tr(LocalizationKeysAppCodemart.codemartProjectStatus),
                             prefixIcon: const Icon(Icons.info),
                           ),
-                          items: ProjectStatusType.values.map((type) {
+                          items: ProjectStatus.values.map((type) {
                             return DropdownMenuItem(
                               value: type,
                               child: Text(type.name),

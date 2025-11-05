@@ -13,7 +13,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/common/network/network_framework.dart';
-import 'package:qyflutter/common/constants/app_constants.dart';
 import 'package:qyflutter/apps/app_example/model_app_example/user_model.dart';
 import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:qyflutter/apps/app_example/config_app_example/storage_app_example.dart';

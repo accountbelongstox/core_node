@@ -11,7 +11,6 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../../common/storage/storage_manager.dart';
 import '../models/message_models.dart';
@@ -179,7 +178,7 @@ class AChatStorageManager {
     final messages = <AChatMessage>[];
 
     for (final entry in allData.entries) {
-      final key = entry.key as String;
+      final key = entry.key;
       if (key.startsWith('${chatId}_')) {
         try {
           final message = AChatMessage.fromJson(entry.value as Map<String, dynamic>);
@@ -527,11 +526,11 @@ class AChatStorageManager {
       try {
         final message = AChatMessage.fromJson(entry.value as Map<String, dynamic>);
         if (message.timestamp.isBefore(cutoffDate)) {
-          await _storage.deleteKey(_messagesBox, entry.key as String);
+          await _storage.deleteKey(_messagesBox, entry.key);
         }
       } catch (e) {
         // Remove corrupted entries
-        await _storage.deleteKey(_messagesBox, entry.key as String);
+        await _storage.deleteKey(_messagesBox, entry.key);
       }
     }
 
@@ -542,11 +541,11 @@ class AChatStorageManager {
         final data = entry.value as Map<String, dynamic>;
         final timestamp = DateTime.parse(data['timestamp'] as String);
         if (timestamp.isBefore(cutoffDate)) {
-          await _storage.deleteKey(_draftsBox, entry.key as String);
+          await _storage.deleteKey(_draftsBox, entry.key);
         }
       } catch (e) {
         // Remove corrupted entries
-        await _storage.deleteKey(_draftsBox, entry.key as String);
+        await _storage.deleteKey(_draftsBox, entry.key);
       }
     }
 

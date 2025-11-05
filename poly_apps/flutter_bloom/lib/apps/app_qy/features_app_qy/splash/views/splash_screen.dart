@@ -20,10 +20,9 @@ import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
 import 'package:qyflutter/common/assets/common_assets_images.dart';
 import 'package:provider/provider.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -136,7 +135,7 @@ class _SplashScreenState extends State<SplashScreen> {
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: isDarkMode
                                 ? theme.colorScheme.onSurface.withOpacity(0.7)
-                                : theme.colorScheme.onBackground
+                                : theme.colorScheme.onSurface
                                     .withOpacity(0.7),
                             fontSize: 14,
                           ),

@@ -34,7 +34,6 @@ ThemeData getDesktopLightTheme() {
     hoverColor: const Color(0xFF0078D4).withAlpha((255 * 0.04).round()),
     splashColor: const Color(0xFF0078D4).withAlpha((255 * 0.12).round()),
     highlightColor: const Color(0xFF0078D4).withAlpha((255 * 0.12).round()),
-    indicatorColor: const Color(0xFF0078D4),
     disabledColor: const Color(0xFFBDBDBD),
     secondaryHeaderColor: const Color(0xFFF5F5F5),
     unselectedWidgetColor: const Color(0xFF757575),
@@ -223,7 +222,7 @@ ThemeData getDesktopLightTheme() {
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       textStyle: const TextStyle(color: Color(0xFF212121)),
-    ),
+    ), tabBarTheme: TabBarThemeData(indicatorColor: const Color(0xFF0078D4)),
   );
 
   if (!kIsWeb) {

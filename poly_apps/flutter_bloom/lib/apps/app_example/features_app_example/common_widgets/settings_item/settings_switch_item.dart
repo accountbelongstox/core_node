@@ -20,13 +20,13 @@ class SettingsSwitchItem extends StatelessWidget {
   final Color? iconColor;
 
   const SettingsSwitchItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     required this.value,
     required this.onChanged,
     this.iconColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

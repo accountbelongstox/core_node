@@ -1,5 +1,5 @@
 /// Word Listening Sleep Mode screen
-library word_listening_sleep_screen;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../common/i18n/i18n_service.dart';
@@ -474,7 +474,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                   color: _isDarkMode ? Colors.white70 : AppTheme.textSecondary,
                 ),
               ),
-            )).toList(),
+            )),
           ],
         ),
       ),
@@ -594,7 +594,7 @@ class _WordListeningSleepScreenState extends State<WordListeningSleepScreen>
                 ),
               ),
               Text(
-                '${_formatTime(_remainingTime)}',
+                _formatTime(_remainingTime),
                 style: AppTextStyles.bodyMedium.copyWith(
                   color: _isDarkMode ? Colors.white : AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,

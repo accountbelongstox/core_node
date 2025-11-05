@@ -21,7 +21,7 @@ class VipClubAuthAdapter {
 
     // On native platforms, check with auth manager
     if (_authManager != null) {
-      return _authManager!.isProviderAvailable(provider);
+      return _authManager.isProviderAvailable(provider);
     }
 
     return false;
@@ -55,7 +55,7 @@ class VipClubAuthAdapter {
     }
 
     try {
-      return await _authManager!.authenticate(AuthProvider.wechat);
+      return await _authManager.authenticate(AuthProvider.wechat);
     } catch (e) {
       return AuthResult.failure(
         errorMessage: 'WeChat authentication failed: ${e.toString()}',
@@ -74,7 +74,7 @@ class VipClubAuthAdapter {
     }
 
     try {
-      return await _authManager!.authenticate(AuthProvider.google);
+      return await _authManager.authenticate(AuthProvider.google);
     } catch (e) {
       return AuthResult.failure(
         errorMessage: 'Google authentication failed: ${e.toString()}',
@@ -96,7 +96,7 @@ class VipClubAuthAdapter {
     }
 
     try {
-      final phoneProvider = _authManager!.availableProviders
+      final phoneProvider = _authManager.availableProviders
           .where((p) => p == AuthProvider.phone)
           .firstOrNull;
 
@@ -151,17 +151,16 @@ class VipClubAuthAdapter {
   /// Convert auth_v2 AuthUser to VipClub UserModel
   VipClubUserModel convertAuthUserToVipClubUser(AuthUser authUser) {
     return VipClubUserModel(
-      id: authUser.id,
+      id: int.tryParse(authUser.id),
       email: authUser.email ?? '',
       name: authUser.displayName ?? authUser.username ?? 'User',
       phone: authUser.phone ?? '',
       avatar: authUser.avatar,
-      memberType: 'regular', // Default member type
-      isVipMember: false,
+      memberType: 'standard', // Default member type
       vipPoints: 0,
-      discountRate: 0.0,
       memberSince: authUser.createdAt ?? DateTime.now(),
       memberExpiry: null,
+      isActive: true,
     );
   }
 
@@ -198,7 +197,7 @@ class VipClubAuthAdapter {
         sessionTimeoutMinutes: 1440,
       );
 
-      await _authManager!.initialize(config);
+      await _authManager.initialize(config);
 
       if (kDebugMode) {
         print('VipClubAuthAdapter: Auth manager initialized');
@@ -214,7 +213,7 @@ class VipClubAuthAdapter {
   Future<void> signOut() async {
     if (_authManager != null && !_isWeb) {
       try {
-        await _authManager!.signOut();
+        await _authManager.signOut();
       } catch (e) {
         if (kDebugMode) {
           print('VipClubAuthAdapter: Sign out error: $e');

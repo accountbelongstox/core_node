@@ -537,7 +537,7 @@ class ThemeDimensions {
   static late double fontSizeOverOverOverExtraLarge;
 
   // Screen dimensions
-  static late double splashLogoWidth = 150.0;
+  static double splashLogoWidth = 150.0;
   static late double screenThirdWidth;
   static late double screenHalfWidth;
   static late double screenTwoThirdWidth;

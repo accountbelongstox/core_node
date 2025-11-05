@@ -15,7 +15,7 @@ import 'package:provider/provider.dart';
 import '../../../provider_app_travel/city_provider_app_travel.dart';
 
 class CityScreen extends StatefulWidget {
-  const CityScreen({Key? key}) : super(key: key);
+  const CityScreen({super.key});
 
   @override
   State<CityScreen> createState() => _CityScreenState();

@@ -40,6 +40,17 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
 
+  qyflutter: any
+  image_picker: any
+  flutter_localization: any
+  go_router: any
+  get: any
+  pin_code_fields: any
+  percent_indicator: any
+  table_calendar: any
+  smooth_page_indicator: any
+  hive: any
+  intl: any
 flutter:
   uses-material-design: true
 

@@ -284,7 +284,7 @@ enum AttachmentType {
 }
 
 // File types
-enum FileType {
+enum AttachmentFileType {
   pdf,
   doc,
   docx,

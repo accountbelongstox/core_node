@@ -28,6 +28,10 @@ const DEFAULT_RPC_CONFIG = {
     AUTH_SECRET: null,
     AUTH_TOKEN_EXPIRY: 86400000,
 
+    auth: {
+        enabled: false
+    },
+
     RATE_LIMIT_ENABLED: false,
     RATE_LIMIT_MAX_REQUESTS: 100,
     RATE_LIMIT_WINDOW_MS: 60000,

@@ -20,7 +20,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:qyflutter/apps/app_qy/model_app_qy/user_model.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/services_app_qy/auth_api_app_qy_service.dart';
-import 'package:qyflutter/common/network/network_framework.dart';
 
 /// Profile controller for QY app
 /// Manages user profile data and operations

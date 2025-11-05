@@ -81,6 +81,14 @@ class TaskApiServiceAppCodemart extends CodeMartApiBase {
     );
   }
 
+  Future<ApiResponse<Task>> createTask(Map<String, dynamic> taskData) async {
+    return await post<Task>(
+      endpoint: '${ApiConfigAppCodemart.taskEndpoint}${ApiEndpointsAppCodemart.tasks}',
+      body: taskData,
+      fromJson: (data) => Task.fromJson(data as Map<String, dynamic>),
+    );
+  }
+
   Future<ApiResponse<Task>> submitTask({
     required int taskId,
     required String repositoryUrl,

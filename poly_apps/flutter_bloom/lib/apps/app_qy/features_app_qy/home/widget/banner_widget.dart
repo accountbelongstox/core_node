@@ -16,7 +16,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 class BannerWidget extends StatelessWidget {
-  const BannerWidget({Key? key}) : super(key: key);
+  const BannerWidget({super.key});
 
   @override
   Widget build(BuildContext context) {

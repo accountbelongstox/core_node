@@ -27,7 +27,7 @@ class IndexedDBService implements DatabaseInterface, DatabaseTransactionInterfac
 
   // Mock IndexedDB storage for demonstration
   final Map<String, Map<dynamic, Map<String, dynamic>>> _mockStores = {};
-  int _mockVersion = 1;
+  final int _mockVersion = 1;
 
   @override
   Future<void> initialize() async {

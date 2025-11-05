@@ -12,6 +12,8 @@
 
 /// All Apps Showcase Data Model
 /// Contains all data structures for the all apps showcase feature
+library;
+
 
 /// Main model for all apps showcase screen
 class AllAppsShowcaseModel {

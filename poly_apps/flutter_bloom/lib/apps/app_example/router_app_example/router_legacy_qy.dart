@@ -10,7 +10,6 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/authentication/views/forgot_screen.dart';
 import 'package:qyflutter/apps/app_example/features_app_example/authentication/views/resetpassword_screen.dart';

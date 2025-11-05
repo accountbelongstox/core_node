@@ -1,6 +1,6 @@
 /// Flutter Bloom Common Library
 /// Export all common components for easy access
-library flutter_bloom_common;
+library;
 
 // I18n
 export 'i18n/i18n_service.dart';

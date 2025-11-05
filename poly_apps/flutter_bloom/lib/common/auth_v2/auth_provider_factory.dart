@@ -1,10 +1,10 @@
 /// Authentication provider factory for creating and managing authentication providers
-library auth_provider_factory;
+library;
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../auth_interface.dart';
-import '../auth_config.dart';
+import 'auth_interface.dart';
+import 'auth_config.dart';
 import 'providers/wechat_auth_provider.dart';
 import 'providers/qq_auth_provider.dart';
 import 'providers/google_auth_provider.dart';

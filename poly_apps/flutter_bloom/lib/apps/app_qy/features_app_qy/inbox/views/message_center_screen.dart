@@ -1,5 +1,5 @@
 /// Message Center screen showing all conversations and messages
-library message_center_screen;
+library;
 
 import 'package:flutter/material.dart';
 import '../../../../../../common/i18n/i18n_service.dart';

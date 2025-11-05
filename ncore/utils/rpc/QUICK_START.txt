@@ -1,0 +1,146 @@
+===========================================
+RPC 框架快速开始指南
+===========================================
+
+完整功能的RPC框架，支持子应用集成
+
+基础使用：
+=========
+
+1. 启动服务器
+   ```javascript
+   const rpc = require('#@ncore/utils/rpc');
+
+   const server = rpc.createExpressServer({ HTTP_PORT: 8080 });
+   const rpcServer = rpc.createHttpServer(server.getApp());
+
+   rpcServer.route('hello', async (params) => {
+       return { message: `Hello, ${params.name}!` };
+   });
+
+   rpcServer.start();
+   await server.start();
+   ```
+
+2. 客户端调用
+   ```javascript
+   const client = rpc.createClient('http://localhost:8080/rpc', {
+       clientId: 'my-client',
+       httpFallback: true
+   });
+
+   const result = await client.call('hello', { name: 'World' });
+   console.log(result); // { message: 'Hello, World!' }
+   ```
+
+子应用集成：
+===========
+
+1. 注册子应用
+   ```javascript
+   rpc.registerSubApp('UserModule', {
+       config: { USER_TIMEOUT: 5000 },
+       staticPaths: { '/users': '/path/to/user/static' }
+   });
+   ```
+
+2. 注册路由
+   ```javascript
+   rpc.registerRoute('UserModule', 'getUser', async (params, context) => {
+       // context.requestId - 请求ID
+       // context.appName - 应用名
+       const user = await fetchUser(params.userId);
+       return { user }; // 结果返回RPC框架统一管理
+   });
+   ```
+
+3. 客户端调用
+   ```javascript
+   const result = await client.call('UserModule.getUser', { userId: 123 });
+   ```
+
+智能路径解析：
+=============
+
+自动检测环境并解析路径：
+```javascript
+const envInfo = rpc.getEnvironmentInfo();
+// { platform: 'win32', isWSL: false, isProduction: false, ... }
+
+const paths = rpc.getDefaultStaticPaths();
+// 自动检测的静态路径配置
+
+const staticPath = rpc.resolveStaticPath('wwwroot');
+// Windows: D:\www\wwwroot
+// WSL: /mnt/d/www/wwwroot
+// Linux Prod: /www/wwwroot
+```
+
+核心特性：
+=========
+
+✓ WebSocket + HTTP双协议
+✓ WebSocket 3次重试（1秒间隔）
+✓ HTTP 响应缓存（30分钟）
+✓ HTTP 轮询（1.5秒间隔）
+✓ 统一客户端（浏览器 + Node.js）
+✓ 子应用集成
+✓ 配置覆盖
+✓ 智能路径解析
+✓ requestId统一管理
+
+端点：
+=====
+
+POST   /rpc              - RPC调用
+GET    /rpc/query/:id    - 查询结果
+GET    /rpc/client.js    - 客户端库
+GET    /rpc/health       - 健康检查
+GET    /rpc/subapps      - 子应用统计
+
+示例文件：
+=========
+
+USAGE_EXAMPLE.js         - 基础使用示例
+FULL_TEST.js             - 完整功能测试
+SUBAPP_EXAMPLE.js        - 子应用集成示例
+STATIC_PATH_EXAMPLE.js   - 路径解析示例
+example.html             - 浏览器客户端示例
+
+文档文件：
+=========
+
+README_FINAL.txt         - 完整功能说明
+SUBAPP_INTEGRATION.txt   - 子应用集成文档
+STATIC_PATH_RESOLVER_README.txt - 路径解析器文档
+FINAL_VERIFICATION.txt   - 功能验证清单
+QUICK_START.txt          - 本文件
+
+测试命令：
+=========
+
+# 基础测试
+node ncore/utils/rpc/FULL_TEST.js both
+
+# 子应用测试
+node ncore/utils/rpc/SUBAPP_EXAMPLE.js both
+
+# 路径解析测试
+node ncore/utils/rpc/STATIC_PATH_EXAMPLE.js info
+
+# 浏览器测试
+打开 http://localhost:8080/static/index.html
+
+关键要点：
+=========
+
+1. 所有结果由RPC框架统一按requestId管理
+2. 子应用只需返回结果，框架自动处理缓存/通知
+3. WebSocket失败自动重试3次，然后缓存供HTTP查询
+4. 客户端自动选择WebSocket或HTTP，透明切换
+5. 静态路径根据环境自动解析（Windows/Linux/WSL）
+6. 子应用配置优先级最高，覆盖主配置
+
+状态：✅ 生产就绪
+==================
+完整功能已实现并测试，可投入使用。

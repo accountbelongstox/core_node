@@ -12,7 +12,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/app/main_common.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'config_app_achat/app_config.dart';
 import 'config_app_achat/provider_app_achat.dart';
 import 'router_app_achat/router_app_achat.dart';

@@ -28,7 +28,7 @@ class CustomIconLabel extends StatelessWidget {
   final double borderRadius;
 
   const CustomIconLabel({
-    Key? key,
+    super.key,
     required this.icon,
     required this.label,
     required this.color,
@@ -42,7 +42,7 @@ class CustomIconLabel extends StatelessWidget {
     this.iconHeight = 24,
     this.iconWidth = 24,
     this.borderRadius = 12,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

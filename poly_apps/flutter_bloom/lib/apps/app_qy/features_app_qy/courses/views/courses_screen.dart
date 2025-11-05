@@ -1,8 +1,7 @@
 /// Courses screen
-library courses_screen;
+library;
 
 import 'package:flutter/material.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
 
 class CoursesScreen extends StatefulWidget {
@@ -213,7 +212,7 @@ class _CoursesScreenState extends State<CoursesScreen> {
               },
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }

@@ -12,15 +12,16 @@
 
 const fs = require('fs');
 const path = require('path');
+const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper');
 
 const defaultConfig = {
     defaultProvider: process.env.TRANSLATOR_PROVIDER || 'azure',
     azure: {
         endpoint: process.env.AZURE_TRANSLATOR_ENDPOINT || 'api.cognitive.microsofttranslator.com',
-        apiKey: process.env.AZURE_TRANSLATOR_KEY || '',
+        apiKey: getSecretOrEnv('AZURE_TRANSLATOR_KEY', 'AZURE_TRANSLATOR_KEY', ''),
         region: process.env.AZURE_TRANSLATOR_REGION || 'global',
-        subscriptionId: process.env.AZURE_SUBSCRIPTION_ID || '',
-        resourceGroup: process.env.AZURE_RESOURCE_GROUP || '',
+        subscriptionId: getSecretOrEnv('AZURE_SUBSCRIPTION_ID', 'AZURE_SUBSCRIPTION_ID', ''),
+        resourceGroup: getSecretOrEnv('AZURE_RESOURCE_GROUP', 'AZURE_RESOURCE_GROUP', ''),
         defaultTargetLanguage: 'zh-Hans',
         apiVersion: '3.0',
         timeout: 10000,

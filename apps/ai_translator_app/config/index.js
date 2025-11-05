@@ -92,5 +92,14 @@ module.exports = {
         allowedOrigins: ['http://localhost:3000', 'http://127.0.0.1:3000'],
         rateLimitWindow: 900000, // 15 minutes
         rateLimitMax: 100 // requests per window
+    },
+
+    // RPC configuration
+    rpcConfig: {
+        enabled: true,
+        port: 8090,
+        host: '0.0.0.0',
+        enableWebSocket: true,
+        wsPort: 8091
     }
 };

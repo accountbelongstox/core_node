@@ -1,45 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../models_app_travel/recommend_item_model.dart';
-import '../../../widgets/travel_icons.dart';
 import '../../../resources_app_travel/assets_icons_app_travel.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
 
 class HomeRecommend extends StatelessWidget {
   final List<List<RecommendItemModel>> recommend;
 
   const HomeRecommend({
-    Key? key,
+    super.key,
     required this.recommend,
-  }) : super(key: key);
+  });
 
-  final List<Map<String, String>> recommendCards = const [
-    {
-      'icon': AssetsIconsAppTravel.travelRecommendIcon1,
-      'title': '天天神券',
-      'subtitle': '签到领券',
-    },
-    {
-      'icon': AssetsIconsAppTravel.travelRecommendIcon2,
-      'title': '低价机票',
-      'subtitle': '30天低价',
-    },
-    {
-      'icon': AssetsIconsAppTravel.travelRecommendIcon3,
-      'title': '1折机票',
-      'subtitle': '200元起',
-    },
-    {
-      'icon': AssetsIconsAppTravel.travelRecommendIcon4,
-      'title': '酒店囤货',
-      'subtitle': '69元秒底',
-    },
-    {
-      'icon': AssetsIconsAppTravel.travelRecommendIcon5,
-      'title': 'AI行程',
-      'subtitle': '智能规划',
-    },
-  ];
+  List<Map<String, dynamic>> _getRecommendCards(BuildContext context) {
+    return [
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon1,
+        'titleKey': TravelLocalizationKeys.travelDailyCoupon,
+        'subtitleKey': TravelLocalizationKeys.travelSignInCoupon,
+      },
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon2,
+        'titleKey': TravelLocalizationKeys.travelCheapFlights,
+        'subtitleKey': TravelLocalizationKeys.travel30DayLowPrice,
+      },
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon3,
+        'titleKey': TravelLocalizationKeys.travelDiscountFlight,
+        'subtitleKey': TravelLocalizationKeys.travelStartingPrice,
+      },
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon4,
+        'titleKey': TravelLocalizationKeys.travelHotelStock,
+        'subtitleKey': TravelLocalizationKeys.travelFlashDeal,
+      },
+      {
+        'icon': AssetsIconsAppTravel.travelRecommendIcon5,
+        'titleKey': TravelLocalizationKeys.travelAIItinerary,
+        'subtitleKey': TravelLocalizationKeys.travelSmartPlanning,
+      },
+    ];
+  }
 
-  Widget _buildRecommendCard(Map<String, String> card, double cardWidth) {
+  Widget _buildRecommendCard(BuildContext context, Map<String, dynamic> card, double cardWidth) {
     return Container(
       width: cardWidth,
       margin: const EdgeInsets.only(right: 20.0),
@@ -76,6 +79,7 @@ class HomeRecommend extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final cardWidth = (screenWidth - 12.0 * 2 - 20.0 * 3 - 8.0) / 4;
+    final recommendCards = _getRecommendCards(context);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
@@ -93,7 +97,7 @@ class HomeRecommend extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4.0),
           itemCount: recommendCards.length,
           itemBuilder: (context, index) {
-            return _buildRecommendCard(recommendCards[index], cardWidth);
+            return _buildRecommendCard(context, recommendCards[index], cardWidth);
           },
         ),
       ),

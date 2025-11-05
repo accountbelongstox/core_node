@@ -8,7 +8,6 @@ import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/controllers
 import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/widgets/facility_card.dart';
 import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/home/widgets/vip_status_card.dart';
 import 'package:qyflutter/apps/app_vipclub/router_app_vipclub/router_app_vipclub.dart';
-import 'package:qyflutter/apps/app_vipclub/localization_app_vipclub/localization_keys_app_vipclub.dart';
 
 class VipClubHomeScreen extends StatefulWidget {
   const VipClubHomeScreen({super.key});

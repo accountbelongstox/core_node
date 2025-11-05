@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../localization_app_codemart/localization_keys_app_codemart.dart';
 
 class LanguageSettingsViewAppCodemart extends StatefulWidget {
   const LanguageSettingsViewAppCodemart({super.key});
@@ -10,22 +12,58 @@ class LanguageSettingsViewAppCodemart extends StatefulWidget {
 class _LanguageSettingsViewAppCodemartState extends State<LanguageSettingsViewAppCodemart> {
   String _selectedLanguage = 'en';
 
-  final List<Map<String, String>> _languages = [
-    {'code': 'en', 'name': 'English', 'native': 'English'},
-    {'code': 'zh', 'name': 'Chinese', 'native': '中文'},
-    {'code': 'es', 'name': 'Spanish', 'native': 'Español'},
-    {'code': 'fr', 'name': 'French', 'native': 'Français'},
-    {'code': 'de', 'name': 'German', 'native': 'Deutsch'},
-    {'code': 'ja', 'name': 'Japanese', 'native': '日本語'},
-    {'code': 'ko', 'name': 'Korean', 'native': '한국어'},
-    {'code': 'pt', 'name': 'Portuguese', 'native': 'Português'},
-  ];
+  List<Map<String, String>> _getLanguages(BuildContext context) {
+    return [
+      {
+        'code': 'en',
+        'name': 'English',
+        'native': LocalizationKeysAppCodemart.codemartLanguageEnglish.tr(context)
+      },
+      {
+        'code': 'zh',
+        'name': 'Chinese',
+        'native': LocalizationKeysAppCodemart.codemartLanguageChinese.tr(context)
+      },
+      {
+        'code': 'es',
+        'name': 'Spanish',
+        'native': LocalizationKeysAppCodemart.codemartLanguageSpanish.tr(context)
+      },
+      {
+        'code': 'fr',
+        'name': 'French',
+        'native': LocalizationKeysAppCodemart.codemartLanguageFrench.tr(context)
+      },
+      {
+        'code': 'de',
+        'name': 'German',
+        'native': LocalizationKeysAppCodemart.codemartLanguageGerman.tr(context)
+      },
+      {
+        'code': 'ja',
+        'name': 'Japanese',
+        'native': LocalizationKeysAppCodemart.codemartLanguageJapanese.tr(context)
+      },
+      {
+        'code': 'ko',
+        'name': 'Korean',
+        'native': LocalizationKeysAppCodemart.codemartLanguageKorean.tr(context)
+      },
+      {
+        'code': 'pt',
+        'name': 'Portuguese',
+        'native': LocalizationKeysAppCodemart.codemartLanguagePortuguese.tr(context)
+      },
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final languages = _getLanguages(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Language Settings'),
+        title: Text(LocalizationKeysAppCodemart.codemartLanguageSettings.tr(context)),
       ),
       body: Column(
         children: [
@@ -40,10 +78,10 @@ class _LanguageSettingsViewAppCodemartState extends State<LanguageSettingsViewAp
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   const SizedBox(width: 16),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'The app will restart after changing language',
-                      style: TextStyle(fontSize: 14),
+                      LocalizationKeysAppCodemart.codemartLanguageRestartMessage.tr(context),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                 ],
@@ -52,9 +90,9 @@ class _LanguageSettingsViewAppCodemartState extends State<LanguageSettingsViewAp
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: _languages.length,
+              itemCount: languages.length,
               itemBuilder: (context, index) {
-                final language = _languages[index];
+                final language = languages[index];
                 final isSelected = _selectedLanguage == language['code'];
 
                 return RadioListTile<String>(
@@ -83,11 +121,13 @@ class _LanguageSettingsViewAppCodemartState extends State<LanguageSettingsViewAp
               onPressed: () {
                 // TODO: Apply language change
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Language changed')),
+                  SnackBar(
+                    content: Text(LocalizationKeysAppCodemart.codemartLanguageChanged.tr(context)),
+                  ),
                 );
                 Navigator.pop(context);
               },
-              child: const Text('Apply Language'),
+              child: Text(LocalizationKeysAppCodemart.codemartApplyLanguage.tr(context)),
             ),
           ),
         ],

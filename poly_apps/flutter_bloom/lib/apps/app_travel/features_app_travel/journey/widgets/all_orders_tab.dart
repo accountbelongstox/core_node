@@ -5,7 +5,7 @@ import '../../../testdata/orders_data.dart';
 /// Tab widget for displaying "All Orders"
 /// Includes order filtering, search, and list view
 class AllOrdersTab extends StatefulWidget {
-  const AllOrdersTab({Key? key}) : super(key: key);
+  const AllOrdersTab({super.key});
 
   @override
   State<AllOrdersTab> createState() => _AllOrdersTabState();

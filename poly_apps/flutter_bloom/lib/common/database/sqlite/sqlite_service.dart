@@ -11,9 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as path;
 import '../interfaces/database_interface.dart';
 
 class SQLiteService implements DatabaseInterface, DatabaseTransactionInterface {
@@ -29,7 +27,7 @@ class SQLiteService implements DatabaseInterface, DatabaseTransactionInterface {
 
   // Mock database storage for demonstration
   final Map<String, List<Map<String, dynamic>>> _mockTables = {};
-  int _mockVersion = 1;
+  final int _mockVersion = 1;
 
   @override
   Future<void> initialize() async {

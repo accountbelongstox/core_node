@@ -10,7 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-const RouterManager = require('#@/ncore/foundation/express_utils/libs/RouterManager.js');
+const rpc = require('#@ncore/utils/rpc');
 const { getSystemLoad, parseTopOutput, getSystemMetrics } = require('../http_controller/system.js');
 const { getVoiceStatus } = require('../http_controller/voice_status.js');
 const { getRowWordByServer, submitAudio, submitAudioSimple } = require('../http_controller/dict_server.js');
@@ -26,141 +26,143 @@ const printLog = false;
 
 class RouteInitializer {
     static initializeRoutes() {
-        RouterManager.api('/systemload', async (req, res) => {
+        const routerManager = rpc.getRouterManager();
+
+        routerManager.api('/systemload', async (req, res) => {
             const result = await getSystemLoad(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/system/metrics', async (req, res) => {
+        routerManager.api('/system/metrics', async (req, res) => {
             const result = await getSystemMetrics(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/query', async (req, res) => {
+        routerManager.api('/query', async (req, res) => {
             const result = await queryWord(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/query_words', async (req, res) => {
+        routerManager.api('/query_words', async (req, res) => {
             const result = await queryWordList(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/voice_status', async (req, res) => {
+        routerManager.api('/voice_status', async (req, res) => {
             const result = await getVoiceStatus(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/get_row_word', async (req, res) => {
+        routerManager.api('/get_row_word', async (req, res) => {
             const result = await getRowWordByServer(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/submit_audio', async (req, res) => {
+        routerManager.post('/submit_audio', async (req, res) => {
             const result = await submitAudio(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/submit_audio_simple', async (req, res) => {
+        routerManager.post('/submit_audio_simple', async (req, res) => {
             const result = await submitAudioSimple(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/get_diff_audio_table', async (req, res) => {
+        routerManager.post('/get_diff_audio_table', async (req, res) => {
             const result = await getDiffAudioTable(req, res);
             return result;
         },printLog);
 
         // Development Tools API
-        RouterManager.api('/api/devops/tools', async (req, res) => {
+        routerManager.api('/api/devops/tools', async (req, res) => {
             const result = await getDevTools(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/api/devops/tools/:id', async (req, res) => {
+        routerManager.api('/api/devops/tools/:id', async (req, res) => {
             const result = await getDevTool(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/api/devops/tools/:id/launch', async (req, res) => {
+        routerManager.post('/api/devops/tools/:id/launch', async (req, res) => {
             const result = await launchDevTool(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/api/devops/tools/:id/stop', async (req, res) => {
+        routerManager.post('/api/devops/tools/:id/stop', async (req, res) => {
             const result = await stopDevTool(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/api/devops/tools/stats', async (req, res) => {
+        routerManager.api('/api/devops/tools/stats', async (req, res) => {
             const result = await getDevToolStats(req, res);
             return result;
         },printLog);
 
         // Development Environments API
-        RouterManager.api('/api/devops/environments', async (req, res) => {
+        routerManager.api('/api/devops/environments', async (req, res) => {
             const result = await getDevEnvironments(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/api/devops/environments/:id', async (req, res) => {
+        routerManager.api('/api/devops/environments/:id', async (req, res) => {
             const result = await getDevEnvironment(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/api/devops/environments', async (req, res) => {
+        routerManager.post('/api/devops/environments', async (req, res) => {
             const result = await createDevEnvironment(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/api/devops/environments/:id/start', async (req, res) => {
+        routerManager.post('/api/devops/environments/:id/start', async (req, res) => {
             const result = await startDevEnvironment(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/api/devops/environments/:id/stop', async (req, res) => {
+        routerManager.post('/api/devops/environments/:id/stop', async (req, res) => {
             const result = await stopDevEnvironment(req, res);
             return result;
         },printLog);
 
-        RouterManager.delete('/api/devops/environments/:id', async (req, res) => {
+        routerManager.delete('/api/devops/environments/:id', async (req, res) => {
             const result = await deleteDevEnvironment(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/api/devops/environments/stats', async (req, res) => {
+        routerManager.api('/api/devops/environments/stats', async (req, res) => {
             const result = await getDevEnvironmentStats(req, res);
             return result;
         },printLog);
 
         // Code Execution API
-        RouterManager.post('/api/devops/execute', async (req, res) => {
+        routerManager.post('/api/devops/execute', async (req, res) => {
             const result = await executeCode(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/api/devops/execute/languages', async (req, res) => {
+        routerManager.api('/api/devops/execute/languages', async (req, res) => {
             const result = await getSupportedLanguages(req, res);
             return result;
         },printLog);
 
-        RouterManager.api('/api/devops/execute/environment', async (req, res) => {
+        routerManager.api('/api/devops/execute/environment', async (req, res) => {
             const result = await getExecutionEnvironment(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/api/devops/execute/validate', async (req, res) => {
+        routerManager.post('/api/devops/execute/validate', async (req, res) => {
             const result = await validateCode(req, res);
             return result;
         },printLog);
 
         // Python Environment API
-        RouterManager.api('/python/status', async (req, res) => {
+        routerManager.api('/python/status', async (req, res) => {
             const result = await getPythonStatus(req, res);
             return result;
         },printLog);
 
-        RouterManager.post('/python/setup', async (req, res) => {
+        routerManager.post('/python/setup', async (req, res) => {
             const result = await setupPython(req, res);
             return result;
         },printLog);

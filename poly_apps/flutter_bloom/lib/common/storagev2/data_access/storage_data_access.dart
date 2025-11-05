@@ -101,7 +101,7 @@ class StorageDataAccess {
     try {
       // Check cache first
       if (_cacheService != null) {
-        final cacheResult = await _cacheService!.get<T>('$_boxName:$id');
+        final cacheResult = await _cacheService.get<T>('$_boxName:$id');
         if (cacheResult is StorageSuccess && cacheResult.data != null) {
           return StorageSuccess(cacheResult.data);
         }
@@ -210,7 +210,7 @@ class StorageDataAccess {
       
       // Remove from cache
       if (_cacheService != null) {
-        await _cacheService!.remove('$_boxName:$id');
+        await _cacheService.remove('$_boxName:$id');
       }
       
       return const StorageSuccess(null);
@@ -232,7 +232,7 @@ class StorageDataAccess {
       
       // Clear cache
       if (_cacheService != null) {
-        await _cacheService!.removeKeysMatching('$_boxName:*');
+        await _cacheService.removeKeysMatching('$_boxName:*');
       }
       
       return const StorageSuccess(null);
@@ -321,7 +321,7 @@ class StorageDataAccess {
       // Remove from cache
       if (_cacheService != null) {
         final cacheKeys = ids.map((id) => '$_boxName:$id').toList();
-        await _cacheService!.removeMultiple(cacheKeys);
+        await _cacheService.removeMultiple(cacheKeys);
       }
       
       return const StorageSuccess(null);
@@ -438,7 +438,7 @@ class StorageDataAccess {
   /// Process data for storage (encryption, etc.)
   Future<StorageResult<dynamic>> _processDataForStorage(dynamic data) async {
     if (_encryptionService != null && _config.encryptSensitiveData) {
-      final encryptedResult = await _encryptionService!.encrypt(data.toString());
+      final encryptedResult = await _encryptionService.encrypt(data.toString());
       if (encryptedResult is StorageError) {
         return encryptedResult;
       }
@@ -450,8 +450,8 @@ class StorageDataAccess {
   /// Process data from storage (decryption, etc.)
   Future<StorageResult<dynamic>> _processDataFromStorage(dynamic data) async {
     if (_encryptionService != null && _config.encryptSensitiveData) {
-      if (data is String && _encryptionService!.isEncrypted(data)) {
-        final decryptedResult = await _encryptionService!.decrypt(data);
+      if (data is String && _encryptionService.isEncrypted(data)) {
+        final decryptedResult = await _encryptionService.decrypt(data);
         if (decryptedResult is StorageError) {
           return decryptedResult;
         }
@@ -464,7 +464,7 @@ class StorageDataAccess {
   /// Update cache with entity
   Future<void> _updateCache<T extends StorageEntity>(String id, T entity) async {
     if (_cacheService != null && _config.enableCaching) {
-      await _cacheService!.set('$_boxName:$id', entity);
+      await _cacheService.set('$_boxName:$id', entity);
     }
   }
 }

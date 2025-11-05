@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'tencent_maps_config.dart';
 import 'tencent_maps_service.dart';
 

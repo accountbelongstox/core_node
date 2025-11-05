@@ -874,4 +874,10 @@ class _VipClubLoginScreenState extends State<VipClubLoginScreen>
       ),
     );
   }
+
+  void _navigateToHome() {
+    if (mounted) {
+      context.go(VipClubRoutes.home);
+    }
+  }
 }

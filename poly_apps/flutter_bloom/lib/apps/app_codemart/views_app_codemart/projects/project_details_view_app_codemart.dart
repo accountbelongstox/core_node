@@ -128,7 +128,7 @@ class _ProjectDetailsViewAppCodemartState extends State<ProjectDetailsViewAppCod
                           _InfoRow(
                             icon: Icons.attach_money,
                             label: context.tr(LocalizationKeysAppCodemart.codemartProjectBudget),
-                            value: '\$${_project!.budget.toStringAsFixed(2)} (${_project!.budgetType.name})',
+                            value: '\$${_project!.budget.toStringAsFixed(2)} (${_project!.budgetType})',
                           ),
 
                           // Dates
@@ -181,7 +181,7 @@ class _ProjectDetailsViewAppCodemartState extends State<ProjectDetailsViewAppCod
                               spacing: 8,
                               runSpacing: 8,
                               children: _project!.languages.map((lang) {
-                                return Chip(label: Text(lang));
+                                return Chip(label: Text(lang.name));
                               }).toList(),
                             ),
                           ],
@@ -198,7 +198,7 @@ class _ProjectDetailsViewAppCodemartState extends State<ProjectDetailsViewAppCod
                               spacing: 8,
                               runSpacing: 8,
                               children: _project!.frameworks.map((framework) {
-                                return Chip(label: Text(framework));
+                                return Chip(label: Text(framework.name));
                               }).toList(),
                             ),
                           ],

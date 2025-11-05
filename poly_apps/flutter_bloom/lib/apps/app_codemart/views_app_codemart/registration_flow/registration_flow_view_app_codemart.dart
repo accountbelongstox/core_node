@@ -19,7 +19,7 @@ class RegistrationFlowViewAppCodemart extends StatefulWidget {
 class _RegistrationFlowViewAppCodemartState
     extends State<RegistrationFlowViewAppCodemart> {
   int _currentStep = 0;
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   final List<String> _steps = [
     LocalizationKeysAppCodemart.codemartEmailVerification,

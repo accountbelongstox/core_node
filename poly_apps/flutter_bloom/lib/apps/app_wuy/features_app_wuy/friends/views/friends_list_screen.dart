@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../widgets_app_wuy/wuy_bottom_navigation.dart';
 import '../../../widgets_app_wuy/wuy_modern_input_field.dart';
@@ -98,7 +97,7 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
           return friend.displayName
                   .toLowerCase()
                   .contains(query.toLowerCase()) ||
-              (friend.username?.toLowerCase().contains(query.toLowerCase()) ??
+              (friend.username.toLowerCase().contains(query.toLowerCase()) ??
                   false) ||
               (friend.phoneNumber?.contains(query) ?? false);
         }).toList();
@@ -350,16 +349,16 @@ class _WuyFriendsListScreenState extends State<WuyFriendsListScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ] else if (friend.username != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          '@${friend.username}',
-                          style: ThemeTextStyles.bodyText2.copyWith(
-                            color: WuyAppThemeConfig.wuyTextSecondary,
-                            fontSize: 13,
-                          ),
+                      ] else ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '@${friend.username}',
+                        style: ThemeTextStyles.bodyText2.copyWith(
+                          color: WuyAppThemeConfig.wuyTextSecondary,
+                          fontSize: 13,
                         ),
-                      ],
+                      ),
+                    ],
                       const SizedBox(height: 4),
                       Row(
                         children: [

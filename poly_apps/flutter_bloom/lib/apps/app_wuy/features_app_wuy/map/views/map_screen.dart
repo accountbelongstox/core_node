@@ -12,7 +12,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
@@ -20,9 +19,7 @@ import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/sdk/tencent_maps/tencent_maps_sdk.dart';
 import '../../../router_app_wuy/router_app_wuy.dart';
 import '../../../localization_app_wuy/localization_keys_app_wuy.dart';
-import '../../../providers_app_wuy/wu_user_provider.dart';
 import '../../../config_app_wuy/app_config_app_wuy.dart';
-import '../../../theme_app_wuy/theme_config_app_wuy.dart';
 import '../../../models_app_wuy/friend_model_app_wuy.dart';
 import '../../../services_app_wuy/wuy_fake_data_generator.dart';
 

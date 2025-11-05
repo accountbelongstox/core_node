@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../provider_app_travel/user_provider_app_travel.dart';
+import '../../../constants_app_travel/cities_app_travel.dart';
 
 class ExploreScreen extends StatefulWidget {
-  const ExploreScreen({Key? key}) : super(key: key);
+  const ExploreScreen({super.key});
 
   @override
   State<ExploreScreen> createState() => _ExploreScreenState();
@@ -48,6 +51,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProviderAppTravel>();
+    final currentCity = userProvider.user.currentCity ?? CitiesAppTravel.defaultCity;
+
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -79,51 +85,55 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Widget _buildHeaderWithSearch() {
-    return SliverAppBar(
-      expandedHeight: 280.0,
-      floating: false,
-      pinned: true,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset(
-              'assets/apps/app_travel/images/explore_header_bg.png',
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFFFF9A56), Color(0xFFFF7A3D)],
-                    ),
-                  ),
-                );
-              },
-            ),
-            Positioned(
-              left: 16.0,
-              top: 60.0,
-              child: Row(
-                children: const [
-                  Text(
-                    '看世界',
-                    style: TextStyle(
-                      fontSize: 24.0,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(width: 12.0),
-                  Text(
-                    '北京',
-                    style: TextStyle(
-                      fontSize: 16.0,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Icon(
+    return Consumer<UserProviderAppTravel>(
+      builder: (context, userProvider, child) {
+        final currentCity = userProvider.user.currentCity ?? CitiesAppTravel.defaultCity;
+
+        return SliverAppBar(
+          expandedHeight: 280.0,
+          floating: false,
+          pinned: true,
+          flexibleSpace: FlexibleSpaceBar(
+            background: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/apps/app_travel/images/explore_header_bg.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Color(0xFFFF9A56), Color(0xFFFF7A3D)],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                Positioned(
+                  left: 16.0,
+                  top: 60.0,
+                  child: Row(
+                    children: [
+                      const Text(
+                        '看世界',
+                        style: TextStyle(
+                          fontSize: 24.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12.0),
+                      Text(
+                        currentCity,
+                        style: const TextStyle(
+                          fontSize: 16.0,
+                          color: Colors.white,
+                        ),
+                      ),
+                  const Icon(
                     Icons.keyboard_arrow_down,
                     color: Colors.white,
                     size: 20.0,
@@ -206,6 +216,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ],
         ),
       ),
+        );
+      },
     );
   }
 

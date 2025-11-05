@@ -115,6 +115,8 @@ class AppQyServiceManager {
 
 /// QY widget showing how to use the service manager
 class AppQyUsageWidget extends StatefulWidget {
+  const AppQyUsageWidget({super.key});
+
   @override
   _AppQyUsageWidgetState createState() => _AppQyUsageWidgetState();
 }

@@ -90,6 +90,7 @@ class PrefsAppTravel extends AppPrefsBase {
     }
   }
 
+  @override
   Future<bool> remove(String key) async {
     if (!_isInitialized) return false;
 
@@ -110,6 +111,7 @@ class PrefsAppTravel extends AppPrefsBase {
     return _instance!.containsKey(prefKey);
   }
 
+  @override
   Set<String> getKeys() {
     if (!_isInitialized) return {};
     return _instance!.getKeys();

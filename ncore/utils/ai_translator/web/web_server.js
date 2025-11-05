@@ -11,9 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const logger = require('#@logger');
-const expressProvider = require('#@ncore/foundation/express_utils/provider/expressProvider.js');
-const { expressManager } = require('#@ncore/foundation/express_utils/libs/ExpressManager.js');
-const { updateConfig } = require('#@ncore/foundation/express_utils/config/index.js');
+const rpc = require('#@ncore/utils/rpc');
 const ApiRoutes = require('./routes/api.js');
 const WebRoutes = require('./routes/web.js');
 const path = require('path');
@@ -31,28 +29,33 @@ class WebServer {
     async start() {
         try {
             logger.info('[AI Translator Web] Starting web server...');
-            
-            // Update express_utils config
-            updateConfig({
+
+            rpc.setConfig({
                 HTTP_PORT: this.config.webConfig.port,
                 HTTP_HOST: this.config.webConfig.host,
-                SSL_ENABLED: false
+                SSL_ENABLED: false,
+                auth: { enabled: false }
             });
 
-            // Get Express app from provider
-            this.app = expressProvider.getExpressApp();
-            
+            const expressServer = rpc.createExpressServer({
+                HTTP_PORT: this.config.webConfig.port,
+                HTTP_HOST: this.config.webConfig.host,
+                auth: { enabled: false }
+            });
+
+            this.app = expressServer.getApp();
+
             await this.setupMiddleware();
             await this.setupRoutes();
-            
-            // Start the express manager
-            this.server = await expressManager.start(this.config.webConfig.port);
-            
+
+            await expressServer.start();
+            this.server = expressServer.getServer();
+
             this.isRunning = true;
             this.startTime = new Date();
-            
+
             logger.info(`[AI Translator Web] Web server started on ${this.config.webConfig.host}:${this.config.webConfig.port}`);
-            
+
         } catch (error) {
             logger.error(`[AI Translator Web] Failed to start web server: ${error.message}`);
             throw error;

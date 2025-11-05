@@ -31,9 +31,23 @@ class ConfigManager:
             'Common': 'claude',
             'CommandPrefix': 'claude',
             'DisplayName': 'Claude AI',
+            'WindowsCommand': 'claude',
+            'LinuxCommand': 'claude',
             'SmartRecognition': {
                 'Enabled': True,
                 'AllowedTypes': ['token', 'url']
+            },
+            'MCPSupport': {
+                'Enabled': True,
+                'PreLaunchScript': {
+                    'Windows': 'D:\\programing\\core_node\\scripts\\pytools\\ai_tools\\claude_pre_launch.ps1',
+                    'Linux': '/d/programing/core_node/scripts/pytools/ai_tools/claude_pre_launch.sh'
+                },
+                'UpgradeScript': {
+                    'Windows': 'D:\\programing\\core_node\\scripts\\pytools\\ai_tools\\claude_update.bat',
+                    'Linux': '/d/programing/core_node/scripts/pytools/ai_tools/claude_update.sh'
+                },
+                'MCPSyncScript': 'D:\\programing\\core_node\\scripts\\pytools\\ai_tools\\claude_sync_mcp_servers.py'
             },
             'Variables': [
                 {
@@ -69,9 +83,14 @@ class ConfigManager:
             'Common': 'openai',
             'CommandPrefix': 'openai',
             'DisplayName': 'OpenAI',
+            'WindowsCommand': 'openai',
+            'LinuxCommand': 'openai',
             'SmartRecognition': {
                 'Enabled': True,
                 'AllowedTypes': ['token', 'url']
+            },
+            'MCPSupport': {
+                'Enabled': False
             },
             'Variables': [
                 {
@@ -100,9 +119,14 @@ class ConfigManager:
             'Common': 'droid',
             'CommandPrefix': 'droid',
             'DisplayName': 'Factory AI Droid',
+            'WindowsCommand': 'droid',
+            'LinuxCommand': 'droid',
             'SmartRecognition': {
                 'Enabled': True,
                 'AllowedTypes': ['token', 'url']
+            },
+            'MCPSupport': {
+                'Enabled': False
             },
             'Variables': [
                 {
@@ -131,9 +155,14 @@ class ConfigManager:
             'Common': 'ssh',
             'CommandPrefix': 'ssh',
             'DisplayName': 'SSH Connection',
+            'WindowsCommand': 'ssh',
+            'LinuxCommand': 'ssh',
             'SmartRecognition': {
                 'Enabled': False,
                 'AllowedTypes': []
+            },
+            'MCPSupport': {
+                'Enabled': False
             },
             'Variables': [
                 {

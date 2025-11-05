@@ -19,6 +19,7 @@ const { getInstance: getItTools } = require('#@ittools');
 const CoreNodeInitPlugin = require('./controller/CoreNodeInitPlugin');
 const config = require('./config');
 const ElectronMCPController = require('./controller/ElectronMCPController');
+const ITToolsIntegrationController = require('./controller/ITToolsIntegrationController');
 
 const singletonBrowser = getSingletonBrowser();
 const frontendLauncher = getFrontendLauncher({

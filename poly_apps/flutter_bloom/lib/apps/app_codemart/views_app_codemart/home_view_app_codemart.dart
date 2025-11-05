@@ -42,7 +42,7 @@ class HomeViewAppCodemart extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      userModel.userProfile?.username ?? 'User',
+                      userModel.userProfile?.username ?? context.tr(LocalizationKeysAppCodemart.codemartUser),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ],
@@ -53,7 +53,7 @@ class HomeViewAppCodemart extends StatelessWidget {
 
             // Quick actions
             Text(
-              'Quick Actions',
+              context.tr(LocalizationKeysAppCodemart.codemartQuickActions),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),

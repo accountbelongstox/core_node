@@ -11,7 +11,6 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import '../extensions/gradient_extensions.dart';
 
 /// Compatibility layer for old GradientLight and GradientDark classes
 /// This provides the same API as the old gradient system while using the new architecture

@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../../resources_app_travel/colors_app_travel.dart';
 
 class HomeLocationPrompt extends StatefulWidget {
-  const HomeLocationPrompt({Key? key}) : super(key: key);
+  const HomeLocationPrompt({super.key});
 
   @override
   State<HomeLocationPrompt> createState() => _HomeLocationPromptState();
 }
 
 class _HomeLocationPromptState extends State<HomeLocationPrompt> {
-  bool _isVisible = true;
+  static bool _hasBeenDismissedThisSession = false;
 
   void _closePrompt() {
     setState(() {
-      _isVisible = false;
+      _hasBeenDismissedThisSession = true;
     });
   }
 
@@ -23,7 +26,7 @@ class _HomeLocationPromptState extends State<HomeLocationPrompt> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isVisible) {
+    if (_hasBeenDismissedThisSession) {
       return const SizedBox.shrink();
     }
 
@@ -35,7 +38,7 @@ class _HomeLocationPromptState extends State<HomeLocationPrompt> {
         margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         decoration: BoxDecoration(
-          color: const Color(0xFF2C2C2C).withOpacity(0.95),
+          color: TravelColors.travelBackgroundDarkWithOpacity(0.95),
           borderRadius: BorderRadius.circular(8.0),
           boxShadow: [
             BoxShadow(
@@ -47,10 +50,10 @@ class _HomeLocationPromptState extends State<HomeLocationPrompt> {
         ),
         child: Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                '开启定位后，查看周边旅游资源',
-                style: TextStyle(
+                TravelLocalizationKeys.travelEnableLocation.tr(context),
+                style: const TextStyle(
                   fontSize: 14.0,
                   color: Colors.white,
                 ),
@@ -65,12 +68,12 @@ class _HomeLocationPromptState extends State<HomeLocationPrompt> {
                   vertical: 8.0,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00D0D8),
+                  color: TravelColors.travelPrimary,
                   borderRadius: BorderRadius.circular(16.0),
                 ),
-                child: const Text(
-                  '去开启',
-                  style: TextStyle(
+                child: Text(
+                  TravelLocalizationKeys.travelGoEnable.tr(context),
+                  style: const TextStyle(
                     fontSize: 14.0,
                     color: Colors.white,
                     fontWeight: FontWeight.w500,

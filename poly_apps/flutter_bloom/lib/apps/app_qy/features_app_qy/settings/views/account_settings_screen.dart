@@ -1,13 +1,14 @@
 /// Account settings screen
-library account_settings_screen;
+library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../../../common/i18n/i18n_service.dart';
 import '../../../../../../common/theme/app_theme.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../../../provider_app_qy/user_provider_app_qy.dart';
-import 'widgets/settings_section.dart';
-import 'widgets/settings_tile.dart';
+import '../widgets/settings_section.dart';
+import '../widgets/settings_tile.dart';
 
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen({super.key});
@@ -83,7 +84,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
           Expanded(
             child: Text(
-              'settings.accountInfo'.tr,
+              'settings.accountInfo'.tr(context),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -101,7 +102,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       builder: (context, userProvider, child) {
         final user = userProvider.currentUser;
         return SettingsSection(
-          title: 'settings.account'.tr,
+          title: 'settings.account'.tr(context),
           child: Column(
             children: [
               SettingsTile(
@@ -109,12 +110,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   Icons.person_outline,
                   color: AppTheme.primaryGreen,
                 ),
-                title: 'settings.profile'.tr,
+                title: 'settings.profile'.tr(context),
                 subtitle: user?.displayName ?? 'Not set',
                 trailing: TextButton(
                   onPressed: () => _showUsernameDialog(user?.displayName ?? ''),
                   child: Text(
-                    '修改',
+                    QyAppLocalizationKeys.qySettingsModify.tr(context),
                     style: TextStyle(color: AppTheme.primaryGreen),
                   ),
                 ),
@@ -125,12 +126,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   Icons.lock_outline,
                   color: AppTheme.secondaryGreen,
                 ),
-                title: '密码',
+                title: QyAppLocalizationKeys.qyPassword.tr(context),
                 subtitle: '••••••••',
                 trailing: TextButton(
                   onPressed: _showPasswordDialog,
                   child: Text(
-                    '修改',
+                    QyAppLocalizationKeys.qySettingsModify.tr(context),
                     style: TextStyle(color: AppTheme.primaryGreen),
                   ),
                 ),
@@ -141,14 +142,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   Icons.phone_outlined,
                   color: AppTheme.accentGreen,
                 ),
-                title: '手机号',
+                title: QyAppLocalizationKeys.qyPhoneNumber.tr(context),
                 subtitle: user?.phone != null
                     ? _maskPhoneNumber(user!.phone!)
                     : 'Not bound',
                 trailing: TextButton(
                   onPressed: () => _showPhoneBindingDialog(),
                   child: Text(
-                    user?.phone != null ? '换绑' : '绑定',
+                    user?.phone != null ? QyAppLocalizationKeys.qySettingsRebind.tr(context) : QyAppLocalizationKeys.qySettingsBind.tr(context),
                     style: TextStyle(color: AppTheme.primaryGreen),
                   ),
                 ),
@@ -162,7 +163,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   Widget _buildAccountBindingSection() {
     return SettingsSection(
-      title: '账号绑定',
+      title: QyAppLocalizationKeys.qySettingsAccountBinding.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -170,13 +171,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Icons.phone_android,
               color: AppTheme.primaryGreen,
             ),
-            title: '手机',
+            title: QyAppLocalizationKeys.qySettingsPhone.tr(context),
             subtitle: Consumer<UserProviderAppQy>(
               builder: (context, userProvider, child) {
                 final user = userProvider.currentUser;
                 return user?.phone != null
                     ? _maskPhoneNumber(user!.phone!)
-                    : '尚未绑定';
+                    : QyAppLocalizationKeys.qySettingsNotBound.tr(context);
               },
             ),
             trailing: Consumer<UserProviderAppQy>(
@@ -185,7 +186,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 return TextButton(
                   onPressed: () => _showPhoneBindingDialog(),
                   child: Text(
-                    user?.phone != null ? '换绑' : '绑定',
+                    user?.phone != null ? QyAppLocalizationKeys.qySettingsRebind.tr(context) : QyAppLocalizationKeys.qySettingsBind.tr(context),
                     style: TextStyle(color: AppTheme.primaryGreen),
                   ),
                 );
@@ -198,12 +199,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Icons.wechat,
               color: const Color(0xFF07C160),
             ),
-            title: '微信',
+            title: QyAppLocalizationKeys.qySettingsWechat.tr(context),
             subtitle: '蓦然回首',
             trailing: TextButton(
               onPressed: () => _showWechatBindingDialog(),
               child: Text(
-                '换绑',
+                QyAppLocalizationKeys.qySettingsRebind.tr(context),
                 style: TextStyle(color: AppTheme.primaryGreen),
               ),
             ),
@@ -214,12 +215,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Icons.alternate_email,
               color: const Color(0xFFFF8140),
             ),
-            title: '新浪微博',
-            subtitle: '尚未绑定',
+            title: QyAppLocalizationKeys.qySettingsWeibo.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsNotBound.tr(context),
             trailing: TextButton(
               onPressed: () => _showWeiboBindingDialog(),
               child: Text(
-                '绑定',
+                QyAppLocalizationKeys.qySettingsBind.tr(context),
                 style: TextStyle(color: AppTheme.primaryGreen),
               ),
             ),
@@ -230,12 +231,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Icons.chat,
               color: const Color(0xFF1296DB),
             ),
-            title: 'QQ',
-            subtitle: '尚未绑定',
+            title: QyAppLocalizationKeys.qySettingsQQ.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsNotBound.tr(context),
             trailing: TextButton(
               onPressed: () => _showQQBindingDialog(),
               child: Text(
-                '绑定',
+                QyAppLocalizationKeys.qySettingsBind.tr(context),
                 style: TextStyle(color: AppTheme.primaryGreen),
               ),
             ),
@@ -247,7 +248,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   Widget _buildAccountDeletionSection() {
     return SettingsSection(
-      title: '账号注销',
+      title: QyAppLocalizationKeys.qySettingsAccountDeletion.tr(context),
       child: Column(
         children: [
           SettingsTile(
@@ -255,12 +256,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               Icons.warning_outlined,
               color: Colors.red,
             ),
-            title: '账号注销',
-            subtitle: '删除所有数据，永久注销',
+            title: QyAppLocalizationKeys.qySettingsAccountDeletion.tr(context),
+            subtitle: QyAppLocalizationKeys.qySettingsAccountDeletionSubtitle.tr(context),
             trailing: TextButton(
               onPressed: _showAccountDeletionDialog,
               child: Text(
-                '注销',
+                QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context),
                 style: TextStyle(color: Colors.red),
               ),
             ),
@@ -280,25 +281,25 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('修改用户名'),
+        title: Text(QyAppLocalizationKeys.qySettingsChangeUsername.tr(context)),
         content: TextField(
           controller: _usernameController,
           decoration: InputDecoration(
-            hintText: '请输入新用户名',
+            hintText: QyAppLocalizationKeys.qySettingsEnterNewUsername.tr(context),
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('取消'),
+            child: Text(QyAppLocalizationKeys.qyCancel.tr(context)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('用户名已更新'),
+                  content: Text(QyAppLocalizationKeys.qySettingsUsernameUpdated.tr(context)),
                   backgroundColor: AppTheme.primaryGreen,
                 ),
               );
@@ -307,7 +308,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               backgroundColor: AppTheme.primaryGreen,
               foregroundColor: Colors.white,
             ),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),
@@ -318,7 +319,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('修改密码'),
+        title: Text(QyAppLocalizationKeys.qySettingsChangePasswordTitle.tr(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -326,7 +327,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               controller: _passwordController,
               obscureText: true,
               decoration: InputDecoration(
-                hintText: '请输入新密码',
+                hintText: QyAppLocalizationKeys.qySettingsEnterNewPassword.tr(context),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -334,7 +335,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             TextField(
               obscureText: true,
               decoration: InputDecoration(
-                hintText: '请确认新密码',
+                hintText: QyAppLocalizationKeys.qySettingsConfirmNewPassword.tr(context),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -343,14 +344,14 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('取消'),
+            child: Text(QyAppLocalizationKeys.qyCancel.tr(context)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('密码已更新'),
+                  content: Text(QyAppLocalizationKeys.qySettingsPasswordUpdated.tr(context)),
                   backgroundColor: AppTheme.primaryGreen,
                 ),
               );
@@ -359,7 +360,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               backgroundColor: AppTheme.primaryGreen,
               foregroundColor: Colors.white,
             ),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),
@@ -370,12 +371,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('手机号绑定'),
-        content: Text('手机号绑定功能开发中...'),
+        title: Text(QyAppLocalizationKeys.qySettingsPhoneBinding.tr(context)),
+        content: Text(QyAppLocalizationKeys.qySettingsPhoneBindingInProgress.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),
@@ -386,12 +387,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('微信绑定'),
-        content: Text('微信绑定功能开发中...'),
+        title: Text(QyAppLocalizationKeys.qySettingsWechatBinding.tr(context)),
+        content: Text(QyAppLocalizationKeys.qySettingsWechatBindingInProgress.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),
@@ -402,12 +403,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('微博绑定'),
-        content: Text('微博绑定功能开发中...'),
+        title: Text(QyAppLocalizationKeys.qySettingsWeiboBinding.tr(context)),
+        content: Text(QyAppLocalizationKeys.qySettingsWeiboBindingInProgress.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),
@@ -418,12 +419,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('QQ绑定'),
-        content: Text('QQ绑定功能开发中...'),
+        title: Text(QyAppLocalizationKeys.qySettingsQQBinding.tr(context)),
+        content: Text(QyAppLocalizationKeys.qySettingsQQBindingInProgress.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('确定'),
+            child: Text(QyAppLocalizationKeys.qyOk.tr(context)),
           ),
         ],
       ),
@@ -434,26 +435,26 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('账号注销'),
+        title: Text(QyAppLocalizationKeys.qySettingsAccountDeletion.tr(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('警告：此操作不可恢复！'),
+            Text(QyAppLocalizationKeys.qySettingsDeletionWarning.tr(context)),
             const SizedBox(height: 16),
-            Text('注销账号后：'),
+            Text(QyAppLocalizationKeys.qySettingsAfterDeletion.tr(context)),
             const SizedBox(height: 8),
-            Text('• 所有学习数据将被永久删除'),
-            Text('• 购买的课程和服务将无法使用'),
-            Text('• 账户信息将被彻底清除'),
+            Text('• ${QyAppLocalizationKeys.qySettingsDeletionDataLoss.tr(context)}'),
+            Text('• ${QyAppLocalizationKeys.qySettingsDeletionCourseLoss.tr(context)}'),
+            Text('• ${QyAppLocalizationKeys.qySettingsDeletionAccountClear.tr(context)}'),
             const SizedBox(height: 16),
-            Text('确定要注销账号吗？'),
+            Text(QyAppLocalizationKeys.qySettingsConfirmDeletion.tr(context)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('取消'),
+            child: Text(QyAppLocalizationKeys.qyCancel.tr(context)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -464,7 +465,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text('确认注销'),
+            child: Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),
           ),
         ],
       ),
@@ -475,19 +476,19 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('最终确认'),
-        content: Text('请再次确认：您真的要永久注销账号吗？'),
+        title: Text(QyAppLocalizationKeys.qySettingsFinalConfirmation.tr(context)),
+        content: Text(QyAppLocalizationKeys.qySettingsFinalConfirmationMessage.tr(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('我再想想'),
+            child: Text(QyAppLocalizationKeys.qySettingsLetMeThink.tr(context)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('账号注销功能开发中...'),
+                  content: Text(QyAppLocalizationKeys.qySettingsAccountDeletionInProgress.tr(context)),
                   backgroundColor: Colors.red,
                 ),
               );
@@ -496,7 +497,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text('确认注销'),
+            child: Text(QyAppLocalizationKeys.qySettingsDeleteAccount.tr(context)),
           ),
         ],
       ),

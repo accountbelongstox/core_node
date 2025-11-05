@@ -1,0 +1,184 @@
+===========================================
+RPC Client-Server Logic Implementation
+===========================================
+
+CORE LOGIC FLOW:
+---------------
+
+1. CLIENT CONNECTION:
+   - Client creates unique clientId (UUID)
+   - Client creates requestId for each request (UUID)
+   - Client can use WebSocket or HTTP
+
+2. SERVER SESSION MANAGEMENT:
+   - Server creates session based on clientId
+   - Server groups sessions by clientId
+   - Server tracks requests per session with callbacks
+
+3. RESPONSE HANDLING:
+
+   A. WebSocket Mode:
+      - Server executes route handler
+      - Server sends response directly through WebSocket
+      - Client receives response immediately
+      - If send fails, retry 3 times with 1 second interval
+
+   B. HTTP Mode:
+      - Server executes route handler
+      - Server caches response with requestId (30 minutes TTL)
+      - Server returns immediate response or queues
+      - Client polls GET /rpc/query/:requestId every 1.5 seconds
+      - Client retrieves cached result
+      - Cache auto-cleans when size > 10000 or after 30 minutes
+
+4. CLIENT BEHAVIOR:
+   - Try WebSocket connection first
+   - On WebSocket failure, fallback to HTTP if enabled
+   - WebSocket: Wait for direct response
+   - HTTP: Poll for result every 1.5 seconds
+   - Timeout after 30 seconds
+
+5. NOTIFICATION RETRY (WebSocket):
+   - Maximum 3 retry attempts
+   - 1 second interval between retries
+   - Track retry count per request
+   - Give up after 3 failures
+
+6. CACHE MANAGEMENT:
+   - Default TTL: 30 minutes (1800000ms)
+   - Max cache size: 10000 entries
+   - Auto-cleanup expired entries every 60 seconds
+   - Remove oldest when size exceeds limit
+
+SESSION LIFECYCLE:
+-----------------
+
+1. Client connects → clientId generated
+2. Server creates session with clientId
+3. Client sends request → requestId generated
+4. Server registers requestId callback
+5. Server executes handler
+6. Server sends response:
+   - WebSocket: Direct send (retry x3 if fail)
+   - HTTP: Cache + client polls
+7. Client receives response
+8. Server cleanup request after delivery
+
+IMPLEMENTATION DETAILS:
+----------------------
+
+SessionManager:
+- Map<sessionId, Session>
+- Groups: Map<clientId, Set<sessionId>>
+- Auto-cleanup inactive sessions (30 min)
+
+RequestManager:
+- Map<requestId, Request>
+- Map<requestId, Callback>
+- Track retry count per request
+- Max retries: 3
+- Retry interval: 1000ms
+
+ResponseCache:
+- Map<requestId, ResponseData>
+- TTL: 30 minutes
+- Max size: 10000
+- Auto-cleanup every 60 seconds
+- Remove on query (optional)
+
+CLIENT API:
+----------
+
+const client = rpc.createClient('http://localhost:8080/rpc', {
+    clientId: 'optional-client-id',  // Auto-generated if not provided
+    timeout: 30000,                   // Request timeout
+    httpPollInterval: 1500,           // HTTP polling interval
+    httpFallback: true,               // Enable HTTP fallback
+    reconnect: true,                  // Auto-reconnect WebSocket
+    reconnectInterval: 3000,          // Reconnect delay
+    maxReconnectAttempts: 10          // Max reconnect attempts
+});
+
+// Make RPC call
+const result = await client.call('routeName', { param1: 'value1' });
+
+// Event listeners
+client.on('connected', ({ mode }) => {});    // 'websocket' or 'http'
+client.on('disconnected', () => {});
+client.on('reconnecting', ({ attempt }) => {});
+client.on('error', (error) => {});
+
+// Check status
+client.isConnected();   // boolean
+client.getMode();       // 'ws' or 'http'
+client.getClientId();   // UUID
+
+// Close connection
+client.close();
+
+SERVER API:
+----------
+
+const server = rpc.createHttpServer(expressApp, {
+    basePath: '/rpc',
+    requestTimeout: 30000
+});
+
+server.route('routeName', async (params, sessionId, context) => {
+    // Handler logic
+    return result;
+});
+
+server.start();
+
+// Query endpoint automatically available:
+// GET /rpc/query/:requestId
+
+EXAMPLE FLOW:
+------------
+
+1. WebSocket Success:
+   Client → WS Connect → Server
+   Client → WS Send Request → Server
+   Server → Execute Handler
+   Server → WS Send Response → Client
+   Client → Receive Response
+
+2. HTTP Polling:
+   Client → HTTP POST /rpc → Server
+   Server → Execute Handler
+   Server → Cache Response
+   Server → Return 202 or result
+   Client → Poll GET /rpc/query/:requestId
+   Server → Return cached result
+   Client → Receive Response
+
+3. WebSocket Retry:
+   Client → WS Connect → Server
+   Client → WS Send Request → Server
+   Server → Execute Handler
+   Server → WS Send (fail)
+   Server → Wait 1s → Retry 1
+   Server → WS Send (fail)
+   Server → Wait 1s → Retry 2
+   Server → WS Send (fail)
+   Server → Wait 1s → Retry 3
+   Server → Give up (cache for HTTP query)
+
+ERROR HANDLING:
+--------------
+- Request timeout: 30s
+- WebSocket retry: 3 attempts
+- HTTP poll: Until timeout
+- Cache expiry: 30 minutes
+- Session cleanup: 30 minutes inactive
+- Auto-reconnect: 10 attempts with 3s interval
+
+PERFORMANCE:
+-----------
+- WebSocket: Instant response
+- HTTP: 1.5s - 30s (polling)
+- Cache cleanup: Every 60s
+- Session cleanup: Every 60s
+- Max cache: 10000 entries
+- Auto-fallback when limits reached

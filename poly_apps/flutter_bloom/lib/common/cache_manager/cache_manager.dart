@@ -13,7 +13,6 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import '../storage/storage_manager.dart';
@@ -134,7 +133,7 @@ class CacheEntry<T> {
     final ttl = customTtl ?? Duration(minutes: 5);
 
     return CacheEntry<T>(
-      data: response.data!,
+      data: response.data as T,
       createdAt: response.timestamp,
       expiresAt: now.add(ttl),
       etag: response.headers?['etag'],
@@ -630,7 +629,7 @@ class CacheManager {
       tags: tags,
     );
 
-    await put('network', cacheKey, response.data!,
+    await put('network', cacheKey, response.data as T,
         ttl: ttl,
         metadata: {
           'statusCode': response.statusCode,
@@ -859,7 +858,7 @@ class CacheManager {
   void _collectMetrics() {
     if (kDebugMode) {
       final hitRate = _totalRequests > 0 ? (_totalHits / _totalRequests * 100) : 0.0;
-      print('📊 Cache Metrics: ${_totalRequests} requests, ${hitRate.toStringAsFixed(1)}% hit rate');
+      print('📊 Cache Metrics: $_totalRequests requests, ${hitRate.toStringAsFixed(1)}% hit rate');
     }
   }
 

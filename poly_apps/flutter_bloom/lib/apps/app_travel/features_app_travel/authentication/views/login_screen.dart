@@ -19,7 +19,7 @@ import '../../../router_app_travel/routes_provider_app_travel.dart';
 import '../../../localization_app_travel/localization_keys_app_travel.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();

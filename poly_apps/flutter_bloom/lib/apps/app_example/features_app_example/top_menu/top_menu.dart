@@ -19,9 +19,9 @@ class TopDropdownMenu extends StatelessWidget {
   final VoidCallback onClose;
 
   const TopDropdownMenu({
-    Key? key,
+    super.key,
     required this.onClose,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

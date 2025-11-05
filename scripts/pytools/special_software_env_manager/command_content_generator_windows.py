@@ -69,7 +69,8 @@ $upgradeChoice = Read-Host "Do you want to upgrade {tool_display_name}? (y/N)"
 if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {{
     Write-Host ""
     Write-Host "[INFO] Launching {tool_display_name} upgrade in separate window..." -ForegroundColor Yellow
-    Start-Process -FilePath "{update_script_path}" -WindowStyle Normal
+    # Use Start-Process to launch in new window, preventing environment pollution
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"{update_script_path}`"" -WindowStyle Normal
     Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
 }} else {{
     Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan

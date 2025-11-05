@@ -18,9 +18,9 @@ class HomeLocalNav extends StatelessWidget {
   final List<LocalNavModel> localNavs;
 
   const HomeLocalNav({
-    Key? key,
+    super.key,
     required this.localNavs,
-  }) : super(key: key);
+  });
 
   Widget _buildIcon(int index) {
     const iconSize = 32.0;

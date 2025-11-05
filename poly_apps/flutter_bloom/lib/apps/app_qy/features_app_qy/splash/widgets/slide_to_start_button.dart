@@ -17,10 +17,10 @@ class SlideToStartButton extends StatefulWidget {
   final String text;
 
   const SlideToStartButton({
-    Key? key,
+    super.key,
     required this.onSlideComplete,
     required this.text,
-  }) : super(key: key);
+  });
 
   @override
   State<SlideToStartButton> createState() => _SlideToStartButtonState();

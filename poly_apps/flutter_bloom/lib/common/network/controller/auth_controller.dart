@@ -10,13 +10,11 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/api_config.dart';
 import '../core/unified_network_client.dart';
 import '../core/network_types.dart' as types;
 import '../auth/unified_auth_manager.dart';
-import '../models/api_response.dart';
 import '../../utils/database/cache_operations.dart';
 
 /// Universal Authentication Controller Template
@@ -524,6 +522,7 @@ class AuthObject extends ChangeNotifier {
   }
 
   /// Dispose resources
+  @override
   void dispose() {
     clearCache();
     super.dispose();

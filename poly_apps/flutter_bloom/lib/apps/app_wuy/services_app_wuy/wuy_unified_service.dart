@@ -25,14 +25,11 @@ import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
 import '../models_app_wuy/chat_message_model_app_wuy.dart';
 import '../models_app_wuy/location_model_app_wuy.dart';
-import '../models_app_wuy/auth_models_app_wuy.dart';
 import '../localization_app_wuy/localization_keys_app_wuy.dart';
 import '../providers_app_wuy/wu_user_provider.dart';
 import 'wuy_fake_data_generator.dart';
 import 'wuy_auth_state_manager.dart';
-import 'wuy_api_client.dart' hide ApiEndpointsAppWuy;
 import 'wuy_api_service_manager.dart';
-import 'wuy_auth_api_service.dart';
 
 /// Unified Wuy Service
 /// Consolidates WuyApiCenter, WuyAuthService, and WuyService functionality

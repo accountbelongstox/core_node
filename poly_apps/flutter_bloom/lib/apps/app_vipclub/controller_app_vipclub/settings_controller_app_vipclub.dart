@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:qyflutter/apps/app_vipclub/services_app_vipclub/vipclub_storage_service.dart';
 import 'package:qyflutter/apps/app_vipclub/settings_app_vipclub/settings_app_vipclub.dart';
-import 'package:qyflutter/common/settings/models/setting_item.dart';
 
 class VipClubSettingsController extends ChangeNotifier {
   final VipClubStorageService _storageService = VipClubStorageService();

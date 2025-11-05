@@ -1,7 +1,7 @@
 // IT Tools Main API Service
 // Handles all API calls to IT Tools backend
 
-import { $fetch } from 'ohmyfetch';
+import { $fetch } from 'ofetch';
 
 export interface ApiResponse<T = any> {
   success: boolean;

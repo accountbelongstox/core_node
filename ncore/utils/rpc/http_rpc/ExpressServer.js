@@ -5,13 +5,13 @@ const StaticServer = require('./libs/StaticServer.js');
 const WsManager = require('./libs/WsManager.js');
 const RouterManager = require('./libs/RouterManager.js');
 const UploadTools = require('./libs/UploadTools.js');
+const { defaultResolver: staticPathResolver } = require('./libs/StaticPathResolver.js');
 const http = require('http');
 const os = require('os');
 
 class ExpressServer {
     constructor(config = {}) {
         this.config = null;
-        this.app = null;
         this.server = null;
         this.started = false;
 
@@ -23,6 +23,8 @@ class ExpressServer {
         if (config) {
             rpcCommon.setConfig(config);
         }
+
+        this.app = expressProvider.getExpressApp();
     }
 
     getLocalIp() {
@@ -50,7 +52,22 @@ class ExpressServer {
         }
 
         this.config = rpcCommon.getConfig();
-        this.app = expressProvider.getExpressApp();
+
+        const subAppManager = rpcCommon.getSubAppManager();
+
+        this.config = subAppManager.getMergedConfig(this.config);
+
+        if (!this.config.STATIC_PATHS) {
+            logger.info('No STATIC_PATHS configured, using auto-detected paths');
+            staticPathResolver.logEnvironmentInfo();
+            this.config.STATIC_PATHS = staticPathResolver.getDefaultStaticPaths();
+        }
+
+        this.config.STATIC_PATHS = subAppManager.getMergedStaticPaths(this.config.STATIC_PATHS);
+
+        if (subAppManager.subApps.size > 0) {
+            logger.success(`Merged config from ${subAppManager.subApps.size} SubApps`);
+        }
 
         await this.routerManager.start(this.config);
         await this.staticServer.start(this.config);

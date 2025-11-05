@@ -10,13 +10,12 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:qyflutter/common/network/network_framework.dart';
-import '../config_app_wuy/api_config_app_wuy.dart';
+import '../config_app_wuy/api_config_app_wuy.dart' hide ApiEndpointsAppWuy;
 import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/auth_models_app_wuy.dart';
-import 'wuy_api_client.dart';
+import 'wuy_api_client.dart' as wuy_endpoints;
 import 'wuy_api_response.dart';
 
 /// Authentication API Service for Wuy App
@@ -44,7 +43,7 @@ class WuyAuthApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.authRegister,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.authRegister,
         method: RequestMethod.post,
         body: {
           'username': username,
@@ -91,7 +90,7 @@ class WuyAuthApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.authLogin,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.authLogin,
         method: RequestMethod.post,
         body: {
           'username': username,
@@ -134,7 +133,7 @@ class WuyAuthApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.authPhoneLogin,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.authPhoneLogin,
         method: RequestMethod.post,
         body: {
           'phone': phone,
@@ -179,7 +178,7 @@ class WuyAuthApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.authSendSms,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.authSendSms,
         method: RequestMethod.post,
         body: {
           'phone': phone,
@@ -226,7 +225,7 @@ class WuyAuthApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.authVerifyEmail,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.authVerifyEmail,
         method: RequestMethod.post,
         body: {
           'email': email,
@@ -265,7 +264,7 @@ class WuyAuthApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.authForgotPassword,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.authForgotPassword,
         method: RequestMethod.post,
         body: {'email': email},
         headers: {'Content-Type': 'application/json'},
@@ -303,7 +302,7 @@ class WuyAuthApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.authResetPassword,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.authResetPassword,
         method: RequestMethod.post,
         body: {
           'token': token,
@@ -343,7 +342,7 @@ class WuyAuthApiService {
   }) async {
     try {
       final request = NetworkRequest(
-        endpoint: ApiEndpointsAppWuy.authLogout,
+        endpoint: wuy_endpoints.ApiEndpointsAppWuy.authLogout,
         method: RequestMethod.post,
         headers: {
           'Content-Type': 'application/json',

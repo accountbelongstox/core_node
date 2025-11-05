@@ -11,18 +11,28 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const { appname } = require('#@global_vars');
-const { startExpressServer } = require('#@/ncore/foundation/express_utils/index.js');
+const rpc = require('#@ncore/utils/rpc');
 const router = require('./router.js');
 // Initialize all routes
 
 class HttpMain {
     constructor() {
+        this.expressServer = null;
     }
 
     async start(config) {
         if(!config) config = require('../config/index.js');
-        router.initializeRoutes();
-        await startExpressServer(config)
+
+        this.expressServer = rpc.createExpressServer({
+            HTTP_PORT: config.HTTP_PORT || 3000,
+            HTTP_HOST: config.HTTP_HOST || '0.0.0.0',
+            STATIC_PATHS: config.STATIC_PATHS,
+            auth: { enabled: false }
+        });
+
+        router.initializeRoutes(this.expressServer.getRouterManager());
+
+        await this.expressServer.start();
     }
 }
 

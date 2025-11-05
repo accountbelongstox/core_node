@@ -32,6 +32,7 @@ class CitiesAppTravel {
     'Dalian',
     'Kunming',
     'Luoyang',
+    'Saipan',
   ];
 
   static const List<String> allCities = [
@@ -55,6 +56,7 @@ class CitiesAppTravel {
     'Dalian',
     'Kunming',
     'Luoyang',
+    'Saipan',
     'Harbin',
     'Jinan',
     'Fuzhou',
