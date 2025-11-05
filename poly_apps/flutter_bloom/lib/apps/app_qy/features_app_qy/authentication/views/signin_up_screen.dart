@@ -30,6 +30,7 @@ import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/authentication/actions/auth_actions.dart';
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 
 // 自定义分段按钮组件
 class SegmentedButton extends StatefulWidget {
@@ -476,7 +477,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
                                   checked = newBool;
                                 });
                               }),
-                          Text('remember_me'.tr(context),
+                          Text(QyAppLocalizationKeys.qyRememberMe.tr(context),
                               style: ThemeTextStyles.textMedium.copyWith(
                                 color: Theme.of(context).colorScheme.onSurface,
                               )),
@@ -487,7 +488,7 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
                           onTap: () {
                             context.pushReplacement(QyAppRoutesProvider.routeForgot);
                           },
-                          child: Text("forgot_the_password".tr(context),
+                          child: Text(QyAppLocalizationKeys.qyForgotPassword.tr(context),
                               style: ThemeTextStyles.textMedium.copyWith(
                                   color: Theme.of(context)
                                       .colorScheme
@@ -497,8 +498,8 @@ class _SignInUpScreenViewState extends State<SignInUpScreenView> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: SegmentedButton(
-                        leftText: 'sign_in'.tr(context),
-                        rightText: 'sign_up'.tr(context),
+                        leftText: QyAppLocalizationKeys.qySignIn.tr(context),
+                        rightText: QyAppLocalizationKeys.qySignUp.tr(context),
                         initialLeftSelected: _isSignIn,
                         onLeftTap: () {
                           if (!_isSignIn) {
