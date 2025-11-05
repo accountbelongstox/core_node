@@ -251,8 +251,8 @@ function getQualityIcon(quality: string): string {
   display: flex;
   align-items: center;
   gap: var(--pm-space-md);
-  background: var(--pm-bg-card);
-  border: 1px solid var(--pm-border);
+  background: var(--pm-color-surface);
+  border: 1px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-lg);
   padding: var(--pm-space-lg);
   transition: var(--pm-transition-fast);
@@ -262,7 +262,7 @@ function getQualityIcon(quality: string): string {
 .pm-stat-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--pm-shadow-md);
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
 }
 
 .pm-stat-card:nth-child(1) { animation-delay: 0s; }
@@ -297,7 +297,7 @@ function getQualityIcon(quality: string): string {
 .pm-stat-card__value {
   font-size: var(--pm-font-size-xl);
   font-weight: 700;
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -306,7 +306,7 @@ function getQualityIcon(quality: string): string {
 
 .pm-stat-card__label {
   font-size: var(--pm-font-size-sm);
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
   font-weight: 500;
 }
 
@@ -327,7 +327,7 @@ function getQualityIcon(quality: string): string {
   justify-content: space-between;
   padding-bottom: 12px;
   border-bottom: 2px solid transparent;
-  border-image: var(--pm-gradient-primary) 1;
+  border-image: var(--pm-gradient-main) 1;
   border-image-slice: 1;
 }
 
@@ -335,7 +335,7 @@ function getQualityIcon(quality: string): string {
   margin: 0;
   font-size: var(--pm-font-size-lg);
   font-weight: 600;
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -352,19 +352,19 @@ function getQualityIcon(quality: string): string {
   padding: 0 12px;
   font-size: var(--pm-font-size-xs);
   font-weight: 600;
-  border-radius: var(--pm-radius-full);
+  border-radius: var(--pm-radius-pill);
   white-space: nowrap;
   transition: var(--pm-transition-fast);
 }
 
 .pm-badge--primary {
-  background: var(--pm-gradient-primary);
+  background: var(--pm-gradient-main);
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(243, 57, 248, 0.3);
 }
 
 .pm-badge--success {
-  background: var(--pm-success);
+  background: var(--pm-color-success);
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
 }
@@ -379,7 +379,7 @@ function getQualityIcon(quality: string): string {
   width: 6px;
   height: 6px;
   background: #ffffff;
-  border-radius: var(--pm-radius-circle);
+  border-radius: 50%;
   animation: pm-pulse-dot 1.5s ease-in-out infinite;
 }
 
@@ -395,12 +395,12 @@ function getQualityIcon(quality: string): string {
 }
 
 .pm-badge--quality-excellent {
-  background: var(--pm-success);
+  background: var(--pm-color-success);
   color: #ffffff;
 }
 
 .pm-badge--quality-good {
-  background: var(--pm-warning);
+  background: var(--pm-color-warning);
   color: #ffffff;
 }
 
@@ -410,7 +410,7 @@ function getQualityIcon(quality: string): string {
 }
 
 .pm-badge--quality-poor {
-  background: var(--pm-danger);
+  background: var(--pm-color-danger);
   color: #ffffff;
 }
 
@@ -427,8 +427,8 @@ function getQualityIcon(quality: string): string {
 
 /* Card */
 .pm-card {
-  background: var(--pm-bg-card);
-  border: 1px solid var(--pm-border);
+  background: var(--pm-color-surface);
+  border: 1px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-lg);
   padding: var(--pm-space-lg);
   transition: var(--pm-transition-fast);
@@ -438,7 +438,7 @@ function getQualityIcon(quality: string): string {
 .pm-card:hover {
   transform: translateX(4px);
   box-shadow: var(--pm-shadow-md);
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
 }
 
 .pm-card__header {
@@ -475,12 +475,12 @@ function getQualityIcon(quality: string): string {
 .pm-card__title {
   font-size: var(--pm-font-size-md);
   font-weight: 600;
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
 }
 
 .pm-card__subtitle {
   font-size: var(--pm-font-size-sm);
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
   font-family: 'Courier New', monospace;
 }
 
@@ -489,7 +489,7 @@ function getQualityIcon(quality: string): string {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   padding-top: var(--pm-space-md);
-  border-top: 1px solid var(--pm-border);
+  border-top: 1px solid var(--pm-color-border-soft);
 }
 
 /* Stat Inline */
@@ -498,7 +498,7 @@ function getQualityIcon(quality: string): string {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--pm-bg-main);
+  background: var(--pm-color-surface);
   border-radius: var(--pm-radius-md);
   transition: var(--pm-transition-fast);
 }
@@ -513,7 +513,7 @@ function getQualityIcon(quality: string): string {
 
 .pm-stat-inline__text {
   font-size: var(--pm-font-size-sm);
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
 }
 
 /* History Item */
@@ -522,8 +522,8 @@ function getQualityIcon(quality: string): string {
   align-items: center;
   justify-content: space-between;
   padding: var(--pm-space-md);
-  background: var(--pm-bg-card);
-  border: 1px solid var(--pm-border);
+  background: var(--pm-color-surface);
+  border: 1px solid var(--pm-color-border-soft);
   border-radius: var(--pm-radius-md);
   transition: var(--pm-transition-fast);
   animation: pm-fadeIn 0.3s ease;
@@ -531,7 +531,7 @@ function getQualityIcon(quality: string): string {
 
 .pm-history-item:hover {
   transform: translateX(4px);
-  border-color: var(--pm-primary);
+  border-color: var(--pm-color-primary);
   box-shadow: var(--pm-shadow-sm);
 }
 
@@ -567,7 +567,7 @@ function getQualityIcon(quality: string): string {
 .pm-history-item__title {
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
-  color: var(--pm-text-primary);
+  color: var(--pm-text-default);
 }
 
 .pm-history-item__subtitle {
@@ -589,7 +589,7 @@ function getQualityIcon(quality: string): string {
   width: 28px;
   height: 28px;
   font-size: 16px;
-  border-radius: var(--pm-radius-circle);
+  border-radius: 50%;
   transition: var(--pm-transition-fast);
 }
 
@@ -634,7 +634,7 @@ function getQualityIcon(quality: string): string {
   margin: 0 0 8px 0;
   font-size: var(--pm-font-size-base);
   font-weight: 600;
-  color: var(--pm-text-secondary);
+  color: var(--pm-text-muted);
 }
 
 .pm-empty-state__hint {

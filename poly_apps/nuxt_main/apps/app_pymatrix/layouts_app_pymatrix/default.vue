@@ -17,11 +17,13 @@
       <PyMatrixTopBar
         :device-count="deviceStore.deviceCount"
         :group-enabled="groupStore.enabled"
+        :theme-mode="uiPreferencesStore.theme"
         @connect-device="showConnectDialog = true"
         @toggle-group="toggleGroupControl"
         @open-settings="showSettings = true"
         @show-help="showShortcutsHelp = true"
         @show-history="showConnectionHistory = true"
+        @toggle-theme="handleToggleTheme"
       />
 
       <div class="pm-app__main">
@@ -87,15 +89,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useDeviceStore } from '../stores_app_pymatrix/deviceStore';
 import { useGroupStore } from '../stores_app_pymatrix/groupStore';
 import { useConfigStore } from '../stores_app_pymatrix/configStore';
+import { useUIPreferencesStore } from '../stores_app_pymatrix/uiPreferencesStore';
 import { useDeviceControl } from '../composables_app_pymatrix/useDeviceControl';
 import { useConnectDevice } from '../composables_app_pymatrix/useConnectDevice';
 import { useToast } from '../composables_app_pymatrix/useToast';
 import type { KeyboardShortcut } from '../composables_app_pymatrix/useKeyboardShortcuts';
 import type { DeviceConfig } from '@/types/pymatrix';
+import type { ThemeMode } from '../stores_app_pymatrix/uiPreferencesStore';
 
 import PyMatrixTopBar from '../components_app_pymatrix/PyMatrixTopBar.vue';
 import PyMatrixLeftPanel from '../components_app_pymatrix/PyMatrixLeftPanel.vue';
@@ -109,6 +113,7 @@ import ToastContainer from '~/common/components/ui/ToastContainer.vue';
 const deviceStore = useDeviceStore();
 const groupStore = useGroupStore();
 const configStore = useConfigStore();
+const uiPreferencesStore = useUIPreferencesStore();
 const { connect: connectDevice } = useConnectDevice();
 const toast = useToast();
 
@@ -117,6 +122,23 @@ const showConnectDialog = ref(false);
 const showSettings = ref(false);
 const showShortcutsHelp = ref(false);
 const showConnectionHistory = ref(false);
+
+const applyThemeToDocument = (mode: ThemeMode) => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.pmTheme = mode;
+  }
+};
+
+watch(
+  () => uiPreferencesStore.theme,
+  (mode) => applyThemeToDocument(mode),
+  { immediate: true }
+);
+
+const handleToggleTheme = () => {
+  const nextTheme: ThemeMode = uiPreferencesStore.theme === 'dark' ? 'light' : 'dark';
+  uiPreferencesStore.setTheme(nextTheme);
+};
 
 const hostDevice = computed(() => {
   if (!groupStore.hostSerial) return null;
@@ -492,16 +514,29 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped>
-/* Import PyMatrix Theme */
+<style>
 @import '@/assets/css/apps/app_pymatrix_theme.css';
 
+body {
+  background: var(--pm-color-canvas);
+  color: var(--pm-text-default);
+}
+
+.pm-app {
+  min-height: 100vh;
+  background: var(--pm-color-canvas-soft);
+}
+</style>
+
+<style scoped>
 /* Layout-specific scaffolding */
 .pm-app--fullscreen {
   width: 100vw;
   min-height: 100vh;
   overflow: hidden;
-  background: transparent;
+  background: radial-gradient(circle at 20% 20%, rgba(124, 92, 255, 0.18), transparent 55%),
+              radial-gradient(circle at 80% 0%, rgba(236, 72, 153, 0.15), transparent 60%),
+              var(--pm-color-canvas);
   display: flex;
   justify-content: center;
 }
@@ -515,6 +550,8 @@ onUnmounted(() => {
   gap: var(--pm-space-xl);
   padding: var(--pm-space-xl);
   box-sizing: border-box;
+  position: relative;
+  z-index: 1;
 }
 
 .pm-app__main {
@@ -529,6 +566,9 @@ onUnmounted(() => {
 .pm-app__content {
   border-radius: var(--pm-radius-xl);
   overflow: hidden;
+  background: var(--pm-color-surface);
+  border: 1px solid var(--pm-color-border-soft);
+  box-shadow: var(--pm-shadow-sm);
 }
 
 @media (max-width: 1536px) {
