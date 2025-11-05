@@ -84,7 +84,7 @@ class VipClubHomeController extends ChangeNotifier {
   }
 
   String getUserDisplayName() {
-    return _currentUser?.fullName ?? 'Guest';
+    return _currentUser?.name ?? 'Guest';
   }
 
   String getMembershipBadge() {

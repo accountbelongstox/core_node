@@ -37,6 +37,7 @@ import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/logined_func_widget.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/widget/logined_wordgroup_widget.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 // AI: Claude Code - Replaced old top_menu and home_bar with EnhancedTopMenu
 // This refactor provides better dropdown functionality and user profile display
 import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
@@ -108,12 +109,12 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('feature_preview'.tr(context)),
-        content: Text('$featureName ${'feature_coming_soon'.tr(context)}'),
+        title: Text(QyAppLocalizationKeys.qyFeaturePreview.tr(context)),
+        content: Text('${featureName.tr(context)} ${QyAppLocalizationKeys.qyFeatureComingSoon.tr(context)}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('close'.tr(context)),
+            child: Text(QyAppLocalizationKeys.qyClose.tr(context)),
           ),
         ],
       ),
@@ -128,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           EnhancedTopMenu(
-            title: 'app_name',
+            title: QyAppLocalizationKeys.qyAppName,
             avatar: CircleAvatar(
               backgroundColor: Theme.of(context).primaryColor,
               child: Text(
@@ -139,19 +140,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             subtitle: userProvider.isAuthenticated 
-                ? 'welcome_back'
-                : 'guest_mode',
+                ? QyAppLocalizationKeys.qyWelcomeBack
+                : QyAppLocalizationKeys.qyGuestMode,
             showDropdown: _isMenuVisible,
             onDropdownToggle: _toggleMenu,
             dropdownItems: _buildDropdownItems(),
             actions: [
               TopMenuAction(
-                tooltip: 'notifications',
+                tooltip: QyAppLocalizationKeys.qyNotifications,
                 icon: Icons.notifications_outlined,
                 onPressed: () => context.push(QyAppRoutesProvider.routeNotifications),
               ),
               TopMenuAction(
-                tooltip: 'search',
+                tooltip: QyAppLocalizationKeys.qySearch,
                 icon: Icons.search,
                 onPressed: () => context.push(QyAppRoutesProvider.routeSearch),
               ),
@@ -195,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const WatchImpactList(),
                       CustomHomeTitle(
-                        title: 'home_top_menu_prayer'.tr(context),
+                        title: QyAppLocalizationKeys.qyHomeTopMenuPrayer.tr(context),
                         onTap: () {
                           context.push(QyAppRoutesProvider.routePrayer);
                         },

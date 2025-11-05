@@ -140,12 +140,14 @@ function broadcastWs(data) {
 class WsManager {
     constructor() {
         this.server = null;
+        this.wss = null;
     }
 
     async start(portOrConfig) {
         let port = portOrConfig.HTTP_PORT;
         this.server = http.createServer(app);
-        wss = new WebSocket.Server({ server: this.server });
+        this.wss = new WebSocket.Server({ server: this.server });
+        wss = this.wss;
 
         wss.on('connection', (ws) => {
             logger.info('New WebSocket client connected');
@@ -184,7 +186,16 @@ class WsManager {
             wss.close();
             logger.info('WebSocket server stopped');
             wss = null;
+            this.wss = null;
         }
+    }
+
+    getWebSocketServer() {
+        return this.wss;
+    }
+
+    getHttpServer() {
+        return this.server;
     }
 }
 

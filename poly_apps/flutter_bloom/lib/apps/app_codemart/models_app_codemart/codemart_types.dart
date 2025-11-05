@@ -520,11 +520,16 @@ class Project {
 class ProjectProposal {
   final int id;
   final int projectId;
+  final int? architectId;
   final ProjectStatus status;
   final RecommendedTechStack recommendedTechStack;
   final SuggestedTeamComposition suggestedTeamComposition;
   final int estimatedDuration;
   final double estimatedCost;
+  final String proposalDescription;
+  final DateTime? estimatedStartDate;
+  final DateTime? estimatedEndDate;
+  final List<ProposalMilestone> milestones;
   final List<CostBreakdownItem> costBreakdown;
   final String aiNotes;
   final String generatedAt;
@@ -532,11 +537,16 @@ class ProjectProposal {
   ProjectProposal({
     required this.id,
     required this.projectId,
+    this.architectId,
     required this.status,
     required this.recommendedTechStack,
     required this.suggestedTeamComposition,
     required this.estimatedDuration,
     required this.estimatedCost,
+    this.proposalDescription = '',
+    this.estimatedStartDate,
+    this.estimatedEndDate,
+    this.milestones = const [],
     required this.costBreakdown,
     required this.aiNotes,
     required this.generatedAt,
@@ -546,12 +556,20 @@ class ProjectProposal {
     return ProjectProposal(
       id: json['id'] as int,
       projectId: json['projectId'] as int,
+      architectId: json['architectId'] as int?,
       status: _parseProjectStatus(json['status'] as String),
       recommendedTechStack: RecommendedTechStack.fromJson(json['recommendedTechStack'] as Map<String, dynamic>),
       suggestedTeamComposition:
           SuggestedTeamComposition.fromJson(json['suggestedTeamComposition'] as Map<String, dynamic>),
       estimatedDuration: json['estimatedDuration'] as int,
       estimatedCost: (json['estimatedCost'] as num).toDouble(),
+      proposalDescription: json['proposalDescription'] as String? ?? '',
+      estimatedStartDate: _parseDateTime(json['estimatedStartDate']),
+      estimatedEndDate: _parseDateTime(json['estimatedEndDate']),
+      milestones: (json['milestones'] as List<dynamic>?)
+              ?.map((e) => ProposalMilestone.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
       costBreakdown: (json['costBreakdown'] as List<dynamic>)
           .map((e) => CostBreakdownItem.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -564,11 +582,16 @@ class ProjectProposal {
     return {
       'id': id,
       'projectId': projectId,
+      'architectId': architectId,
       'status': status.name,
       'recommendedTechStack': recommendedTechStack.toJson(),
       'suggestedTeamComposition': suggestedTeamComposition.toJson(),
       'estimatedDuration': estimatedDuration,
       'estimatedCost': estimatedCost,
+      'proposalDescription': proposalDescription,
+      'estimatedStartDate': estimatedStartDate?.toIso8601String(),
+      'estimatedEndDate': estimatedEndDate?.toIso8601String(),
+      'milestones': milestones.map((e) => e.toJson()).toList(),
       'costBreakdown': costBreakdown.map((e) => e.toJson()).toList(),
       'aiNotes': aiNotes,
       'generatedAt': generatedAt,
@@ -660,6 +683,38 @@ class CostBreakdownItem {
       'hours': hours,
       'hourlyRate': hourlyRate,
       'subtotal': subtotal,
+    };
+  }
+}
+
+class ProposalMilestone {
+  final String title;
+  final String description;
+  final DateTime? dueDate;
+  final double payment;
+
+  ProposalMilestone({
+    required this.title,
+    required this.description,
+    this.dueDate,
+    required this.payment,
+  });
+
+  factory ProposalMilestone.fromJson(Map<String, dynamic> json) {
+    return ProposalMilestone(
+      title: json['title'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      dueDate: _parseDateTime(json['dueDate']),
+      payment: (json['payment'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'description': description,
+      'dueDate': dueDate?.toIso8601String(),
+      'payment': payment,
     };
   }
 }
@@ -1006,6 +1061,22 @@ Database _parseDatabase(String value) {
     (e) => e.name == value,
     orElse: () => Database.mysql,
   );
+}
+
+DateTime? _parseDateTime(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is DateTime) {
+    return value;
+  }
+
+  if (value is String && value.trim().isNotEmpty) {
+    return DateTime.tryParse(value.trim());
+  }
+
+  return null;
 }
 
 MilestoneStatus _parseMilestoneStatus(String value) {

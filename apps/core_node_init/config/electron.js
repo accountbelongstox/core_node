@@ -105,8 +105,9 @@ const electronConfig = {
         backend: {
             enabled: true,
             name: 'Backend MCP Service',
-            url: 'http://localhost:8080',
+            url: 'ws://localhost:8081',
             healthCheck: '/api/status',
+            healthRoute: 'server.status',
             startupCommand: 'node main.js app=core_node_init mcp',
             startupDirectory: bdir.APP_ROOT,
             startupTimeout: 15000,

@@ -1,0 +1,240 @@
+Stream Translator - Quick Start Checklist
+==========================================
+
+IMPORTANT: This is a STANDALONE plugin with NO dependencies on ncore.
+It can be used independently or as part of the ncore framework.
+
+YOUR AZURE DEPLOYMENT INFO
+--------------------------
+✓ Deployment name: TextTranslationCreate-20251105140901
+✓ Subscription: Azure subscription 1
+✓ Subscription ID: fc5dd5d5-8a2f-4468-af23-260f7ddeb193
+✓ Resource group: azureservice
+✓ Deployment started: 11/5/2025, 2:10:09 PM
+
+STEP-BY-STEP SETUP (5 minutes)
+-------------------------------
+
+□ STEP 1: Wait for Azure Deployment to Complete
+  - Go to: https://portal.azure.com
+  - Navigate to: Resource groups → azureservice
+  - Check deployment status (should show "Deployment succeeded")
+  - Estimated time: 1-2 minutes
+
+□ STEP 2: Get Your API Key and Region
+  - In Azure Portal, go to your Translator resource
+  - Click "Keys and Endpoint" in the left menu
+  - Copy the following:
+    [ ] KEY 1: ________________________________
+    [ ] Region: ________________________________
+
+  Common regions: global, eastus, westus2, eastasia, westeurope
+
+□ STEP 3: Configure API Credentials
+
+  Choose ONE method:
+
+  Method A - Environment Variables (Quick, Temporary):
+  ---------------------------------------------------
+  Windows PowerShell:
+    $env:AZURE_TRANSLATOR_KEY="<paste-your-key-here>"
+    $env:AZURE_TRANSLATOR_REGION="<paste-your-region-here>"
+
+  Linux/Mac:
+    export AZURE_TRANSLATOR_KEY="<paste-your-key-here>"
+    export AZURE_TRANSLATOR_REGION="<paste-your-region-here>"
+
+  Method B - Config File (Recommended, Permanent):
+  ------------------------------------------------
+  1. Copy config.example.json to config.json
+  2. Edit config.json and set:
+     "apiKey": "<paste-your-key-here>",
+     "region": "<paste-your-region-here>"
+
+  The plugin will search for config in these locations (in order):
+  - ./stream_translator.config.json (current directory)
+  - ./config/stream_translator.json (config subdirectory)
+  - ./config.json (plugin directory)
+
+□ STEP 4: Verify Configuration
+
+  From the plugin directory, run:
+  npm run config:check
+
+  Or:
+  node -e "require('./index.js').checkConfig()"
+
+  Or if used as ncore module:
+  node -e "require('#@ncore/utils/stream_translator').checkConfig()"
+
+  Expected output:
+  ✓ [OK] Endpoint: api.cognitive.microsofttranslator.com
+  ✓ [OK] API Key: xxxx****xxxx
+  ✓ [OK] Region: your-region
+
+  If you see errors:
+  ✗ Check if you pasted the key correctly
+  ✗ Check if region matches Azure portal
+  ✗ Restart your terminal/IDE after setting env vars
+
+□ STEP 5: Test Translation
+
+  From the plugin directory:
+  npm test
+
+  Or:
+  node example.js
+
+  Or test with this code:
+  ```javascript
+  // Standalone usage
+  const translator = require('./index.js');
+
+  // Or as ncore module
+  // const translator = require('#@ncore/utils/stream_translator');
+
+  const id = 'test';
+  translator.appendData(id, 'Hello world\n');
+  translator.flushSession(id);
+
+  setTimeout(() => {
+      console.log(translator.getFullText(id));
+  }, 2000);
+  ```
+
+WHAT YOU GET WITH FREE TIER
+----------------------------
+✓ 2 million characters per month
+✓ All languages supported
+✓ Perfect for development and testing
+✓ No credit card required for F0 tier
+
+UPGRADE TO STANDARD (S1) IF YOU NEED:
+--------------------------------------
+→ More than 2M characters/month
+→ Higher rate limits
+→ SLA guarantees
+→ Cost: $10 per million characters
+
+COMMON ISSUES & SOLUTIONS
+--------------------------
+
+Issue: "Azure Translator API credentials not configured"
+Solution:
+  1. Check environment variables are set
+  2. Restart terminal/IDE
+  3. Run translator.checkConfig() to diagnose
+
+Issue: "Translation API error: 401 Unauthorized"
+Solution:
+  1. Verify API key is correct
+  2. Check for extra spaces when copying
+  3. Try KEY 2 if KEY 1 doesn't work
+
+Issue: "Translation API error: 403 Forbidden"
+Solution:
+  1. Check region is correct (must match Azure)
+  2. Some regions may have restrictions
+
+Issue: "Translation API error: 429 Too Many Requests"
+Solution:
+  1. You've exceeded free tier limit (2M chars/month)
+  2. Plugin will auto-retry with delay
+  3. Consider upgrading to S1 tier
+
+Issue: No translation output
+Solution:
+  1. Make sure to call flushSession(id)
+  2. Wait for async translation (use setTimeout)
+  3. Check if text matches translation rules
+
+USAGE EXAMPLES
+--------------
+
+Example 1: Simple Translation
+```javascript
+const translator = require('#@ncore/utils/stream_translator');
+
+const id = 'simple';
+translator.appendData(id, 'Hello\n');
+translator.appendData(id, 'World\n');
+translator.flushSession(id);
+
+setTimeout(() => {
+    const result = translator.getFullText(id);
+    console.log(result);
+}, 2000);
+```
+
+Example 2: Code Translation (Smart Detection)
+```javascript
+const id = 'code';
+translator.appendData(id, 'Here is python code:\n');
+translator.appendData(id, '```python\n');
+translator.appendData(id, '# This adds numbers\n');  // Will be translated
+translator.appendData(id, 'def add(a, b):\n');       // Won't be translated
+translator.appendData(id, '    return a + b\n');      // Won't be translated
+translator.appendData(id, '```\n');
+translator.flushSession(id);
+
+setTimeout(() => {
+    const map = translator.getTranslationMap(id);
+    console.log(map);
+}, 3000);
+```
+
+Example 3: Real-time Stream Output
+```javascript
+const id = 'stream';
+
+// Listen for translations
+translator.onTranslationReady((data) => {
+    console.log('Ready:', data.id, data.index);
+});
+
+// Add data
+translator.appendData(id, 'Line 1\n');
+translator.appendData(id, 'Line 2\n');
+
+// Poll for output
+const interval = setInterval(() => {
+    const output = translator.getStreamOutput(id);
+    if (output) {
+        console.log('Output:', output);
+    }
+
+    if (!translator.hasUnprocessed(id)) {
+        clearInterval(interval);
+    }
+}, 200);
+
+translator.flushSession(id);
+```
+
+NEXT STEPS
+----------
+1. Complete the checklist above
+2. Read README_USAGE.txt for detailed API reference
+3. See SETUP_AZURE.txt for advanced configuration
+4. Run examples: example.js and test_stream.js
+5. Integrate into your application
+
+NEED HELP?
+----------
+- Check configuration: translator.checkConfig()
+- View setup guide: translator.printSetupInstructions()
+- See all languages: translator.printSupportedLanguages()
+- View current config: translator.printConfigSummary()
+
+For detailed Azure Translator documentation:
+https://docs.microsoft.com/azure/cognitive-services/translator/
+
+READY TO GO!
+------------
+Once you complete the checklist above, you're ready to use stream translator!
+
+Start with:
+  node ncore/utils/stream_translator/example.js
+
+Or integrate into your app:
+  const translator = require('#@ncore/utils/stream_translator');

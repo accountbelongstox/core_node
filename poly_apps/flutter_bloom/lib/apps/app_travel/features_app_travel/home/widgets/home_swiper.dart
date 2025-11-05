@@ -153,25 +153,28 @@ class _HomeSwiperState extends State<HomeSwiper> {
               ),
             ),
             Positioned(
-              right: 12.0,
+              left: 0,
+              right: 0,
               bottom: indicatorBottom,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: widget.swiperItems.asMap().entries.map((entry) {
-                  final isActive = _currentIndex == entry.key;
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    width: isActive ? 16.0 : 8.0,
-                    height: 8.0,
-                    margin: const EdgeInsets.symmetric(horizontal: 3.0),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4.0),
-                      color: isActive
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.5),
-                    ),
-                  );
-                }).toList(),
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: widget.swiperItems.asMap().entries.map((entry) {
+                    final isActive = _currentIndex == entry.key;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: isActive ? 16.0 : 8.0,
+                      height: 8.0,
+                      margin: const EdgeInsets.symmetric(horizontal: 3.0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4.0),
+                        color: isActive
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.5),
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
           ],

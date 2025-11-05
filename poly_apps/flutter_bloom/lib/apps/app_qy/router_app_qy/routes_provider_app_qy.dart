@@ -69,6 +69,16 @@ class QyAppRoutesProvider {
   static const String routeAlldonation = '/qy/all-donation';
   static const String routeFundraising = '/qy/fundraising';
 
+  /// Create GoRouter configuration for QY app
+  static GoRouter createRouter({String? initialLocation}) {
+    final String effectiveInitialLocation =
+        initialLocation ?? routeSplash;
+    return GoRouter(
+      initialLocation: effectiveInitialLocation,
+      routes: getQyAppRoutes(),
+    );
+  }
+
   // Route getter methods for external access
   static String getInitialRoute() => routeInitial;
   static String getSplashRoute() => routeSplash;

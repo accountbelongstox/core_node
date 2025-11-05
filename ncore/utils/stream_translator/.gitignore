@@ -1,0 +1,6 @@
+config.json
+stream_translator.config.json
+node_modules/
+*.log
+.env
+.env.local

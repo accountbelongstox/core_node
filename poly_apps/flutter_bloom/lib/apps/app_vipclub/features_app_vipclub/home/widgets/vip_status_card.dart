@@ -112,7 +112,7 @@ class VipStatusCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: ThemeTextStyles.captionMedium.copyWith(
+            style: ThemeTextStyles.caption1.copyWith(
               color: ThemeColors.neutralWhite.withOpacity(0.8),
             ),
           ),

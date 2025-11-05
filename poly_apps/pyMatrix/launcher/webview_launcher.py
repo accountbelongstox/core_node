@@ -27,7 +27,7 @@ class PyMatrixLauncher:
 
     功能：
     1. 启动 Python FastAPI 后端
-    2. 启动 Nuxt 前端 (yarn dev)
+    2. 启动 Nuxt 前端 (pnpm dev)
     3. 在 webview 窗口中显示前端
     """
 
@@ -98,9 +98,9 @@ class PyMatrixLauncher:
             env = os.environ.copy()
             env["APP_ENTRY"] = "pymatrix"
 
-            # 启动 yarn dev
+            # 启动 pnpm dev
             self.frontend_process = subprocess.Popen(
-                ["yarn", "dev"],
+                ["pnpm", "dev"],
                 cwd=str(frontend_dir),
                 env=env,
                 stdout=subprocess.PIPE,

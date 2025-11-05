@@ -17,6 +17,7 @@ import '../config_app_wuy/api_config_app_wuy.dart';
 import '../models_app_wuy/user_model_app_wuy.dart';
 import '../models_app_wuy/auth_models_app_wuy.dart';
 import 'wuy_api_client.dart';
+import 'wuy_api_response.dart';
 
 /// Authentication API Service for Wuy App
 /// Handles all authentication-related API calls
@@ -35,7 +36,7 @@ class WuyAuthApiService {
   /// [phone] - Optional phone number
   ///
   /// Returns [AuthResponse] with user data and tokens on success
-  Future<ApiResponse<AuthResponse>> register({
+  Future<WuyApiResponse<AuthResponse>> register({
     required String username,
     required String email,
     required String password,
@@ -58,18 +59,18 @@ class WuyAuthApiService {
 
       if (response.isSuccess && response.data != null) {
         final authResponse = _parseAuthResponse(response.data!);
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: authResponse,
           message: 'Registration successful',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Registration failed',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -84,7 +85,7 @@ class WuyAuthApiService {
   /// [password] - User's password
   ///
   /// Returns [AuthResponse] with user data and tokens on success
-  Future<ApiResponse<AuthResponse>> login({
+  Future<WuyApiResponse<AuthResponse>> login({
     required String username,
     required String password,
   }) async {
@@ -103,18 +104,18 @@ class WuyAuthApiService {
 
       if (response.isSuccess && response.data != null) {
         final authResponse = _parseAuthResponse(response.data!);
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: authResponse,
           message: 'Login successful',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Login failed',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -127,7 +128,7 @@ class WuyAuthApiService {
   /// [verificationCode] - SMS verification code
   ///
   /// Returns [AuthResponse] with user data and tokens on success
-  Future<ApiResponse<AuthResponse>> loginWithPhone({
+  Future<WuyApiResponse<AuthResponse>> loginWithPhone({
     required String phone,
     required String verificationCode,
   }) async {
@@ -146,18 +147,18 @@ class WuyAuthApiService {
 
       if (response.isSuccess && response.data != null) {
         final authResponse = _parseAuthResponse(response.data!);
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: authResponse,
           message: 'Phone login successful',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Phone login failed',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -172,7 +173,7 @@ class WuyAuthApiService {
   /// [countryCode] - Country code (default: +86)
   ///
   /// Returns verification ID and timeout on success
-  Future<ApiResponse<SmsVerificationResponse>> sendSmsCode({
+  Future<WuyApiResponse<SmsVerificationResponse>> sendSmsCode({
     required String phone,
     String countryCode = '+86',
   }) async {
@@ -195,18 +196,18 @@ class WuyAuthApiService {
           verificationId: data['verification_id']?.toString() ?? '',
           timeoutSeconds: data['timeout_seconds'] ?? 60,
         );
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: smsResponse,
           message: 'SMS code sent successfully',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Failed to send SMS code',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -219,7 +220,7 @@ class WuyAuthApiService {
   ///
   /// [email] - Email address to verify
   /// [verificationCode] - Email verification code
-  Future<ApiResponse<void>> verifyEmail({
+  Future<WuyApiResponse<void>> verifyEmail({
     required String email,
     required String verificationCode,
   }) async {
@@ -237,17 +238,17 @@ class WuyAuthApiService {
       final response = await _networkClient.request<Map<String, dynamic>>(request);
 
       if (response.isSuccess) {
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           message: 'Email verified successfully',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Email verification failed',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -259,7 +260,7 @@ class WuyAuthApiService {
   /// Request password reset
   ///
   /// [email] - Email address for password reset
-  Future<ApiResponse<void>> forgotPassword({
+  Future<WuyApiResponse<void>> forgotPassword({
     required String email,
   }) async {
     try {
@@ -273,17 +274,17 @@ class WuyAuthApiService {
       final response = await _networkClient.request<Map<String, dynamic>>(request);
 
       if (response.isSuccess) {
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           message: 'Password reset email sent',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Failed to send password reset email',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -295,7 +296,7 @@ class WuyAuthApiService {
   /// [token] - Password reset token
   /// [newPassword] - New password
   /// [confirmPassword] - Confirm new password
-  Future<ApiResponse<void>> resetPassword({
+  Future<WuyApiResponse<void>> resetPassword({
     required String token,
     required String newPassword,
     required String confirmPassword,
@@ -315,17 +316,17 @@ class WuyAuthApiService {
       final response = await _networkClient.request<Map<String, dynamic>>(request);
 
       if (response.isSuccess) {
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           message: 'Password reset successful',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Password reset failed',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -337,7 +338,7 @@ class WuyAuthApiService {
   /// Logout user and revoke tokens
   ///
   /// [accessToken] - Current access token
-  Future<ApiResponse<void>> logout({
+  Future<WuyApiResponse<void>> logout({
     required String accessToken,
   }) async {
     try {
@@ -354,13 +355,13 @@ class WuyAuthApiService {
 
       // Always return success for logout, even if API call fails
       // User should be logged out locally regardless
-      return ApiResponse.success(
+      return WuyApiResponse.success(
         message: 'Logout successful',
       );
     } catch (e) {
       debugPrint('Logout API call failed: $e');
       // Still return success since local logout should proceed
-      return ApiResponse.success(
+      return WuyApiResponse.success(
         message: 'Logout successful',
       );
     }
@@ -394,42 +395,5 @@ class WuyAuthApiService {
       return (data!['error'] as Map)['code']?.toString();
     }
     return data?['error_code']?.toString();
-  }
-}
-
-/// API Response wrapper
-class ApiResponse<T> {
-  final bool success;
-  final T? data;
-  final String? message;
-  final String? errorCode;
-
-  ApiResponse({
-    required this.success,
-    this.data,
-    this.message,
-    this.errorCode,
-  });
-
-  factory ApiResponse.success({
-    T? data,
-    required String message,
-  }) {
-    return ApiResponse(
-      success: true,
-      data: data,
-      message: message,
-    );
-  }
-
-  factory ApiResponse.error({
-    required String message,
-    String? errorCode,
-  }) {
-    return ApiResponse(
-      success: false,
-      message: message,
-      errorCode: errorCode,
-    );
   }
 }

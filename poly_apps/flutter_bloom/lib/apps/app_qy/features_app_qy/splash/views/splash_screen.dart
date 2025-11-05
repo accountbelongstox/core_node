@@ -16,6 +16,8 @@ import 'package:qyflutter/common/widgets/custom_button.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/storage_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/controller_app_qy/settings_controller_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
+import 'package:qyflutter/apps/app_qy/router_app_qy/routes_provider_app_qy.dart';
 import 'package:qyflutter/common/assets/common_assets_images.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
@@ -48,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Check first launch synchronously (now available after init)
     if (!_storage.isFirstLaunch() && mounted) {
-      context.go('/home');
+      context.go(QyAppRoutesProvider.routeHome);
     }
   }
 
@@ -78,7 +80,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   const Spacer(flex: 2),
                   // App name and slogans
                   Text(
-                    'app_name'.tr(context),
+                    QyAppLocalizationKeys.qyAppName.tr(context),
                     style: theme.textTheme.displayLarge?.copyWith(
                       fontSize: 48,
                       fontWeight: FontWeight.w900,
@@ -90,7 +92,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'slogan_words'.tr(context),
+                    QyAppLocalizationKeys.qySloganWords.tr(context),
                     style: theme.textTheme.displayMedium?.copyWith(
                       fontSize: 32,
                       fontWeight: FontWeight.w700,
@@ -102,7 +104,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'slogan_eyes'.tr(context),
+                    QyAppLocalizationKeys.qySloganEyes.tr(context),
                     style: theme.textTheme.displayMedium?.copyWith(
                       fontSize: 24,
                       fontWeight: FontWeight.w500,
@@ -115,11 +117,11 @@ class _SplashScreenState extends State<SplashScreen> {
                   const Spacer(),
                   // Start Button
                   CustomButton(
-                    buttonText: 'lets_start'.tr(context),
+                    buttonText: QyAppLocalizationKeys.qyLetsStart.tr(context),
                     onPressed: () async {
                       _storage.setNotFirstLaunch();
                       if (mounted) {
-                        context.go('/home');
+                        context.go(QyAppRoutesProvider.routeHome);
                       }
                     },
                   ),
@@ -130,7 +132,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'do_not_have_account'.tr(context),
+                          QyAppLocalizationKeys.qyDoNotHaveAccount.tr(context),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: isDarkMode
                                 ? theme.colorScheme.onSurface.withOpacity(0.7)
@@ -141,14 +143,14 @@ class _SplashScreenState extends State<SplashScreen> {
                         ),
                         TextButton(
                           onPressed: () {
-                            context.go('/signup');
+                            context.go(QyAppRoutesProvider.routeSignup);
                           },
                           style: TextButton.styleFrom(
                             minimumSize: Size.zero,
                             padding: const EdgeInsets.only(left: 4),
                           ),
                           child: Text(
-                            'signup_for_free'.tr(context),
+                            QyAppLocalizationKeys.qySignupForFree.tr(context),
                             style: theme.textTheme.labelLarge?.copyWith(
                               color: theme.colorScheme.primary,
                               fontSize: 14,

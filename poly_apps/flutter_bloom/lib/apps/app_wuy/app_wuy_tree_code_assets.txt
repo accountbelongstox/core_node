@@ -1,7 +1,7 @@
 ================================================================================
 Flutter App Directory Tree
 ================================================================================
-Generated: 2025-11-03 21:39:44
+Generated: 2025-11-05 16:46:19
 App: app_wuy
 Mode: code_assets
 Flutter Root: D:/programing/core_node/poly_apps/flutter_bloom
@@ -184,6 +184,7 @@ app_wuy [code_assets]
 │   ├── services_app_wuy
 │   │   ├── wuy_api_client.dart
 │   │   ├── wuy_api_integration_test.dart
+│   │   ├── wuy_api_response.dart
 │   │   ├── wuy_api_service_manager.dart
 │   │   ├── wuy_auth_api_service.dart
 │   │   ├── wuy_auth_state_manager.dart
@@ -221,6 +222,7 @@ app_wuy [code_assets]
 │   │   ├── common_assets_icons.dart
 │   │   ├── common_assets_images.dart
 │   │   └── common_assets_launch.dart
+│   ├── auth
 │   ├── auth_v2
 │   │   ├── README.md
 │   │   ├── auth_config.dart
@@ -351,6 +353,10 @@ app_wuy [code_assets]
 │   │   │   ├── login_manager.dart
 │   │   │   ├── session_auth_strategy.dart
 │   │   │   └── user_provider_auth_coordinator.dart
+│   │   ├── cache
+│   │   │   ├── cache_entry.dart
+│   │   │   ├── cache_store.dart
+│   │   │   └── memory_cache_store.dart
 │   │   ├── core
 │   │   │   ├── http_client.dart
 │   │   │   └── network_manager.dart
@@ -642,7 +648,8 @@ app_wuy [code_assets]
 │   │   └── bg.png
 │   └── launch
 │       ├── .gitkeep
-│       └── background.png
+│       ├── background.png
+│       └── splash.webp.backup
 └── assets/common/
     ├── fonts
     │   ├── .gitkeep

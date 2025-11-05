@@ -6,6 +6,9 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/apps/app_vipclub/features_app_vipclub/auth/controllers/auth_controller.dart';
 import 'package:qyflutter/apps/app_vipclub/router_app_vipclub/router_app_vipclub.dart';
+import 'package:qyflutter/apps/app_vipclub/localization_app_vipclub/localization_keys_app_vipclub.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import 'package:qyflutter/apps/app_vipclub/models_app_vipclub/user_model_app_vipclub.dart';
 
 class VipClubProfileScreen extends StatelessWidget {
   const VipClubProfileScreen({super.key});
@@ -15,7 +18,7 @@ class VipClubProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'My Profile',
+          VipClubTextKeys.vipclubMyAccount.tr(context),
           style: ThemeTextStyles.headlineMedium.copyWith(
             color: ThemeColors.neutralWhite,
           ),
@@ -72,7 +75,7 @@ class VipClubProfileScreen extends StatelessWidget {
                 SizedBox(height: ThemeDimensions.defaultPadding),
                 _buildMembershipCard(context, user),
                 SizedBox(height: ThemeDimensions.defaultPadding),
-                _buildStatsSection(user),
+                _buildStatsSection(context, user),
                 SizedBox(height: ThemeDimensions.defaultPadding),
                 _buildActionSection(context, authController),
                 SizedBox(height: ThemeDimensions.hugePadding),
@@ -84,7 +87,7 @@ class VipClubProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileHeader(BuildContext context, user) {
+  Widget _buildProfileHeader(BuildContext context, VipClubUserModel user) {
     return Container(
       padding: EdgeInsets.all(ThemeDimensions.hugePadding),
       decoration: BoxDecoration(
@@ -102,10 +105,10 @@ class VipClubProfileScreen extends StatelessWidget {
           CircleAvatar(
             radius: 50,
             backgroundColor: ThemeColors.neutralWhite,
-            child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+            child: user.avatar != null && user.avatar!.isNotEmpty
                 ? ClipOval(
                     child: Image.network(
-                      user.avatarUrl!,
+                      user.avatar!,
                       width: 100,
                       height: 100,
                       fit: BoxFit.cover,
@@ -126,7 +129,7 @@ class VipClubProfileScreen extends StatelessWidget {
           ),
           SizedBox(height: ThemeDimensions.defaultPadding),
           Text(
-            user.fullName,
+            user.name ?? 'Guest',
             style: ThemeTextStyles.headlineMedium.copyWith(
               color: ThemeColors.neutralWhite,
               fontWeight: FontWeight.bold,
@@ -134,7 +137,7 @@ class VipClubProfileScreen extends StatelessWidget {
           ),
           SizedBox(height: ThemeDimensions.tinyPadding),
           Text(
-            user.email,
+            user.email ?? '',
             style: ThemeTextStyles.bodyMedium.copyWith(
               color: ThemeColors.neutralWhite.withOpacity(0.9),
             ),
@@ -153,26 +156,27 @@ class VipClubProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMembershipCard(BuildContext context, user) {
+  Widget _buildMembershipCard(BuildContext context, VipClubUserModel user) {
     Color memberColor;
     String memberTitle;
 
     switch (user.memberType) {
       case 'diamond':
         memberColor = ThemeColors.accentPurple;
-        memberTitle = 'Diamond Member';
+        memberTitle = VipClubTextKeys.vipclubDiamondMember.tr(context);
         break;
       case 'platinum':
         memberColor = ThemeColors.neutralGrey;
-        memberTitle = 'Platinum Member';
+        memberTitle = VipClubTextKeys.vipclubPlatinumMember.tr(context);
         break;
       case 'gold':
         memberColor = ThemeColors.accentGold;
-        memberTitle = 'Gold Member';
+        memberTitle = VipClubTextKeys.vipclubGoldMember.tr(context);
         break;
+      case 'standard':
       case 'regular':
         memberColor = ThemeColors.successGreen;
-        memberTitle = 'Regular Member';
+        memberTitle = VipClubTextKeys.vipclubRegularMember.tr(context);
         break;
       default:
         memberColor = ThemeColors.neutralGrey;
@@ -221,7 +225,7 @@ class VipClubProfileScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'VIP Points',
+                    VipClubTextKeys.vipclubVipPoints.tr(context),
                     style: ThemeTextStyles.bodySmall.copyWith(
                       color: ThemeColors.neutralWhite.withOpacity(0.8),
                     ),
@@ -240,7 +244,7 @@ class VipClubProfileScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    'Discount',
+                    VipClubTextKeys.vipclubDiscount.tr(context),
                     style: ThemeTextStyles.bodySmall.copyWith(
                       color: ThemeColors.neutralWhite.withOpacity(0.8),
                     ),
@@ -262,14 +266,14 @@ class VipClubProfileScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Member since: ${_formatDate(user.memberSince)}',
+                '${VipClubTextKeys.vipclubMemberSince.tr(context)}: ${_formatDate(user.memberSince)}',
                 style: ThemeTextStyles.bodySmall.copyWith(
                   color: ThemeColors.neutralWhite.withOpacity(0.9),
                 ),
               ),
               if (user.memberExpiry != null)
                 Text(
-                  'Expires: ${_formatDate(user.memberExpiry!)}',
+                  '${VipClubTextKeys.vipclubMemberExpiry.tr(context)}: ${_formatDate(user.memberExpiry!)}',
                   style: ThemeTextStyles.bodySmall.copyWith(
                     color: ThemeColors.neutralWhite.withOpacity(0.9),
                   ),
@@ -281,14 +285,14 @@ class VipClubProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsSection(user) {
+  Widget _buildStatsSection(BuildContext context, VipClubUserModel user) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: ThemeDimensions.defaultPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'My Statistics',
+            VipClubTextKeys.vipclubAccountInfo.tr(context),
             style: ThemeTextStyles.headlineSmall.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -299,7 +303,7 @@ class VipClubProfileScreen extends StatelessWidget {
               Expanded(
                 child: _buildStatCard(
                   icon: Icons.event_available,
-                  label: 'Bookings',
+                  label: VipClubTextKeys.vipclubBookings.tr(context),
                   value: '0',
                   color: ThemeColors.primaryBlue,
                 ),
@@ -390,7 +394,7 @@ class VipClubProfileScreen extends StatelessWidget {
           _buildActionTile(
             context,
             icon: Icons.history,
-            title: 'Booking History',
+            title: VipClubTextKeys.vipclubBookingHistory.tr(context),
             onTap: () {
               context.push(VipClubRoutes.bookings);
             },
@@ -398,7 +402,7 @@ class VipClubProfileScreen extends StatelessWidget {
           _buildActionTile(
             context,
             icon: Icons.card_giftcard,
-            title: 'My VIP Card',
+            title: VipClubTextKeys.vipclubVipCard.tr(context),
             onTap: () {
               context.push(VipClubRoutes.vipCard);
             },
@@ -406,7 +410,7 @@ class VipClubProfileScreen extends StatelessWidget {
           _buildActionTile(
             context,
             icon: Icons.star,
-            title: 'VIP Benefits',
+            title: VipClubTextKeys.vipclubVipBenefits.tr(context),
             onTap: () {
               context.push(VipClubRoutes.vipBenefits);
             },
@@ -414,7 +418,7 @@ class VipClubProfileScreen extends StatelessWidget {
           _buildActionTile(
             context,
             icon: Icons.edit,
-            title: 'Edit Profile',
+            title: VipClubTextKeys.vipclubEditProfile.tr(context),
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -426,23 +430,23 @@ class VipClubProfileScreen extends StatelessWidget {
           _buildActionTile(
             context,
             icon: Icons.logout,
-            title: 'Logout',
+            title: VipClubTextKeys.vipclubLogout.tr(context),
             color: ThemeColors.errorRed,
             onTap: () async {
               final confirm = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: Text('Logout'),
+                  title: Text(VipClubTextKeys.vipclubLogout.tr(context)),
                   content: Text('Are you sure you want to logout?'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(false),
-                      child: Text('Cancel'),
+                      child: Text(VipClubTextKeys.vipclubCancel.tr(context)),
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(true),
                       child: Text(
-                        'Logout',
+                        VipClubTextKeys.vipclubLogout.tr(context),
                         style: TextStyle(color: ThemeColors.errorRed),
                       ),
                     ),

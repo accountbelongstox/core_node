@@ -78,4 +78,19 @@ class TravelLocalizationKeys {
   static const String travelBack = 'travel_back';
   static const String travelNext = 'travel_next';
   static const String travelDone = 'travel_done';
+
+  static const String travelLogin = 'travel_login';
+  static const String travelLogout = 'travel_logout';
+  static const String travelUsername = 'travel_username';
+  static const String travelPassword = 'travel_password';
+  static const String travelLoginSuccess = 'travel_login_success';
+  static const String travelLoginFailed = 'travel_login_failed';
+  static const String travelPleaseEnterUsername = 'travel_please_enter_username';
+  static const String travelPleaseEnterPassword = 'travel_please_enter_password';
+  static const String travelDebugModeHint = 'travel_debug_mode_hint';
+  static const String travelSkipLogin = 'travel_skip_login';
+  static const String travelWelcomeBack = 'travel_welcome_back';
+  static const String travelProfile = 'travel_profile';
+  static const String travelUser = 'travel_user';
+  static const String travelGuestUser = 'travel_guest_user';
 }

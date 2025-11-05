@@ -179,7 +179,7 @@ class _VipClubVipCardScreenState extends State<VipClubVipCardScreen>
                             ),
                             child: Text(
                               'GOLD',
-                              style: ThemeTextStyles.captionMedium.copyWith(
+                              style: ThemeTextStyles.caption1.copyWith(
                                 color: const Color(0xFFD4AF37),
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 1.5,
@@ -243,7 +243,7 @@ class _VipClubVipCardScreenState extends State<VipClubVipCardScreen>
       children: [
         Text(
           label,
-          style: ThemeTextStyles.captionSmall.copyWith(
+          style: ThemeTextStyles.caption1.copyWith(
             color: ThemeColors.neutralBlack.withOpacity(0.7),
             fontSize: 9,
             fontWeight: FontWeight.w600,
@@ -253,7 +253,7 @@ class _VipClubVipCardScreenState extends State<VipClubVipCardScreen>
         SizedBox(height: 2),
         Text(
           value,
-          style: ThemeTextStyles.captionMedium.copyWith(
+          style: ThemeTextStyles.caption1.copyWith(
             color: ThemeColors.neutralBlack,
             fontWeight: FontWeight.bold,
           ),

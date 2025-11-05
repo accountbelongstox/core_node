@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
+import '../../../provider_app_travel/user_provider_app_travel.dart';
+import '../../../localization_app_travel/localization_keys_app_travel.dart';
+import '../../../resources_app_travel/assets_images_app_travel.dart';
 import '../../settings/views/settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -66,6 +71,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildHeader() {
+    final userProvider = context.watch<UserProviderAppTravel>();
+    final user = userProvider.user;
+    final username = user.username ?? TravelLocalizationKeys.travelGuestUser.tr(context);
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16.0, 48.0, 16.0, 16.0),
@@ -76,29 +85,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
             height: 60.0,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE0E0E0), width: 2.0),
+              border: Border.all(
+                color: user.isLoggedIn ? const Color(0xFF00D0D8) : const Color(0xFFE0E0E0),
+                width: 2.0,
+              ),
             ),
             child: ClipOval(
-              child: Image.asset(
-                'assets/apps/app_travel/images/profile_avatar.png',
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: const Color(0xFFE3F2FD),
-                    child: const Icon(
-                      Icons.person,
-                      size: 36.0,
-                      color: Color(0xFF00D0D8),
+              child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                  ? Image.network(
+                      user.avatarUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildDefaultAvatar();
+                      },
+                    )
+                  : Image.asset(
+                      AssetsImagesAppTravel.travelUserAvatarDefault,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildDefaultAvatar();
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ),
           const SizedBox(width: 12.0),
-          const Text(
-            '去哪儿用户',
-            style: TextStyle(
+          Text(
+            username,
+            style: const TextStyle(
               fontSize: 18.0,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
@@ -159,7 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(6.0),
               ),
               child: const Icon(
-                Icons.message_outlined,
+                Icons.settings_outlined,
                 size: 20.0,
                 color: Colors.black54,
               ),
@@ -217,7 +230,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const Spacer(),
           Image.asset(
-            'assets/apps/app_travel/images/profile_member_badge.png',
+            AssetsImagesAppTravel.travelVipBadge,
             width: 80.0,
             height: 80.0,
             errorBuilder: (context, error, stackTrace) {
@@ -617,6 +630,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      color: const Color(0xFFE3F2FD),
+      child: const Icon(
+        Icons.person,
+        size: 36.0,
+        color: Color(0xFF00D0D8),
       ),
     );
   }

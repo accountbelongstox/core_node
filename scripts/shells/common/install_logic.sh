@@ -221,9 +221,9 @@ download_and_install_app() {
         log_info "Looking for $display_name files..."
 
         # Step 1: Ensure node modules are installed
-        log_info "Step 1: Ensuring node modules and yarn are installed..."
+        log_info "Step 1: Ensuring node modules and pnpm are installed..."
         if ! ensure_node_modules; then
-            log_error "Failed to install node modules and yarn"
+            log_error "Failed to install node modules and pnpm"
             return 1
         fi
 

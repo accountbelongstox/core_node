@@ -1,9 +1,7 @@
-class VipClubUserModel {
-  final String id;
-  final String email;
-  final String fullName;
+import 'package:qyflutter/common/provider_status/user_provider.dart';
+
+class VipClubUserModel extends BaseUserModel {
   final String phone;
-  final String? avatarUrl;
   final String memberType;
   final int vipPoints;
   final DateTime memberSince;
@@ -12,29 +10,48 @@ class VipClubUserModel {
   final Map<String, dynamic>? preferences;
 
   VipClubUserModel({
-    required this.id,
-    required this.email,
-    required this.fullName,
+    super.id,
+    super.email,
+    super.name,
+    super.username,
+    super.avatar,
+    super.userToken,
+    super.createdAt,
+    super.updatedAt,
+    super.authMetadata = const AuthMetadata(),
     required this.phone,
-    this.avatarUrl,
-    required this.memberType,
-    required this.vipPoints,
-    required this.memberSince,
+    this.memberType = 'standard',
+    this.vipPoints = 0,
+    DateTime? memberSince,
     this.memberExpiry,
     this.isActive = true,
     this.preferences,
-  });
+  }) : memberSince = memberSince ?? createdAt ?? DateTime.now();
 
   factory VipClubUserModel.fromJson(Map<String, dynamic> json) {
     return VipClubUserModel(
-      id: json['id'] as String,
-      email: json['email'] as String,
-      fullName: json['full_name'] as String,
-      phone: json['phone'] as String,
-      avatarUrl: json['avatar_url'] as String?,
-      memberType: json['member_type'] as String,
-      vipPoints: json['vip_points'] as int,
-      memberSince: DateTime.parse(json['member_since'] as String),
+      id: json['id'] as int?,
+      email: json['email'] as String?,
+      name: json['full_name'] as String? ?? json['name'] as String?,
+      username: json['username'] as String?,
+      avatar: json['avatar_url'] as String? ?? json['avatar'] as String?,
+      userToken: json['user_token'] as String?,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'] as String)
+          : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'] as String)
+          : null,
+      authMetadata: json['auth_metadata'] != null
+          ? AuthMetadata.fromMap(
+              Map<String, dynamic>.from(json['auth_metadata'] as Map))
+          : const AuthMetadata(),
+      phone: json['phone'] as String? ?? '',
+      memberType: json['member_type'] as String? ?? 'standard',
+      vipPoints: json['vip_points'] as int? ?? 0,
+      memberSince: json['member_since'] != null
+          ? DateTime.parse(json['member_since'] as String)
+          : null,
       memberExpiry: json['member_expiry'] != null
           ? DateTime.parse(json['member_expiry'] as String)
           : null,
@@ -43,13 +60,24 @@ class VipClubUserModel {
     );
   }
 
+  factory VipClubUserModel.fromMap(Map<String, dynamic> map) {
+    return VipClubUserModel.fromJson(map);
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'email': email,
-      'full_name': fullName,
+      'full_name': name,
+      'name': name,
+      'username': username,
+      'avatar_url': avatar,
+      'avatar': avatar,
+      'user_token': userToken,
+      'created_at': createdAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+      'auth_metadata': authMetadata.toMap(),
       'phone': phone,
-      'avatar_url': avatarUrl,
       'member_type': memberType,
       'vip_points': vipPoints,
       'member_since': memberSince.toIso8601String(),
@@ -59,12 +87,22 @@ class VipClubUserModel {
     };
   }
 
+  @override
+  Map<String, dynamic> toMap() {
+    return toJson();
+  }
+
   VipClubUserModel copyWith({
-    String? id,
+    int? id,
     String? email,
-    String? fullName,
+    String? name,
+    String? username,
+    String? avatar,
+    String? userToken,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    AuthMetadata? authMetadata,
     String? phone,
-    String? avatarUrl,
     String? memberType,
     int? vipPoints,
     DateTime? memberSince,
@@ -75,15 +113,36 @@ class VipClubUserModel {
     return VipClubUserModel(
       id: id ?? this.id,
       email: email ?? this.email,
-      fullName: fullName ?? this.fullName,
+      name: name ?? this.name,
+      username: username ?? this.username,
+      avatar: avatar ?? this.avatar,
+      userToken: userToken ?? this.userToken,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      authMetadata: authMetadata ?? this.authMetadata,
       phone: phone ?? this.phone,
-      avatarUrl: avatarUrl ?? this.avatarUrl,
       memberType: memberType ?? this.memberType,
       vipPoints: vipPoints ?? this.vipPoints,
       memberSince: memberSince ?? this.memberSince,
       memberExpiry: memberExpiry ?? this.memberExpiry,
       isActive: isActive ?? this.isActive,
       preferences: preferences ?? this.preferences,
+    );
+  }
+
+  factory VipClubUserModel.empty() {
+    return VipClubUserModel(
+      id: null,
+      email: null,
+      name: null,
+      username: null,
+      avatar: null,
+      userToken: null,
+      phone: '',
+      memberType: 'standard',
+      vipPoints: 0,
+      memberSince: DateTime.now(),
+      isActive: false,
     );
   }
 

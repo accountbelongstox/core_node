@@ -11,6 +11,8 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:qyflutter/common/app/main_common.dart';
 import 'config_app_qy/app_config_app_qy.dart';
 import 'config_app_qy/provider_app_qy.dart';
@@ -19,6 +21,7 @@ import 'settings_app_qy/settings_app_qy.dart';
 import 'localization_app_qy/en_app_qy.dart';
 import 'localization_app_qy/zh_app_qy.dart';
 import 'providers_app_qy/qy_user_provider.dart';
+import 'controller_app_qy/settings_controller_app_qy.dart';
 
 /// QY App specific widget
 /// This can be customized for QY app specific needs
@@ -28,13 +31,17 @@ import 'providers_app_qy/qy_user_provider.dart';
 /// - Ready for app-specific customizations when needed
 /// Other AIs: This follows the common app pattern correctly
 class QyApp extends StatelessWidget {
-  const QyApp({super.key});
+  final GoRouter routerConfig;
+
+  const QyApp({super.key, required this.routerConfig});
 
   @override
   Widget build(BuildContext context) {
     // For now, use the common app structure
     // Later this can be customized for QY app specific needs
-    return const FlutterBloomMainApp();
+    return FlutterBloomMainApp(
+      routerConfig: routerConfig,
+    );
   }
 }
 
@@ -43,7 +50,8 @@ class QyApp extends StatelessWidget {
 /// with specific configurations and customizations
 Future<void> main() async {
   // Create QY-specific user provider instance
-  final qyUserProvider = QyUserProvider();
+  final QyUserProvider qyUserProvider = QyUserProvider();
+  final GoRouter routerConfig = QyAppRoutesProvider.createRouter();
 
   await runCommonApp(
     appName: QyAppConfig.appName,
@@ -53,9 +61,15 @@ Future<void> main() async {
     zhAppLocales: ZhAppQy.locales,
     initialRoute: QyAppRoutesProvider.routeHome,
     homeRoute: QyAppRoutesProvider.routeHome,
+    routerConfig: routerConfig,
     appPrefs: prefsAppQy, // Pass QY specific SharedPreferences instance
     customUserProvider: qyUserProvider, // Pass QY-specific user provider
-    customApp: const QyApp(),
+    customApp: QyApp(routerConfig: routerConfig),
+    scopedProvidersBuilder: (commonSettingsController) => [
+      ChangeNotifierProvider<SettingsControllerAppQy>(
+        create: (_) => SettingsControllerAppQy(commonSettingsController),
+      ),
+    ],
     initializeUnifiedStorage: true, // Use v1 storage (UnifiedStorage + Hive)
   );
 }

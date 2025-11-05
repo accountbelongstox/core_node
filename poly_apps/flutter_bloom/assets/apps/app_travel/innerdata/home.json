@@ -3,6 +3,10 @@
   "data": {
     "swipeImages": [
       {
+        "id": 100,
+        "url": "upload/carousel_promo_food_001.jpg"
+      },
+      {
         "id": 101,
         "url": "upload/zg0516000000zifq4FC3C.jpg"
       },

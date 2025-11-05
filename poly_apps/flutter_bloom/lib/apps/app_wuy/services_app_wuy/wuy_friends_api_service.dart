@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart';
 import 'package:qyflutter/common/network/network_framework.dart';
 import '../models_app_wuy/friend_model_app_wuy.dart';
 import 'wuy_api_client.dart';
+import 'wuy_api_response.dart';
 import 'wuy_auth_api_service.dart';
 
 /// Friends API Service for Wuy App
@@ -32,7 +33,7 @@ class WuyFriendsApiService {
   /// [limit] - Number of items per page (default: 20)
   ///
   /// Returns list of friends
-  Future<ApiResponse<List<FriendModelAppWuy>>> getFriendsList({
+  Future<WuyApiResponse<List<FriendModelAppWuy>>> getFriendsList({
     required String accessToken,
     int page = 1,
     int limit = 20,
@@ -63,18 +64,18 @@ class WuyFriendsApiService {
             .map((friend) => FriendModelAppWuy.fromJson(friend as Map<String, dynamic>))
             .toList();
 
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: friends,
           message: 'Friends list retrieved successfully',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Failed to get friends list',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -89,7 +90,7 @@ class WuyFriendsApiService {
   /// [userId] - User ID to send friend request to
   ///
   /// Returns friend request information
-  Future<ApiResponse<FriendRequestResponse>> sendFriendRequest({
+  Future<WuyApiResponse<FriendRequestResponse>> sendFriendRequest({
     required String accessToken,
     required String userId,
   }) async {
@@ -118,18 +119,18 @@ class WuyFriendsApiService {
               : DateTime.now(),
         );
 
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: friendRequest,
           message: 'Friend request sent successfully',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Failed to send friend request',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -142,7 +143,7 @@ class WuyFriendsApiService {
   /// [username] - Username to send friend request to
   ///
   /// Returns friend request information
-  Future<ApiResponse<FriendRequestResponse>> sendFriendRequestByUsername({
+  Future<WuyApiResponse<FriendRequestResponse>> sendFriendRequestByUsername({
     required String accessToken,
     required String username,
   }) async {
@@ -171,18 +172,18 @@ class WuyFriendsApiService {
               : DateTime.now(),
         );
 
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: friendRequest,
           message: 'Friend request sent successfully',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Failed to send friend request',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -195,7 +196,7 @@ class WuyFriendsApiService {
   ///
   /// [accessToken] - User's access token
   /// [friendId] - Friend ID to remove
-  Future<ApiResponse<void>> removeFriend({
+  Future<WuyApiResponse<void>> removeFriend({
     required String accessToken,
     required String friendId,
   }) async {
@@ -213,17 +214,17 @@ class WuyFriendsApiService {
       final response = await _networkClient.request<Map<String, dynamic>>(request);
 
       if (response.isSuccess) {
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           message: 'Friend removed successfully',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Failed to remove friend',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -236,7 +237,7 @@ class WuyFriendsApiService {
   ///
   /// [accessToken] - User's access token
   /// [friendId] - Friend ID to get information for
-  Future<ApiResponse<FriendModelAppWuy>> getFriendInfo({
+  Future<WuyApiResponse<FriendModelAppWuy>> getFriendInfo({
     required String accessToken,
     required String friendId,
   }) async {
@@ -260,18 +261,18 @@ class WuyFriendsApiService {
 
         final friend = FriendModelAppWuy.fromJson(friendData);
 
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: friend,
           message: 'Friend information retrieved successfully',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Failed to get friend information',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -288,7 +289,7 @@ class WuyFriendsApiService {
   /// [limit] - Number of items per page (default: 20)
   ///
   /// Returns list of users matching search query
-  Future<ApiResponse<List<FriendModelAppWuy>>> searchFriends({
+  Future<WuyApiResponse<List<FriendModelAppWuy>>> searchFriends({
     required String accessToken,
     required String query,
     int page = 1,
@@ -321,18 +322,18 @@ class WuyFriendsApiService {
             .map((user) => FriendModelAppWuy.fromJson(user as Map<String, dynamic>))
             .toList();
 
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: friends,
           message: 'Search completed successfully',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Search failed',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -342,7 +343,7 @@ class WuyFriendsApiService {
   // ==================== FRIEND SYSTEM HEALTH ====================
 
   /// Check friend system health
-  Future<ApiResponse<Map<String, dynamic>>> checkFriendSystemHealth() async {
+  Future<WuyApiResponse<Map<String, dynamic>>> checkFriendSystemHealth() async {
     try {
       final request = NetworkRequest(
         endpoint: ApiEndpointsAppWuy.friendsHealth,
@@ -353,18 +354,18 @@ class WuyFriendsApiService {
       final response = await _networkClient.request<Map<String, dynamic>>(request);
 
       if (response.isSuccess && response.data != null) {
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           data: response.data!,
           message: 'Friend system is healthy',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Friend system health check failed',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -377,7 +378,7 @@ class WuyFriendsApiService {
   ///
   /// [accessToken] - User's access token
   /// [requestId] - Friend request ID to accept
-  Future<ApiResponse<void>> acceptFriendRequest({
+  Future<WuyApiResponse<void>> acceptFriendRequest({
     required String accessToken,
     required String requestId,
   }) async {
@@ -396,17 +397,17 @@ class WuyFriendsApiService {
       final response = await _networkClient.request<Map<String, dynamic>>(request);
 
       if (response.isSuccess) {
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           message: 'Friend request accepted',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Failed to accept friend request',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );
@@ -417,7 +418,7 @@ class WuyFriendsApiService {
   ///
   /// [accessToken] - User's access token
   /// [requestId] - Friend request ID to decline
-  Future<ApiResponse<void>> declineFriendRequest({
+  Future<WuyApiResponse<void>> declineFriendRequest({
     required String accessToken,
     required String requestId,
   }) async {
@@ -436,17 +437,17 @@ class WuyFriendsApiService {
       final response = await _networkClient.request<Map<String, dynamic>>(request);
 
       if (response.isSuccess) {
-        return ApiResponse.success(
+        return WuyApiResponse.success(
           message: 'Friend request declined',
         );
       } else {
-        return ApiResponse.error(
+        return WuyApiResponse.error(
           message: response.error ?? 'Failed to decline friend request',
           errorCode: _extractErrorCode(response.data),
         );
       }
     } catch (e) {
-      return ApiResponse.error(
+      return WuyApiResponse.error(
         message: 'Network error: ${e.toString()}',
         errorCode: 'NETWORK_ERROR',
       );

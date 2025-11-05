@@ -83,7 +83,7 @@ class VipClubMembershipApiService {
         return {
           'success': data['success'] ?? true,
           'vip_card': data['vip_card'] != null
-              ? VipClubVipCardModel.fromJson(data['vip_card'])
+              ? VipClubCardModel.fromJson(data['vip_card'])
               : null,
           'transaction_id': data['transaction_id'],
         };
@@ -128,7 +128,7 @@ class VipClubMembershipApiService {
         return {
           'success': data['success'] ?? true,
           'vip_card': data['vip_card'] != null
-              ? VipClubVipCardModel.fromJson(data['vip_card'])
+              ? VipClubCardModel.fromJson(data['vip_card'])
               : null,
           'transaction_id': data['transaction_id'],
         };
@@ -167,7 +167,7 @@ class VipClubMembershipApiService {
         return {
           'success': data['success'] ?? true,
           'vip_card': data['vip_card'] != null
-              ? VipClubVipCardModel.fromJson(data['vip_card'])
+              ? VipClubCardModel.fromJson(data['vip_card'])
               : null,
           'transaction_id': data['transaction_id'],
         };

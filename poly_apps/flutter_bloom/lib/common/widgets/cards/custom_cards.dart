@@ -268,6 +268,7 @@ class FeatureCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget? badge;
+  final Widget? footer;
   final VoidCallback? onTap;
   final double? height;
 
@@ -277,6 +278,7 @@ class FeatureCard extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.badge,
+    this.footer,
     this.onTap,
     this.height,
   });
@@ -344,6 +346,10 @@ class FeatureCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
+                  ],
+                  if (footer != null) ...[
+                    SizedBox(height: ThemeDimensions.smallPadding),
+                    footer!,
                   ],
                 ],
               ),

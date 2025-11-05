@@ -162,7 +162,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              'Architect #${_proposal!.architectId}',
+                                              'Architect #${_proposal!.architectId?.toString() ?? 'N/A'}',
                                               style: Theme.of(context).textTheme.titleSmall,
                                             ),
                                             const Text('Professional Architect'),
@@ -189,7 +189,11 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                     style: Theme.of(context).textTheme.titleMedium,
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(_proposal!.proposalDescription),
+                                  Text(
+                                    _proposal!.proposalDescription.isNotEmpty
+                                        ? _proposal!.proposalDescription
+                                        : 'No description provided.',
+                                  ),
                                 ],
                               ),
                             ),
@@ -202,8 +206,9 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                               leading: const Icon(Icons.schedule),
                               title: const Text('Estimated Timeline'),
                               subtitle: Text(
-                                'Start: ${_proposal!.estimatedStartDate.toString().split(' ')[0]}\n'
-                                'End: ${_proposal!.estimatedEndDate.toString().split(' ')[0]}',
+                                'Start: ${_formatDate(_proposal!.estimatedStartDate)}\n'
+                                'End: ${_formatDate(_proposal!.estimatedEndDate)}\n'
+                                'Duration: ${_proposal!.estimatedDuration} days',
                               ),
                             ),
                           ),
@@ -231,7 +236,7 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
                                       Text(milestone.description),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Due: ${milestone.dueDate.toString().split(' ')[0]}',
+                                        'Due: ${_formatDate(milestone.dueDate)}',
                                         style: Theme.of(context).textTheme.bodySmall,
                                       ),
                                     ],
@@ -311,5 +316,16 @@ class _ProposalViewAppCodemartState extends State<ProposalViewAppCodemart> {
       default:
         return Colors.grey.withOpacity(0.2);
     }
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) {
+      return 'TBD';
+    }
+
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 }
