@@ -1,5 +1,5 @@
 <template>
-  <div class="pm-right-sidebar">
+  <div class="pm-right-sidebar pm-aurora-panel">
     <div class="pm-right-sidebar__header">
       <h3 class="pm-right-sidebar__title">Device Control</h3>
     </div>
@@ -147,6 +147,7 @@ function sendText() {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .pm-right-sidebar__header {
@@ -270,6 +271,10 @@ function sendText() {
   border-color: var(--pm-color-border);
   box-shadow: var(--pm-shadow-sm);
   transform: translateY(-3px);
+}
+
+.control-btn:hover span {
+  color: var(--pm-text-strong);
 }
 
 .control-btn:hover::before {

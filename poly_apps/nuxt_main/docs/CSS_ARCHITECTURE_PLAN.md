@@ -217,13 +217,13 @@ export default defineNuxtConfig({
 {
   name: 'pymatrix',
   css: [
-    '@/assets/css/apps/pymatrix/pymatrix-theme.css',
+    '@/assets/css/apps/app_pymatrix_theme.css',
   ]
 }
 ```
 
 ### PyMatrix Theme Import Chain
-**assets/css/apps/pymatrix/pymatrix-theme.css:**
+**assets/css/apps/app_pymatrix_theme.css:**
 ```css
 /* Base */
 @import './base/colors.css';

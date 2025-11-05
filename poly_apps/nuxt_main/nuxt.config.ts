@@ -85,7 +85,7 @@ export default defineNuxtConfig({
 
     css: [
         '~/assets/css/app.css',
-        '~/assets/css/apps/pymatrix/pymatrix-theme.css'
+        '~/assets/css/apps/app_pymatrix_theme.css'
     ],
     modules: ['@pinia/nuxt', '@nuxtjs/i18n'],
 

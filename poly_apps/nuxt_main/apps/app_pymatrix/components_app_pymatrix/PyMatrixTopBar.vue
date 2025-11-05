@@ -1,13 +1,13 @@
 <template>
-  <header class="pm-topbar">
+  <header class="pm-topbar pm-aurora-panel">
     <div class="pm-topbar__left">
-      <div class="pm-topbar__logo">
+      <div class="pm-topbar__logo pm-glow-ring">
         <span class="pm-topbar__logo-icon">📱</span>
         <h1 class="pm-topbar__logo-title">pyMatrix</h1>
       </div>
     </div>
 
-    <div class="pm-topbar__center">
+    <div class="pm-topbar__center pm-floating">
       <div class="pm-topbar__status">
         <span class="pm-topbar__status-dot" :class="{ active: deviceCount > 0 }"></span>
         <span>{{ deviceCount }} Device{{ deviceCount !== 1 ? 's' : '' }}</span>
@@ -50,7 +50,16 @@
         <span>Shortcuts</span>
       </button>
 
-      <div class="pm-topbar__user">
+      <button
+        class="pm-topbar__action-btn"
+        :title="themeMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'"
+        @click="$emit('toggle-theme')"
+      >
+        <span>{{ themeMode === 'light' ? '🌞' : '🌙' }}</span>
+        <span>{{ themeMode === 'light' ? 'Light' : 'Dark' }}</span>
+      </button>
+
+      <div class="pm-topbar__user pm-glow-ring">
         <div class="pm-topbar__user-avatar">👤</div>
         <span class="pm-topbar__user-name">User</span>
       </div>
@@ -62,6 +71,7 @@
 interface Props {
   deviceCount: number;
   groupEnabled: boolean;
+  themeMode?: 'dark' | 'light';
 }
 
 interface Emits {
@@ -70,9 +80,12 @@ interface Emits {
   (e: 'open-settings'): void;
   (e: 'show-help'): void;
   (e: 'show-history'): void;
+  (e: 'toggle-theme'): void;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  themeMode: 'dark'
+});
 const emit = defineEmits<Emits>();
 </script>
 
@@ -92,6 +105,16 @@ const emit = defineEmits<Emits>();
   position: sticky;
   top: 0;
   z-index: 120;
+  overflow: hidden;
+}
+
+.pm-topbar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(124, 92, 255, 0.18);
+  pointer-events: none;
 }
 
 .pm-topbar__left {
@@ -106,8 +129,8 @@ const emit = defineEmits<Emits>();
   gap: var(--pm-space-sm);
   padding: var(--pm-space-sm) var(--pm-space-lg);
   border-radius: var(--pm-radius-pill);
-  background: rgba(124, 92, 255, 0.12);
-  border: 1px solid rgba(124, 92, 255, 0.2);
+  background: rgba(12, 20, 40, 0.85);
+  border: 1px solid rgba(124, 92, 255, 0.35);
   color: var(--pm-text-strong);
   font-weight: 700;
   letter-spacing: 0.4px;
@@ -146,17 +169,32 @@ const emit = defineEmits<Emits>();
   padding: var(--pm-space-sm) var(--pm-space-lg);
   border-radius: var(--pm-radius-pill);
   border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(12, 18, 40, 0.75);
+  background: rgba(12, 18, 40, 0.45);
   font-size: var(--pm-font-size-sm);
   font-weight: 600;
   color: var(--pm-text-default);
   transition: var(--pm-transition-fast);
   box-shadow: var(--pm-shadow-xs);
+  position: relative;
+  overflow: hidden;
 }
 
 .pm-topbar__status:hover {
   border-color: var(--pm-color-border);
   background: rgba(12, 18, 40, 0.95);
+}
+
+.pm-topbar__status::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(124, 92, 255, 0.25), transparent 60%);
+  opacity: 0;
+  transition: var(--pm-transition-fast);
+}
+
+.pm-topbar__status:hover::after {
+  opacity: 1;
 }
 
 .pm-topbar__status-dot {
@@ -170,7 +208,8 @@ const emit = defineEmits<Emits>();
 
 .pm-topbar__status-dot.active {
   background: var(--pm-color-success);
-  box-shadow: 0 0 12px rgba(45, 212, 191, 0.45);
+  box-shadow: 0 0 12px rgba(45, 212, 191, 0.65);
+  animation: pm-glow 3s linear infinite;
 }
 
 .pm-topbar__status--group {
@@ -198,16 +237,32 @@ const emit = defineEmits<Emits>();
   font-weight: 600;
   transition: var(--pm-transition-fast);
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
 .pm-topbar__action-btn span:first-child {
   font-size: var(--pm-font-size-md);
 }
 
+.pm-topbar__action-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.35), rgba(236, 72, 153, 0.35));
+  opacity: 0;
+  transition: var(--pm-transition-fast);
+}
+
 .pm-topbar__action-btn:hover {
   background: rgba(16, 21, 44, 0.85);
   color: var(--pm-text-default);
   border-color: var(--pm-color-border);
+  transform: translateY(-1px);
+}
+
+.pm-topbar__action-btn:hover::after {
+  opacity: 1;
 }
 
 .pm-topbar__action-btn--primary {
@@ -215,6 +270,7 @@ const emit = defineEmits<Emits>();
   color: var(--pm-text-strong);
   border-color: transparent;
   box-shadow: 0 8px 26px rgba(124, 92, 255, 0.32);
+  isolation: isolate;
 }
 
 .pm-topbar__action-btn--primary:hover {
