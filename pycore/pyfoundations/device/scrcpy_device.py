@@ -269,11 +269,10 @@ class ScrcpyDevice(AndroidDevice):
             "app_process",
             "/",
             "com.genymobile.scrcpy.Server",
-            "2.0",  # scrcpy version
+            "3.3.3",  # scrcpy version (must match server jar version)
+            f"video_bit_rate={self.params.bit_rate}",  # SmartMatrix格式
             f"max_size={self.params.max_size}",
-            f"bit_rate={self.params.bit_rate}",
             f"max_fps={self.params.max_fps}",
-            f"codec={self.params.codec.value}",
             "tunnel_forward=true",
             f"control={str(self.params.control).lower()}",
         ]
@@ -307,8 +306,8 @@ class ScrcpyDevice(AndroidDevice):
                 model=device_name,
                 android_version="Unknown",  # Not provided by scrcpy
                 resolution=Resolution(width=width, height=height),
-                density=0,  # Not provided by scrcpy
-                manufacturer="Unknown"  # Not provided by scrcpy
+                dpi=0,  # Not provided by scrcpy
+                sdk_version=0  # Not provided by scrcpy
             )
 
             print(f"[ScrcpyDevice] Device info: {device_name} ({width}x{height})")
@@ -321,8 +320,8 @@ class ScrcpyDevice(AndroidDevice):
                 model="Unknown",
                 android_version="Unknown",
                 resolution=Resolution(width=1080, height=1920),
-                density=0,
-                manufacturer="Unknown"
+                dpi=0,
+                sdk_version=0
             )
 
     def _recv_exactly(self, sock: socket.socket, length: int) -> bytes:

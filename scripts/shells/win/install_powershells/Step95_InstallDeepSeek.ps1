@@ -352,15 +352,17 @@ function Test-DeepSeekModelLoad {
     $modelLoadScript = @"
 import os
 os.environ['HF_HOME'] = os.path.join(os.path.dirname(__file__), '.cache')
+os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 
 print('[TEST] Loading VLChatProcessor...')
 from deepseek_vl.models import VLChatProcessor
 
-model_path = 'deepseek-ai/deepseek-vl-7b-chat'
+model_path = 'deepseek-ai/deepseek-vl-1.3b-chat'
 print(f'[INFO] Model path: {model_path}')
 print('[INFO] Note: First run will download model from HuggingFace')
+print('[INFO] Download timeout: 3600s (1 hour)')
 
-vl_chat_processor = VLChatProcessor.from_pretrained(model_path)
+vl_chat_processor = VLChatProcessor.from_pretrained(model_path, resume_download=True)
 print('[OK] VLChatProcessor loaded successfully')
 
 tokenizer = vl_chat_processor.tokenizer
@@ -378,7 +380,7 @@ print('[OK] Conversation structure is valid')
 
 print('')
 print('[SUCCESS] ========================================')
-print('[SUCCESS]   DeepSeek-VL 7B is ready!')
+print('[SUCCESS]   DeepSeek-VL 1.3B is ready!')
 print('[SUCCESS] ========================================')
 "@
 

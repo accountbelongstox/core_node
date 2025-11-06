@@ -80,9 +80,30 @@ SmartMatrix/
 │   │   │       ├── adb/
 │   │   │       │   ├── linux/
 │   │   │       │   │   └── adb
-│   │   │       │   └── mac/
-│   │   │       │       └── adb
+│   │   │       │   ├── mac/
+│   │   │       │   │   └── adb
+│   │   │       │   └── win/
+│   │   │       │       ├── AdbWinApi.dll
+│   │   │       │       ├── AdbWinUsbApi.dll
+│   │   │       │       └── adb.exe
 │   │   │       ├── ffmpeg/
+│   │   │       │   ├── bin/
+│   │   │       │   │   ├── x64/
+│   │   │       │   │   │   ├── avcodec-58.dll
+│   │   │       │   │   │   ├── avdevice-58.dll
+│   │   │       │   │   │   ├── avfilter-7.dll
+│   │   │       │   │   │   ├── avformat-58.dll
+│   │   │       │   │   │   ├── avutil-56.dll
+│   │   │       │   │   │   ├── swresample-3.dll
+│   │   │       │   │   │   └── swscale-5.dll
+│   │   │       │   │   └── x86/
+│   │   │       │   │       ├── avcodec-58.dll
+│   │   │       │   │       ├── avdevice-58.dll
+│   │   │       │   │       ├── avfilter-7.dll
+│   │   │       │   │       ├── avformat-58.dll
+│   │   │       │   │       ├── avutil-56.dll
+│   │   │       │   │       ├── swresample-3.dll
+│   │   │       │   │       └── swscale-5.dll
 │   │   │       │   ├── include/
 │   │   │       │   │   ├── libavcodec/
 │   │   │       │   │   │   ├── ac3_parser.h
@@ -215,12 +236,27 @@ SmartMatrix/
 │   │   │       │   │       ├── swscale.h
 │   │   │       │   │       └── version.h
 │   │   │       │   └── lib/
+│   │   │       │       ├── arm64/
+│   │   │       │       │   ├── libavcodec.58.dylib
+│   │   │       │       │   ├── libavdevice.58.dylib
+│   │   │       │       │   ├── libavfilter.7.dylib
+│   │   │       │       │   ├── libavformat.58.dylib
+│   │   │       │       │   ├── libavutil.56.dylib
+│   │   │       │       │   ├── libswresample.3.dylib
+│   │   │       │       │   └── libswscale.5.dylib
 │   │   │       │       ├── x64/
 │   │   │       │       │   ├── avcodec.lib
 │   │   │       │       │   ├── avdevice.lib
 │   │   │       │       │   ├── avfilter.lib
 │   │   │       │       │   ├── avformat.lib
 │   │   │       │       │   ├── avutil.lib
+│   │   │       │       │   ├── libavcodec.58.dylib
+│   │   │       │       │   ├── libavdevice.58.dylib
+│   │   │       │       │   ├── libavfilter.7.dylib
+│   │   │       │       │   ├── libavformat.58.dylib
+│   │   │       │       │   ├── libavutil.56.dylib
+│   │   │       │       │   ├── libswresample.3.dylib
+│   │   │       │       │   ├── libswscale.5.dylib
 │   │   │       │       │   ├── swresample.lib
 │   │   │       │       │   └── swscale.lib
 │   │   │       │       ├── x86/
@@ -241,13 +277,24 @@ SmartMatrix/
 │   │   │       └── scrcpy-server
 │   │   ├── .gitignore
 │   │   ├── CMakeLists.txt
+│   │   ├── CMakeLists.txt.backup
 │   │   ├── LICENSE
 │   │   └── README.md
 │   ├── audio/
 │   │   ├── 20251012_044031_backup_audiooutput.cpp
 │   │   ├── 20251012_044031_backup_audiooutput.h
 │   │   ├── audiooutput.cpp
-│   │   └── audiooutput.h
+│   │   ├── audiooutput.cpp.backup
+│   │   ├── audiooutput.h
+│   │   └── audiooutput.h.backup
+│   ├── build-mingw/
+│   │   ├── CMakeFiles/
+│   │   │   ├── 3.30.5/
+│   │   │   │   └── CMakeSystem.cmake
+│   │   │   ├── pkgRedirects/
+│   │   │   ├── CMakeConfigureLog.yaml
+│   │   │   └── cmake.check_cache
+│   │   └── CMakeCache.txt
 │   ├── fontawesome/
 │   │   ├── iconhelper.cpp
 │   │   └── iconhelper.h
@@ -257,7 +304,9 @@ SmartMatrix/
 │   │   └── groupcontroller.h
 │   ├── render/
 │   │   ├── qyuvopenglwidget.cpp
-│   │   └── qyuvopenglwidget.h
+│   │   ├── qyuvopenglwidget.cpp.backup
+│   │   ├── qyuvopenglwidget.h
+│   │   └── qyuvopenglwidget.h.backup
 │   ├── res/
 │   │   ├── font/
 │   │   │   ├── fontawesome-webfont.pdf
@@ -303,6 +352,7 @@ SmartMatrix/
 │   │   ├── SmartMatrix.rc
 │   │   └── res.qrc
 │   ├── sndcpy/
+│   │   ├── sndcpy.apk
 │   │   ├── sndcpy.bat
 │   │   └── sndcpy.sh
 │   ├── ui/
@@ -349,6 +399,7 @@ SmartMatrix/
 │   │   ├── modernuiintegration.h
 │   │   ├── modernuiintegration_old.cpp
 │   │   ├── modernuiintegration_simplified.cpp
+│   │   ├── test_data.cpp
 │   │   ├── toolform.cpp
 │   │   ├── toolform.h
 │   │   ├── toolform.ui
@@ -371,21 +422,341 @@ SmartMatrix/
 │   │   │   ├── xmousetap.cpp
 │   │   │   └── xmousetap.h
 │   │   ├── config.cpp
+│   │   ├── config.cpp.backup
 │   │   ├── config.h
+│   │   ├── config.h.backup
 │   │   ├── path.h
 │   │   ├── path.mm
 │   │   ├── winutils.cpp
 │   │   └── winutils.h
 │   ├── CMakeLists.txt
+│   ├── CMakeLists.txt.backup
 │   ├── QtScrcpy_tree.md
 │   ├── appversion
 │   ├── clang-format-all.sh
 │   ├── main.cpp
+│   ├── main.cpp.backup
 │   └── main_modern.cpp
 ├── backup/
 │   ├── logo.png
 │   └── myconfig.sh
 ├── ci/
+│   ├── build_temp/
+│   │   ├── CMakeFiles/
+│   │   │   ├── 072f405ee594d1fc9bc410f27c642a99/
+│   │   │   │   └── qrc_res.cpp.rule
+│   │   │   ├── 3e39eecb6432a1cacf7040855ecf1437/
+│   │   │   │   └── autouic_(CONFIG).stamp.rule
+│   │   │   ├── 4.1.2/
+│   │   │   │   ├── CompilerIdC/
+│   │   │   │   │   ├── Debug/
+│   │   │   │   │   │   ├── CompilerIdC.tlog/
+│   │   │   │   │   │   │   ├── CL.command.1.tlog
+│   │   │   │   │   │   │   ├── CL.read.1.tlog
+│   │   │   │   │   │   │   ├── CL.write.1.tlog
+│   │   │   │   │   │   │   ├── Cl.items.tlog
+│   │   │   │   │   │   │   ├── CompilerIdC.lastbuildstate
+│   │   │   │   │   │   │   ├── link.command.1.tlog
+│   │   │   │   │   │   │   ├── link.read.1.tlog
+│   │   │   │   │   │   │   ├── link.secondary.1.tlog
+│   │   │   │   │   │   │   └── link.write.1.tlog
+│   │   │   │   │   │   ├── CMakeCCompilerId.obj
+│   │   │   │   │   │   └── CompilerIdC.exe.recipe
+│   │   │   │   │   ├── CMakeCCompilerId.c
+│   │   │   │   │   ├── CompilerIdC.exe
+│   │   │   │   │   └── CompilerIdC.vcxproj
+│   │   │   │   ├── CompilerIdCXX/
+│   │   │   │   │   ├── Debug/
+│   │   │   │   │   │   ├── CompilerIdCXX.tlog/
+│   │   │   │   │   │   │   ├── CL.command.1.tlog
+│   │   │   │   │   │   │   ├── CL.read.1.tlog
+│   │   │   │   │   │   │   ├── CL.write.1.tlog
+│   │   │   │   │   │   │   ├── Cl.items.tlog
+│   │   │   │   │   │   │   ├── CompilerIdCXX.lastbuildstate
+│   │   │   │   │   │   │   ├── link.command.1.tlog
+│   │   │   │   │   │   │   ├── link.read.1.tlog
+│   │   │   │   │   │   │   ├── link.secondary.1.tlog
+│   │   │   │   │   │   │   └── link.write.1.tlog
+│   │   │   │   │   │   ├── CMakeCXXCompilerId.obj
+│   │   │   │   │   │   └── CompilerIdCXX.exe.recipe
+│   │   │   │   │   ├── CMakeCXXCompilerId.cpp
+│   │   │   │   │   ├── CompilerIdCXX.exe
+│   │   │   │   │   └── CompilerIdCXX.vcxproj
+│   │   │   │   ├── VCTargetsPath/
+│   │   │   │   │   └── x64/
+│   │   │   │   │       └── Debug/
+│   │   │   │   │           ├── VCTargetsPath.tlog/
+│   │   │   │   │           │   └── VCTargetsPath.lastbuildstate
+│   │   │   │   │           └── VCTargetsPath.recipe
+│   │   │   │   ├── x64/
+│   │   │   │   │   └── Debug/
+│   │   │   │   ├── CMakeCCompiler.cmake
+│   │   │   │   ├── CMakeCXXCompiler.cmake
+│   │   │   │   ├── CMakeDetermineCompilerABI_C.bin
+│   │   │   │   ├── CMakeDetermineCompilerABI_CXX.bin
+│   │   │   │   ├── CMakeRCCompiler.cmake
+│   │   │   │   ├── CMakeSystem.cmake
+│   │   │   │   ├── VCTargetsPath.txt
+│   │   │   │   └── VCTargetsPath.vcxproj
+│   │   │   ├── CMakeScratch/
+│   │   │   ├── b83e27199abcf0b82d2ad61d33196cad/
+│   │   │   │   └── generate.stamp.rule
+│   │   │   ├── pkgRedirects/
+│   │   │   ├── CMakeConfigureLog.yaml
+│   │   │   ├── InstallScripts.json
+│   │   │   ├── TargetDirectories.txt
+│   │   │   ├── cmake.check_cache
+│   │   │   ├── generate.stamp
+│   │   │   ├── generate.stamp.depend
+│   │   │   └── generate.stamp.list
+│   │   ├── QtSmartMatrix/
+│   │   │   ├── CMakeFiles/
+│   │   │   │   ├── SmartMatrix_autogen.dir/
+│   │   │   │   │   ├── AutoRcc_res_PNK5WDWK6L_Info.json
+│   │   │   │   │   ├── AutoRcc_res_PNK5WDWK6L_Used_RelWithDebInfo.txt
+│   │   │   │   │   ├── AutogenInfo.json
+│   │   │   │   │   ├── AutogenUsed_RelWithDebInfo.txt
+│   │   │   │   │   └── ParseCache_RelWithDebInfo.txt
+│   │   │   │   ├── generate.stamp
+│   │   │   │   └── generate.stamp.depend
+│   │   │   ├── RelWithDebInfo/
+│   │   │   ├── SmartMatrix.dir/
+│   │   │   │   └── RelWithDebInfo/
+│   │   │   │       ├── SmartMatrix.tlog/
+│   │   │   │       │   ├── CL.command.1.tlog
+│   │   │   │       │   ├── CL.read.1.tlog
+│   │   │   │       │   ├── CL.write.1.tlog
+│   │   │   │       │   ├── Cl.items.tlog
+│   │   │   │       │   ├── CustomBuild.command.1.tlog
+│   │   │   │       │   ├── CustomBuild.read.1.tlog
+│   │   │   │       │   ├── CustomBuild.write.1.tlog
+│   │   │   │       │   ├── SmartMatrix.lastbuildstate
+│   │   │   │       │   ├── link.command.1.tlog
+│   │   │   │       │   ├── link.read.1.tlog
+│   │   │   │       │   ├── link.secondary.1.tlog
+│   │   │   │       │   ├── link.write.1.tlog
+│   │   │   │       │   ├── rc.command.1.tlog
+│   │   │   │       │   ├── rc.read.1.tlog
+│   │   │   │       │   └── rc.write.1.tlog
+│   │   │   │       ├── SmartMatrix_autogen/
+│   │   │   │       │   └── PNK5WDWK6L_RelWithDebInfo/
+│   │   │   │       │       └── qrc_res.cpp.obj
+│   │   │   │       ├── SmartMatrix.exe.recipe
+│   │   │   │       ├── SmartMatrix.ilk
+│   │   │   │       ├── SmartMatrix.res
+│   │   │   │       ├── audiooutput.obj
+│   │   │   │       ├── config.obj
+│   │   │   │       ├── devicevideowidget.obj
+│   │   │   │       ├── dialog.obj
+│   │   │   │       ├── groupcontroller.obj
+│   │   │   │       ├── iconhelper.obj
+│   │   │   │       ├── keepratiowidget.obj
+│   │   │   │       ├── magneticwidget.obj
+│   │   │   │       ├── main_modern.obj
+│   │   │   │       ├── mocs_compilation_RelWithDebInfo.obj
+│   │   │   │       ├── moderndevicegroupmanager.obj
+│   │   │   │       ├── moderndevicetreewidget.obj
+│   │   │   │       ├── moderngridlayoutmanager.obj
+│   │   │   │       ├── modernmainwindow.obj
+│   │   │   │       ├── modernrightpanel.obj
+│   │   │   │       ├── modernstylesystem.obj
+│   │   │   │       ├── modernuiintegration.obj
+│   │   │   │       ├── mousetap.obj
+│   │   │   │       ├── qyuvopenglwidget.obj
+│   │   │   │       ├── test_data.obj
+│   │   │   │       ├── toolform.obj
+│   │   │   │       ├── vc143.pdb
+│   │   │   │       ├── videoform.obj
+│   │   │   │       ├── winmousetap.obj
+│   │   │   │       └── winutils.obj
+│   │   │   ├── SmartMatrixCore/
+│   │   │   │   ├── CMakeFiles/
+│   │   │   │   │   ├── SmartMatrixCore_autogen.dir/
+│   │   │   │   │   │   ├── AutogenInfo.json
+│   │   │   │   │   │   ├── AutogenUsed_RelWithDebInfo.txt
+│   │   │   │   │   │   └── ParseCache_RelWithDebInfo.txt
+│   │   │   │   │   ├── generate.stamp
+│   │   │   │   │   └── generate.stamp.depend
+│   │   │   │   ├── SmartMatrixCore.dir/
+│   │   │   │   │   └── RelWithDebInfo/
+│   │   │   │   │       ├── SmartMatrixCore.tlog/
+│   │   │   │   │       │   ├── CL.command.1.tlog
+│   │   │   │   │       │   ├── CL.read.1.tlog
+│   │   │   │   │       │   ├── CL.write.1.tlog
+│   │   │   │   │       │   ├── Cl.items.tlog
+│   │   │   │   │       │   ├── CustomBuild.command.1.tlog
+│   │   │   │   │       │   ├── CustomBuild.read.1.tlog
+│   │   │   │   │       │   ├── CustomBuild.write.1.tlog
+│   │   │   │   │       │   ├── Lib-link.read.1.tlog
+│   │   │   │   │       │   ├── Lib-link.write.1.tlog
+│   │   │   │   │       │   ├── Lib.command.1.tlog
+│   │   │   │   │       │   └── SmartMatrixCore.lastbuildstate
+│   │   │   │   │       ├── SmartMatrixCore.lib.recipe
+│   │   │   │   │       ├── adbprocess.obj
+│   │   │   │   │       ├── adbprocessimpl.obj
+│   │   │   │   │       ├── avframeconvert.obj
+│   │   │   │   │       ├── bufferutil.obj
+│   │   │   │   │       ├── controller.obj
+│   │   │   │   │       ├── controlmsg.obj
+│   │   │   │   │       ├── decoder.obj
+│   │   │   │   │       ├── demuxer.obj
+│   │   │   │   │       ├── device.obj
+│   │   │   │   │       ├── devicemanage.obj
+│   │   │   │   │       ├── devicemsg.obj
+│   │   │   │   │       ├── filehandler.obj
+│   │   │   │   │       ├── fpscounter.obj
+│   │   │   │   │       ├── inputconvertbase.obj
+│   │   │   │   │       ├── inputconvertgame.obj
+│   │   │   │   │       ├── inputconvertnormal.obj
+│   │   │   │   │       ├── keymap.obj
+│   │   │   │   │       ├── mocs_compilation_RelWithDebInfo.obj
+│   │   │   │   │       ├── receiver.obj
+│   │   │   │   │       ├── recorder.obj
+│   │   │   │   │       ├── server.obj
+│   │   │   │   │       ├── tcpserver.obj
+│   │   │   │   │       ├── videobuffer.obj
+│   │   │   │   │       └── videosocket.obj
+│   │   │   │   ├── SmartMatrixCore_autogen/
+│   │   │   │   │   ├── include_RelWithDebInfo/
+│   │   │   │   │   │   ├── 6YEA5652QU/
+│   │   │   │   │   │   │   ├── moc_SmartMatrixCore.cpp
+│   │   │   │   │   │   │   ├── moc_SmartMatrixCore.cpp.d
+│   │   │   │   │   │   │   ├── moc_adbprocess.cpp
+│   │   │   │   │   │   │   └── moc_adbprocess.cpp.d
+│   │   │   │   │   │   ├── B4U5HBF4HE/
+│   │   │   │   │   │   │   ├── moc_server.cpp
+│   │   │   │   │   │   │   ├── moc_server.cpp.d
+│   │   │   │   │   │   │   ├── moc_tcpserver.cpp
+│   │   │   │   │   │   │   ├── moc_tcpserver.cpp.d
+│   │   │   │   │   │   │   ├── moc_videosocket.cpp
+│   │   │   │   │   │   │   └── moc_videosocket.cpp.d
+│   │   │   │   │   │   ├── E5IYPM23Q7/
+│   │   │   │   │   │   │   ├── moc_devicemsg.cpp
+│   │   │   │   │   │   │   ├── moc_devicemsg.cpp.d
+│   │   │   │   │   │   │   ├── moc_receiver.cpp
+│   │   │   │   │   │   │   └── moc_receiver.cpp.d
+│   │   │   │   │   │   ├── F2Z3URE5CP/
+│   │   │   │   │   │   │   ├── moc_keymap.cpp
+│   │   │   │   │   │   │   └── moc_keymap.cpp.d
+│   │   │   │   │   │   ├── FIT7WCBYQG/
+│   │   │   │   │   │   │   ├── moc_inputconvertbase.cpp
+│   │   │   │   │   │   │   ├── moc_inputconvertbase.cpp.d
+│   │   │   │   │   │   │   ├── moc_inputconvertgame.cpp
+│   │   │   │   │   │   │   ├── moc_inputconvertgame.cpp.d
+│   │   │   │   │   │   │   ├── moc_inputconvertnormal.cpp
+│   │   │   │   │   │   │   └── moc_inputconvertnormal.cpp.d
+│   │   │   │   │   │   ├── KQXXML3GD5/
+│   │   │   │   │   │   │   ├── moc_filehandler.cpp
+│   │   │   │   │   │   │   └── moc_filehandler.cpp.d
+│   │   │   │   │   │   ├── QBQSNTONFS/
+│   │   │   │   │   │   │   ├── moc_adbprocessimpl.cpp
+│   │   │   │   │   │   │   └── moc_adbprocessimpl.cpp.d
+│   │   │   │   │   │   ├── R27GN3UPJU/
+│   │   │   │   │   │   │   ├── moc_device.cpp
+│   │   │   │   │   │   │   └── moc_device.cpp.d
+│   │   │   │   │   │   ├── TZCQTYOKL3/
+│   │   │   │   │   │   │   ├── moc_decoder.cpp
+│   │   │   │   │   │   │   ├── moc_decoder.cpp.d
+│   │   │   │   │   │   │   ├── moc_fpscounter.cpp
+│   │   │   │   │   │   │   ├── moc_fpscounter.cpp.d
+│   │   │   │   │   │   │   ├── moc_videobuffer.cpp
+│   │   │   │   │   │   │   └── moc_videobuffer.cpp.d
+│   │   │   │   │   │   ├── V6TAWOZAWB/
+│   │   │   │   │   │   │   ├── moc_recorder.cpp
+│   │   │   │   │   │   │   └── moc_recorder.cpp.d
+│   │   │   │   │   │   ├── VGKDREYSTA/
+│   │   │   │   │   │   │   ├── moc_controller.cpp
+│   │   │   │   │   │   │   └── moc_controller.cpp.d
+│   │   │   │   │   │   ├── XA5EKVFPEJ/
+│   │   │   │   │   │   │   ├── moc_devicemanage.cpp
+│   │   │   │   │   │   │   └── moc_devicemanage.cpp.d
+│   │   │   │   │   │   └── XS5GD45QW7/
+│   │   │   │   │   │       ├── moc_demuxer.cpp
+│   │   │   │   │   │       └── moc_demuxer.cpp.d
+│   │   │   │   │   └── mocs_compilation_RelWithDebInfo.cpp
+│   │   │   │   ├── SmartMatrixCore.vcxproj
+│   │   │   │   ├── SmartMatrixCore.vcxproj.filters
+│   │   │   │   └── cmake_install.cmake
+│   │   │   ├── SmartMatrix_autogen/
+│   │   │   │   ├── PNK5WDWK6L_RelWithDebInfo/
+│   │   │   │   │   └── qrc_res.cpp
+│   │   │   │   ├── include_RelWithDebInfo/
+│   │   │   │   │   ├── 7WSARK52GL/
+│   │   │   │   │   │   ├── moc_groupcontroller.cpp
+│   │   │   │   │   │   └── moc_groupcontroller.cpp.d
+│   │   │   │   │   ├── B2KWJJ5A6K/
+│   │   │   │   │   │   ├── moc_keepratiowidget.cpp
+│   │   │   │   │   │   ├── moc_keepratiowidget.cpp.d
+│   │   │   │   │   │   ├── moc_magneticwidget.cpp
+│   │   │   │   │   │   └── moc_magneticwidget.cpp.d
+│   │   │   │   │   ├── KH43KSYMFX/
+│   │   │   │   │   │   ├── moc_config.cpp
+│   │   │   │   │   │   └── moc_config.cpp.d
+│   │   │   │   │   ├── PNK5WDWK6L/
+│   │   │   │   │   │   └── qrc_res_CMAKE_.cpp
+│   │   │   │   │   ├── PZONOMFGYT/
+│   │   │   │   │   │   ├── moc_audiooutput.cpp
+│   │   │   │   │   │   └── moc_audiooutput.cpp.d
+│   │   │   │   │   ├── RZRAGMB46M/
+│   │   │   │   │   │   ├── moc_qyuvopenglwidget.cpp
+│   │   │   │   │   │   └── moc_qyuvopenglwidget.cpp.d
+│   │   │   │   │   ├── UYX5XTB5RZ/
+│   │   │   │   │   │   ├── moc_devicevideowidget.cpp
+│   │   │   │   │   │   ├── moc_devicevideowidget.cpp.d
+│   │   │   │   │   │   ├── moc_dialog.cpp
+│   │   │   │   │   │   ├── moc_dialog.cpp.d
+│   │   │   │   │   │   ├── moc_moderndevicegroupmanager.cpp
+│   │   │   │   │   │   ├── moc_moderndevicegroupmanager.cpp.d
+│   │   │   │   │   │   ├── moc_moderndevicetreewidget.cpp
+│   │   │   │   │   │   ├── moc_moderndevicetreewidget.cpp.d
+│   │   │   │   │   │   ├── moc_moderngridlayoutmanager.cpp
+│   │   │   │   │   │   ├── moc_moderngridlayoutmanager.cpp.d
+│   │   │   │   │   │   ├── moc_modernmainwindow.cpp
+│   │   │   │   │   │   ├── moc_modernmainwindow.cpp.d
+│   │   │   │   │   │   ├── moc_modernrightpanel.cpp
+│   │   │   │   │   │   ├── moc_modernrightpanel.cpp.d
+│   │   │   │   │   │   ├── moc_modernstylesystem.cpp
+│   │   │   │   │   │   ├── moc_modernstylesystem.cpp.d
+│   │   │   │   │   │   ├── moc_modernuiintegration.cpp
+│   │   │   │   │   │   ├── moc_modernuiintegration.cpp.d
+│   │   │   │   │   │   ├── moc_toolform.cpp
+│   │   │   │   │   │   ├── moc_toolform.cpp.d
+│   │   │   │   │   │   ├── moc_videoform.cpp
+│   │   │   │   │   │   └── moc_videoform.cpp.d
+│   │   │   │   │   ├── ui_dialog.h
+│   │   │   │   │   ├── ui_toolform.h
+│   │   │   │   │   └── ui_videoform.h
+│   │   │   │   ├── autouic_RelWithDebInfo.stamp
+│   │   │   │   └── mocs_compilation_RelWithDebInfo.cpp
+│   │   │   ├── ALL_BUILD.vcxproj
+│   │   │   ├── ALL_BUILD.vcxproj.filters
+│   │   │   ├── SmartMatrix.sln
+│   │   │   ├── SmartMatrix.vcxproj
+│   │   │   ├── SmartMatrix.vcxproj.filters
+│   │   │   └── cmake_install.cmake
+│   │   ├── x64/
+│   │   │   └── RelWithDebInfo/
+│   │   │       ├── ALL_BUILD/
+│   │   │       │   ├── ALL_BUILD.tlog/
+│   │   │       │   │   ├── ALL_BUILD.lastbuildstate
+│   │   │       │   │   ├── CustomBuild.command.1.tlog
+│   │   │       │   │   ├── CustomBuild.read.1.tlog
+│   │   │       │   │   └── CustomBuild.write.1.tlog
+│   │   │       │   └── ALL_BUILD.recipe
+│   │   │       └── ZERO_CHECK/
+│   │   │           ├── ZERO_CHECK.tlog/
+│   │   │           │   ├── CustomBuild.command.1.tlog
+│   │   │           │   ├── CustomBuild.read.1.tlog
+│   │   │           │   ├── CustomBuild.write.1.tlog
+│   │   │           │   └── ZERO_CHECK.lastbuildstate
+│   │   │           └── ZERO_CHECK.recipe
+│   │   ├── ALL_BUILD.vcxproj
+│   │   ├── ALL_BUILD.vcxproj.filters
+│   │   ├── CMakeCache.txt
+│   │   ├── ZERO_CHECK.vcxproj
+│   │   ├── ZERO_CHECK.vcxproj.filters
+│   │   ├── all.sln
+│   │   └── cmake_install.cmake
 │   ├── linux/
 │   │   ├── build_for_linux.sh
 │   │   └── publish_for_ubuntu.sh.todo
@@ -406,6 +777,7 @@ SmartMatrix/
 │   └── lupdate.sh
 ├── config/
 │   ├── config.ini
+│   ├── userdata.ini
 │   └── userdata.ini.QzAdFD
 ├── docs/
 │   ├── image/
@@ -451,6 +823,398 @@ SmartMatrix/
 │   ├── identityv.json
 │   ├── test.json
 │   └── tiktok.json
+├── output/
+│   └── x64/
+│       └── RelWithDebInfo/
+│           ├── QtScrcpy/
+│           │   └── ui/
+│           │       ├── icons/
+│           │       │   ├── device.png
+│           │       │   ├── device_connected.png
+│           │       │   ├── device_disconnected.png
+│           │       │   └── group.png
+│           │       ├── image/
+│           │       │   ├── tray/
+│           │       │   │   └── logo.png
+│           │       │   └── videoform/
+│           │       │       ├── phone-h.png
+│           │       │       └── phone-v.png
+│           │       └── res/
+│           │           ├── phone-v.png
+│           │           └── phone.png
+│           ├── generic/
+│           │   └── qtuiotouchplugin.dll
+│           ├── iconengines/
+│           │   └── qsvgicon.dll
+│           ├── imageformats/
+│           │   ├── qgif.dll
+│           │   ├── qicns.dll
+│           │   ├── qico.dll
+│           │   ├── qjpeg.dll
+│           │   ├── qsvg.dll
+│           │   ├── qtga.dll
+│           │   ├── qtiff.dll
+│           │   ├── qwbmp.dll
+│           │   └── qwebp.dll
+│           ├── multimedia/
+│           │   ├── ffmpegmediaplugin.dll
+│           │   └── windowsmediaplugin.dll
+│           ├── networkinformation/
+│           │   └── qnetworklistmanager.dll
+│           ├── platforms/
+│           │   └── qwindows.dll
+│           ├── styles/
+│           │   └── qmodernwindowsstyle.dll
+│           ├── tls/
+│           │   ├── qcertonlybackend.dll
+│           │   └── qschannelbackend.dll
+│           ├── translations/
+│           │   ├── qt_ar.qm
+│           │   ├── qt_bg.qm
+│           │   ├── qt_ca.qm
+│           │   ├── qt_cs.qm
+│           │   ├── qt_da.qm
+│           │   ├── qt_de.qm
+│           │   ├── qt_en.qm
+│           │   ├── qt_es.qm
+│           │   ├── qt_fa.qm
+│           │   ├── qt_fi.qm
+│           │   ├── qt_fr.qm
+│           │   ├── qt_gd.qm
+│           │   ├── qt_he.qm
+│           │   ├── qt_hr.qm
+│           │   ├── qt_hu.qm
+│           │   ├── qt_it.qm
+│           │   ├── qt_ja.qm
+│           │   ├── qt_ka.qm
+│           │   ├── qt_ko.qm
+│           │   ├── qt_lg.qm
+│           │   ├── qt_lv.qm
+│           │   ├── qt_nl.qm
+│           │   ├── qt_nn.qm
+│           │   ├── qt_pl.qm
+│           │   ├── qt_pt_BR.qm
+│           │   ├── qt_ru.qm
+│           │   ├── qt_sk.qm
+│           │   ├── qt_sv.qm
+│           │   ├── qt_tr.qm
+│           │   ├── qt_uk.qm
+│           │   ├── qt_zh_CN.qm
+│           │   └── qt_zh_TW.qm
+│           ├── AdbWinApi.dll
+│           ├── AdbWinUsbApi.dll
+│           ├── D3Dcompiler_47.dll
+│           ├── Qt6Core.dll
+│           ├── Qt6Gui.dll
+│           ├── Qt6Multimedia.dll
+│           ├── Qt6Network.dll
+│           ├── Qt6OpenGL.dll
+│           ├── Qt6OpenGLWidgets.dll
+│           ├── Qt6Svg.dll
+│           ├── Qt6Widgets.dll
+│           ├── QtScrcpy.exe
+│           ├── QtScrcpy.pdb
+│           ├── QtScrcpyCore.lib
+│           ├── QtScrcpyCore.pdb
+│           ├── adb.exe
+│           ├── avcodec-58.dll
+│           ├── avcodec-61.dll
+│           ├── avformat-58.dll
+│           ├── avformat-61.dll
+│           ├── avutil-56.dll
+│           ├── avutil-59.dll
+│           ├── modern_ui_config.json
+│           ├── opengl32sw.dll
+│           ├── scrcpy-server
+│           ├── sndcpy.apk
+│           ├── sndcpy.bat
+│           ├── swresample-3.dll
+│           ├── swresample-5.dll
+│           ├── swscale-5.dll
+│           └── swscale-8.dll
+├── output_20251013_055726/
+│   └── x64/
+│       └── RelWithDebInfo/
+├── output_20251013_065846/
+│   └── x64/
+│       └── RelWithDebInfo/
+│           ├── QtSmartMatrix/
+│           │   └── ui/
+│           │       ├── icons/
+│           │       │   ├── device.png
+│           │       │   ├── device_connected.png
+│           │       │   ├── device_disconnected.png
+│           │       │   └── group.png
+│           │       ├── image/
+│           │       │   ├── tray/
+│           │       │   │   └── logo.png
+│           │       │   └── videoform/
+│           │       │       ├── phone-h.png
+│           │       │       └── phone-v.png
+│           │       └── res/
+│           │           ├── phone-v.png
+│           │           └── phone.png
+│           ├── AdbWinApi.dll
+│           ├── AdbWinUsbApi.dll
+│           ├── SmartMatrixCore.lib
+│           ├── SmartMatrixCore.pdb
+│           ├── adb.exe
+│           ├── avcodec-58.dll
+│           ├── avformat-58.dll
+│           ├── avutil-56.dll
+│           ├── modern_ui_config.json
+│           ├── scrcpy-server
+│           ├── swresample-3.dll
+│           └── swscale-5.dll
+├── output_20251013_070208/
+│   └── x64/
+│       └── RelWithDebInfo/
+│           ├── QtSmartMatrix/
+│           │   └── ui/
+│           │       ├── icons/
+│           │       │   ├── device.png
+│           │       │   ├── device_connected.png
+│           │       │   ├── device_disconnected.png
+│           │       │   └── group.png
+│           │       ├── image/
+│           │       │   ├── tray/
+│           │       │   │   └── logo.png
+│           │       │   └── videoform/
+│           │       │       ├── phone-h.png
+│           │       │       └── phone-v.png
+│           │       └── res/
+│           │           ├── phone-v.png
+│           │           └── phone.png
+│           ├── AdbWinApi.dll
+│           ├── AdbWinUsbApi.dll
+│           ├── SmartMatrixCore.lib
+│           ├── SmartMatrixCore.pdb
+│           ├── adb.exe
+│           ├── avcodec-58.dll
+│           ├── avformat-58.dll
+│           ├── avutil-56.dll
+│           ├── modern_ui_config.json
+│           ├── scrcpy-server
+│           ├── swresample-3.dll
+│           └── swscale-5.dll
+├── output_20251013_070516/
+│   └── x64/
+│       └── RelWithDebInfo/
+│           ├── QtSmartMatrix/
+│           │   └── ui/
+│           │       ├── icons/
+│           │       │   ├── device.png
+│           │       │   ├── device_connected.png
+│           │       │   ├── device_disconnected.png
+│           │       │   └── group.png
+│           │       ├── image/
+│           │       │   ├── tray/
+│           │       │   │   └── logo.png
+│           │       │   └── videoform/
+│           │       │       ├── phone-h.png
+│           │       │       └── phone-v.png
+│           │       └── res/
+│           │           ├── phone-v.png
+│           │           └── phone.png
+│           ├── generic/
+│           │   └── qtuiotouchplugin.dll
+│           ├── iconengines/
+│           │   └── qsvgicon.dll
+│           ├── imageformats/
+│           │   ├── qgif.dll
+│           │   ├── qicns.dll
+│           │   ├── qico.dll
+│           │   ├── qjpeg.dll
+│           │   ├── qsvg.dll
+│           │   ├── qtga.dll
+│           │   ├── qtiff.dll
+│           │   ├── qwbmp.dll
+│           │   └── qwebp.dll
+│           ├── multimedia/
+│           │   ├── ffmpegmediaplugin.dll
+│           │   └── windowsmediaplugin.dll
+│           ├── networkinformation/
+│           │   └── qnetworklistmanager.dll
+│           ├── platforms/
+│           │   └── qwindows.dll
+│           ├── styles/
+│           │   └── qmodernwindowsstyle.dll
+│           ├── tls/
+│           │   ├── qcertonlybackend.dll
+│           │   └── qschannelbackend.dll
+│           ├── translations/
+│           │   ├── qt_ar.qm
+│           │   ├── qt_bg.qm
+│           │   ├── qt_ca.qm
+│           │   ├── qt_cs.qm
+│           │   ├── qt_da.qm
+│           │   ├── qt_de.qm
+│           │   ├── qt_en.qm
+│           │   ├── qt_es.qm
+│           │   ├── qt_fa.qm
+│           │   ├── qt_fi.qm
+│           │   ├── qt_fr.qm
+│           │   ├── qt_gd.qm
+│           │   ├── qt_he.qm
+│           │   ├── qt_hr.qm
+│           │   ├── qt_hu.qm
+│           │   ├── qt_it.qm
+│           │   ├── qt_ja.qm
+│           │   ├── qt_ka.qm
+│           │   ├── qt_ko.qm
+│           │   ├── qt_lg.qm
+│           │   ├── qt_lv.qm
+│           │   ├── qt_nl.qm
+│           │   ├── qt_nn.qm
+│           │   ├── qt_pl.qm
+│           │   ├── qt_pt_BR.qm
+│           │   ├── qt_ru.qm
+│           │   ├── qt_sk.qm
+│           │   ├── qt_sv.qm
+│           │   ├── qt_tr.qm
+│           │   ├── qt_uk.qm
+│           │   ├── qt_zh_CN.qm
+│           │   └── qt_zh_TW.qm
+│           ├── AdbWinApi.dll
+│           ├── AdbWinUsbApi.dll
+│           ├── D3Dcompiler_47.dll
+│           ├── Qt6Core.dll
+│           ├── Qt6Gui.dll
+│           ├── Qt6Multimedia.dll
+│           ├── Qt6Network.dll
+│           ├── Qt6OpenGL.dll
+│           ├── Qt6OpenGLWidgets.dll
+│           ├── Qt6Svg.dll
+│           ├── Qt6Widgets.dll
+│           ├── SmartMatrix.exe
+│           ├── SmartMatrix.pdb
+│           ├── SmartMatrixCore.lib
+│           ├── SmartMatrixCore.pdb
+│           ├── adb.exe
+│           ├── avcodec-58.dll
+│           ├── avcodec-61.dll
+│           ├── avformat-58.dll
+│           ├── avformat-61.dll
+│           ├── avutil-56.dll
+│           ├── avutil-59.dll
+│           ├── modern_ui_config.json
+│           ├── opengl32sw.dll
+│           ├── scrcpy-server
+│           ├── sndcpy.apk
+│           ├── sndcpy.bat
+│           ├── swresample-3.dll
+│           ├── swresample-5.dll
+│           ├── swscale-5.dll
+│           └── swscale-8.dll
+├── output_20251013_071348/
+│   └── x64/
+│       └── RelWithDebInfo/
+│           ├── QtSmartMatrix/
+│           │   └── ui/
+│           │       ├── icons/
+│           │       │   ├── device.png
+│           │       │   ├── device_connected.png
+│           │       │   ├── device_disconnected.png
+│           │       │   └── group.png
+│           │       ├── image/
+│           │       │   ├── tray/
+│           │       │   │   └── logo.png
+│           │       │   └── videoform/
+│           │       │       ├── phone-h.png
+│           │       │       └── phone-v.png
+│           │       └── res/
+│           │           ├── phone-v.png
+│           │           └── phone.png
+│           ├── generic/
+│           │   └── qtuiotouchplugin.dll
+│           ├── iconengines/
+│           │   └── qsvgicon.dll
+│           ├── imageformats/
+│           │   ├── qgif.dll
+│           │   ├── qicns.dll
+│           │   ├── qico.dll
+│           │   ├── qjpeg.dll
+│           │   ├── qsvg.dll
+│           │   ├── qtga.dll
+│           │   ├── qtiff.dll
+│           │   ├── qwbmp.dll
+│           │   └── qwebp.dll
+│           ├── multimedia/
+│           │   ├── ffmpegmediaplugin.dll
+│           │   └── windowsmediaplugin.dll
+│           ├── networkinformation/
+│           │   └── qnetworklistmanager.dll
+│           ├── platforms/
+│           │   └── qwindows.dll
+│           ├── styles/
+│           │   └── qmodernwindowsstyle.dll
+│           ├── tls/
+│           │   ├── qcertonlybackend.dll
+│           │   └── qschannelbackend.dll
+│           ├── translations/
+│           │   ├── qt_ar.qm
+│           │   ├── qt_bg.qm
+│           │   ├── qt_ca.qm
+│           │   ├── qt_cs.qm
+│           │   ├── qt_da.qm
+│           │   ├── qt_de.qm
+│           │   ├── qt_en.qm
+│           │   ├── qt_es.qm
+│           │   ├── qt_fa.qm
+│           │   ├── qt_fi.qm
+│           │   ├── qt_fr.qm
+│           │   ├── qt_gd.qm
+│           │   ├── qt_he.qm
+│           │   ├── qt_hr.qm
+│           │   ├── qt_hu.qm
+│           │   ├── qt_it.qm
+│           │   ├── qt_ja.qm
+│           │   ├── qt_ka.qm
+│           │   ├── qt_ko.qm
+│           │   ├── qt_lg.qm
+│           │   ├── qt_lv.qm
+│           │   ├── qt_nl.qm
+│           │   ├── qt_nn.qm
+│           │   ├── qt_pl.qm
+│           │   ├── qt_pt_BR.qm
+│           │   ├── qt_ru.qm
+│           │   ├── qt_sk.qm
+│           │   ├── qt_sv.qm
+│           │   ├── qt_tr.qm
+│           │   ├── qt_uk.qm
+│           │   ├── qt_zh_CN.qm
+│           │   └── qt_zh_TW.qm
+│           ├── AdbWinApi.dll
+│           ├── AdbWinUsbApi.dll
+│           ├── D3Dcompiler_47.dll
+│           ├── Qt6Core.dll
+│           ├── Qt6Gui.dll
+│           ├── Qt6Multimedia.dll
+│           ├── Qt6Network.dll
+│           ├── Qt6OpenGL.dll
+│           ├── Qt6OpenGLWidgets.dll
+│           ├── Qt6Svg.dll
+│           ├── Qt6Widgets.dll
+│           ├── SmartMatrix.exe
+│           ├── SmartMatrix.pdb
+│           ├── SmartMatrixCore.lib
+│           ├── SmartMatrixCore.pdb
+│           ├── adb.exe
+│           ├── avcodec-58.dll
+│           ├── avcodec-61.dll
+│           ├── avformat-58.dll
+│           ├── avformat-61.dll
+│           ├── avutil-56.dll
+│           ├── avutil-59.dll
+│           ├── modern_ui_config.json
+│           ├── opengl32sw.dll
+│           ├── scrcpy-server
+│           ├── sndcpy.apk
+│           ├── sndcpy.bat
+│           ├── swresample-3.dll
+│           ├── swresample-5.dll
+│           ├── swscale-5.dll
+│           └── swscale-8.dll
 ├── screenshot/
 │   ├── game.png
 │   ├── linux-en.png
@@ -468,6 +1232,7 @@ SmartMatrix/
 ├── Baselogo.png
 ├── Baselogo.psd.js
 ├── CMakeLists.txt
+├── CMakeLists.txt.backup
 ├── CodeHistory.txt
 ├── INTEGRATION_PLAN.md
 ├── LICENSE
@@ -481,6 +1246,7 @@ SmartMatrix/
 ├── UI_DESIGN_SPECIFICATION.md
 ├── UI_EXTENSION_ANALYSIS.md
 ├── build.ps1
+├── build.ps1.backup
 ├── deploy_qt6.ps1
 ├── error_qt1.txt
 ├── install_qt_msvc.ps1

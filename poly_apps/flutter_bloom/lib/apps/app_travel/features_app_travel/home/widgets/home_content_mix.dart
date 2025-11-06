@@ -11,7 +11,7 @@ class HomeContentMix extends StatelessWidget {
     final itemHeight = screenWidth * 0.48;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      margin: const EdgeInsets.symmetric(horizontal: 12.0),
       height: itemHeight,
       child: Row(
         children: [

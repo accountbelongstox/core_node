@@ -160,18 +160,18 @@ class HomeGridNav extends StatelessWidget {
                             item.title,
                             style: TextStyle(
                               color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
-                              fontSize: 16.0,
+                              fontSize: isFirst ? 20.0 : 16.0,
                               fontWeight: FontWeight.bold,
                               height: 1.2,
                             ),
                             textAlign: isFirst ? TextAlign.left : TextAlign.center,
                           ),
-                          const SizedBox(height: 2.0),
+                          const SizedBox(height: 4.0),
                           Text(
                             item.subtitle!,
                             style: TextStyle(
                               color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
-                              fontSize: 11.0,
+                              fontSize: isFirst ? 13.0 : 11.0,
                               fontWeight: FontWeight.normal,
                               height: 1.2,
                             ),
@@ -183,8 +183,8 @@ class HomeGridNav extends StatelessWidget {
                         item.title,
                         style: TextStyle(
                           color: isSpecialThird ? const Color(0xFFA05416) : Colors.white,
-                          fontSize: 16.0,
-                          fontWeight: FontWeight.normal,
+                          fontSize: isFirst ? 20.0 : 16.0,
+                          fontWeight: isFirst ? FontWeight.bold : FontWeight.normal,
                         ),
                         textAlign: isFirst ? TextAlign.left : TextAlign.center,
                       ),

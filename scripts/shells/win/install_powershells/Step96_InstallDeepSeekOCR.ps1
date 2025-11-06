@@ -232,6 +232,7 @@ function Test-DeepSeekOCRModelLoad {
     $modelTestScript = @"
 import os
 os.environ['HF_HOME'] = os.path.join(os.path.dirname(__file__), '.cache')
+os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 
 print('[TEST] Loading DeepSeek-OCR model...')
 from transformers import AutoModel, AutoTokenizer
@@ -240,8 +241,13 @@ import torch
 model_name = '$MODEL_PATH'
 print(f'[INFO] Model path: {model_name}')
 print('[INFO] Note: First run will download model from HuggingFace')
+print('[INFO] Download timeout: 3600s (1 hour)')
 
-tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(
+    model_name,
+    trust_remote_code=True,
+    resume_download=True
+)
 print('[OK] Tokenizer loaded successfully')
 
 print('[TEST] Loading model (this may take a while)...')
@@ -249,7 +255,8 @@ model = AutoModel.from_pretrained(
     model_name,
     _attn_implementation='flash_attention_2',
     trust_remote_code=True,
-    use_safetensors=True
+    use_safetensors=True,
+    resume_download=True
 )
 print('[OK] Model loaded successfully')
 

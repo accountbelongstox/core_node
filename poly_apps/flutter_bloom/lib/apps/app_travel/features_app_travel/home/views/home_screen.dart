@@ -127,12 +127,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                HomeRecommend(
-                  recommend: homeProvider.homeData!.data.recommend,
-                ),
-                const SizedBox(height: 4),
                 HomeGridNavSection(
                   gridNavs: homeProvider.homeData!.data.gridNavs,
+                ),
+                const SizedBox(height: 4),
+                HomeRecommend(
+                  recommend: homeProvider.homeData!.data.recommend,
                 ),
                 HomeSubnav(
                   subnavs: homeProvider.homeData!.data.subnavs,
@@ -142,12 +142,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   cityName: userProvider.user.currentCity ?? 'Luoyang',
                   temperature: '35',
                 ),
+                const SizedBox(height: 8),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: HomePopular(
                     popularItems: homeProvider.homeData!.data.popularList,
                   ),
                 ),
+                const SizedBox(height: 4),
                 const HomeContentMix(),
                 const SizedBox(height: 4),
                 Padding(

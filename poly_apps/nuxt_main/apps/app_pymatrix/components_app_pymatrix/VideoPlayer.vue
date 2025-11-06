@@ -672,14 +672,19 @@ async function handleContextMenuAction(action: string, serial: string) {
   }
 }
 
+watch(videoElement, (el) => {
+  if (el) {
+    connectVideo();
+    updateCanvasSize();
+  }
+}, { immediate: true });
+
 onMounted(() => {
-  connectVideo();
   if (props.enableControl) {
     connectControl();
     connectGroup();
   }
 
-  updateCanvasSize();
   window.addEventListener('resize', updateCanvasSize);
 });
 
@@ -702,11 +707,14 @@ watch(() => videoElement.value, () => {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 300px;
+  min-height: 0;
   background: var(--pm-color-surface);
   border-radius: var(--pm-radius-lg);
   overflow: hidden;
   box-shadow: var(--pm-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: inherit;
 }
 
 /* Video Element */

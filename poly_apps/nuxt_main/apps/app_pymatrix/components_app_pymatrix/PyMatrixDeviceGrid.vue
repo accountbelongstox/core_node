@@ -1,5 +1,5 @@
 <template>
-  <div class="pm-device-grid" :class="gridClass" :style="gridStyle">
+  <div class="pm-device-grid" :style="gridStyle">
     <div
       v-for="(device, index) in orderedDevices"
       :key="device.serial"
@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useWindowSize } from '@vueuse/core';
 import { useUIPreferencesStore } from '../stores_app_pymatrix/uiPreferencesStore';
 import VideoPlayer from './VideoPlayer.vue';
 import type { Device } from '@/types/pymatrix';
@@ -87,26 +88,43 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const uiPreferencesStore = useUIPreferencesStore();
+const { width } = useWindowSize();
 
 // Drag and drop state
 const draggedIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
 
-// Computed: Effective columns based on store preference or auto-detect
-const effectiveColumns = computed(() =>
-  uiPreferencesStore.getEffectiveColumns(props.devices.length)
-);
+// Computed: Effective columns based on viewport width (up to 12 columns)
+const responsiveColumns = computed(() => {
+  const manualColumns = uiPreferencesStore.gridColumns;
+  if (manualColumns > 0) {
+    return Math.min(12, manualColumns);
+  }
 
-// Computed: Grid class for legacy support
-const gridClass = computed(() => {
-  const cols = effectiveColumns.value;
-  return `grid-cols-${cols}`;
+  const viewportWidth = process.client ? width.value : 1920;
+
+  if (viewportWidth >= 2560) return 12;
+  if (viewportWidth >= 2320) return 11;
+  if (viewportWidth >= 2100) return 10;
+  if (viewportWidth >= 1880) return 9;
+  if (viewportWidth >= 1660) return 8;
+  if (viewportWidth >= 1440) return 7;
+  if (viewportWidth >= 1220) return 6;
+  if (viewportWidth >= 1000) return 5;
+  if (viewportWidth >= 820) return 4;
+  if (viewportWidth >= 640) return 3;
+  if (viewportWidth >= 480) return 2;
+  return 1;
 });
 
 // Computed: Grid style with dynamic columns
-const gridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${effectiveColumns.value}, 1fr)`
-}));
+const gridStyle = computed(() => {
+  const columns = responsiveColumns.value;
+  return {
+    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+    gridAutoRows: '1fr'
+  };
+});
 
 // Computed: Ordered devices based on stored order
 const orderedDevices = computed(() => {
@@ -221,12 +239,14 @@ function handleDrop(event: DragEvent, toIndex: number) {
 /* DeviceGrid Styles with NFTMax Theme */
 .pm-device-grid {
   display: grid;
-  gap: var(--pm-space-lg);
-  padding: var(--pm-space-lg);
+  gap: clamp(var(--pm-space-sm), 1vw, var(--pm-space-lg));
+  padding: clamp(var(--pm-space-sm), 1vw, var(--pm-space-lg));
   width: 100%;
   height: 100%;
   overflow-y: auto;
   animation: pm-fadeIn 0.5s ease;
+  align-content: start;
+  grid-auto-flow: row dense;
 }
 
 /* Grid Item */
@@ -240,6 +260,8 @@ function handleDrop(event: DragEvent, toIndex: number) {
   animation: pm-scaleUp 0.3s ease;
   display: flex;
   flex-direction: column;
+  aspect-ratio: 9 / 16;
+  min-height: 0;
 }
 
 .pm-grid-item:hover {
