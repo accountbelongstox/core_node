@@ -141,20 +141,61 @@ function New-Qwen25InteractiveScript {
         return
     }
 
+    $cacheDir = Join-Path $env:USERPROFILE ".core_node\.cache"
+    if (-not (Test-Path $cacheDir)) {
+        New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+    }
+
+    $batScriptPath = Join-Path $cacheDir "qwen25_chat.bat"
+    $batScript = @"
+@echo off
+chcp 65001 >nul
+echo ========================================
+echo   Qwen2.5-0.5B-Instruct Interactive Chat
+echo ========================================
+echo.
+echo INSTRUCTIONS:
+echo 1. Wait for 'User:' prompt to appear
+echo 2. Type your question and press Enter
+echo 3. Type 'exit' or 'quit' to end chat
+echo ========================================
+echo.
+echo Starting chat... Please wait...
+echo.
+$PythonCommand "$testScriptPath" --chat
+echo.
+echo ========================================
+echo   Chat Ended
+echo ========================================
+echo.
+pause
+"@
+
+    $batScript | Out-File -FilePath $batScriptPath -Encoding ASCII
+
+    Write-Host "$SCRIPT_INDEX Interactive chat script generated at: $batScriptPath" -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX Opening in new command window..." -ForegroundColor Cyan
+    Write-Host ""
+
+    Start-Process -FilePath $batScriptPath
+
+    Write-Host "$SCRIPT_INDEX New window opened for interactive chat" -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX You can now test the model in the new window" -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX This installation will continue..." -ForegroundColor Cyan
+    Write-Host ""
+
     Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX   USAGE EXAMPLES" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "$SCRIPT_INDEX To test Qwen2.5-0.5B-Instruct interactively, run:" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX   $batScriptPath" -ForegroundColor White
+    Write-Host ""
+    Write-Host "$SCRIPT_INDEX Or manually run:" -ForegroundColor White
     Write-Host "$SCRIPT_INDEX   $PythonCommand `"$testScriptPath`" --chat" -ForegroundColor White
     Write-Host ""
     Write-Host "$SCRIPT_INDEX For single inference test, run:" -ForegroundColor White
     Write-Host "$SCRIPT_INDEX   $PythonCommand `"$testScriptPath`"" -ForegroundColor White
-    Write-Host ""
-    Write-Host "$SCRIPT_INDEX INSTRUCTIONS:" -ForegroundColor Yellow
-    Write-Host "$SCRIPT_INDEX 1. Wait for 'User:' prompt to appear" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX 2. Type your question and press Enter" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX 3. Type 'exit' or 'quit' to end chat" -ForegroundColor White
     Write-Host ""
 }
 
