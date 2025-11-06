@@ -177,10 +177,6 @@ check_installation() {
         return 1
     fi
 
-    if [ ! -f "$install_dir/requirements.txt" ]; then
-        return 1
-    fi
-
     local file_count=$(find "$install_dir" -type f 2>/dev/null | wc -l)
     if [ "$file_count" -lt 10 ]; then
         return 1
@@ -225,16 +221,8 @@ install_dependencies() {
     local install_dir=$1
     local python_cmd=$2
 
-    local requirements_file="$install_dir/requirements.txt"
-
-    if [ ! -f "$requirements_file" ]; then
-        print_error "requirements.txt not found at: $requirements_file"
-        return 1
-    fi
-
     print_info "Installing Python dependencies..."
     print_info "Using Python command: $python_cmd"
-    print_info "Requirements file: $requirements_file"
     print_info "Note: DeepSeek-OCR requires cuda11.8+torch2.6.0"
 
     cd "$install_dir"
@@ -244,9 +232,9 @@ install_dependencies() {
     $python_cmd -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
     echo ""
 
-    print_info "Step 2: Installing requirements.txt..."
+    print_info "Step 2: Installing core dependencies..."
     echo ""
-    $python_cmd -m pip install -r requirements.txt
+    $python_cmd -m pip install transformers accelerate pillow einops timm sentencepiece protobuf
     echo ""
 
     print_info "Step 3: Installing flash-attn 2.7.3..."

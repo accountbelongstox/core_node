@@ -1,0 +1,93 @@
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, or modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+library;
+
+import 'package:flutter/material.dart';
+import '../../../../../../common/theme/base/theme_colors.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+
+class Image001ScreenRefactoredAppQy extends StatefulWidget {
+  const Image001ScreenRefactoredAppQy({super.key});
+
+  @override
+  State<Image001ScreenRefactoredAppQy> createState() =>
+      _Image001ScreenRefactoredAppQyState();
+}
+
+class _Image001ScreenRefactoredAppQyState
+    extends State<Image001ScreenRefactoredAppQy> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ThemeColors.background,
+      appBar: AppBar(
+        title: Text(
+          QyAppLocalizationKeys.qyAppName.tr(context),
+          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+        ),
+        backgroundColor: ThemeColors.surface,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
+        ),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: _buildContent(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    return Container(
+      margin: EdgeInsets.all(Dimensions.paddingLarge),
+      padding: EdgeInsets.all(Dimensions.paddingXLarge),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        border: Border.all(color: ThemeColors.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.image,
+            size: 80,
+            color: ThemeColors.primary,
+          ),
+          SizedBox(height: Dimensions.spacingLarge),
+          Text(
+            QyAppLocalizationKeys.qyImageView.tr(context),
+            style: TextStyles.h3.copyWith(
+              color: ThemeColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: Dimensions.spacingMedium),
+          Text(
+            QyAppLocalizationKeys.qyImageViewDesc.tr(context),
+            style: TextStyles.body1.copyWith(
+              color: ThemeColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}

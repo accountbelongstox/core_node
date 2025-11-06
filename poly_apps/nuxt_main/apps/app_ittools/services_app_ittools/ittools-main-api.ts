@@ -231,6 +231,25 @@ export class ItToolsMainAPI {
   }
 
   /**
+   * Converter - Base64 File Encode
+   */
+  async base64FileEncode(fileData: string, fileName: string): Promise<ApiResponse<{ encoded: string; size?: number }>> {
+    return this.post('/converter/base64/file/encode', {
+      fileData,
+      fileName
+    });
+  }
+
+  /**
+   * Converter - Base64 File Decode
+   */
+  async base64FileDecode(encoded: string): Promise<ApiResponse<{ fileData: string; mimeType?: string; size?: number }>> {
+    return this.post('/converter/base64/file/decode', {
+      encoded
+    });
+  }
+
+  /**
    * Converter - URL Encode
    */
   async urlEncode(text: string): Promise<ApiResponse<{ encoded: string }>> {
@@ -277,6 +296,30 @@ export class ItToolsMainAPI {
   }
 
   /**
+   * Converter - Date Time
+   */
+  async convertDateTime(params: {
+    input: string;
+    inputFormat?: string | null;
+    outputFormat?: string | null;
+    timezone?: string | null;
+    customFormat?: string | null;
+    customInputFormat?: string | null;
+  }): Promise<ApiResponse<Record<string, any>>> {
+    const payload: Record<string, any> = {
+      input: params.input
+    };
+
+    if (params.inputFormat) payload.inputFormat = params.inputFormat;
+    if (params.outputFormat) payload.outputFormat = params.outputFormat;
+    if (params.timezone) payload.timezone = params.timezone;
+    if (params.customFormat) payload.customFormat = params.customFormat;
+    if (params.customInputFormat) payload.customInputFormat = params.customInputFormat;
+
+    return this.post('/converter/datetime', payload);
+  }
+
+  /**
    * Converter - JSON to YAML
    */
   async jsonToYaml(json: string): Promise<ApiResponse<{ yaml: string }>> {
@@ -319,6 +362,84 @@ export class ItToolsMainAPI {
   }
 
   /**
+   * Converter - JSON <-> TOML and TOML <-> YAML
+   */
+  async jsonToToml(json: string): Promise<ApiResponse<{ toml: string }>> {
+    return this.post('/converter/json-to-toml', { json });
+  }
+
+  async tomlToJson(toml: string): Promise<ApiResponse<{ json: string }>> {
+    return this.post('/converter/toml-to-json', { toml });
+  }
+
+  async tomlToYaml(toml: string): Promise<ApiResponse<{ yaml: string }>> {
+    return this.post('/converter/toml-to-yaml', { toml });
+  }
+
+  async yamlToToml(yaml: string): Promise<ApiResponse<{ toml: string }>> {
+    return this.post('/converter/yaml-to-toml', { yaml });
+  }
+
+  /**
+   * Text/Web - URL Parser
+   */
+  async parseUrl(url: string): Promise<ApiResponse<Record<string, any>>> {
+    return this.post('/text/url/parse', { url });
+  }
+
+  /**
+   * Converter - JSON to CSV
+   */
+  async jsonToCsv(json: string, delimiter: string = ',', includeHeaders: boolean = true): Promise<ApiResponse<{ csv: string }>> {
+    return this.post('/converter/json-to-csv', {
+      json,
+      delimiter,
+      includeHeaders
+    });
+  }
+
+  /**
+   * Converter - HTML entities encode/decode
+   */
+  async htmlEncode(text: string): Promise<ApiResponse<{ encoded: string }>> {
+    return this.post('/web/html/encode', { text });
+  }
+
+  async htmlDecode(text: string): Promise<ApiResponse<{ decoded: string }>> {
+    return this.post('/web/html/decode', { text });
+  }
+
+  /**
+   * Converter - Text to binary/Unicode/NATO
+   */
+  async textToBinary(text: string): Promise<ApiResponse<{ binary: string }>> {
+    return this.post('/converter/text-to-binary', { text });
+  }
+
+  async textToUnicode(text: string): Promise<ApiResponse<{ unicode: string }>> {
+    return this.post('/converter/text-to-unicode', { text });
+  }
+
+  async textToNato(text: string): Promise<ApiResponse<{ nato: string }>> {
+    return this.post('/converter/text-to-nato', { text });
+  }
+
+  /**
+   * Converter - Integer base conversion
+   */
+  async convertIntegerBase(value: string, fromBase: number, toBase: number): Promise<ApiResponse<{ result: string }>> {
+    return this.post('/converter/base', { value, fromBase, toBase });
+  }
+
+  /**
+   * Converter - Roman numeral conversion
+   */
+  async romanToArabic(value: string): Promise<ApiResponse<{ roman: string; arabic: number }>> {
+    return this.post('/converter/roman/to-arabic', { value });
+  }
+
+
+  /**
    * Web Dev - JSON Prettify
    */
   async jsonPrettify(json: string, indent: number = 2): Promise<ApiResponse<{ formatted: string }>> {
@@ -330,6 +451,123 @@ export class ItToolsMainAPI {
    */
   async jsonMinify(json: string): Promise<ApiResponse<{ minified: string }>> {
     return this.post('/web/json/minify', { json });
+  }
+
+  /**
+   * Web Dev - JSON Diff
+   */
+  async jsonDiff(json1: string, json2: string): Promise<ApiResponse<{ differences: any[]; hasDifferences: boolean }>> {
+    return this.post('/web/json/diff', { json1, json2 });
+  }
+
+  /**
+   * Web - JWT Parser/Verifier
+   */
+  async parseJwt(token: string): Promise<ApiResponse<{ header: Record<string, any>; payload: Record<string, any>; signature: string }>> {
+    return this.post('/web/jwt/parse', { token });
+  }
+
+  async verifyJwt(token: string, secret: string, algorithm: string = 'HS256'): Promise<ApiResponse<{ valid: boolean; expired?: boolean; payload?: Record<string, any> }>> {
+    return this.post('/web/jwt/verify', { token, secret, algorithm });
+  }
+
+  /**
+   * Web - QR Code Generators
+   */
+  async generateQrCode(text: string, size: number = 256, errorCorrectionLevel: 'L' | 'M' | 'Q' | 'H' = 'M'): Promise<ApiResponse<{ qrCode: string }>> {
+    return this.post('/web/qr-code/generate', { text, size, errorCorrectionLevel });
+  }
+
+  async generateWifiQrCode(params: { ssid: string; password?: string; encryption?: 'WPA' | 'WEP' | 'nopass'; hidden?: boolean }): Promise<ApiResponse<{ qrCode: string }>> {
+    return this.post('/web/wifi-qr-code/generate', {
+      ssid: params.ssid,
+      password: params.password,
+      encryption: params.encryption ?? 'WPA',
+      hidden: params.hidden ?? false
+    });
+  }
+
+  /**
+   * Web - Meta Tag Generator
+   */
+  async generateMetaTags(payload: {
+    title: string;
+    description: string;
+    keywords?: string[] | string;
+    author?: string;
+    image?: string;
+    ogType?: string;
+  }): Promise<ApiResponse<{ html: string }>> {
+    return this.post('/web/meta-tags/generate', {
+      title: payload.title,
+      description: payload.description,
+      keywords: payload.keywords,
+      author: payload.author,
+      ogType: payload.ogType,
+      ogImage: payload.image
+    });
+  }
+
+  /**
+   * Web - HTML Renderer (WYSIWYG)
+   */
+  async renderHtml(content: string, mode: 'markdown' | 'html' = 'markdown', sanitize: boolean = true): Promise<ApiResponse<{ html: string }>> {
+    const payload: Record<string, any> = { sanitize };
+    if (mode === 'markdown') {
+      payload.markdown = content;
+    } else {
+      payload.html = content;
+    }
+    return this.post('/web/html/render', payload);
+  }
+
+  /**
+   * Web - SQL Formatter
+   */
+  async formatSql(sql: string, indent: string = '  ', uppercase: boolean = true): Promise<ApiResponse<{ formatted: string }>> {
+    return this.post('/web/sql/format', { sql, indent, uppercase });
+  }
+
+  /**
+   * Web - XML Formatter
+   */
+  async formatXml(xml: string, indent: number = 2): Promise<ApiResponse<{ formatted: string; valid?: boolean; errors?: string[] }>> {
+    return this.post('/web/xml/format', { xml, indent });
+  }
+
+  /**
+   * Web - YAML Viewer / Validator
+   */
+  async validateYaml(yaml: string): Promise<ApiResponse<{ valid: boolean; parsed?: Record<string, any>; error?: string }>> {
+    return this.post('/web/yaml/validate', { yaml });
+  }
+
+  /**
+   * Web - HTTP Status Codes
+   */
+  async getHttpStatus(code?: number): Promise<ApiResponse<any>> {
+    if (typeof code === 'number') {
+      return this.get(`/web/http-status/${code}`);
+    }
+    return this.get('/web/http-status');
+  }
+
+  /**
+   * Web - MIME Types
+   */
+  async getMimeTypes(extension?: string): Promise<ApiResponse<any>> {
+    if (extension && extension.trim()) {
+      const normalized = extension.replace(/^\./, '');
+      return this.get(`/web/mime-types/${normalized}`);
+    }
+    return this.get('/web/mime-types');
+  }
+
+  /**
+   * Network - User Agent Parser
+   */
+  async parseUserAgent(userAgent: string): Promise<ApiResponse<Record<string, any>>> {
+    return this.post('/network/user-agent/parse', { userAgent });
   }
 
   /**
@@ -353,11 +591,57 @@ export class ItToolsMainAPI {
     return this.post('/math/evaluate', { expression });
   }
 
+  async calculatePercentage(operation: string, value1: number, value2?: number): Promise<ApiResponse<Record<string, any>>> {
+    return this.post('/math/percentage', { operation, value1, value2 });
+  }
+
+  async calculateEta(totalItems: number, completedItems: number, elapsedTime: number, unit: string = 'seconds'): Promise<ApiResponse<Record<string, any>>> {
+    return this.post('/math/eta', { totalItems, completedItems, elapsedTime, unit });
+  }
+
+  async benchmark(operation: string, iterations: number, data?: any): Promise<ApiResponse<Record<string, any>>> {
+    return this.post('/math/benchmark', { operation, iterations, data });
+  }
+
+  async startChronometer(): Promise<ApiResponse<{ sessionId: string }>> {
+    return this.post('/math/chronometer/start', {});
+  }
+
+  async stopChronometer(sessionId: string): Promise<ApiResponse<Record<string, any>>> {
+    return this.post('/math/chronometer/stop', { sessionId });
+  }
+
+  async lapChronometer(sessionId: string): Promise<ApiResponse<Record<string, any>>> {
+    return this.post('/math/chronometer/lap', { sessionId });
+  }
+
   /**
    * Network - IPv4 Convert
    */
   async ipv4Convert(ip: string, format: string): Promise<ApiResponse<any>> {
     return this.post('/network/ipv4/convert', { ip, format });
+  }
+
+  async ipv4Subnet(ip: string, cidr: number): Promise<ApiResponse<Record<string, any>>> {
+    return this.post('/network/ipv4/subnet', { ip, cidr });
+  }
+
+  async ipv4Expand(range: string): Promise<ApiResponse<{ ips: string[]; count: number }>> {
+    return this.post('/network/ipv4/expand', { range });
+  }
+
+  async ipv6GenerateUla(count: number = 1): Promise<ApiResponse<{ addresses: string[] }>> {
+    return this.post('/network/ipv6/ula', { count });
+  }
+
+  async macGenerate(count: number = 1, separator: ':' | '-' = ':', uppercase: boolean = true, vendor?: string): Promise<ApiResponse<{ addresses: string[] }>> {
+    const payload: Record<string, any> = { count, separator, uppercase };
+    if (vendor) payload.vendor = vendor;
+    return this.post('/network/mac/generate', payload);
+  }
+
+  async macLookup(mac: string): Promise<ApiResponse<{ vendor?: string; prefix?: string; country?: string }>> {
+    return this.post('/network/mac/lookup', { mac });
   }
 
   /**

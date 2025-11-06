@@ -73,6 +73,34 @@ class VideoStreamService:
                     "data": {"error": f"Device {serial} not connected"}
                 }
                 await websocket.send_json(error_msg)
+                print(f"[VideoStreamService] ERROR: Device {serial} not found in DeviceManager")
+                return
+
+            # ✅ CRITICAL: Verify device is connected and ready for streaming
+            if not device.is_connected():
+                error_msg = {
+                    "type": "video.error",
+                    "timestamp": 0,
+                    "data": {"error": f"Device {serial} not connected. scrcpy-server may have failed to start."}
+                }
+                await websocket.send_json(error_msg)
+                print(f"[VideoStreamService] ERROR: Device {serial} is not connected")
+                print(f"[VideoStreamService] Device: {device}")
+                return
+
+            print(f"[VideoStreamService] Starting video stream for {serial}")
+            print(f"[VideoStreamService] Device: {device}")
+            try:
+                video_socket = device.get_video_socket()
+                print(f"[VideoStreamService] Video socket: {video_socket}")
+            except Exception as e:
+                error_msg = {
+                    "type": "video.error",
+                    "timestamp": 0,
+                    "data": {"error": f"Failed to get video socket: {str(e)}"}
+                }
+                await websocket.send_json(error_msg)
+                print(f"[VideoStreamService] ERROR: Failed to get video socket: {e}")
                 return
 
             # Create and start video stream handler
@@ -80,7 +108,21 @@ class VideoStreamService:
             self.handlers[serial] = handler
 
             # Start handler (parses H.264 config)
-            await handler.start()
+            print(f"[VideoStreamService] Starting VideoStreamHandler...")
+            try:
+                await handler.start()
+                print(f"[VideoStreamService] VideoStreamHandler started successfully")
+            except Exception as e:
+                error_msg = {
+                    "type": "video.error",
+                    "timestamp": 0,
+                    "data": {"error": f"Failed to start video handler: {str(e)}"}
+                }
+                await websocket.send_json(error_msg)
+                print(f"[VideoStreamService] ERROR: Failed to start VideoStreamHandler: {e}")
+                import traceback
+                traceback.print_exc()
+                return
 
             # Get device info
             device_info = device.get_device_info()

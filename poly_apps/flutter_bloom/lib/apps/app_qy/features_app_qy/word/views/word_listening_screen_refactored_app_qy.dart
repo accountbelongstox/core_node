@@ -31,80 +31,64 @@ class WordListeningScreenRefactoredAppQy extends StatefulWidget {
 }
 
 class _WordListeningScreenRefactoredAppQyState
-    extends State<WordListeningScreenRefactoredAppQy> {
-  int _selectedMode;
-  final List<Map<String, dynamic>> _listeningModes;
+    extends State<WordListeningScreenRefactoredAppQy>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  int _selectedTab;
+  int _selectedCategory;
+  final List<Map<String, dynamic>> _wordCategories;
 
   _WordListeningScreenRefactoredAppQyState()
-      : _selectedMode = 0,
-        _listeningModes = [];
+      : _selectedTab = 0,
+        _selectedCategory = 0,
+        _wordCategories = [];
 
   @override
   void initState() {
     super.initState();
-    _initListeningModes();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        setState(() {
+          _selectedTab = _tabController.index;
+        });
+      }
+    });
+    _initWordCategories();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<WordControllerAppQy>().loadWordBooks();
     });
   }
 
-  void _initListeningModes() {
-    _listeningModes.addAll([
-      {
-        'icon': Icons.menu_book,
-        'title': 'qyWordBook',
-        'count': 200,
-      },
-      {
-        'icon': Icons.bookmark,
-        'title': 'qyMyVocabulary',
-        'count': 27,
-      },
-      {
-        'icon': Icons.fiber_new,
-        'title': 'qyTodayNewWords',
-        'count': 200,
-      },
-      {
-        'icon': Icons.refresh,
-        'title': 'qyTodayReview',
-        'count': 27,
-      },
-      {
-        'icon': Icons.list,
-        'title': 'qyAllWords',
-        'count': 16952,
-      },
-      {
-        'icon': Icons.pending,
-        'title': 'qyUnlearnedWords',
-        'count': 16925,
-      },
-      {
-        'icon': Icons.school,
-        'title': 'qyLearningWords',
-        'count': 27,
-      },
-      {
-        'icon': Icons.star,
-        'title': 'qySimpleWords',
-        'count': 0,
-      },
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _initWordCategories() {
+    _wordCategories.addAll([
+      {'label': 'qyWordTodayNew', 'count': 200},
+      {'label': 'qyWordTodayReview', 'count': 27},
+      {'label': 'qyWordAllList', 'count': 16952},
+      {'label': 'qyWordNotLearned', 'count': 16925},
+      {'label': 'qyWordLearning', 'count': 27},
+      {'label': 'qyWordSimple', 'count': 0},
     ]);
   }
 
-  void _handleModeSelect(int index) {
+  void _handleCategorySelect(int index) {
     setState(() {
-      _selectedMode = index;
+      _selectedCategory = index;
     });
   }
 
   void _handleStartListening() {
-    final mode = _listeningModes[_selectedMode];
+    final category = _wordCategories[_selectedCategory];
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '${QyAppLocalizationKeys.qyStarting.tr(context)} ${QyAppLocalizationKeys.values[mode['title']].tr(context)}',
+          '${QyAppLocalizationKeys.qyStarting.tr(context)} ${category['label'].toString().tr(context)}',
         ),
       ),
     );
@@ -121,204 +105,245 @@ class _WordListeningScreenRefactoredAppQyState
         ),
         backgroundColor: ThemeColors.surface,
         elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: Icon(Icons.settings, color: ThemeColors.textPrimary),
-          ),
-        ],
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
+        ),
       ),
       body: Consumer<WordControllerAppQy>(
         builder: (context, controller, child) {
-          return SafeArea(
-            child: Column(
-              children: [
-                _buildModeSelector(),
-                Expanded(
-                  child: controller.isLoading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            color: ThemeColors.primary,
-                          ),
-                        )
-                      : _buildModesList(),
-                ),
-                _buildStartButton(),
-              ],
-            ),
+          return Column(
+            children: [
+              _buildWordBookSelector(),
+              _buildWordBookCard(),
+              Expanded(
+                child: _buildCategoriesList(),
+              ),
+            ],
           );
         },
       ),
     );
   }
 
-  Widget _buildModeSelector() {
+  Widget _buildWordBookSelector() {
     return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      margin: EdgeInsets.all(Dimensions.paddingMedium),
+      padding: EdgeInsets.symmetric(
+        horizontal: Dimensions.paddingMedium,
+        vertical: Dimensions.paddingSmall,
+      ),
       decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color: ThemeColors.shadow.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: ThemeColors.surface.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        border: Border.all(color: ThemeColors.border.withOpacity(0.3)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: _buildModeSelectorButton(
-              QyAppLocalizationKeys.qyWordBook.tr(context),
-              true,
+          Text(
+            QyAppLocalizationKeys.qyWordWordBook.tr(context),
+            style: TextStyles.body1.copyWith(
+              color: ThemeColors.textPrimary,
             ),
           ),
           SizedBox(width: Dimensions.spacingSmall),
-          Container(
-            width: 4,
-            height: 4,
-            decoration: BoxDecoration(
-              color: ThemeColors.textTertiary,
-              shape: BoxShape.circle,
+          Text(
+            '•',
+            style: TextStyles.body1.copyWith(
+              color: ThemeColors.textSecondary,
             ),
           ),
           SizedBox(width: Dimensions.spacingSmall),
-          Expanded(
-            child: _buildModeSelectorButton(
-              QyAppLocalizationKeys.qyTodayNewWords.tr(context),
-              false,
+          Text(
+            QyAppLocalizationKeys.qyWordTodayNew.tr(context),
+            style: TextStyles.body1.copyWith(
+              color: ThemeColors.textPrimary,
             ),
           ),
           SizedBox(width: Dimensions.spacingSmall),
           Icon(
-            Icons.keyboard_arrow_down,
+            Icons.arrow_drop_down,
             color: ThemeColors.textSecondary,
+            size: 24,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildModeSelectorButton(String text, bool isActive) {
-    return Text(
-      text,
-      style: TextStyles.body1.copyWith(
-        color: isActive ? ThemeColors.textPrimary : ThemeColors.textSecondary,
-        fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+  Widget _buildWordBookCard() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: Dimensions.paddingMedium),
+      height: 220,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        boxShadow: [
+          BoxShadow(
+            color: ThemeColors.shadow.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      textAlign: TextAlign.center,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    ThemeColors.primary.withOpacity(0.3),
+                    ThemeColors.secondary.withOpacity(0.2),
+                  ],
+                ),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.book,
+                      size: 64,
+                      color: ThemeColors.primary.withOpacity(0.5),
+                    ),
+                    SizedBox(height: Dimensions.spacingMedium),
+                    Text(
+                      'Word Book',
+                      style: TextStyles.h4.copyWith(
+                        color: ThemeColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: ThemeColors.surface.withOpacity(0.95),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(Dimensions.radiusLarge),
+                    bottomRight: Radius.circular(Dimensions.radiusLarge),
+                  ),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  indicatorColor: ThemeColors.primary,
+                  indicatorWeight: 3,
+                  labelColor: ThemeColors.primary,
+                  unselectedLabelColor: ThemeColors.textSecondary,
+                  labelStyle: TextStyles.body1.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  unselectedLabelStyle: TextStyles.body1,
+                  tabs: [
+                    Tab(text: QyAppLocalizationKeys.qyWordWordBook.tr(context)),
+                    Tab(
+                        text: QyAppLocalizationKeys.qyWordNewWordBook
+                            .tr(context)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildModesList() {
-    return GridView.builder(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: Dimensions.spacingMedium,
-        mainAxisSpacing: Dimensions.spacingMedium,
-        childAspectRatio: 1.2,
+  Widget _buildCategoriesList() {
+    return Container(
+      margin: EdgeInsets.only(top: Dimensions.spacingLarge),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(Dimensions.radiusXLarge),
+          topRight: Radius.circular(Dimensions.radiusXLarge),
+        ),
       ),
-      itemCount: _listeningModes.length,
-      itemBuilder: (context, index) {
-        return _buildModeCard(index);
-      },
+      child: ListView.separated(
+        padding: EdgeInsets.all(Dimensions.paddingLarge),
+        itemCount: _wordCategories.length,
+        separatorBuilder: (context, index) =>
+            SizedBox(height: Dimensions.spacingSmall),
+        itemBuilder: (context, index) {
+          return _buildCategoryItem(index);
+        },
+      ),
     );
   }
 
-  Widget _buildModeCard(int index) {
-    final mode = _listeningModes[index];
-    final isSelected = _selectedMode == index;
+  Widget _buildCategoryItem(int index) {
+    final category = _wordCategories[index];
+    final isSelected = _selectedCategory == index;
+    final count = category['count'] as int;
+    final labelKey = category['label'] as String;
 
     return InkWell(
-      onTap: () => _handleModeSelect(index),
+      onTap: () => _handleCategorySelect(index),
       child: Container(
         padding: EdgeInsets.all(Dimensions.paddingMedium),
         decoration: BoxDecoration(
-          color: ThemeColors.surface,
+          color: isSelected
+              ? ThemeColors.primary.withOpacity(0.05)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
           border: Border.all(
-            color: isSelected ? ThemeColors.primary : ThemeColors.border,
-            width: isSelected ? 2 : 1,
+            color: isSelected
+                ? ThemeColors.primary.withOpacity(0.3)
+                : ThemeColors.border,
+            width: 1,
           ),
-          boxShadow: [
-            if (isSelected)
-              BoxShadow(
-                color: ThemeColors.primary.withOpacity(0.2),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-          ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Row(
           children: [
-            Container(
-              padding: EdgeInsets.all(Dimensions.paddingSmall),
-              decoration: BoxDecoration(
-                color: (isSelected ? ThemeColors.primary : ThemeColors.textSecondary)
-                    .withOpacity(0.1),
-                shape: BoxShape.circle,
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                color: ThemeColors.primary,
+                size: 20,
+              )
+            else
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: ThemeColors.border,
+                    width: 2,
+                  ),
+                ),
               ),
-              child: Icon(
-                mode['icon'] as IconData,
-                size: 32,
-                color: isSelected ? ThemeColors.primary : ThemeColors.textSecondary,
+            SizedBox(width: Dimensions.spacingMedium),
+            Expanded(
+              child: Text(
+                labelKey.tr(context),
+                style: TextStyles.body1.copyWith(
+                  color: isSelected
+                      ? ThemeColors.primary
+                      : ThemeColors.textPrimary,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
               ),
             ),
-            SizedBox(height: Dimensions.spacingMedium),
             Text(
-              QyAppLocalizationKeys.values[mode['title']].tr(context),
-              style: TextStyles.body2.copyWith(
-                color: isSelected ? ThemeColors.primary : ThemeColors.textPrimary,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            SizedBox(height: Dimensions.spacingSmall),
-            Text(
-              mode['count'].toString(),
-              style: TextStyles.h3.copyWith(
-                color: isSelected ? ThemeColors.primary : ThemeColors.textSecondary,
+              count.toString(),
+              style: TextStyles.h4.copyWith(
+                color: isSelected
+                    ? ThemeColors.primary
+                    : ThemeColors.textSecondary,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStartButton() {
-    return Container(
-      padding: EdgeInsets.all(Dimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface,
-        border: Border(
-          top: BorderSide(color: ThemeColors.border),
-        ),
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: _handleStartListening,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: ThemeColors.primary,
-            padding: EdgeInsets.symmetric(vertical: Dimensions.paddingMedium),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-            ),
-            elevation: 2,
-          ),
-          child: Text(
-            QyAppLocalizationKeys.qyStartListening.tr(context),
-            style: TextStyles.button.copyWith(
-              color: ThemeColors.surface,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
         ),
       ),
     );

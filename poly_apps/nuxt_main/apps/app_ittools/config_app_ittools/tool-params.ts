@@ -143,6 +143,20 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
     { name: 'text', label: 'Text', type: 'textarea', required: true, placeholder: 'Enter text to encode...', rows: 6 }
   ],
 
+  base64_file_converter: [
+    { name: 'file', label: 'Upload File', type: 'file', required: true },
+    {
+      name: 'operation',
+      label: 'Operation',
+      type: 'select',
+      default: 'encode',
+      options: [
+        { value: 'encode', label: 'Encode to Base64' },
+        { value: 'decode', label: 'Decode from Base64' }
+      ]
+    }
+  ],
+
   url_encoder: [
     { name: 'text', label: 'Text to encode', type: 'textarea', required: true, placeholder: 'Enter text...', rows: 6 }
   ],
@@ -199,6 +213,54 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
         { value: 'celsius', label: 'Celsius (°C)' },
         { value: 'fahrenheit', label: 'Fahrenheit (°F)' },
         { value: 'kelvin', label: 'Kelvin (K)' }
+      ]
+    }
+  ],
+
+  date_time_converter: [
+    { name: 'datetime', label: 'Date & Time', type: 'text', required: true, placeholder: '2025-01-07T12:00:00Z' },
+    {
+      name: 'inputFormat',
+      label: 'Input Format',
+      type: 'select',
+      default: 'auto',
+      options: [
+        { value: 'auto', label: 'Auto detect' },
+        { value: 'iso', label: 'ISO 8601' },
+        { value: 'unix', label: 'Unix (seconds)' },
+        { value: 'unix_ms', label: 'Unix (milliseconds)' },
+        { value: 'rfc2822', label: 'RFC 2822' },
+        { value: 'custom', label: 'Custom format' }
+      ]
+    },
+    {
+      name: 'outputFormat',
+      label: 'Output Format',
+      type: 'select',
+      default: 'all',
+      options: [
+        { value: 'all', label: 'All representations' },
+        { value: 'iso', label: 'ISO 8601' },
+        { value: 'timestamp', label: 'Unix (seconds)' },
+        { value: 'unix', label: 'Unix (milliseconds)' },
+        { value: 'utc', label: 'UTC string' },
+        { value: 'locale', label: 'Locale string' },
+        { value: 'relative', label: 'Relative time' },
+        { value: 'custom', label: 'Custom pattern' }
+      ]
+    },
+    {
+      name: 'timezone',
+      label: 'Timezone',
+      type: 'select',
+      default: 'utc',
+      options: [
+        { value: 'utc', label: 'UTC' },
+        { value: 'local', label: 'Device local' },
+        { value: 'est', label: 'EST (UTC-5)' },
+        { value: 'pst', label: 'PST (UTC-8)' },
+        { value: 'gmt', label: 'GMT (UTC+0)' },
+        { value: 'cet', label: 'CET (UTC+1)' }
       ]
     }
   ],
@@ -386,21 +448,6 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
     { name: 'text', label: 'Text to convert', type: 'text', required: true, placeholder: 'internationalization' }
   ],
 
-  // Converter Tools (Next batch)
-  base64_file_converter: [
-    { name: 'file', label: 'File to convert', type: 'file', required: true },
-    {
-      name: 'mode',
-      label: 'Mode',
-      type: 'select',
-      default: 'encode',
-      options: [
-        { value: 'encode', label: 'Encode to Base64' },
-        { value: 'decode', label: 'Decode from Base64' }
-      ]
-    }
-  ],
-
   yaml_to_json_converter: [
     { name: 'yaml', label: 'YAML to convert', type: 'textarea', required: true, placeholder: 'Enter YAML...', rows: 8 }
   ],
@@ -415,6 +462,44 @@ export const TOOL_PARAMS: Record<string, ToolParam[]> = {
 
   json_to_xml_converter: [
     { name: 'json', label: 'JSON to convert', type: 'textarea', required: true, placeholder: 'Enter JSON...', rows: 8 }
+  ],
+
+  json_to_toml_converter: [
+    { name: 'json', label: 'JSON to convert', type: 'textarea', required: true, placeholder: '{"database":{"host":"localhost"}}', rows: 8 }
+  ],
+
+  toml_to_json_converter: [
+    { name: 'toml', label: 'TOML to convert', type: 'textarea', required: true, placeholder: '[database]\nhost = "localhost"', rows: 8 }
+  ],
+
+  toml_to_yaml_converter: [
+    { name: 'toml', label: 'TOML to convert', type: 'textarea', required: true, placeholder: '[database]\nhost = "localhost"', rows: 8 }
+  ],
+
+  yaml_to_toml_converter: [
+    { name: 'yaml', label: 'YAML to convert', type: 'textarea', required: true, placeholder: 'database:\n  host: localhost', rows: 8 }
+  ],
+
+  text_to_binary: [
+    { name: 'text', label: 'Text', type: 'textarea', required: true, placeholder: 'Enter text...', rows: 4 }
+  ],
+
+  text_to_unicode: [
+    { name: 'text', label: 'Text', type: 'textarea', required: true, placeholder: 'Enter text...', rows: 4 }
+  ],
+
+  text_to_nato_alphabet: [
+    { name: 'text', label: 'Text', type: 'textarea', required: true, placeholder: 'Enter text...', rows: 4 }
+  ],
+
+  integer_base_converter: [
+    { name: 'value', label: 'Value', type: 'text', required: true, placeholder: 'Enter number...' },
+    { name: 'fromBase', label: 'From Base', type: 'number', required: true, default: 10, min: 2, max: 36 },
+    { name: 'toBase', label: 'To Base', type: 'number', required: true, default: 2, min: 2, max: 36 }
+  ],
+
+  roman_numeral_converter: [
+    { name: 'value', label: 'Roman Numeral', type: 'text', required: true, placeholder: 'XIV' }
   ],
 
   markdown_to_html_converter: [

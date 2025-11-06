@@ -38,10 +38,9 @@ class AssetsIconsAppTravel {
 
   // PNG Background Images - Recommend Card Backgrounds
   static const String travelRecommendBg1 = '$_baseImages/icon_bg_1.png';
-  static const String travelRecommendBg2 = '$_baseImages/icon_bg_2.png';
-  static const String travelRecommendBg3 = '$_baseImages/icon_bg_3.png';
-  static const String travelRecommendBg4 = '$_baseImages/icon_bg_4.png';
-  static const String travelRecommendBg5 = '$_baseImages/icon_bg_5.png';
+
+  // Hotel Logo
+  static const String travelHotelLogo = '$_baseImages/hotel_title_logo.png';
 
   // Legacy Recommend Icons (for backward compatibility)
   static const String travelRecommendIconLegacy1 = '$_baseImages/recommend_icon_1.png';
@@ -78,10 +77,6 @@ class AssetsIconsAppTravel {
   static Map<String, String> getRecommendBackgrounds() {
     return {
       'travelRecommendBg1': travelRecommendBg1,
-      'travelRecommendBg2': travelRecommendBg2,
-      'travelRecommendBg3': travelRecommendBg3,
-      'travelRecommendBg4': travelRecommendBg4,
-      'travelRecommendBg5': travelRecommendBg5,
     };
   }
 

@@ -130,6 +130,51 @@ function New-NLLB200InteractiveScript {
         return
     }
 
+    $cacheDir = Join-Path $env:USERPROFILE ".core_node\.cache"
+    if (-not (Test-Path $cacheDir)) {
+        New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+    }
+
+    $batScriptPath = Join-Path $cacheDir "nllb200_translate.bat"
+    $batScript = @"
+@echo off
+chcp 65001 >nul
+echo ========================================
+echo   NLLB-200 Translation Tool
+echo   196 Languages Support
+echo ========================================
+echo.
+echo INSTRUCTIONS:
+echo 1. Enter source language code (e.g., en, zh, ja)
+echo 2. Enter target language code
+echo 3. Enter text to translate
+echo 4. Type 'exit' to end translation
+echo ========================================
+echo.
+echo Starting translator... Please wait...
+echo.
+$PythonCommand "$testScriptPath" --interactive
+echo.
+echo ========================================
+echo   Translation Ended
+echo ========================================
+echo.
+pause
+"@
+
+    $batScript | Out-File -FilePath $batScriptPath -Encoding ASCII
+
+    Write-Host "$SCRIPT_INDEX Interactive translation script generated at: $batScriptPath" -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX Opening in new command window..." -ForegroundColor Cyan
+    Write-Host ""
+
+    Start-Process -FilePath $batScriptPath
+
+    Write-Host "$SCRIPT_INDEX New window opened for interactive translation" -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX You can now test the translator in the new window" -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX This installation will continue..." -ForegroundColor Cyan
+    Write-Host ""
+
     Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX   USAGE EXAMPLES" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
@@ -137,16 +182,13 @@ function New-NLLB200InteractiveScript {
     Write-Host "$SCRIPT_INDEX NLLB-200 Translation Tool (196 Languages)" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "$SCRIPT_INDEX For interactive translation, run:" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX   $batScriptPath" -ForegroundColor White
+    Write-Host ""
+    Write-Host "$SCRIPT_INDEX Or manually run:" -ForegroundColor White
     Write-Host "$SCRIPT_INDEX   $PythonCommand `"$testScriptPath`" --interactive" -ForegroundColor White
     Write-Host ""
     Write-Host "$SCRIPT_INDEX For single translation test, run:" -ForegroundColor White
     Write-Host "$SCRIPT_INDEX   $PythonCommand `"$testScriptPath`"" -ForegroundColor White
-    Write-Host ""
-    Write-Host "$SCRIPT_INDEX INSTRUCTIONS:" -ForegroundColor Yellow
-    Write-Host "$SCRIPT_INDEX 1. Enter source language code (e.g., en, zh, ja)" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX 2. Enter target language code" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX 3. Enter text to translate" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX 4. Type 'exit' to end translation" -ForegroundColor White
     Write-Host ""
 }
 

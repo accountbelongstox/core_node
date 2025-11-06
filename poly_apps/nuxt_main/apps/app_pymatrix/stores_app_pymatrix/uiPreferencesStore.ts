@@ -39,7 +39,7 @@ export const useUIPreferencesStore = defineStore('uiPreferences', {
 
     isAutoColumns: (state) => state.preferences.gridLayout.columns === 0,
 
-    // Get effective columns for a given device count
+    // Get effective columns for a given device count (legacy fallback)
     getEffectiveColumns: (state) => (deviceCount: number): number => {
       if (state.preferences.gridLayout.columns > 0) {
         return state.preferences.gridLayout.columns;
@@ -49,13 +49,15 @@ export const useUIPreferencesStore = defineStore('uiPreferences', {
       if (deviceCount <= 4) return 2;
       if (deviceCount <= 9) return 3;
       if (deviceCount <= 16) return 4;
-      return 5;
+      if (deviceCount <= 25) return 6;
+      if (deviceCount <= 49) return 8;
+      return 10;
     }
   },
 
   actions: {
     setGridColumns(columns: number) {
-      if (columns < 0 || columns > 5) {
+      if (columns < 0 || columns > 12) {
         console.error('[UIPreferencesStore] Invalid column count:', columns);
         return;
       }

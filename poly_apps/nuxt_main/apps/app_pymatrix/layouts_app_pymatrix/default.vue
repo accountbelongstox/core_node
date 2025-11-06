@@ -26,17 +26,21 @@
         @toggle-theme="handleToggleTheme"
       />
 
-      <div class="pm-app__main">
+      <div class="pm-app__main" :style="gridColumnsStyle">
         <!-- ✅ PyMatrix uses ITS OWN left panel (NOT layout-sidebar) -->
-        <PyMatrixLeftPanel
-          :devices="deviceStore.deviceList"
-          :selected-serial="deviceStore.selectedSerial"
-          :group-enabled="groupStore.enabled"
-          :host-serial="groupStore.hostSerial"
-          @select-device="deviceStore.selectDevice"
-          @set-host="handleSetHost"
-          @remove-from-group="handleRemoveFromGroup"
-        />
+        <transition name="pm-slide-left">
+          <PyMatrixLeftPanel
+            v-if="showLeftPanel"
+            class="pm-side-panel pm-side-panel--left"
+            :devices="deviceStore.deviceList"
+            :selected-serial="deviceStore.selectedSerial"
+            :group-enabled="groupStore.enabled"
+            :host-serial="groupStore.hostSerial"
+            @select-device="deviceStore.selectDevice"
+            @set-host="handleSetHost"
+            @remove-from-group="handleRemoveFromGroup"
+          />
+        </transition>
 
         <!-- Main content area - pages go here -->
         <div class="pm-app__content">
@@ -44,15 +48,42 @@
         </div>
 
         <!-- ✅ PyMatrix uses ITS OWN right panel -->
-        <PyMatrixRightPanel
-          :selected-device="deviceStore.selectedDevice || deviceStore.deviceList[0]"
-          :group-enabled="groupStore.enabled"
-          :host-device="hostDevice"
-          :device-count="groupStore.deviceCount"
-          @system-key="handleSystemKey"
-          @send-text="handleSendText"
-        />
+        <transition name="pm-slide-right">
+          <PyMatrixRightPanel
+            v-if="showRightPanel"
+            class="pm-side-panel pm-side-panel--right"
+            :selected-device="deviceStore.selectedDevice || deviceStore.deviceList[0]"
+            :group-enabled="groupStore.enabled"
+            :host-device="hostDevice"
+            :device-count="groupStore.deviceCount"
+            @system-key="handleSystemKey"
+            @send-text="handleSendText"
+          />
+        </transition>
       </div>
+
+      <!-- Side panel toggles -->
+      <button
+        class="pm-panel-toggle pm-panel-toggle--left"
+        type="button"
+        :style="leftToggleStyle"
+        :aria-expanded="showLeftPanel"
+        @click="toggleLeftPanel"
+      >
+        <span v-if="showLeftPanel">⟨</span>
+        <span v-else>⟩</span>
+      </button>
+
+      <button
+        class="pm-panel-toggle pm-panel-toggle--right"
+        type="button"
+        :style="rightToggleStyle"
+        :aria-expanded="showRightPanel"
+        @click="toggleRightPanel"
+      >
+        <span v-if="showRightPanel">⟩</span>
+        <span v-else>⟨</span>
+      </button>
 
       <!-- Dialogs -->
       <PyMatrixConnectDialog
@@ -122,6 +153,11 @@ const showConnectDialog = ref(false);
 const showSettings = ref(false);
 const showShortcutsHelp = ref(false);
 const showConnectionHistory = ref(false);
+const showLeftPanel = ref(true);
+const showRightPanel = ref(true);
+
+const LEFT_PANEL_WIDTH = 300;
+const RIGHT_PANEL_WIDTH = 320;
 
 const applyThemeToDocument = (mode: ThemeMode) => {
   if (typeof document !== 'undefined') {
@@ -139,6 +175,31 @@ const handleToggleTheme = () => {
   const nextTheme: ThemeMode = uiPreferencesStore.theme === 'dark' ? 'light' : 'dark';
   uiPreferencesStore.setTheme(nextTheme);
 };
+
+const toggleLeftPanel = () => {
+  showLeftPanel.value = !showLeftPanel.value;
+};
+
+const toggleRightPanel = () => {
+  showRightPanel.value = !showRightPanel.value;
+};
+
+const gridColumnsStyle = computed(() => {
+  const leftWidth = showLeftPanel.value ? `${LEFT_PANEL_WIDTH}px` : '0px';
+  const rightWidth = showRightPanel.value ? `${RIGHT_PANEL_WIDTH}px` : '0px';
+
+  return {
+    gridTemplateColumns: `${leftWidth} minmax(0, 1fr) ${rightWidth}`
+  };
+});
+
+const leftToggleStyle = computed(() => ({
+  left: showLeftPanel.value ? `${LEFT_PANEL_WIDTH}px` : '0px'
+}));
+
+const rightToggleStyle = computed(() => ({
+  right: showRightPanel.value ? `${RIGHT_PANEL_WIDTH}px` : '0px'
+}));
 
 const hostDevice = computed(() => {
   if (!groupStore.hostSerial) return null;
@@ -543,7 +604,7 @@ body {
 
 .pm-app__container {
   width: 100%;
-  max-width: 1920px;
+  max-width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -561,6 +622,8 @@ body {
   grid-template-columns: 300px minmax(0, 1fr) 320px;
   gap: var(--pm-space-xl);
   align-items: stretch;
+  transition: grid-template-columns 0.3s ease;
+  position: relative;
 }
 
 .pm-app__content {
@@ -569,31 +632,94 @@ body {
   background: var(--pm-color-surface);
   border: 1px solid var(--pm-color-border-soft);
   box-shadow: var(--pm-shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.pm-side-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.pm-panel-toggle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 72px;
+  border-radius: 0 var(--pm-radius-lg) var(--pm-radius-lg) 0;
+  border: 1px solid var(--pm-color-border-soft);
+  background: rgba(10, 14, 30, 0.75);
+  color: var(--pm-text-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 5;
+  transition: background 0.3s ease, color 0.3s ease, opacity 0.3s ease;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35);
+}
+
+.pm-panel-toggle:hover {
+  background: rgba(124, 92, 255, 0.85);
+  color: #fff;
+}
+
+.pm-panel-toggle:focus-visible {
+  outline: 2px solid rgba(124, 92, 255, 0.9);
+  outline-offset: 3px;
+}
+
+.pm-panel-toggle--left {
+  left: 0;
+  border-radius: 0 var(--pm-radius-lg) var(--pm-radius-lg) 0;
+}
+
+.pm-panel-toggle--right {
+  right: 0;
+  border-radius: var(--pm-radius-lg) 0 0 var(--pm-radius-lg);
+}
+
+.pm-panel-toggle[aria-expanded="false"] {
+  opacity: 0.75;
+}
+
+.pm-slide-left-enter-active,
+.pm-slide-left-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.pm-slide-left-enter-from,
+.pm-slide-left-leave-to {
+  transform: translateX(-12px);
+  opacity: 0;
+}
+
+.pm-slide-right-enter-active,
+.pm-slide-right-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.pm-slide-right-enter-from,
+.pm-slide-right-leave-to {
+  transform: translateX(12px);
+  opacity: 0;
 }
 
 @media (max-width: 1536px) {
   .pm-app__container {
     padding: var(--pm-space-lg);
   }
-
-  .pm-app__main {
-    grid-template-columns: 280px minmax(0, 1fr) 300px;
-  }
-}
-
-@media (max-width: 1280px) {
-  .pm-app__main {
-    grid-template-columns: 260px minmax(0, 1fr);
-  }
 }
 
 @media (max-width: 1100px) {
   .pm-app__container {
     gap: var(--pm-space-lg);
-  }
-
-  .pm-app__main {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

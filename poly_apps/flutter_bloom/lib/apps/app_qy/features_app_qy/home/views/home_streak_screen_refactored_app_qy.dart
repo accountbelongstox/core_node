@@ -1,0 +1,419 @@
+// ### AI SPECIAL ATTENTION RULES START ###
+// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// 1. Write all code in English only.
+// 2. Never execute, create, or modify test code.
+// 3. Never create or update documentation (*.md).
+// 4. Never write summaries during development or thinking process.
+// 5. Declare all variables at the beginning of the file.
+// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+// 7. Do not modify these rules.
+// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// ### AI SPECIAL ATTENTION RULES END ###
+
+library;
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import '../../../../../../common/theme/base/theme_colors.dart';
+import '../../../../../../common/theme/base/theme_dimensions.dart';
+import '../../../../../../common/theme/base/theme_text_styles.dart';
+import '../../../../../../common/localization/localization_manager.dart';
+import '../../../localization_app_qy/localization_keys_app_qy.dart';
+import '../controllers/home_controller_app_qy.dart';
+
+class HomeStreakScreenRefactoredAppQy extends StatefulWidget {
+  const HomeStreakScreenRefactoredAppQy({super.key});
+
+  @override
+  State<HomeStreakScreenRefactoredAppQy> createState() =>
+      _HomeStreakScreenRefactoredAppQyState();
+}
+
+class _HomeStreakScreenRefactoredAppQyState
+    extends State<HomeStreakScreenRefactoredAppQy> {
+  int _currentStreak = 0;
+  int _longestStreak = 0;
+  int _totalDays = 0;
+  final Map<String, bool> _streakCalendar = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _initStreakData();
+  }
+
+  void _initStreakData() {
+    _currentStreak = 15;
+    _longestStreak = 32;
+    _totalDays = 87;
+
+    final now = DateTime.now();
+    for (int i = 0; i < 30; i++) {
+      final date = now.subtract(Duration(days: i));
+      final key = DateFormat('yyyy-MM-dd').format(date);
+      _streakCalendar[key] = i < 15;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ThemeColors.background,
+      appBar: AppBar(
+        title: Text(
+          QyAppLocalizationKeys.qyStreak.tr(context),
+          style: TextStyles.h3.copyWith(color: ThemeColors.textPrimary),
+        ),
+        backgroundColor: ThemeColors.surface,
+        elevation: 0,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back, color: ThemeColors.textPrimary),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(Dimensions.paddingMedium),
+        child: Column(
+          children: [
+            _buildStreakCard(),
+            SizedBox(height: Dimensions.spacingLarge),
+            _buildStatsCards(),
+            SizedBox(height: Dimensions.spacingLarge),
+            _buildCalendar(),
+            SizedBox(height: Dimensions.spacingLarge),
+            _buildStreakTips(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStreakCard() {
+    return Container(
+      padding: EdgeInsets.all(Dimensions.paddingLarge * 2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.orange,
+            Colors.orange.shade700,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.local_fire_department,
+            size: 80,
+            color: Colors.white,
+          ),
+          SizedBox(height: Dimensions.spacingLarge),
+          Text(
+            QyAppLocalizationKeys.qyCurrentStreak.tr(context),
+            style: TextStyles.body1.copyWith(
+              color: Colors.white.withOpacity(0.9),
+            ),
+          ),
+          SizedBox(height: Dimensions.spacingSmall),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$_currentStreak',
+                style: TextStyle(
+                  fontSize: 64,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(width: Dimensions.spacingSmall),
+              Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Text(
+                  QyAppLocalizationKeys.qyDays.tr(context),
+                  style: TextStyles.h4.copyWith(
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Dimensions.spacingMedium),
+          Text(
+            QyAppLocalizationKeys.qyKeepItUp.tr(context),
+            style: TextStyles.body2.copyWith(
+              color: Colors.white.withOpacity(0.9),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsCards() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            Icons.military_tech,
+            QyAppLocalizationKeys.qyLongestStreak.tr(context),
+            '$_longestStreak ${QyAppLocalizationKeys.qyDays.tr(context)}',
+            Colors.purple,
+          ),
+        ),
+        SizedBox(width: Dimensions.spacingMedium),
+        Expanded(
+          child: _buildStatCard(
+            Icons.calendar_today,
+            QyAppLocalizationKeys.qyTotalDays.tr(context),
+            '$_totalDays ${QyAppLocalizationKeys.qyDays.tr(context)}',
+            Colors.blue,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(IconData icon, String label, String value, Color color) {
+    return Container(
+      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        border: Border.all(color: ThemeColors.border),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(Dimensions.paddingSmall),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+          SizedBox(height: Dimensions.spacingMedium),
+          Text(
+            value,
+            style: TextStyles.h4.copyWith(
+              color: ThemeColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: Dimensions.spacingXSmall),
+          Text(
+            label,
+            style: TextStyles.caption.copyWith(
+              color: ThemeColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendar() {
+    return Container(
+      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface,
+        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        border: Border.all(color: ThemeColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            QyAppLocalizationKeys.qyActivityCalendar.tr(context),
+            style: TextStyles.h4.copyWith(
+              color: ThemeColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: Dimensions.spacingLarge),
+          _buildCalendarGrid(),
+          SizedBox(height: Dimensions.spacingMedium),
+          _buildCalendarLegend(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarGrid() {
+    final now = DateTime.now();
+    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: weekdays.map((day) {
+            return SizedBox(
+              width: 36,
+              child: Text(
+                day,
+                style: TextStyles.caption.copyWith(
+                  color: ThemeColors.textTertiary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            );
+          }).toList(),
+        ),
+        SizedBox(height: Dimensions.spacingSmall),
+        ...List.generate(4, (weekIndex) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: Dimensions.spacingSmall),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(7, (dayIndex) {
+                final daysAgo = (3 - weekIndex) * 7 + (6 - dayIndex);
+                final date = now.subtract(Duration(days: daysAgo));
+                final key = DateFormat('yyyy-MM-dd').format(date);
+                final isActive = _streakCalendar[key] ?? false;
+
+                return Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? Colors.orange.withOpacity(0.8)
+                        : ThemeColors.background,
+                    borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                    border: Border.all(
+                      color: isActive ? Colors.orange : ThemeColors.border,
+                    ),
+                  ),
+                  child: Center(
+                    child: isActive
+                        ? Icon(
+                            Icons.local_fire_department,
+                            size: 16,
+                            color: Colors.white,
+                          )
+                        : null,
+                  ),
+                );
+              }),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildCalendarLegend() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(Dimensions.radiusXSmall),
+          ),
+        ),
+        SizedBox(width: Dimensions.spacingSmall),
+        Text(
+          QyAppLocalizationKeys.qyStudied.tr(context),
+          style: TextStyles.caption.copyWith(
+            color: ThemeColors.textSecondary,
+          ),
+        ),
+        SizedBox(width: Dimensions.spacingMedium),
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: ThemeColors.background,
+            borderRadius: BorderRadius.circular(Dimensions.radiusXSmall),
+            border: Border.all(color: ThemeColors.border),
+          ),
+        ),
+        SizedBox(width: Dimensions.spacingSmall),
+        Text(
+          QyAppLocalizationKeys.qyNoActivity.tr(context),
+          style: TextStyles.caption.copyWith(
+            color: ThemeColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStreakTips() {
+    return Container(
+      padding: EdgeInsets.all(Dimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: ThemeColors.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
+        border: Border.all(color: ThemeColors.primary.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.lightbulb, color: ThemeColors.primary, size: 24),
+              SizedBox(width: Dimensions.spacingSmall),
+              Text(
+                QyAppLocalizationKeys.qyStreakTips.tr(context),
+                style: TextStyles.body1.copyWith(
+                  color: ThemeColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Dimensions.spacingMedium),
+          _buildTipItem(QyAppLocalizationKeys.qyTip1.tr(context)),
+          SizedBox(height: Dimensions.spacingSmall),
+          _buildTipItem(QyAppLocalizationKeys.qyTip2.tr(context)),
+          SizedBox(height: Dimensions.spacingSmall),
+          _buildTipItem(QyAppLocalizationKeys.qyTip3.tr(context)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTipItem(String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: EdgeInsets.only(top: 6),
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: ThemeColors.primary,
+            shape: BoxShape.circle,
+          ),
+        ),
+        SizedBox(width: Dimensions.spacingSmall),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyles.body2.copyWith(
+              color: ThemeColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
