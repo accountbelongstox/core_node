@@ -357,7 +357,7 @@ os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 print('[TEST] Loading VLChatProcessor...')
 from deepseek_vl.models import VLChatProcessor
 
-model_path = 'deepseek-ai/deepseek-vl-1.3b-chat'
+model_path = 'deepseek-ai/deepseek-vl-7b-chat'
 print(f'[INFO] Model path: {model_path}')
 print('[INFO] Note: First run will download model from HuggingFace')
 print('[INFO] Download timeout: 3600s (1 hour)')
@@ -380,7 +380,7 @@ print('[OK] Conversation structure is valid')
 
 print('')
 print('[SUCCESS] ========================================')
-print('[SUCCESS]   DeepSeek-VL 1.3B is ready!')
+print('[SUCCESS]   DeepSeek-VL 7B is ready!')
 print('[SUCCESS] ========================================')
 "@
 
@@ -399,18 +399,60 @@ print('[SUCCESS] ========================================')
         Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Green
         Write-Host ""
 
+        $cacheDir = Join-Path $env:USERPROFILE ".core_node\.cache"
+        if (-not (Test-Path $cacheDir)) {
+            New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+        }
+
+        $batScriptPath = Join-Path $cacheDir "deepseek_vl_chat.bat"
+        $batScript = @"
+@echo off
+chcp 65001 >nul
+echo ========================================
+echo   DeepSeek-VL 7B Interactive Chat
+echo ========================================
+echo.
+echo INSTRUCTIONS:
+echo 1. Wait for 'User:' prompt to appear
+echo 2. Type your question and press Enter
+echo 3. Type 'exit' or 'quit' to end chat
+echo ========================================
+echo.
+echo Starting model... Please wait...
+echo.
+cd /d "$InstallDirectory"
+$PythonCommand cli_chat.py --model_path "deepseek-ai/deepseek-vl-7b-chat"
+echo.
+echo ========================================
+echo   Chat Ended
+echo ========================================
+echo.
+pause
+"@
+
+        $batScript | Out-File -FilePath $batScriptPath -Encoding ASCII
+
+        Write-Host "$SCRIPT_INDEX Interactive chat script generated at: $batScriptPath" -ForegroundColor Cyan
+        Write-Host "$SCRIPT_INDEX Opening in new command window..." -ForegroundColor Cyan
+        Write-Host ""
+
+        Start-Process -FilePath $batScriptPath
+
+        Write-Host "$SCRIPT_INDEX New window opened for interactive chat" -ForegroundColor Green
+        Write-Host "$SCRIPT_INDEX You can now test the model in the new window" -ForegroundColor Green
+        Write-Host "$SCRIPT_INDEX This installation will continue..." -ForegroundColor Cyan
+        Write-Host ""
+
         Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
         Write-Host "$SCRIPT_INDEX   USAGE EXAMPLES" -ForegroundColor Cyan
         Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "$SCRIPT_INDEX To test DeepSeek-VL interactively, run:" -ForegroundColor White
-        Write-Host "$SCRIPT_INDEX   cd `"$InstallDirectory`"" -ForegroundColor White
-        Write-Host "$SCRIPT_INDEX   python cli_chat.py --model_path `"deepseek-ai/deepseek-vl-1.3b-chat`"" -ForegroundColor White
+        Write-Host "$SCRIPT_INDEX   $batScriptPath" -ForegroundColor White
         Write-Host ""
-        Write-Host "$SCRIPT_INDEX INSTRUCTIONS:" -ForegroundColor Yellow
-        Write-Host "$SCRIPT_INDEX 1. Wait for 'User:' prompt to appear" -ForegroundColor White
-        Write-Host "$SCRIPT_INDEX 2. Type your question and press Enter" -ForegroundColor White
-        Write-Host "$SCRIPT_INDEX 3. Type 'exit' or 'quit' to end chat" -ForegroundColor White
+        Write-Host "$SCRIPT_INDEX Or manually run:" -ForegroundColor White
+        Write-Host "$SCRIPT_INDEX   cd `"$InstallDirectory`"" -ForegroundColor White
+        Write-Host "$SCRIPT_INDEX   python cli_chat.py --model_path `"deepseek-ai/deepseek-vl-7b-chat`"" -ForegroundColor White
         Write-Host ""
         Write-Host "$SCRIPT_INDEX For more information, check: $InstallDirectory" -ForegroundColor White
         Write-Host ""

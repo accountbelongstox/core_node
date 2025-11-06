@@ -314,6 +314,64 @@ function Test-DeepSeekOCRInstallation {
     Write-Host "$SCRIPT_INDEX DeepSeek-OCR is ready to use!" -ForegroundColor Green
     Write-Host ""
 
+    $cacheDir = Join-Path $env:USERPROFILE ".core_node\.cache"
+    if (-not (Test-Path $cacheDir)) {
+        New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+    }
+
+    $batScriptPath = Join-Path $cacheDir "deepseek_ocr_usage.bat"
+    $batScript = @"
+@echo off
+chcp 65001 >nul
+echo ========================================
+echo   DeepSeek-OCR Usage Guide
+echo ========================================
+echo.
+echo This script shows you how to use DeepSeek-OCR
+echo.
+echo Press any key to see usage examples...
+pause >nul
+echo.
+echo ========================================
+echo   USAGE EXAMPLES
+echo ========================================
+echo.
+echo 1. HuggingFace Transformers (Basic):
+echo    cd /d "$InstallDirectory\DeepSeek-OCR-master\DeepSeek-OCR-hf"
+echo    python run_dpsk_ocr.py
+echo.
+echo 2. vLLM (Better Performance):
+echo    cd /d "$InstallDirectory\DeepSeek-OCR-master\DeepSeek-OCR-vllm"
+echo    python run_dpsk_ocr_image.py
+echo.
+echo ========================================
+echo   SUPPORTED MODES
+echo ========================================
+echo.
+echo - Native resolution: 512x512, 640x640, 1024x1024, 1280x1280
+echo - Dynamic resolution: Gundam mode
+echo - OCR, Document to Markdown, Figure parsing
+echo.
+echo ========================================
+echo.
+echo For more information, check the README in:
+echo $InstallDirectory
+echo.
+pause
+"@
+
+    $batScript | Out-File -FilePath $batScriptPath -Encoding ASCII
+
+    Write-Host "$SCRIPT_INDEX Usage guide script generated at: $batScriptPath" -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX Opening usage guide..." -ForegroundColor Cyan
+    Write-Host ""
+
+    Start-Process -FilePath $batScriptPath
+
+    Write-Host "$SCRIPT_INDEX Usage guide opened in new window" -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX You can refer to it for usage examples" -ForegroundColor Green
+    Write-Host ""
+
     Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX   USAGE EXAMPLES" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
@@ -326,12 +384,7 @@ function Test-DeepSeekOCRInstallation {
     Write-Host "$SCRIPT_INDEX    cd /d `"$InstallDirectory\DeepSeek-OCR-master\DeepSeek-OCR-vllm`"" -ForegroundColor White
     Write-Host "$SCRIPT_INDEX    python run_dpsk_ocr_image.py" -ForegroundColor White
     Write-Host ""
-    Write-Host "$SCRIPT_INDEX SUPPORTED MODES:" -ForegroundColor Yellow
-    Write-Host "$SCRIPT_INDEX - Native resolution: 512x512, 640x640, 1024x1024, 1280x1280" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX - Dynamic resolution: Gundam mode" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX - OCR, Document to Markdown, Figure parsing" -ForegroundColor White
-    Write-Host ""
-    Write-Host "$SCRIPT_INDEX For more information, check the README in: $InstallDirectory" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX For more information, check: $InstallDirectory" -ForegroundColor White
     Write-Host ""
 
     return $true
